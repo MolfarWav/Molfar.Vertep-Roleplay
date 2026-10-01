@@ -321,6 +321,28 @@
   text-underline-offset: 3px;
 }
 
+/* Per-theme heading colors. Only presets that define them (Neon Tokyo
+   Night) recolor headings — every other theme falls back to inherit and
+   renders exactly as before. The glow uses the same var with a transparent
+   fallback, so it is a no-op wherever no heading color is set. */
+.mes_text h1 {
+  color: var(--tap-h1, inherit);
+  text-shadow: 0 0 14px var(--tap-h1, transparent);
+}
+.mes_text h2 {
+  color: var(--tap-h2, inherit);
+  text-shadow: 0 0 12px var(--tap-h2, transparent);
+}
+.mes_text h3 {
+  color: var(--tap-h3, inherit);
+  text-shadow: 0 0 10px var(--tap-h3, transparent);
+}
+/* Section titles (Characters, All chats, Chrysalis…) follow H1 so the
+   whole app reads as one theme. Muted h2/h3 subheaders keep their tone. */
+h1 {
+  color: var(--tap-h1, inherit);
+}
+
 
 /* Swipe transitions: the whole message row (and every row below it) slides
    fully off-screen — translate by the row's own width — then the content

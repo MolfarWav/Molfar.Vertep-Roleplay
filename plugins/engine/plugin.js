@@ -488,24 +488,81 @@ function loadMemories(fsx, chatId) {
 function saveMemories(fsx, chatId, list) {
   fsx.write("chats/" + chatId + ".memories.json", JSON.stringify(list, null, 2) + "\n");
 }
+// ---------- cyrillic-safe text matching (skill: cyrillic-text-matching) ----------
+// norm/tokens/stem/sameWord/matches replace the old toLowerCase+includes
+// matching: apostrophe variants + ё/NFC folded, stop words dropped,
+// inflections matched by stem, short keys by whole token only.
+const MEM_APOS = /['’ʼ‘`´ʹ′]/g;
+const MEM_STOP = new Set([...DB_STOPWORDS, ...(
+  "і й та а але або що це як так не ні ж же би б бо в у на до з із зі за від для по про при під над між через щоб " +
+  "коли де там тут вже ще теж також лише тільки дуже його її їх їй йому він вона воно вони ми ви я ти мене тебе себе " +
+  "мій моя моє мої твій твоя свій своя цей ця ці той те був була було були є буде бути може треба " +
+  "и во что он она оно они с со как то все так его ее но да к вы бы только мне вот от меня еще нет о из ему когда даже " +
+  "ну ли если уже или ни быть был него вас ведь потом себя ничего ей тут где есть надо ней мы тебя чем сам без " +
+  "чего раз тоже под кто этот того потому этого какой здесь этом мой тем чтобы сейчас"
+).split(" ")]);
+function norm(s) {
+  return String(s).normalize("NFD").replace(/́/g, "").normalize("NFC")
+    .toLowerCase().replace(MEM_APOS, "'").replace(/ё/g, "е");
+}
+function tokens(s) {
+  return norm(s).split(/[^\p{L}\p{N}']+/u)
+    .map((t) => t.replace(/^'+|'+$/g, ""))
+    .filter((t) => t && !MEM_STOP.has(t));
+}
+const MEM_SUFFIX = /(ами|ями|ові|еві|ого|ому|ими|ему|ій|ої|ою|ею|ях|ах|ів|ям|ам|ом|ем|им|их|ий|ый|ая|яя|ое|ее|ую|юю|ов|ев|ей|ы|и|і|а|я|у|ю|о|е|ь|й)$/;
+function stem(t) {
+  if (t.length <= 3) return t;
+  const s = t.replace(MEM_SUFFIX, "");
+  return s.length >= 3 ? s : t;
+}
+/** Two tokens are the same word: short ones exactly, longer ones by stem. */
+function sameWord(a, b) {
+  if (a.length <= 3 || b.length <= 3) return a === b;
+  const x = stem(a), y = stem(b);
+  if (x === y) return true;
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  return s.length >= 4 && l.startsWith(s) && l.length - s.length <= 2;
+}
+/** Every word of the key appears in the text, in any order. */
+function matches(key, text) {
+  const k = tokens(key), t = tokens(text);
+  return k.length > 0 && k.every((kw) => t.some((tw) => sameWord(kw, tw)));
+}
 /** Which memories ride the prompt: pinned entries always, the rest by term
  *  density against the recent window (the same retrieval family as the data
  *  bank) with importance breaking ties, inside a character budget. */
 function recallMemories(list, scanText, budgetChars, maxEntries, scanVec) {
-  const low = String(scanText || "").toLowerCase();
   const picked = list.filter((e) => e.pinned === true);
   let used = picked.reduce((a, e) => a + e.text.length, 0);
+  const scanToks = tokens(scanText || "");
+  // rarity over the vault: a word seen in few memories (a name) outranks
+  // one seen everywhere. df counts memories containing the stem.
+  const df = new Map();
+  const entryKeys = new Map();
+  for (const e of list) {
+    if (e.pinned === true) continue;
+    const keys = [...new Set(tokens(String(e.text || "")))];
+    entryKeys.set(e, keys);
+    for (const w of new Set(keys.map(stem))) df.set(w, (df.get(w) || 0) + 1);
+  }
+  const n = Math.max(1, entryKeys.size);
   const scored = [];
   for (const e of list) {
     if (e.pinned === true) continue;
     const imp = typeof e.importance === "number" ? e.importance : 3;
-    // hybrid: lexical term density and (when vectors exist on both sides)
+    // hybrid: lexical stem match and (when vectors exist on both sides)
     // cosine similarity — either can qualify a memory, the best score wins
     let score = null;
-    const words = String(e.text).toLowerCase().match(/[a-z0-9']{4,}/g) || [];
-    const keys = [...new Set(words.filter((w) => !DB_STOPWORDS.has(w)))];
-    const hits = keys.length ? keys.filter((w) => low.includes(w)).length : 0;
-    if (hits > 0) score = hits * 10 + imp;
+    const keys = entryKeys.get(e) || [];
+    let lex = 0, matched = 0;
+    for (const kw of keys) {
+      if (scanToks.some((tw) => sameWord(kw, tw))) {
+        matched++;
+        lex += 10 * Math.log(1 + n / (df.get(stem(kw)) || 1));
+      }
+    }
+    if (matched > 0) score = lex + imp;
     if (scanVec && Array.isArray(e.vector)) {
       const c = cosine(e.vector, scanVec);
       if (c != null) {
@@ -554,7 +611,7 @@ function parseMemoriesReply(text) {
 }
 /** Append extracted facts, dropping near-duplicates of what the vault holds. */
 function mergeMemories(existing, incoming) {
-  const norm = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const norm = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const out = [...existing];
   const added = [];
   for (const inc of incoming) {

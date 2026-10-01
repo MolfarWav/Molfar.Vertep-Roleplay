@@ -24,6 +24,14 @@ const SNIPPETS: { name: string; css: string }[] = [
     name: "Flat message rows",
     css: `.group\\/msg > div {\n  border-color: transparent;\n  background: transparent;\n}`,
   },
+  {
+    name: "Neon headings · cyan lead",
+    css: `html {\n  --tap-h1: #22d3ee !important;\n  --tap-h2: #ff2e88 !important;\n  --tap-h3: #a78bfa !important;\n}`,
+  },
+  {
+    name: "Neon headings · violet lead",
+    css: `html {\n  --tap-h1: #a78bfa !important;\n  --tap-h2: #22d3ee !important;\n  --tap-h3: #ff2e88 !important;\n}`,
+  },
 ]
 
 /** Cheap balance check — catches the mistake that silently kills a stylesheet. */

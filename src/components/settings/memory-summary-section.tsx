@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ModelPicker } from '@/components/settings/model-picker'
 import { useApp } from '@/lib/store'
 import { DEFAULT_SUMMARY_PROMPT } from '@/lib/seed'
 import { embedConfig, embedStatus, setEmbedConfig } from '@/lib/engine'
@@ -20,18 +21,15 @@ export function MemorySummarySection() {
   const summary = useApp((s) => s.settings.summary)
   const memory = useApp((s) => s.settings.memory)
   const updateSettings = useApp((s) => s.updateSettings)
-  const models = useApp((s) => s.models)
   const set = (patch: Partial<typeof summary>) => updateSettings({ summary: { ...summary, ...patch } })
   const setMemory = (patch: Partial<typeof memory>) => updateSettings({ memory: { ...memory, ...patch } })
   const [embed, setEmbed] = useState<{ ok: boolean; via: string | null } | null>(null)
   const [embedModel, setEmbedModel] = useState('text-embedding-3-small')
   useEffect(() => { void embedStatus().then(setEmbed); void embedConfig().then((c) => setEmbedModel(c.model)) }, [])
 
-  // a chosen model whose connection is gone still shows, rather than the
-  // picker silently reading "the chat's model"
+  // a chosen model whose connection is gone still shows inside the picker,
+  // rather than the row silently reading "the chat's model"
   const memoryModel = memory.model ?? ''
-  const modelRefs = models.map((m) => m.ref)
-  if (memoryModel && !modelRefs.includes(memoryModel)) modelRefs.unshift(memoryModel)
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -40,15 +38,11 @@ export function MemorySummarySection() {
           <p className="text-sm font-medium">Memory model</p>
           <p className="text-xs text-muted-foreground">Writes summaries and finds facts. A cheaper one saves money.</p>
         </div>
-        <Select value={memoryModel || 'chat'} onValueChange={(v) => v && setMemory({ model: v === 'chat' ? '' : v })}>
-          <SelectTrigger aria-label="Memory model"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="chat">The chat's model</SelectItem>
-            {modelRefs.map((ref) => (
-              <SelectItem key={ref} value={ref}>{ref}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ModelPicker
+          value={memoryModel}
+          onChange={(v) => setMemory({ model: v })}
+          ariaLabel="Memory model"
+        />
       </div>
 
       <div className="flex flex-col gap-4 rounded-md border border-border p-3">

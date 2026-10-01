@@ -1,3 +1,12 @@
+> **Molfar Vertep fork.** This is the Roleplay app as shipped with
+> [Molfar Vertep](https://github.com/MolfarWav/Molfar.Vertep), a fork of
+> Chrysalis Engine. It is forked from
+> [ProjectChrysalis/Roleplay-Chrysalis](https://github.com/ProjectChrysalis/Roleplay-Chrysalis)
+> and licensed under the same AGPL-3.0 (see `LICENSE`). Molfar Vertep installs
+> and updates Roleplay from this repository only.
+>
+> Changes from upstream are listed in `CHANGELOG.md`. The upstream README follows.
+
 # Roleplay
 
 **A roleplay studio for power users, built as a Chrysalis app.**

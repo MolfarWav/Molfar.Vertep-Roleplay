@@ -142,6 +142,9 @@ export const seedThemes: ThemePreset[] = [
   { id: 'theme_charcoal', name: 'Charcoal', builtin: true, colors: { mainText: '#e6e6e6', italics: '#9d9d9d', quotes: '#54d17d', shadow: '#000000', chatBg: '#141414', uiBg: '#191919', borders: '#2b2b2b', userTint: '#202020', charTint: '#191919', accent: '#54d17d' } },
   { id: 'theme_daylight', name: 'Daylight', builtin: true, colors: { mainText: '#161616', italics: '#6b6b6b', quotes: '#1f6fb5', shadow: '#d4d4d4', chatBg: '#fafafa', uiBg: '#ffffff', borders: '#e0e0e0', userTint: '#f1f1f2', charTint: '#ffffff', accent: '#2eaf5a' } },
   { id: 'theme_ash', name: 'Ash', builtin: false, colors: { mainText: '#e8e6e3', italics: '#a09c96', quotes: '#d8a657', shadow: '#000000', chatBg: '#161514', uiBg: '#1c1b1a', borders: '#2f2d2b', userTint: '#232120', charTint: '#1c1b1a', accent: '#c98a3f' } },
+  // Neon Tokyo Night — deep indigo night, cyan dialogue, pink neon accents.
+  // Heading colors ride alongside: pink H1, cyan H2, violet H3.
+  { id: 'theme_neon_tokyo', name: 'Neon Tokyo Night', builtin: false, colors: { mainText: '#e8e8f5', italics: '#8b8bb0', quotes: '#22d3ee', shadow: '#000000', chatBg: '#0a0a18', uiBg: '#101024', borders: '#2a2a4a', userTint: '#1a1a35', charTint: '#101024', accent: '#ff2e88', heading1: '#ff2e88', heading2: '#22d3ee', heading3: '#a78bfa' } },
 ]
 
 // No seeded backgrounds — the picker shows None + whatever the user uploads.

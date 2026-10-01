@@ -560,6 +560,8 @@ export interface ThemePreset {
     mainText: string; italics: string; quotes: string; shadow: string
     chatBg: string; uiBg: string; borders: string
     userTint: string; charTint: string; accent: string
+    /** Optional per-level heading colors (H1/H2/H3). Absent = inherit. */
+    heading1?: string; heading2?: string; heading3?: string
   }
 }
 

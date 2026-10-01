@@ -78,6 +78,7 @@ export function ThemeApplier() {
       '--primary', '--primary-foreground', '--ring', '--secondary', '--secondary-foreground',
       '--muted', '--muted-foreground', '--accent', '--accent-foreground', '--border', '--input',
       '--tap-italics', '--tap-quotes', '--tap-main-text',
+      '--tap-h1', '--tap-h2', '--tap-h3',
     ]
     if (!theme) {
       keys.forEach((k) => root.style.removeProperty(k))
@@ -112,6 +113,14 @@ export function ThemeApplier() {
     root.style.setProperty('--tap-italics', italicsColor || c.italics)
     root.style.setProperty('--tap-quotes', quoteColor || c.quotes)
     root.style.setProperty('--tap-main-text', c.mainText)
+    // Optional per-level heading colors — presets without them keep
+    // inherited heading colors, so existing themes render unchanged.
+    if (c.heading1) root.style.setProperty('--tap-h1', c.heading1)
+    else root.style.removeProperty('--tap-h1')
+    if (c.heading2) root.style.setProperty('--tap-h2', c.heading2)
+    else root.style.removeProperty('--tap-h2')
+    if (c.heading3) root.style.setProperty('--tap-h3', c.heading3)
+    else root.style.removeProperty('--tap-h3')
     return () => keys.forEach((k) => root.style.removeProperty(k))
   }, [activeThemeId, themes, themeMode, quoteColor, italicsColor])
 
