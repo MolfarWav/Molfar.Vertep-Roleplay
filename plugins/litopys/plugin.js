@@ -36,6 +36,7 @@
  *    manual fact edit: retire hides it immediately, update replaces text.
  *    Both commit to store.json + re-render the vault MD at once.
  *  GET /litopys/config · PUT /litopys/config
+ *  DELETE /litopys/config/prompts — back to the shipped prompts
  */
 const STORE_FILE = "litopys/store.json";
 const PROPOSALS_FILE = "litopys/proposals.json";
@@ -50,22 +51,64 @@ const DEFAULT_CONFIG = {
   autoApplySafe: true,     // exact-dupe merges apply without approval
   maxFacts: 80,
   maxChronicle: 200,
-  // Scribe instructions (world-only). JSON schema appended in code.
-  scribePrompt:
-    "You are a lore archivist for a roleplay conversation. Extract WORLD facts only: places, NPCs, items, events, rules of the world. " +
-    "NEVER relationship content (feelings, attraction, trust, dynamic between CHARACTER and USER) — a separate tracker owns that. " +
-    "NEVER scene-volatile detail (exact hour, weather right now) — that lives in the scene block, not the lore. " +
-    "Facts must be durable: true across many scenes. One fact per line, self-contained (names, not pronouns). " +
-    "If a new message contradicts or replaces an earlier-listed fact, quote it in updated/retired — never silently duplicate. " +
-    "Chronicle: only plot-moving events from THESE messages (who did what, 1 line each). storySoFar: full replacement recap ≤250 words, or null to keep.",
-  // Curator instructions. JSON schema appended in code.
-  curatePrompt:
-    "You are the curator of a lore vault. Judge EVERY listed item. " +
-    "merge: exact or near duplicates (keep the clearest wording). retire: played-out, resolved, contradicted by later events, or scene-volatile trivia that slipped in. " +
-    "rewrite: true fact with bad wording (pronouns, vagueness). keep: everything still true and useful. " +
-    "Be conservative with retire: when in doubt, keep. A fact is played-out only if the story moved past it AND nothing references it anymore. " +
-    "Reason each op in a few words.",
 };
+
+// The prompts ship with the plugin. config.json holds a prompt only when the
+// user changed it, so a better default reaches everyone who did not, and
+// "Restore default prompts" in the panel drops the user's copy. The JSON
+// schema and the lists the model works on are appended in code: no edit here
+// can break the output format.
+const DEFAULT_PROMPTS = {
+  scribePrompt: [
+    "You keep the lore record of an ongoing roleplay story. From the RECENT MESSAGES, record what is now true in the story's world, so it can be recalled many scenes later.",
+    "",
+    "Facts:",
+    "- Record only what the messages state or show as true in the story. Never guess, never explain motives, never add knowledge from outside the story.",
+    "- Keep what stays true across scenes: places and how they connect; characters and who they are (role, allegiance, kinship, lasting appearance); important objects and who holds them; past events that matter; rules of the world (magic, technology, laws, customs).",
+    "- Leave out what holds for one scene only: moods and passing feelings, momentary actions, the time of day, the weather, today's clothes.",
+    "- A claim, belief or lie of a character is not a fact of the world: record it as theirs (\"Mira says the bridge is guarded\").",
+    "- Write each fact as one sentence that makes sense read alone: names, never pronouns. Use the names in the CHARACTER and USER lines for the two leads.",
+    "- Add only what CURRENT FACTS does not already say, even in other words. At most 8 new facts: keep the most important.",
+    "- When a message changes a current fact, put it in updated, quoting the current text exactly. When it ends or disproves one, quote it exactly in retired.",
+    "- Out-of-character notes and instructions to the AI are not part of the story.",
+    "",
+    "Chronicle: the events in THESE messages that move the story, in order, one short line each: who did what, and what came of it. Skip small talk.",
+    "",
+    "Recap (storySoFar): the whole story so far in at most 250 words, past tense: CURRENT RECAP brought up to date with these messages. Say where things stand, what is unresolved and what the characters are after. Return null when nothing important changed.",
+    "",
+    "Language: write facts, chronicle and recap in the language the story is written in (the language most messages use). Keep every name exactly as the story spells it.",
+  ].join("\n"),
+  curatePrompt: [
+    "You maintain the lore record of a roleplay story. Read EVERY listed item. Return an op only for an item that needs one; every item you leave out is kept as it is.",
+    "",
+    "- merge: two or more items say the same thing. targets[0] is the one kept; give text when a combined wording is clearer than any of them.",
+    "- rewrite: the item is true but badly worded: a pronoun instead of a name, vague, two facts in one, or a rumor stated as truth. text is the fixed wording, with the same meaning.",
+    "- retire: the item is no longer true or no longer matters: a later item contradicts it, it was resolved and nothing refers to it since, or it is a one-scene detail (a mood, the weather, the time of day) that slipped in.",
+    "",
+    "Be conservative: when unsure, keep. Age alone is never a reason to retire: a long-past event that shaped the story stays. Never add facts of your own. Quote targets exactly as listed. Write text in the language of the items. Give each op a reason of a few words.",
+  ].join("\n"),
+};
+
+// Defaults earlier versions wrote into config.json in full. A config holding
+// one verbatim never chose it, so it follows the current default.
+const PAST_DEFAULT_PROMPTS = {
+  scribePrompt: [
+    "You are a lore archivist for a roleplay conversation. Extract WORLD facts only: places, NPCs, items, events, rules of the world. " +
+      "NEVER relationship content (feelings, attraction, trust, dynamic between CHARACTER and USER) — a separate tracker owns that. " +
+      "NEVER scene-volatile detail (exact hour, weather right now) — that lives in the scene block, not the lore. " +
+      "Facts must be durable: true across many scenes. One fact per line, self-contained (names, not pronouns). " +
+      "If a new message contradicts or replaces an earlier-listed fact, quote it in updated/retired — never silently duplicate. " +
+      "Chronicle: only plot-moving events from THESE messages (who did what, 1 line each). storySoFar: full replacement recap ≤250 words, or null to keep.",
+  ],
+  curatePrompt: [
+    "You are the curator of a lore vault. Judge EVERY listed item. " +
+      "merge: exact or near duplicates (keep the clearest wording). retire: played-out, resolved, contradicted by later events, or scene-volatile trivia that slipped in. " +
+      "rewrite: true fact with bad wording (pronouns, vagueness). keep: everything still true and useful. " +
+      "Be conservative with retire: when in doubt, keep. A fact is played-out only if the story moved past it AND nothing references it anymore. " +
+      "Reason each op in a few words.",
+  ],
+};
+const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // ---------- tiny utils ----------
 const readJson = (fsx, path, dflt) => {
@@ -79,14 +122,26 @@ const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const uid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const norm = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 
-function loadConfig(fsx) {
-  const cfg = readWithLegacy(fsx, CONFIG_FILE, null);
-  if (cfg && typeof cfg === "object") return { ...DEFAULT_CONFIG, ...cfg };
-  try {
-    fsx.write(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2));
-  } catch {}
-  return { ...DEFAULT_CONFIG };
+/** A prompt as the user would see it changed: whitespace does not count. */
+const promptKey = (s) => String(s || "").replace(/\s+/g, " ").trim();
+const isDefaultPrompt = (key, text) =>
+  !promptKey(text) || [DEFAULT_PROMPTS[key], ...PAST_DEFAULT_PROMPTS[key]].some((d) => promptKey(d) === promptKey(text));
+
+/** config.json as stored, minus prompts that are a default (so they follow it). */
+function storedConfig(fsx) {
+  const raw = readWithLegacy(fsx, CONFIG_FILE, null);
+  const cfg = raw && typeof raw === "object" ? { ...raw } : {};
+  for (const key of PROMPT_KEYS) if (typeof cfg[key] !== "string" || isDefaultPrompt(key, cfg[key])) delete cfg[key];
+  return cfg;
 }
+
+/** The config in effect: defaults, then what the user chose. */
+function loadConfig(fsx) {
+  return { ...DEFAULT_CONFIG, ...DEFAULT_PROMPTS, ...storedConfig(fsx) };
+}
+
+/** Which prompts the user changed. */
+const customPrompts = (fsx) => PROMPT_KEYS.filter((key) => key in storedConfig(fsx));
 // Renamed from Archivarius: data written before the rename lives in archivarius/*.
 // Read it as a fallback; the first save writes litopys/* and the old files stay as a backup.
 const LEGACY_DIR = "archivarius/";
@@ -781,14 +836,26 @@ export function handleRoute(req, host) {
     // direct callers send a flat body — accept both
     const b0 = body();
     const b = b0.values && typeof b0.values === "object" ? { ...b0, ...b0.values } : b0;
-    const next = { ...cfg };
+    const next = { ...DEFAULT_CONFIG, ...storedConfig(fsx) };
     if (b.enabled !== undefined) next.enabled = b.enabled !== false;
     if (b.extractEveryNTurns !== undefined) next.extractEveryNTurns = clamp(Math.round(Number(b.extractEveryNTurns) || 2), 1, 20);
     if (b.curateEveryNTurns !== undefined) next.curateEveryNTurns = clamp(Math.round(Number(b.curateEveryNTurns) || 12), 4, 100);
     if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
     if (b.autoApplySafe !== undefined) next.autoApplySafe = b.autoApplySafe !== false;
-    if (typeof b.scribePrompt === "string" && b.scribePrompt.trim()) next.scribePrompt = b.scribePrompt;
-    if (typeof b.curatePrompt === "string" && b.curatePrompt.trim()) next.curatePrompt = b.curatePrompt;
+    // a prompt saved as the default (or emptied) goes back to following it
+    for (const key of PROMPT_KEYS) {
+      if (typeof b[key] !== "string") continue;
+      if (isDefaultPrompt(key, b[key])) delete next[key];
+      else next[key] = b[key].slice(0, 8000);
+    }
+    fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
+    return ok(loadConfig(fsx));
+  }
+
+  // "Restore default prompts" in the panel
+  if (path === "/litopys/config/prompts" && req.method === "DELETE") {
+    const next = { ...DEFAULT_CONFIG, ...storedConfig(fsx) };
+    for (const key of PROMPT_KEYS) delete next[key];
     fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
     return ok(loadConfig(fsx));
   }
@@ -798,7 +865,10 @@ export function handleRoute(req, host) {
 
 export function uiPanel(_ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
-  const cfg = fsx ? loadConfig(fsx) : DEFAULT_CONFIG;
+  const cfg = fsx ? loadConfig(fsx) : { ...DEFAULT_CONFIG, ...DEFAULT_PROMPTS };
+  const custom = fsx ? customPrompts(fsx) : [];
+  const promptHint = (key, what) =>
+    what + (custom.includes(key) ? " Changed from the default: Restore default prompts (below) puts it back." : " This is the default; edit it to change what the model is told.");
   let chats = 0;
   let pending = 0;
   if (fsx) {
@@ -818,12 +888,13 @@ export function uiPanel(_ctx, host) {
         subtitle: "scribe every ~" + scribeEvery * 2 + " msgs · curate every ~" + curateEvery * 2 + " msgs · " + (cfg.model ? cfg.model : "chat model"),
         enabled: cfg.enabled !== false,
         saveUrl: "/litopys/config",
+        ...(custom.length ? { deleteUrl: "/litopys/config/prompts", deleteLabel: "Restore default prompts" } : {}),
         fields: [
           { key: "extractEveryNTurns", label: "Scribe pass", hint: "New messages before a scribe run (×2 per turn). Lower = fresher lore, more calls.", kind: "number", value: cfg.extractEveryNTurns },
           { key: "curateEveryNTurns", label: "Curator pass", hint: "New messages before a cleanup proposal. Keep high — curation is rare by design.", kind: "number", value: cfg.curateEveryNTurns },
           { key: "model", label: "Extraction model", hint: "Same model name can live on several endpoints — the picker groups by endpoint. Empty = chat's own model. Cheap + fast is ideal, both passes output strict JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
-          { key: "scribePrompt", label: "Scribe prompt", hint: "World-only extraction rules. Rarely needs edits.", kind: "textarea", rows: 6, advanced: true, value: cfg.scribePrompt },
-          { key: "curatePrompt", label: "Curator prompt", hint: "Cleanup judgment rules. Rarely needs edits.", kind: "textarea", rows: 6, advanced: true, value: cfg.curatePrompt },
+          { key: "scribePrompt", label: "Scribe prompt", hint: promptHint("scribePrompt", "What the scribe extracts from new messages."), kind: "textarea", rows: 10, advanced: true, value: cfg.scribePrompt },
+          { key: "curatePrompt", label: "Curator prompt", hint: promptHint("curatePrompt", "How the curator judges the lore it cleans up."), kind: "textarea", rows: 10, advanced: true, value: cfg.curatePrompt },
         ],
       },
     ],

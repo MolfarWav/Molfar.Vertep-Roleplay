@@ -2,6 +2,11 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.19.1
+
+- Litopys prompts ship with the plugin and follow its updates: `config.json` keeps a prompt only when you changed it, and the panel shows **Restore default prompts** when you did. A config holding an earlier default word for word follows the new one.
+- New scribe and curator prompts: facts in the story's own language, a character's claim kept as theirs (not as world truth), one-scene details (mood, weather, time of day) left out, at most 8 new facts per pass, no restating what the record already says; the curator returns ops only for items that need one and never retires a fact for age alone.
+
 ## 4.19.0
 
 - Litopys (formerly Archivarius) ships with the app: a world-lore keeper that
