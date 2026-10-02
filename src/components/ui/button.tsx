@@ -9,6 +9,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-cta text-cta-foreground hover:bg-cta/80",
+        // the red "new" action (Vertep: New character); the cyan default stays the primary
+        accent: "bg-primary text-white hover:bg-primary/85",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

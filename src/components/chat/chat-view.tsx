@@ -130,6 +130,14 @@ export function ChatView() {
   const [notesOpen, setNotesOpen] = useState(false)
   const [loreOpen, setLoreOpen] = useState(false)
   const [branchesOpen, setBranchesOpen] = useState(false)
+  // Home's "Branches" button opens the chat and asks for its tree
+  const branchTreeFor = useApp((s) => s.branchTreeFor)
+  useEffect(() => {
+    if (branchTreeFor && branchTreeFor === chat?.id) {
+      setBranchesOpen(true)
+      useApp.setState({ branchTreeFor: null })
+    }
+  }, [branchTreeFor, chat?.id])
   const [displayOpen, setDisplayOpen] = useState(false)
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)

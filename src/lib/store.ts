@@ -99,6 +99,9 @@ interface AppState {
   activeCharacterId: ID | null
   focusPresetId: ID | null
   focusPersonaId: ID | null
+  /** set by Home's Branches button: the chat view opens that chat's branch tree and clears it */
+  branchTreeFor: ID | null
+  openBranchTree: (chatId: ID) => void
   selectedSettingsSection: string
   streaming: { chatId: ID; messageId: ID; full: string; shown: number; startedAt: number; thinking?: string; thinkingT0?: number; thinkingMs?: number; marks?: Array<{ kind: 'tool'; at: number; name: string; args: Record<string, unknown>; done?: boolean; resultText?: string; isError?: boolean } | { kind: 'think'; at: number; text: string; t0: number; ms?: number }> } | null
   /** one-shot: suppress the swipe animation for this messageId:swipeIndex
@@ -322,6 +325,11 @@ export const useApp = create<AppState>()(
       activeCharacterId: null,
       focusPresetId: null,
       focusPersonaId: null,
+      branchTreeFor: null,
+      openBranchTree: (chatId) => {
+        get().openChat(chatId)
+        set({ branchTreeFor: chatId })
+      },
       selectedSettingsSection: 'appearance',
       streaming: null,
       swipeFxSkip: null,

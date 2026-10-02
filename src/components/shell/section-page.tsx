@@ -28,10 +28,12 @@ function useSectionTitle(section: ViewKey): string {
  * hideOnPhone drops the title on phones while a detail pane is open: the
  * detail already has its own back row there and the room is better spent.
  */
-export function SectionPage({ section, count, hideOnPhone, children }: {
+export function SectionPage({ section, count, hideOnPhone, actions, children }: {
   section: ViewKey
   count?: number | string
   hideOnPhone?: boolean
+  /** shown at the right end of the title row */
+  actions?: ReactNode
   children: ReactNode
 }) {
   const host = useSectionHost()
@@ -45,6 +47,7 @@ export function SectionPage({ section, count, hideOnPhone, children }: {
         <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 pt-3.5 pb-3 md:px-8 md:pt-5 md:pb-4">
           <h1 className="font-heading text-[25px] leading-none md:text-[40px]">{title}</h1>
           {count != null && <Badge variant="secondary">{count}</Badge>}
+          {actions && <div className="ml-auto flex min-w-0 items-center gap-2">{actions}</div>}
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>

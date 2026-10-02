@@ -26,8 +26,9 @@ import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
-import { j, extractCardFromPng, fileToDataUrl, downscaleRemoteImage, characterToCard } from '@/lib/engine'
+import { j, downscaleRemoteImage, characterToCard } from '@/lib/engine'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
+import { importCardFiles } from '@/lib/card-import'
 import { downloadJson } from '@/lib/interop'
 import { CharacterEditor } from '@/components/views/character-editor'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
@@ -110,38 +111,8 @@ export function CharactersView() {
     setUrlBusy(false)
   }
 
-  /** Real import: PNG cards (tEXt 'chara') and JSON cards, single or bulk,
-   *  through the studio-import plugin route. */
-  const importFiles = async (files: FileList | null) => {
-    if (!files?.length) return
-    const cards: unknown[] = []
-    const errors: string[] = []
-    for (const f of Array.from(files)) {
-      try {
-        if (f.name.toLowerCase().endsWith('.png')) {
-          const card = await extractCardFromPng(f)
-          if (!card) { errors.push(`${f.name}: no embedded card data`); continue }
-          let avatar: string | undefined
-          try { avatar = await fileToDataUrl(f, 512) } catch { /* keep card without avatar */ }
-          cards.push({ card, ...(avatar ? { avatar } : {}) })
-        } else {
-          cards.push(JSON.parse(await f.text()))
-        }
-      } catch { errors.push(`${f.name}: could not parse`) }
-    }
-    if (cards.length) {
-      try {
-        const r = await j<{ characters: string[]; errors?: string[] }>('/import/batch', {
-          method: 'POST', body: JSON.stringify({ cards }),
-        })
-        toast.success(`Imported ${r.characters.length} character${r.characters.length === 1 ? '' : 's'}`)
-        await hydrate()
-      } catch (e) {
-        toast.error(String((e as Error).message ?? e))
-      }
-    }
-    for (const e of errors) toast.error(e)
-  }
+  /** Real import (PNG and JSON cards, single or bulk): shared with Home. */
+  const importFiles = (files: FileList | null) => importCardFiles(files, hydrate)
 
   /** Real export: V2 PNG card with the JSON spliced into a tEXt chunk. */
   const exportPng = async (c: (typeof characters)[number]) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { DICTIONARIES, detectLanguage, resolveLanguage, t, type MsgKey } from "../src/lib/i18n";
+import { DICTIONARIES, detectLanguage, relativeTime, resolveLanguage, t, type MsgKey } from "../src/lib/i18n";
 import { SECTIONS, sectionGroups } from "../src/components/shell/sections";
 
 describe("i18n", () => {
@@ -35,6 +35,30 @@ describe("i18n", () => {
       expect(DICTIONARIES.en[s.labelKey]).toBe(s.label);
       expect(DICTIONARIES.uk[s.labelKey]).toBeTruthy();
     }
+  });
+});
+
+describe("placeholders and relative time", () => {
+  it("fills {n} and {name}", () => {
+    expect(t("home.deleteN", "en", { n: 3 })).toBe("Delete 3");
+    expect(t("home.confirmBodyOne", "en", { name: "Ember" })).toContain("\"Ember\"");
+    expect(t("home.selectedN", "uk", { n: 2 })).toBe("Вибрано: 2");
+  });
+
+  it("every Ukrainian string keeps the placeholders of the English one", () => {
+    for (const key of Object.keys(DICTIONARIES.en) as MsgKey[]) {
+      const ph = (s: string) => (s.match(/{w+}/g) ?? []).sort().join(",");
+      expect(ph(DICTIONARIES.uk[key]), key).toBe(ph(DICTIONARIES.en[key]));
+    }
+  });
+
+  it("formats relative times in both languages", () => {
+    const now = 1_000_000_000_000;
+    expect(relativeTime(now - 30_000, "en", now)).toBe("just now");
+    expect(relativeTime(now - 5 * 60_000, "en", now)).toBe("5m ago");
+    expect(relativeTime(now - 2 * 3_600_000, "uk", now)).toBe("2 год тому");
+    expect(relativeTime(now - 3 * 86_400_000, "uk", now)).toBe("3 дн. тому");
+    expect(relativeTime(now - 65 * 86_400_000, "en", now)).toBe("2mo ago");
   });
 });
 
