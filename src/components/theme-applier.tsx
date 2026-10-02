@@ -75,7 +75,7 @@ export function ThemeApplier() {
     const theme = themes.find((t) => t.id === activeThemeId)
     const keys = [
       '--background', '--foreground', '--card', '--card-foreground', '--popover', '--popover-foreground',
-      '--primary', '--primary-foreground', '--ring', '--secondary', '--secondary-foreground',
+      '--primary', '--primary-foreground', '--cta', '--cta-foreground', '--ring', '--secondary', '--secondary-foreground',
       '--muted', '--muted-foreground', '--accent', '--accent-foreground', '--border', '--input',
       '--tap-italics', '--tap-quotes', '--tap-main-text',
       '--tap-h1', '--tap-h2', '--tap-h3',
@@ -103,6 +103,9 @@ export function ThemeApplier() {
     // hovers (menu items) and unreadable muted text. Deriving keeps every
     // pair consistent for ANY preset, including user-authored ones.
     root.style.setProperty('--primary-foreground', c.chatBg)
+    // second accent: absent on a preset = the accent, so older themes look as before
+    root.style.setProperty('--cta', c.cta || c.accent)
+    root.style.setProperty('--cta-foreground', c.chatBg)
     root.style.setProperty('--secondary-foreground', c.mainText)
     root.style.setProperty('--muted-foreground', mix(c.mainText, c.chatBg, 0.35))
     // accent needs to be visible against the card it hovers on (userTint is

@@ -134,11 +134,15 @@ export function buildDefaultPreset(): Preset {
 
 // ── Themes & backgrounds ──
 export const seedThemes: ThemePreset[] = [
+  // Vertep — the default. Near-black blue ground, warm linen text, red accent
+  // (active nav, borders, "new") and a cyan second accent (`cta`) for the
+  // primary action button and the active nav icon. Dark only.
+  { id: 'theme_vertep', name: 'Vertep', builtin: true, colors: { mainText: '#f0e9dc', italics: '#a9b1c4', quotes: '#538796', shadow: '#000000', chatBg: '#07080b', uiBg: '#0b0c11', borders: '#2a2f3d', userTint: '#12141c', charTint: '#0b0c11', accent: '#e2213a', cta: '#39d5ff' } },
   // Pure neutral-grey ramp — true greys only, one green accent.
   // Base sits at rgb(20,20,20) so the app reads properly dark, properly.
   // Quoted dialogue rides the same green accent; Daylight keeps its darker
   // blue because the accent green does not hold contrast on a white page.
-  { id: 'theme_void', name: 'Void (default)', builtin: true, colors: { mainText: '#e4e4e4', italics: '#8f8f8f', quotes: '#54d17d', shadow: '#000000', chatBg: '#0b0b0b', uiBg: '#101010', borders: '#212121', userTint: '#171717', charTint: '#101010', accent: '#54d17d' } },
+  { id: 'theme_void', name: 'Void', builtin: true, colors: { mainText: '#e4e4e4', italics: '#8f8f8f', quotes: '#54d17d', shadow: '#000000', chatBg: '#0b0b0b', uiBg: '#101010', borders: '#212121', userTint: '#171717', charTint: '#101010', accent: '#54d17d' } },
   { id: 'theme_charcoal', name: 'Charcoal', builtin: true, colors: { mainText: '#e6e6e6', italics: '#9d9d9d', quotes: '#54d17d', shadow: '#000000', chatBg: '#141414', uiBg: '#191919', borders: '#2b2b2b', userTint: '#202020', charTint: '#191919', accent: '#54d17d' } },
   { id: 'theme_daylight', name: 'Daylight', builtin: true, colors: { mainText: '#161616', italics: '#6b6b6b', quotes: '#1f6fb5', shadow: '#d4d4d4', chatBg: '#fafafa', uiBg: '#ffffff', borders: '#e0e0e0', userTint: '#f1f1f2', charTint: '#ffffff', accent: '#2eaf5a' } },
   { id: 'theme_ash', name: 'Ash', builtin: false, colors: { mainText: '#e8e6e3', italics: '#a09c96', quotes: '#d8a657', shadow: '#000000', chatBg: '#161514', uiBg: '#1c1b1a', borders: '#2f2d2b', userTint: '#232120', charTint: '#1c1b1a', accent: '#c98a3f' } },
@@ -146,6 +150,16 @@ export const seedThemes: ThemePreset[] = [
   // Heading colors ride alongside: pink H1, cyan H2, violet H3.
   { id: 'theme_neon_tokyo', name: 'Neon Tokyo Night', builtin: false, colors: { mainText: '#e8e8f5', italics: '#8b8bb0', quotes: '#22d3ee', shadow: '#000000', chatBg: '#0a0a18', uiBg: '#101024', borders: '#2a2a4a', userTint: '#1a1a35', charTint: '#101024', accent: '#ff2e88', heading1: '#ff2e88', heading2: '#22d3ee', heading3: '#a78bfa' } },
 ]
+
+/** Built-in themes shipped after an install's library.json was written are
+ *  missing from it (the library, once on disk, replaces the seed). Prepend the
+ *  absent built-ins in seed order so they show up; a theme already there —
+ *  edited or not — is left exactly as it is. */
+export function withBuiltinThemes(themes: ThemePreset[]): ThemePreset[] {
+  const have = new Set(themes.map((t) => t.id))
+  const missing = seedThemes.filter((t) => t.builtin && !have.has(t.id))
+  return missing.length ? [...missing, ...themes] : themes
+}
 
 // No seeded backgrounds — the picker shows None + whatever the user uploads.
 
@@ -156,7 +170,7 @@ export const seedThemes: ThemePreset[] = [
 // ── Default settings ──
 export function defaultSettings(): AppSettings {
   return {
-    themeMode: 'dark', activeThemeId: 'theme_void', displayMode: 'bubbles',
+    themeMode: 'dark', activeThemeId: 'theme_vertep', displayMode: 'bubbles',
     chatWidth: 'comfortable', chatWidthCustom: 760, fontScale: 100, lineSpacing: 136, paragraphSpacing: 10, proseFont: 'noto', uiScale: 100,
     avatarScale: 100, streamingFps: 30,
     avatarShape: 'rounded', avatarStyle: 'thumb', messageSpacing: 'roomy', hideAvatars: false,

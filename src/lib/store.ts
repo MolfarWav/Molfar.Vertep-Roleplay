@@ -18,7 +18,7 @@ import type {
   ConnectionProfile, DataBankFile, ID, ModelInfo, ChatBranch, ToolPart,
 } from './types'
 import {
-  seedThemes, defaultSettings,
+  seedThemes, defaultSettings, withBuiltinThemes,
   buildDefaultPreset, DEFAULT_MAIN_PROMPT, DEFAULT_UTILITY_PROMPTS,
 } from './seed'
 import { uid } from './tokens'
@@ -585,7 +585,10 @@ export const useApp = create<AppState>()(
           // library.json — the local collections, agent-editable in ONE file
           const lib = library as Partial<Pick<AppState, 'qrSets' | 'themes' | 'backgrounds' | 'tags' | 'folders' | 'connectionProfiles'>>
           if (Object.keys(lib).length) {
-            set((s) => ({ ...s, ...lib }))
+            // built-in themes shipped after this library was written join it
+            // (the write-through persists them); the active theme and every
+            // existing entry stay untouched
+            set((s) => ({ ...s, ...lib, ...(Array.isArray(lib.themes) ? { themes: withBuiltinThemes(lib.themes) } : {}) }))
             libraryOnDisk = JSON.stringify(lib) // echo guard: this IS the disk content
           } else {
             // first boot: materialize data/library.json so agents find every

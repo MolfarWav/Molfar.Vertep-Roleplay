@@ -34,6 +34,8 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-cta: var(--cta);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -63,6 +65,9 @@
   --popover-foreground: #161616;
   --primary: #2eaf5a;
   --primary-foreground: #ffffff;
+  /* second accent (primary button, active nav icon): follows the primary unless a theme sets it */
+  --cta: var(--primary);
+  --cta-foreground: var(--primary-foreground);
   --secondary: #f1f1f2;
   --secondary-foreground: #161616;
   --muted: #f1f1f2;
@@ -101,6 +106,8 @@
   --popover-foreground: #e6e6e6;
   --primary: #54d17d;
   --primary-foreground: #0d1f14;
+  --cta: var(--primary);
+  --cta-foreground: var(--primary-foreground);
   --secondary: #202020;
   --secondary-foreground: #e6e6e6;
   --muted: #1f1f1f;
