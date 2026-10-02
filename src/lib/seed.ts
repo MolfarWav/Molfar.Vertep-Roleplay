@@ -154,10 +154,6 @@ export const seedThemes: ThemePreset[] = [
 // achievements are DERIVED from real usage in home-view (no fake unlocks).
 
 // ── Default settings ──
-/** What the summarizer is told. {{summary}} is the summary so far, {{words}}
- *  the length budget; the engine sends the messages being folded in after it. */
-export const DEFAULT_SUMMARY_PROMPT = 'You keep the running summary of a roleplay between {{user}} and {{char}}. Rewrite it so it covers everything so far: the summary you are given plus the new messages. Keep names, relationships, promises, places, possessions, injuries, and unresolved threads; drop small talk and repetition. Past tense, third person, plain prose, at most {{words}} words. Reply with only the summary.'
-
 export function defaultSettings(): AppSettings {
   return {
     themeMode: 'dark', activeThemeId: 'theme_void', displayMode: 'bubbles',
@@ -173,7 +169,7 @@ export function defaultSettings(): AppSettings {
     tts: { provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true, charVoices: {}, model: 'tts-1', engineProvider: 'edge' },
     translation: { provider: 'llm', targetLanguage: 'Spanish', internalLanguage: 'English', autoMode: 'none' },
     summary: {
-      mode: 'auto', interval: 40, keepRecent: 6, targetLength: 300, prompt: DEFAULT_SUMMARY_PROMPT,
+      mode: 'auto', interval: 40, keepRecent: 6, targetLength: 300, prompt: '', // '' = the engine's shipped summary prompt (see fetchSummaryPromptDefault)
       template: '[Story so far: {{summary}}]', position: 'after-system', depth: 2, role: 'system',
     },
     memory: { enabled: true, auto: false, interval: 20, model: '' },

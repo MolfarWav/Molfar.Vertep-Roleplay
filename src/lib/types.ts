@@ -689,6 +689,8 @@ export interface AppSettings {
     keepRecent: number
     /** {{words}} budget fed to the summary prompt */
     targetLength: number
+    /** The user's own summary prompt. '' means the engine's shipped default,
+     *  so a better default reaches everyone who never changed it. */
     prompt: string
     /** injection template — must contain {{summary}} */
     template: string

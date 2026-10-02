@@ -2,6 +2,12 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.19.2
+
+- The summary prompt ships with the plugin and follows its updates, like Litopys's: Settings keep one only when you changed it, **Reset** clears your copy, and a copy that is an earlier default word for word follows the new one. Settings read the default from the engine (`GET /settings/summary-prompt`) instead of carrying their own copy.
+- Prompts that make a model write for you say which language to write in: the summary and the facts the chat memory finds follow the language of the story. The image-prompt writer says it writes English whatever the story's language, because image models expect English.
+- `test/rp-prompts.test.ts`: every shipped prompt is English, and the ones that write for the user carry a language line.
+
 ## 4.19.1
 
 - Litopys prompts ship with the plugin and follow its updates: `config.json` keeps a prompt only when you changed it, and the panel shows **Restore default prompts** when you did. A config holding an earlier default word for word follows the new one.

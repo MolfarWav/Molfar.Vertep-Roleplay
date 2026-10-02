@@ -584,7 +584,9 @@ function recallMemories(list, scanText, budgetChars, maxEntries, scanVec) {
 function memoryExtractPrompt(transcript) {
   return [
     "You maintain the long-term memory of a roleplay chat. From the transcript below, extract durable facts worth recalling in later scenes: character traits, relationships, promises, obligations, injuries, possessions, places, world facts, ongoing plans.",
-    "Skip fleeting dialogue, mood, style, and anything a one-paragraph summary would already cover. Each fact is one short standalone sentence, third person.",
+    "Only facts the transcript states or plainly shows; never guess at motives or what comes next. Skip fleeting dialogue, mood, style, and anything a one-paragraph summary would already cover.",
+    "Each fact is one short sentence that makes sense on its own: third person, characters by name (never I, you or he without a name).",
+    "Write each memory in the language the conversation is written in.",
     'Reply with ONLY a JSON array, at most 8 entries, like:',
     '[{"text": "Ember promised to guard the traveler map.", "importance": 4}]',
     "importance runs 1 (trivia) to 5 (plot-critical). If nothing qualifies, reply [].",
@@ -637,6 +639,7 @@ const IMAGE_PROMPT_RULES = [
   "This description goes straight to an image generator. Write one paragraph of plain visual description, present tense, under 120 words.",
   "Describe people by what they look like; the image generator does not know anyone's name.",
   "Leave out dialogue, thoughts, sounds, smells, and anything a camera could not see. Do not continue the story.",
+  "Write the image prompt in English, whatever language the story is in.",
   "Reply with only the description.",
 ].join(" ");
 
@@ -1847,8 +1850,37 @@ function llmFailReason(reply) {
 }
 
 // ---------- summarization default ----------
-// Used when settings.json carries no summary prompt of its own.
-const DEFAULT_SUMMARY_PROMPT = "You keep the running summary of a roleplay between {{user}} and {{char}}. Rewrite it so it covers everything so far: the summary you are given plus the new messages. Keep names, relationships, promises, places, possessions, injuries, and unresolved threads; drop small talk and repetition. Past tense, third person, plain prose, at most {{words}} words. Reply with only the summary.";
+// The summary prompt ships with this plugin. settings.json (ui.summary.prompt)
+// keeps one only when the user changed it, so a better default reaches everyone
+// who did not, and Reset in Settings just clears the stored copy.
+const DEFAULT_SUMMARY_PROMPT = [
+  "You keep the running summary of a roleplay between {{user}} and {{char}}. You get the summary so far and the new messages; write one updated summary of the whole story.",
+  "Keep: who each character is, how their relationships changed, promises and debts, injuries, possessions, places, and every thread still open. Drop small talk, repetition and description that changes nothing.",
+  "Tell it in story order, past tense, third person, plain prose. End with where things stand now: where the characters are, what they are doing, what is about to happen.",
+  "Use only what the summary and the messages say. Never invent or guess.",
+  "At most {{words}} words. Write the summary in the language the story is written in. Reply with only the summary.",
+].join("\n");
+
+// Every default an earlier version put in settings.json in full. A stored
+// prompt equal to one of these was never chosen, so it follows the current
+// default. Add the outgoing default here whenever DEFAULT_SUMMARY_PROMPT changes.
+const PAST_DEFAULT_SUMMARY_PROMPTS = [
+  "You keep the running summary of a roleplay between {{user}} and {{char}}. Rewrite it so it covers everything so far: the summary you are given plus the new messages. Keep names, relationships, promises, places, possessions, injuries, and unresolved threads; drop small talk and repetition. Past tense, third person, plain prose, at most {{words}} words. Reply with only the summary.",
+];
+
+/** A prompt as the user would see it changed: line endings and spacing do not count. */
+const promptKey = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+const isDefaultSummaryPrompt = (text) =>
+  !promptKey(text) || [DEFAULT_SUMMARY_PROMPT, ...PAST_DEFAULT_SUMMARY_PROMPTS].some((d) => promptKey(d) === promptKey(text));
+/** The summary prompt in effect: the user's own, or the current default. */
+const summaryPromptOf = (stored) => (isDefaultSummaryPrompt(stored) ? DEFAULT_SUMMARY_PROMPT : String(stored));
+/** ui from the client with a default summary prompt stored as nothing. */
+function withoutDefaultSummaryPrompt(ui) {
+  if (!ui || typeof ui !== "object" || !ui.summary || typeof ui.summary !== "object") return ui;
+  const p = ui.summary.prompt;
+  if (typeof p !== "string" || p === "" || !isDefaultSummaryPrompt(p)) return ui;
+  return { ...ui, summary: { ...ui.summary, prompt: "" } };
+}
 
 // ---------- route handler ----------
 // A sprite the caller did not send back keeps the image already on disk. The
@@ -1995,6 +2027,16 @@ export function onAppUpdate(ctx, host) {
       if (!out) continue;
       writeJsonFile(fsx, "presets/" + f, out);
       done.push("presets/" + f + " generation types");
+    }
+  }
+  if (olderThan(from, "4.19.2")) {
+    // a summary prompt stored word for word as an earlier default now follows the current one
+    const settings = readJsonFile(fsx, "settings.json");
+    const ui = settings && settings.ui;
+    const next = withoutDefaultSummaryPrompt(ui);
+    if (next !== ui) {
+      writeJsonFile(fsx, "settings.json", { ...settings, ui: next });
+      done.push("settings.json summary prompt");
     }
   }
   if (!olderThan(from, "4.0.0")) return { upgraded: done };
@@ -2191,6 +2233,12 @@ export function handleRoute(req, host) {
     }
   }
 
+  // the shipped summary prompt, for Settings to show and Reset to; "past" lets
+  // the client tell a stored copy of an earlier default from the user's own
+  if (head === "settings" && id === "summary-prompt" && !op && req.method === "GET") {
+    return ok({ prompt: DEFAULT_SUMMARY_PROMPT, past: PAST_DEFAULT_SUMMARY_PROMPTS });
+  }
+
   if (head === "settings" && !id) {
     if (req.method === "GET") return ok(readJson("settings.json", { model: null, personaId: null }));
     if (req.method === "PUT") {
@@ -2201,7 +2249,7 @@ export function handleRoute(req, host) {
       // `ui` carries the ENTIRE studio UI settings object — agents edit it
       // on disk (data/settings.json) and every open client picks it up live
       // via the data-watcher look_changed → hydrate.
-      if ("ui" in b && b.ui && typeof b.ui === "object") cur.ui = b.ui;
+      if ("ui" in b && b.ui && typeof b.ui === "object") cur.ui = withoutDefaultSummaryPrompt(b.ui);
       writeJson("settings.json", cur);
       return ok(cur);
     }
@@ -3499,7 +3547,7 @@ const toolX = (r) => ({
         const { userName } = chatPersona(fsx, meta);
         const charName = (members[0] && members[0].name) || "";
         const words = Math.max(25, Math.floor(Number(scfg.targetLength) || 300));
-        const instructions = String(typeof scfg.prompt === "string" && scfg.prompt.trim() ? scfg.prompt : DEFAULT_SUMMARY_PROMPT)
+        const instructions = summaryPromptOf(scfg.prompt)
           .split("{{words}}").join(String(words)).split("{{limit}}").join(String(words))
           .split("{{user}}").join(userName).split("{{char}}").join(charName)
           .split("{{summary}}").join(base);

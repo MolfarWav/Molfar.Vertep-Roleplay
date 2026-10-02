@@ -8,10 +8,12 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ModelPicker } from '@/components/settings/model-picker'
 import { useApp } from '@/lib/store'
-import { DEFAULT_SUMMARY_PROMPT } from '@/lib/seed'
-import { embedConfig, embedStatus, setEmbedConfig } from '@/lib/engine'
+import { embedConfig, embedStatus, fetchSummaryPromptDefault, setEmbedConfig } from '@/lib/engine'
 
 const one = (v: number | readonly number[]) => (Array.isArray(v) ? v[0]! : (v as number))
+
+/** A prompt as the user would see it changed: spacing and line endings do not count. */
+const promptKey = (s: string) => s.replace(/\s+/g, ' ').trim()
 
 /**
  * Memory: how the running summary is made and placed (compaction folds the
@@ -26,6 +28,29 @@ export function MemorySummarySection() {
   const [embed, setEmbed] = useState<{ ok: boolean; via: string | null } | null>(null)
   const [embedModel, setEmbedModel] = useState('text-embedding-3-small')
   useEffect(() => { void embedStatus().then(setEmbed); void embedConfig().then((c) => setEmbedModel(c.model)) }, [])
+
+  // The summary prompt ships with the engine. Settings keep one only when the
+  // user changed it ('' = the shipped one), so the default follows updates.
+  const [shipped, setShipped] = useState<{ prompt: string; past: string[] } | null>(null)
+  const [draft, setDraft] = useState(summary.prompt)
+  useEffect(() => { void fetchSummaryPromptDefault().then(setShipped).catch(() => undefined) }, [])
+  const isShipped = (p: string) =>
+    !promptKey(p) || (shipped !== null && [shipped.prompt, ...shipped.past].some((d) => promptKey(d) === promptKey(p)))
+  // once the default is known, the box shows the effective prompt
+  useEffect(() => {
+    if (shipped) setDraft(isShipped(summary.prompt) ? shipped.prompt : summary.prompt)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shipped])
+  // and follows a change made elsewhere (a reset, a synced edit)
+  useEffect(() => {
+    if (!shipped) return
+    setDraft((d) => (d === summary.prompt || (isShipped(d) && isShipped(summary.prompt)) ? d : isShipped(summary.prompt) ? shipped.prompt : summary.prompt))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary.prompt])
+  const editPrompt = (text: string) => {
+    setDraft(text)
+    set({ prompt: isShipped(text) ? '' : text })
+  }
 
   // a chosen model whose connection is gone still shows inside the picker,
   // rather than the row silently reading "the chat's model"
@@ -71,12 +96,22 @@ export function MemorySummarySection() {
         <Field>
           <div className="flex items-center justify-between gap-2">
             <FieldLabel htmlFor="sum-prompt">Summary prompt</FieldLabel>
-            {summary.prompt !== DEFAULT_SUMMARY_PROMPT && (
-              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => set({ prompt: DEFAULT_SUMMARY_PROMPT })}>Reset</Button>
+            {!isShipped(summary.prompt) && (
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { set({ prompt: '' }); if (shipped) setDraft(shipped.prompt) }}>Reset</Button>
             )}
           </div>
-          <Textarea id="sum-prompt" rows={5} value={summary.prompt} onChange={(e) => set({ prompt: e.target.value })} className="text-xs" />
-          <p className="text-[11px] text-muted-foreground">{'{{summary}}'} is the summary so far, {'{{words}}'} the length. The messages being folded in follow it.</p>
+          <Textarea
+            id="sum-prompt"
+            rows={5}
+            value={draft}
+            placeholder={shipped ? undefined : 'Loading the default prompt…'}
+            disabled={!shipped && !summary.prompt}
+            onChange={(e) => editPrompt(e.target.value)}
+            onBlur={() => { if (shipped && !promptKey(draft)) setDraft(shipped.prompt) }}
+            className="text-xs"
+          />
+          <p className="text-[11px] text-muted-foreground">{'{{summary}}'} is the summary so far, {'{{words}}'} the length. The messages being folded in follow it.{' '}
+            {isShipped(summary.prompt) ? 'This is the default; it improves with updates until you change it.' : 'Changed from the default. Reset goes back to it.'}</p>
         </Field>
       </div>
 

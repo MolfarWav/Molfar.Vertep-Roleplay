@@ -187,6 +187,12 @@ export interface EngineModel {
 // ─────────────────────────────────────────────────────────────────────────────
 // Fetch
 // ─────────────────────────────────────────────────────────────────────────────
+/** The summary prompt the engine ships, and the earlier defaults it ships
+ *  with it (a stored copy of one of those was never the user's choice). */
+export function fetchSummaryPromptDefault(): Promise<{ prompt: string; past: string[] }> {
+  return j<{ prompt: string; past: string[] }>('/settings/summary-prompt')
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) { super(message); this.status = status }
