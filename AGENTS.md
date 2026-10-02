@@ -36,13 +36,22 @@ update at all.
 
 ## What this app is
 
-The roleplay studio, v4: a power-user roleplay UI. Left icon rail (Home / Chats / Characters / Marketplace / Personas /
-Presets / Lorebooks / Shortcuts / Tools / Connections / Settings) + Ctrl+K
-command palette. Sections open as drawers over the page (components/shell/
-sections.ts is the one list); on mobile, only over an open chat, whose header
-becomes a row of section icons (tap to drop the section down over the chat,
-tap again to close); elsewhere on mobile a section is the page, reached from
-the bottom tab bar. Views are components/views/*, the chat experience lives in
+The roleplay studio, v4: a power-user roleplay UI. Left nav rail (components/shell/
+sections.ts is the one list, items carry a `group`: Home, Chats | Characters,
+Marketplace, Personas, Lorebooks | Presets, Connections | Shortcuts, Tools |
+Settings pinned at the bottom) + Ctrl+K command palette. From 1280px the rail is
+206px with labels (Kurale) and ornament dividers; below that it is icons with
+tooltips; on phones it is the bottom tab bar. A section is a real PAGE (with a
+big title and count chip, `SectionPage` in components/shell/section-page.tsx)
+when opened from Home, Chats or another section. Only over an open chat does it
+open as a DRAWER (the chat and a running stream stay mounted underneath; on
+mobile the chat's header becomes a row of section icons, tap to drop the
+section down over the chat, tap again to close) — `opensAsDrawer` in lib/store.ts.
+Nav labels and page titles go through `t()` (lib/i18n.ts, `ui.language` 'en' |
+'uk', default from the browser); the rest of the app is English. Theme: the
+default is the built-in "Vertep" (dark); a theme's optional `cta` color is the
+second accent (primary button, active nav icon) and falls back to the accent.
+Views are components/views/*, the chat experience lives in
 components/chat/*, the tabbed character editor in components/character/*.
 The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and

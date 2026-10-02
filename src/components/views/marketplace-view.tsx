@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { j, proxyUrl, downscaleRemoteImage } from '@/lib/engine'
 
@@ -410,13 +411,13 @@ export function MarketplaceView() {
   const greetings = detailData ? [detailData.greeting, ...detailData.alternateGreetings].filter((g) => g.trim()) : []
 
   return (
+    <SectionPage section="marketplace" count={!loading && !error ? fmtCount(count) : undefined}>
     <div className="flex h-full min-h-0 flex-col overflow-x-clip">
       {/* header (search + filters) scrolls WITH the results (mobile keyboard room) */}
       <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">
       <header className="flex flex-col gap-2 border-b border-border px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-sm font-semibold">Marketplace</h1>
-          {!loading && !error && <Badge variant="secondary">{fmtCount(count)}</Badge>}
+          <PaneTitle section="marketplace" count={!loading && !error ? fmtCount(count) : undefined} />
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <Select value={source} onValueChange={(v) => { setSource(v as typeof source); setPage(1) }}>
               <SelectTrigger className="h-8 w-24 text-xs" aria-label="Marketplace source">
@@ -767,6 +768,7 @@ export function MarketplaceView() {
         </DialogContent>
       </Dialog>
     </div>
+    </SectionPage>
   )
 }
 

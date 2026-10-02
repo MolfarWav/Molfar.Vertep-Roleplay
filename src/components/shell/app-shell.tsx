@@ -4,10 +4,11 @@ import { CircleNotch } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useApp, DRAWER_VIEWS, type ViewKey } from '@/lib/store'
+import { useApp, type ViewKey } from '@/lib/store'
 import { takeReloadReason } from '@/lib/engine'
 import { useIsDesktop, useIsWideRail } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
+import { SectionHostProvider } from '@/components/shell/section-page'
 import { useBackClose } from '@/hooks/use-back-close'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -42,18 +43,13 @@ export function AppShell() {
 
   useEffect(() => setMounted(true), [])
 
-  // Desktop invariant: the page behind is always home/chats/chat. A persisted
-  // drawer-section view (or a mobile session resized wide) becomes a drawer.
-  // Mobile only has drawers over an open chat: one still open once the chat
-  // is gone (or the window shrinks off a desktop page) becomes the page.
+  // A section is a drawer only over an open chat. One still open once the
+  // chat is gone (the active chat vanished, the window changed size) becomes
+  // the page, so the drawer never floats over Home or Chats.
   useEffect(() => {
     const { view: v, drawer } = useApp.getState()
-    if (isDesktop) {
-      if (DRAWER_VIEWS.has(v)) useApp.setState({ drawer: v, view: 'home' })
-    } else if (drawer && v !== 'chat') {
-      useApp.setState({ view: drawer, drawer: null })
-    }
-  }, [isDesktop, view])
+    if (drawer && v !== 'chat') useApp.setState({ view: drawer, drawer: null })
+  }, [view])
   // Mobile back, outermost first (declaration order is push order): any tab
   // but Home returns to Home, however many tabs were flipped through; an open
   // chat returns to the chat list like its own back button. The section
@@ -211,7 +207,7 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-hidden">
-          {drawer && renderView(drawer)}
+          <SectionHostProvider value="drawer">{drawer && renderView(drawer)}</SectionHostProvider>
         </div>
       </SheetContent>
     </Sheet>

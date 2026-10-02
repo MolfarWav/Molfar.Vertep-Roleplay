@@ -14,6 +14,7 @@ import { BackgroundsTab } from '@/components/extensions/backgrounds-tab'
 import { PluginsTab } from '@/components/extensions/plugins-tab'
 import { McpTab } from '@/components/extensions/mcp-tab'
 import { PluginPanelView, type PluginPanelDescriptor } from '@/components/extensions/plugin-panel'
+import { SectionPage, PaneTitle, useSectionHost } from '@/components/shell/section-page'
 
 // plugin-chosen icons resolve through this map; unknown names fall back
 const PANEL_ICONS: Record<string, typeof DiceFive> = {
@@ -44,12 +45,12 @@ export function ExtensionsView() {
   // The regex tab is a full master/detail workspace with its own internal
   // scrolling — there the strip stays pinned above it so leaving the
   // workspace is always possible.
-  const headerRow = (
+  // as a page the big title above says it; the compact bar is the drawer's
+  const headerRow = useSectionHost() === 'drawer' ? (
     <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-      <PuzzlePiece className="size-4 text-primary" aria-hidden="true" />
-      <h1 className="text-sm font-semibold">Tools</h1>
+      <PaneTitle section="extensions" icon={<PuzzlePiece className="size-4 text-primary" aria-hidden="true" />} />
     </header>
-  )
+  ) : null
   // horizontal strip: triggers are flex-none so they overflow instead
   // of compressing — touch-scroll on mobile, wheel-scroll on desktop
   const strip = (
@@ -86,6 +87,7 @@ export function ExtensionsView() {
   )
 
   return (
+    <SectionPage section="extensions">
     <div className="flex h-full min-h-0 flex-col">
       {headerRow}
       {!ready ? null : (
@@ -120,5 +122,6 @@ export function ExtensionsView() {
       </Tabs>
       )}
     </div>
+    </SectionPage>
   )
 }

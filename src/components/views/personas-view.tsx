@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useConfirm } from '@/components/ui/confirm'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { downloadTextFile } from '@/lib/export'
 import { fileToDataUrl } from '@/lib/engine'
@@ -91,6 +92,7 @@ export function PersonasView() {
   const pagedPersonas = personas.slice(clampPage(personaPage, personas.length, PERSONA_PAGE) * PERSONA_PAGE, (clampPage(personaPage, personas.length, PERSONA_PAGE) + 1) * PERSONA_PAGE)
 
   return (
+    <SectionPage section="personas" count={personas.length} hideOnPhone={detailOpen && !!p}>
     <MasterDetail
       detailOpen={detailOpen && !!p}
       onBack={() => setDetailOpen(false)}
@@ -99,8 +101,7 @@ export function PersonasView() {
       master={
         <aside className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <h1 className="text-sm font-semibold">Personas</h1>
-          <Badge variant="secondary">{personas.length}</Badge>
+          <PaneTitle section="personas" count={personas.length} />
           <Button variant="ghost" size="sm" className="ml-auto size-7 p-0" onClick={() => setSelectedId(addPersona())} aria-label="New persona">
             <Plus className="size-4" aria-hidden="true" />
           </Button>
@@ -295,5 +296,6 @@ export function PersonasView() {
         </>
       }
     />
+    </SectionPage>
   )
 }

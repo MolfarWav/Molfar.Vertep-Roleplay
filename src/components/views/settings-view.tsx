@@ -21,6 +21,7 @@ import {
 import { useApp } from "@/lib/store"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MasterDetail } from "@/components/shell/master-detail"
+import { SectionPage } from "@/components/shell/section-page"
 import { resolveLanguage } from "@/lib/i18n"
 import type { AppSettings } from "@/lib/types"
 import { extractCharaFromPng, regexImport } from "@/lib/interop"
@@ -236,6 +237,7 @@ export function SettingsView() {
   ) : null
 
   return (
+    <SectionPage section="settings" hideOnPhone={detailOpen}>
     <MasterDetail
       detailOpen={detailOpen}
       onBack={() => setDetailOpen(false)}
@@ -300,6 +302,7 @@ export function SettingsView() {
         </ScrollArea>
       }
     />
+    </SectionPage>
   )
 }
 

@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import {
   fetchEngineProviders, setEngineModelContext, setEngineModelPricing,
   type EngineConnectionInfo, type EngineProviderInfo,
@@ -178,13 +179,12 @@ export function ConnectionsView() {
   }
 
   return (
+    <SectionPage section="connections" count={models.length}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header scrolls WITH the page (mobile keyboard room) */}
       <ScrollArea className="min-h-0 flex-1">
         <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-          <Plug className="size-4 text-primary" aria-hidden="true" />
-          <h1 className="text-sm font-semibold">Connections</h1>
-          <Badge variant="secondary">{models.length} models</Badge>
+          <PaneTitle section="connections" count={`${models.length} models`} icon={<Plug className="size-4 text-primary" aria-hidden="true" />} />
           <Button variant="ghost" size="icon-sm" className="ml-auto" aria-label="Refresh connections" onClick={() => void refresh()} disabled={busy}>
             {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <ArrowsClockwise className="size-4" aria-hidden="true" />}
           </Button>
@@ -437,6 +437,7 @@ export function ConnectionsView() {
         </DialogContent>
       </Dialog>
     </div>
+    </SectionPage>
   )
 }
 

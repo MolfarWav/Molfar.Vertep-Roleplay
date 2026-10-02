@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { importLorebookFiles, fetchWIStatus, type WIStatus } from '@/lib/engine'
 import { cn } from '@/lib/utils'
@@ -69,6 +70,7 @@ export function LorebooksView() {
   const pagedBooks = lorebooks.slice(clampPage(bookPage, lorebooks.length, BOOK_PAGE) * BOOK_PAGE, (clampPage(bookPage, lorebooks.length, BOOK_PAGE) + 1) * BOOK_PAGE)
 
   return (
+    <SectionPage section="lorebooks" count={lorebooks.length} hideOnPhone={detailOpen && !!book}>
     <>
     <MasterDetail
       detailOpen={detailOpen && !!book}
@@ -78,8 +80,7 @@ export function LorebooksView() {
       master={
         <aside className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <BookOpenText className="size-4 text-primary" aria-hidden="true" />
-          <h1 className="text-sm font-semibold">Lorebooks</h1>
+          <PaneTitle section="lorebooks" icon={<BookOpenText className="size-4 text-primary" aria-hidden="true" />} />
           <Button variant="ghost" size="sm" className="ml-auto size-7 p-0" onClick={() => select(addLorebook())} aria-label="New lorebook">
             <Plus className="size-4" aria-hidden="true" />
           </Button>
@@ -141,6 +142,7 @@ export function LorebooksView() {
       <ActiveEntriesViewer open={activeViewerOpen} onOpenChange={setActiveViewerOpen} />
       {confirmDialog}
     </>
+    </SectionPage>
   )
 }
 

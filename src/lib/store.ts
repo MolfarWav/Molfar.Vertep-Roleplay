@@ -31,7 +31,6 @@ import {
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
-import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, postPicture, type GeneratedImage } from './image-gen'
 import { presetImport, regexImport } from './import-shapes'
 
@@ -39,18 +38,16 @@ export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks'
   | 'quickreplies' | 'extensions' | 'connections' | 'settings' | 'chat'
 
-/** Sections that are drawers instead of pages (see opensAsDrawer). Home and
- *  the chat surfaces stay real pages; everything else slides over the page. */
+/** Sections that can be a drawer (see opensAsDrawer). Home and the chat
+ *  surfaces are always pages; the rest are pages too, except over an open chat. */
 export const DRAWER_VIEWS = new Set<ViewKey>([
   'characters', 'marketplace', 'personas', 'presets', 'lorebooks', 'quickreplies', 'extensions', 'connections', 'settings',
 ])
 
-const isDesktopViewport = () =>
-  typeof window !== 'undefined' && window.matchMedia(`(min-width: ${MOBILE_BREAKPOINT}px)`).matches
-
-/** Sections slide over the page on desktop, and over an open chat on mobile
- *  so the chat stays put underneath; any other mobile page is replaced. */
-const opensAsDrawer = (page: ViewKey) => isDesktopViewport() || page === 'chat'
+/** A section is a drawer only over an open chat (desktop and phone alike), so
+ *  the chat and its running stream stay put underneath; from any other page
+ *  (Home, Chats, another section) the section is the page itself. */
+const opensAsDrawer = (page: ViewKey) => page === 'chat'
 
 export type BootState = 'loading' | 'ready' | 'error'
 
@@ -96,7 +93,7 @@ interface AppState {
   settings: AppSettings
   // ui state
   view: ViewKey
-  /** open section drawer (null = closed): any page on desktop, only over an open chat on mobile */
+  /** open section drawer (null = closed): only ever over an open chat */
   drawer: ViewKey | null
   activeChatId: ID | null
   activeCharacterId: ID | null

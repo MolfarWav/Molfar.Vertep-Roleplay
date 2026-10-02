@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pager, clampPage } from '@/components/ui/pager'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { uid } from '@/lib/tokens'
 import { useConfirm } from '@/components/ui/confirm'
 
@@ -28,13 +29,12 @@ export function QuickRepliesView() {
   const pagedSets = qrSets.slice(clampPage(qrPage, qrSets.length, QR_PAGE) * QR_PAGE, (clampPage(qrPage, qrSets.length, QR_PAGE) + 1) * QR_PAGE)
 
   return (
+    <SectionPage section="quickreplies" count={qrSets.length}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header scrolls WITH the sets (mobile keyboard room) */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        <Lightning className="size-4 text-primary" aria-hidden="true" />
-        <h1 className="text-sm font-semibold">Shortcuts</h1>
-        <Badge variant="secondary">{qrSets.length} sets</Badge>
+        <PaneTitle section="quickreplies" count={`${qrSets.length} sets`} icon={<Lightning className="size-4 text-primary" aria-hidden="true" />} />
         <Button size="sm" className="ml-auto" onClick={() => { addQRSet(); toast.success('New shortcut set created') }}>
           <Plus className="size-4" aria-hidden="true" />New set
         </Button>
@@ -132,5 +132,6 @@ export function QuickRepliesView() {
       </ScrollArea>
     {confirmDialog}
     </div>
+    </SectionPage>
   )
 }

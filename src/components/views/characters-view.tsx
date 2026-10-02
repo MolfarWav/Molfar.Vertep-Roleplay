@@ -23,6 +23,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
 import { j, extractCardFromPng, fileToDataUrl, downscaleRemoteImage, characterToCard } from '@/lib/engine'
@@ -215,13 +216,13 @@ export function CharactersView() {
   }
 
   return (
+    <SectionPage section="characters" count={characters.length}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tag filter + favorites scroll WITH the grid — a pinned
           toolbar eats the viewport on mobile once the keyboard opens */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-        <h1 className="text-sm font-semibold">Characters</h1>
-        <Badge variant="secondary">{characters.length}</Badge>
+        <PaneTitle section="characters" count={characters.length} />
         <div className="relative order-last w-full md:order-none md:w-64">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder="Search characters…" className="h-8 pl-8 text-sm" aria-label="Search characters" />
@@ -529,6 +530,7 @@ export function CharactersView() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </SectionPage>
   )
 }
 

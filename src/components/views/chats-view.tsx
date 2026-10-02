@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { timeAgo } from '@/lib/tokens'
 import { exportChatJSONL, exportChatTxt } from '@/lib/export'
 import { toast } from 'sonner'
@@ -67,12 +68,12 @@ export function ChatsView() {
   const paged = useMemo(() => filtered.slice(safePage * CHAT_PAGE, safePage * CHAT_PAGE + CHAT_PAGE), [filtered, safePage])
 
   return (
+    <SectionPage section="chats" count={chats.length}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + folder chips scroll WITH the list (mobile keyboard room) */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex items-center gap-3 border-b border-border px-4 py-2.5">
-        <h1 className="text-sm font-semibold">All chats</h1>
-        <Badge variant="secondary">{chats.length}</Badge>
+        <PaneTitle section="chats" count={chats.length} />
         <div className="relative ml-auto w-56">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -296,5 +297,6 @@ export function ChatsView() {
         </DialogContent>
       </Dialog>
     </div>
+    </SectionPage>
   )
 }

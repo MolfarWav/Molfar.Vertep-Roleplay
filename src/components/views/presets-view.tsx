@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/components/ui/confirm'
 import { useApp } from '@/lib/store'
+import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { useDragList } from '@/lib/drag-list'
 import { presetExport, downloadJson } from '@/lib/interop'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
@@ -111,6 +112,7 @@ export function PresetsView() {
   const pagedPresets = presets.slice(clampPage(presetPage, presets.length, PRESET_PAGE) * PRESET_PAGE, (clampPage(presetPage, presets.length, PRESET_PAGE) + 1) * PRESET_PAGE)
 
   return (
+    <SectionPage section="presets" count={presets.length} hideOnPhone={detailOpen && !!preset}>
     <MasterDetail
       detailOpen={detailOpen && !!preset}
       onBack={() => setDetailOpen(false)}
@@ -119,8 +121,7 @@ export function PresetsView() {
       master={
         <aside className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />
-          <h1 className="text-sm font-semibold">Presets</h1>
+          <PaneTitle section="presets" icon={<SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />} />
           {/* import lives here so mobile can import without opening a preset */}
           <input
             ref={importRef}
@@ -360,6 +361,7 @@ export function PresetsView() {
         )
       }
     />
+    </SectionPage>
   )
 }
 
