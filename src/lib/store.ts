@@ -1289,7 +1289,9 @@ export const useApp = create<AppState>()(
         set((s) => ({
           chats: attachBranches(s.chats.filter((c) => c.id !== chatId)),
           activeChatId: s.activeChatId === chatId ? null : s.activeChatId,
-          view: s.activeChatId === chatId ? 'chats' : s.view,
+          // only leave the page when it IS the deleted chat; deleting the last-opened
+          // chat from Home or Chats must not move you
+          view: s.activeChatId === chatId && s.view === 'chat' ? 'chats' : s.view,
         }))
         void j(`/chats/${encodeURIComponent(chatId)}`, { method: 'DELETE' }).catch(() => void get().hydrate())
       },

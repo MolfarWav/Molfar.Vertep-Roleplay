@@ -18,6 +18,8 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
 import { cleanPreview } from '@/lib/preview'
+import { NO_FILTER, filterChats, type ChatFilter } from '@/lib/chat-filters'
+import { ChatFilters } from '@/components/chat/chat-filters'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { timeAgo } from '@/lib/tokens'
 import { exportChatJSONL, exportChatTxt } from '@/lib/export'
@@ -39,6 +41,8 @@ export function ChatsView() {
   const [renameValue, setRenameValue] = useState('')
   const [chatPage, setChatPage] = useState(0)
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
+  // persona / character filter (same component as on Home)
+  const [filter, setFilter] = useState<ChatFilter>(NO_FILTER)
   // In-app folder dialog — never a native window.prompt (user feedback).
   const [folderOpen, setFolderOpen] = useState(false)
   const [folderName, setFolderName] = useState('')
@@ -56,14 +60,14 @@ export function ChatsView() {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
-    return [...chats]
+    return filterChats([...chats], characters, filter)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .filter((c) => !activeFolderId || c.folderId === activeFolderId)
       .filter((c) => {
         const char = characters.find((x) => x.id === c.characterId)
         return !q || c.title.toLowerCase().includes(q) || char?.name.toLowerCase().includes(q)
       })
-  }, [chats, characters, query, activeFolderId])
+  }, [chats, characters, query, activeFolderId, filter])
   const CHAT_PAGE = 30
   const safePage = clampPage(chatPage, filtered.length, CHAT_PAGE)
   const paged = useMemo(() => filtered.slice(safePage * CHAT_PAGE, safePage * CHAT_PAGE + CHAT_PAGE), [filtered, safePage])
@@ -73,9 +77,10 @@ export function ChatsView() {
     <div className="flex h-full min-h-0 flex-col">
       {/* header + folder chips scroll WITH the list (mobile keyboard room) */}
       <ScrollArea className="min-h-0 flex-1">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-2.5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2.5">
         <PaneTitle section="chats" count={chats.length} />
-        <div className="relative ml-auto w-56">
+        <ChatFilters value={filter} onChange={(f) => { setFilter(f); setChatPage(0) }} className="md:ml-auto" />
+        <div className="relative w-full md:w-56">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             value={query}
