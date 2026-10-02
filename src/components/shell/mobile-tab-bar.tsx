@@ -4,6 +4,7 @@ import { List } from '@phosphor-icons/react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-t'
 import { SECTIONS } from '@/components/shell/sections'
 
 const PRIMARY = new Set(['home', 'chats', 'characters'])
@@ -13,6 +14,7 @@ const moreItems = SECTIONS.filter((s) => !PRIMARY.has(s.key))
 export function MobileTabBar() {
   const view = useApp((s) => s.view)
   const navigate = useApp((s) => s.navigate)
+  const t = useT()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = moreItems.some((i) => i.key === view)
 
@@ -29,15 +31,15 @@ export function MobileTabBar() {
               key={item.key}
               type="button"
               onClick={() => navigate(item.key)}
-              aria-label={item.label}
+              aria-label={t(item.labelKey)}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium',
-                active ? 'text-primary' : 'text-muted-foreground',
+                'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 border-t-[3px] font-heading text-[12px]',
+                active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
               )}
             >
-              <item.icon className="size-5" aria-hidden="true" />
-              {item.label}
+              <item.icon className={cn('size-5', active && 'text-cta')} aria-hidden="true" />
+              {t(item.labelKey)}
             </button>
           )
         })}
@@ -46,12 +48,12 @@ export function MobileTabBar() {
           onClick={() => setMoreOpen(true)}
           aria-label="More sections"
           className={cn(
-            'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium',
-            moreActive ? 'text-primary' : 'text-muted-foreground',
+            'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 border-t-[3px] font-heading text-[12px]',
+            moreActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
           )}
         >
-          <List className="size-5" aria-hidden="true" />
-          More
+          <List className={cn('size-5', moreActive && 'text-cta')} aria-hidden="true" />
+          {t('nav.more')}
         </button>
       </nav>
 
@@ -67,14 +69,14 @@ export function MobileTabBar() {
                 type="button"
                 onClick={() => { navigate(item.key); setMoreOpen(false) }}
                 className={cn(
-                  'flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border text-[11px]',
+                  'flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border font-heading text-[12px]',
                   view === item.key
-                    ? 'border-primary/40 bg-accent text-primary'
+                    ? 'border-primary/40 bg-accent text-foreground [&>svg]:text-cta'
                     : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
                 <item.icon className="size-5" aria-hidden="true" />
-                {item.label}
+                {t(item.labelKey)}
               </button>
             ))}
           </div>

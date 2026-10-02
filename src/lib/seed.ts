@@ -2,6 +2,7 @@
 // sampler defaults). Server-backed data starts EMPTY apart from the shipped
 // template: a fresh workspace carries the stock preset, the default persona,
 // and the example bot — nothing else.
+import { detectLanguage } from './i18n.js'
 import type { ThemePreset, SamplerSettings, AppSettings, Preset, PromptSection, SectionMarker, PromptFormatSequences } from './types.js'
 
 /** Every generation type a preset section can be limited to. */
@@ -178,7 +179,7 @@ export function defaultSettings(): AppSettings {
     expandMessageActions: false, reducedMotion: false,
     autoScroll: true, confirmDeletions: true, dayDividers: true, messageTint: true, swipeCountAllMessages: false,
     sendOnEnter: true, upArrowEditLast: true, messagesToLoad: 50,
-    quoteStyle: 'default', quoteColor: '#54d17d', italicsColor: '', language: 'English', customCss: '', activeBackgroundId: null, backgroundOpacity: 18,
+    quoteStyle: 'default', quoteColor: '', italicsColor: '', language: detectLanguage(), customCss: '', activeBackgroundId: null, backgroundOpacity: 18,
     charSubheader: 'creator',
     tts: { provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true, charVoices: {}, model: 'tts-1', engineProvider: 'edge' },
     translation: { provider: 'llm', targetLanguage: 'Spanish', internalLanguage: 'English', autoMode: 'none' },

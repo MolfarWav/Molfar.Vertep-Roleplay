@@ -21,6 +21,7 @@ import {
 import { useApp } from "@/lib/store"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MasterDetail } from "@/components/shell/master-detail"
+import { resolveLanguage } from "@/lib/i18n"
 import type { AppSettings } from "@/lib/types"
 import { extractCharaFromPng, regexImport } from "@/lib/interop"
 import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/engine"
@@ -44,6 +45,7 @@ const SECTIONS: SectionDef[] = [
     controls: [
       // NOTE: no light/dark pick here — the Themes section is the single
       // source of truth (a light theme like Daylight switches the mode).
+      { kind: "select", key: "language", label: "Interface Language", options: [["en", "English"], ["uk", "Українська"]] },
       { kind: "select", key: "proseFont", label: "Chat Font", options: PROSE_FONTS.map((f) => [f.id, f.label]) },
       { kind: "select", key: "displayMode", label: "Display Mode", options: [["bubbles", "Bubbles"], ["flat", "Flat"], ["minimal", "Minimal"], ["document", "Document"]] },
       { kind: "select", key: "chatWidth", label: "Chat Width", options: [["full", "Full"], ["comfortable", "Comfortable"], ["compact", "Compact"]] },
@@ -138,7 +140,8 @@ export function SettingsView() {
   const cssPinsProseFont = /\.mes_text[^{]*\{[^}]*font-family/i.test(settings.customCss)
 
   const renderControl = (c: ControlDef) => {
-    const value = settings[c.key]
+    // the stored value may be unset or an old string: show what is in effect
+    const value = c.key === "language" ? resolveLanguage(settings.language) : settings[c.key]
     if (c.kind === "switch") {
       return (
         <label key={c.key} className="flex items-center justify-between py-1.5 text-sm">

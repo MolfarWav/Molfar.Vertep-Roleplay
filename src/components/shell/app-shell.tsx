@@ -1,12 +1,13 @@
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { CircleNotch } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useApp, DRAWER_VIEWS, type ViewKey } from '@/lib/store'
 import { takeReloadReason } from '@/lib/engine'
-import { useIsDesktop } from '@/hooks/use-mobile'
+import { useIsDesktop, useIsWideRail } from '@/hooks/use-mobile'
+import { useT } from '@/hooks/use-t'
 import { useBackClose } from '@/hooks/use-back-close'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,7 @@ import { ConnectionsView } from '@/components/views/connections-view'
 import { SettingsView } from '@/components/views/settings-view'
 import { ThemeApplier } from '@/components/theme-applier'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
-import { SECTIONS } from '@/components/shell/sections'
+import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
 
 export function AppShell() {
   const [mounted, setMounted] = useState(false)
@@ -165,15 +166,19 @@ function renderView(v: ViewKey) {
   }
 }
 
-/** Section drawer: the page behind stays mounted (a chat keeps its scroll and
- *  any running stream) and closing the drawer drops you right back into it.
+/** Section drawer, only ever over an open chat: the chat behind stays mounted
+ *  (it keeps its scroll and any running stream) and closing the drawer drops
+ *  you right back into it. From Home or Chats a section is a page instead.
  *  Desktop: slides over the left part of the screen beside the rail and stops
  *  short of the right edge; clicking the uncovered side or Esc closes it.
  *  Mobile: covers the open chat below its section bar, full width. */
 function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
   const drawer = useApp((s) => s.drawer)
   const closeDrawer = useApp((s) => s.closeDrawer)
-  const label = SECTIONS.find((i) => i.key === drawer)?.label ?? ''
+  const wide = useIsWideRail()
+  const t = useT()
+  const item = SECTIONS.find((i) => i.key === drawer)
+  const label = item ? t(item.labelKey) : ''
   return (
     // non-modal and without pointer dismissal: the rail (or the chat's section
     // bar) stays live, since pressing it must not read as an outside-close; the
@@ -186,19 +191,22 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
         aria-label={label}
         // the drawer and its dim sit beside the rail / below the section bar,
         // never over it: it stays clickable to flip sections or close
-        overlayClassName={isDesktop ? 'left-12' : 'top-11'}
+        overlayClassName={cn('bg-black/45', isDesktop ? (wide ? 'left-[206px]' : 'left-12') : 'top-11')}
         onOverlayClick={closeDrawer}
         className={cn(
           'gap-0',
           isDesktop
-            ? 'data-[side=left]:left-12 data-[side=left]:w-[min(720px,75vw)] data-[side=left]:sm:max-w-none'
+            ? cn(
+                'data-[side=left]:w-[min(720px,75vw)] data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
+                wide ? 'data-[side=left]:left-[206px]' : 'data-[side=left]:left-12',
+              )
             : 'data-[side=top]:top-11 data-[side=top]:bottom-0 data-[side=top]:max-h-none',
         )}
         // mobile: the section bar's lit icon is the title, and tapping it again closes
         showCloseButton={isDesktop}
       >
         {isDesktop && (
-          <div className="flex h-11 shrink-0 items-center border-b border-border pr-12 pl-4 text-sm font-medium">
+          <div className="flex h-11 shrink-0 items-center border-b border-border pr-12 pl-4 font-heading text-[17px]">
             {label}
           </div>
         )}
@@ -215,38 +223,89 @@ function IconRail() {
   const drawer = useApp((s) => s.drawer)
   const navigate = useApp((s) => s.navigate)
   const closeDrawer = useApp((s) => s.closeDrawer)
+  const wide = useIsWideRail()
+  const t = useT()
 
   return (
-    <nav aria-label="Primary sections" className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-card py-2 md:flex">
-      {SECTIONS.map((item) => {
-        const active = view === item.key || (view === 'chat' && item.key === 'chats') || drawer === item.key
-        return (
-          <Tooltip key={item.key}>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={() => {
-                    // clicking the open drawer's icon toggles it shut; page
-                    // items close whatever drawer is open on the way there
-                    if (drawer === item.key) { closeDrawer(); return }
-                    if (!DRAWER_VIEWS.has(item.key)) closeDrawer()
-                    navigate(item.key)
-                  }}
-                  aria-label={item.label}
-                  className={cn(
-                    'relative flex size-9 items-center justify-center rounded-md transition-colors',
-                    active ? 'bg-accent text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                  )}
-                >
-                  <item.icon className="size-4.5" aria-hidden="true" />
-                </button>
-              }
+    <nav
+      aria-label="Primary sections"
+      className={cn(
+        'hidden shrink-0 flex-col border-r border-border bg-card py-2 md:flex',
+        wide ? 'w-[206px]' : 'w-12',
+      )}
+    >
+      {sectionGroups().map((group, gi) => (
+        <Fragment key={String(group[0]!.group)}>
+          {gi > 0 && <RailDivider wide={wide} pinned={group[0]!.group === 'end'} />}
+          {group.map((item) => (
+            <RailItem
+              key={item.key}
+              item={item}
+              wide={wide}
+              label={t(item.labelKey)}
+              active={drawer ? drawer === item.key : view === item.key || (view === 'chat' && item.key === 'chats')}
+              onClick={() => {
+                // clicking the open drawer's icon toggles it shut; anything
+                // else navigates (a section over a chat becomes its drawer)
+                if (drawer === item.key) { closeDrawer(); return }
+                navigate(item.key)
+              }}
             />
-            <TooltipContent side="right">{item.label}</TooltipContent>
-          </Tooltip>
-        )
-      })}
+          ))}
+        </Fragment>
+      ))}
     </nav>
+  )
+}
+
+/** Between rail groups: the ornament when labels show, a short rule when not.
+ *  `pinned` pushes it (and everything after it) to the bottom of the rail. */
+function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
+  return wide ? (
+    <img
+      src={`${import.meta.env.BASE_URL}divider-mute.svg`}
+      alt=""
+      aria-hidden="true"
+      width={178}
+      height={19}
+      className={cn('mx-auto my-2 block h-[19px] w-[178px] shrink-0 select-none', pinned && 'mt-auto')}
+      draggable={false}
+    />
+  ) : (
+    <div aria-hidden="true" className={cn('mx-auto my-2.5 h-px w-6 shrink-0 bg-border', pinned && 'mt-auto')} />
+  )
+}
+
+function RailItem({ item, wide, label, active, onClick }: {
+  item: SectionItem
+  wide: boolean
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  const button = (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'relative flex w-full shrink-0 items-center border-l-[3px] transition-colors',
+        wide ? 'gap-3 py-2 pr-[22px] pl-[13px] font-heading text-[17px] leading-tight' : 'h-10 justify-center',
+        active
+          ? 'border-primary bg-linear-to-r from-primary/25 to-primary/[0.03] text-foreground'
+          : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+      )}
+    >
+      <item.icon className={cn('shrink-0', wide ? 'size-[19px]' : 'size-5', active && 'text-cta')} aria-hidden="true" />
+      {wide && <span className="min-w-0 text-left">{label}</span>}
+    </button>
+  )
+  if (wide) return button
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   )
 }

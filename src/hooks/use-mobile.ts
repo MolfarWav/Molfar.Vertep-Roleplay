@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 
 export const MOBILE_BREAKPOINT = 768
+/** From this width the nav rail grows labels (below it: icons only). */
+export const WIDE_RAIL_BREAKPOINT = 1280
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false)
@@ -16,8 +18,8 @@ export function useIsMobile() {
   return isMobile
 }
 
-/** True on the same breakpoint from the other side — the desktop shell (icon
- *  rail + drawer navigation) lives at >=768px, the mobile one below it. */
+/** True on the same breakpoint from the other side — the desktop shell (nav
+ *  rail) lives at >=768px, the mobile one (tab bar) below it. */
 export function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false)
 
@@ -30,4 +32,19 @@ export function useIsDesktop() {
   }, [])
 
   return isDesktop
+}
+
+/** True from 1280px: the rail shows labels and groups, not just icons. */
+export function useIsWideRail() {
+  const [wide, setWide] = useState(false)
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(min-width: ${WIDE_RAIL_BREAKPOINT}px)`)
+    const onChange = () => setWide(mql.matches)
+    onChange()
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
+
+  return wide
 }

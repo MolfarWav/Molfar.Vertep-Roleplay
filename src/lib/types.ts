@@ -660,6 +660,8 @@ export interface AppSettings {
   quoteColor: string
   /** Overrides the active theme's italics/narration color. Empty = follow theme. */
   italicsColor: string
+  /** Interface language for the nav labels and page titles: 'en' | 'uk'.
+   *  Anything else (older builds wrote 'English') follows the browser. */
   language: string
   customCss: string
   activeBackgroundId: ID | null

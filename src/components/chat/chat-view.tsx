@@ -26,6 +26,7 @@ import { speakText, voiceFor } from '@/lib/tts'
 import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
 import { ChatsView } from '@/components/views/chats-view'
 import { sectionsFor } from '@/components/shell/sections'
+import { useT } from '@/hooks/use-t'
 import type { ID } from '@/lib/types'
 import { DEFAULT_AVATAR, cn, readableNameColor, shortModel } from '@/lib/utils'
 import { cssAttrValue, scopeCss } from '@/lib/scope-css'
@@ -119,6 +120,7 @@ export function ChatView() {
   const drawer = useApp((s) => s.drawer)
   const setView = useApp((s) => s.setView)
   const closeDrawer = useApp((s) => s.closeDrawer)
+  const t = useT()
   const bgFileRef = useRef<HTMLInputElement>(null)
 
   const [findOpen, setFindOpen] = useState(false)
@@ -672,11 +674,11 @@ export function ChatView() {
               key={item.key}
               type="button"
               onClick={() => (drawer === item.key ? closeDrawer() : setView(item.key))}
-              aria-label={item.label}
+              aria-label={t(item.labelKey)}
               aria-pressed={drawer === item.key}
               className={cn(
                 'flex size-9 shrink-0 items-center justify-center rounded-md transition-colors',
-                drawer === item.key ? 'bg-accent text-primary' : 'text-muted-foreground active:bg-accent',
+                drawer === item.key ? 'bg-accent text-cta' : 'text-muted-foreground active:bg-accent',
               )}
             >
               <item.icon className="size-4.5" aria-hidden="true" />
