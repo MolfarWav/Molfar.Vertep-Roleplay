@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 
 export const MOBILE_BREAKPOINT = 768
-/** From this width the nav rail grows labels (below it: icons only). */
-export const WIDE_RAIL_BREAKPOINT = 1280
+/** From this width the nav rail grows labels (below it: icons only). Below
+ *  1280: the app frame inside a 1280px engine window is a little narrower. */
+export const WIDE_RAIL_BREAKPOINT = 1200
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false)
@@ -34,7 +35,7 @@ export function useIsDesktop() {
   return isDesktop
 }
 
-/** True from 1280px: the rail shows labels and groups, not just icons. */
+/** True from WIDE_RAIL_BREAKPOINT: the rail shows labels and groups, not just icons. */
 export function useIsWideRail() {
   const [wide, setWide] = useState(false)
 
