@@ -10,6 +10,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useApp } from '@/lib/store'
+import { cleanPreview } from '@/lib/preview'
 import { timeAgo } from '@/lib/tokens'
 import type { Achievement } from '@/lib/types'
 import { toast } from 'sonner'
@@ -218,7 +219,7 @@ export function HomeView() {
                             <span className="ml-auto text-[10px] text-muted-foreground">{timeAgo(chat.updatedAt)}</span>
                           </span>
                           <span className="line-clamp-1 text-xs text-muted-foreground">
-                            {lastText.replace(/[*>#`]/g, '').slice(0, 90)}
+                            {cleanPreview(lastText, 90)}
                           </span>
                         </button>
                       )

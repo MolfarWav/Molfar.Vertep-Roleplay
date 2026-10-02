@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
+import { cleanPreview } from '@/lib/preview'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { timeAgo } from '@/lib/tokens'
 import { exportChatJSONL, exportChatTxt } from '@/lib/export'
@@ -191,7 +192,7 @@ export function ChatsView() {
                         {chat.parentChatId && <Badge variant="outline">branch</Badge>}
                       </span>
                       <span className="line-clamp-1 text-xs text-muted-foreground">
-                        {previewText.replace(/[*>#`]/g, '').slice(0, 120)}
+                        {cleanPreview(previewText, 120)}
                       </span>
                     </span>
                     <span className="flex shrink-0 flex-col items-end text-xs text-muted-foreground">

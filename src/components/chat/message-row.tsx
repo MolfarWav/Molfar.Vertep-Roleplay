@@ -1,5 +1,6 @@
 
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { cleanPreview } from '@/lib/preview'
 import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, GitBranch, BookmarkSimple, Eye, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, ArrowsOut, Wrench, ArrowUp, ArrowDown } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -1154,7 +1155,7 @@ function SwipeCard({ chatId, messageId, index, active, content, model, onPick }:
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => deleteSwipe(chatId, messageId, index)}>Delete</Button>
         </div>
       </div>
-      <p className="mt-1 line-clamp-3 text-xs">{content.replace(/[*>#`]/g, '')}</p>
+      <p className="mt-1 line-clamp-3 text-xs">{cleanPreview(content)}</p>
     </div>
   )
 }

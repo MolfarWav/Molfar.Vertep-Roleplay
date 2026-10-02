@@ -27,6 +27,7 @@ import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
 import { ChatsView } from '@/components/views/chats-view'
 import { sectionsFor } from '@/components/shell/sections'
 import { useT } from '@/hooks/use-t'
+import { cleanPreview } from '@/lib/preview'
 import type { ID } from '@/lib/types'
 import { DEFAULT_AVATAR, cn, readableNameColor, shortModel } from '@/lib/utils'
 import { cssAttrValue, scopeCss } from '@/lib/scope-css'
@@ -1154,7 +1155,7 @@ export function ChatView() {
               {chat.messages.filter((m) => m.bookmarked).map((m) => (
                 <li key={m.id} className="rounded-md border border-border p-2.5">
                   <p className="text-sm font-medium">{m.bookmarkLabel ?? 'Bookmark'}</p>
-                  <p className="line-clamp-2 text-xs text-muted-foreground">{m.swipes[m.activeSwipe]?.content.replace(/[*>#`]/g, '')}</p>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{cleanPreview(m.swipes[m.activeSwipe]?.content ?? '')}</p>
                 </li>
               ))}
             </ul>

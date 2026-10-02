@@ -1,5 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { cleanPreview } from '@/lib/preview'
 import { Check, Flag, GitBranch, ChatCenteredText, PencilSimple, Trash, ArrowElbowDownRight, BookmarkSimple, FileText, FileCode, UploadSimple, BoxArrowUp } from '@phosphor-icons/react'
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -54,7 +55,7 @@ function previewLine(chat: Chat): string {
   const last = [...chat.messages].reverse().find((m) => !m.hidden) ?? chat.messages[chat.messages.length - 1]
   // a chat whose transcript is not loaded falls back to the list meta's preview
   const text = last?.swipes[last.activeSwipe]?.content ?? chat.preview ?? ""
-  return text.replace(/[*>#`\n]/g, " ").replace(/\s+/g, " ").trim().slice(0, 110)
+  return cleanPreview(text, 110)
 }
 
 /** Transcript length, or the list meta's count when it is not loaded. */
