@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "@fontsource-variable/noto-sans";
+import "@fontsource/kurale";
 import "./globals.css";
 import { AppShell } from "@/components/shell/app-shell";
 import { noteReload } from "@/lib/engine";
