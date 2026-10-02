@@ -199,7 +199,7 @@ function Tile({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-[3px] border border-border bg-secondary/60 px-2.5 py-1.5">
       <p className="font-mono text-base font-semibold tabular-nums">{value.toLocaleString()}</p>
-      <p className="truncate font-heading text-[11.5px] text-muted-foreground">{label}</p>
+      <p className="font-heading text-[11.5px] leading-tight text-muted-foreground">{label}</p>
     </div>
   )
 }
