@@ -11,6 +11,7 @@ import path from "node:path";
 
 const engineUrl = new URL("../plugins/engine/plugin.js", import.meta.url).href;
 const litopysUrl = new URL("../plugins/litopys/plugin.js", import.meta.url).href;
+const relationsUrl = new URL("../plugins/relations/plugin.js", import.meta.url).href;
 
 const CYRILLIC = /[Ѐ-ӿ]/;
 const LANGUAGE_LINE = /\blanguage\b/i;
@@ -115,6 +116,15 @@ describe("plugin prompts: English, with a language line where the model writes f
       expect(CYRILLIC.test(text), `${key} has Cyrillic`).toBe(false);
       expect(LANGUAGE_LINE.test(text), `${key} has no language line`).toBe(true);
     }
+  });
+
+  it("the dashboard sensor default", async () => {
+    const r = await drive(relationsUrl, { method: "GET", path: "/dashboard/config" }, mockHost());
+    const text = r.json.sensor as string;
+    expect(text.length).toBeGreaterThan(500);
+    expect(CYRILLIC.test(text), "sensor has Cyrillic").toBe(false);
+    expect(LANGUAGE_LINE.test(text), "sensor has no language line").toBe(true);
+    expect(text).toContain("in the language the story is written in");
   });
 
   it("the summary default", async () => {
