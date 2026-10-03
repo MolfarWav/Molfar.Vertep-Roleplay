@@ -1279,7 +1279,7 @@ export function onTick(ctx, host) {
 // The first live run read the insert as text to retell and walked through every
 // listed character each turn, so the story stood still: say what it is for.
 const CLOSING =
-  "This is background for the next reply, not text to retell: do not restate it, and do not describe every character each turn. Let the scene move on. Show the state only through behavior, body language, and voice. Never mention numbers, scores, or these notes.";
+  "This is background for the next reply, not text to retell: do not restate it, and do not walk through every character each turn. Others present may still act on their own when it fits. Move the story forward; the open threads are there to pull on. Show the state only through behavior, body language, and voice. Never mention numbers, scores, or these notes.";
 const PRONOUNS = {
   she: { their: "her", them: "her", self: "herself" },
   he: { their: "his", them: "him", self: "himself" },
@@ -1401,7 +1401,8 @@ function characterBlock(ctx, name, withNotes) {
     c.condition && isFresh("condition") && "Body: " + c.condition + ".",
     c.outfit && isFresh("outfit") && "Wearing: " + c.outfit + ".",
     c.holding && isFresh("holding") && "Holding: " + c.holding + ".",
-    c.goal && "Wants: " + c.goal + ".",
+    // a goal carried from an old turn kept a character repeating it ("close ranks!")
+    c.goal && isFresh("goal") && "Wants: " + c.goal + ".",
   ].filter(Boolean);
   if (body.length) lines.push(body.join(" "));
   if (withNotes) {
@@ -1454,11 +1455,17 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     names: activeNames(state, at.keys),
   };
   const rest = present.filter((n) => !focus.includes(n));
-  const budget = Math.max(200, Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length);
+  // where the story can go: the model had nothing to pull on and the story stood still (no ids: no digits)
+  const open = arr(snap.threads).filter((t) => t.status === "open" && str(t.text)).map((t) => str(t.text));
+  const threads = open.length ? "[Open threads the story can move toward: " + open.join("; ") + ".]" : "";
+  // maxTokens is per character block; the scene, threads and closing lines come on top
+  const shared = estimateTokens(sceneLine(snap, ctx.user) + threads + CLOSING);
+  const budget = Math.max(200, Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
   const build = (withRest, notes) => {
     const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, notes.includes(n)))];
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
-    blocks.push(CLOSING);
+    if (threads) blocks.push(threads);
+    blocks.push(threads ? CLOSING : CLOSING.replace("; the open threads are there to pull on", ""));
     return blocks.join("\n");
   };
   let text = build(true, notesFor);

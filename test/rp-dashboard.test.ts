@@ -1326,6 +1326,22 @@ describe("prompt insert", () => {
     expect(text).toContain("not text to retell");
   });
 
+  it("11b. open threads ride along without ids; a goal only when seen this turn", () => {
+    const mock = withState(reply({ present: ["Aria"], chars: { Aria: { goal: "find the ferry" } }, threads: { open: [{ id: null, text: "Who sank the ferry?" }] } }));
+    let text = insertOf(ask(mock, "c1"));
+    expect(text).toContain("[Open threads the story can move toward: Who sank the ferry?.]");
+    expect(text).toContain("the open threads are there to pull on");
+    expect(text).toContain("Wants: find the ferry.");
+    expect(text).not.toMatch(/\d/);
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?")]);
+    mock.push(reply({ present: ["Aria"], threads: { open: [], resolved: ["t1"] } }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    text = insertOf(ask(mock, "c1"));
+    expect(text).not.toContain("find the ferry");
+    expect(text).not.toContain("Open threads");
+    expect(text).not.toContain("pull on");
+  });
+
   it("12. a name counts with an ending, a plain substring does not", () => {
     expect(P.mentions("I turn to Mariann.", "Marianna")).toBe(true);
     expect(P.mentions("Chandru!", "Chandra")).toBe(true);
