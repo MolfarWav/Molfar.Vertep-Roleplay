@@ -261,6 +261,7 @@ data/
 ├─ lorebooks/<id>.json  world-info books (entries[], settings, vectorized)
 ├─ regex/<id>.json      regex scripts (find/replace/placements/flags)
 ├─ databank/<id>.json   { name, scope, enabled, size, chunks: [{i, text}] }
+├─ dashboard/           relations plugin: state/<chatId>.json, config.json, events.json
 └─ personas/<id>.json   user personas
 ```
 

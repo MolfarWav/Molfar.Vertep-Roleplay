@@ -703,6 +703,11 @@ export const useApp = create<AppState>()(
               }
               return
             }
+            // the dashboard's own state and debug files change on every update:
+            // no reason to re-hydrate the whole data tree for them
+            const QUIET = ['data/dashboard', 'data/_debug']
+            const quiet = (p: string) => { const n = p.replace(/\\/g, '/'); return QUIET.some((d) => n === d || n.startsWith(d + '/')) }
+            if (paths && paths.length > 0 && paths.every(quiet)) return
             clearTimeout(lookHydrateTimer)
             lookHydrateTimer = setTimeout(() => void get().hydrate(), 250)
           }, (chatId, delta) => {

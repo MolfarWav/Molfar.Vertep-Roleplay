@@ -18,6 +18,7 @@ riding alongside public formats: copy them through untouched.
 | `lorebooks/<id>.json` | World-info books: entries (keys, positions, probability…), scan settings, vectorization config. Entry `status` is the source of truth: `"normal"` (keyed), `"constant"` (always injected), `"vectorized"` (embedding match). Don't write the legacy `constant` boolean — when both exist, `status` wins. |
 | `regex/<id>.json` | Regex scripts: find/replace, flags, placements (which surfaces they touch). |
 | `personas/<id>.json` | User personas: name, description, pronouns, bindings. |
+| `dashboard/state/<chatId>.json` | The relationship dashboard's per-chat state, written only by the `relations` plugin: per-message snapshots (stats, mood, clock), notebook, history. Optional `dashboard/config.json` (changed settings only) and `dashboard/events.json` (your own event vocabulary). Never edit while a chat is updating. |
 | `databank/<id>.json` | Data-bank documents: `{ name, scope, enabled, size, chunks: [{i, text}] }`. The engine chunks uploaded text (1000 chars, 150 overlap) and injects the top term-matching chunks into the prompt when a message is sent. |
 
 ## Characters: alternates, versions, per-chat choice
