@@ -987,7 +987,7 @@ describe("prompt insert", () => {
     P.llmRequest({ key: "reply", request: { sessionId: chatId, messages, ...requestExtra }, ...extra }, mock.host) as { messages: any[] } | null;
   /** The text of the insert inside a patched message list. */
   const insertOf = (out: { messages: any[] } | null): string => {
-    const m = out?.messages.find((x) => String(x.content).startsWith("[Scene now:"));
+    const m = out?.messages.find((x) => String(x.content).startsWith("[Background, the scene:"));
     if (!m) throw new Error("no insert in the patch");
     return m.content;
   };
@@ -1037,7 +1037,7 @@ describe("prompt insert", () => {
     expect(out.messages.length).toBe(6);
     expect(out.messages.slice(0, 2)).toEqual([SYS("A"), SYS("B")]);
     expect(out.messages[2].role).toBe("system");
-    expect(out.messages[2].content.startsWith("[Scene now:")).toBe(true);
+    expect(out.messages[2].content.startsWith("[Background, the scene:")).toBe(true);
     expect(out.messages.slice(3)).toEqual(msgs.slice(2));
     // the request's own array is left as it was
     expect(msgs.length).toBe(5);
@@ -1046,7 +1046,7 @@ describe("prompt insert", () => {
     expect(Object.keys(bare)).toEqual(["messages"]);
     expect(bare.messages.length).toBe(3);
     expect(bare.messages[0].role).toBe("system");
-    expect(bare.messages[0].content.startsWith("[Scene now:")).toBe(true);
+    expect(bare.messages[0].content.startsWith("[Background, the scene:")).toBe(true);
     expect(bare.messages.slice(1)).toEqual([{ role: "user", content: "X" }, { role: "assistant", content: "Y" }]);
     // an empty message list still gets the insert
     expect(ask(mock, "c1", [])!.messages.length).toBe(1);
@@ -1107,7 +1107,7 @@ describe("prompt insert", () => {
       expect(stranger).toContain("[How Bram is right now:");
     });
 
-    it("5. a narrator card voices everyone present: each gets a block with only their own note", () => {
+    it("5. a narrator card: a full block only for whom the turn is about, each with only their own note", () => {
       const replyText = reply({
         present: ["Medli", "Garrett"],
         learned: [
@@ -1118,16 +1118,29 @@ describe("prompt insert", () => {
       // the card is Bram, who has no soul and is not in the scene
       const mock = withState(replyText, "c1", three(), { characterId: "bram" });
       expect(readStateFile("c1").snapshots["m3#0"].present).toEqual(["Medli", "Garrett"]);
-      const text = insertOf(ask(mock, "c1", defaultMessages(), { turn: { op: "send" } }));
-      expect(text).not.toContain("[How Bram");
-      const pieces = text.split("[How ");
+      const userSays = (content: string) => [SYS("card"), { role: "user", content }];
+      // the user turns to Medli: only she gets a block and her own note; Garrett is one line
+      const toMedli = insertOf(ask(mock, "c1", userSays("I turn to Medli."), { turn: { op: "send" } }));
+      expect(toMedli).not.toContain("[How Bram");
+      expect(toMedli).toContain("[How Medli is right now:");
+      expect(toMedli).toContain("What Medli knows about You: Saw: The user fears the sea.");
+      expect(toMedli).not.toContain("[How Garrett");
+      expect(toMedli).not.toContain("owes a debt");
+      expect(toMedli).toContain("Also present: Garrett:");
+      // both named (an ending on the name still counts): two blocks, each with only their own note
+      const both = insertOf(ask(mock, "c1", userSays("Medli and Garretto, come here."), { turn: { op: "send" } }));
+      const pieces = both.split("[How ");
       const medli = pieces.find((p) => p.startsWith("Medli"))!;
       const garrett = pieces.find((p) => p.startsWith("Garrett"))!;
-      expect(medli).toContain("What Medli knows about You: Saw: The user fears the sea.");
+      expect(medli).toContain("fears the sea");
       expect(medli).not.toContain("owes a debt");
-      expect(garrett).toContain("What Garrett knows about You: Saw: The user owes a debt.");
+      expect(garrett).toContain("owes a debt");
       expect(garrett).not.toContain("fears the sea");
-      expect(text).not.toContain("Also present:");
+      // nobody named and nothing happened to anyone: one line each, no notebook at all
+      const nobody = insertOf(ask(mock, "c1", userSays("I ride on in silence."), { turn: { op: "send" } }));
+      expect(nobody).not.toContain("[How ");
+      expect(nobody).not.toMatch(/knows about/);
+      expect(nobody).toContain("People here: Medli:");
     });
   });
 
@@ -1293,5 +1306,31 @@ describe("prompt insert", () => {
     expect(insertOf(ask(she, "c1"))).toContain("You told him: ");
     fs.writeFileSync(soulPath, cardWith("xe"));
     expect(insertOf(ask(she, "c1"))).toContain("You told them: ");
+  });
+
+  it("11. body, clothes and hands only when seen this turn; the mood stays, its shift only when it changed", () => {
+    const mock = withState(reply({ present: ["Aria"], chars: { Aria: { mood: "tense", holding: "a key", condition: "wet" } } }));
+    let text = insertOf(ask(mock, "c1"));
+    expect(text).toContain("Holding: a key.");
+    expect(text).toContain("Body: wet.");
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?")]);
+    mock.push(reply({ present: ["Aria"], chars: { Aria: { outfit: "a grey cloak" } } }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    text = insertOf(ask(mock, "c1"));
+    expect(text).not.toContain("a key");
+    expect(text).not.toContain("wet");
+    expect(text).toContain("Wearing: a grey cloak.");
+    expect(text).toContain("Mood: tense.");
+    expect(text).not.toContain("shifting from");
+    // the closing line says it is background, not text to retell
+    expect(text).toContain("not text to retell");
+  });
+
+  it("12. a name counts with an ending, a plain substring does not", () => {
+    expect(P.mentions("I turn to Mariann.", "Marianna")).toBe(true);
+    expect(P.mentions("Chandru!", "Chandra")).toBe(true);
+    expect(P.mentions("hello Aria", "Aria")).toBe(true);
+    expect(P.mentions("a malaria cure", "Aria")).toBe(false);
+    expect(P.mentions("", "Aria")).toBe(false);
   });
 });

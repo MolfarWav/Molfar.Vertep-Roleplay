@@ -11,7 +11,7 @@
  * Routes (under /v1/apps/roleplay/):
  *  POST /dashboard/update {chatId, op?}    sensor now (two-phase)
  *  GET  /dashboard/state?chatId=           state + active keys + current key
- *  GET  /dashboard/preview?chatId=&speaker= the prompt insert the next reply gets
+ *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets
  *
  * Before each reply, the llmRequest hook adds "how the characters are right
  * now" in words as the last leading system message (buildInsert).
@@ -915,6 +915,8 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   const turn = applyTurn({ name, prev, soul, cls, events, vocab: ctx.vocab });
   const entry = { cls, stats: turn.stats, pulse: turn.pulse, hostility: turn.hostility };
   for (const f of TEXT_FIELDS) entry[f] = (isObj(sensorChar) && str(sensorChar[f]) ? cut(str(sensorChar[f]), 300) : old ? old[f] : null) ?? null;
+  // what the sensor saw THIS turn; carried values are stale for the prompt insert
+  entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
   const oldC = old ? old.constellation : null;
   entry.constellation = constellationOf(turn.stats, cls).id;
   entry.prevConstellation = old ? (oldC !== entry.constellation ? oldC : old.prevConstellation ?? null) : null;
@@ -1274,7 +1276,10 @@ export function onTick(ctx, host) {
 
 // ---------- the prompt insert: how the characters are right now ----------
 // Words only: no stat numbers, no digits from code, never the blind spot.
-const CLOSING = "Show this only through behavior, body language, and voice. Never mention numbers, scores, or these notes.";
+// The first live run read the insert as text to retell and walked through every
+// listed character each turn, so the story stood still: say what it is for.
+const CLOSING =
+  "This is background for the next reply, not text to retell: do not restate it, and do not describe every character each turn. Let the scene move on. Show the state only through behavior, body language, and voice. Never mention numbers, scores, or these notes.";
 const PRONOUNS = {
   she: { their: "her", them: "her", self: "herself" },
   he: { their: "his", them: "him", self: "himself" },
@@ -1313,7 +1318,24 @@ function hostilityWords(h) {
 /** The turn labels: ctx.turn from the engine, or the raw field an older engine leaves in the request. */
 function turnOf(ctx) {
   const t = isObj(ctx.turn) ? ctx.turn : ctx.request && isObj(ctx.request.turn) ? ctx.request.turn : {};
-  return { op: str(t.op), speakerName: str(t.speakerName), targetId: str(t.targetId) };
+  const msgs = ctx.request && Array.isArray(ctx.request.messages) ? ctx.request.messages : [];
+  const lastUser = msgs.filter((m) => m && m.role === "user" && typeof m.content === "string").slice(-1)[0];
+  return { op: str(t.op), speakerName: str(t.speakerName), targetId: str(t.targetId), userText: lastUser ? lastUser.content.slice(-2000) : "" };
+}
+
+/** Is the name in the text, allowing for endings (Mariann for Marianna, Chandru for Chandra)? */
+export function mentions(text, name) {
+  const t = " " + String(text).toLowerCase().replace(/[^\p{L}\p{N}']+/gu, " ") + " ";
+  const n = String(name).toLowerCase();
+  const stem = n.length > 5 ? n.slice(0, -2) : n.length > 3 ? n.slice(0, -1) : n;
+  return t.includes(" " + stem);
+}
+
+/** In a narrator chat: who this turn is about (named by the user, or on the receiving end last turn). */
+function aboutNow(present, userText, snap) {
+  const named = present.filter((n) => userText && mentions(userText, n));
+  const touched = arr(snap.events).map((e) => e.to).filter((n) => present.includes(n));
+  return unique([...named, ...touched]);
 }
 
 /** The snapshot that stands for the story just before the reply being written. */
@@ -1355,7 +1377,7 @@ function feelingsLine(c, user, who) {
 /** Day, place and who is there: once, above the characters. */
 function sceneLine(snap, user) {
   const where = [snap.clock && snap.clock.place, snap.clock && snap.clock.weather].filter(Boolean).join("; ");
-  return "[Scene now: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...arr(snap.present)].join(", ") + ".]";
+  return "[Background, the scene: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...arr(snap.present)].join(", ") + ".]";
 }
 
 /** The full block of one character. withNotes = false when it would leak. */
@@ -1370,9 +1392,17 @@ function characterBlock(ctx, name, withNotes) {
   lines.push("Toward " + user + ": " + feelingsLine(c, user, who) + (hostile ? "; " + hostile : "") + ".");
   const bases = pulseBases(soul);
   const pulse = PULSE.map((p) => PULSE_BANDS[p][pulseBand(c.pulse[p], bases[p])]).filter(Boolean);
-  const mood = c.mood ? "Mood: " + c.mood + (c.moodWas ? ", shifting from " + c.moodWas : "") + "." : "";
+  // snapshots from before `fresh` existed count every field as fresh
+  const isFresh = (f) => !Array.isArray(c.fresh) || c.fresh.includes(f);
+  const mood = c.mood ? "Mood: " + c.mood + (c.moodWas && isFresh("mood") ? ", shifting from " + c.moodWas : "") + "." : "";
   if (mood || pulse.length) lines.push([mood, pulse.length ? cap1(pulse.join("; ")) + "." : ""].filter(Boolean).join(" "));
-  const body = [c.condition && "Body: " + c.condition + ".", c.outfit && "Wearing: " + c.outfit + ".", c.holding && "Holding: " + c.holding + ".", c.goal && "Wants: " + c.goal + "."].filter(Boolean);
+  // body, clothes and hands only when seen this turn: a stale detail gets retold forever
+  const body = [
+    c.condition && isFresh("condition") && "Body: " + c.condition + ".",
+    c.outfit && isFresh("outfit") && "Wearing: " + c.outfit + ".",
+    c.holding && isFresh("holding") && "Holding: " + c.holding + ".",
+    c.goal && "Wants: " + c.goal + ".",
+  ].filter(Boolean);
   if (body.length) lines.push(body.join(" "));
   if (withNotes) {
     const notes = arr(ctx.notebook[name]).slice(-12);
@@ -1390,7 +1420,7 @@ function compactLine(ctx, name) {
 }
 
 /**
- * The insert for one reply, or null. turn = {op, speakerName, targetId}.
+ * The insert for one reply, or null. turn = {op, speakerName, targetId, userText}.
  * Returns { text, tokens, focus, notebookOf, key }.
  */
 export function buildInsert(fsx, chatId, turn, cfg) {
@@ -1402,15 +1432,17 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const line = activeLine(chat.msgs);
   const at = snapshotFor(state, line, turn);
   if (!at || !isObj(at.snap.chars)) return null;
-  const { souls } = chatCharacters(fsx, chat.meta);
+  const { names: cards, souls } = chatCharacters(fsx, chat.meta);
   const snap = at.snap;
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
-  const speaker = turn.speakerName && present.includes(turn.speakerName) ? turn.speakerName : null;
-  // who gets a full block: the speaker; else (a narrator card voices them all) the first present ones
-  const order = present.filter((n) => !snap.chars[n].compact).concat(present.filter((n) => snap.chars[n].compact));
-  const focus = speaker ? [speaker] : order.slice(0, FULL_FOCUS);
-  if (!focus.length) return null;
+  // a one-card chat whose card is in the scene is an ordinary character chat: the card speaks
+  const cardSpeaks = !group && cards.length === 1 && present.includes(cards[0]) ? cards[0] : null;
+  const speaker = turn.speakerName && present.includes(turn.speakerName) ? turn.speakerName : cardSpeaks;
+  // who gets a full block: the speaker; in a narrator chat, those this turn is about (maybe nobody:
+  // then everyone is one short line, which keeps the narrator from a roll call of the cast)
+  const focus = speaker ? [speaker] : group ? present.slice(0, FULL_FOCUS) : aboutNow(present, turn.userText, snap).slice(0, FULL_FOCUS);
+  if (!present.length) return null;
   // notebooks: the speaker's own; in a one-card chat (a narrator voices them all) each focus character's;
   // none when a group chat cannot say who speaks, so nothing leaks to the wrong character
   const notesFor = speaker ? [speaker] : group ? [] : focus;
@@ -1422,10 +1454,10 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     names: activeNames(state, at.keys),
   };
   const rest = present.filter((n) => !focus.includes(n));
-  const budget = Math.max(200, Number(cfg.injection && cfg.injection.maxTokens) || 300) * (speaker ? 1 : focus.length);
+  const budget = Math.max(200, Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length);
   const build = (withRest, notes) => {
     const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, notes.includes(n)))];
-    if (withRest && rest.length) blocks.push("Also present: " + rest.map((n) => compactLine(ctx, n)).join(" "));
+    if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
     blocks.push(CLOSING);
     return blocks.join("\n");
   };
@@ -1467,7 +1499,7 @@ function previewInsert(req, fsx) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const speakerName = str(req.query && req.query.speaker);
-  const insert = buildInsert(fsx, chatId, { op: "send", speakerName, targetId: "" }, loadConfig(fsx));
+  const insert = buildInsert(fsx, chatId, { op: "send", speakerName, targetId: "", userText: str(req.query && req.query.text) }, loadConfig(fsx));
   if (!insert) return ok({ insert: null });
   const { state } = loadState(fsx, chatId);
   const snap = state.snapshots[insert.key];
