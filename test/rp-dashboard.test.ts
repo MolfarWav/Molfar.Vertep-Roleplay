@@ -351,6 +351,31 @@ describe("update route", () => {
     expect(s1.chars.Aria.stats).toMatchObject({ trust: 0, respect: 0 });
   });
 
+  it("a reply cut off mid-way keeps its complete fields and marks the snapshot partial", () => {
+    const cut = '{"present": ["Aria", "Bram"], "minutes": 10, "events": [{"id": "compliment", "weight": "routine", "from": "user", "to": "Aria", "quote": "Well done"}, {"id": "gave_order", "weight": "routine", "from": "user", "to": "Aria", "quote": "Go!"}], "chars": {"Aria": {"mood": "inspired", "holding": "a spear"}, "Bram": {"mood';
+    const parsed = P.parseSensorText(cut);
+    expect(parsed.__partial).toBe(true);
+    expect(parsed.events.length).toBe(2);
+    expect(parsed.chars.Aria).toEqual({ mood: "inspired", holding: "a spear" });
+    expect(P.parseSensorText('{"present": ["Ari')).toBeNull();
+    writeChat("c1", three());
+    const mock = mockHost([cut]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const s1 = readStateFile("c1").snapshots["m3#0"];
+    expect(s1.partial).toBe(true);
+    expect(s1.chars.Aria.stats).toMatchObject({ attraction: 1, affection: 1, respect: 1, comfort: -1 });
+  });
+
+  it("a character with no history is one short line for the sensor", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Bram"], minutes: 1 })]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Bye.")]);
+    mock.push(reply({ present: ["Bram"] }));
+    update(mock, "c1");
+    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Bram toward You: no history yet.");
+  });
+
   it("an explicit empty present list means alone; a report without the key falls back to the card", () => {
     writeChat("c1", three());
     const mock = mockHost([reply({ present: [], minutes: 5 })]);
@@ -430,7 +455,7 @@ describe("update route", () => {
     update(mock, "c1");
     const { req } = mock.requests[0]!;
     expect(req.model).toBe("chat/model");
-    expect(req.presetParams).toEqual({ temperature: 0.2, max_tokens: 1500 });
+    expect(req.presetParams).toEqual({ temperature: 0.2, max_tokens: 3000 });
     expect(req.systemPrompt.startsWith(P.DEFAULT_PROMPTS.sensor)).toBe(true);
     expect(req.systemPrompt).toContain("\n\nEvent vocabulary\ntrust: kept_promise - did what was promised;");
     expect(req.systemPrompt).toContain("knowledge: novelty - something new or surprising; danger - danger in the scene\nother: anything else");

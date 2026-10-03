@@ -99,13 +99,13 @@ export const TIERS = {
   comfort: [
     "flinches and watches the exits whenever {user} is near",
     "on edge near {user}; keeps a step of distance",
-    "mostly at ease; speaks without rehearsing every line",
+    "polite and steady near {user}",
     "wholly at ease; lets silences stand, guard down",
   ],
   attraction: [
     "repelled; recoils from closeness and avoids {user}'s eyes",
     "unmoved or put off; keeps talk cool and impersonal",
-    "feels a faint pull at times; a glance lingers, then moves on",
+    "no pull beyond a passing glance",
     "openly drawn; seeks closeness and loses the thread of a sentence",
   ],
   respect: [
@@ -117,7 +117,7 @@ export const TIERS = {
   affection: [
     "wants nothing to do with {user}; withholds even courtesy",
     "cool; polite but keeps all warmth back",
-    "friendly in small ways; remembers little things about {user}",
+    "courteous; warms only when given a reason",
     "cares openly; seeks {user} out and worries when {user} is hurt",
   ],
 };
@@ -158,7 +158,7 @@ export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
     "",
-    "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences.",
+    "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
     "",
     "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
     "",
@@ -183,7 +183,7 @@ export const DEFAULT_PROMPTS = {
     "",
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
-    "- learned: at most 4 per turn, the ones that matter. Skip anything already in their Notebook, even in other words.",
+    "- learned: whenever a character sees, hears or guesses something new about the user's character, add it; at most 4 per turn, the ones that matter. Skip anything already in their Notebook, even in other words.",
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. \"calls\" is how they address the user.",
     "- blindSpot: for the characters named in this turn's events, one short line on what they do not know that matters here. It is for the user's eyes only.",
@@ -693,7 +693,8 @@ function previousStateText(ctx) {
   for (const name of arr(B.present)) {
     const c = B.chars && B.chars[name];
     if (!c) continue;
-    let line = name + " toward " + ctx.userName + ": " + DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).join("; ") + ".";
+    const fresh = DISPOSITION.every((s) => !c.stats[s]);
+    let line = name + " toward " + ctx.userName + ": " + (fresh ? "no history yet" : DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).join("; ")) + ".";
     if (c.mood) line += " Mood: " + c.mood + ".";
     if (c.holding) line += " Holding: " + c.holding + ".";
     lines.push(line);
@@ -741,11 +742,16 @@ function sensorUser(ctx) {
 const classOf = (soul) => (soul && CLASSES.includes(soul.class) ? soul.class : "neutral");
 
 // ---------- reading the sensor's reply ----------
-/** The first balanced {...} of the text, trailing commas dropped. Null when it never closes. */
+/**
+ * The first balanced {...} of the text, trailing commas dropped. When it never
+ * closes (the reply was cut off), `cuts` holds the text up to each comma with
+ * the open brackets closed, newest first, to salvage what came before.
+ */
 function firstObject(s) {
   const start = s.indexOf("{");
-  if (start < 0) return null;
-  let depth = 0;
+  if (start < 0) return { body: null, cuts: [] };
+  const stack = [];
+  const cuts = [];
   let inString = false;
   let escaped = false;
   let out = "";
@@ -762,30 +768,41 @@ function firstObject(s) {
       let j = i + 1;
       while (j < s.length && /\s/.test(s[j])) j++;
       if (s[j] === "}" || s[j] === "]") continue;
+      cuts.push(out + stack.slice().reverse().join(""));
     }
     out += ch;
     if (ch === "\"") inString = true;
-    else if (ch === "{" || ch === "[") depth++;
+    else if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
     else if (ch === "}" || ch === "]") {
-      depth--;
-      if (depth === 0) return out;
+      stack.pop();
+      if (!stack.length) return { body: out, cuts: [] };
     }
   }
-  return null;
+  return { body: null, cuts: cuts.reverse() };
 }
 
-export function parseSensorText(text) {
-  let s = String(text || "").trim();
-  const fence = /```(?:json)?\s*([\s\S]*?)(?:```|$)/i.exec(s);
-  if (fence) s = fence[1];
-  const body = firstObject(s);
-  if (!body) return null;
+const parseObj = (body) => {
   try {
     const v = JSON.parse(body);
     return isObj(v) ? v : null;
   } catch {
     return null;
   }
+};
+
+/** The sensor's JSON. A reply cut off mid-way keeps its complete fields, marked `__partial`. */
+export function parseSensorText(text) {
+  let s = String(text || "").trim();
+  const fence = /```(?:json)?\s*([\s\S]*?)(?:```|$)/i.exec(s);
+  if (fence) s = fence[1];
+  const { body, cuts } = firstObject(s);
+  if (body) return parseObj(body);
+  for (const cut of cuts.slice(0, 60)) {
+    const v = parseObj(cut);
+    if (v) return { ...v, __partial: true };
+  }
+  return null;
 }
 
 // ---------- applying the sensor's report: the snapshot ----------
@@ -1045,6 +1062,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     at: Math.max(Date.now(), 1 + Math.max(0, ...Object.values(state.snapshots).map((x) => x.at || 0))),
     sensorModel: model || "",
     op,
+    ...(out.__partial ? { partial: true } : {}),
     clock: advanceClock(B && B.clock, out, op),
     present,
     events,
@@ -1104,7 +1122,7 @@ function askSensor(host, ctx, key) {
     ...(model ? { model } : {}),
     systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),
     messages: [{ role: "user", content: sensorUser(ctx) }],
-    presetParams: { temperature: 0.2, max_tokens: 1500 },
+    presetParams: { temperature: 0.2, max_tokens: 3000 },
   });
 }
 
