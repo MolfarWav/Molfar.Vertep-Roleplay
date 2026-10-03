@@ -12,6 +12,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { toast } from 'sonner'
+import { resolveLanguage, t, type Lang } from './i18n'
 import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
@@ -283,6 +284,23 @@ let distReloadPending = false
 let distReloadArmed = false
 /** in-flight generation controllers by chat — Stop aborts the matching one */
 const activeGens = new Map<ID, AbortController>()
+
+/** The relationship dashboard notes when its prompt insert did not fit the
+ *  user's token limit; say so once, so the user knows to raise it. */
+const shownInsertNotice = new Map<ID, number>()
+async function noticeInsertTrim(chatId: ID, lang: Lang) {
+  try {
+    const { notice } = await j<{ notice: { at: number; trimmed: string[]; wanted: number; budget: number } | null }>(
+      `/dashboard/notice?chatId=${encodeURIComponent(chatId)}`,
+    )
+    if (!notice || Date.now() - notice.at > 5 * 60_000 || notice.at <= (shownInsertNotice.get(chatId) ?? 0)) return
+    shownInsertNotice.set(chatId, notice.at)
+    const what = notice.trimmed.map((k) => t(k === 'others' ? 'dashboard.trim.others' : 'dashboard.trim.notebooks', lang)).join(', ')
+    toast.warning(t('dashboard.trimmed', lang, { need: notice.wanted, limit: notice.budget, what }), { duration: 12_000 })
+  } catch {
+    // no dashboard plugin in this app: nothing to say
+  }
+}
 /** chats created this client session — off-limits to the boot sweep (the
  *  user may still come back to them before the page closes) */
 const sessionNewChats = new Set<ID>()
@@ -2024,6 +2042,7 @@ async function runStream(
     }
     // automation hooks fire only after the streaming lock is released
     if (committed) get().runAutoExecutes('onAi', chatId)
+    if (committed) void noticeInsertTrim(chatId, resolveLanguage(get().settings.language))
     // pictures the reply asked for through the drawing tool
     if (committed && op !== 'continue') {
       const replied = get().chats.find((c) => c.id === chatId)?.messages.filter((m) => m.role === 'assistant' && !m.picture).at(-1)

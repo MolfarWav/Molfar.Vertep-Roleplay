@@ -12,6 +12,7 @@
  *  POST /dashboard/update {chatId, op?}    sensor now (two-phase)
  *  GET  /dashboard/state?chatId=           state + active keys + current key
  *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets
+ *  GET  /dashboard/notice?chatId=          the last insert that did not fit the limit
  *
  * Before each reply, the llmRequest hook adds "how the characters are right
  * now" in words as the last leading system message (buildInsert).
@@ -30,6 +31,8 @@ const STATE_DIR = "dashboard/state/";
 const CONFIG_FILE = "dashboard/config.json";
 const EVENTS_FILE = "dashboard/events.json";
 const DEBUG_FILE = "_debug/dashboard.json";
+// the last time an insert did not fit the user's limit, per chat (the app shows it once)
+const NOTICE_DIR = "dashboard/notice/";
 const SNAPSHOT_LIMIT = 40;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
@@ -1229,23 +1232,25 @@ function pickChat(fsx) {
   return null;
 }
 
-/** State files of chats that no longer exist (at most 20 per tick). */
+/** State and notice files of chats that no longer exist (at most 20 per tick). */
 function removeOrphans(fsx) {
-  let files = [];
-  try {
-    files = fsx.list(STATE_DIR.slice(0, -1)).filter((f) => f.endsWith(".json"));
-  } catch {
-    return;
-  }
   let removed = 0;
-  for (const f of files) {
-    if (removed >= 20) break;
-    const id = f.replace(/\.json$/, "");
-    if (readJson(fsx, "chats/" + id + ".meta.json", null) !== null) continue;
+  for (const dir of [STATE_DIR, NOTICE_DIR]) {
+    let files = [];
     try {
-      fsx.remove(STATE_DIR + f);
-      removed++;
-    } catch {}
+      files = fsx.list(dir.slice(0, -1)).filter((f) => f.endsWith(".json"));
+    } catch {
+      continue;
+    }
+    for (const f of files) {
+      if (removed >= 20) return;
+      const id = f.replace(/\.json$/, "");
+      if (readJson(fsx, "chats/" + id + ".meta.json", null) !== null) continue;
+      try {
+        fsx.remove(dir + f);
+        removed++;
+      } catch {}
+    }
   }
 }
 
@@ -1472,6 +1477,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const trimmed = [];
   let notes = notesFor;
   let text = build(true, notes);
+  const wanted = estimateTokens(text);
   if (estimateTokens(text) > budget && rest.length) {
     text = build(false, notes);
     trimmed.push("others");
@@ -1481,7 +1487,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     text = build(false, notes);
     trimmed.push("notebooks");
   }
-  return { text, tokens: estimateTokens(text), budget, trimmed, focus, notebookOf: notes.filter((n) => focus.includes(n)), key: at.key };
+  return { text, tokens: estimateTokens(text), wanted, budget, trimmed, focus, notebookOf: notes.filter((n) => focus.includes(n)), key: at.key };
 }
 
 /** The insert goes in as the last of the leading system messages (after the card and preset, before the history). */
@@ -1502,6 +1508,12 @@ export function llmRequest(ctx, host) {
     const cfg = loadConfig(fsx);
     if (cfg.injection && cfg.injection.enabled === false) return null;
     const insert = buildInsert(fsx, chatId, turnOf(ctx), cfg);
+    if (insert && insert.trimmed.length) {
+      // the only write a hook does: its own small file (the app's data watcher ignores dashboard/)
+      try {
+        fsx.write(NOTICE_DIR + chatId + ".json", JSON.stringify({ at: Date.now(), trimmed: insert.trimmed, wanted: insert.wanted, budget: insert.budget }));
+      } catch {}
+    }
     return insert ? { messages: withInsert(req.messages, insert.text) } : null;
   } catch (e) {
     try {
@@ -1581,6 +1593,11 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/update" && method === "POST") return readUpdate(req, host);
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
+  if (path === "/dashboard/notice" && method === "GET") {
+    const chatId = String((req.query && req.query.chatId) || "");
+    if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+    return ok({ notice: readJson(fsx, NOTICE_DIR + chatId + ".json", null) });
+  }
   if (path === "/dashboard/config" && method === "GET") return ok(configBody(fsx));
   if (path === "/dashboard/config" && method === "PUT") return putConfig(req, fsx);
   // "Restore default prompts" in the panel

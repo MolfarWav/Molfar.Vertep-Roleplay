@@ -86,6 +86,9 @@ const en = {
   'time.h': '{n}h ago',
   'time.d': '{n}d ago',
   'time.mo': '{n}mo ago',
+  'dashboard.trimmed': 'The dashboard insert did not fit its limit (about {need} of {limit} tokens), so {what} was left out of the prompt. Raise "Insert limit" in Tools → Relationship dashboard.',
+  'dashboard.trim.others': 'the lines about the other characters',
+  'dashboard.trim.notebooks': 'what the characters know about you',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -168,6 +171,9 @@ const uk: Record<MsgKey, string> = {
   'time.h': '{n} год тому',
   'time.d': '{n} дн. тому',
   'time.mo': '{n} міс. тому',
+  'dashboard.trimmed': 'Вставка дашборду не вмістилася в ліміт (потрібно близько {need} з {limit} токенів), тож із промпту випало: {what}. Збільште «Insert limit» в Інструменти → Relationship dashboard.',
+  'dashboard.trim.others': 'рядки про інших персонажів',
+  'dashboard.trim.notebooks': 'що персонажі знають про вас',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

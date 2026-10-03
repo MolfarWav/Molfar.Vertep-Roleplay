@@ -1350,7 +1350,16 @@ describe("prompt insert", () => {
     expect(tight.insert.trimmed).toEqual(["others", "notebooks"]);
     expect(tight.insert.text).not.toContain("Also present");
     expect(tight.insert.text).not.toContain("long letter");
+    // the preview writes nothing; a real reply that got cut leaves a notice for the app
+    expect(drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice).toBeNull();
+    expect(ask(mock, "c1")).not.toBeNull();
+    const notice = drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice;
+    expect(notice.trimmed).toEqual(["others", "notebooks"]);
+    expect(notice.wanted).toBeGreaterThan(notice.budget);
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { values: { insertTokens: "2000" } } });
+    const at = notice.at;
+    ask(mock, "c1");
+    expect(drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice.at).toBe(at);
     const roomy = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
     expect(roomy.insert.trimmed).toEqual([]);
     expect(roomy.insert.text).toContain("long letter");
