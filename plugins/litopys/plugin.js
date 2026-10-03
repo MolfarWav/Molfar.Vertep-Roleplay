@@ -32,9 +32,11 @@
  *    (each item also carries targetTexts[] — human-readable texts resolved
  *    from ids at read time, so the panel never shows raw f… ids)
  *  POST /litopys/proposals {action: approve|reject, ids[]} — apply
- *  POST /litopys/facts {chatId, action: retire|update, id, text?} —
- *    manual fact edit: retire hides it immediately, update replaces text.
- *    Both commit to store.json + re-render the vault MD at once.
+ *  POST /litopys/facts {chatId, action: add|retire|update|restore, id?, text?} —
+ *    manual fact edit: add writes a new fact, retire hides one at once,
+ *    update replaces its text, restore brings a retired one back. All
+ *    commit to store.json + re-render the vault MD at once.
+ *  POST /litopys/story {chatId, text} — the user's own recap ("" clears)
  *  GET /litopys/config · PUT /litopys/config
  *  DELETE /litopys/config/prompts — back to the shipped prompts
  */
@@ -793,10 +795,25 @@ export function handleRoute(req, host) {
     const chatId = b.chatId;
     if (!chatId) return err(400, "chatId required");
     if (!readJson(fsx, "chats/" + chatId + ".meta.json", null)) return err(404, "no such chat");
-    const id = String(b.id || b.factId || "").trim();
-    if (!id) return err(400, "id required");
     const action = b.action;
     const store = loadStore(fsx);
+    // a fact written by hand: the chat may have no lore store yet
+    if (action === "add") {
+      const text = String(b.text || "").trim().slice(0, 250);
+      if (!text) return err(400, "text required");
+      const cst = store.chats[chatId] || emptyChatStore();
+      cst.worldFacts = cst.worldFacts || [];
+      if (cst.worldFacts.some((f) => f.status !== "retired" && norm(f.text) === norm(text))) return err(409, "another active fact already has this text");
+      const fact = { id: uid(), text, kind: "manual", at: Date.now(), updatedAt: Date.now(), status: "active" };
+      cst.worldFacts.push(fact);
+      record(cst, "added manually: " + text, cfg);
+      store.chats[chatId] = cst;
+      saveStore(fsx, store);
+      renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
+      return ok({ ok: true, id: fact.id, status: fact.status, text: fact.text });
+    }
+    const id = String(b.id || b.factId || "").trim();
+    if (!id) return err(400, "id required");
     const cst = store.chats[chatId];
     if (!cst) return err(404, "no lore store for chat");
     const hit = (cst.worldFacts || []).find((f) => f.id === id || norm(f.text) === norm(id));
@@ -820,13 +837,41 @@ export function handleRoute(req, host) {
         if (hit.status === "retired") hit.status = "active";
         record(cst, "rewrote manually → " + text, cfg);
       }
+    } else if (action === "restore") {
+      if (hit.status === "retired") {
+        const dupe = (cst.worldFacts || []).find((f) => f !== hit && f.status !== "retired" && norm(f.text) === norm(hit.text));
+        if (dupe) return err(409, "another active fact already has this text");
+        hit.status = "active";
+        hit.updatedAt = Date.now();
+        record(cst, "restored manually: " + hit.text, cfg);
+      }
     } else {
-      return err(400, "action must be retire|update");
+      return err(400, "action must be add|retire|update|restore");
     }
     store.chats[chatId] = cst;
     saveStore(fsx, store);
     renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
     return ok({ ok: true, id: hit.id, status: hit.status, text: hit.text });
+  }
+
+  // the user's own wording of the story so far; empty clears it
+  if (path === "/litopys/story" && req.method === "POST") {
+    const b = body();
+    const chatId = b.chatId;
+    if (!chatId) return err(400, "chatId required");
+    if (!readJson(fsx, "chats/" + chatId + ".meta.json", null)) return err(404, "no such chat");
+    if (typeof b.text !== "string") return err(400, "text required");
+    const store = loadStore(fsx);
+    const cst = store.chats[chatId] || emptyChatStore();
+    const text = b.text.trim().slice(0, 1500);
+    if ((cst.storySoFar || "") !== text) {
+      cst.storySoFar = text || null;
+      record(cst, text ? "story so far rewritten manually" : "story so far cleared manually", cfg);
+      store.chats[chatId] = cst;
+      saveStore(fsx, store);
+      renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
+    }
+    return ok({ ok: true, storySoFar: cst.storySoFar || null });
   }
 
   if (path === "/litopys/config" && req.method === "GET") return ok(cfg);
