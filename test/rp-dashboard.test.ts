@@ -339,6 +339,18 @@ const keptPromise = reply({
 });
 
 describe("update route", () => {
+  it("an event of a family switched off counts as other and moves nothing", () => {
+    writeChat("c1", three());
+    fs.mkdirSync(path.join(root, "dashboard"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ families: { trust: false } }));
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests[0].req.systemPrompt).not.toContain("kept_promise");
+    const s1 = readStateFile("c1").snapshots["m3#0"];
+    expect(s1.events[0].id).toBe("other");
+    expect(s1.chars.Aria.stats).toMatchObject({ trust: 0, respect: 0 });
+  });
+
   it("writes nothing on pass A", () => {
     writeChat("c1", three());
     const mock = mockHost();

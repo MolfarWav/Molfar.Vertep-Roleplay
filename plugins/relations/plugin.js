@@ -845,8 +845,10 @@ function readEvents(list, ctx, known, unknownIds) {
   for (const e of arr(list)) {
     if (!isObj(e)) continue;
     const id = str(e.id);
-    const def = ctx.vocab[id];
-    if (!def && id) unknownIds.push(id);
+    const entry = ctx.vocab[id];
+    // a family switched off for this chat counts as "other"
+    const def = entry && ctx.cfg.families[entry.family] !== false ? entry : null;
+    if (!entry && id) unknownIds.push(id);
     const use = def || ctx.vocab.other;
     events.push({
       id: use.id,
@@ -1138,6 +1140,8 @@ function commitUpdate(fsx, ctx, r) {
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds });
     return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn });
   } catch (e) {
+    // a half-applied report must not leave notes or history behind
+    ctx.state = JSON.parse(ctx.before);
     return failUpdate(fsx, ctx, "could not apply the sensor reply: " + (e && e.message ? e.message : String(e)), { raw: String(r.text), parsed: out });
   }
 }
