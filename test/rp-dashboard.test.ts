@@ -889,7 +889,7 @@ describe("config", () => {
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensor: "Mine." } });
     const custom = P.uiPanel({}, mock.host).items[0];
     expect(custom.deleteUrl).toBe("/dashboard/config/prompts");
-    expect(custom.fields[3].value).toBe("Mine.");
+    expect(custom.fields[5].value).toBe("Mine.");
   });
 });
 
