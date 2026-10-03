@@ -223,7 +223,7 @@ describe("plugin source", () => {
   const src = fs.readFileSync(pluginPath, "utf8");
   it("is English only and does not look like a request hook", () => {
     expect(CYRILLIC.test(src)).toBe(false);
-    expect(src.includes("llmRequest")).toBe(false);
+    expect(typeof P.llmRequest).toBe("function");
   });
   it("the sensor prompt has no Cyrillic and names the language", () => {
     const text = P.DEFAULT_PROMPTS.sensor as string;

@@ -3045,6 +3045,8 @@ const toolX = (r) => ({
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker ? speaker.name : "" },
+          // who speaks and what kind of turn, for llmRequest hooks (never sent to the model)
+          turn: { op: "send", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: speaker ? speaker.name : "" },
         });
         // auto memory extraction: every N messages a second pass pulls durable
         // facts into the vault (auto-in only — manual runs the extract route)
@@ -3141,6 +3143,7 @@ const toolX = (r) => ({
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker.name },
+          turn: { op: "next", chatId: id, speakerId: speaker.id, speakerName: speaker.name },
         });
         markGenerating();
         return pendingOut(meta, a.trimmed ? { trimmed: a.trimmed } : undefined);
@@ -3211,6 +3214,7 @@ const toolX = (r) => ({
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
+          turn: { op: "swipe", chatId: id, speakerId: speaker.id, speakerName: speaker.name, targetId: msg.id },
         });
         markGenerating();
         return pendingOut(meta);
@@ -3321,6 +3325,7 @@ const toolX = (r) => ({
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
+          turn: { op: "continue", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: msg.name, targetId: msg.id },
         });
         markGenerating();
         return pendingOut(meta);
@@ -3593,6 +3598,7 @@ const toolX = (r) => ({
         const impMsgs = a.assistantPrefill ? a.messages.slice(0, -1) : a.messages;
         host.llm.request("reply", {
           sessionId: id,
+          turn: { op: "impersonate", chatId: id },
           messages: imp ? [...impMsgs, { role: "user", content: imp }] : impMsgs,
           systemPrompt: a.systemPrompt,
           ...(modelOf() ? { model: modelOf() } : {}),

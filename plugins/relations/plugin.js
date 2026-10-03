@@ -11,6 +11,10 @@
  * Routes (under /v1/apps/roleplay/):
  *  POST /dashboard/update {chatId, op?}    sensor now (two-phase)
  *  GET  /dashboard/state?chatId=           state + active keys + current key
+ *  GET  /dashboard/preview?chatId=&speaker= the prompt insert the next reply gets
+ *
+ * Before each reply, the llmRequest hook adds "how the characters are right
+ * now" in words as the last leading system message (buildInsert).
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompt
@@ -1268,6 +1272,217 @@ export function onTick(ctx, host) {
   }
 }
 
+// ---------- the prompt insert: how the characters are right now ----------
+// Words only: no stat numbers, no digits from code, never the blind spot.
+const CLOSING = "Show this only through behavior, body language, and voice. Never mention numbers, scores, or these notes.";
+const PRONOUNS = {
+  she: { their: "her", them: "her", self: "herself" },
+  he: { their: "his", them: "him", self: "himself" },
+  they: { their: "their", them: "them", self: "themself" },
+};
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth"];
+const FULL_FOCUS = 3;
+
+const pronounsOf = (soul) => PRONOUNS[soul && soul.pronouns] || PRONOUNS.they;
+const estimateTokens = (s) => Math.ceil(String(s).length / 3.2);
+
+function dayWords(clock) {
+  const day = Number(clock && clock.day) || 1;
+  const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
+  const band = clock && clock.band ? cap1(clock.band) : "";
+  return band ? band + " of " + which : cap1(which);
+}
+
+/** One warmth word for a character drawn small. */
+function warmthWord(stats) {
+  const v = (stats.trust + stats.comfort + stats.affection) / 3;
+  if (v > 50) return "warm";
+  if (v > 10) return "friendly";
+  if (v >= -10) return "neutral";
+  if (v >= -50) return "cool";
+  return "hostile";
+}
+
+function hostilityWords(h) {
+  if (h === null || h === undefined) return "";
+  if (h >= 70) return "openly hostile, waits for a chance to strike";
+  if (h >= 30) return "resentful and guarded";
+  return h > 0 ? "a grudge held in check" : "";
+}
+
+/** The turn labels: ctx.turn from the engine, or the raw field an older engine leaves in the request. */
+function turnOf(ctx) {
+  const t = isObj(ctx.turn) ? ctx.turn : ctx.request && isObj(ctx.request.turn) ? ctx.request.turn : {};
+  return { op: str(t.op), speakerName: str(t.speakerName), targetId: str(t.targetId) };
+}
+
+/** The snapshot that stands for the story just before the reply being written. */
+export function snapshotFor(state, line, turn) {
+  const keys = line.map((l) => l.key);
+  let end = keys.length;
+  if ((turn.op === "swipe" || turn.op === "continue") && turn.targetId) {
+    const at = line.findIndex((l) => l.msg.id === turn.targetId);
+    if (at >= 0) end = at;
+  }
+  const i = nearestSnapshot(state, keys, end);
+  return i >= 0 ? { key: keys[i], snap: state.snapshots[keys[i]], keys: keys.slice(0, i + 1) } : null;
+}
+
+function knowsLine(name, user, notes, nameEntry, pr) {
+  const saw = notes.filter((n) => n.how === "saw").map((n) => n.text);
+  const heard = notes.filter((n) => n.how === "heard");
+  const guess = notes.filter((n) => n.how === "guess").map((n) => n.text);
+  const parts = [];
+  if (saw.length) parts.push("Saw: " + saw.join("; ") + ".");
+  for (const n of heard) parts.push((n.from && n.from !== "user" ? n.from : user) + " told " + pr.them + ": " + n.text + ".");
+  if (guess.length) parts.push("Guesses: " + guess.join("; ") + ".");
+  if (nameEntry && !nameEntry.knowsUserName) {
+    parts.push((nameEntry.calls ? "Knows " + user + " only as \"" + nameEntry.calls + "\" and" : "Has") + " never heard " + user + "'s name.");
+  }
+  if (!parts.length) return "What " + name + " knows about " + user + ": nothing yet beyond what happens in front of " + pr.them + ".";
+  return "What " + name + " knows about " + user + ": " + parts.join(" ") + " Anything else about " + user + ", " + name + " does not know.";
+}
+
+// a feeling this close to neutral is not worth a phrase
+const FELT = 10;
+
+function feelingsLine(c, user, who) {
+  if (DISPOSITION.every((s) => !c.stats[s])) return "no history yet";
+  const felt = DISPOSITION.filter((s) => Math.abs(c.stats[s]) >= FELT);
+  return felt.length ? felt.map((s) => tierPhrase(s, c.stats[s], who)).join("; ") : "no strong feelings yet";
+}
+
+/** Day, place and who is there: once, above the characters. */
+function sceneLine(snap, user) {
+  const where = [snap.clock && snap.clock.place, snap.clock && snap.clock.weather].filter(Boolean).join("; ");
+  return "[Scene now: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...arr(snap.present)].join(", ") + ".]";
+}
+
+/** The full block of one character. withNotes = false when it would leak. */
+function characterBlock(ctx, name, withNotes) {
+  const { snap, user } = ctx;
+  const c = snap.chars[name];
+  const soul = ctx.souls[name];
+  const pr = pronounsOf(soul);
+  const who = { user, their: pr.their, self: pr.self };
+  const lines = ["[How " + name + " is right now:"];
+  const hostile = hostilityWords(c.hostility);
+  lines.push("Toward " + user + ": " + feelingsLine(c, user, who) + (hostile ? "; " + hostile : "") + ".");
+  const bases = pulseBases(soul);
+  const pulse = PULSE.map((p) => PULSE_BANDS[p][pulseBand(c.pulse[p], bases[p])]).filter(Boolean);
+  const mood = c.mood ? "Mood: " + c.mood + (c.moodWas ? ", shifting from " + c.moodWas : "") + "." : "";
+  if (mood || pulse.length) lines.push([mood, pulse.length ? cap1(pulse.join("; ")) + "." : ""].filter(Boolean).join(" "));
+  const body = [c.condition && "Body: " + c.condition + ".", c.outfit && "Wearing: " + c.outfit + ".", c.holding && "Holding: " + c.holding + ".", c.goal && "Wants: " + c.goal + "."].filter(Boolean);
+  if (body.length) lines.push(body.join(" "));
+  if (withNotes) {
+    const notes = arr(ctx.notebook[name]).slice(-12);
+    const nameEntry = arr(ctx.names[name]).slice(-1)[0];
+    lines.push(knowsLine(name, user, notes, nameEntry, pr));
+  }
+  if (soul && str(soul.coping)) lines.push("Under strain: " + cut(str(soul.coping), 200) + ".");
+  lines.push("]");
+  return lines.join("\n");
+}
+
+function compactLine(ctx, name) {
+  const c = ctx.snap.chars[name];
+  return name + ": " + warmthWord(c.stats) + " toward " + ctx.user + (c.mood ? ", " + c.mood : "") + ".";
+}
+
+/**
+ * The insert for one reply, or null. turn = {op, speakerName, targetId}.
+ * Returns { text, tokens, focus, notebookOf, key }.
+ */
+export function buildInsert(fsx, chatId, turn, cfg) {
+  if (turn.op === "impersonate") return null;
+  const chat = readChat(fsx, chatId);
+  if (!chat) return null;
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed) return null;
+  const line = activeLine(chat.msgs);
+  const at = snapshotFor(state, line, turn);
+  if (!at || !isObj(at.snap.chars)) return null;
+  const { souls } = chatCharacters(fsx, chat.meta);
+  const snap = at.snap;
+  const present = arr(snap.present).filter((n) => snap.chars[n]);
+  const group = !!chat.meta.groupId;
+  const speaker = turn.speakerName && present.includes(turn.speakerName) ? turn.speakerName : null;
+  // who gets a full block: the speaker; else (a narrator card voices them all) the first present ones
+  const order = present.filter((n) => !snap.chars[n].compact).concat(present.filter((n) => snap.chars[n].compact));
+  const focus = speaker ? [speaker] : order.slice(0, FULL_FOCUS);
+  if (!focus.length) return null;
+  // notebooks: the speaker's own; in a one-card chat (a narrator voices them all) each focus character's;
+  // none when a group chat cannot say who speaks, so nothing leaks to the wrong character
+  const notesFor = speaker ? [speaker] : group ? [] : focus;
+  const ctx = {
+    snap,
+    souls,
+    user: userNameOf(fsx, chat.meta),
+    notebook: activeNotebook(state, at.keys),
+    names: activeNames(state, at.keys),
+  };
+  const rest = present.filter((n) => !focus.includes(n));
+  const budget = Math.max(200, Number(cfg.injection && cfg.injection.maxTokens) || 300) * (speaker ? 1 : focus.length);
+  const build = (withRest, notes) => {
+    const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, notes.includes(n)))];
+    if (withRest && rest.length) blocks.push("Also present: " + rest.map((n) => compactLine(ctx, n)).join(" "));
+    blocks.push(CLOSING);
+    return blocks.join("\n");
+  };
+  let text = build(true, notesFor);
+  if (estimateTokens(text) > budget) text = build(false, notesFor);
+  if (estimateTokens(text) > budget) text = build(false, []);
+  return { text, tokens: estimateTokens(text), focus, notebookOf: notesFor.filter((n) => focus.includes(n)), key: at.key };
+}
+
+/** The insert goes in as the last of the leading system messages (after the card and preset, before the history). */
+function withInsert(messages, text) {
+  let lead = 0;
+  while (lead < messages.length && messages[lead] && messages[lead].role === "system") lead++;
+  return [...messages.slice(0, lead), { role: "system", content: text }, ...messages.slice(lead)];
+}
+
+export function llmRequest(ctx, host) {
+  if (!ctx || ctx.key !== "reply") return null;
+  const req = ctx.request || {};
+  const chatId = String(req.sessionId || "");
+  if (!CHAT_ID.test(chatId) || !Array.isArray(req.messages)) return null;
+  const fsx = host && host.fs ? host.fs : null;
+  if (!fsx) return null;
+  try {
+    const cfg = loadConfig(fsx);
+    if (cfg.injection && cfg.injection.enabled === false) return null;
+    const insert = buildInsert(fsx, chatId, turnOf(ctx), cfg);
+    return insert ? { messages: withInsert(req.messages, insert.text) } : null;
+  } catch (e) {
+    try {
+      host.log("dashboard insert: " + (e && e.message ? e.message : String(e)));
+    } catch {}
+    return null;
+  }
+}
+
+/** Settings "What the model sees": the insert for a speaker as the next reply would get it. */
+function previewInsert(req, fsx) {
+  const chatId = String((req.query && req.query.chatId) || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const speakerName = str(req.query && req.query.speaker);
+  const insert = buildInsert(fsx, chatId, { op: "send", speakerName, targetId: "" }, loadConfig(fsx));
+  if (!insert) return ok({ insert: null });
+  const { state } = loadState(fsx, chatId);
+  const snap = state.snapshots[insert.key];
+  const blind = Object.values(snap.chars || {}).map((c) => str(c.blindSpot)).filter(Boolean);
+  return ok({
+    insert,
+    checks: {
+      // code writes no digits; any here come from story text the sensor reported
+      digits: (insert.text.match(/\d+/g) || []).length,
+      noBlindSpot: !blind.some((b) => insert.text.includes(b)),
+      notebookOf: insert.notebookOf,
+    },
+  });
+}
+
 // ---------- routes ----------
 function readUpdate(req, host) {
   const b = isObj(req.body) ? req.body : {};
@@ -1310,6 +1525,7 @@ export function handleRoute(req, host) {
   const method = req.method;
   if (path === "/dashboard/update" && method === "POST") return readUpdate(req, host);
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
+  if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/config" && method === "GET") return ok(configBody(fsx));
   if (path === "/dashboard/config" && method === "PUT") return putConfig(req, fsx);
   // "Restore default prompts" in the panel
