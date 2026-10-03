@@ -958,7 +958,9 @@ function applyNotebook(ctx, out, present, turn, K) {
     const text = cut(str(l.text), 300);
     if (!text || !present.includes(who)) continue;
     const how = ["saw", "heard", "guess"].includes(l.how) ? l.how : "guess";
-    const from = how === "heard" && str(l.from) && str(l.from).toLowerCase() !== "null" ? canonName(l.from, present) : null;
+    // "heard" with no teller: the user told them
+    const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, ctx.userName, present) : "user";
+    const from = how === "heard" ? teller : null;
     add(who, how === "heard" ? { text, how, from, believes: true } : { text, how, from: null });
     used++;
   }

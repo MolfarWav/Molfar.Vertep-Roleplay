@@ -599,6 +599,13 @@ describe("update route", () => {
     expect(dbg.input).toContain("New messages");
   });
 
+  it("heard with no teller means the user told them", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], learned: [{ who: "Aria", text: "The user was born by the sea", how: "heard", from: null }] })]);
+    update(mock, "c1");
+    expect(readStateFile("c1").notebook.Aria[0]).toMatchObject({ how: "heard", from: "user", believes: true });
+  });
+
   it("knowledge guard: an absent character learns nothing; told copies as heard; retire hides until its key is gone", () => {
     writeChat("g", three(), { characterId: undefined, groupId: "g1" });
     const mock = mockHost([
