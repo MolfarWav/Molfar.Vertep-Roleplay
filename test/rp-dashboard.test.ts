@@ -180,7 +180,7 @@ describe("physics", () => {
     expect(start).toEqual({ day: 1, time: null, minutes: 30, band: null, place: null, weather: null });
     const t = P.advanceClock(start, { time: "23:40", minutes: 30, place: "Garden" }, "send");
     expect([t.day, t.time, t.band, t.place]).toEqual([2, "00:10", "night", "Garden"]);
-    expect(P.advanceClock(t, { minutes: 500 }, "send").minutes).toBe(180);
+    expect(P.advanceClock(t, { minutes: 900 }, "send").minutes).toBe(720);
     expect(P.advanceClock(t, { minutes: 20 }, "continue")).toMatchObject({ time: "00:10", minutes: 0 });
     const word = P.advanceClock(t, { time: "evening", day: 3 }, "send");
     expect([word.day, word.time, word.band]).toEqual([3, null, "evening"]);
@@ -349,6 +349,23 @@ describe("update route", () => {
     const s1 = readStateFile("c1").snapshots["m3#0"];
     expect(s1.events[0].id).toBe("other");
     expect(s1.chars.Aria.stats).toMatchObject({ trust: 0, respect: 0 });
+  });
+
+  it("an explicit empty present list means alone; a report without the key falls back to the card", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: [], minutes: 5 })]);
+    update(mock, "c1");
+    expect(readStateFile("c1").snapshots["m3#0"].present).toEqual([]);
+    expect(mock.requests[0].req.messages[0].content).toContain("Aria (ally)");
+    writeChat("c2", three());
+    mock.push(reply({ minutes: 5 }));
+    update(mock, "c2");
+    expect(readStateFile("c2").snapshots["m3#0"].present).toEqual(["Aria"]);
+    // a card with no soul may be a narrator: the sensor is told so
+    writeChat("c3", three(), { characterId: "bram" });
+    mock.push(reply({ present: [] }));
+    update(mock, "c3");
+    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene)");
   });
 
   it("writes nothing on pass A", () => {

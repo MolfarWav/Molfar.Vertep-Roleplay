@@ -27,6 +27,8 @@ const CONFIG_FILE = "dashboard/config.json";
 const EVENTS_FILE = "dashboard/events.json";
 const DEBUG_FILE = "_debug/dashboard.json";
 const SNAPSHOT_LIMIT = 40;
+// one turn moves the clock at most this far (a night's sleep fits)
+const MAX_MINUTES = 720;
 const CHAT_ID = /^[A-Za-z0-9_-]{1,120}$/;
 
 // ---------- vocabulary of the physics ----------
@@ -173,9 +175,9 @@ export const DEFAULT_PROMPTS = {
     "- Nothing in the vocabulary fits: use \"other\". Never stretch an id to fit.",
     "",
     "Scene:",
-    "- minutes: story time that passed in the new messages. 0 when the text adds none (for example a continuation).",
+    "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
     "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
-    "- present: everyone in the scene at the end of the new messages (the full list). struck: anyone who left, fell asleep or is otherwise out of it.",
+    "- present: the people in the scene at the end of the new messages (the full list; [] when the user's character is alone). A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
     "",
@@ -725,7 +727,9 @@ function newMessagesText(msgs) {
 
 function sensorUser(ctx) {
   const listed = unique([...ctx.characters, ...Object.keys(ctx.souls), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])]);
-  const classes = listed.map((n) => n + " (" + classOf(ctx.souls[n]) + ")").join(", ");
+  // a card without a soul may be a narrator card; the sensor decides from the text
+  const label = (n) => (ctx.souls[n] ? classOf(ctx.souls[n]) : ctx.characters.includes(n) ? "the card: a character, or a narrator who is no person in the scene" : "neutral");
+  const classes = listed.map((n) => n + " (" + label(n) + ")").join(", ");
   return [
     "Characters\nuser: " + ctx.userName + ". " + classes + ".",
     previousStateText(ctx),
@@ -812,7 +816,7 @@ export function advanceClock(prevClock, out, op) {
     c.time = null;
   }
   const m = num(out.minutes);
-  c.minutes = op === "continue" || !Number.isFinite(m) ? 0 : clamp(Math.round(m), 0, 180);
+  c.minutes = op === "continue" || !Number.isFinite(m) ? 0 : clamp(Math.round(m), 0, MAX_MINUTES);
   if (c.time) {
     const parts = c.time.split(":");
     const total = Number(parts[0]) * 60 + Number(parts[1]) + c.minutes;
@@ -867,7 +871,9 @@ function scenePresent(ctx, out, known) {
   const B = ctx.base && ctx.base.snap;
   const said = unique(arr(out.present).map((n) => sideOf(n, ctx.userName, known)).filter((n) => n && n !== "user"));
   const struck = arr(out.struck).map((n) => sideOf(n, ctx.userName, known));
-  const start = said.length ? said : B && arr(B.present).length ? arr(B.present) : ctx.characters;
+  // an explicit [] means the user is alone (a narrator card is no person in
+  // the scene); only a report without the key falls back
+  const start = Array.isArray(out.present) ? said : B ? arr(B.present) : ctx.characters;
   return unique(start.filter((n) => !struck.includes(n)));
 }
 
