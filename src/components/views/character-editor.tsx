@@ -21,6 +21,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useApp } from '@/lib/store'
 import { useBackClose } from '@/hooks/use-back-close'
+import { useT } from '@/hooks/use-t'
+import { SoulTab } from '@/components/dashboard/soul-tab'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
@@ -37,6 +39,8 @@ function TokenBadge({ text }: { text: string }) {
 export function CharacterEditor({ character, onClose }: { character: Character; onClose: () => void }) {
   useBackClose(true, onClose)
   const c = character
+  const t = useT()
+  const [tab, setTab] = useState('core')
   const updateCharacter = useApp((s) => s.updateCharacter)
   const duplicateCharacter = useApp((s) => s.duplicateCharacter)
   const lorebooks = useApp((s) => s.lorebooks)
@@ -138,7 +142,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tab strip scroll WITH the tab content (mobile keyboard room) */}
-      <Tabs defaultValue="core" className="flex min-h-0 flex-1 flex-col">
+      <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <Button variant="ghost" size="sm" onClick={onClose} aria-label="Back to characters">
@@ -178,12 +182,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           }}
         >
           <TabsList className="h-8 w-max flex-nowrap">
-            {['core', 'dialogue', 'advanced', 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((t) => (
-              <TabsTrigger key={t} value={t} className="flex-none px-2.5 text-xs capitalize">{t}</TabsTrigger>
+            {['core', 'dialogue', 'advanced', ...(c.isGroup ? [] : ['soul']), 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((name) => (
+              <TabsTrigger key={name} value={name} className="flex-none px-2.5 text-xs capitalize">{name === 'soul' ? t('soul.tab') : name}</TabsTrigger>
             ))}
           </TabsList>
         </div>
-          <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
+          <div className={`mx-auto flex flex-col gap-4 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'}`}>
             <TabsContent value="core" className="flex flex-col gap-4">
               <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
                 <div className="flex flex-col items-center gap-2">
@@ -303,6 +307,13 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 </div>
               </div>
             </TabsContent>
+
+            {/* stays mounted behind the other tabs: an unsaved working copy must not vanish on a tab switch */}
+            {!c.isGroup && (
+              <TabsContent value="soul" keepMounted className="min-w-0">
+                <SoulTab key={c.id} c={c} active={tab === 'soul'} />
+              </TabsContent>
+            )}
 
             <TabsContent value="lorebook" className="flex flex-col gap-3">
               <p className="text-xs text-muted-foreground">

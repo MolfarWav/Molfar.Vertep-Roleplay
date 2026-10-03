@@ -1,6 +1,21 @@
 import { toast } from 'sonner'
 import { j, extractCardFromPng, fileToDataUrl } from '@/lib/engine'
 
+/** Ask the dashboard plugin to rate each imported card, one after another and
+ *  without waiting: the plugin decides whether to (its setting, an existing soul),
+ *  and a missing plugin or a failed rating must never disturb the import. */
+function rateImported(ids: unknown): void {
+  const list = (Array.isArray(ids) ? ids : []).filter((id): id is string => typeof id === 'string' && id !== '')
+  if (!list.length) return
+  void (async () => {
+    for (const id of list) {
+      try {
+        await j('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: id, auto: true }) })
+      } catch { /* swallowed on purpose */ }
+    }
+  })()
+}
+
 /** Real import: PNG cards (tEXt 'chara') and JSON cards, single or bulk,
  *  through the studio-import plugin route. Shared by the Characters page and
  *  Home. `hydrate` refreshes the store once the cards are in. */
@@ -28,6 +43,7 @@ export async function importCardFiles(files: FileList | null, hydrate: () => Pro
       })
       toast.success(`Imported ${r.characters.length} character${r.characters.length === 1 ? '' : 's'}`)
       await hydrate()
+      rateImported(r.characters)
     } catch (e) {
       toast.error(String((e as Error).message ?? e))
     }
