@@ -6,7 +6,7 @@ import type { ViewKey } from '@/lib/store'
 import { SECTIONS } from '@/components/shell/sections'
 
 /** Where a section view is mounted: as the page itself (from Home, Chats or
- *  another section) or as the drawer over an open chat. */
+ *  another section, on phones) or as the drawer (desktop, or over a chat). */
 type SectionHost = 'page' | 'drawer'
 
 const HostContext = createContext<SectionHost>('page')

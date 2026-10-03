@@ -41,12 +41,14 @@ sections.ts is the one list, items carry a `group`: Home, Chats | Characters,
 Marketplace, Personas, Lorebooks | Presets, Connections | Shortcuts, Tools |
 Settings pinned at the bottom) + Ctrl+K command palette. From 1280px the rail is
 206px with labels (Kurale) and ornament dividers; below that it is icons with
-tooltips; on phones it is the bottom tab bar. A section is a real PAGE (with a
-big title and count chip, `SectionPage` in components/shell/section-page.tsx)
-when opened from Home, Chats or another section. Only over an open chat does it
-open as a DRAWER (the chat and a running stream stay mounted underneath; on
-mobile the chat's header becomes a row of section icons, tap to drop the
-section down over the chat, tap again to close) — `opensAsDrawer` in lib/store.ts.
+tooltips; on phones it is the bottom tab bar. On desktop a section always opens
+as a DRAWER over the page (Home, Chats or a chat stays mounted underneath, with
+a running stream). On phones a section is a real PAGE (with a big title and
+count chip, `SectionPage` in components/shell/section-page.tsx), except over an
+open chat, where it is a drawer too (the chat's header becomes a row of section
+icons, tap to drop the section down over the chat, tap again to close) —
+`opensAsDrawer` in lib/store.ts. The user wants the desktop drawers: do not
+turn sections into desktop pages.
 Nav labels and page titles go through `t()` (lib/i18n.ts, `ui.language` 'en' |
 'uk', default from the browser); the rest of the app is English. Theme: the
 default is the built-in "Vertep" (dark); a theme's optional `cta` color is the
