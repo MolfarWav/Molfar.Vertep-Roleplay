@@ -978,3 +978,320 @@ describe("onTick", () => {
     expect(fs.readdirSync(path.join(root, "dashboard/state"))).toEqual(["alive.json"]);
   });
 });
+
+// ---------- the prompt insert ----------
+describe("prompt insert", () => {
+  const SYS = (content: string) => ({ role: "system", content });
+  const defaultMessages = () => [SYS("card"), { role: "user", content: "hi" }];
+  const ask = (mock: ReturnType<typeof mockHost>, chatId: string, messages: any = defaultMessages(), extra: Record<string, unknown> = {}, requestExtra: Record<string, unknown> = {}) =>
+    P.llmRequest({ key: "reply", request: { sessionId: chatId, messages, ...requestExtra }, ...extra }, mock.host) as { messages: any[] } | null;
+  /** The text of the insert inside a patched message list. */
+  const insertOf = (out: { messages: any[] } | null): string => {
+    const m = out?.messages.find((x) => String(x.content).startsWith("[Scene now:"));
+    if (!m) throw new Error("no insert in the patch");
+    return m.content;
+  };
+  const groupMeta = { characterId: undefined, groupId: "g1" };
+  const setStats = (chatId: string, key: string, name: string, stats: Record<string, number>) => {
+    const st = readStateFile(chatId);
+    st.snapshots[key].chars[name].stats = { ...st.snapshots[key].chars[name].stats, ...stats };
+    fs.writeFileSync(stateFile(chatId), JSON.stringify(st));
+  };
+  /** A chat with one real update behind it. */
+  const withState = (replyText: string = keptPromise, chatId = "c1", msgs: Msg[] = three(), meta: Record<string, unknown> = {}) => {
+    writeChat(chatId, msgs, meta);
+    const mock = mockHost([replyText]);
+    expect(update(mock, chatId).json.ok).toBe(true);
+    return mock;
+  };
+
+  it("1. gives nothing for another key, a bad session id, no state file, or injection switched off", () => {
+    const mock = withState();
+    expect(ask(mock, "c1")).not.toBeNull();
+    expect(P.llmRequest({ key: "sensor", request: { sessionId: "c1", messages: defaultMessages() } }, mock.host)).toBeNull();
+    expect(P.llmRequest({ key: "title", request: { sessionId: "c1", messages: defaultMessages() } }, mock.host)).toBeNull();
+    expect(P.llmRequest({ key: "reply", request: { messages: defaultMessages() } }, mock.host)).toBeNull();
+    expect(P.llmRequest({ key: "reply", request: { sessionId: "", messages: defaultMessages() } }, mock.host)).toBeNull();
+    expect(ask(mock, "../x")).toBeNull();
+    expect(ask(mock, "no such id")).toBeNull();
+    expect(ask(mock, "ghost")).toBeNull();
+    expect(P.llmRequest({ key: "reply", request: { sessionId: "c1" } }, mock.host)).toBeNull();
+    expect(P.llmRequest({ key: "reply" }, mock.host)).toBeNull();
+    expect(P.llmRequest(null, mock.host)).toBeNull();
+    // a chat that exists but was never updated has no state file
+    writeChat("fresh", three());
+    expect(fs.existsSync(stateFile("fresh"))).toBe(false);
+    expect(ask(mock, "fresh")).toBeNull();
+    // switched off in config.json
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ injection: { enabled: false } }));
+    expect(ask(mock, "c1")).toBeNull();
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ injection: { enabled: true } }));
+    expect(ask(mock, "c1")).not.toBeNull();
+  });
+
+  it("2. the insert is the last leading system message; only messages are patched", () => {
+    const mock = withState();
+    const msgs = [SYS("A"), SYS("B"), { role: "user", content: "X" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }];
+    const out = ask(mock, "c1", msgs)!;
+    expect(Object.keys(out)).toEqual(["messages"]);
+    expect(out.messages.length).toBe(6);
+    expect(out.messages.slice(0, 2)).toEqual([SYS("A"), SYS("B")]);
+    expect(out.messages[2].role).toBe("system");
+    expect(out.messages[2].content.startsWith("[Scene now:")).toBe(true);
+    expect(out.messages.slice(3)).toEqual(msgs.slice(2));
+    // the request's own array is left as it was
+    expect(msgs.length).toBe(5);
+    // with no leading system message the insert comes first
+    const bare = ask(mock, "c1", [{ role: "user", content: "X" }, { role: "assistant", content: "Y" }])!;
+    expect(Object.keys(bare)).toEqual(["messages"]);
+    expect(bare.messages.length).toBe(3);
+    expect(bare.messages[0].role).toBe("system");
+    expect(bare.messages[0].content.startsWith("[Scene now:")).toBe(true);
+    expect(bare.messages.slice(1)).toEqual([{ role: "user", content: "X" }, { role: "assistant", content: "Y" }]);
+    // an empty message list still gets the insert
+    expect(ask(mock, "c1", [])!.messages.length).toBe(1);
+  });
+
+  it("3. impersonation gets no insert, whether the label rides ctx.turn or the request", () => {
+    const mock = withState();
+    expect(ask(mock, "c1", defaultMessages(), { turn: { op: "send" } })).not.toBeNull();
+    expect(ask(mock, "c1", defaultMessages(), { turn: { op: "impersonate" } })).toBeNull();
+    expect(ask(mock, "c1", defaultMessages(), {}, { turn: { op: "impersonate" } })).toBeNull();
+    // ctx.turn wins over the request's field
+    expect(ask(mock, "c1", defaultMessages(), { turn: { op: "send" } }, { turn: { op: "impersonate" } })).not.toBeNull();
+  });
+
+  describe("speaker and notebooks", () => {
+    const bothKnow = reply({
+      present: ["Aria", "Bram"],
+      learned: [
+        { who: "Aria", text: "The user hides a silver key", how: "saw" },
+        { who: "Bram", text: "The user limps on the left leg", how: "saw" },
+      ],
+    });
+
+    it("4. a group speaker gets their own notebook only; the other is just 'Also present'", () => {
+      const mock = withState(bothKnow, "g", three(), groupMeta);
+      const st = readStateFile("g");
+      expect(st.notebook.Aria.length).toBe(1);
+      expect(st.notebook.Bram.length).toBe(1);
+      const text = insertOf(ask(mock, "g", defaultMessages(), { turn: { op: "next", speakerName: "Bram" } }));
+      expect(text).toContain("[How Bram is right now:");
+      expect(text).toContain("What Bram knows about You: Saw: The user limps on the left leg.");
+      expect(text).not.toContain("silver key");
+      expect(text).not.toContain("[How Aria");
+      expect(text).not.toContain("What Aria");
+      expect(text).toContain("Also present: Aria:");
+      expect(text.indexOf("Also present:")).toBeGreaterThan(text.indexOf("[How Bram"));
+      // the speaker is Aria: the mirror image
+      const aria = insertOf(ask(mock, "g", defaultMessages(), { turn: { op: "next", speakerName: "Aria" } }));
+      expect(aria).toContain("[How Aria is right now:");
+      expect(aria).toContain("silver key");
+      expect(aria).not.toContain("limps");
+      expect(aria).not.toContain("[How Bram");
+      expect(aria).toContain("Also present: Bram:");
+    });
+
+    it("4b. a group chat with no turn label (old engine): full blocks, no notebook line at all", () => {
+      const mock = withState(bothKnow, "g", three(), groupMeta);
+      const text = insertOf(ask(mock, "g"));
+      expect(text).toContain("[How Aria is right now:");
+      expect(text).toContain("[How Bram is right now:");
+      expect(text).not.toMatch(/What \S+ knows/);
+      expect(text).not.toContain("silver key");
+      expect(text).not.toContain("limps");
+      expect(text).not.toContain("Also present:");
+      // a speaker who is not in the scene counts as no speaker
+      const stranger = insertOf(ask(mock, "g", defaultMessages(), { turn: { op: "next", speakerName: "Nobody" } }));
+      expect(stranger).not.toMatch(/What \S+ knows/);
+      expect(stranger).toContain("[How Bram is right now:");
+    });
+
+    it("5. a narrator card voices everyone present: each gets a block with only their own note", () => {
+      const replyText = reply({
+        present: ["Medli", "Garrett"],
+        learned: [
+          { who: "Medli", text: "The user fears the sea", how: "saw" },
+          { who: "Garrett", text: "The user owes a debt", how: "saw" },
+        ],
+      });
+      // the card is Bram, who has no soul and is not in the scene
+      const mock = withState(replyText, "c1", three(), { characterId: "bram" });
+      expect(readStateFile("c1").snapshots["m3#0"].present).toEqual(["Medli", "Garrett"]);
+      const text = insertOf(ask(mock, "c1", defaultMessages(), { turn: { op: "send" } }));
+      expect(text).not.toContain("[How Bram");
+      const pieces = text.split("[How ");
+      const medli = pieces.find((p) => p.startsWith("Medli"))!;
+      const garrett = pieces.find((p) => p.startsWith("Garrett"))!;
+      expect(medli).toContain("What Medli knows about You: Saw: The user fears the sea.");
+      expect(medli).not.toContain("owes a debt");
+      expect(garrett).toContain("What Garrett knows about You: Saw: The user owes a debt.");
+      expect(garrett).not.toContain("fears the sea");
+      expect(text).not.toContain("Also present:");
+    });
+  });
+
+  it("6. words only: no digit, tier phrases above the threshold, 'no history yet' for a blank, the day in words", () => {
+    const mock = withState();
+    setStats("c1", "m3#0", "Aria", { trust: 60, respect: -30, comfort: 0, attraction: 0, affection: 0 });
+    const who = { user: "You", their: "their", self: "themself" };
+    const text = insertOf(ask(mock, "c1"));
+    expect(text).not.toMatch(/\d/);
+    expect(text).toContain(P.tierPhrase("trust", 60, who));
+    expect(text).toContain(P.tierPhrase("respect", -30, who));
+    expect(P.tierPhrase("trust", 60, who)).not.toBe(P.tierPhrase("trust", 0, who));
+    // comfort, attraction and affection sit at 0: below the threshold of 10, no phrase
+    for (const stat of ["comfort", "attraction", "affection"]) expect(text).not.toContain(P.tierPhrase(stat, 0, who));
+    expect(text).toContain("The first day.");
+    // the edge: 9 is silent, 10 and -10 speak
+    setStats("c1", "m3#0", "Aria", { trust: 0, respect: 0, comfort: 9, attraction: -9, affection: 10 });
+    const edge = insertOf(ask(mock, "c1"));
+    expect(edge).toContain(P.tierPhrase("affection", 10, who));
+    expect(edge).not.toContain(P.tierPhrase("comfort", 9, who));
+    expect(edge).not.toContain(P.tierPhrase("attraction", -9, who));
+    // all zero: no history yet, and the third day in words (an evening on it)
+    writeChat("c2", three());
+    const blank = mockHost([reply({ present: ["Aria"], day: 3, time: "evening" })]);
+    update(blank, "c2");
+    const c = readStateFile("c2").snapshots["m3#0"].chars.Aria.stats;
+    expect(Object.values(c).every((v) => v === 0)).toBe(true);
+    const fresh = insertOf(ask(blank, "c2"));
+    expect(fresh).toContain("Toward You: no history yet.");
+    expect(fresh).toContain("Evening of the third day.");
+    expect(fresh).not.toMatch(/\d/);
+  });
+
+  it("7. the blind spot never reaches the prompt; the preview checks say so", () => {
+    const blind = "does not know the key is fake";
+    const mock = withState(
+      reply({
+        present: ["Aria"],
+        events: [{ id: "kept_promise", weight: "significant", from: "user", to: "Aria" }],
+        chars: { Aria: { mood: "relieved" } },
+        learned: [{ who: "Aria", text: "The user keeps their word", how: "saw" }],
+        blindSpot: { Aria: blind },
+      }),
+    );
+    // the sensor's line is really in the state, so the check below means something
+    expect(readStateFile("c1").snapshots["m3#0"].chars.Aria.blindSpot).toBe(blind);
+    const text = insertOf(ask(mock, "c1"));
+    expect(text).not.toContain(blind);
+    expect(text).not.toContain("key is fake");
+    const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } });
+    expect(pv.status).toBe(200);
+    expect(pv.json.checks.noBlindSpot).toBe(true);
+    expect(pv.json.checks.notebookOf).toEqual(["Aria"]);
+    expect(pv.json.checks.digits).toBe(0);
+    expect(typeof pv.json.insert.tokens).toBe("number");
+    expect(pv.json.insert.tokens).toBeLessThan(300);
+    expect(pv.json.insert.text).not.toContain(blind);
+    expect(pv.json.insert.focus).toEqual(["Aria"]);
+    // preview edge cases: no id, no state
+    expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: {} }).status).toBe(400);
+    writeChat("fresh", three());
+    expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "fresh" } }).json).toEqual({ insert: null });
+  });
+
+  describe("swipe and continue read the state before the target", () => {
+    const four = () => [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "Tell me."), A("m4", "I will.")];
+    // turn 1: a compliment, nothing felt yet; turn 2: a pivotal threat, trust and comfort drop to -12
+    const setup = () => {
+      writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome.")]);
+      const mock = mockHost([reply({ present: ["Aria"], events: [{ id: "compliment", weight: "pivotal", from: "user", to: "Aria" }], chars: { Aria: { mood: "calm" } } })]);
+      update(mock, "c1");
+      writeChat("c1", four());
+      mock.push(reply({ present: ["Aria"], events: [{ id: "threat", weight: "pivotal", from: "user", to: "Aria" }], chars: { Aria: { mood: "tense" } } }));
+      update(mock, "c1");
+      const st = readStateFile("c1");
+      expect(st.snapshots["m2#0"].turn).toBe(1);
+      expect(st.snapshots["m4#0"].turn).toBe(2);
+      expect(st.snapshots["m2#0"].chars.Aria.stats).toMatchObject({ trust: 0, comfort: 0 });
+      expect(st.snapshots["m4#0"].chars.Aria.stats).toMatchObject({ trust: -12, comfort: -12 });
+      return mock;
+    };
+    const who = { user: "You", their: "their", self: "themself" };
+    const wary = P.tierPhrase("trust", -12, who);
+    const onEdge = P.tierPhrase("comfort", -12, who);
+
+    it("8. swipe and continue of m4 show turn 1; send shows turn 2", () => {
+      const mock = setup();
+      const sent = insertOf(ask(mock, "c1", defaultMessages(), { turn: { op: "send" } }));
+      expect(sent).toContain(wary);
+      expect(sent).toContain(onEdge);
+      expect(sent).toContain("Mood: tense, shifting from calm.");
+      for (const op of ["swipe", "continue"]) {
+        const text = insertOf(ask(mock, "c1", defaultMessages(), { turn: { op, targetId: "m4" } }));
+        expect(text).not.toContain(wary);
+        expect(text).not.toContain(onEdge);
+        expect(text).toContain("Toward You: no strong feelings yet.");
+        expect(text).toContain("Mood: calm.");
+        expect(text).not.toContain("tense");
+      }
+      // no label at all, or no target: the newest state
+      expect(insertOf(ask(mock, "c1"))).toContain(wary);
+      expect(insertOf(ask(mock, "c1", defaultMessages(), { turn: { op: "swipe" } }))).toContain(wary);
+      // a target that is not in the chat falls back to the newest state
+      expect(insertOf(ask(mock, "c1", defaultMessages(), { turn: { op: "swipe", targetId: "zz" } }))).toContain(wary);
+      // the label may ride the request on an older engine
+      expect(insertOf(ask(mock, "c1", defaultMessages(), {}, { turn: { op: "swipe", targetId: "m4" } }))).not.toContain(wary);
+    });
+
+    it("8b. swiping a message with no snapshot before it gives no insert", () => {
+      const mock = setup();
+      expect(ask(mock, "c1", defaultMessages(), { turn: { op: "swipe", targetId: "m2" } })).toBeNull();
+      expect(ask(mock, "c1", defaultMessages(), { turn: { op: "swipe", targetId: "m1" } })).toBeNull();
+    });
+  });
+
+  it("9. a note whose source swipe is no longer active is left out", () => {
+    const mock = withState();
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ present: ["Aria"], learned: [{ who: "Aria", text: "The user is kind", how: "saw" }] }));
+    update(mock, "c1");
+    const both = insertOf(ask(mock, "c1"));
+    expect(both).toContain("The user keeps their word");
+    expect(both).toContain("The user is kind");
+    // m4 is swiped: the new swipe has no snapshot yet, so the line ends at m3 and the note of m4#0 sleeps
+    writeChat("c1", [...three(), { ...A("m4", "You are welcome."), swipe: 1 }]);
+    const after = insertOf(ask(mock, "c1"));
+    expect(after).toContain("The user keeps their word");
+    expect(after).not.toContain("The user is kind");
+    // the same for a swipe in progress: the target's own notes do not leak either
+    const redo = insertOf(ask(mock, "c1", defaultMessages(), { turn: { op: "swipe", targetId: "m4" } }));
+    expect(redo).not.toContain("The user is kind");
+    // swiping back to the first swipe brings the note back
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    expect(insertOf(ask(mock, "c1"))).toContain("The user is kind");
+  });
+
+  it("9b. a note retired by an active message is left out, and comes back when that message is gone", () => {
+    const mock = withState();
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ present: ["Aria"], retire: ["n1"] }));
+    update(mock, "c1");
+    expect(insertOf(ask(mock, "c1"))).not.toContain("The user keeps their word");
+    writeChat("c1", [...three(), { ...A("m4", "Thank you."), swipe: 1 }]);
+    expect(insertOf(ask(mock, "c1"))).toContain("The user keeps their word");
+  });
+
+  it("10. the pronoun comes from the soul: her, and them without one", () => {
+    const told = reply({ present: ["Aria"], learned: [{ who: "Aria", text: "The user was born by the sea", how: "heard", from: null }] });
+    const soulPath = path.join(root, "characters/aria/card.json");
+    const cardWith = (pronouns: string) => JSON.stringify({ spec: "chara_card_v2", name: "Aria", extensions: { molfar_soul: { v: 1, characters: { Aria: { class: "ally", pronouns } } } } });
+    fs.writeFileSync(soulPath, cardWith("she"));
+    const she = withState(told, "c1");
+    const text = insertOf(ask(she, "c1"));
+    expect(text).toContain("You told her: The user was born by the sea.");
+    expect(text).not.toContain("told them");
+    // Bram has no soul at all
+    const bram = withState(reply({ present: ["Bram"], learned: [{ who: "Bram", text: "The user was born by the sea", how: "heard", from: null }] }), "c2", three(), { characterId: "bram" });
+    const them = insertOf(ask(bram, "c2"));
+    expect(them).toContain("You told them: The user was born by the sea.");
+    expect(them).not.toContain("told her");
+    // he, and an unknown value, are read too
+    fs.writeFileSync(soulPath, cardWith("he"));
+    expect(insertOf(ask(she, "c1"))).toContain("You told him: ");
+    fs.writeFileSync(soulPath, cardWith("xe"));
+    expect(insertOf(ask(she, "c1"))).toContain("You told them: ");
+  });
+});
