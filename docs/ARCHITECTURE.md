@@ -16,7 +16,7 @@
 |--------|------|---------|
 | **engine** | `plugins/engine/plugin.js` | Core backend: all CRUD, generation (LLM), world info, local memory, history compaction, translation. Two-phase model: Pass A → `{__llmPending: true}`, Pass B → result |
 | **studio-import** | `plugins/studio-import/plugin.js` | Import character cards (PNG v2/v3 + JSON), world info, presets, regex, personas, themes, chats; ZIP export/import |
-| **relations** | `plugins/relations/plugin.js` | Relationship dashboard: a sensor model reports events, code turns them into per-character stats, mood, clock and notebook, saved as one snapshot per chat message in `data/dashboard/state/<chatId>.json`. Routes `/dashboard/*` |
+| **relations** | `plugins/relations/plugin.js` | Relationship dashboard: a sensor model reports events, code turns them into per-character stats, mood, clock and notebook, saved as one snapshot per chat message in `data/dashboard/state/<chatId>.json`. Also rates a card's main characters (a "soul", `docs/SOUL.md`) into proposals in `data/dashboard/soul-drafts/<characterId>.json`. Routes `/dashboard/*`, among them `soul/rate`, `soul-draft`, `guests`, `soul/effects` |
 | **tools** | `plugins/tools/plugin.js` | Model tools during generation: dice rolls, image drawing, toy control; definitions in `data/tools/*.json` |
 
 ### 1.3 Data (`data/`)
@@ -30,6 +30,7 @@
 | `regex/<id>.json` | JSON | Replace scripts: `findRegex`, `replaceString`, `placements`, `scope` |
 | `groups/<id>.json` | JSON | Group chats: `memberIds`, `mode`, `mutedIds` |
 | `dashboard/state/<chatId>.json` | JSON | Relationship dashboard state per chat: snapshots by `<msgId>#<swipe>`, notebook, names, history (written by the `relations` plugin) |
+| `dashboard/soul-drafts/<characterId>.json` | JSON | Proposed souls of one card waiting for the user's review (`by` auto or molfar, `note`, `error`, `dismissedAt`, `characters`); see `docs/SOUL.md` (written by the `relations` plugin) |
 | `chats/<id>.jsonl` | JSONL | Messages: flat list with `swipes[]` (reply variants) |
 | `chats/<id>.meta.json` | JSON | Metadata: `title`, `characterId`, `groupId`, `presetId`, `personaId`, `authorNote`, `lorebookIds`, `summary`, `memoryCutoffMessageId` |
 | `chats/<id>.memories.json` | JSON | Long-term memory: array of `{id, text, importance, pinned, at}` |

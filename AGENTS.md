@@ -261,9 +261,11 @@ data/
 ├─ lorebooks/<id>.json  world-info books (entries[], settings, vectorized)
 ├─ regex/<id>.json      regex scripts (find/replace/placements/flags)
 ├─ databank/<id>.json   { name, scope, enabled, size, chunks: [{i, text}] }
-├─ dashboard/           relations plugin: state/<chatId>.json, config.json, events.json
+├─ dashboard/           relations plugin: state/<chatId>.json, soul-drafts/<characterId>.json, config.json, events.json
 └─ personas/<id>.json   user personas
 ```
+
+Card souls for the relationship dashboard: docs/SOUL.md
 
 Characters: alternates, versions, per-chat choice — exact shapes:
 - `card.studio.descVariants` / `personalityVariants` / `scenarioVariants`:

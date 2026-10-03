@@ -20,14 +20,23 @@
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompt
  *
+ * Souls (docs/SOUL.md): who a character is. A card holds them; a rating call proposes them.
+ *  POST   /dashboard/soul/rate {characterId, chatId?, auto?}  rate a card's main characters (two-phase)
+ *  GET    /dashboard/soul-draft?characterId=                  the proposal of a card, or null
+ *  DELETE /dashboard/soul-draft?characterId=[&accepted=1]     dismiss it, or remove it once accepted
+ *  GET    /dashboard/guests?characterId=                      names seen in the card's chats with no soul
+ *  POST   /dashboard/soul/effects {soul}                      what a soul changes in play
+ *
  * Files (fs root = the app's data/):
  *  dashboard/state/<chatId>.json   one chat
+ *  dashboard/soul-drafts/<characterId>.json  proposed souls waiting for review
  *  dashboard/config.json           only what differs from the defaults
  *  dashboard/events.json           optional own event vocabulary
  *  _debug/dashboard.json           last sensor call, only when debug is on
  */
 
 const STATE_DIR = "dashboard/state/";
+const DRAFT_DIR = "dashboard/soul-drafts/";
 const CONFIG_FILE = "dashboard/config.json";
 const EVENTS_FILE = "dashboard/events.json";
 const DEBUG_FILE = "_debug/dashboard.json";
@@ -44,6 +53,12 @@ export const PULSE = ["excitement", "arousal"];
 const CLASSES = ["romantic", "ally", "neutral", "hostile"];
 export const WEIGHTS = { routine: 1, significant: 2, pivotal: 4 };
 const DELTA_KEYS = [...DISPOSITION, ...PULSE, "hostility"];
+// the scales of a soul: the code reads these, so no other key is kept inside them
+const PRONOUN_KEYS = ["she", "he", "they"];
+const TRAIT_KEYS = ["dominance", "confidence", "shyness", "patience", "curiosity"];
+const SPECTRUM_KEYS = ["introvert_extrovert", "cautious_reckless", "reserved_emotional", "lawful_rebellious", "suspicious_trusting", "pessimist_optimist"];
+// above this shyness, trust and comfort grow at most +1 per turn
+const SHYNESS_BRAKE = 60;
 
 // [family, id, meaning, deltas]; Sergey tunes these later, a user file can replace any of them
 const EVENT_ROWS = [
@@ -202,9 +217,23 @@ export const DEFAULT_PROMPTS = {
     "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
     "- In \"open\", list kept threads with their id and new ones with id null.",
   ].join("\n"),
+  // rates the main characters of a card; the event list, the stat names and the output shape are appended in code
+  soul: [
+    "You read a roleplay card and its lorebook and rate its main characters for a relationship tracker.",
+    "Rate only recurring characters the sources describe as people with a name and a personality of their own: the card's own character, and for a narrator card the main named characters its story is about. Skip the narrator itself, the user's character (the player, \"you\", {{user}}), and minor figures: unnamed or one-scene people such as guards, servants, merchants and passers-by. At most six characters; fewer is fine; none when no one fits.",
+    "Judge from what the sources say, not from stereotypes. When the sources say nothing about a quality, use 50 (no lean) for a trait or a spectrum, and leave start values out.",
+    "- class: how the character relates to the user at the start: romantic (a love interest), ally, neutral or hostile.",
+    "- start: attitude on first meeting, small numbers from -20 to 20 (most characters within 10 of zero); leave out what is 0.",
+    "- traits, 0 to 100: dominance, confidence, shyness, patience, curiosity.",
+    "- spectra, 0 to 100 (0 = the first word, 100 = the second): introvert_extrovert, cautious_reckless, reserved_emotional, lawful_rebellious, suspicious_trusting, pessimist_optimist.",
+    "- triggers: up to four things that hurt this character more than most people; values: up to four things they prize. Each names one event id from the list below, the stat it hits, and x = 1.5 (strong) or 2 (very strong); cue is a few words.",
+    "- coping: one short line on how they behave under strain.",
+    "- pronouns: she, he or they. aliases: other spellings of the name the sources use.",
+    "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
+  ].join("\n"),
 };
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [], soul: [] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -382,9 +411,9 @@ function eventDelta(soul, e, stat, base, weightName, prevValue, lines) {
 function settleDisposition(stat, sum, soul, turnLines) {
   let s = sum;
   const shy = num(soul && soul.traits ? soul.traits.shyness : undefined);
-  if ((stat === "trust" || stat === "comfort") && Number.isFinite(shy) && shy > 60 && s > 1) {
+  if ((stat === "trust" || stat === "comfort") && Number.isFinite(shy) && shy > SHYNESS_BRAKE && s > 1) {
     s = 1;
-    turnLines.push("shyness " + fmt(shy) + " > 60: growth capped at +1");
+    turnLines.push("shyness " + fmt(shy) + " > " + SHYNESS_BRAKE + ": growth capped at +1");
   }
   if (s > 6) {
     turnLines.push(stat + " capped at +6 (was " + fmt(s) + ")");
@@ -490,19 +519,170 @@ export function activeLine(msgs) {
     .map((m) => ({ key: m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0), msg: m }));
 }
 
-function chatCharacters(fsx, meta) {
+// ---------- souls: lookup and clean-up ----------
+/** The soul for a name: the exact key, then a key that differs only in case, then an alias. */
+export function soulOf(souls, name) {
+  if (!isObj(souls)) return undefined;
+  const s = str(name);
+  if (!s) return undefined;
+  if (Object.prototype.hasOwnProperty.call(souls, s) && isObj(souls[s])) return souls[s];
+  const low = s.toLowerCase();
+  for (const [k, v] of Object.entries(souls)) if (isObj(v) && k.trim().toLowerCase() === low) return v;
+  for (const v of Object.values(souls)) if (isObj(v) && arr(v.aliases).some((a) => typeof a === "string" && a.trim().toLowerCase() === low)) return v;
+  return undefined;
+}
+
+/** `names` plus every soul key no listed name already stands for (an alias is not listed twice). */
+function withSoulNames(souls, names) {
+  const list = unique(names);
+  for (const key of Object.keys(souls)) if (!list.some((n) => soulOf(souls, n) === souls[key])) list.push(key);
+  return list;
+}
+
+// a number, or a numeric string; never a boolean or an array
+const numOf = (v) => (typeof v === "number" || typeof v === "string" ? num(v) : NaN);
+const intIn = (v, lo, hi) => {
+  const n = numOf(v);
+  return Number.isFinite(n) ? clamp(Math.round(n), lo, hi) : undefined;
+};
+/** The known keys of a scale as integers in lo..hi; unknown keys dropped; null when nothing is left. */
+function scaleOf(raw, keys, lo, hi) {
+  if (!isObj(raw)) return null;
+  const out = {};
+  for (const k of keys) {
+    const n = intIn(raw[k], lo, hi);
+    if (n !== undefined) out[k] = n;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** Triggers or values: { cue, event, stat, x }; an item with an unknown event id or stat is dropped. */
+function cueList(raw) {
+  const out = [];
+  for (const t of arr(raw)) {
+    if (!isObj(t) || out.length >= 12) continue;
+    const event = typeof t.event === "string" ? t.event : "";
+    const stat = typeof t.stat === "string" ? t.stat : "";
+    if (!VOCAB_ID.test(event) || !DELTA_KEYS.includes(stat)) continue;
+    const x = numOf(t.x);
+    out.push({ cue: cut(str(t.cue), 80), event, stat, x: Number.isFinite(x) ? clamp(x, 1, 3) : 1.5 });
+  }
+  return out;
+}
+
+/** A soul as the code may trust it. Unknown keys ride along untouched; known keys are checked. */
+export function normalizeSoul(raw) {
+  if (!isObj(raw)) return {};
+  const out = { ...raw };
+  for (const k of ["class", "pronouns", "aliases", "start", "traits", "spectra", "triggers", "values", "coping", "pulseBase", "locked", "ratedBy"]) delete out[k];
+  if (CLASSES.includes(raw.class)) out.class = raw.class;
+  if (PRONOUN_KEYS.includes(raw.pronouns)) out.pronouns = raw.pronouns;
+  if (Array.isArray(raw.aliases)) {
+    const seen = [];
+    for (const a of raw.aliases) {
+      const s = typeof a === "string" ? cut(a.trim(), 60) : "";
+      if (s && seen.length < 8 && !seen.some((x) => x.toLowerCase() === s.toLowerCase())) seen.push(s);
+    }
+    out.aliases = seen;
+  }
+  if (isObj(raw.start)) {
+    const start = scaleOf(raw.start, DISPOSITION, -20, 20) || {};
+    const h = intIn(raw.start.hostility, 0, 100);
+    if (h !== undefined) start.hostility = h;
+    if (Object.keys(start).length) out.start = start;
+  }
+  const traits = scaleOf(raw.traits, TRAIT_KEYS, 0, 100);
+  if (traits) out.traits = traits;
+  const spectra = scaleOf(raw.spectra, SPECTRUM_KEYS, 0, 100);
+  if (spectra) out.spectra = spectra;
+  if (Array.isArray(raw.triggers)) out.triggers = cueList(raw.triggers);
+  if (Array.isArray(raw.values)) out.values = cueList(raw.values);
+  if (str(raw.coping)) out.coping = cut(str(raw.coping), 300);
+  const arousal = isObj(raw.pulseBase) ? intIn(raw.pulseBase.arousal, 0, 100) : undefined;
+  if (arousal !== undefined) out.pulseBase = { arousal };
+  if (typeof raw.locked === "boolean") out.locked = raw.locked;
+  if (str(raw.ratedBy)) out.ratedBy = cut(str(raw.ratedBy), 40);
+  return out;
+}
+
+/** A proposal file as the code may trust it, or null when it is not an object. */
+export function normalizeDraft(raw) {
+  if (!isObj(raw)) return null;
+  const at = numOf(raw.at);
+  const out = { v: 1, at: Number.isFinite(at) ? at : 0, by: raw.by === "molfar" ? "molfar" : "auto" };
+  if (str(raw.model)) out.model = cut(str(raw.model), 160);
+  if (str(raw.note)) out.note = cut(str(raw.note), 400);
+  if (str(raw.error)) out.error = cut(str(raw.error), 400);
+  const dismissed = numOf(raw.dismissedAt);
+  if (Number.isFinite(dismissed)) out.dismissedAt = dismissed;
+  out.characters = {};
+  if (isObj(raw.characters)) {
+    for (const [name, soul] of Object.entries(raw.characters)) {
+      const n = cut(name.trim(), 60);
+      if (!n || !isObj(soul) || Object.keys(out.characters).length >= 12 || Object.prototype.hasOwnProperty.call(out.characters, n)) continue;
+      out.characters[n] = normalizeSoul(soul);
+    }
+  }
+  return out;
+}
+
+// ---------- souls: the cards and their proposals ----------
+const draftPath = (cardId) => DRAFT_DIR + cardId + ".json";
+
+function fileExists(fsx, path) {
+  try {
+    fsx.read(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The proposal of a card (normalized), or null. */
+function readDraft(fsx, cardId) {
+  return CHAT_ID.test(cardId) ? normalizeDraft(readJson(fsx, draftPath(cardId), null)) : null;
+}
+
+/** The souls a card holds itself. */
+function cardSoulsOf(card) {
+  const found = isObj(card) && card.extensions && card.extensions.molfar_soul && card.extensions.molfar_soul.characters;
+  const out = {};
+  if (isObj(found)) for (const [n, soul] of Object.entries(found)) if (isObj(soul)) out[n] = soul;
+  return out;
+}
+
+/** Add the souls of a live proposal (not dismissed, not failed) for names that have none yet. */
+function addProvisional(souls, draft) {
+  if (!draft || draft.dismissedAt || draft.error) return;
+  for (const [n, soul] of Object.entries(draft.characters)) if (!soulOf(souls, n)) souls[n] = soul;
+}
+
+const readCard = (fsx, cardId) => (CHAT_ID.test(String(cardId)) ? readJson(fsx, "characters/" + cardId + "/card.json", null) : null);
+
+/** The ids of the cards that speak in this chat. */
+function memberIds(fsx, meta) {
   const ids = meta.groupId ? arr(readJson(fsx, "groups/" + meta.groupId + ".json", {}).memberIds) : meta.characterId ? [meta.characterId] : [];
+  return ids.filter((id) => typeof id === "string" && CHAT_ID.test(id));
+}
+
+function chatCharacters(fsx, meta) {
   const names = [];
   const souls = {};
-  for (const id of ids) {
-    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+  const cards = [];
+  for (const id of memberIds(fsx, meta)) {
+    const card = readCard(fsx, id);
     if (!isObj(card) || !card.name) continue;
+    cards.push(id);
     names.push(String(card.name));
-    const found = card.extensions && card.extensions.molfar_soul && card.extensions.molfar_soul.characters;
-    if (isObj(found)) for (const [n, soul] of Object.entries(found)) if (isObj(soul) && !souls[n]) souls[n] = soul;
+    for (const [n, soul] of Object.entries(cardSoulsOf(card))) if (!souls[n]) souls[n] = soul;
   }
+  // a proposal the user has not settled yet plays as a provisional soul, behind the souls the cards hold
+  for (const id of cards) addProvisional(souls, readDraft(fsx, id));
   return { names: unique(names), souls };
 }
+
+// what the user is called when the chat and the persona give no name
+const NO_USER_NAME = "the user";
 
 function userNameOf(fsx, meta) {
   if (str(meta.userName)) return str(meta.userName);
@@ -510,7 +690,7 @@ function userNameOf(fsx, meta) {
     const persona = readJson(fsx, "personas/" + meta.personaId + ".json", null);
     if (persona && str(persona.name)) return str(persona.name);
   }
-  return "the user";
+  return NO_USER_NAME;
 }
 
 // ---------- chat state file ----------
@@ -588,6 +768,8 @@ const DEFAULT_CONFIG = {
   families: { trust: true, warmth: true, power: true, body: true, conflict: true, care: true, knowledge: true },
   injection: { enabled: true, maxTokens: 300 },
   catchUp: true,
+  // rate a card's main characters by itself when it has no soul yet
+  autoSoul: true,
   debug: false,
 };
 
@@ -633,6 +815,7 @@ function nextConfig(stored, b) {
   if (b.sensorModel !== undefined) put("sensorModel", typeof b.sensorModel === "string" ? b.sensorModel.trim().slice(0, 160) : "", DEFAULT_CONFIG.sensorModel);
   if (b.mode === "sensor" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
   if (parseBool(b.catchUp) !== undefined) put("catchUp", parseBool(b.catchUp), DEFAULT_CONFIG.catchUp);
+  if (parseBool(b.autoSoul) !== undefined) put("autoSoul", parseBool(b.autoSoul), DEFAULT_CONFIG.autoSoul);
   if (parseBool(b.debug) !== undefined) put("debug", parseBool(b.debug), DEFAULT_CONFIG.debug);
   if (isObj(b.families)) {
     const fam = { ...(isObj(next.families) ? next.families : {}) };
@@ -734,9 +917,12 @@ function newMessagesText(msgs) {
 }
 
 function sensorUser(ctx) {
-  const listed = unique([...ctx.characters, ...Object.keys(ctx.souls), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])]);
+  const listed = withSoulNames(ctx.souls, [...ctx.characters, ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])]);
   // a card without a soul may be a narrator card; the sensor decides from the text
-  const label = (n) => (ctx.souls[n] ? classOf(ctx.souls[n]) : ctx.characters.includes(n) ? "the card: a character, or a narrator who is no person in the scene" : "neutral");
+  const label = (n) => {
+    const soul = soulOf(ctx.souls, n);
+    return soul ? classOf(soul) : ctx.characters.includes(n) ? "the card: a character, or a narrator who is no person in the scene" : "neutral";
+  };
   const classes = listed.map((n) => n + " (" + label(n) + ")").join(", ");
   return [
     "Characters\nuser: " + ctx.userName + ". " + classes + ".",
@@ -911,7 +1097,7 @@ function orderPresent(present, events, B) {
 
 /** Numbers and text of one character for this turn. */
 function charEntry(ctx, name, events, sensorChar, blind, B) {
-  const soul = ctx.souls[name];
+  const soul = soulOf(ctx.souls, name);
   const cls = classOf(soul);
   const old = B && B.chars ? B.chars[name] : null;
   const prev = old ? { stats: old.stats, pulse: old.pulse, hostility: old.hostility ?? null } : startChar(soul, cls);
@@ -1039,7 +1225,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const { state, K } = ctx;
   const B = ctx.base && ctx.base.snap;
   const turn = (B ? B.turn || 0 : 0) + 1;
-  const known0 = unique([...ctx.characters, ...Object.keys(ctx.souls), ...Object.keys((B && B.chars) || {})]);
+  const known0 = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]);
   const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0)).filter((n) => n && !isUser(n))]);
   const present = scenePresent(ctx, out, known);
   const events = readEvents(out.events, ctx, known, unknownIds);
@@ -1087,6 +1273,139 @@ function applySensor(ctx, out, op, model, unknownIds) {
   for (const old of order.slice(SNAPSHOT_LIMIT)) delete state.snapshots[old];
   return snapshot;
 }
+
+// ---------- souls: rating a card ----------
+// One call per card proposes souls for its main characters; the proposal is a file
+// the user settles in the card's Soul tab (docs/SOUL.md). Code adds the event list,
+// the stat names and the output shape, so no edit of the prompt can break the format.
+const SOUL_SHAPE =
+  "{\"characters\": {\"<name>\": {\"class\": \"romantic|ally|neutral|hostile\", \"pronouns\": \"she|he|they\", \"aliases\": [\"other spelling\"], " +
+  "\"start\": {\"trust\": 0, \"respect\": 0}, \"traits\": {\"dominance\": 50, \"shyness\": 50}, \"spectra\": {\"introvert_extrovert\": 50}, " +
+  "\"triggers\": [{\"cue\": \"a few words\", \"event\": \"event id\", \"stat\": \"stat name\", \"x\": 1.5}], \"values\": [{\"cue\": \"a few words\", \"event\": \"event id\", \"stat\": \"stat name\", \"x\": 1.5}], " +
+  "\"coping\": \"one short line\"}}, \"note\": \"one or two lines on what you chose and why\"}";
+
+function soulSystem(cfg, vocab) {
+  // a soul is not per chat: families a chat switched off are still listed
+  const events = Object.values(vocab)
+    .filter((e) => e.id !== "other")
+    .map((e) => e.id + (e.meaning ? ": " + e.meaning : ""));
+  return (
+    promptOf("soul", cfg) +
+    "\n\nEvent ids\n" + events.join("\n") +
+    "\n\nStat names: " + DELTA_KEYS.join(", ") +
+    "\n\nOutput shape\nReply with JSON only: " + SOUL_SHAPE +
+    "\nLeave out any key you have nothing for."
+  );
+}
+
+const BOOK_LIMIT = 10000;
+const ENTRY_LIMIT = 1200;
+const entriesOf = (book) => {
+  const e = isObj(book) ? book.entries : null;
+  return Array.isArray(e) ? e : isObj(e) ? Object.values(e) : [];
+};
+
+/** One lorebook entry as a line; "" for a disabled or empty one. */
+function entryLine(e) {
+  if (!isObj(e) || e.disable === true || e.enabled === false) return "";
+  const content = str(e.content);
+  if (!content) return "";
+  const keys = (Array.isArray(e.keys) ? e.keys : Array.isArray(e.key) ? e.key : []).filter((k) => typeof k === "string");
+  const title = str(e.comment) || str(e.name) || keys.join(", ");
+  return cut("- " + (title ? title + ": " : "") + content, ENTRY_LIMIT);
+}
+
+/** What the rating call reads: the card and the lorebooks it uses. opts = { lorebookIds, userName }. */
+function soulUser(fsx, cardId, opts) {
+  const o = isObj(opts) ? opts : {};
+  const card = readCard(fsx, cardId) || {};
+  const studio = isObj(card.studio) ? card.studio : {};
+  const field = (label, v, max) => (str(v) ? label + "\n" + cut(str(v), max) : "");
+  const head = [
+    "Card: " + (str(card.name) || cardId),
+    field("Description", card.description, 4000),
+    field("Personality", card.personality, 2000),
+    field("Scenario", card.scenario, 2000),
+    field("First message", card.first_mes, 1500),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const books = [];
+  if (isObj(card.character_book)) books.push({ name: str(card.character_book.name) || "embedded in the card", entries: entriesOf(card.character_book) });
+  const ids = unique([studio.embeddedLorebookId, ...arr(studio.linkedLorebookIds), ...arr(o.lorebookIds)]).filter((id) => typeof id === "string" && CHAT_ID.test(id));
+  for (const id of ids) {
+    const book = readJson(fsx, "lorebooks/" + id + ".json", null);
+    if (isObj(book)) books.push({ name: str(book.name) || id, entries: entriesOf(book) });
+  }
+  const sections = [cut(head, 8000)];
+  let used = 0;
+  let full = false;
+  for (const book of books) {
+    const lines = [];
+    for (const e of book.entries) {
+      const line = entryLine(e);
+      if (!line) continue;
+      if (used + line.length + 1 > BOOK_LIMIT) {
+        full = true;
+        break;
+      }
+      used += line.length + 1;
+      lines.push(line);
+    }
+    if (lines.length) sections.push("Lorebook: " + book.name + "\n" + lines.join("\n"));
+    if (full) break;
+  }
+  if (full) sections.push("(more entries left out)");
+  if (str(o.userName)) sections.push("The user's character is " + str(o.userName) + ": never rate them.");
+  return sections.join("\n\n");
+}
+
+/** Who rates: the sensor model, else the chat's model, else the app's default model. */
+function soulModel(fsx, cfg, meta) {
+  const settings = readJson(fsx, "settings.json", null);
+  return str(cfg.sensorModel) || str(meta && meta.model) || (isObj(settings) ? str(settings.model) : "");
+}
+
+function askSoul(host, cfg, cardId, meta, key) {
+  const fsx = host.fs;
+  const model = soulModel(fsx, cfg, meta);
+  const userName = meta ? userNameOf(fsx, meta) : "";
+  host.llm.request(key, {
+    ...(model ? { model } : {}),
+    systemPrompt: soulSystem(cfg, loadVocab(fsx)),
+    messages: [{ role: "user", content: soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName }) }],
+    presetParams: { temperature: 0.3, max_tokens: 3000 },
+  });
+}
+
+/** The reply of the rating call as a proposal; a failure becomes a proposal with an error. */
+function draftFromReply(reply) {
+  const r = isObj(reply) ? reply : {};
+  const fail = (message) => normalizeDraft({ v: 1, at: Date.now(), by: "auto", characters: {}, error: message });
+  if (r.error || !str(r.text)) return fail(r.error ? String(r.error) : "the model returned nothing");
+  const out = parseSensorText(r.text);
+  if (!out) return fail("the reply was not JSON");
+  if (!isObj(out.characters)) return fail("the reply had no characters");
+  return normalizeDraft({ v: 1, at: Date.now(), by: "auto", model: str(r.model), note: out.note, characters: out.characters });
+}
+
+function saveRated(fsx, cardId, reply) {
+  const draft = draftFromReply(reply);
+  fsx.write(draftPath(cardId), JSON.stringify(draft, null, 2));
+  return draft;
+}
+
+/** A card with no soul and no proposal file (or only a failed one, after a pause) is rated by itself. */
+function needsRating(fsx, cardId, cfg) {
+  if (cfg.autoSoul === false) return false;
+  const card = readCard(fsx, cardId);
+  if (!isObj(card) || Object.keys(cardSoulsOf(card)).length) return false;
+  if (!fileExists(fsx, draftPath(cardId))) return true;
+  // a failed rating is tried again after the same pause as a failed sensor
+  const draft = readDraft(fsx, cardId);
+  return !!(draft && draft.error && !draft.dismissedAt && Date.now() - Number(draft.at) >= RATE_ERROR_PAUSE_MS);
+}
+const RATE_ERROR_PAUSE_MS = 10 * 60 * 1000;
 
 // ---------- one update: plan, ask, commit ----------
 const ok = (json, status) => ({ status: status || 200, json });
@@ -1188,17 +1507,43 @@ function commitUpdate(fsx, ctx, r) {
  */
 function runUpdate(host, input) {
   const fsx = host.fs;
-  const ctx = planUpdate(fsx, input.chatId, input.op);
+  let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
+  const rated = !!input.rated;
+  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...extra });
+  // Cards with no soul are rated first, so the sensor starts from their souls. The
+  // passes are: ask the rating, write it and ask the sensor, commit. Nothing is
+  // written before the answers are in.
+  if (!rated && ctx.cfg.mode !== "manual") {
+    const rating = arr(input.rating).filter((id) => typeof id === "string" && CHAT_ID.test(id));
+    if (rating.length) {
+      for (const id of rating) {
+        const answer = host.llm.results["soul_rate_" + id];
+        // a proposal already on disk (another run got there first) is left alone
+        if (answer && needsRating(fsx, id, ctx.cfg)) saveRated(fsx, id, answer);
+      }
+      // plan again: the chat now sees the provisional souls
+      ctx = planUpdate(fsx, input.chatId, input.op);
+      if (ctx.final) return { done: ctx.final };
+      askSensor(host, ctx, "sensor");
+      return { pending: carry({ rated: true }) };
+    }
+    const need = unique(memberIds(fsx, ctx.meta)).filter((id) => needsRating(fsx, id, ctx.cfg)).slice(0, 4);
+    if (need.length) {
+      for (const id of need) askSoul(host, ctx.cfg, id, ctx.meta, "soul_rate_" + id);
+      return { pending: carry({ rating: need }) };
+    }
+  }
   const key = input.retry ? "sensor_retry" : "sensor";
   const r = host.llm.results[key];
   if (!r) {
     askSensor(host, ctx, key);
-    return { pending: { chatId: input.chatId, op: input.op, retry: !!input.retry } };
+    return { pending: carry({}) };
   }
-  if (!input.retry && r.error && isRateLimit(r)) {
+  // after a rating there is no pass left for a retry
+  if (!input.retry && !rated && r.error && isRateLimit(r)) {
     askSensor(host, ctx, "sensor_retry");
-    return { pending: { chatId: input.chatId, op: input.op, retry: true } };
+    return { pending: carry({ retry: true }) };
   }
   return { done: commitUpdate(fsx, ctx, r) };
 }
@@ -1389,7 +1734,7 @@ function sceneLine(snap, user) {
 function characterBlock(ctx, name, withNotes) {
   const { snap, user } = ctx;
   const c = snap.chars[name];
-  const soul = ctx.souls[name];
+  const soul = soulOf(ctx.souls, name);
   const pr = pronounsOf(soul);
   const who = { user, their: pr.their, self: pr.self };
   const lines = ["[How " + name + " is right now:"];
@@ -1550,8 +1895,109 @@ function readUpdate(req, host) {
   const chatId = String(b.chatId || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const op = cut(str(b.op) || "send", 20);
-  const step = runUpdate(host, { chatId, op, retry: !!(req.stash && req.stash.retry) });
+  const stash = isObj(req.stash) ? req.stash : {};
+  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
+}
+
+// ---------- routes: souls ----------
+/** POST /dashboard/soul/rate: rate the main characters of one card. */
+function rateRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const cardId = String(b.characterId || "");
+  if (!CHAT_ID.test(cardId)) return ok({ error: "characterId required" }, 400);
+  if (!isObj(readCard(fsx, cardId))) return ok({ error: "no such character" }, 404);
+  const chatId = String(b.chatId || "");
+  const chat = CHAT_ID.test(chatId) ? readChat(fsx, chatId) : null;
+  const cfg = loadConfig(fsx);
+  if (parseBool(b.auto) === true && !needsRating(fsx, cardId, cfg)) return ok({ skipped: true });
+  const retry = !!(isObj(req.stash) && req.stash.retry);
+  const key = retry ? "soul_rate_retry" : "soul_rate";
+  const r = host.llm.results[key];
+  if (!r) {
+    askSoul(host, cfg, cardId, chat ? chat.meta : null, key);
+    return { __llmPending: true, stash: { retry } };
+  }
+  if (!retry && r.error && isRateLimit(r)) {
+    askSoul(host, cfg, cardId, chat ? chat.meta : null, "soul_rate_retry");
+    return { __llmPending: true, stash: { retry: true } };
+  }
+  const draft = saveRated(fsx, cardId, r);
+  return ok({ ok: !draft.error, draft });
+}
+
+/** GET returns the proposal of a card; DELETE dismisses it, or removes it once accepted. */
+function draftRoute(req, fsx) {
+  const q = req.query || {};
+  const cardId = String(q.characterId || "");
+  if (!CHAT_ID.test(cardId)) return ok({ error: "characterId required" }, 400);
+  if (req.method === "GET") return ok({ draft: readDraft(fsx, cardId) });
+  if (parseBool(q.accepted) === true) {
+    try {
+      fsx.remove(draftPath(cardId));
+    } catch {}
+    return ok({ ok: true });
+  }
+  const old = readDraft(fsx, cardId) || {};
+  const gone = { v: 1, at: old.at || Date.now(), by: old.by || "auto", characters: {}, dismissedAt: Date.now() };
+  fsx.write(draftPath(cardId), JSON.stringify(gone, null, 2));
+  return ok({ ok: true });
+}
+
+const GUEST_CHATS = 30;
+
+/** Names the sensor saw in this card's chats that have no soul, and every name it saw. */
+function guestsRoute(req, fsx) {
+  const cardId = String((req.query && req.query.characterId) || "");
+  if (!CHAT_ID.test(cardId)) return ok({ error: "characterId required" }, 400);
+  const card = readCard(fsx, cardId);
+  if (!isObj(card)) return ok({ error: "no such character" }, 404);
+  let files = [];
+  try {
+    files = fsx.list("chats").filter((f) => f.endsWith(".meta.json"));
+  } catch {}
+  const chats = [];
+  for (const f of files) {
+    const id = f.replace(/\.meta\.json$/, "");
+    const meta = readJson(fsx, "chats/" + f, null);
+    if (CHAT_ID.test(id) && isObj(meta) && meta.characterId === cardId && !meta.groupId) chats.push({ id, meta, at: Number(meta.updatedAt) || 0 });
+  }
+  chats.sort((a, b) => b.at - a.at);
+  const counts = new Map();
+  const users = new Set();
+  for (const { id, meta } of chats.slice(0, GUEST_CHATS)) {
+    const user = userNameOf(fsx, meta);
+    if (user !== NO_USER_NAME) users.add(user.toLowerCase());
+    for (const snap of Object.values(loadState(fsx, id).state.snapshots)) {
+      for (const n of arr(isObj(snap) ? snap.present : [])) if (str(n)) counts.set(str(n), (counts.get(str(n)) || 0) + 1);
+    }
+  }
+  const seen = [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+  const souls = cardSoulsOf(card);
+  addProvisional(souls, readDraft(fsx, cardId));
+  return ok({ guests: seen.filter((n) => !soulOf(souls, n) && !users.has(n.toLowerCase())), seen });
+}
+
+/** What a soul changes in play, from the same constants the physics reads. */
+export function soulEffects(soul, vocab) {
+  const out = [];
+  if (classOf(soul) === "hostile") out.push({ kind: "hostile" });
+  const shy = num(soul.traits ? soul.traits.shyness : undefined);
+  if (Number.isFinite(shy) && shy > SHYNESS_BRAKE) out.push({ kind: "brake", trait: "shyness", value: shy, stats: ["trust", "comfort"], cap: 1 });
+  for (const [stat, spec] of Object.entries(SPECTRUM_FOR_GAIN)) {
+    const x = tilt(soul, spec);
+    if (x !== 1) out.push({ kind: "gain", stat, spectrum: spec[0], value: soul.spectra[spec[0]], inverted: spec[1], x });
+  }
+  const harm = tilt(soul, HARM_SPECTRUM);
+  if (harm !== 1) out.push({ kind: "harm", spectrum: HARM_SPECTRUM[0], value: soul.spectra[HARM_SPECTRUM[0]], x: harm });
+  const bases = pulseBases(soul);
+  if (bases.excitement !== 12) out.push({ kind: "base", stat: "excitement", value: bases.excitement, normal: 12, trait: "curiosity", traitValue: soul.traits.curiosity });
+  if (bases.arousal !== 9) out.push({ kind: "base", stat: "arousal", value: bases.arousal, normal: 9 });
+  for (const [kind, list] of [["trigger", soul.triggers], ["value", soul.values]]) {
+    for (const t of arr(list)) out.push({ kind, cue: t.cue, event: t.event, stat: t.stat, x: t.x, known: !!vocab[t.event] });
+  }
+  return out;
 }
 
 function readState(req, fsx) {
@@ -1591,6 +2037,13 @@ export function handleRoute(req, host) {
   const fsx = host.fs;
   const method = req.method;
   if (path === "/dashboard/update" && method === "POST") return readUpdate(req, host);
+  if (path === "/dashboard/soul/rate" && method === "POST") return rateRoute(req, host);
+  if (path === "/dashboard/soul-draft" && (method === "GET" || method === "DELETE")) return draftRoute(req, fsx);
+  if (path === "/dashboard/guests" && method === "GET") return guestsRoute(req, fsx);
+  if (path === "/dashboard/soul/effects" && method === "POST") {
+    const b = isObj(req.body) ? req.body : {};
+    return ok({ effects: soulEffects(normalizeSoul(b.soul), loadVocab(fsx)) });
+  }
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/notice" && method === "GET") {
@@ -1632,7 +2085,9 @@ export function uiPanel(_ctx, host) {
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
           { key: "insertTokens", label: "Insert limit, tokens per character", hint: "The block of one character may take this much; the scene, open threads and closing line come on top. Over the limit, the lines about the others go first, then the notebooks. Default 300.", kind: "number", value: cfg.injection.maxTokens },
           { key: "catchUp", label: "Catch up", hint: "Update a recently active chat in the background when it missed an update.", kind: "select", list: ["on", "off"], value: cfg.catchUp ? "on" : "off" },
+          { key: "autoSoul", label: "Rate characters automatically", hint: "When a card is imported or first played and has no soul, one call on the sensor model proposes souls for its main characters. You review them in the card's Soul tab.", kind: "select", list: ["on", "off"], value: cfg.autoSoul === false ? "off" : "on" },
           { key: "sensor", label: "Sensor prompt", hint: custom.includes("sensor") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the sensor is told. The event list and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("sensor", cfg) },
+          { key: "soul", label: "Soul rating prompt", hint: custom.includes("soul") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the rating call is told. The event list, the stat names and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("soul", cfg) },
         ],
       },
     ],

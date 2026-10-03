@@ -127,6 +127,15 @@ describe("plugin prompts: English, with a language line where the model writes f
     expect(text).toContain("in the language the story is written in");
   });
 
+  it("the dashboard soul rating default", async () => {
+    const r = await drive(relationsUrl, { method: "GET", path: "/dashboard/config" }, mockHost());
+    const text = r.json.soul as string;
+    expect(text.length).toBeGreaterThan(500);
+    expect(CYRILLIC.test(text), "soul has Cyrillic").toBe(false);
+    expect(LANGUAGE_LINE.test(text), "soul has no language line").toBe(true);
+    expect(text).toContain("in the language of the story");
+  });
+
   it("the summary default", async () => {
     const r = await drive(engineUrl, { method: "GET", path: "/settings/summary-prompt" }, mockHost());
     const text = r.json.prompt as string;

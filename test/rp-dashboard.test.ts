@@ -244,6 +244,9 @@ beforeEach(() => {
   fs.writeFileSync(path.join(root, "characters/aria/card.json"), JSON.stringify(card("Aria", { class: "ally" })));
   fs.writeFileSync(path.join(root, "characters/bram/card.json"), JSON.stringify(card("Bram")));
   fs.writeFileSync(path.join(root, "groups/g1.json"), JSON.stringify({ memberIds: ["aria", "bram"], mode: "round" }));
+  // the stage 1 tests have a card without a soul (Bram): automatic rating is off unless a test turns it on
+  fs.mkdirSync(path.join(root, "dashboard"), { recursive: true });
+  fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false }));
 });
 afterEach(() => {
   try {
@@ -399,7 +402,7 @@ describe("update route", () => {
     const out = P.handleRoute({ method: "POST", path: "/dashboard/update", query: {}, body: { chatId: "c1" } }, mock.host);
     expect(out.__llmPending).toBe(true);
     expect(mock.requests.length).toBe(1);
-    expect(fs.existsSync(path.join(root, "dashboard"))).toBe(false);
+    expect(fs.readdirSync(path.join(root, "dashboard"))).toEqual(["config.json"]);
     expect(fs.existsSync(path.join(root, "_debug"))).toBe(false);
   });
 
@@ -733,7 +736,7 @@ describe("update route", () => {
     writeChat("c2", [{ id: "e1", role: "char", name: "Aria", text: "  " }]);
     expect(update(mock, "c2").json.unchanged).toBe(true);
     expect(mock.requests.length).toBe(0);
-    expect(fs.existsSync(path.join(root, "dashboard"))).toBe(false);
+    expect(fs.readdirSync(path.join(root, "dashboard"))).toEqual(["config.json"]);
   });
 
   it("a long message is cut in the middle, the whole input to its last 8000 characters", () => {
@@ -803,6 +806,8 @@ describe("update route", () => {
 
 // ---------- config ----------
 describe("config", () => {
+  // these tests look at what config.json holds: start without the fixture's file
+  beforeEach(() => fs.rmSync(path.join(root, "dashboard"), { recursive: true, force: true }));
   const config = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "GET", path: "/dashboard/config" }).json;
   const stored = () => {
     try {
@@ -883,13 +888,24 @@ describe("config", () => {
     const item = plain.items[0];
     expect(item.saveUrl).toBe("/dashboard/config");
     expect(item.deleteUrl).toBeUndefined();
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "mode", "insert", "insertTokens", "catchUp", "sensor"]);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "mode", "insert", "insertTokens", "catchUp", "autoSoul", "sensor", "soul"]);
     expect(item.fields[0].kind).toBe("model");
-    expect(item.fields[5]).toMatchObject({ kind: "textarea", advanced: true });
+    expect(item.fields[5]).toMatchObject({ key: "autoSoul", kind: "select", list: ["on", "off"], value: "on" });
+    expect(item.fields[6]).toMatchObject({ kind: "textarea", advanced: true });
+    expect(item.fields[7]).toMatchObject({ kind: "textarea", advanced: true, label: "Soul rating prompt", value: P.DEFAULT_PROMPTS.soul });
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensor: "Mine." } });
     const custom = P.uiPanel({}, mock.host).items[0];
     expect(custom.deleteUrl).toBe("/dashboard/config/prompts");
-    expect(custom.fields[5].value).toBe("Mine.");
+    expect(custom.fields[6].value).toBe("Mine.");
+    // the automatic rating switch is stored only when it is off, and a custom soul prompt is kept like the sensor's
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "off", soul: "My rating." } });
+    expect(stored()).toEqual({ sensor: "Mine.", autoSoul: false, soul: "My rating." });
+    const off = P.uiPanel({}, mock.host).items[0];
+    expect(off.fields[5].value).toBe("off");
+    expect(off.fields[7].value).toBe("My rating.");
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on" } });
+    expect(stored().autoSoul).toBeUndefined();
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.soul).toBe(P.DEFAULT_PROMPTS.soul);
   });
 });
 
@@ -946,7 +962,7 @@ describe("onTick", () => {
     const out = P.onTick({ pluginId: "relations" }, mock.host);
     expect(out.dashboard.chatId).toBe("c1");
     expect(mock.requests.length).toBe(1);
-    expect(fs.existsSync(path.join(root, "dashboard"))).toBe(false);
+    expect(fs.readdirSync(path.join(root, "dashboard"))).toEqual(["config.json"]);
   });
 
   it("pauses a chat for ten minutes after an error", () => {
@@ -1376,5 +1392,628 @@ describe("prompt insert", () => {
     expect(P.mentions("hello Aria", "Aria")).toBe(true);
     expect(P.mentions("a malaria cure", "Aria")).toBe(false);
     expect(P.mentions("", "Aria")).toBe(false);
+  });
+});
+
+// ---------- souls: lookup, clean-up, proposals, rating, effects, guests ----------
+describe("souls", () => {
+  const SPECTRA = { introvert_extrovert: 30, cautious_reckless: 35, reserved_emotional: 75, lawful_rebellious: 40, suspicious_trusting: 45, pessimist_optimist: 65 };
+  const medli = () => ({
+    class: "ally",
+    pronouns: "she",
+    aliases: ["Медли"],
+    start: { trust: 5, respect: 10, affection: 10 },
+    traits: { dominance: 15, confidence: 30, shyness: 72, patience: 60, curiosity: 80 },
+    spectra: { ...SPECTRA },
+    triggers: [{ cue: "shouting", event: "raised_voice", stat: "comfort", x: 1.5 }],
+    values: [{ cue: "a kept word", event: "kept_promise", stat: "trust", x: 1.5 }],
+    coping: "sings when it is hard",
+  });
+  const writeCard = (id: string, card: Record<string, unknown>) => {
+    fs.mkdirSync(path.join(root, "characters", id), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", id, "card.json"), JSON.stringify({ spec: "chara_card_v2", extensions: {}, ...card }));
+  };
+  const draftFile = (id: string) => path.join(root, "dashboard/soul-drafts", id + ".json");
+  const writeDraft = (id: string, draft: unknown) => {
+    fs.mkdirSync(path.join(root, "dashboard/soul-drafts"), { recursive: true });
+    fs.writeFileSync(draftFile(id), JSON.stringify(draft));
+  };
+  const readDraftFile = (id: string) => JSON.parse(fs.readFileSync(draftFile(id), "utf8"));
+  const autoOn = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on" } });
+  const rate = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/soul/rate", body });
+  const soulReply = reply({
+    characters: {
+      Medli: { class: "ally", pronouns: "she", aliases: ["Медли"], start: { trust: 5 }, traits: { shyness: 72 }, triggers: [{ cue: "shouting", event: "raised_voice", stat: "comfort", x: 1.5 }, { cue: "bad", event: "Not An Id", stat: "trust" }] },
+    },
+    note: "Chosen from the card",
+  });
+
+  it("soulOf: exact key, then case-insensitive, then an alias", () => {
+    const a = { aliases: ["Медли", " Meddy "] };
+    const b = { class: "hostile" };
+    const souls = { Medli: a, Garrett: b };
+    expect(P.soulOf(souls, "Medli")).toBe(a);
+    expect(P.soulOf(souls, "  medli ")).toBe(a);
+    expect(P.soulOf(souls, "Медли")).toBe(a);
+    expect(P.soulOf(souls, "МЕДЛИ")).toBe(a);
+    expect(P.soulOf(souls, "meddy")).toBe(a);
+    expect(P.soulOf(souls, "GARRETT")).toBe(b);
+    expect(P.soulOf(souls, "Nobody")).toBeUndefined();
+    expect(P.soulOf(souls, "constructor")).toBeUndefined();
+    expect(P.soulOf(souls, "")).toBeUndefined();
+    expect(P.soulOf(undefined, "Medli")).toBeUndefined();
+  });
+
+  it("an alias is listed once, under the story's spelling, and the soul is used", () => {
+    writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Medli: { class: "ally", aliases: ["Медли"], start: { trust: 5 } } } } } });
+    writeChat("c1", three(), { characterId: "bram" });
+    const mock = mockHost([reply({ present: ["Медли"], minutes: 1 })]);
+    update(mock, "c1");
+    // the first call lists the soul key (nobody has used the alias yet)
+    expect(mock.requests[0]!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene), Medli (ally).");
+    const first = readStateFile("c1").snapshots["m3#0"].chars;
+    expect(Object.keys(first)).toEqual(["Медли"]);
+    expect(first["Медли"].cls).toBe("ally");
+    expect(first["Медли"].stats.trust).toBe(5);
+    // now the snapshot has Медли: the key Medli stands for the same soul and is not listed again
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?")], { characterId: "bram" });
+    mock.push(reply({ present: ["Медли"] }));
+    update(mock, "c1");
+    const asked = mock.requests[1]!.req.messages[0].content as string;
+    expect(asked).toContain("Медли (ally)");
+    expect(asked).not.toContain("Medli");
+    expect(readStateFile("c1").snapshots["m5#0"].chars["Медли"].stats.trust).toBe(5);
+  });
+
+  it("normalizeSoul clamps, drops what the code cannot read, keeps unknown keys, x defaults to 1.5", () => {
+    const raw = {
+      class: "bogus",
+      pronouns: "she",
+      aliases: [" Медли ", "медли", "x".repeat(80), "", 5, "a", "b", "c", "d", "e", "f", "g", "h"],
+      start: { trust: 99, comfort: -50.6, hostility: 150, respect: "x", luck: 3 },
+      traits: { shyness: 150, curiosity: -5, wit: 5 },
+      spectra: { introvert_extrovert: 49.5, nope: 1 },
+      triggers: [
+        { cue: "c".repeat(100), event: "raised_voice", stat: "comfort", x: 9 },
+        { cue: "bad id", event: "Bad Id", stat: "comfort" },
+        { cue: "bad stat", event: "kiss", stat: "luck" },
+        { cue: "no x", event: "kiss", stat: "attraction" },
+        { event: "kiss", stat: "attraction", x: "NaN" },
+        { cue: "low", event: "kiss", stat: "affection", x: 0.2 },
+        "nope",
+      ],
+      values: 5,
+      coping: "z".repeat(400),
+      pulseBase: { arousal: 120.4 },
+      locked: "yes",
+      ratedBy: "user",
+      custom: { keep: 1 },
+      mood: "kept",
+    };
+    const n = P.normalizeSoul(raw);
+    expect(n.class).toBeUndefined();
+    expect(n.pronouns).toBe("she");
+    expect(n.aliases).toEqual(["Медли", "x".repeat(60), "a", "b", "c", "d", "e", "f"]);
+    expect(n.start).toEqual({ trust: 20, comfort: -20, hostility: 100 });
+    expect(n.traits).toEqual({ shyness: 100, curiosity: 0 });
+    expect(n.spectra).toEqual({ introvert_extrovert: 50 });
+    expect(n.triggers.map((t: any) => [t.cue.length, t.event, t.stat, t.x])).toEqual([
+      [80, "raised_voice", "comfort", 3],
+      [4, "kiss", "attraction", 1.5],
+      [0, "kiss", "attraction", 1.5],
+      [3, "kiss", "affection", 1],
+    ]);
+    expect(n.values).toBeUndefined();
+    expect(n.coping.length).toBe(300);
+    expect(n.pulseBase).toEqual({ arousal: 100 });
+    expect(n.locked).toBeUndefined();
+    expect(n.ratedBy).toBe("user");
+    expect(n.custom).toEqual({ keep: 1 });
+    expect(n.mood).toBe("kept");
+    // a new object: the input is left as it was
+    expect(raw.class).toBe("bogus");
+    expect(raw.start.trust).toBe(99);
+    expect(P.normalizeSoul({ class: "hostile", locked: true })).toEqual({ class: "hostile", locked: true });
+    expect(P.normalizeSoul(null)).toEqual({});
+    expect(P.normalizeSoul("x")).toEqual({});
+  });
+
+  it("normalizeDraft: by, notes, at most twelve names, souls cleaned; not an object is null", () => {
+    const many: Record<string, unknown> = {};
+    for (let i = 0; i < 15; i++) many["N" + i] = { class: "ally" };
+    many["  "] = { class: "ally" };
+    many["Bad"] = "text";
+    const d = P.normalizeDraft({ v: 7, at: 5, by: "robot", model: "a/b", note: "n".repeat(500), error: "e".repeat(500), dismissedAt: 9, characters: many });
+    expect(d).toMatchObject({ v: 1, at: 5, by: "auto", model: "a/b", dismissedAt: 9 });
+    expect(d.note.length).toBe(400);
+    expect(d.error.length).toBe(400);
+    expect(Object.keys(d.characters).length).toBe(12);
+    expect(d.characters.N0).toEqual({ class: "ally" });
+    expect(P.normalizeDraft({ by: "molfar", characters: { Medli: { class: "nope", coping: "x" } } })).toEqual({ v: 1, at: 0, by: "molfar", characters: { Medli: { coping: "x" } } });
+    expect(P.normalizeDraft({ characters: 3 }).characters).toEqual({});
+    expect(P.normalizeDraft(null)).toBeNull();
+    expect(P.normalizeDraft([])).toBeNull();
+    expect(P.normalizeDraft("x")).toBeNull();
+  });
+
+  it("effects: the Medli soul of the mock, in order, with the numbers the physics uses", () => {
+    const mock = mockHost();
+    const effects = drive(mock, { method: "POST", path: "/dashboard/soul/effects", body: { soul: medli() } }).json.effects;
+    expect(effects).toEqual([
+      { kind: "brake", trait: "shyness", value: 72, stats: ["trust", "comfort"], cap: 1 },
+      { kind: "gain", stat: "trust", spectrum: "suspicious_trusting", value: 45, inverted: false, x: 0.9 },
+      { kind: "gain", stat: "comfort", spectrum: "introvert_extrovert", value: 30, inverted: false, x: 0.9 },
+      { kind: "gain", stat: "attraction", spectrum: "cautious_reckless", value: 35, inverted: false, x: 0.9 },
+      { kind: "gain", stat: "respect", spectrum: "lawful_rebellious", value: 40, inverted: true, x: 1.1 },
+      { kind: "gain", stat: "affection", spectrum: "reserved_emotional", value: 75, inverted: false, x: 1.1 },
+      { kind: "harm", spectrum: "pessimist_optimist", value: 65, x: 0.9 },
+      { kind: "base", stat: "excitement", value: 18, normal: 12, trait: "curiosity", traitValue: 80 },
+      { kind: "trigger", cue: "shouting", event: "raised_voice", stat: "comfort", x: 1.5, known: true },
+      { kind: "value", cue: "a kept word", event: "kept_promise", stat: "trust", x: 1.5, known: true },
+    ]);
+    // hostile first; an event the vocabulary does not have is not known; arousal base; shyness 60 is no brake
+    const odd = drive(mock, {
+      method: "POST",
+      path: "/dashboard/soul/effects",
+      body: { soul: { class: "hostile", traits: { shyness: 60 }, pulseBase: { arousal: 30 }, triggers: [{ cue: "x", event: "unheard_of", stat: "trust", x: 2 }] } },
+    }).json.effects;
+    expect(odd).toEqual([
+      { kind: "hostile" },
+      { kind: "base", stat: "arousal", value: 30, normal: 9 },
+      { kind: "trigger", cue: "x", event: "unheard_of", stat: "trust", x: 2, known: false },
+    ]);
+    // the soul is cleaned first; nothing is written
+    expect(drive(mock, { method: "POST", path: "/dashboard/soul/effects", body: { soul: { spectra: { introvert_extrovert: 10, junk: 1 } } } }).json.effects).toEqual([
+      { kind: "gain", stat: "comfort", spectrum: "introvert_extrovert", value: 10, inverted: false, x: 0.75 },
+    ]);
+    expect(drive(mock, { method: "POST", path: "/dashboard/soul/effects", body: {} }).json.effects).toEqual([]);
+    expect(fs.readdirSync(path.join(root, "dashboard"))).toEqual(["config.json"]);
+  });
+
+  it("the effects follow the same code as the physics: the shyness cap", () => {
+    const soul = { traits: { shyness: 61 } };
+    const r = turn("Guest", zero(), [ev("kept_promise", "pivotal", "Guest")], soul);
+    expect(r.stats.trust).toBe(1);
+    expect(r.math.turn).toContain("shyness 61 > 60: growth capped at +1");
+  });
+
+  it("proposal routes: GET, dismiss and accept", () => {
+    const mock = mockHost();
+    const get = () => drive(mock, { method: "GET", path: "/dashboard/soul-draft", query: { characterId: "bram" } });
+    expect(get().json).toEqual({ draft: null });
+    expect(drive(mock, { method: "GET", path: "/dashboard/soul-draft", query: { characterId: "../x" } }).status).toBe(400);
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: {} }).status).toBe(400);
+    writeDraft("bram", { v: 1, at: 123, by: "molfar", note: "n", characters: { Medli: { class: "bogus", pronouns: "she" } } });
+    expect(get().json.draft).toEqual({ v: 1, at: 123, by: "molfar", note: "n", characters: { Medli: { pronouns: "she" } } });
+    // dismiss: the file stays, empty, with the time; the old time and author are kept
+    const before = Date.now();
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram" } }).json).toEqual({ ok: true });
+    const gone = readDraftFile("bram");
+    expect(gone).toMatchObject({ v: 1, at: 123, by: "molfar", characters: {} });
+    expect(gone.dismissedAt).toBeGreaterThanOrEqual(before);
+    expect(get().json.draft.dismissedAt).toBe(gone.dismissedAt);
+    // dismissing with no file writes one with the current time
+    drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "aria" } });
+    expect(readDraftFile("aria")).toMatchObject({ v: 1, by: "auto", characters: {} });
+    expect(readDraftFile("aria").at).toBeGreaterThanOrEqual(before);
+    // accepted: the file is removed
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram", accepted: "1" } }).json).toEqual({ ok: true });
+    expect(fs.existsSync(draftFile("bram"))).toBe(false);
+    expect(get().json).toEqual({ draft: null });
+    // accepting what is not there is fine
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram", accepted: "1" } }).json).toEqual({ ok: true });
+  });
+
+  describe("rating a card", () => {
+    it("pass A writes nothing and asks with the soul prompt, the event list and the card", () => {
+      writeCard("bram", { name: "Bram", description: "A narrator of the sea.", personality: "calm", scenario: "A harbour town.", first_mes: "Welcome to the harbour." });
+      fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ model: "app/default" }));
+      const mock = mockHost();
+      const out = P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body: { characterId: "bram" } }, mock.host);
+      expect(out.__llmPending).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate"]);
+      expect(fs.existsSync(path.join(root, "dashboard/soul-drafts"))).toBe(false);
+      const { req } = mock.requests[0]!;
+      expect(req.systemPrompt.startsWith(P.DEFAULT_PROMPTS.soul)).toBe(true);
+      expect(req.systemPrompt).toContain("\n\nEvent ids\nkept_promise: did what was promised\n");
+      expect(req.systemPrompt).toContain("novelty: something new or surprising");
+      expect(req.systemPrompt).not.toContain("other: anything else");
+      expect(req.systemPrompt).toContain("Stat names: trust, comfort, attraction, respect, affection, excitement, arousal, hostility");
+      expect(req.systemPrompt).toContain('Reply with JSON only: {"characters": {"<name>": {"class"');
+      expect(CYRILLIC.test(req.systemPrompt)).toBe(false);
+      expect(req.presetParams).toEqual({ temperature: 0.3, max_tokens: 3000 });
+      // no chat: the app's default model
+      expect(req.model).toBe("app/default");
+      const user = req.messages[0].content as string;
+      expect(user.startsWith("Card: Bram\n\nDescription\nA narrator of the sea.\n\nPersonality\ncalm\n\nScenario\nA harbour town.\n\nFirst message\nWelcome to the harbour.")).toBe(true);
+      expect(user).not.toContain("never rate them");
+    });
+
+    it("a family a chat switched off is still in the list", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost();
+      drive(mock, { method: "PUT", path: "/dashboard/config", body: { families: { body: false } } });
+      P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body: { characterId: "bram" } }, mock.host);
+      expect(mock.requests[0]!.req.systemPrompt).toContain("gentle_touch: wanted, gentle touch");
+    });
+
+    it("the model: the sensor model, else the chat's, else the app's, else none", () => {
+      writeCard("bram", { name: "Bram" });
+      writeChat("c1", three(), { characterId: "bram" });
+      const ask = (body: Record<string, unknown>, mock = mockHost()) => {
+        P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body }, mock.host);
+        return mock.requests[0]!.req;
+      };
+      expect(ask({ characterId: "bram", chatId: "c1" }).model).toBe("chat/model");
+      expect(ask({ characterId: "bram" })).not.toHaveProperty("model");
+      const mock = mockHost();
+      drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensorModel: "free/small" } });
+      expect(ask({ characterId: "bram", chatId: "c1" }, mock).model).toBe("free/small");
+    });
+
+    it("the user message: the card's lorebooks, disabled entries skipped, the user's character named", () => {
+      const big = (n: number, ch: string) => ch.repeat(n);
+      writeCard("bram", {
+        name: "Bram",
+        description: big(5000, "d"),
+        personality: big(2500, "p"),
+        scenario: big(2500, "s"),
+        first_mes: big(2000, "f"),
+        character_book: { name: "Inside", entries: [{ comment: "Garrett", content: "A smith with a limp.", keys: ["garrett"] }] },
+        studio: { embeddedLorebookId: "lb1", linkedLorebookIds: ["lb2"] },
+      });
+      fs.mkdirSync(path.join(root, "lorebooks"), { recursive: true });
+      const book = (o: unknown) => JSON.stringify(o);
+      fs.writeFileSync(path.join(root, "lorebooks/lb1.json"), book({ name: "World", entries: [{ name: "Sea", content: "The sea is cold." }, { comment: "Hidden", content: "never shown", disable: true }, { keys: ["k1", "k2"], content: "also hidden", enabled: false }, { keys: ["k3", "k4"], content: "Keyed entry." }] }));
+      fs.writeFileSync(path.join(root, "lorebooks/lb2.json"), book({ name: "Ports", entries: { "0": { comment: "Dock", content: "The dock creaks." } } }));
+      fs.writeFileSync(path.join(root, "lorebooks/lb3.json"), book({ name: "Chat book", entries: [{ comment: "Long", content: big(1500, "L") }] }));
+      writeChat("c1", three(), { characterId: "bram", lorebookIds: ["lb3", "lb1", "../bad"] });
+      const mock = mockHost();
+      P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body: { characterId: "bram", chatId: "c1" } }, mock.host);
+      const user = mock.requests[0]!.req.messages[0].content as string;
+      const cardPart = user.slice(0, user.indexOf("\n\nLorebook:"));
+      expect(cardPart.length).toBeLessThanOrEqual(8000);
+      expect(cardPart).toContain("Description\n" + big(4000, "d"));
+      expect(cardPart).not.toContain(big(4001, "d"));
+      expect(cardPart).toContain("Personality\n" + big(2000, "p"));
+      expect(user).toContain("Lorebook: Inside\n- Garrett: A smith with a limp.");
+      expect(user).toContain("Lorebook: World\n- Sea: The sea is cold.\n- k3, k4: Keyed entry.");
+      expect(user).toContain("Lorebook: Ports\n- Dock: The dock creaks.");
+      expect(user).toContain("Lorebook: Chat book\n- Long: " + big(1200 - "- Long: ".length, "L") + "\n");
+      expect(user).not.toContain("never shown");
+      expect(user).not.toContain("also hidden");
+      // lb1 is used once, though the card and the chat both name it
+      expect(user.split("Lorebook: World").length).toBe(2);
+      expect(user.endsWith("The user's character is You: never rate them.")).toBe(true);
+      // the lorebook part stops when it is full
+      const entries = Array.from({ length: 20 }, (_, i) => ({ comment: "E" + i, content: big(1500, "x") }));
+      fs.writeFileSync(path.join(root, "lorebooks/lb3.json"), book({ name: "Chat book", entries }));
+      const m2 = mockHost();
+      P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body: { characterId: "bram", chatId: "c1" } }, m2.host);
+      const u2 = m2.requests[0]!.req.messages[0].content as string;
+      expect(u2).toContain("(more entries left out)");
+      const books = u2.slice(u2.indexOf("\n\nLorebook:"), u2.indexOf("\n\n(more entries left out)"));
+      expect(books.length).toBeLessThanOrEqual(10000 + 400);
+      expect(u2).not.toContain("- E19:");
+    });
+
+    it("pass B writes a normalized proposal, by auto, with the model's note", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost([soulReply]);
+      const before = Date.now();
+      const r = rate(mock, { characterId: "bram" });
+      expect(r.status).toBe(200);
+      expect(r.json.ok).toBe(true);
+      const d = readDraftFile("bram");
+      expect(r.json.draft).toEqual(d);
+      expect(d).toMatchObject({ v: 1, by: "auto", model: "mock/sensor", note: "Chosen from the card" });
+      expect(d.at).toBeGreaterThanOrEqual(before);
+      expect(d.error).toBeUndefined();
+      expect(Object.keys(d.characters)).toEqual(["Medli"]);
+      expect(d.characters.Medli).toEqual({
+        class: "ally",
+        pronouns: "she",
+        aliases: ["Медли"],
+        start: { trust: 5 },
+        traits: { shyness: 72 },
+        triggers: [{ cue: "shouting", event: "raised_voice", stat: "comfort", x: 1.5 }],
+      });
+      // the proposal is in the GET route too
+      expect(drive(mock, { method: "GET", path: "/dashboard/soul-draft", query: { characterId: "bram" } }).json.draft).toEqual(d);
+    });
+
+    it("a reply that is not JSON, an error, or no characters writes a proposal with an error", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost(["I am sorry, I cannot do that."]);
+      let r = rate(mock, { characterId: "bram" });
+      expect(r.json.ok).toBe(false);
+      expect(r.json.draft).toMatchObject({ v: 1, by: "auto", characters: {}, error: "the reply was not JSON" });
+      expect(readDraftFile("bram").error).toBe("the reply was not JSON");
+      mock.push({ error: "model unavailable" });
+      r = rate(mock, { characterId: "bram" });
+      expect(r.json.ok).toBe(false);
+      expect(readDraftFile("bram")).toMatchObject({ error: "model unavailable", characters: {} });
+      mock.push("   ");
+      expect(rate(mock, { characterId: "bram" }).json.draft.error).toBe("the model returned nothing");
+      mock.push(reply({ note: "none" }));
+      expect(rate(mock, { characterId: "bram" }).json.draft.error).toBe("the reply had no characters");
+      // none fit: not an error, an empty proposal with the note
+      mock.push(reply({ characters: {}, note: "Only a narrator." }));
+      const none = rate(mock, { characterId: "bram" });
+      expect(none.json.ok).toBe(true);
+      expect(none.json.draft).toMatchObject({ characters: {}, note: "Only a narrator." });
+      expect(none.json.draft.error).toBeUndefined();
+      // a fenced reply parses, like the sensor's
+      mock.push("```json\n" + soulReply + "\n```");
+      expect(rate(mock, { characterId: "bram" }).json.ok).toBe(true);
+    });
+
+    it("a rate-limited reply is asked once more, and only once", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost([{ error: "HTTP 429 rate limited" }, soulReply]);
+      expect(rate(mock, { characterId: "bram" }).json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate", "soul_rate_retry"]);
+      const again = mockHost([{ error: "429" }, { error: "429" }]);
+      const r = rate(again, { characterId: "bram" });
+      expect(r.json.ok).toBe(false);
+      expect(again.requests.length).toBe(2);
+      expect(r.json.draft.error).toBe("429");
+    });
+
+    it("400 for a bad id, 404 for a missing card", () => {
+      const mock = mockHost();
+      expect(rate(mock, {}).status).toBe(400);
+      expect(rate(mock, { characterId: "../x" }).status).toBe(400);
+      expect(rate(mock, { characterId: "nobody" }).status).toBe(404);
+      expect(mock.requests.length).toBe(0);
+    });
+
+    it("auto: skipped with a soul, with a proposal of any state, or with the setting off; rated otherwise", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost([soulReply]);
+      // the fixture has the setting off
+      expect(rate(mock, { characterId: "bram", auto: true }).json).toEqual({ skipped: true });
+      autoOn(mock);
+      // aria has a soul
+      expect(rate(mock, { characterId: "aria", auto: true }).json).toEqual({ skipped: true });
+      expect(mock.requests.length).toBe(0);
+      // a proposal file counts: dismissed, live, or failed less than ten minutes ago
+      for (const draft of [{ v: 1, at: 1, by: "auto", characters: {}, dismissedAt: 5 }, { v: 1, at: Date.now() - 60_000, by: "auto", characters: {}, error: "x" }, { v: 1, at: 1, by: "auto", characters: { Medli: {} } }]) {
+        writeDraft("bram", draft);
+        expect(rate(mock, { characterId: "bram", auto: true }).json).toEqual({ skipped: true });
+      }
+      expect(mock.requests.length).toBe(0);
+      // an older failure is tried again
+      writeDraft("bram", { v: 1, at: Date.now() - 11 * 60_000, by: "auto", characters: {}, error: "429 rate limit" });
+      expect(rate(mock, { characterId: "bram", auto: true }).json.ok).toBe(true);
+      expect(readDraftFile("bram").error).toBeUndefined();
+      mock.push(soulReply);
+      // the button (not auto) still works over a dismissed one, and replaces it
+      writeDraft("bram", { v: 1, at: 1, by: "auto", characters: {}, dismissedAt: 5 });
+      expect(rate(mock, { characterId: "bram" }).json.ok).toBe(true);
+      expect(readDraftFile("bram").dismissedAt).toBeUndefined();
+      // nothing in the way: auto rates
+      fs.rmSync(draftFile("bram"));
+      mock.push(soulReply);
+      expect(rate(mock, { characterId: "bram", auto: true }).json.ok).toBe(true);
+      expect(fs.existsSync(draftFile("bram"))).toBe(true);
+    });
+  });
+
+  describe("the update rates first", () => {
+    const sensorReply = reply({ present: ["Medli"], minutes: 5 });
+    const pass = (mock: ReturnType<typeof mockHost>, call: any, out: any) => {
+      if (out.stash) call.stash = out.stash;
+      mock.answer();
+      return P.handleRoute(call, mock.host);
+    };
+    beforeEach(() => {
+      writeCard("bram", { name: "Bram" });
+      writeChat("c1", three(), { characterId: "bram" });
+    });
+
+    it("pass 1 asks only the rating, pass 2 writes it and asks the sensor, pass 3 commits with the new soul", () => {
+      const mock = mockHost([soulReply, sensorReply]);
+      autoOn(mock);
+      const call: any = { method: "POST", path: "/dashboard/update", query: {}, body: { chatId: "c1" } };
+      const a = P.handleRoute(call, mock.host);
+      expect(a.__llmPending).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram"]);
+      expect(a.stash).toMatchObject({ chatId: "c1", rating: ["bram"] });
+      // pass A of the whole flow writes nothing
+      expect(fs.existsSync(path.join(root, "dashboard/soul-drafts"))).toBe(false);
+      expect(fs.existsSync(path.join(root, "dashboard/state"))).toBe(false);
+      const b = pass(mock, call, a);
+      expect(b.__llmPending).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram", "sensor"]);
+      expect(b.stash.rated).toBe(true);
+      expect(readDraftFile("bram")).toMatchObject({ by: "auto", note: "Chosen from the card" });
+      expect(fs.existsSync(path.join(root, "dashboard/state"))).toBe(false);
+      // the sensor already knows the new soul
+      expect(mock.requests[1]!.req.messages[0].content).toContain("Medli (ally)");
+      const c = pass(mock, call, b);
+      expect(c.json.ok).toBe(true);
+      const snap = readStateFile("c1").snapshots["m3#0"];
+      expect(snap.chars.Medli.cls).toBe("ally");
+      // no events toward her: she starts from her start values
+      expect(snap.chars.Medli.stats).toEqual({ trust: 5, comfort: 0, attraction: 0, respect: 0, affection: 0 });
+      expect(mock.requests.length).toBe(2);
+      // the same chat again changes nothing and asks nothing
+      expect(update(mock, "c1").json.unchanged).toBe(true);
+      expect(mock.requests.length).toBe(2);
+    });
+
+    it("the rating is not asked again once the proposal exists, and a later chat uses it", () => {
+      const mock = mockHost([soulReply, sensorReply]);
+      autoOn(mock);
+      update(mock, "c1");
+      writeChat("c2", three(), { characterId: "bram" });
+      mock.push(reply({ present: ["Medli"], events: [{ id: "compliment", weight: "routine", from: "user", to: "Medli" }] }));
+      expect(update(mock, "c2").json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram", "sensor", "sensor"]);
+      // she starts at trust 5 and a compliment adds to affection and attraction
+      expect(readStateFile("c2").snapshots["m3#0"].chars.Medli.stats).toMatchObject({ trust: 5, affection: 1, attraction: 1 });
+    });
+
+    it("a dismissed or failed proposal: no rating, and its souls are not used", () => {
+      for (const draft of [
+        { v: 1, at: 1, by: "auto", characters: { Medli: { class: "ally", start: { trust: 5 } } }, dismissedAt: 5 },
+        { v: 1, at: Date.now(), by: "auto", characters: { Medli: { class: "ally", start: { trust: 5 } } }, error: "boom" },
+      ]) {
+        writeDraft("bram", draft);
+        fs.rmSync(path.join(root, "dashboard/state"), { recursive: true, force: true });
+        const mock = mockHost([sensorReply]);
+        autoOn(mock);
+        expect(update(mock, "c1").json.ok).toBe(true);
+        expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
+        expect(mock.requests[0]!.req.messages[0].content).not.toContain("Medli (ally)");
+        const who = readStateFile("c1").snapshots["m3#0"].chars.Medli;
+        expect(who.cls).toBe("neutral");
+        expect(who.stats.trust).toBe(0);
+      }
+    });
+
+    it("autoSoul off, manual mode, or a card with a soul: the sensor alone", () => {
+      // off (the fixture)
+      let mock = mockHost([sensorReply]);
+      expect(update(mock, "c1").json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
+      expect(fs.existsSync(path.join(root, "dashboard/soul-drafts"))).toBe(false);
+      // manual mode: the route still updates, without rating
+      fs.rmSync(path.join(root, "dashboard/state"), { recursive: true, force: true });
+      mock = mockHost([sensorReply]);
+      drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on", mode: "manual" } });
+      expect(update(mock, "c1").json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
+      // a card with a soul (Aria)
+      writeChat("c3", three());
+      mock = mockHost([keptPromise]);
+      autoOn(mock);
+      drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "sensor" } });
+      expect(update(mock, "c3").json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
+    });
+
+    it("a failed rating still lets the update run, and leaves a proposal with the error", () => {
+      const mock = mockHost([{ error: "HTTP 500" }, sensorReply]);
+      autoOn(mock);
+      expect(update(mock, "c1").json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram", "sensor"]);
+      expect(readDraftFile("bram")).toMatchObject({ error: "HTTP 500", characters: {} });
+      expect(readStateFile("c1").snapshots["m3#0"].chars.Medli.cls).toBe("neutral");
+    });
+
+    it("after a rating a rate-limited sensor is not retried: it is recorded as the error", () => {
+      const mock = mockHost([soulReply, { error: "HTTP 429 rate limited" }]);
+      autoOn(mock);
+      const r = update(mock, "c1");
+      expect(r.json.ok).toBe(false);
+      expect(r.json.error).toBe("HTTP 429 rate limited");
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram", "sensor"]);
+      expect(readStateFile("c1").lastError.message).toBe("HTTP 429 rate limited");
+      // the proposal was kept: the next try goes straight to the sensor
+      expect(fs.existsSync(draftFile("bram"))).toBe(true);
+      mock.push(sensorReply);
+      expect(update(mock, "c1").json.ok).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram", "sensor", "sensor"]);
+    });
+
+    it("a group rates the member cards without a soul, at most four", () => {
+      for (let i = 1; i <= 6; i++) writeCard("n" + i, { name: "N" + i });
+      fs.writeFileSync(path.join(root, "groups/g2.json"), JSON.stringify({ memberIds: ["aria", "n1", "n2", "n3", "n4", "n5", "n6", "n1"], mode: "round" }));
+      writeChat("g2", three(), { characterId: undefined, groupId: "g2" });
+      const mock = mockHost();
+      autoOn(mock);
+      const out = P.handleRoute({ method: "POST", path: "/dashboard/update", query: {}, body: { chatId: "g2" } }, mock.host);
+      expect(out.__llmPending).toBe(true);
+      expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_n1", "soul_rate_n2", "soul_rate_n3", "soul_rate_n4"]);
+      expect(out.stash.rating).toEqual(["n1", "n2", "n3", "n4"]);
+    });
+
+    it("a proposal found on disk by pass 2 is not overwritten", () => {
+      const mock = mockHost([soulReply, sensorReply]);
+      autoOn(mock);
+      const call: any = { method: "POST", path: "/dashboard/update", query: {}, body: { chatId: "c1" } };
+      const a = P.handleRoute(call, mock.host);
+      // someone else got there first (the user dismissed it)
+      writeDraft("bram", { v: 1, at: 7, by: "molfar", characters: {}, dismissedAt: 8 });
+      pass(mock, call, a);
+      expect(readDraftFile("bram")).toEqual({ v: 1, at: 7, by: "molfar", characters: {}, dismissedAt: 8 });
+    });
+
+    it("the catch-up tick rates first too", () => {
+      const mock = mockHost([soulReply, sensorReply]);
+      autoOn(mock);
+      let ctx: any = { pluginId: "relations" };
+      const seen: string[][] = [];
+      for (let p = 0; p < 3; p++) {
+        for (const k of Object.keys(mock.host.llm.results)) delete (mock.host.llm.results as any)[k];
+        if (p > 0) mock.answer();
+        const out = P.onTick(ctx, mock.host);
+        seen.push(mock.requests.map((x) => x.key));
+        if (out && typeof out === "object") ctx = out;
+        if (p === 0) {
+          expect(fs.existsSync(path.join(root, "dashboard/soul-drafts"))).toBe(false);
+          expect(fs.existsSync(path.join(root, "dashboard/state"))).toBe(false);
+        }
+      }
+      expect(seen).toEqual([["soul_rate_bram"], ["soul_rate_bram", "sensor"], ["soul_rate_bram", "sensor"]]);
+      const snap = readStateFile("c1").snapshots["m3#0"];
+      expect(snap.op).toBe("catchup");
+      expect(snap.chars.Medli.stats.trust).toBe(5);
+    });
+  });
+
+  describe("guests", () => {
+    const stateWith = (chatId: string, presents: string[][]) => {
+      fs.mkdirSync(path.join(root, "dashboard/state"), { recursive: true });
+      const snapshots: Record<string, unknown> = {};
+      presents.forEach((present, i) => (snapshots[`m${i}#0`] = { turn: i + 1, at: i + 1, present, chars: {} }));
+      fs.writeFileSync(stateFile(chatId), JSON.stringify({ v: 2, chatId, snapshots }));
+    };
+    const guests = (mock: ReturnType<typeof mockHost>, characterId = "bram") => drive(mock, { method: "GET", path: "/dashboard/guests", query: { characterId } });
+
+    it("names seen with no soul, most seen first; the user, other cards and groups left out", () => {
+      writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Medli: { class: "ally", aliases: ["Медли"] } } } } });
+      writeDraft("bram", { v: 1, at: 1, by: "auto", characters: { Isolde: { class: "ally" } } });
+      const now = Date.now();
+      writeChat("a", [], { characterId: "bram", updatedAt: now });
+      writeChat("b", [], { characterId: "bram", updatedAt: now - 5000 });
+      writeChat("other", [], { characterId: "aria", updatedAt: now });
+      writeChat("grp", [], { characterId: "bram", groupId: "g1", updatedAt: now });
+      stateWith("a", [["Garrett", "Медли", "You"], ["Garrett", "Isolde", "You"]]);
+      stateWith("b", [["Garrett", "Medli", "Brigid"]]);
+      stateWith("other", [["Zed"]]);
+      stateWith("grp", [["Yan"]]);
+      const mock = mockHost();
+      const r = guests(mock);
+      expect(r.status).toBe(200);
+      expect(r.json.seen).toEqual(["Garrett", "You", "Медли", "Isolde", "Medli", "Brigid"]);
+      expect(r.json.guests).toEqual(["Garrett", "Brigid"]);
+      // a dismissed proposal gives no soul
+      writeDraft("bram", { v: 1, at: 1, by: "auto", characters: {}, dismissedAt: 5 });
+      expect(guests(mock).json.guests).toEqual(["Garrett", "Isolde", "Brigid"]);
+      // another card, and a card with no chats
+      expect(guests(mock, "aria").json).toEqual({ guests: ["Zed"], seen: ["Zed"] });
+      writeCard("empty", { name: "Empty" });
+      expect(guests(mock, "empty").json).toEqual({ guests: [], seen: [] });
+    });
+
+    it("only the newest 30 chats count", () => {
+      writeCard("bram", { name: "Bram" });
+      const now = Date.now();
+      for (let i = 0; i < 32; i++) {
+        writeChat("x" + i, [], { characterId: "bram", updatedAt: now - i * 1000 });
+        stateWith("x" + i, [[i >= 30 ? "Old" : "Recent"]]);
+      }
+      expect(guests(mockHost()).json.seen).toEqual(["Recent"]);
+    });
+
+    it("400 for a bad id, 404 for a missing card", () => {
+      const mock = mockHost();
+      expect(guests(mock, "../x").status).toBe(400);
+      expect(drive(mock, { method: "GET", path: "/dashboard/guests", query: {} }).status).toBe(400);
+      expect(guests(mock, "nobody").status).toBe(404);
+    });
   });
 });
