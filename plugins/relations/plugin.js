@@ -1460,7 +1460,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const threads = open.length ? "[Open threads the story can move toward: " + open.join("; ") + ".]" : "";
   // maxTokens is per character block; the scene, threads and closing lines come on top
   const shared = estimateTokens(sceneLine(snap, ctx.user) + threads + CLOSING);
-  const budget = Math.max(200, Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
+  const budget = (Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
   const build = (withRest, notes) => {
     const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, notes.includes(n)))];
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
@@ -1468,10 +1468,20 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     blocks.push(threads ? CLOSING : CLOSING.replace("; the open threads are there to pull on", ""));
     return blocks.join("\n");
   };
-  let text = build(true, notesFor);
-  if (estimateTokens(text) > budget) text = build(false, notesFor);
-  if (estimateTokens(text) > budget) text = build(false, []);
-  return { text, tokens: estimateTokens(text), focus, notebookOf: notesFor.filter((n) => focus.includes(n)), key: at.key };
+  // over the user's limit: drop the others' lines first, then the notebooks; say what went
+  const trimmed = [];
+  let notes = notesFor;
+  let text = build(true, notes);
+  if (estimateTokens(text) > budget && rest.length) {
+    text = build(false, notes);
+    trimmed.push("others");
+  }
+  if (estimateTokens(text) > budget && notes.length) {
+    notes = [];
+    text = build(false, notes);
+    trimmed.push("notebooks");
+  }
+  return { text, tokens: estimateTokens(text), budget, trimmed, focus, notebookOf: notes.filter((n) => focus.includes(n)), key: at.key };
 }
 
 /** The insert goes in as the last of the leading system messages (after the card and preset, before the history). */
@@ -1553,6 +1563,12 @@ function putConfig(req, fsx) {
   const b = isObj(b0.values) ? { ...b0, ...b0.values } : b0;
   // the panel switch is the mode: off = manual
   if (typeof b0.enabled === "boolean" && b.mode === undefined) b.mode = b0.enabled ? "sensor" : "manual";
+  // the panel's flat fields for the prompt insert
+  if (b.insert !== undefined || b.insertTokens !== undefined) {
+    b.injection = { ...(isObj(b.injection) ? b.injection : {}) };
+    if (b.insert !== undefined) b.injection.enabled = b.insert;
+    if (b.insertTokens !== undefined) b.injection.maxTokens = b.insertTokens;
+  }
   writeConfig(fsx, nextConfig(storedConfig(fsx), b));
   return ok(configBody(fsx));
 }
@@ -1596,6 +1612,8 @@ export function uiPanel(_ctx, host) {
         fields: [
           { key: "sensorModel", label: "Sensor model", hint: "Empty = the chat's own model. A cheap, fast model is enough: it only reports what happened, as JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.sensorModel || "" },
           { key: "mode", label: "Mode", hint: "sensor: update after replies. manual: no automatic updates.", kind: "select", list: ["sensor", "manual"], value: cfg.mode },
+          { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
+          { key: "insertTokens", label: "Insert limit, tokens per character", hint: "The block of one character may take this much; the scene, open threads and closing line come on top. Over the limit, the lines about the others go first, then the notebooks. Default 300.", kind: "number", value: cfg.injection.maxTokens },
           { key: "catchUp", label: "Catch up", hint: "Update a recently active chat in the background when it missed an update.", kind: "select", list: ["on", "off"], value: cfg.catchUp ? "on" : "off" },
           { key: "sensor", label: "Sensor prompt", hint: custom.includes("sensor") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the sensor is told. The event list and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("sensor", cfg) },
         ],

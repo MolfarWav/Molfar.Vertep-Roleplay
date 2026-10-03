@@ -883,9 +883,9 @@ describe("config", () => {
     const item = plain.items[0];
     expect(item.saveUrl).toBe("/dashboard/config");
     expect(item.deleteUrl).toBeUndefined();
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "mode", "catchUp", "sensor"]);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "mode", "insert", "insertTokens", "catchUp", "sensor"]);
     expect(item.fields[0].kind).toBe("model");
-    expect(item.fields[3]).toMatchObject({ kind: "textarea", advanced: true });
+    expect(item.fields[5]).toMatchObject({ kind: "textarea", advanced: true });
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensor: "Mine." } });
     const custom = P.uiPanel({}, mock.host).items[0];
     expect(custom.deleteUrl).toBe("/dashboard/config/prompts");
@@ -1340,6 +1340,25 @@ describe("prompt insert", () => {
     expect(text).not.toContain("find the ferry");
     expect(text).not.toContain("Open threads");
     expect(text).not.toContain("pull on");
+  });
+
+  it("13. the user's limit: set from the panel, others go first, then notebooks, and the preview says so", () => {
+    const mock = withState(reply({ present: ["Aria", "Bram"], learned: [{ who: "Aria", text: "The user carries a long letter from the capital, sealed twice with black wax, and keeps it inside the coat even at supper, never letting anyone near it or asking about it", how: "saw" }] }));
+    const put = drive(mock, { method: "PUT", path: "/dashboard/config", body: { enabled: true, values: { insert: "on", insertTokens: "60" } } });
+    expect(put.json.injection).toEqual({ enabled: true, maxTokens: 60 });
+    const tight = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
+    expect(tight.insert.trimmed).toEqual(["others", "notebooks"]);
+    expect(tight.insert.text).not.toContain("Also present");
+    expect(tight.insert.text).not.toContain("long letter");
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { values: { insertTokens: "2000" } } });
+    const roomy = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
+    expect(roomy.insert.trimmed).toEqual([]);
+    expect(roomy.insert.text).toContain("long letter");
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { values: { insert: "off" } } });
+    expect(ask(mock, "c1")).toBeNull();
+    const panel = P.uiPanel({}, mock.host).items[0].fields.map((f: any) => f.key);
+    expect(panel).toContain("insert");
+    expect(panel).toContain("insertTokens");
   });
 
   it("12. a name counts with an ending, a plain substring does not", () => {
