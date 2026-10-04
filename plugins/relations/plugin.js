@@ -267,6 +267,47 @@ const SENSOR_PROMPT_1 = [
   "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
   "- In \"open\", list kept threads with their id and new ones with id null.",
 ].join("\n");
+// The second sensor prompt (before blindSpot and learned were made shorter and stricter).
+const SENSOR_PROMPT_2 = [
+  "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
+  "",
+  "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
+  "",
+  "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
+  "",
+  "Truth:",
+  "- Use only what the New messages say or show. Never invent.",
+  "- The Previous state is background. Never report an event, fact or mood from it unless the New messages show it again.",
+  "- When the new text shows nothing for a key, leave the key out.",
+  "",
+  "Events:",
+  "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
+  "- Between two other characters, name no event: describe it in \"edges\".",
+  "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
+  "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
+  "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
+  "",
+  "Scene:",
+  "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+  "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+  "- place and weather: only when stated or changed.",
+  "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
+  "",
+  "Knowledge:",
+  "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
+  "- learned: whenever a character sees, hears or guesses something new about the user's character, add it; at most 4 per turn, the ones that matter. Skip anything already in their Notebook, even in other words.",
+  "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+  "- names: when the user's name is said in a character's presence, set heardUserName true for them. \"calls\" is how they address the user.",
+  "- blindSpot: for the characters named in this turn's events, one short line on what they do not know that matters here. It is for the user's eyes only.",
+  "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
+  "",
+  "Threads:",
+  "- Keep up to three open threads: unanswered questions or promises that drive the story.",
+  "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
+  "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
+  "- In \"open\", list kept threads with their id and new ones with id null.",
+].join("\n");
 
 export const DEFAULT_PROMPTS = {
   sensor: [
@@ -297,10 +338,10 @@ export const DEFAULT_PROMPTS = {
     "",
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
-    "- learned: whenever a character sees, hears or guesses something new about the user's character, add it; at most 4 per turn, the ones that matter. Skip anything already in their Notebook, even in other words.",
+    "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words.",
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. \"calls\" is how they address the user.",
-    "- blindSpot: for the characters named in this turn's events, one short line on what they do not know that matters here. It is for the user's eyes only.",
+    "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
     "",
     "Threads:",
@@ -308,6 +349,8 @@ export const DEFAULT_PROMPTS = {
     "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
     "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
     "- In \"open\", list kept threads with their id and new ones with id null.",
+    "",
+    "Keep the whole reply compact: short values, no filler.",
   ].join("\n"),
   // rates the main characters of a card; the event list, the stat names and the output shape are appended in code
   soul: [
@@ -327,7 +370,7 @@ export const DEFAULT_PROMPTS = {
   ].join("\n"),
 };
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -1558,6 +1601,8 @@ function addHistory(state, name, turn, K, prev, entry, old) {
   if (lines.length) state.history[name] = [...arr(state.history[name]), ...lines];
 }
 
+const sameText = (t) => str(t).toLowerCase().replace(/\s+/g, " ");
+
 function applyNotebook(ctx, out, present, turn, K) {
   const { state } = ctx;
   const keys = ctx.line.map((l) => l.key);
@@ -1566,13 +1611,21 @@ function applyNotebook(ctx, out, present, turn, K) {
     state.counters.note += 1;
     listIn(state.notebook, who).push({ id: "n" + state.counters.note, ...note, turn, src: K });
   };
+  // the same text for three or more characters is a summary, not a fact
+  const holders = {};
+  for (const l of arr(out.learned)) {
+    if (!isObj(l) || sideOf(l.who, ctx.userName, present) === "user") continue;
+    const who = canonName(l.who, present);
+    if (present.includes(who)) listIn(holders, sameText(l.text)).push(who);
+  }
+  const generic = Object.keys(holders).filter((t) => unique(holders[t]).length >= 3);
   let used = 0;
   for (const l of arr(out.learned)) {
     if (used >= 4) break;
-    if (!isObj(l)) continue;
+    if (!isObj(l) || sideOf(l.who, ctx.userName, present) === "user") continue;
     const who = canonName(l.who, present);
     const text = cut(str(l.text), 300);
-    if (!text || !present.includes(who)) continue;
+    if (!text || !present.includes(who) || generic.includes(sameText(l.text))) continue;
     const how = ["saw", "heard", "guess"].includes(l.how) ? l.how : "guess";
     // "heard" with no teller: the user told them
     const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, ctx.userName, present) : "user";
@@ -1595,6 +1648,7 @@ function applyNames(ctx, out, present, turn, K) {
   const live = activeNames(ctx.state, ctx.line.map((l) => l.key));
   for (const n of arr(out.names)) {
     if (!isObj(n)) continue;
+    if (sideOf(n.who, ctx.userName, present) === "user") continue;
     const who = canonName(n.who, present);
     if (!present.includes(who)) continue;
     const before = arr(live[who]).slice(-1)[0];
@@ -1654,7 +1708,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const sensorChars = {};
   if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[canonName(n, known)] = v;
   const blind = {};
-  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) blind[canonName(n, known)] = v;
+  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, ctx.userName, known) !== "user") blind[canonName(n, known)] = v;
 
   const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && known.includes(n));
   const names = unique([...Object.keys((B && B.chars) || {}), ...present, ...targets]);

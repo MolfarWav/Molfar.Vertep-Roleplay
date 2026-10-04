@@ -3028,7 +3028,13 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(1);
+    expect(past.length).toBe(2);
+    expect(past[1]).toContain("acts, speaks or is addressed");
+    expect(past[1]).toContain("one short line on what they do not know");
+    expect(text).toContain("up to 15 words");
+    // the previous default also counts as the default
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[1] }));
+    expect(drive(mockHost(), { method: "GET", path: "/dashboard/config" }).json.custom).toEqual([]);
     expect(past[0]).not.toBe(text);
     expect(past[0]).toContain("the people in the scene at the end of the new messages");
     fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[0] }));
@@ -3039,5 +3045,61 @@ describe("the sensor prompt default", () => {
     // a changed copy is still the user's own
     fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[0] + " Extra." }));
     expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.custom).toEqual(["sensor"]);
+  });
+});
+
+describe("compact reports: the user's own character and generic notes", () => {
+  it("blindSpot, learned and names about the user are dropped", () => {
+    writeChat("c1", three());
+    const mock = mockHost([
+      reply({
+        present: ["Aria"],
+        minutes: 1,
+        blindSpot: { You: "does not know the key is fake", user: "x", Aria: "does not know who sent the letter" },
+        learned: [
+          { who: "You", text: "About the user", how: "saw" },
+          { who: "user", text: "About the user too", how: "saw" },
+          { who: "Aria", text: "The user carries a key", how: "saw" },
+        ],
+        names: [{ who: "You", calls: "Sir", heardUserName: true }, { who: "Aria", calls: "Sir" }],
+      }),
+    ]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const st = readStateFile("c1");
+    const snap = st.snapshots["m3#0"];
+    expect(Object.keys(snap.chars)).toEqual(["Aria"]);
+    expect(snap.chars.Aria.blindSpot).toBe("does not know who sent the letter");
+    expect(Object.keys(st.notebook)).toEqual(["Aria"]);
+    expect(st.notebook.Aria.map((n: any) => n.text)).toEqual(["The user carries a key"]);
+    expect(Object.keys(st.names)).toEqual(["Aria"]);
+    expect(st.counters.note).toBe(1);
+  });
+
+  it("a learned text identical for three or more characters is dropped; for two it stays", () => {
+    const people = ["Aria", "Bram", "Cara", "Dov"];
+    const note = (who: string, text: string) => ({ who, text, how: "heard", from: "user" });
+    writeChat("c1", three(), { groupId: "g1", characterId: undefined });
+    const mock = mockHost([
+      reply({
+        present: people,
+        minutes: 1,
+        learned: [
+          note("Aria", "Suggestions for solving problems"),
+          note("Bram", "  suggestions for  solving problems "),
+          note("Cara", "Suggestions for solving problems"),
+          note("Aria", "The user keeps a key"),
+          note("Bram", "The user has a scar"),
+          note("Dov", "The user has a scar"),
+        ],
+      }),
+    ]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const st = readStateFile("c1");
+    const texts = (who: string) => (st.notebook[who] || []).map((n: any) => n.text);
+    expect(texts("Aria")).toEqual(["The user keeps a key"]);
+    expect(texts("Bram")).toEqual(["The user has a scar"]);
+    expect(texts("Cara")).toEqual([]);
+    expect(texts("Dov")).toEqual(["The user has a scar"]);
+    expect(st.counters.note).toBe(3);
   });
 });
