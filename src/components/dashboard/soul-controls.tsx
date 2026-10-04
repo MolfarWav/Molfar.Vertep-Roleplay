@@ -56,7 +56,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, c
  *  travel so the pointer lands where the diamond is. */
 const pos = (frac: number) => `calc(6px + (100% - 12px) * ${frac})`
 
-export function RangeBar({ value, min, max, onChange, color, disabled, label, centered }: {
+export function RangeBar({ value, min, max, onChange, color, disabled, label, fillFrom }: {
   value: number
   min: number
   max: number
@@ -64,22 +64,22 @@ export function RangeBar({ value, min, max, onChange, color, disabled, label, ce
   color: string
   disabled?: boolean
   label: string
-  /** fill grows from the middle (signed values) instead of from the left */
-  centered?: boolean
+  /** the value the fill grows from (0 for signed values, 50 for a spectrum); default: the left end */
+  fillFrom?: number
 }) {
   const span = max - min
   const f = span > 0 ? Math.min(1, Math.max(0, (value - min) / span)) : 0
-  const f0 = centered ? (0 - min) / span : 0
+  const f0 = fillFrom !== undefined && span > 0 ? Math.min(1, Math.max(0, (fillFrom - min) / span)) : 0
   const lo = Math.min(f0, f)
   const hi = Math.max(f0, f)
   return (
     <div className={cn('relative h-5 min-w-0 flex-1', disabled && 'opacity-50')}>
-      <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 bg-muted" />
+      <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 bg-foreground/15" />
       <div
         className="absolute top-1/2 h-1.5 -translate-y-1/2"
         style={{ left: pos(lo), right: `calc(100% - ${pos(hi)})`, background: color }}
       />
-      <div className="absolute top-1/2 h-3 w-px -translate-y-1/2 bg-border" style={{ left: pos(centered ? f0 : 0.5) }} aria-hidden="true" />
+      <div className="absolute top-1/2 h-3 w-px -translate-y-1/2 bg-border" style={{ left: pos(fillFrom !== undefined ? f0 : 0.5) }} aria-hidden="true" />
       <input
         type="range"
         min={min}

@@ -76,7 +76,7 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
               return (
                 <div key={stat} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.25rem] items-center gap-2 text-xs">
                   <span className="truncate">{statLabel(t, stat)}</span>
-                  <RangeBar value={v} min={-20} max={20} centered color={STAT_COLORS[stat]} label={statLabel(t, stat)} onChange={(n) => setStart(stat, n)} />
+                  <RangeBar value={v} min={-20} max={20} fillFrom={0} color={STAT_COLORS[stat]} label={statLabel(t, stat)} onChange={(n) => setStart(stat, n)} />
                   <span className="text-right font-mono text-[11px]" aria-hidden="true">{signed(v)}</span>
                 </div>
               )
@@ -120,13 +120,13 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
                 ? t('soul.band.middle')
                 : t(band === 'farLeft' || band === 'farRight' ? 'soul.band.strong' : 'soul.band.rather', { side })
               return (
-                <div key={id} className="flex flex-col gap-0.5">
+                <div key={id} className="flex flex-col gap-1">
                   <div className="flex justify-between gap-2 text-xs text-muted-foreground">
                     <span className="min-w-0 break-words">{left}</span>
                     <span className="min-w-0 break-words text-right">{right}</span>
                   </div>
-                  <RangeBar value={v} min={0} max={100} color="#8b8478" disabled={locked} label={`${left} ↔ ${right}`} onChange={(n) => setSpectrum(id, n)} />
-                  <div className="text-center text-[11px] text-foreground/80">{word}</div>
+                  <RangeBar value={v} min={0} max={100} fillFrom={50} color="#8b8478" disabled={locked} label={`${left} ↔ ${right}`} onChange={(n) => setSpectrum(id, n)} />
+                  <div className="pt-0.5 text-center text-[11px] text-foreground/80">{word}</div>
                 </div>
               )
             })}

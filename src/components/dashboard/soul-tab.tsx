@@ -388,7 +388,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label={t('soul.chars')}>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('soul.chars')}>
           {chipNames.map((name) => {
             const inWork = has(work, name)
             const inDraft = pendingNames.includes(name)
@@ -400,8 +400,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
               <button
                 key={name}
                 type="button"
-                role="tab"
-                aria-selected={on}
+                aria-pressed={on}
                 onClick={() => { if (!inWork) review(); setSelected(name) }}
                 className={cn(
                   'flex items-center gap-1.5 border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
