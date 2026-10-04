@@ -2413,6 +2413,75 @@ export function soulEffects(soul, vocab) {
   return out;
 }
 
+const SERIES_TURNS = 10;
+
+/**
+ * What the dashboard UI draws, already settled for the active line: the current
+ * snapshot, the one before it (change arrows), and per character the live notes,
+ * name, history and the last stats. The UI never filters by src itself.
+ */
+export function stateView(fsx, chatId, state, keys, cfg) {
+  const at = keys.map((k, i) => (state.snapshots[k] ? i : -1)).filter((i) => i >= 0);
+  if (!at.length) return null;
+  const idx = at[at.length - 1];
+  const key = keys[idx];
+  const snap = state.snapshots[key];
+  const before = nearestSnapshot(state, keys, idx);
+  const prevSnap = before >= 0 ? state.snapshots[keys[before]] : null;
+  const notebook = activeNotebook(state, keys);
+  const names = activeNames(state, keys);
+  const history = activeHistory(state, keys);
+  const chat = readChat(fsx, chatId);
+  const souls = chat ? chatCharacters(fsx, chat.meta).souls : {};
+  const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
+  const chars = {};
+  for (const [name, c] of Object.entries(isObj(snap.chars) ? snap.chars : {})) {
+    if (!isObj(c)) continue;
+    const p = prevSnap && isObj(prevSnap.chars) ? prevSnap.chars[name] : null;
+    const soul = soulOf(souls, name);
+    chars[name] = {
+      ...c,
+      pronouns: soul && soul.pronouns ? soul.pronouns : null,
+      rated: !!soul,
+      pulseBase: pulseBases(soul),
+      prev: isObj(p) ? { stats: p.stats, pulse: p.pulse, hostility: p.hostility ?? null, constellation: p.constellation ?? null } : null,
+      notebook: arr(notebook[name]).map(({ id, text, how, from, believes, turn }) => ({ id, text, how, from: from ?? null, ...(how === "heard" ? { believes: believes !== false } : {}), turn })),
+      name: arr(names[name]).slice(-1).map(({ knowsUserName, calls }) => ({ knowsUserName: !!knowsUserName, calls: calls || "" }))[0] || null,
+      history: arr(history[name]).map(({ src: _src, ...line }) => line),
+      series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
+    };
+  }
+  const present = arr(snap.present).filter((n) => chars[n]);
+  const order = [...present.filter((n) => !chars[n].compact), ...present.filter((n) => chars[n].compact), ...Object.keys(chars).filter((n) => !present.includes(n))];
+  let insert = null;
+  try {
+    const built = buildInsert(fsx, chatId, { op: "send", speakerName: "", targetId: "", userText: "" }, cfg);
+    if (built) insert = { tokens: built.tokens, budget: built.budget, trimmed: built.trimmed };
+  } catch {}
+  return {
+    key,
+    turn: snap.turn || 0,
+    at: snap.at || 0,
+    op: snap.op || null,
+    partial: !!snap.partial,
+    sensorModel: snap.sensorModel || "",
+    // the newest message has no snapshot yet: the catch-up has not run
+    stale: idx !== keys.length - 1,
+    clock: isObj(snap.clock) ? snap.clock : null,
+    present,
+    order,
+    events: arr(snap.events),
+    threads: arr(snap.threads),
+    edges: arr(snap.edges),
+    chars,
+    usage: state.usage,
+    lastError: state.lastError,
+    insert,
+    insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
+    mode: cfg.mode,
+  };
+}
+
 function readState(req, fsx) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
@@ -2420,6 +2489,16 @@ function readState(req, fsx) {
   const chat = readChat(fsx, chatId);
   const keys = chat ? activeLine(chat.msgs).map((l) => l.key) : [];
   const current = keys.slice().reverse().find((k) => state.snapshots[k]) || null;
+  // ?view=1: the settled view only, for the dashboard UI
+  if (req.query && (req.query.view === "1" || req.query.view === 1)) {
+    return ok({
+      exists: existed,
+      chat: !!chat,
+      messages: keys.length,
+      view: existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null,
+      lastError: existed ? state.lastError : null,
+    });
+  }
   return ok({ state: existed ? state : null, activeKeys: keys, current });
 }
 

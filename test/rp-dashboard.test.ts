@@ -515,6 +515,43 @@ describe("update route", () => {
     expect(got.activeKeys).toEqual(keys);
   });
 
+  it("the UI view is settled for the active line: previous stats, live notes, series, stale", () => {
+    const view = (id: string) => drive(mockHostShared, { method: "GET", path: "/dashboard/state", query: { chatId: id, view: "1" } }).json;
+    const mockHostShared = mockHost([keptPromise]);
+    expect(view("c1")).toEqual({ exists: false, chat: false, messages: 0, view: null, lastError: null });
+    writeChat("c1", three());
+    update(mockHostShared, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mockHostShared.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }], learned: [{ who: "Aria", text: "The user is kind", how: "saw" }] }));
+    update(mockHostShared, "c1");
+    writeChat("c1", [...three(), { ...A("m4", "You are welcome."), swipe: 1 }]);
+    // the swipe has no snapshot yet: the view stands on m3#0 and says it is stale
+    const stale = view("c1");
+    expect(stale.messages).toBe(4);
+    expect(stale.view.key).toBe("m3#0");
+    expect(stale.view.stale).toBe(true);
+    expect(stale.view.chars.Aria.prev).toBeNull();
+    expect(stale.view.chars.Aria.notebook.map((n: any) => n.text)).toEqual(["The user keeps their word"]);
+    mockHostShared.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mockHostShared, "c1");
+    const v = view("c1").view;
+    expect(v.key).toBe("m4#1");
+    expect(v.stale).toBe(false);
+    expect(v.turn).toBe(2);
+    expect(v.order).toEqual(["Aria"]);
+    const aria = v.chars.Aria;
+    expect(aria.prev.stats).toEqual(readStateFile("c1").snapshots["m3#0"].chars.Aria.stats);
+    expect(aria.series.map((s: any) => s.turn)).toEqual([1, 2]);
+    // the note of the discarded swipe is not in the view, and no src leaks out
+    expect(aria.notebook).toEqual([{ id: "n1", text: "The user keeps their word", how: "saw", from: null, turn: 1 }]);
+    expect(JSON.stringify(v)).not.toContain('"src"');
+    expect(aria.pulseBase).toEqual({ excitement: 12, arousal: 9 });
+    expect(typeof aria.rated).toBe("boolean");
+    expect(v.threads[0]).toMatchObject({ text: "Who has the key?", status: "open" });
+    expect(v.insert).toMatchObject({ tokens: expect.any(Number), budget: expect.any(Number) });
+    expect(v.insertEnabled).toBe(true);
+  });
+
   it("a sensor error sets lastError and changes nothing else", () => {
     writeChat("c1", three());
     const mock = mockHost([keptPromise]);
