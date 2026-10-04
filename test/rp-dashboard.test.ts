@@ -983,8 +983,8 @@ describe("onTick", () => {
 
   it("updates the newest recently active chat that has no snapshot", () => {
     writeChat("old", three(), { updatedAt: Date.now() - 3 * 3600_000 });
-    writeChat("c1", three(), { updatedAt: Date.now() - 60_000 });
-    writeChat("c2", [...three(), A("m4", "later")], { updatedAt: Date.now() - 10_000 });
+    writeChat("c1", three(), { updatedAt: Date.now() - 5 * 60_000 });
+    writeChat("c2", [...three(), A("m4", "later")], { updatedAt: Date.now() - 2 * 60_000 });
     const mock = mockHost([keptPromise, keptPromise]);
     tick(mock);
     expect(fs.existsSync(stateFile("c2"))).toBe(true);
@@ -1002,7 +1002,7 @@ describe("onTick", () => {
   });
 
   it("does nothing in manual mode or with catch-up off", () => {
-    writeChat("c1", three());
+    writeChat("c1", three(), { updatedAt: Date.now() - 5 * 60_000 });
     const mock = mockHost([keptPromise]);
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "manual" } });
     tick(mock);
@@ -1013,7 +1013,7 @@ describe("onTick", () => {
   });
 
   it("writes nothing on pass A", () => {
-    writeChat("c1", three());
+    writeChat("c1", three(), { updatedAt: Date.now() - 5 * 60_000 });
     const mock = mockHost([keptPromise]);
     const out = P.onTick({ pluginId: "relations" }, mock.host);
     expect(out.dashboard.chatId).toBe("c1");
@@ -1022,7 +1022,7 @@ describe("onTick", () => {
   });
 
   it("pauses a chat for ten minutes after an error", () => {
-    writeChat("c1", three());
+    writeChat("c1", three(), { updatedAt: Date.now() - 5 * 60_000 });
     const mock = mockHost([{ error: "boom" }]);
     tick(mock);
     expect(readStateFile("c1").lastError.message).toBe("boom");
@@ -1274,7 +1274,7 @@ describe("prompt insert", () => {
     // preview edge cases: no id, no state
     expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: {} }).status).toBe(400);
     writeChat("fresh", three());
-    expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "fresh" } }).json).toEqual({ insert: null });
+    expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "fresh" } }).json).toEqual({ insert: null, speakers: [] });
   });
 
   describe("swipe and continue read the state before the target", () => {
@@ -2195,6 +2195,7 @@ describe("souls", () => {
     it("the catch-up tick rates first too", () => {
       const mock = mockHost([soulReply, sensorReply]);
       autoOn(mock);
+      writeChat("c1", three(), { characterId: "bram", updatedAt: Date.now() - 5 * 60_000 });
       let ctx: any = { pluginId: "relations" };
       const seen: string[][] = [];
       for (let p = 0; p < 3; p++) {
@@ -2513,5 +2514,298 @@ describe("souls", () => {
       expect(sent).toContain("reuse these exact keys");
       expect(sent).not.toContain("do not rate them again");
     });
+  });
+});
+
+// ---------- stage 5: re-sense, the UI trigger, the vocabulary editor, preview speakers ----------
+describe("re-sense of the newest message", () => {
+  const five = (last = "You are welcome.") => [...three(), A("m4", "Thank you."), U("m5", last)];
+  const second = reply({
+    present: ["Aria"],
+    minutes: 5,
+    events: [{ id: "humiliated_her", weight: "pivotal", from: "user", to: "Aria" }],
+    learned: [{ who: "Aria", text: "Second note", how: "saw" }],
+    names: [{ who: "Aria", calls: "Sir", heardUserName: true }],
+    retire: ["n1"],
+  });
+  const edited = reply({ present: ["Aria"], minutes: 7, events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }], learned: [{ who: "Aria", text: "Third note", how: "guess" }] });
+
+  /** Two updates: m3 (note n1) and m5 (retires n1, adds a note, a name and history). */
+  function twoUpdates() {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    writeChat("c1", five());
+    mock.push(second);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    return mock;
+  }
+
+  it("a changed text of the newest message is sensed again; the old snapshot's traces are gone", () => {
+    const mock = twoUpdates();
+    const st1 = readStateFile("c1");
+    expect(st1.snapshots["m5#0"].sig).toMatch(/^[0-9a-f]{8}$/);
+    expect(st1.notebook.Aria.find((n: any) => n.id === "n1").retiredBy).toBe("m5#0");
+    expect(st1.notebook.Aria.some((n: any) => n.src === "m5#0")).toBe(true);
+    expect(st1.names.Aria.some((n: any) => n.src === "m5#0")).toBe(true);
+    expect(st1.history.Aria.some((h: any) => h.src === "m5#0")).toBe(true);
+    const counters = st1.counters;
+    const calls = mock.requests.length;
+
+    // same text: nothing
+    const same = update(mock, "c1");
+    expect(same.json.unchanged).toBe(true);
+    expect(mock.requests.length).toBe(calls);
+
+    // edited text: one more call, a clean snapshot
+    writeChat("c1", five("You are very welcome indeed."));
+    mock.push(edited);
+    const r = update(mock, "c1", "edit");
+    expect(r.json.ok).toBe(true);
+    expect(mock.requests.length).toBe(calls + 1);
+    // the sensor read the whole new message, with the old snapshot's notes out of its notebook
+    const prompt = mock.requests.at(-1)!.req.messages[0].content as string;
+    expect(prompt).toContain("You are very welcome indeed.");
+    expect(prompt).toContain("n1 saw: The user keeps their word");
+    expect(prompt).not.toContain("Second note");
+    const st2 = readStateFile("c1");
+    const snap = st2.snapshots["m5#0"];
+    expect(snap.op).toBe("resense");
+    expect(snap.sig).not.toBe(st1.snapshots["m5#0"].sig);
+    expect(snap.turn).toBe(2);
+    expect(snap.clock.minutes).toBe(7);
+    expect(st2.notebook.Aria.map((n: any) => n.text)).toEqual(["The user keeps their word", "Third note"]);
+    expect(st2.notebook.Aria[0].retiredBy).toBeUndefined();
+    expect(st2.names).toEqual({});
+    expect((st2.history.Aria || []).some((h: any) => h.src === "m5#0" && h.stat === "comfort")).toBe(false);
+    expect(Object.keys(st2.snapshots).sort()).toEqual(["m3#0", "m5#0"]);
+    expect(st2.counters.note).toBe(counters.note + 1);
+    expect(r.json.ms).toBe(42);
+    // and it settles again
+    expect(update(mock, "c1").json.unchanged).toBe(true);
+  });
+
+  it("a Continue of the newest message counts the minutes as for any re-sense", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "I kept my promise. And more.")]);
+    mock.push(reply({ present: ["Aria"], minutes: 30 }));
+    update(mock, "c1", "continue");
+    const snap = readStateFile("c1").snapshots["m3#0"];
+    expect(snap.op).toBe("resense");
+    expect(snap.clock.minutes).toBe(30);
+  });
+
+  it("a snapshot made before sigs existed is left alone, and a failed re-sense keeps the old snapshot", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    const sig = st.snapshots["m3#0"].sig;
+    delete st.snapshots["m3#0"].sig;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "Edited text.")]);
+    const calls = mock.requests.length;
+    expect(update(mock, "c1").json.unchanged).toBe(true);
+    expect(mock.requests.length).toBe(calls);
+    // with a sig and a failing sensor: the old snapshot stays
+    st.snapshots["m3#0"].sig = sig;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
+    mock.push({ error: "boom" });
+    expect(update(mock, "c1").json.ok).toBe(false);
+    const after = readStateFile("c1");
+    expect(after.snapshots["m3#0"].sig).toBe(sig);
+    expect(after.notebook.Aria.length).toBe(1);
+  });
+
+  it("catch-up picks a chat whose newest message was edited", () => {
+    const old = Date.now() - 5 * 60_000;
+    writeChat("c1", three(), { updatedAt: old });
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "I really kept my promise.")], { updatedAt: old });
+    mock.push(keptPromise);
+    for (const k of Object.keys(mock.host.llm.results)) delete (mock.host.llm.results as any)[k];
+    const out = P.onTick({ pluginId: "relations" }, mock.host);
+    expect(out.dashboard.chatId).toBe("c1");
+  });
+});
+
+describe("the UI trigger", () => {
+  const auto = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c1", auto: true, ...body } });
+
+  it("auto in manual mode and impersonate are skipped without a model call", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "manual" } });
+    expect(auto(mock, { op: "send" }).json).toEqual({ ok: true, skipped: "manual" });
+    expect(mock.requests.length).toBe(0);
+    // an update from the panel (no auto) still runs
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests.length).toBe(1);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "sensor" } });
+    writeChat("c2", three());
+    expect(drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c2", op: "impersonate", auto: true } }).json).toEqual({ ok: true, skipped: "impersonate" });
+    expect(drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c2", op: "impersonate" } }).json).toEqual({ ok: true, skipped: "impersonate" });
+    expect(mock.requests.length).toBe(1);
+    expect(fs.existsSync(stateFile("c2"))).toBe(false);
+  });
+
+  it("auto in sensor mode updates and the answer carries the sensor time", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    const r = auto(mock, { op: "send" });
+    expect(r.json).toMatchObject({ ok: true, snapshot: "m3#0", turn: 1, ms: 42 });
+    expect(r.json.ms).toBe(readStateFile("c1").usage.lastMs);
+  });
+
+  it("catch-up skips a chat updated 10 s ago and picks it at 2 minutes", () => {
+    writeChat("c1", three(), { updatedAt: Date.now() - 10_000 });
+    const mock = mockHost([keptPromise]);
+    expect(P.onTick({ pluginId: "relations" }, mock.host)).toBeUndefined();
+    expect(mock.requests.length).toBe(0);
+    writeChat("c1", three(), { updatedAt: Date.now() - 2 * 60_000 });
+    const out = P.onTick({ pluginId: "relations" }, mock.host);
+    expect(out.dashboard.chatId).toBe("c1");
+  });
+});
+
+describe("the event vocabulary editor", () => {
+  const eventsFile = () => path.join(root, "dashboard/events.json");
+  const readEvents = () => JSON.parse(fs.readFileSync(eventsFile(), "utf8"));
+  const put = (mock: ReturnType<typeof mockHost>, events: unknown) => drive(mock, { method: "PUT", path: "/dashboard/events", body: { events } });
+  const rowOf = (json: any, id: string) => json.events.find((e: any) => e.id === id);
+
+  it("an off row removes an event from the vocabulary, the sensor's prompt and the physics", () => {
+    const v = P.buildVocab([{ id: "kept_promise", off: true }, { id: "dance", family: "play", meaning: "danced", deltas: { affection: 1 } }, { id: "dance", off: true }, { id: "other", off: true }, { id: "Bad Id", off: true }]);
+    expect(v.kept_promise).toBeUndefined();
+    expect(v.dance).toBeUndefined();
+    // `other` is the fallback and stays
+    expect(v.other).toBeDefined();
+    expect(P.buildVocab([{ id: "kept_promise", off: true }, { id: "kept_promise", family: "trust", meaning: "back", deltas: { trust: 1 } }]).kept_promise.meaning).toBe("back");
+    expect(Object.keys(v).length).toBe(34);
+    fs.writeFileSync(eventsFile(), JSON.stringify({ events: [{ id: "kept_promise", off: true }] }));
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests[0].req.systemPrompt).not.toContain("kept_promise");
+    expect(mock.requests[0].req.systemPrompt).toContain("broke_promise");
+    // the sensor still named it: unknown now, counts as other, moves nothing
+    const s1 = readStateFile("c1").snapshots["m3#0"];
+    expect(s1.events[0].id).toBe("other");
+    expect(s1.chars.Aria.stats).toMatchObject({ trust: 0, respect: 0 });
+  });
+
+  it("vocabRows lists defaults, changed, custom and off rows in order", () => {
+    const rows = P.vocabRows([
+      { id: "dance", family: "play", meaning: "danced", deltas: { affection: 1 } },
+      { id: "kept_promise", family: "trust", meaning: "mine", deltas: { trust: 5 } },
+      { id: "broke_promise", family: "trust", meaning: "failed a promise", deltas: { respect: -1, trust: -3 } },
+      { id: "gift", off: true },
+      { id: "dance", off: true },
+      { id: "nothing_here", off: true },
+      { id: "bad", family: "Bad" },
+    ]);
+    const ids = rows.map((r: any) => r.id);
+    expect(ids.slice(0, 3)).toEqual(["kept_promise", "broke_promise", "told_truth"]);
+    expect(ids.at(-1)).toBe("dance");
+    expect(ids.length).toBe(36);
+    const by = (id: string) => rows.find((r: any) => r.id === id);
+    expect(by("kept_promise")).toMatchObject({ source: "changed", off: false, meaning: "mine", deltas: { trust: 5 } });
+    expect(by("broke_promise")).toMatchObject({ source: "default", off: false });
+    expect(by("gift")).toMatchObject({ source: "default", off: true, family: "warmth", meaning: "gave something meant for them" });
+    expect(by("dance")).toMatchObject({ source: "custom", off: true, family: "play", deltas: { affection: 1 } });
+    expect(by("told_truth")).toMatchObject({ source: "default", off: false });
+    expect(P.vocabRows([]).length).toBe(35);
+  });
+
+  it("GET /dashboard/config carries the rows, the delta keys and the family order", () => {
+    fs.writeFileSync(eventsFile(), JSON.stringify({ events: [{ id: "kept_promise", family: "trust", meaning: "mine", deltas: { trust: 5 } }, { id: "dance", family: "play", meaning: "d", deltas: {} }, { id: "gift", off: true }] }));
+    const mock = mockHost();
+    const j = drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    expect(rowOf(j, "kept_promise")).toMatchObject({ source: "changed", off: false });
+    expect(rowOf(j, "dance")).toMatchObject({ source: "custom", off: false });
+    expect(rowOf(j, "gift")).toMatchObject({ source: "default", off: true });
+    expect(rowOf(j, "insult")).toMatchObject({ source: "default", off: false });
+    expect(j.deltaKeys).toEqual(["trust", "comfort", "attraction", "respect", "affection", "excitement", "arousal", "hostility"]);
+    expect(j.familyList).toEqual(["trust", "warmth", "power", "body", "conflict", "care", "knowledge"]);
+    expect(j.families).toBeDefined();
+    expect(j.custom).toEqual([]);
+  });
+
+  it("PUT stores only what differs; clamps, cleans, keeps other top-level keys", () => {
+    fs.writeFileSync(eventsFile(), JSON.stringify({ note: "mine", events: [{ id: "gift", off: true }] }));
+    const mock = mockHost();
+    const j = put(mock, [
+      // equal to its default: dropped
+      { id: "kept_promise", family: "trust", meaning: "did what was promised", deltas: { respect: 1, trust: 1 } },
+      // changed, clamped, a zero dropped, long meaning cut, unknown key dropped
+      { id: "broke_promise", family: "trust", meaning: "m".repeat(300), deltas: { trust: -50, respect: 0, comfort: 99 }, junk: 1 },
+      { id: "dance", family: "play", meaning: "danced", deltas: { affection: 1 } },
+      { id: "dance", family: "play", meaning: "danced twice", deltas: { affection: 2 } },
+      { id: "insult", off: true, family: "conflict", meaning: "ignored" },
+      // invalid: skipped
+      { id: "Bad Id", family: "x" },
+      { id: "luck", family: "x", deltas: { luck: 1 } },
+      { id: "nofam" },
+      { id: "other", off: true },
+      "nope",
+    ]).json;
+    expect(j.skipped).toBe(5);
+    const file = readEvents();
+    expect(file.note).toBe("mine");
+    expect(file.events).toEqual([
+      { id: "broke_promise", family: "trust", meaning: "m".repeat(200), deltas: { trust: -20, comfort: 20 } },
+      { id: "dance", family: "play", meaning: "danced twice", deltas: { affection: 2 } },
+      { id: "insult", off: true },
+    ]);
+    expect(rowOf(j, "broke_promise")).toMatchObject({ source: "changed" });
+    expect(rowOf(j, "insult")).toMatchObject({ off: true });
+    expect(rowOf(j, "gift")).toMatchObject({ off: false });
+    expect(rowOf(j, "dance")).toMatchObject({ source: "custom", off: false });
+  });
+
+  it("PUT with no rows writes nothing when there is no file, and empties the rows when there is one; at most 200 rows", () => {
+    const mock = mockHost();
+    expect(put(mock, []).json.skipped).toBe(0);
+    expect(fs.existsSync(eventsFile())).toBe(false);
+    const many = Array.from({ length: 230 }, (_, i) => ({ id: "ev_" + i, family: "play", meaning: "x", deltas: {} }));
+    const j = put(mock, many).json;
+    expect(readEvents().events.length).toBe(200);
+    expect(j.skipped).toBe(30);
+    put(mock, []);
+    expect(readEvents()).toEqual({ events: [] });
+  });
+
+  it("DELETE empties the rows and keeps the other keys", () => {
+    fs.writeFileSync(eventsFile(), JSON.stringify({ note: "mine", events: [{ id: "gift", off: true }] }));
+    const mock = mockHost();
+    const j = drive(mock, { method: "DELETE", path: "/dashboard/events" }).json;
+    expect(readEvents()).toEqual({ note: "mine", events: [] });
+    expect(rowOf(j, "gift")).toMatchObject({ source: "default", off: false });
+    fs.rmSync(eventsFile());
+    drive(mock, { method: "DELETE", path: "/dashboard/events" });
+    expect(fs.existsSync(eventsFile())).toBe(false);
+  });
+});
+
+describe("preview speakers", () => {
+  it("lists the names an insert can be built for; none without a snapshot", () => {
+    writeChat("fresh", three());
+    const mock = mockHost([reply({ present: ["Aria", "Bram"], minutes: 1 })]);
+    expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "fresh" } }).json).toEqual({ insert: null, speakers: [] });
+    expect(drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "nochat" } }).json).toEqual({ insert: null, speakers: [] });
+    writeChat("c1", three(), { groupId: "g1", characterId: undefined });
+    expect(update(mock, "c1").json.ok).toBe(true);
+    // Bram leaves, a guest arrives: present first, then the compact ones
+    writeChat("c1", [...three(), A("m4", "x"), U("m5", "y")], { groupId: "g1", characterId: undefined });
+    mock.push(reply({ present: ["Aria", "Guest"], minutes: 1 }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const snap = readStateFile("c1").snapshots["m5#0"];
+    expect(snap.chars.Bram.compact).toBe(true);
+    const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1" } }).json;
+    expect(pv.speakers).toEqual(["Aria", "Guest", "Bram"]);
+    expect(pv.insert).not.toBeNull();
   });
 });

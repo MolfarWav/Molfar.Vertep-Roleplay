@@ -9,9 +9,9 @@
  * swipe or a deleted message never leaves stale state behind.
  *
  * Routes (under /v1/apps/roleplay/):
- *  POST /dashboard/update {chatId, op?}    sensor now (two-phase)
+ *  POST /dashboard/update {chatId, op?, auto?}  sensor now (two-phase); auto = the UI's trigger after a reply
  *  GET  /dashboard/state?chatId=           state + active keys + current key
- *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets
+ *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets, and the speakers it can be built for
  *  GET  /dashboard/notice?chatId=          the last insert that did not fit the limit
  *
  * Before each reply, the llmRequest hook adds "how the characters are right
@@ -19,6 +19,8 @@
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompt
+ *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
+ *  DELETE /dashboard/events                back to the default vocabulary
  *
  * Souls (docs/SOUL.md): who a character is. A card holds them; a rating call proposes them.
  *  POST   /dashboard/soul/rate {characterId, chatId?, auto?}  rate a card's main characters (two-phase)
@@ -349,23 +351,56 @@ function readDeltas(raw) {
   return out;
 }
 
-/** Event table by id: the defaults, then valid entries of the user file (same id replaces). */
+/** A valid user row as { id, family, meaning, deltas }, else null. */
+function readRow(e) {
+  if (!isObj(e) || !VOCAB_ID.test(String(e.id)) || typeof e.family !== "string" || !VOCAB_FAMILY.test(e.family)) return null;
+  const deltas = readDeltas(e.deltas === undefined ? {} : e.deltas);
+  return deltas ? { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas } : null;
+}
+
+// `other` is where unknown events land, so it cannot be switched off
+const isOff = (e) => isObj(e) && VOCAB_ID.test(String(e.id)) && e.off === true && e.id !== "other";
+
+/** Event table by id: the defaults, then the user file in order (same id replaces; an `off` row removes). */
 export function buildVocab(userEvents) {
   const vocab = {};
   for (const [family, id, meaning, deltas] of EVENT_ROWS) vocab[id] = { id, family, meaning, deltas };
   for (const e of arr(userEvents)) {
-    if (!isObj(e) || !VOCAB_ID.test(String(e.id)) || !VOCAB_FAMILY.test(String(e.family))) continue;
-    const deltas = readDeltas(e.deltas === undefined ? {} : e.deltas);
-    if (!deltas) continue;
-    vocab[e.id] = { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas };
+    if (isOff(e)) {
+      delete vocab[e.id];
+      continue;
+    }
+    const row = readRow(e);
+    if (row) vocab[row.id] = row;
   }
   return vocab;
 }
 const DEFAULT_VOCAB = buildVocab([]);
-const loadVocab = (fsx) => {
+const userEventRows = (fsx) => {
   const raw = readJson(fsx, EVENTS_FILE, null);
-  return buildVocab(isObj(raw) ? raw.events : []);
+  return isObj(raw) ? arr(raw.events) : [];
 };
+const loadVocab = (fsx) => buildVocab(userEventRows(fsx));
+
+const sameRow = (a, b) => a.family === b.family && a.meaning === b.meaning && canonJson(a.deltas) === canonJson(b.deltas);
+
+/** For the UI: every default and custom event as { id, family, meaning, deltas, source, off }. */
+export function vocabRows(userEvents) {
+  const rows = new Map();
+  for (const [family, id, meaning, deltas] of EVENT_ROWS) rows.set(id, { id, family, meaning, deltas, source: "default", off: false });
+  for (const e of arr(userEvents)) {
+    if (isOff(e)) {
+      const had = rows.get(e.id);
+      if (had) rows.set(e.id, { ...had, off: true });
+      continue;
+    }
+    const row = readRow(e);
+    if (!row) continue;
+    const dflt = DEFAULT_VOCAB[row.id];
+    rows.set(row.id, { ...row, source: !dflt ? "custom" : sameRow(row, dflt) ? "default" : "changed", off: false });
+  }
+  return [...rows.values()];
+}
 
 // ---------- physics ----------
 export function band(v) {
@@ -1010,6 +1045,35 @@ const activeBySrc = (bag, keys) => {
 export const activeNames = (state, keys) => activeBySrc(state.names, keys);
 export const activeHistory = (state, keys) => activeBySrc(state.history, keys);
 
+/** FNV-1a 32-bit over the message texts, 8 hex chars: tells whether the newest message was edited or continued. */
+function textSig(msgs) {
+  const s = arr(msgs).map((m) => String((m && m.text) || "")).join(String.fromCharCode(1));
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/** Remove everything the snapshot of key K wrote (a re-sense starts clean). Counters stay. */
+function dropSnapshot(state, K) {
+  delete state.snapshots[K];
+  for (const [name, notes] of Object.entries(state.notebook)) {
+    const kept = arr(notes).filter((n) => n.src !== K);
+    for (const n of kept) if (n.retiredBy === K) delete n.retiredBy;
+    if (kept.length) state.notebook[name] = kept;
+    else delete state.notebook[name];
+  }
+  for (const bag of [state.names, state.history]) {
+    for (const [name, list] of Object.entries(bag)) {
+      const kept = arr(list).filter((x) => x.src !== K);
+      if (kept.length) bag[name] = kept;
+      else delete bag[name];
+    }
+  }
+}
+
 /** The newest active key that has a snapshot, searching keys[0..before). */
 function nearestSnapshot(state, keys, before) {
   for (let i = before - 1; i >= 0; i--) if (state.snapshots[keys[i]]) return i;
@@ -1154,7 +1218,8 @@ function noteLine(n) {
 }
 
 function notebookTexts(ctx) {
-  const live = activeNotebook(ctx.state, ctx.line.map((l) => l.key));
+  // a re-sense starts without what the old snapshot of K wrote
+  const live = activeNotebook(ctx.state, ctx.line.map((l) => l.key).filter((k) => !(ctx.resense && k === ctx.K)));
   const B = ctx.base && ctx.base.snap;
   const out = [];
   for (const name of B ? arr(B.present) : ctx.characters) {
@@ -1514,6 +1579,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     at: Math.max(Date.now(), 1 + Math.max(0, ...Object.values(state.snapshots).map((x) => x.at || 0))),
     sensorModel: model || "",
     op,
+    sig: textSig(ctx.newMsgs),
     ...(out.__partial ? { partial: true } : {}),
     clock: advanceClock(B && B.clock, out, op),
     present,
@@ -1756,16 +1822,21 @@ function planUpdate(fsx, chatId, op) {
   const line = activeLine(chat.msgs);
   if (!line.length) return unchanged();
   const K = line[line.length - 1].key;
-  if (state.snapshots[K]) return unchanged();
+  const existing = state.snapshots[K];
+  // a snapshot made before sigs existed is never re-sensed
+  if (existing && typeof existing.sig !== "string") return unchanged();
   const bi = nearestSnapshot(state, line.map((l) => l.key), line.length - 1);
   const base = bi >= 0 ? { key: line[bi].key, snap: state.snapshots[line[bi].key] } : null;
   const newMsgs = line.slice(bi + 1).map((l) => l.msg).filter((m) => str(m.text));
   if (!newMsgs.length) return unchanged();
+  // the newest message changed (edit, Continue): read it again
+  if (existing && textSig(newMsgs) === existing.sig) return unchanged();
   const { names, souls } = chatCharacters(fsx, chat.meta);
   return {
     fsx,
     chatId,
-    op,
+    op: existing ? "resense" : op,
+    ...(existing ? { resense: true } : {}),
     meta: chat.meta,
     line,
     K,
@@ -1815,6 +1886,7 @@ function commitUpdate(fsx, ctx, r) {
   if (!out) return failUpdate(fsx, ctx, "sensor reply was not JSON", { raw: String(r.text) });
   const unknownIds = [];
   try {
+    if (ctx.resense) dropSnapshot(ctx.state, ctx.K);
     const snapshot = applySensor(ctx, out, ctx.op, str(r.model), unknownIds);
     const usage = isObj(r.usage) ? r.usage : {};
     ctx.state.usage = {
@@ -1827,7 +1899,7 @@ function commitUpdate(fsx, ctx, r) {
     ctx.state.lastError = null;
     saveState(fsx, ctx);
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds });
-    return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn });
+    return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn, ms: ctx.state.usage.lastMs });
   } catch (e) {
     // a half-applied report must not leave notes or history behind
     ctx.state = JSON.parse(ctx.before);
@@ -1886,8 +1958,10 @@ function runUpdate(host, input) {
 // ---------- catch-up on a tick ----------
 const RECENT_MS = 30 * 60 * 1000;
 const ERROR_PAUSE_MS = 10 * 60 * 1000;
+// the UI triggers an update right after a reply; catch-up leaves a fresh chat to it
+const TRIGGER_GRACE_MS = 90 * 1000;
 
-/** The newest recently-active chat whose newest message has no snapshot. */
+/** The newest recently-active chat whose newest message has no snapshot (or changed text). */
 function pickChat(fsx) {
   let files = [];
   try {
@@ -1898,7 +1972,7 @@ function pickChat(fsx) {
   for (const f of files) {
     const id = f.replace(/\.meta\.json$/, "");
     const meta = readJson(fsx, "chats/" + f, null);
-    if (!CHAT_ID.test(id) || !isObj(meta) || meta.temporary || !(now - Number(meta.updatedAt) <= RECENT_MS)) continue;
+    if (!CHAT_ID.test(id) || !isObj(meta) || meta.temporary || !(now - Number(meta.updatedAt) <= RECENT_MS) || now - Number(meta.updatedAt) < TRIGGER_GRACE_MS) continue;
     recent.push({ id, at: Number(meta.updatedAt) });
   }
   recent.sort((a, b) => b.at - a.at);
@@ -2203,18 +2277,33 @@ export function llmRequest(ctx, host) {
   }
 }
 
+/** Names an insert can be built for: the newest snapshot of the active line, present non-compact characters first. */
+function previewSpeakers(fsx, chatId) {
+  const chat = readChat(fsx, chatId);
+  const { state, existed } = loadState(fsx, chatId);
+  if (!chat || !existed) return [];
+  const key = activeLine(chat.msgs).map((l) => l.key).reverse().find((k) => state.snapshots[k]);
+  const snap = key ? state.snapshots[key] : null;
+  if (!snap || !isObj(snap.chars)) return [];
+  const chars = snap.chars;
+  const first = arr(snap.present).filter((n) => chars[n] && !chars[n].compact);
+  return unique([...first, ...Object.keys(chars)]);
+}
+
 /** Settings "What the model sees": the insert for a speaker as the next reply would get it. */
 function previewInsert(req, fsx) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const speakerName = str(req.query && req.query.speaker);
+  const speakers = previewSpeakers(fsx, chatId);
   const insert = buildInsert(fsx, chatId, { op: "send", speakerName, targetId: "", userText: str(req.query && req.query.text) }, loadConfig(fsx));
-  if (!insert) return ok({ insert: null });
+  if (!insert) return ok({ insert: null, speakers });
   const { state } = loadState(fsx, chatId);
   const snap = state.snapshots[insert.key];
   const blind = Object.values(snap.chars || {}).map((c) => str(c.blindSpot)).filter(Boolean);
   return ok({
     insert,
+    speakers,
     checks: {
       // code writes no digits; any here come from story text the sensor reported
       digits: (insert.text.match(/\d+/g) || []).length,
@@ -2230,6 +2319,8 @@ function readUpdate(req, host) {
   const chatId = String(b.chatId || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const op = cut(str(b.op) || "send", 20);
+  if (op === "impersonate") return ok({ ok: true, skipped: "impersonate" });
+  if (parseBool(b.auto) === true && loadConfig(host.fs).mode === "manual") return ok({ ok: true, skipped: "manual" });
   const stash = isObj(req.stash) ? req.stash : {};
   const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
@@ -2504,7 +2595,56 @@ function readState(req, fsx) {
 
 function configBody(fsx) {
   const cfg = loadConfig(fsx);
-  return { ...cfg, custom: customPrompts(fsx), events: Object.values(loadVocab(fsx)) };
+  return { ...cfg, custom: customPrompts(fsx), events: vocabRows(userEventRows(fsx)), deltaKeys: DELTA_KEYS, familyList: FAMILIES };
+}
+
+const MAX_EVENT_ROWS = 200;
+
+/** One row of PUT /dashboard/events: { id, off: true }, a clean row, or null when invalid. */
+function cleanEventRow(e) {
+  if (!isObj(e) || !VOCAB_ID.test(String(e.id))) return null;
+  if (e.off === true) return e.id === "other" ? null : { id: e.id, off: true };
+  if (typeof e.family !== "string" || !VOCAB_FAMILY.test(e.family)) return null;
+  const deltas = {};
+  if (e.deltas !== undefined) {
+    if (!isObj(e.deltas)) return null;
+    for (const [k, v] of Object.entries(e.deltas)) {
+      if (!DELTA_KEYS.includes(k) || typeof v !== "number" || !Number.isFinite(v)) return null;
+      const d = clamp(v, -20, 20);
+      if (d !== 0) deltas[k] = d;
+    }
+  }
+  return { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas };
+}
+
+/** Write the user's rows; the file's other top-level keys stay. Nothing is written for no rows and no file. */
+function writeEventRows(fsx, rows) {
+  const raw = readJson(fsx, EVENTS_FILE, null);
+  if (!rows.length && raw === null) return;
+  fsx.write(EVENTS_FILE, JSON.stringify({ ...(isObj(raw) ? raw : {}), events: rows }, null, 2));
+}
+
+function putEvents(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const list = arr(b.events);
+  const byId = new Map();
+  let skipped = 0;
+  for (const e of list) {
+    const row = cleanEventRow(e);
+    if (row) byId.set(row.id, row);
+    else skipped++;
+  }
+  // a row equal to its default is no change
+  let rows = [...byId.values()].filter((r) => {
+    const d = DEFAULT_VOCAB[r.id];
+    return r.off || !d || !sameRow(r, d);
+  });
+  if (rows.length > MAX_EVENT_ROWS) {
+    skipped += rows.length - MAX_EVENT_ROWS;
+    rows = rows.slice(0, MAX_EVENT_ROWS);
+  }
+  writeEventRows(fsx, rows);
+  return ok({ ...configBody(fsx), skipped });
 }
 
 function putConfig(req, fsx) {
@@ -2545,6 +2685,11 @@ export function handleRoute(req, host) {
   }
   if (path === "/dashboard/config" && method === "GET") return ok(configBody(fsx));
   if (path === "/dashboard/config" && method === "PUT") return putConfig(req, fsx);
+  if (path === "/dashboard/events" && method === "PUT") return putEvents(req, fsx);
+  if (path === "/dashboard/events" && method === "DELETE") {
+    writeEventRows(fsx, []);
+    return ok(configBody(fsx));
+  }
   // "Restore default prompts" in the panel
   if (path === "/dashboard/config/prompts" && method === "DELETE") {
     const next = { ...storedConfig(fsx) };
