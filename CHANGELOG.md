@@ -2,6 +2,18 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.22.0
+
+- **Relationship dashboard** (new plugin "Relationship dashboard"): after replies a small model call (the sensor) reads the turn and names what happened; code turns it into each character's attitude to you (trust, comfort, attraction, respect, affection), pulse (excitement, arousal), a named pattern of the relationship (a constellation such as Friendship or Honor without trust), the scene clock and place, open story threads, and a notebook of what each character knows about you and how (saw, heard from someone, guesses). The sensor runs in the background about a minute after a reply; "Refresh" runs it at once. Swipes and rewinds follow the active line: a discarded swipe leaves no trace.
+- **Characters act on it**: before each reply a short block of words (never numbers) tells the story model how the speaking character feels right now and what they know, so a character who has not heard your name does not use it. The block's token budget is yours to set (Tools → Relationship dashboard); when it does not fit, a popup says what was left out.
+- **Soul tab on cards**: class (romantic, ally, neutral, hostile), starting attitude, traits and spectra that make a character warm up or take offence faster, triggers and values, coping, pronouns and other spellings of the name. The dashboard rates a card's main characters by itself after import (a proposal you accept, edit or dismiss), "Rate now" and "Rate with Molfar" do it on demand, and a card kind (single, narrator, group, assistant) shows on the card. Minor figures the story brings in never get souls.
+- **Scene strip and wide view**: beside the chat (from 1024 px wide) a strip shows the time, place, who is present, the focused character's constellation and attitude bars, threads and notebook counts; it collapses to a thin rail. "Open dashboard" shows everything: tier phrases, what changed this turn with the arithmetic, our story with a ten-turn chart, the notebook with the character's blind spot, the ensemble and how the others relate. On phones a one-line bar under the chat header opens a sheet with Scene, Constellation, Notebook and History tabs. A chat without state offers "Build the dashboard".
+- **Hide the rail's labels**: on wide windows a caret at the top of the left rail collapses it to icons and back; the choice is kept.
+- **Persona filter shows every persona**, not only those already used by a chat, so it no longer disappears when all visible chats share one.
+- **Regex bound to a preset**: the preset editor has a Regex tab with the scripts that run only under that preset: bind a free script, unbind, create, delete all. The Regex list is grouped by preset, global, character and chat, in run order, with add and delete-all per group.
+- **Tools tabs are grouped** into Panels, Text & voice and System.
+- Litopys: facts can be added, edited, retired and restored by hand, and a chat can carry your own recap (routes for the coming Memory panel).
+
 ## 4.21.2
 
 - **The chat header's switcher shows the whole context at a glance**: one pill with the preset, the persona (with its avatar) and the model, each in its own segment. It opens a palette with three tabs, Preset, Persona and Model. Each row is a card: presets show how many sections are on, the temperature and the context size, personas show their avatar and title, models show the provider mark. The line on top of each tab opens that preset or persona in its editor, search narrows the list, and "Save current as profile…" and "Manage profiles…" sit at the bottom of the Model tab.

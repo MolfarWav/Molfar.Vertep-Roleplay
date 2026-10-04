@@ -1,6 +1,6 @@
 {
   "name": "Litopys",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "World-lore keeper for roleplay chats. SCRIBE pass (frequent): extracts world facts (places, NPCs, items, events, lore), chronicle events and a running story recap into data/litopys/store.json and renders human-readable data/vault-chats/<character>.md. CURATOR pass (rare): dedupes, merges, retires played-out facts; safe ops auto-apply, risky ones go to a proposals queue for approval in the Litopys panel. Formerly Archivarius: reads data/archivarius/* until its first save, and an Archivarius copy left beside it no longer runs.",
   "origin": "local",
   "permissions": ["routes", "llm", "fs", "schedule", "hooks"],
