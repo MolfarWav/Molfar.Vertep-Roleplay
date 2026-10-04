@@ -40,6 +40,7 @@ import { HelpDialog } from './help-dialog'
 import { ExpressionPanel } from './expression-panel'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
+import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 
 /** The mobile chat's section bar. The desktop header's quick switch has no
  *  place here: presets, personas and connections are each one tap away, and
@@ -589,6 +590,7 @@ export function ChatView() {
   )
 
   return (
+    <DashProvider chatId={chat.id}>
     <div className="relative flex h-full min-h-0 flex-col" style={{ '--chat-max': chatMax } as React.CSSProperties}>
       {bg && (
         <div
@@ -745,6 +747,9 @@ export function ChatView() {
         </DropdownMenu>
       </nav>
 
+      {/* relationship dashboard, below 1024 px: one bar that opens a bottom sheet */}
+      <DashPhoneMount chatId={chat.id} />
+
       {/* Find bar */}
       {findOpen && (
         <div className="relative z-10 flex items-center gap-2 border-b border-border bg-card px-3 py-1.5">
@@ -784,6 +789,9 @@ export function ChatView() {
       {/* Group member bar */}
       {character.isGroup && <GroupMemberBar chat={chat} group={character} />}
 
+      {/* log + composer in one column, the relationship dashboard strip beside both (≥ 1024 px) */}
+      <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* `data-chat-log` lets the composer scroll-compensate this pane as the
           textarea grows upward, so the message you're reading stays put. */}
       <div ref={scrollRef} data-chat-log data-pinned="true" onScroll={onScroll} className="relative z-10 min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch]" style={{ fontSize: `${settings.fontScale}%` }}>
@@ -931,6 +939,9 @@ export function ChatView() {
         ) : (
           <Composer chatId={chat.id} />
         )}
+      </div>
+      </div>
+      <DashStripMount chatId={chat.id} />
       </div>
 
       {/* Author's note sheet */}
@@ -1274,6 +1285,7 @@ export function ChatView() {
         <ConvertToGroupDialog chat={chat} character={character} open={convertOpen} onOpenChange={setConvertOpen} />
       )}
     </div>
+    </DashProvider>
   )
 }
 
