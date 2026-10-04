@@ -549,7 +549,32 @@ export function nameKey(s) {
   return out.normalize("NFD").replace(/[^a-z0-9]/g, "");
 }
 
-/** The soul for a name: the exact key, a key that differs only in case, an alias, then the same name in another script. */
+/** Edit distance at most 1: true if a and b differ by one insertion, deletion, or replacement. */
+function editDistanceAtMostOne(a, b) {
+  if (!a || !b) return false;
+  const lenDiff = Math.abs(a.length - b.length);
+  if (lenDiff > 1) return false;
+  if (lenDiff === 0) {
+    // same length: one replacement or identical
+    let diffs = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diffs++;
+    return diffs <= 1;
+  }
+  // one is longer: check if it's one insertion
+  const [shorter, longer] = a.length < b.length ? [a, b] : [b, a];
+  let si = 0, insertionFound = false;
+  for (let li = 0; li < longer.length; li++) {
+    if (si < shorter.length && shorter[si] === longer[li]) {
+      si++;
+    } else {
+      if (insertionFound) return false; // more than one insertion
+      insertionFound = true;
+    }
+  }
+  return si === shorter.length;
+}
+
+/** The soul for a name: the exact key, a key that differs only in case, an alias, then the same name in another script, then near-miss by edit distance 1. */
 export function soulOf(souls, name) {
   if (!isObj(souls)) return undefined;
   const s = str(name);
@@ -562,6 +587,21 @@ export function soulOf(souls, name) {
   if (!key) return undefined;
   for (const [k, v] of Object.entries(souls)) if (isObj(v) && nameKey(k) === key) return v;
   for (const v of Object.values(souls)) if (isObj(v) && arr(v.aliases).some((a) => typeof a === "string" && nameKey(a) === key)) return v;
+  // near-miss: one edit distance, only if exactly one match
+  if (key.length >= 6) {
+    const matches = [];
+    for (const [k, v] of Object.entries(souls)) {
+      if (isObj(v) && editDistanceAtMostOne(key, nameKey(k))) {
+        matches.push(v);
+      }
+    }
+    for (const v of Object.values(souls)) {
+      if (isObj(v) && !matches.includes(v) && arr(v.aliases).some((a) => typeof a === "string" && editDistanceAtMostOne(key, nameKey(a)))) {
+        matches.push(v);
+      }
+    }
+    if (matches.length === 1) return matches[0];
+  }
   return undefined;
 }
 
@@ -1465,6 +1505,11 @@ function soulUser(fsx, cardId, opts) {
     if (full) break;
   }
   if (full) sections.push("(more entries left out)");
+  // names restriction for named rating
+  if (Array.isArray(o.rateNames) && o.rateNames.length) {
+    const namesList = o.rateNames.join(", ");
+    sections.push("Rate only these characters, and use exactly these names as keys: " + namesList + ".");
+  }
   // names seen in chats with counts
   const nameCounts = new Map();
   let files = [];
@@ -1507,14 +1552,16 @@ function soulModel(fsx, cfg, meta) {
   return str(cfg.sensorModel) || str(meta && meta.model) || (isObj(settings) ? str(settings.model) : "");
 }
 
-function askSoul(host, cfg, cardId, meta, key) {
+function askSoul(host, cfg, cardId, meta, key, opts) {
   const fsx = host.fs;
+  const o = isObj(opts) ? opts : {};
   const model = soulModel(fsx, cfg, meta);
   const userName = meta ? userNameOf(fsx, meta) : "";
+  const rateNames = Array.isArray(o.names) ? o.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : undefined;
   host.llm.request(key, {
     ...(model ? { model } : {}),
     systemPrompt: soulSystem(cfg, loadVocab(fsx)),
-    messages: [{ role: "user", content: soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName }) }],
+    messages: [{ role: "user", content: soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName, rateNames }) }],
     presetParams: { temperature: 0.3, max_tokens: 3000 },
   });
 }
@@ -1528,6 +1575,23 @@ function draftFromReply(reply) {
   if (!out) return fail("the reply was not JSON");
   if (!isObj(out.characters)) return fail("the reply had no characters");
   return normalizeDraft({ v: 1, at: Date.now(), by: "auto", model: str(r.model), note: out.note, minor: out.minor, characters: out.characters });
+}
+
+/** Merge new draft into existing live proposal, keeping unrelated characters and unioning minor. */
+function mergeDraft(existing, newDraft) {
+  if (!existing || existing.error || existing.dismissedAt) return newDraft;
+  const merged = { ...newDraft };
+  // union characters: keep old characters not in newDraft, add new ones
+  const oldChars = isObj(existing.characters) ? existing.characters : {};
+  for (const [name, soul] of Object.entries(oldChars)) {
+    if (!(name in merged.characters)) merged.characters[name] = soul;
+  }
+  // union minor lists
+  const newMinor = arr(newDraft.minor);
+  const oldMinor = arr(existing.minor);
+  merged.minor = cleanNames([...oldMinor, ...newMinor]);
+  if (!merged.minor.length) delete merged.minor;
+  return merged;
 }
 
 function saveRated(fsx, cardId, reply) {
@@ -2053,20 +2117,32 @@ function rateRoute(req, host) {
   const chatId = String(b.chatId || "");
   const chat = CHAT_ID.test(chatId) ? readChat(fsx, chatId) : null;
   const cfg = loadConfig(fsx);
-  if (parseBool(b.auto) === true && !needsRating(fsx, cardId, cfg)) return ok({ skipped: true });
+  // names parameter: extract and clean
+  const names = Array.isArray(b.names) ? b.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : undefined;
+  // with names, treat auto: true as not auto (the button asked for it)
+  const isAuto = parseBool(b.auto) === true && !names;
+  if (isAuto && !needsRating(fsx, cardId, cfg)) return ok({ skipped: true });
   const retry = !!(isObj(req.stash) && req.stash.retry);
   const key = retry ? "soul_rate_retry" : "soul_rate";
   const r = host.llm.results[key];
   if (!r) {
-    askSoul(host, cfg, cardId, chat ? chat.meta : null, key);
-    return { __llmPending: true, stash: { retry } };
+    askSoul(host, cfg, cardId, chat ? chat.meta : null, key, { names });
+    return { __llmPending: true, stash: { retry, names } };
   }
   if (!retry && r.error && isRateLimit(r)) {
-    askSoul(host, cfg, cardId, chat ? chat.meta : null, "soul_rate_retry");
-    return { __llmPending: true, stash: { retry: true } };
+    askSoul(host, cfg, cardId, chat ? chat.meta : null, "soul_rate_retry", { names });
+    return { __llmPending: true, stash: { retry: true, names } };
   }
-  const draft = saveRated(fsx, cardId, r);
-  return ok({ ok: !draft.error, draft });
+  if (!names) {
+    const draft = saveRated(fsx, cardId, r);
+    return ok({ ok: !draft.error, draft });
+  }
+  // rating a few names never spoils the proposal that is there: a failure writes nothing
+  const fresh = draftFromReply(r);
+  if (fresh.error) return ok({ ok: false, error: fresh.error });
+  const draft = mergeDraft(readDraft(fsx, cardId), fresh);
+  fsx.write(draftPath(cardId), JSON.stringify(draft, null, 2));
+  return ok({ ok: true, draft });
 }
 
 /** GET returns the proposal of a card; DELETE dismisses it, or removes it once accepted. */

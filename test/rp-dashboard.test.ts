@@ -1638,6 +1638,23 @@ describe("souls", () => {
       const tshaKnown = { "T'Sha": { class: "neutral", aliases: tshaAlias } };
       expect(P.soulOf(tshaKnown, tsha)).toEqual({ class: "neutral", aliases: tshaAlias });
     });
+
+    it("soulOf: near-miss by edit distance 1 when nameKey >= 6, only if exactly one match", () => {
+      const marianna = String.fromCharCode(0x041c) + String.fromCharCode(0x0430) + String.fromCharCode(0x0440) + String.fromCharCode(0x0438) + String.fromCharCode(0x0430) + String.fromCharCode(0x043d) + String.fromCharCode(0x043d) + String.fromCharCode(0x0430); // Марианна
+      const soul = { class: "ally" };
+      const souls = { Marianne: soul };
+      // Марианна transliterates to marianna, which is edit distance 1 from marianne, finds the soul
+      expect(P.soulOf(souls, marianna)).toBe(soul);
+      // too short: no match (medli -> medli, Media has nameKey media, distance 1 but too short)
+      expect(P.soulOf({ Media: { class: "neutral" } }, "Medli")).toBeUndefined();
+      // ambiguous: "Mariana" is distance 1 from both "Mariane" and "Marianna", no match
+      const s1 = { class: "ally", aliases: [] };
+      const s2 = { class: "neutral", aliases: [] };
+      expect(P.soulOf({ Mariane: s1, Marianna: s2 }, "Mariana")).toBeUndefined();
+      // alias distance match: searching for "Mariana" finds soul with alias "Mariane"
+      const s3 = { class: "ally", aliases: ["Mariane"] };
+      expect(P.soulOf({ Marianne: s3 }, "Mariana")).toBe(s3);
+    });
   });
 
   describe("lorebook aliases", () => {
@@ -1905,6 +1922,74 @@ describe("souls", () => {
       mock.push(soulReply);
       expect(rate(mock, { characterId: "bram", auto: true }).json.ok).toBe(true);
       expect(fs.existsSync(draftFile("bram"))).toBe(true);
+    });
+
+    it("rating with names: merges into existing proposal, keeps others, unions minor", () => {
+      writeCard("bram", { name: "Bram" });
+      // write an existing proposal with multiple characters
+      writeDraft("bram", {
+        v: 1,
+        at: 100,
+        by: "auto",
+        characters: { Medli: { class: "ally", pronouns: "she", aliases: ["Медли"], start: { trust: 5 }, traits: { shyness: 72 }, triggers: [{ cue: "shouting", event: "raised_voice", stat: "comfort", x: 1.5 }] }, Isolde: { class: "romantic" } },
+        minor: ["Guard"],
+        note: "Old note",
+      });
+      // rate only Medli with new values
+      const newReply = reply({
+        characters: {
+          Medli: { class: "neutral", pronouns: "they", aliases: ["Medli alt"] },
+        },
+        minor: ["Passer-by"],
+        note: "Updated Medli",
+      });
+      const mock = mockHost([newReply]);
+      const r = rate(mock, { characterId: "bram", names: ["Medli"] });
+      expect(r.json.ok).toBe(true);
+      const merged = readDraftFile("bram");
+      // Medli is replaced, Isolde kept
+      expect(merged.characters.Medli).toMatchObject({ class: "neutral", pronouns: "they" });
+      expect(merged.characters.Isolde).toEqual({ class: "romantic" });
+      // minors are unioned
+      expect(merged.minor).toContain("Guard");
+      expect(merged.minor).toContain("Passer-by");
+      // new note replaces old one
+      expect(merged.note).toBe("Updated Medli");
+      // check the request had the names line
+      expect(mock.requests[0]!.req.messages[0].content).toContain("Rate only these characters, and use exactly these names as keys: Medli.");
+    });
+
+    it("a failed named rating keeps the existing proposal untouched", () => {
+      writeCard("bram", { name: "Bram" });
+      const existing = {
+        v: 1,
+        at: 100,
+        by: "auto",
+        characters: { Medli: { class: "ally", start: { trust: 5 } } },
+        note: "Original",
+      };
+      writeDraft("bram", existing);
+      const mock = mockHost([{ error: "model unavailable" }]);
+      const r = rate(mock, { characterId: "bram", names: ["Medli"] });
+      expect(r.json.ok).toBe(false);
+      expect(r.json.error).toBe("model unavailable");
+      // the original file is not changed
+      const kept = readDraftFile("bram");
+      expect(kept).toEqual(existing);
+      // a reply that is not JSON is a failure too, and writes nothing
+      const mock2 = mockHost([{ text: "Sure! Here are the souls you asked for." }]);
+      const r2 = rate(mock2, { characterId: "bram", names: ["Medli"] });
+      expect(r2.json.ok).toBe(false);
+      expect(readDraftFile("bram")).toEqual(existing);
+    });
+
+    it("names parameter with auto: true is treated as not auto (the button asked for it)", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost([soulReply]);
+      // with auto: true and names, it should not skip
+      const r = rate(mock, { characterId: "bram", auto: true, names: ["Medli"] });
+      expect(r.json.ok).toBe(true);
+      expect(mock.requests.length).toBe(1);
     });
   });
 
