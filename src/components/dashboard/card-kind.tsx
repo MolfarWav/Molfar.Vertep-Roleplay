@@ -13,13 +13,22 @@ import type { Character } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { mk } from './effect-text'
 
-const BADGE = 'inline-flex shrink-0 items-center gap-1 border border-primary/60 bg-primary/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-primary'
+const BADGE = 'inline-flex shrink-0 items-center gap-1 border px-2 py-0.5 text-xs font-bold uppercase tracking-wider'
+
+// one colour per kind (full class names, so Tailwind sees them); `hover` is for the editor's menu trigger
+const KIND_COLOR: Record<CardType, { badge: string; hover: string }> = {
+  single: { badge: 'border-sky-500/60 bg-sky-500/15 text-sky-700 dark:text-sky-300', hover: 'hover:bg-sky-500/25' },
+  narrator: { badge: 'border-violet-500/60 bg-violet-500/15 text-violet-700 dark:text-violet-300', hover: 'hover:bg-violet-500/25' },
+  group: { badge: 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', hover: 'hover:bg-emerald-500/25' },
+  assistant: { badge: 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300', hover: 'hover:bg-amber-500/25' },
+  other: { badge: 'border-zinc-500/60 bg-zinc-500/15 text-zinc-700 dark:text-zinc-300', hover: 'hover:bg-zinc-500/25' },
+}
 
 /** The kind as a badge; nothing when the card has none. */
 export function CardKindBadge({ type, className }: { type: CardType | null; className?: string }) {
   const t = useT()
   if (!type) return null
-  return <span className={cn(BADGE, className)} data-card-kind={type}>{t(mk(`kind.${type}`))}</span>
+  return <span className={cn(BADGE, KIND_COLOR[type].badge, className)} data-card-kind={type}>{t(mk(`kind.${type}`))}</span>
 }
 
 /** Editor header: the badge, or a muted "set kind" chip, opening a menu that writes the card at once. */
@@ -33,9 +42,10 @@ export function CardKindMenu({ c }: { c: Character }) {
       <DropdownMenuTrigger
         aria-label={`${t('kind.title')}: ${type ? t(mk(`kind.${type}`)) : t('kind.notSet')}`}
         className={cn(
-          type ? BADGE : 'inline-flex shrink-0 items-center gap-1 border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground',
-          'outline-none hover:bg-primary/25 focus-visible:ring-2 focus-visible:ring-ring/60',
-          type && 'cursor-pointer',
+          type
+            ? cn(BADGE, KIND_COLOR[type].badge, KIND_COLOR[type].hover, 'cursor-pointer')
+            : 'inline-flex shrink-0 items-center gap-1 border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-primary/25 hover:text-foreground',
+          'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         )}
       >
         {type ? t(mk(`kind.${type}`)) : t('kind.set')}

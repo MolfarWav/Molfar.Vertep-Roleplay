@@ -228,6 +228,15 @@ const en = {
   'soul.open': 'Open',
   'soul.update': 'update',
   'soul.was': 'was {n}',
+  'soul.rateAllMolfar': 'Rate all with Molfar',
+  'soul.rateAgain': 'Rate again',
+  'soul.noneNew': 'Nobody new to rate: every main character already has a soul. To rate a saved one again, open it and press Rate again.',
+  'soul.sameAsSaved': 'The new rating of {name} matches the saved soul: nothing to change.',
+  'soul.molfarConfirmTitle': 'Send these names to Molfar?',
+  'soul.molfarConfirmBody': 'Molfar will rate: {names}.',
+  'soul.molfarConfirmMain': 'Molfar will rate the card\'s main characters.',
+  'soul.molfarSend': 'Send to Molfar',
+  'soul.molfarNobody': 'Nobody left to rate: every name seen in play has a soul or is marked minor.',
   'kind.narrator': 'Narrator',
   'kind.single': 'Single',
   'kind.group': 'Group',
@@ -236,6 +245,7 @@ const en = {
   'kind.notSet': 'Not set',
   'kind.set': 'Set kind',
   'kind.title': 'Card kind',
+  'kind.setByRating': 'Card kind set by the rating: {kind}',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -460,6 +470,15 @@ const uk: Record<MsgKey, string> = {
   'soul.open': 'Відкрити',
   'soul.update': 'оновлення',
   'soul.was': 'було {n}',
+  'soul.rateAllMolfar': 'Оцінити всіх з Мольфаром',
+  'soul.rateAgain': 'Оцінити знову',
+  'soul.noneNew': 'Нових персонажів немає: усі головні герої вже мають душу. Щоб оцінити збережену ще раз, відкрий її й натисни «Оцінити знову».',
+  'soul.sameAsSaved': 'Нова оцінка {name} збігається зі збереженою душею: змінювати нічого.',
+  'soul.molfarConfirmTitle': 'Надіслати ці імена Мольфарові?',
+  'soul.molfarConfirmBody': 'Мольфар оцінить: {names}.',
+  'soul.molfarConfirmMain': 'Мольфар оцінить головних героїв картки.',
+  'soul.molfarSend': 'Надіслати Мольфарові',
+  'soul.molfarNobody': 'Оцінювати більше нікого: кожне ім’я з історії вже має душу або позначене як другорядне.',
   'kind.narrator': 'Наратор',
   'kind.single': 'Один персонаж',
   'kind.group': 'Група',
@@ -468,6 +487,7 @@ const uk: Record<MsgKey, string> = {
   'kind.notSet': 'Не вказано',
   'kind.set': 'Вказати тип',
   'kind.title': 'Тип картки',
+  'kind.setByRating': 'Тип картки визначила оцінка: {kind}',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

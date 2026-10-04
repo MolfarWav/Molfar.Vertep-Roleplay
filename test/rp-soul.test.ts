@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  cardTypeOf, clampSoul, molfarDraftText, minorOf, soulsOf, spectrumBand, stableJson, validSoulName, withCardType, withMinor, withSouls,
+  cardTypeOf, clampSoul, finalizeSoul, molfarCandidates, molfarDraftText, minorOf, overlaySoul, refreshOverlays, soulsOf, spectrumBand, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulMap,
 } from "../src/lib/soul";
 import { ASK_MOLFAR_MAX } from "../src/lib/shell-bridge";
@@ -303,5 +303,131 @@ describe("card kind", () => {
     const cleared = { ...char, ...withCardType({ ...char, ...withCardType(char, "group") }, null) };
     expect("molfar_card_type" in (cleared.cardExtras!.extensions as object)).toBe(false);
     expect((cleared.cardExtras!.extensions as Record<string, unknown>).other_mod).toEqual({ a: 1 });
+  });
+});
+
+describe("refreshOverlays", () => {
+  const saved: SoulMap = { Medli: { class: "ally", traits: { dominance: 40 }, locked: true, ratedBy: "user" } };
+  const v1: Soul = { class: "ally", traits: { dominance: 55 } };
+  const v2: Soul = { class: "ally", traits: { dominance: 70 } };
+  // the state right after v1 was laid over the saved Medli
+  const shown = () => ({
+    work: { Medli: overlaySoul(v1, "molfar") } as SoulMap,
+    proposedNames: ["Medli"],
+    overlaidFrom: { Medli: stableJson(v1) },
+    edited: new Set<string>(),
+    wasBlank: new Set<string>(),
+  });
+
+  it("changes nothing while the proposal is the one that was laid over", () => {
+    const r = refreshOverlays({ ...shown(), saved, proposals: { Medli: v1 }, by: "molfar" });
+    expect(r.changed).toBe(false);
+    expect(r.work.Medli).toEqual(overlaySoul(v1, "molfar"));
+    expect(r.proposedNames).toEqual(["Medli"]);
+  });
+
+  it("puts a newer proposal in, signed by who made it, and remembers it", () => {
+    const r = refreshOverlays({ ...shown(), saved, proposals: { Medli: v2 }, by: "auto" });
+    expect(r.changed).toBe(true);
+    expect(r.work.Medli).toEqual({ ...v2, ratedBy: "auto" });
+    expect(r.overlaidFrom.Medli).toBe(stableJson(v2));
+    expect(r.proposedNames).toEqual(["Medli"]);
+  });
+
+  it("leaves a soul the user edited since", () => {
+    const s = shown();
+    s.work.Medli = { ...s.work.Medli!, traits: { dominance: 10 } };
+    s.edited.add("Medli");
+    const r = refreshOverlays({ ...s, saved, proposals: { Medli: v2 }, by: "molfar" });
+    expect(r.work.Medli!.traits).toEqual({ dominance: 10 });
+    expect(r.proposedNames).toEqual(["Medli"]);
+  });
+
+  it("puts the saved soul back when the proposal is gone", () => {
+    const r = refreshOverlays({ ...shown(), saved, proposals: {} });
+    expect(r.work.Medli).toEqual(saved.Medli);
+    expect(r.proposedNames).toEqual([]);
+    expect(r.overlaidFrom).toEqual({});
+  });
+
+  it("a gone proposal for a name without a saved soul: blank if it was blank, else removed", () => {
+    const s = { ...shown(), work: { T: overlaySoul(v1, "auto") } as SoulMap, proposedNames: ["T"], overlaidFrom: { T: stableJson(v1) } };
+    const blank = refreshOverlays({ ...s, saved: {}, proposals: {}, wasBlank: new Set(["T"]) });
+    expect(blank.work.T).toEqual({});
+    expect(blank.reblank).toEqual(["T"]);
+    const gone = refreshOverlays({ ...s, saved: {}, proposals: {} });
+    expect("T" in gone.work).toBe(false);
+    expect(gone.reblank).toEqual([]);
+  });
+
+  it("a gone proposal does not undo the user's edits, but the name stops being proposed", () => {
+    const s = shown();
+    s.work.Medli = { ...s.work.Medli!, traits: { dominance: 10 } };
+    s.edited.add("Medli");
+    const r = refreshOverlays({ ...s, saved, proposals: {} });
+    expect(r.work.Medli!.traits).toEqual({ dominance: 10 });
+    expect(r.proposedNames).toEqual([]);
+  });
+
+  it("does not mutate its input", () => {
+    const s = shown();
+    const before = stableJson([s.work, s.proposedNames, s.overlaidFrom]);
+    refreshOverlays({ ...s, saved, proposals: { Medli: v2 }, by: "molfar" });
+    expect(stableJson([s.work, s.proposedNames, s.overlaidFrom])).toBe(before);
+  });
+
+  it("what the form shows after a refresh is what a save writes", () => {
+    const r = refreshOverlays({ ...shown(), saved, proposals: { Medli: v2 }, by: "molfar" });
+    const written = finalizeSoul(r.work.Medli!, false);
+    expect(written).toEqual({ ...clampSoul(v2), ratedBy: "molfar", locked: true });
+    expect((written.traits as { dominance: number }).dominance).toBe(70);
+    // an edited soul is signed by the user
+    expect(finalizeSoul(r.work.Medli!, true).ratedBy).toBe("user");
+  });
+});
+
+describe("molfarCandidates", () => {
+  const base = { cardName: "Yes, My Liege", cardType: "narrator" as const, guests: [], minor: [], draft: null };
+
+  it("the narrator case: known names, aliases, minor names and the card's own name are left out", () => {
+    const names = molfarCandidates({
+      ...base,
+      seen: ["Yes, My Liege", "Kefka", "стражник", "Medli", "Медли", "Chandra"],
+      souls: { Medli: { aliases: ["Медли"] }, "T'Sha": {} },
+      draft: { characters: {}, minor: ["Kefka", "стражник"] },
+    });
+    expect(names).toEqual(["Chandra"]);
+  });
+
+  it("the card's own name stays for other kinds", () => {
+    const seen = ["Nest", "Garrett"];
+    expect(molfarCandidates({ ...base, cardName: "Nest", cardType: "single", seen, souls: {} })).toEqual(["Nest", "Garrett"]);
+    expect(molfarCandidates({ ...base, cardName: "Nest", cardType: null, seen, souls: {} })).toEqual(["Nest", "Garrett"]);
+    expect(molfarCandidates({ ...base, cardName: "nest", cardType: "narrator", seen, souls: {} })).toEqual(["Garrett"]);
+  });
+
+  it("guests come first, names are unique case-insensitively, souls come from several maps", () => {
+    const names = molfarCandidates({
+      ...base,
+      guests: ["Garrett", "Zed"],
+      seen: ["garrett", "Ivo", "ZED", "Nia"],
+      souls: [{ Nia: {} }, { Ivo: {} }],
+    });
+    expect(names).toEqual(["Garrett", "Zed"]);
+  });
+
+  it("proposed names, their aliases and the card's minor names are left out", () => {
+    const names = molfarCandidates({
+      ...base,
+      seen: ["Ann", "Анна", "Bob", "Cook", "Dee"],
+      souls: {},
+      minor: ["cook"],
+      draft: { characters: { Ann: { aliases: ["Анна"] }, Bob: {} } },
+    });
+    expect(names).toEqual(["Dee"]);
+  });
+
+  it("is empty when everybody is known", () => {
+    expect(molfarCandidates({ ...base, seen: ["A"], souls: { A: {} } })).toEqual([]);
   });
 });

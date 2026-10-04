@@ -15,7 +15,8 @@ import { ApiError, j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import {
-  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, isCardType, withCardType, minorOf, molfarDraftText, soulsOf, stableJson, validSoulName, withMinor, withSouls,
+  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, finalizeSoul, isCardType, minorOf, molfarCandidates, molfarDraftText, overlaySoul, refreshOverlays,
+  soulsOf, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulClass, type SoulDraft, type SoulMap,
 } from '@/lib/soul'
 import type { Character } from '@/lib/types'
@@ -23,7 +24,7 @@ import { cn } from '@/lib/utils'
 import { SoulForm, type VocabEvent } from './soul-form'
 import { SoulGuests } from './soul-guests'
 import { SoulModelPicker } from './soul-model-picker'
-import type { Effect } from './effect-text'
+import { mk, type Effect } from './effect-text'
 
 const CLASS_COLORS: Record<SoulClass, string> = {
   romantic: '#d4577f', ally: '#5fae86', neutral: '#8b8478', hostile: '#c9545a',
@@ -68,6 +69,10 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const [blank, setBlank] = useState<Set<string>>(new Set())
   const [byHand, setByHand] = useState<Set<string>>(new Set())
   const wasBlank = useRef(new Set<string>())
+  // name → stableJson of the proposal that was put into the working copy
+  const overlaidFrom = useRef<Record<string, string>>({})
+  // the card+proposal whose kind guess was already applied
+  const kindDone = useRef('')
   const [ratingName, setRatingName] = useState<string | null>(null)
   const [sensorModel, setSensorModel] = useState('')
   const [newName, setNewName] = useState('')
@@ -180,24 +185,50 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const isEmpty = chipNames.length === 0
   const selDirty = selName !== null && dirtyOf(selName)
 
-  // a live proposal always wins over "no soul": a blank name it covers shows the proposed values
+  // the proposal file decides what the overlaid names show:
+  // a live proposal wins over "no soul"; a newer proposal replaces an older one in the form
+  // (unless the user edited it since); a proposal that is gone puts the saved soul back
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs when a proposal arrives or a name turns blank
   useEffect(() => {
-    if (!draft || !pending) return
-    const hit = pendingNames.filter((n) => blank.has(n) && has(work, n))
-    if (!hit.length) return
-    for (const n of hit) wasBlank.current.add(n)
-    setWork((w) => {
-      const next = { ...w }
+    const proposals: SoulMap = pending && draft ? draft.characters : {}
+    let w = work
+    let proposed = proposedNames
+    const from = { ...overlaidFrom.current }
+    let changed = false
+    const hit = Object.keys(proposals).filter((n) => blank.has(n) && has(work, n))
+    if (hit.length) {
+      w = { ...w }
       for (const n of hit) {
-        const proposal = draft.characters[n]
-        if (proposal) next[n] = { ...proposal, ratedBy: draft.by === 'molfar' ? 'molfar' : 'auto' }
+        wasBlank.current.add(n)
+        edited.current.delete(n) // a blank name holds no edits
+        w[n] = overlaySoul(proposals[n] ?? {}, draft?.by)
+        from[n] = stableJson(proposals[n])
       }
+      proposed = [...new Set([...proposed, ...hit])]
+      changed = true
+    }
+    const r = refreshOverlays({ work: w, saved, proposals, by: draft?.by, proposedNames: proposed, overlaidFrom: from, edited: edited.current, wasBlank: wasBlank.current })
+    overlaidFrom.current = r.overlaidFrom
+    if (!changed && !r.changed) return
+    for (const n of r.reblank) wasBlank.current.delete(n)
+    setWork(r.work)
+    setProposedNames(r.proposedNames)
+    setBlank((b) => {
+      const next = new Set([...b].filter((n) => !hit.includes(n)))
+      for (const n of r.reblank) next.add(n)
       return next
     })
-    setBlank((b) => new Set([...b].filter((n) => !hit.includes(n))))
-    setProposedNames((p) => [...new Set([...p, ...hit])])
   }, [draft, blank])
+
+  // the rating's guess of the card's kind is written at once when the card has none
+  useEffect(() => {
+    if (!draft || draft.dismissedAt || draft.error || !isCardType(draft.cardType) || cardTypeOf(c)) return
+    const key = `${c.id}:${draft.at ?? 0}`
+    if (kindDone.current === key) return
+    kindDone.current = key
+    updateCharacter(c.id, withCardType(c, draft.cardType))
+    toast.success(t('kind.setByRating', { kind: t(mk(`kind.${draft.cardType}`)) }))
+  }, [draft, c, updateCharacter, t])
 
   // ── effects of the selected soul ──
   // biome-ignore lint/correctness/useExhaustiveDependencies: the key of the selected soul stands for its content
@@ -232,37 +263,37 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     setSelected(name)
   }
 
+  /** Lays the live proposals onto the copy. An already overlaid name stays when the user edited it or its proposal is unchanged. */
   const overlay = (w: SoulMap, names = pendingNames): SoulMap => {
     if (!draft) return w
     const next = { ...w }
     for (const name of names) {
-      if (proposedNames.includes(name) && has(w, name)) continue // already overlaid, maybe edited since
       const proposal = draft.characters[name]
-      if (proposal) next[name] = { ...proposal, ratedBy: draft.by === 'molfar' ? 'molfar' : 'auto' }
+      if (!proposal) continue
+      const key = stableJson(proposal)
+      if (proposedNames.includes(name) && has(w, name) && (edited.current.has(name) || overlaidFrom.current[name] === key)) continue
+      next[name] = overlaySoul(proposal, draft.by)
+      overlaidFrom.current[name] = key
+      edited.current.delete(name) // the form shows the proposal again
     }
     return next
   }
 
   const review = () => {
-    setWork((w) => overlay(w))
+    setWork(overlay(work))
     setProposedNames(pendingNames)
     setBlank((b) => new Set([...b].filter((n) => !pendingNames.includes(n))))
     if (!selName && pendingNames[0]) setSelected(pendingNames[0])
   }
 
   /** The soul as it is written to the card: in range, locked, signed by who set it. */
-  const finalize = (name: string, soul: Soul): Soul => {
-    const out = clampSoul({ ...soul })
-    out.locked = true
-    if (edited.current.has(name) || !out.ratedBy) out.ratedBy = 'user'
-    return out
-  }
+  const finalize = (name: string, soul: Soul): Soul => finalizeSoul(soul, edited.current.has(name))
 
   const forget = (names: string[]) => {
     for (const n of names) edited.current.delete(n)
     setUnlocked((u) => { const next = new Set(u); for (const n of names) next.delete(n); return next })
     setProposedNames((p) => p.filter((n) => !names.includes(n)))
-    for (const n of names) wasBlank.current.delete(n)
+    for (const n of names) { wasBlank.current.delete(n); delete overlaidFrom.current[n] }
     setBlank((b) => new Set([...b].filter((n) => !names.includes(n))))
     setByHand((h) => new Set([...h].filter((n) => !names.includes(n))))
   }
@@ -294,7 +325,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     for (const name of pendingNames) {
       const base = proposedNames.includes(name) && has(work, name)
         ? work[name]!
-        : { ...draft.characters[name], ratedBy: draft.by === 'molfar' ? 'molfar' : 'auto' } as Soul
+        : overlaySoul(draft.characters[name] ?? {}, draft.by)
       merged[name] = finalize(name, base)
     }
     const withS = withSouls(c, merged)
@@ -322,6 +353,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     })
     setBlank((b) => new Set([...b, ...proposedNames.filter((n) => !has(saved, n) && wasBlank.current.has(n))]))
     wasBlank.current.clear()
+    overlaidFrom.current = {}
     setProposedNames([])
     await dropDraft(false)
   }
@@ -363,7 +395,9 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const rateNow = async () => {
     setRating(true)
     try {
-      await j('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id }) })
+      const r = await j<{ ok?: boolean; added?: unknown; error?: string }>('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id }) })
+      if (r.ok === false) toast.error(r.error || t('soul.ratingFailed'))
+      else if (Array.isArray(r.added) && r.added.length === 0) toast.info(t('soul.noneNew'))
       await loadDraft()
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) setUnavailable(true)
@@ -383,8 +417,15 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
       const next = normalizeDraft(fresh.draft)
       setDraft(next)
       const proposal = next && !next.dismissedAt && !next.error ? next.characters[name] : undefined
-      if (!proposal) { toast.error(t('soul.rateEmpty', { name })); return }
-      setWork((w) => ({ ...w, [name]: { ...proposal, ratedBy: next?.by === 'molfar' ? 'molfar' : 'auto' } }))
+      if (!proposal) {
+        if (has(saved, name)) toast.info(t('soul.sameAsSaved', { name }))
+        else toast.error(t('soul.rateEmpty', { name }))
+        return
+      }
+      if (blank.has(name)) wasBlank.current.add(name)
+      edited.current.delete(name) // the form shows the new rating
+      overlaidFrom.current[name] = stableJson(proposal)
+      setWork((w) => ({ ...w, [name]: overlaySoul(proposal, next?.by) }))
       setBlank((b) => { const n2 = new Set(b); n2.delete(name); return n2 })
       setProposedNames((p) => (p.includes(name) ? p : [...p, name]))
       setSelected(name)
@@ -408,8 +449,8 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     await rateNow()
   }
 
-  const rateWithMolfar = async (only?: string) => {
-    const withoutSoul = only ? [only] : [...new Set([...guests, ...seen.filter((n) => !has(work, n))])].filter((n) => !minor.some((m) => m.toLowerCase() === n.toLowerCase()))
+  /** Asks Molfar to rate exactly these names (none = the card's main characters). */
+  const rateWithMolfar = async (names: string[]) => {
     // chats carry no lorebook list in the store: the card's own books plus the global ones
     // are what the engine scans for every chat of this card
     const books = [...new Set([
@@ -422,7 +463,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 3)
       .map((ch) => ch.id)
-    const text = molfarDraftText({ character: c, names: withoutSoul, lorebookIds: books, chatIds })
+    const text = molfarDraftText({ character: c, names, lorebookIds: books, chatIds })
     try {
       if (canAskMolfar()) {
         await askMolfar(text)
@@ -434,6 +475,19 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     } catch (e) {
       toast.error(errMsg(e))
     }
+  }
+
+  /** The top button: shows which names go to Molfar and asks first. */
+  const rateAllWithMolfar = async () => {
+    const rated = Object.fromEntries(Object.entries(work).filter(([n]) => !blank.has(n))) // a name without a soul still waits for one
+    const names = molfarCandidates({ cardName: c.name, cardType: cardTypeOf(c), guests, seen, souls: [saved, rated], minor, draft })
+    if (!names.length && Object.keys(saved).length) { toast.info(t('soul.molfarNobody')); return }
+    const yes = await confirm({
+      title: t('soul.molfarConfirmTitle'),
+      description: names.length ? t('soul.molfarConfirmBody', { names: names.join(', ') }) : t('soul.molfarConfirmMain'),
+      actionLabel: t('soul.molfarSend'),
+    })
+    if (yes) await rateWithMolfar(names)
   }
 
   const taken = new Set([
@@ -461,7 +515,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
         {rating && <CircleNotch className="animate-spin" aria-hidden="true" />}
         {rating ? t('soul.rating') : t('soul.rateNow')}
       </Button>
-      <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateWithMolfar()}>{t('soul.rateMolfar')}</Button>
+      <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateAllWithMolfar()}>{t('soul.rateAllMolfar')}</Button>
     </>
   )
 
@@ -579,6 +633,12 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
             {lockedNow && (
               <Button variant="outline" size="sm" className="rounded-none" onClick={() => void unlock()}>{t('soul.edit')}</Button>
             )}
+            {selName && has(saved, selName) && !blank.has(selName) && (
+              <Button variant="outline" size="sm" className="rounded-none" disabled={rating || ratingName !== null || unavailable} onClick={() => void rateName(selName)}>
+                {ratingName === selName && <CircleNotch className="animate-spin" aria-hidden="true" />}
+                {ratingName === selName ? t('soul.rating') : t('soul.rateAgain')}
+              </Button>
+            )}
             {selName && (
               <Button variant="ghost" size="sm" className="rounded-none text-destructive" onClick={() => void removeSoul()}>
                 <Trash aria-hidden="true" />{t('soul.delete')}
@@ -599,7 +659,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
               {ratingName === selName && <CircleNotch className="animate-spin" aria-hidden="true" />}
               {ratingName === selName ? t('soul.rating') : t('soul.rateThis')}
             </Button>
-            <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateWithMolfar(selName)}>{t('soul.rateMolfar')}</Button>
+            <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateWithMolfar([selName])}>{t('soul.rateMolfar')}</Button>
             <Button variant="outline" size="sm" className="rounded-none" onClick={() => setByHand((h) => new Set(h).add(selName))}>{t('soul.fillByHand')}</Button>
           </div>
         </div>

@@ -335,3 +335,110 @@ export function stableJson(v: unknown): string {
   }
   return JSON.stringify(v) ?? 'null'
 }
+
+// ── proposals laid over the working copy (the Soul tab) ──
+
+/** A proposal as it sits in the working copy: signed by who made it. */
+export function overlaySoul(proposal: Soul, by: string | undefined): Soul {
+  return { ...proposal, ratedBy: by === 'molfar' ? 'molfar' : 'auto' }
+}
+
+/** The soul as it is written to the card: in range, locked, signed by who set it
+ *  (the user once the form was edited, or when nobody signed it). */
+export function finalizeSoul(soul: Soul, edited: boolean): Soul {
+  const out = clampSoul({ ...soul })
+  out.locked = true
+  if (edited || !out.ratedBy) out.ratedBy = 'user'
+  return out
+}
+
+export interface OverlayRefresh {
+  work: SoulMap
+  proposedNames: string[]
+  /** name → stableJson of the proposal that was put into the working copy */
+  overlaidFrom: Record<string, string>
+  /** names that went back to "no soul" (they were blank before the proposal) */
+  reblank: string[]
+  changed: boolean
+}
+
+/** Keeps the proposals already overlaid onto the working copy in step with the newest
+ *  proposal file. For each overlaid name: edited by the user since: left alone; its
+ *  proposal changed: the new one goes in; its proposal is gone (accepted elsewhere,
+ *  dropped as equal to the saved soul, dismissed): back to the saved soul, or to blank,
+ *  or removed, and the name stops being "proposed". `proposals` is empty when the
+ *  draft is not live. Pure: nothing is mutated. */
+export function refreshOverlays(o: {
+  work: SoulMap
+  saved: SoulMap
+  proposals: SoulMap
+  by?: string
+  proposedNames: readonly string[]
+  overlaidFrom: Readonly<Record<string, string>>
+  edited: ReadonlySet<string>
+  wasBlank: ReadonlySet<string>
+}): OverlayRefresh {
+  const work: SoulMap = { ...o.work }
+  const overlaidFrom: Record<string, string> = { ...o.overlaidFrom }
+  const proposedNames: string[] = []
+  const reblank: string[] = []
+  let changed = false
+  for (const name of o.proposedNames) {
+    const proposal = o.proposals[name]
+    if (proposal) {
+      proposedNames.push(name)
+      const key = stableJson(proposal)
+      if (overlaidFrom[name] === undefined) { overlaidFrom[name] = key; changed = true; continue } // adopt what is shown
+      if (overlaidFrom[name] === key || o.edited.has(name)) continue
+      work[name] = overlaySoul(proposal, o.by)
+      overlaidFrom[name] = key
+      changed = true
+      continue
+    }
+    changed = true // the name stops being proposed
+    delete overlaidFrom[name]
+    if (o.edited.has(name)) continue // the user's edits stay as they are
+    const old = o.saved[name]
+    if (old) work[name] = old
+    else if (o.wasBlank.has(name)) { work[name] = {}; reblank.push(name) }
+    else delete work[name]
+  }
+  return { work, proposedNames, overlaidFrom, reblank, changed }
+}
+
+/** The names "Rate all with Molfar" should send: guests and seen names that have no
+ *  soul, no alias match, no minor mark and are not the narrator card's own name. Unique
+ *  case-insensitively, in the order given. */
+export function molfarCandidates(o: {
+  cardName: string
+  cardType: CardType | null
+  guests: readonly string[]
+  seen: readonly string[]
+  /** saved and working souls (one map, or several) */
+  souls: SoulMap | readonly SoulMap[]
+  minor: readonly string[]
+  draft: Pick<SoulDraft, 'characters' | 'minor'> | null
+}): string[] {
+  const skip = new Set<string>()
+  const add = (n: unknown) => { if (typeof n === 'string' && n.trim()) skip.add(n.trim().toLowerCase()) }
+  const addSoulMap = (m: SoulMap | undefined) => {
+    for (const [name, soul] of Object.entries(m ?? {})) {
+      add(name)
+      if (isObj(soul) && Array.isArray(soul.aliases)) soul.aliases.forEach(add)
+    }
+  }
+  for (const m of Array.isArray(o.souls) ? (o.souls as readonly SoulMap[]) : [o.souls as SoulMap]) addSoulMap(m)
+  addSoulMap(o.draft?.characters)
+  o.minor.forEach(add)
+  o.draft?.minor?.forEach(add)
+  if (o.cardType === 'narrator') add(o.cardName)
+  const out: string[] = []
+  for (const raw of [...o.guests, ...o.seen]) {
+    const name = raw.trim()
+    const k = name.toLowerCase()
+    if (!name || skip.has(k)) continue
+    skip.add(k)
+    out.push(name)
+  }
+  return out
+}
