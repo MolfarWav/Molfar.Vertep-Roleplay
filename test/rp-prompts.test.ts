@@ -139,7 +139,8 @@ describe("plugin prompts: English, with a language line where the model writes f
     expect(text).toContain("narrator");
     expect(text).toContain("group");
     expect(text).toContain("assistant");
-    expect(text).toContain("When the message lists souls this card already has, rate those characters again under the same keys");
+    expect(text).toContain("When the message lists souls this card already has, do what the message says about them");
+    expect(text).toContain("Always give cardType.");
   });
 
   it("the summary default", async () => {

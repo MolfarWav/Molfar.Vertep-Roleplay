@@ -22,7 +22,7 @@ Soul tab no longer offers them. Up to 64 strings.
 The card's kind, shown as a badge in the app: `extensions.molfar_card_type`, one of `single`
 (one character), `narrator` (a narrator or game master voicing several characters), `group`
 (a card that is a fixed ensemble), `assistant` (an AI assistant, not a story character),
-`other`. Missing = not set. Set by the user in the editor; a proposal may suggest it.
+`other`. Missing = not set. Set by the user in the editor, or by a proposal when it is missing.
 Only the card editor (tab "Soul") writes this. The plugin reads it and never writes cards.
 
 ## One soul (every field optional; unknown keys are kept)
@@ -76,11 +76,17 @@ A proposal never touches `card.json`. It is one file per card,
 - `by`: `auto` (the plugin's own rating call) or `molfar` (written by Molfar).
 - `minor`: names seen in play that the rating judged minor or the narrator (no soul). Accepting
   the proposal adds them to the card's `minor` list.
-- `cardType`: the rating's guess of the card's kind (values as `molfar_card_type`). Accept all
-  sets it only when the card has none.
+- `cardType`: the rating's guess of the card's kind (values as `molfar_card_type`). When the
+  card has no kind, the Soul tab writes it into the card as soon as the proposal arrives; a kind
+  the card already has is never changed by a proposal.
 - A proposed name that resolves to a soul the card already has (same name in another spelling,
   an alias, a lorebook key, a near-miss) is filed under that soul's key, with the new spelling
   added to its aliases: re-rating updates the saved souls instead of adding twins.
+- A proposed soul whose values (everything but `aliases`, `locked`, `ratedBy`) equal the saved
+  soul is not shown: there is nothing to change.
+- "Rate now" rates only characters with no soul and adds them to a live proposal; a saved soul is
+  rated again only on request ("Rate again" on that soul, `names: [name]`), and only then does the
+  tab compare the new values with the saved ones.
 - `error`: the rating failed; `characters` is empty. The Soul tab shows it with Retry.
 - `dismissedAt`: the user dismissed the proposal; `characters` is empty. Nothing is rated
   automatically for this card again (the "Rate now" button still works).
@@ -106,12 +112,16 @@ go to `aliases`; put seen names that deserve no soul in `minor`. Write `cue`, `c
 
 ## Routes (plugin `relations`)
 
-- `POST /dashboard/soul/rate` with `{ characterId, chatId?, auto? }` → `{ ok, draft }`: rates the
-  card's main characters and writes the proposal file. With `auto: true` it runs only when the
+- `POST /dashboard/soul/rate` with `{ characterId, chatId?, auto?, names? }` → `{ ok, draft, added }`:
+  without `names` rates the card's main characters that have no soul yet and merges them into the
+  proposal file (`added` = the names it proposed, maybe none; a failure leaves a live proposal
+  untouched); with `names` rates those (saved souls too). With `auto: true` it runs only when the
   setting is on and the card has no soul and no proposal file (else `{ skipped: true }`).
-- `GET /dashboard/soul-draft?characterId=<id>` → `{ draft }` (normalized, or `null`).
+- `GET /dashboard/soul-draft?characterId=<id>` → `{ draft }` (normalized, filed under the card's
+  souls, without proposals equal to the saved souls; or `null`).
   `DELETE` the same path dismisses it (writes `dismissedAt`); `DELETE ...&accepted=1` removes the file;
-  `DELETE ...&accepted=1&name=<name>` removes only that name (the file goes when none is left).
+  `DELETE ...&accepted=1&name=<name>` removes that name, matched the same way GET files it, and keeps
+  the rest of the proposal (the file goes when no name is left).
 - `GET /dashboard/guests?characterId=<id>` → `{ guests, seen }`: `seen` = every name the sensor saw
   present in this card's chats, most seen first; `guests` = those seen in at least 2 snapshots with
   no soul (card or live proposal, aliases and transliteration included), not in the card's or the

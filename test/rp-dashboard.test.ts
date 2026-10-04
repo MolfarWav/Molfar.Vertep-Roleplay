@@ -868,6 +868,25 @@ describe("config", () => {
     expect(config(mock).debug).toBe(true);
   });
 
+  it("a stored copy of the previous default soul prompt follows the new default", () => {
+    const mock = mockHost();
+    const past = P.PAST_DEFAULT_PROMPTS.soul as string[];
+    const previous = past[past.length - 1]!;
+    expect(past.length).toBe(3);
+    expect(previous).toContain("rate those characters again under the same keys");
+    expect(P.DEFAULT_PROMPTS.soul).toContain("do what the message says about them");
+    expect(P.DEFAULT_PROMPTS.soul).toContain("Always give cardType.");
+    expect(previous).not.toBe(P.DEFAULT_PROMPTS.soul);
+    fs.mkdirSync(path.join(root, "dashboard"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ soul: previous, debug: true }));
+    expect(config(mock).custom).toEqual([]);
+    expect(config(mock).soul).toBe(P.DEFAULT_PROMPTS.soul);
+    // PUT of a past default stores nothing either
+    fs.rmSync(path.join(root, "dashboard/config.json"));
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { soul: previous } });
+    expect(stored()).toBeNull();
+  });
+
   it("accepts the panel envelope, and the panel switch is the mode", () => {
     const mock = mockHost();
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { enabled: true, values: { sensorModel: "x/y", mode: "sensor", catchUp: "off", sensor: "Panel prompt" } } });
@@ -1882,7 +1901,9 @@ describe("souls", () => {
       const r = rate(again, { characterId: "bram" });
       expect(r.json.ok).toBe(false);
       expect(again.requests.length).toBe(2);
-      expect(r.json.draft.error).toBe("429");
+      // the first rating left a live proposal: a failure writes nothing over it
+      expect(r.json.error).toBe("429");
+      expect(readDraftFile("bram").error).toBeUndefined();
     });
 
     it("400 for a bad id, 404 for a missing card", () => {
@@ -2216,7 +2237,7 @@ describe("souls", () => {
   });
 
   describe("re-keying proposals to saved souls", () => {
-    it("a re-rating with Cyrillic spellings lands under saved souls with aliases added", () => {
+    it("a re-rating on request (names) with Cyrillic spellings lands under saved souls with aliases added", () => {
       writeCard("bram", {
         name: "Bram",
         extensions: {
@@ -2240,9 +2261,10 @@ describe("souls", () => {
       const r = drive(mock, {
         method: "POST",
         path: "/dashboard/soul/rate",
-        body: { characterId: "bram" },
+        body: { characterId: "bram", names: ["Medli", "Marianne"] },
       });
       expect(r.json.ok).toBe(true);
+      expect(r.json.added).toEqual(["Medli", "Marianne", "Kefka"]);
       const draft = readDraftFile("bram");
       expect(Object.keys(draft.characters)).toEqual(["Medli", "Marianne", "Kefka"]);
       expect(draft.characters.Medli.aliases).toContain("Медли");
@@ -2297,7 +2319,8 @@ describe("souls", () => {
         body: { characterId: "bram" },
       });
       expect(r.json.draft.cardType).toBe("narrator");
-      // invalid cardType is dropped
+      // invalid cardType is dropped (the first proposal would give its own cardType to the merge)
+      fs.rmSync(draftFile("bram"));
       const mockBad = mockHost([`{
         "characters": { "Medli": { "class": "ally" } },
         "cardType": "robot"
@@ -2329,6 +2352,129 @@ describe("souls", () => {
         body: { characterId: "bram", names: ["Kefka"] },
       });
       expect(r.json.draft.cardType).toBe("narrator");
+    });
+  });
+
+  describe("settled proposals, removing one name, and Rate now", () => {
+    const savedCard = () =>
+      writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Medli: { ...medli(), locked: true, ratedBy: "user" }, Garrett: { class: "hostile", traits: { dominance: 80 } } } } } });
+    const del = (mock: ReturnType<typeof mockHost>, query: Record<string, string>) => drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram", ...query } });
+    const get = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "GET", path: "/dashboard/soul-draft", query: { characterId: "bram" } }).json.draft;
+
+    it("DELETE of one name goes through the re-keying: the Cyrillic key goes, the other fields stay", () => {
+      savedCard();
+      writeDraft("bram", { v: 1, at: 5, by: "molfar", model: "m/x", note: "n", cardType: "narrator", minor: ["стражник"], characters: { Медли: { class: "ally" }, Chandra: { class: "neutral" } } });
+      const mock = mockHost();
+      expect(get(mock).characters).toHaveProperty("Medli");
+      expect(del(mock, { accepted: "1", name: "Medli" }).json).toEqual({ ok: true });
+      expect(readDraftFile("bram")).toEqual({ v: 1, at: 5, by: "molfar", model: "m/x", note: "n", cardType: "narrator", minor: ["стражник"], characters: { Chandra: { class: "neutral" } } });
+      // the last name takes the file with it
+      expect(del(mock, { accepted: "1", name: "chandra" }).json.ok).toBe(true);
+      expect(fs.existsSync(draftFile("bram"))).toBe(false);
+    });
+
+    it("DELETE of one name removes twins (a name and its other spelling)", () => {
+      savedCard();
+      writeDraft("bram", { v: 1, at: 5, by: "auto", characters: { Medli: { class: "ally" }, Медли: { class: "romantic" } } });
+      const mock = mockHost();
+      del(mock, { accepted: "1", name: "Medli" });
+      expect(fs.existsSync(draftFile("bram"))).toBe(false);
+      writeDraft("bram", { v: 1, at: 5, by: "auto", characters: { Medli: { class: "ally" }, Медли: { class: "romantic" }, Isolde: { class: "ally" } } });
+      del(mock, { accepted: "1", name: "Medli" });
+      expect(Object.keys(readDraftFile("bram").characters)).toEqual(["Isolde"]);
+    });
+
+    it("GET drops a proposal that equals the saved soul, and keeps one that differs", () => {
+      savedCard();
+      const same = { ...medli(), aliases: ["Medli alt"], ratedBy: "molfar", extra: 1, spectra: Object.fromEntries(Object.entries(SPECTRA).reverse()) };
+      writeDraft("bram", { v: 1, at: 5, by: "auto", note: "n", characters: { Medli: same, Garrett: { class: "hostile", traits: { dominance: 70 } }, Chandra: {} } });
+      const mock = mockHost();
+      const d = get(mock);
+      expect(Object.keys(d.characters)).toEqual(["Garrett", "Chandra"]);
+      expect(d.note).toBe("n");
+      // the file is not rewritten, and the same through another spelling
+      expect(Object.keys(readDraftFile("bram").characters)).toEqual(["Medli", "Garrett", "Chandra"]);
+      writeDraft("bram", { v: 1, at: 5, by: "auto", characters: { Медли: same } });
+      expect(get(mock).characters).toEqual({});
+      // missing class and pronouns count as neutral and they
+      writeDraft("bram", { v: 1, at: 5, by: "auto", characters: { Garrett: { class: "hostile", pronouns: "they", traits: { dominance: 80 } } } });
+      expect(get(mock).characters).toEqual({});
+    });
+
+    it("Rate now rates only characters with no soul: another spelling and a minor name of a saved soul are dropped", () => {
+      savedCard();
+      const mock = mockHost([reply({ characters: { Медли: { class: "romantic", pronouns: "she" }, Chandra: { class: "ally" } }, minor: ["Medli", "стражник"], note: "n" })]);
+      const r = rate(mock, { characterId: "bram" });
+      expect(r.json).toMatchObject({ ok: true, added: ["Chandra"] });
+      const d = readDraftFile("bram");
+      expect(Object.keys(d.characters)).toEqual(["Chandra"]);
+      expect(d.minor).toEqual(["стражник"]);
+      expect(r.json.draft).toEqual(d);
+      const sent = mock.requests[0]!.req.messages[0].content as string;
+      expect(sent).toContain("do not rate them again");
+      expect(sent).toContain("Medli (aliases: Медли)");
+      expect(sent).not.toContain("reuse these exact keys");
+    });
+
+    it("Rate now keeps a live proposal and adds to it", () => {
+      savedCard();
+      const old = { v: 1, at: 5, by: "molfar", note: "re-rating", minor: ["Guard"], characters: { Medli: { class: "romantic", pronouns: "she" } } };
+      writeDraft("bram", old);
+      const mock = mockHost([reply({ characters: { Chandra: { class: "ally" }, Медли: { class: "hostile" } }, minor: ["Cook"] })]);
+      const r = rate(mock, { characterId: "bram" });
+      expect(r.json).toMatchObject({ ok: true, added: ["Chandra"] });
+      const d = readDraftFile("bram");
+      expect(Object.keys(d.characters).sort()).toEqual(["Chandra", "Medli"]);
+      expect(d.characters.Medli).toMatchObject(old.characters.Medli);
+      expect(d.minor).toEqual(["Guard", "Cook"]);
+      expect(Object.keys(r.json.draft.characters).sort()).toEqual(["Chandra", "Medli"]);
+    });
+
+    it("Rate now that fails leaves a live proposal untouched; without one the error is filed", () => {
+      savedCard();
+      writeDraft("bram", { v: 1, at: 5, by: "molfar", characters: { Medli: { class: "romantic" } } });
+      const before = fs.readFileSync(draftFile("bram"), "utf8");
+      const mock = mockHost([{ error: "model unavailable" }, "not json at all"]);
+      const r = rate(mock, { characterId: "bram" });
+      expect(r.json).toEqual({ ok: false, error: "model unavailable" });
+      expect(fs.readFileSync(draftFile("bram"), "utf8")).toBe(before);
+      expect(rate(mock, { characterId: "bram" }).json.ok).toBe(false);
+      expect(fs.readFileSync(draftFile("bram"), "utf8")).toBe(before);
+      // a dismissed file is no live proposal: the error is filed over it
+      writeDraft("bram", { v: 1, at: 5, by: "auto", characters: {}, dismissedAt: 7 });
+      mock.push({ error: "model unavailable" });
+      const again = rate(mock, { characterId: "bram" });
+      expect(again.json.ok).toBe(false);
+      expect(again.json.draft.error).toBe("model unavailable");
+      expect(readDraftFile("bram").error).toBe("model unavailable");
+    });
+
+    it("Rate now that finds only saved souls writes nothing", () => {
+      savedCard();
+      const mock = mockHost([reply({ characters: { Медли: { class: "romantic" }, Garrett: { class: "ally" } }, minor: ["Medli"] })]);
+      const r = rate(mock, { characterId: "bram" });
+      expect(r.json).toEqual({ ok: true, added: [], draft: null });
+      expect(fs.existsSync(draftFile("bram"))).toBe(false);
+    });
+
+    it("Rate now on a card with no souls still files the proposal, even an empty one", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost([reply({ characters: {}, minor: ["Narrator"], cardType: "narrator", note: "Only a narrator." })]);
+      const r = rate(mock, { characterId: "bram" });
+      expect(r.json).toMatchObject({ ok: true, added: [] });
+      expect(readDraftFile("bram")).toMatchObject({ characters: {}, minor: ["Narrator"], cardType: "narrator", note: "Only a narrator." });
+    });
+
+    it("rating by names still re-rates a saved soul, under its key, and keeps the old wording", () => {
+      savedCard();
+      const mock = mockHost([reply({ characters: { Медли: { class: "romantic", pronouns: "she" } } })]);
+      const r = rate(mock, { characterId: "bram", names: ["Medli"] });
+      expect(r.json).toMatchObject({ ok: true, added: ["Medli"] });
+      expect(r.json.draft.characters.Medli.class).toBe("romantic");
+      expect(readDraftFile("bram").characters.Medli.aliases).toContain("Медли");
+      const sent = mock.requests[0]!.req.messages[0].content as string;
+      expect(sent).toContain("reuse these exact keys");
+      expect(sent).not.toContain("do not rate them again");
     });
   });
 });

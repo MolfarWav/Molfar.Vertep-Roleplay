@@ -23,7 +23,7 @@
  * Souls (docs/SOUL.md): who a character is. A card holds them; a rating call proposes them.
  *  POST   /dashboard/soul/rate {characterId, chatId?, auto?}  rate a card's main characters (two-phase)
  *  GET    /dashboard/soul-draft?characterId=                  the proposal of a card, or null
- *  DELETE /dashboard/soul-draft?characterId=[&accepted=1]     dismiss it, or remove it once accepted
+ *  DELETE /dashboard/soul-draft?characterId=[&accepted=1[&name=]]  dismiss it, or remove it (or one name) once accepted
  *  GET    /dashboard/guests?characterId=                      names seen in the card's chats with no soul
  *  POST   /dashboard/soul/effects {soul}                      what a soul changes in play
  *
@@ -207,6 +207,23 @@ const SOUL_PROMPT_2 = [
   "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
 ].join("\n");
 
+// The third soul rating prompt (it told the model to rate listed souls again under the same keys).
+const SOUL_PROMPT_3 = [
+  "You read a roleplay card and its lorebook and rate its main characters for a relationship tracker.",
+  "Rate only recurring characters the sources describe as people with a name and a personality of their own: the card's own character, and for a narrator card the main named characters its story is about. Skip the narrator itself, the user's character (the player, \"you\", {{user}}), and minor figures: unnamed or one-scene people such as guards, servants, merchants and passers-by. At most six characters; fewer is fine; none when no one fits.",
+  "Judge from what the sources say, not from stereotypes. When the sources say nothing about a quality, use 50 (no lean) for a trait or a spectrum.",
+  "- class: how the character relates to the user at the start: romantic (a love interest), ally, neutral or hostile.",
+  "- start: how the character feels about the user when the story begins, as the card and its first message set it up (a sworn advisor or an old friend already trusts and respects the user; a rival or a captor distrusts them; a stranger stays near 0). Numbers from -20 to 20; leave a stat out only when the sources give it no lean.",
+  "- traits, 0 to 100: dominance, confidence, shyness, patience, curiosity.",
+  "- spectra, 0 to 100 (0 = the first word, 100 = the second): introvert_extrovert, cautious_reckless, reserved_emotional, lawful_rebellious, suspicious_trusting, pessimist_optimist.",
+  "- triggers: up to four things that hurt this character more than most people; values: up to four things they prize. Each names one event id from the list below, the stat it hits, and x = 1.5 (strong) or 2 (very strong); cue is a few words.",
+  "- coping: one short line on how they behave under strain.",
+  "- pronouns: she, he or they. aliases: other spellings of the name the sources use.",
+  "- cardType: what the card is: single (one character), narrator (a narrator or game master voicing several characters), group (a fixed ensemble), assistant (an AI assistant, not a story character) or other.",
+  "- Names: the message lists the names already seen in this card's chats with counts. Key each soul by the spelling those chats use; put other spellings of the same character (another script, a transliteration, a nickname) in aliases. When the message lists souls this card already has, rate those characters again under the same keys; a name that is the same character in another spelling is not a new character. Put every seen name that gets no soul (a minor figure, the narrator, the user) in minor. A name seen only once and not described in the card or lorebook is minor.",
+  "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
+].join("\n");
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -260,13 +277,13 @@ export const DEFAULT_PROMPTS = {
     "- triggers: up to four things that hurt this character more than most people; values: up to four things they prize. Each names one event id from the list below, the stat it hits, and x = 1.5 (strong) or 2 (very strong); cue is a few words.",
     "- coping: one short line on how they behave under strain.",
     "- pronouns: she, he or they. aliases: other spellings of the name the sources use.",
-    "- cardType: what the card is: single (one character), narrator (a narrator or game master voicing several characters), group (a fixed ensemble), assistant (an AI assistant, not a story character) or other.",
-    "- Names: the message lists the names already seen in this card's chats with counts. Key each soul by the spelling those chats use; put other spellings of the same character (another script, a transliteration, a nickname) in aliases. When the message lists souls this card already has, rate those characters again under the same keys; a name that is the same character in another spelling is not a new character. Put every seen name that gets no soul (a minor figure, the narrator, the user) in minor. A name seen only once and not described in the card or lorebook is minor.",
+    "- cardType: what the card is: single (one character), narrator (a narrator or game master voicing several characters), group (a fixed ensemble), assistant (an AI assistant, not a story character) or other. Always give cardType.",
+    "- Names: the message lists the names already seen in this card's chats with counts. Key each soul by the spelling those chats use; put other spellings of the same character (another script, a transliteration, a nickname) in aliases. When the message lists souls this card already has, do what the message says about them; a name that is the same character in another spelling is not a new character. Put every seen name that gets no soul (a minor figure, the narrator, the user) in minor. A name seen only once and not described in the card or lorebook is minor.",
     "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
   ].join("\n"),
 };
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -639,6 +656,15 @@ function withSoulNames(souls, names) {
   return list;
 }
 
+/** name -> the key of the saved soul that name stands for (spelling, alias, lorebook key, near-miss), or undefined. */
+function savedKeyResolver(fsx, cardId, own) {
+  const lookup = withLorebookAliases(fsx, own, [cardId], []);
+  return (name) => {
+    const hit = soulOf(lookup, name);
+    return hit ? Object.keys(lookup).find((k) => lookup[k] === hit) : undefined;
+  };
+}
+
 /**
  * A proposal filed under the souls the card already has: a proposed name that
  * resolves to a saved soul (spelling, alias, lorebook key, near-miss) takes that
@@ -650,11 +676,7 @@ function rekeyToCard(card, draft, fsx, cardId) {
   if (!draft || !isObj(draft.characters) || !Object.keys(draft.characters).length) return draft;
   const own = cardSoulsOf(card);
   if (!Object.keys(own).length) return draft;
-  const lookup = withLorebookAliases(fsx, own, [cardId], []);
-  const keyOf = (name) => {
-    const hit = soulOf(lookup, name);
-    return hit ? Object.keys(lookup).find((k) => lookup[k] === hit) : undefined;
-  };
+  const keyOf = savedKeyResolver(fsx, cardId, own);
   const out = {};
   for (const [name, soul] of Object.entries(draft.characters)) {
     const key = keyOf(name) || name;
@@ -779,6 +801,44 @@ function cardSoulsOf(card) {
   const out = {};
   if (isObj(found)) for (const [n, soul] of Object.entries(found)) if (isObj(soul)) out[n] = soul;
   return out;
+}
+
+// the value keys of a soul that a proposal can differ in
+const SOUL_VALUE_KEYS = ["start", "traits", "spectra", "triggers", "values", "coping", "pulseBase"];
+
+/** JSON with the keys of every object sorted, so equal values give equal text. */
+function canonJson(v) {
+  if (Array.isArray(v)) return "[" + v.map(canonJson).join(",") + "]";
+  if (isObj(v)) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonJson(v[k])).join(",") + "}";
+  return JSON.stringify(v === undefined ? null : v);
+}
+
+/** What a soul says, as text: no aliases, locked, ratedBy or unknown keys; a missing class is neutral, missing pronouns they. */
+function soulValuesOf(raw) {
+  const soul = normalizeSoul(raw);
+  const out = { class: soul.class || "neutral", pronouns: soul.pronouns || "they" };
+  for (const k of SOUL_VALUE_KEYS) if (soul[k] !== undefined) out[k] = soul[k];
+  return canonJson(out);
+}
+
+/** The proposal without the characters that equal the soul the card already saved under that key. A copy. */
+function withoutSettled(card, draft) {
+  if (!draft || !isObj(draft.characters)) return draft;
+  const own = cardSoulsOf(card);
+  const characters = {};
+  for (const [name, soul] of Object.entries(draft.characters)) {
+    const saved = Object.prototype.hasOwnProperty.call(own, name) ? own[name] : null;
+    if (saved && soulValuesOf(saved) === soulValuesOf(soul)) continue;
+    characters[name] = soul;
+  }
+  return { ...draft, characters };
+}
+
+/** What the proposal route shows: the file, filed under the card's souls, without what the card already says. */
+function visibleDraft(fsx, cardId, card) {
+  const draft = readDraft(fsx, cardId);
+  if (!draft || !isObj(card)) return draft;
+  return withoutSettled(card, rekeyToCard(card, draft, fsx, cardId));
 }
 
 /** The names a card marks as minor: no soul on purpose. */
@@ -1565,7 +1625,14 @@ function soulUser(fsx, cardId, opts) {
       const aliases = arr(soul.aliases).join(", ");
       soulLines.push(key + (aliases ? " (aliases: " + aliases + ")" : ""));
     }
-    if (soulLines.length) sections.push("Souls this card already has (reuse these exact keys; add other spellings to aliases): " + soulLines.join(", "));
+    if (soulLines.length) {
+      const list = soulLines.join(", ");
+      sections.push(
+        Array.isArray(o.rateNames) && o.rateNames.length
+          ? "Souls this card already has (reuse these exact keys; add other spellings to aliases): " + list
+          : "These characters already have souls: do not rate them again and do not list them in characters or minor; other spellings of these names are the same characters: " + list,
+      );
+    }
   }
   // names seen in chats with counts
   const nameCounts = new Map();
@@ -1637,7 +1704,7 @@ function draftFromReply(reply) {
 /** Merge new draft into existing live proposal, keeping unrelated characters and unioning minor. */
 function mergeDraft(existing, newDraft) {
   if (!existing || existing.error || existing.dismissedAt) return newDraft;
-  const merged = { ...newDraft };
+  const merged = { ...newDraft, characters: { ...newDraft.characters } };
   // union characters: keep old characters not in newDraft, add new ones
   const oldChars = isObj(existing.characters) ? existing.characters : {};
   for (const [name, soul] of Object.entries(oldChars)) {
@@ -1653,6 +1720,7 @@ function mergeDraft(existing, newDraft) {
   return merged;
 }
 
+// Only the first-update rating uses this: it runs for a card with no souls (needsRating), so nothing saved is there to drop.
 function saveRated(fsx, cardId, reply) {
   const draft = draftFromReply(reply);
   const card = readCard(fsx, cardId);
@@ -2179,7 +2247,8 @@ function rateRoute(req, host) {
   const chat = CHAT_ID.test(chatId) ? readChat(fsx, chatId) : null;
   const cfg = loadConfig(fsx);
   // names parameter: extract and clean
-  const names = Array.isArray(b.names) ? b.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : undefined;
+  const cleaned = Array.isArray(b.names) ? b.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : [];
+  const names = cleaned.length ? cleaned : undefined;
   // with names, treat auto: true as not auto (the button asked for it)
   const isAuto = parseBool(b.auto) === true && !names;
   if (isAuto && !needsRating(fsx, cardId, cfg)) return ok({ skipped: true });
@@ -2194,18 +2263,50 @@ function rateRoute(req, host) {
     askSoul(host, cfg, cardId, chat ? chat.meta : null, "soul_rate_retry", { names });
     return { __llmPending: true, stash: { retry: true, names } };
   }
-  if (!names) {
-    const draft = saveRated(fsx, cardId, r);
-    return ok({ ok: !draft.error, draft });
-  }
-  // rating a few names never spoils the proposal that is there: a failure writes nothing
-  const fresh = draftFromReply(r);
-  if (fresh.error) return ok({ ok: false, error: fresh.error });
-  const draft = mergeDraft(readDraft(fsx, cardId), fresh);
   const card = readCard(fsx, cardId);
-  const rekeyed = isObj(card) ? rekeyToCard(card, draft, fsx, cardId) : draft;
+  const fresh = draftFromReply(r);
+  if (!names) return rateNow(fsx, cardId, card, fresh);
+  // rating a few names never spoils the proposal that is there: a failure writes nothing
+  if (fresh.error) return ok({ ok: false, error: fresh.error });
+  const added = Object.keys(rekeyToCard(card, fresh, fsx, cardId).characters);
+  const draft = mergeDraft(readDraft(fsx, cardId), fresh);
+  const rekeyed = rekeyToCard(card, draft, fsx, cardId);
   fsx.write(draftPath(cardId), JSON.stringify(rekeyed, null, 2));
-  return ok({ ok: true, draft: rekeyed });
+  return ok({ ok: true, added, draft: withoutSettled(card, rekeyed) });
+}
+
+/**
+ * "Rate now": rates only the characters the card has no soul for. A saved soul is
+ * re-rated only on request (names). A live proposal is kept and added to; a
+ * failure never spoils it.
+ */
+function rateNow(fsx, cardId, card, fresh) {
+  const old = readDraft(fsx, cardId);
+  const live = old && !old.error && !old.dismissedAt && Object.keys(old.characters).length ? old : null;
+  if (fresh.error) {
+    if (live) return ok({ ok: false, error: fresh.error });
+    fsx.write(draftPath(cardId), JSON.stringify(fresh, null, 2));
+    return ok({ ok: false, draft: fresh });
+  }
+  const own = cardSoulsOf(card);
+  const saved = Object.keys(own);
+  const rekeyed = rekeyToCard(card, fresh, fsx, cardId);
+  const keyOf = savedKeyResolver(fsx, cardId, own);
+  const characters = {};
+  for (const [name, soul] of Object.entries(rekeyed.characters)) if (!saved.includes(name)) characters[name] = soul;
+  const next = { ...rekeyed, characters };
+  if (Array.isArray(rekeyed.minor)) {
+    const minor = rekeyed.minor.filter((n) => !keyOf(n));
+    if (minor.length) next.minor = minor;
+    else delete next.minor;
+  }
+  const added = Object.keys(characters);
+  // nothing new: a live proposal stays as it is (its author, note and time); a card with no souls
+  // and no proposal still gets the file, empty or not: its note, minor and cardType, and "rated"
+  if (!added.length && (live || saved.length)) return ok({ ok: true, added, draft: visibleDraft(fsx, cardId, card) });
+  const merged = mergeDraft(live ? rekeyToCard(card, live, fsx, cardId) : null, next);
+  fsx.write(draftPath(cardId), JSON.stringify(merged, null, 2));
+  return ok({ ok: true, added, draft: withoutSettled(card, merged) });
 }
 
 /** GET returns the proposal of a card; DELETE dismisses it, or removes it once accepted. */
@@ -2214,29 +2315,25 @@ function draftRoute(req, fsx) {
   const cardId = String(q.characterId || "");
   if (!CHAT_ID.test(cardId)) return ok({ error: "characterId required" }, 400);
   if (req.method === "GET") {
-    const draft = readDraft(fsx, cardId);
-    const card = readCard(fsx, cardId);
-    const rekeyed = draft && isObj(card) ? rekeyToCard(card, draft, fsx, cardId) : draft;
-    return ok({ draft: rekeyed });
+    return ok({ draft: visibleDraft(fsx, cardId, readCard(fsx, cardId)) });
   }
   const name = str(q.name);
   if (parseBool(q.accepted) === true) {
     if (name) {
-      // remove only that name from the proposal
+      // remove only that name, as the proposal is shown: filed under the card's souls
       const old = readDraft(fsx, cardId);
       if (old && isObj(old.characters)) {
-        delete old.characters[name];
-        if (Object.keys(old.characters).length === 0) {
+        const card = readCard(fsx, cardId);
+        const rekeyed = isObj(card) ? rekeyToCard(card, old, fsx, cardId) : old;
+        const low = name.toLowerCase();
+        const remaining = {};
+        for (const [k, soul] of Object.entries(rekeyed.characters)) if (k.toLowerCase() !== low) remaining[k] = soul;
+        if (Object.keys(remaining).length === 0) {
           try {
             fsx.remove(draftPath(cardId));
           } catch {}
         } else {
-          const next = { v: 1, at: old.at || Date.now(), by: old.by || "auto" };
-          if (str(old.model)) next.model = old.model;
-          if (str(old.note)) next.note = old.note;
-          if (Array.isArray(old.minor)) next.minor = old.minor;
-          next.characters = old.characters;
-          fsx.write(draftPath(cardId), JSON.stringify(next, null, 2));
+          fsx.write(draftPath(cardId), JSON.stringify({ ...rekeyed, characters: remaining }, null, 2));
         }
       }
     } else {
