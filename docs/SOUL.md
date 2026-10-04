@@ -18,6 +18,11 @@ several souls: a narrator card keeps one per NPC, keyed by the name the story us
 spelling its chats use; other spellings and transliterations go to `aliases`).
 `minor`: names seen in play that get no soul on purpose (minor figures, the narrator); the
 Soul tab no longer offers them. Up to 64 strings.
+
+The card's kind, shown as a badge in the app: `extensions.molfar_card_type`, one of `single`
+(one character), `narrator` (a narrator or game master voicing several characters), `group`
+(a card that is a fixed ensemble), `assistant` (an AI assistant, not a story character),
+`other`. Missing = not set. Set by the user in the editor; a proposal may suggest it.
 Only the card editor (tab "Soul") writes this. The plugin reads it and never writes cards.
 
 ## One soul (every field optional; unknown keys are kept)
@@ -71,6 +76,11 @@ A proposal never touches `card.json`. It is one file per card,
 - `by`: `auto` (the plugin's own rating call) or `molfar` (written by Molfar).
 - `minor`: names seen in play that the rating judged minor or the narrator (no soul). Accepting
   the proposal adds them to the card's `minor` list.
+- `cardType`: the rating's guess of the card's kind (values as `molfar_card_type`). Accept all
+  sets it only when the card has none.
+- A proposed name that resolves to a soul the card already has (same name in another spelling,
+  an alias, a lorebook key, a near-miss) is filed under that soul's key, with the new spelling
+  added to its aliases: re-rating updates the saved souls instead of adding twins.
 - `error`: the rating failed; `characters` is empty. The Soul tab shows it with Retry.
 - `dismissedAt`: the user dismissed the proposal; `characters` is empty. Nothing is rated
   automatically for this card again (the "Rate now" button still works).
