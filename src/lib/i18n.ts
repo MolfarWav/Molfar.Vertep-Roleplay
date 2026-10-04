@@ -212,6 +212,20 @@ const en = {
   'soul.deleted': 'Soul deleted',
   'soul.proposalDot': 'A proposal is waiting',
   'soul.notice': 'Souls proposed for {n} characters of {card}',
+  'soul.noSoul': 'no soul',
+  'soul.notRated': 'Not rated yet',
+  'soul.notRatedHint': 'Rate this character, or fill in the values by hand.',
+  'soul.rateThis': 'Rate this character',
+  'soul.fillByHand': 'Fill in by hand',
+  'soul.chooseModel': 'Choose another model',
+  'soul.sensorModel': 'Sensor model: {model}',
+  'soul.chatModel': 'the chat\'s model',
+  'soul.failedModel': 'Failed on: {model}',
+  'soul.searchModels': 'Search models…',
+  'soul.noModels': 'No models.',
+  'soul.rateEmpty': 'The model returned no soul for {name}.',
+  'soul.noticeFailed': 'Rating souls for «{card}» failed: {reason}',
+  'soul.open': 'Open',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -420,6 +434,20 @@ const uk: Record<MsgKey, string> = {
   'soul.deleted': 'Душу видалено',
   'soul.proposalDot': 'Є пропозиція',
   'soul.notice': 'Душі запропоновано для {n} персонажів картки «{card}»',
+  'soul.noSoul': 'без душі',
+  'soul.notRated': 'Ще не оцінено',
+  'soul.notRatedHint': 'Оціни цього персонажа або заповни значення вручну.',
+  'soul.rateThis': 'Оцінити цього персонажа',
+  'soul.fillByHand': 'Заповнити вручну',
+  'soul.chooseModel': 'Обрати іншу модель',
+  'soul.sensorModel': 'Модель сенсора: {model}',
+  'soul.chatModel': 'модель чату',
+  'soul.failedModel': 'Не вдалося на: {model}',
+  'soul.searchModels': 'Шукати моделі…',
+  'soul.noModels': 'Моделей немає.',
+  'soul.rateEmpty': 'Модель не повернула душу для {name}.',
+  'soul.noticeFailed': 'Оцінка душ для «{card}» не вдалася: {reason}',
+  'soul.open': 'Відкрити',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

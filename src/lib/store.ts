@@ -321,7 +321,8 @@ export async function checkSoulProposals(chatId: ID) {
         `/dashboard/soul-draft?characterId=${encodeURIComponent(cardId)}`,
       )
       const n = draft?.characters ? Object.keys(draft.characters).length : 0
-      if (!draft || draft.dismissedAt || draft.error || n === 0) continue
+      const failed = !!draft && !draft.dismissedAt && typeof draft.error === 'string' && draft.error !== ''
+      if (!draft || draft.dismissedAt || (!failed && n === 0)) continue
       const at = Number(draft.at) || 0
       const key = `rp.soulDraftSeen.${cardId}`
       let seen = soulSeenMem.get(cardId) ?? 0
@@ -330,6 +331,14 @@ export async function checkSoulProposals(chatId: ID) {
       soulSeenMem.set(cardId, at)
       try { localStorage.setItem(key, String(at)) } catch { /* storage unavailable */ }
       const card = st.characters.find((c) => c.id === cardId)?.name ?? ''
+      if (failed) {
+        const reason = String(draft.error).replace(/\s+/g, ' ').slice(0, 120)
+        toast.warning(t('soul.noticeFailed', lang, { card, reason }), {
+          duration: 15_000,
+          action: { label: t('soul.open', lang), onClick: () => useApp.getState().openCharacterOnTab(cardId, 'soul') },
+        })
+        continue
+      }
       toast(t('soul.notice', lang, { n, card }), {
         duration: 15_000,
         action: { label: t('soul.review', lang), onClick: () => useApp.getState().openCharacterOnTab(cardId, 'soul') },

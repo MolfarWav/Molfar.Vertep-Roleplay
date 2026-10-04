@@ -22,6 +22,7 @@ import type { Character } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { SoulForm, type VocabEvent } from './soul-form'
 import { SoulGuests } from './soul-guests'
+import { SoulModelPicker } from './soul-model-picker'
 import type { Effect } from './effect-text'
 
 const CLASS_COLORS: Record<SoulClass, string> = {
@@ -63,6 +64,11 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const [proposedNames, setProposedNames] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  // souls that are not rated yet (a blank "Give a soul", "+ Add", or one just deleted) and the ones whose form was opened by hand
+  const [blank, setBlank] = useState<Set<string>>(new Set())
+  const [byHand, setByHand] = useState<Set<string>>(new Set())
+  const [ratingName, setRatingName] = useState<string | null>(null)
+  const [sensorModel, setSensorModel] = useState('')
   const [newName, setNewName] = useState('')
 
   const [draft, setDraft] = useState<SoulDraft | null>(null)
@@ -76,7 +82,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const effectsReq = useRef(0)
 
   // a soul is unsaved when its working copy differs from the saved one
-  const dirtyOf = (name: string) => has(work, name) && stableJson(work[name]) !== stableJson(saved[name])
+  const dirtyOf = (name: string) => has(work, name) && !blank.has(name) && stableJson(work[name]) !== stableJson(saved[name])
   const dirtyNames = Object.keys(work).filter(dirtyOf)
 
   // the card changed under us (an import, an accepted proposal, the same card in
@@ -129,7 +135,8 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   useEffect(() => {
     void loadDraft()
     void loadGuests()
-    void j<{ events?: VocabEvent[] }>('/dashboard/config')
+    void j<{ events?: VocabEvent[]; sensorModel?: unknown }>('/dashboard/config')
+      .then((r) => { setSensorModel(typeof r.sensorModel === 'string' ? r.sensorModel : ''); return r })
       .then((r) => setEvents(Array.isArray(r.events)
         ? r.events.filter((e) => e && typeof e.id === 'string').map((e) => ({ id: e.id, family: String(e.family ?? ''), meaning: e.meaning }))
         : null))
@@ -181,6 +188,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   // ── working copy ──
   const patchSoul = (name: string, fn: (s: Soul) => Soul) => {
     edited.current.add(name)
+    setBlank((b) => { if (!b.has(name)) return b; const next = new Set(b); next.delete(name); return next })
     setWork((w) => ({ ...w, [name]: fn(w[name] ?? {}) }))
   }
 
@@ -192,6 +200,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     if (!has(work, name)) {
       edited.current.add(name)
       setWork((w) => ({ ...w, [name]: {} }))
+      setBlank((b) => new Set(b).add(name))
     }
     setSelected(name)
   }
@@ -210,6 +219,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const review = () => {
     setWork((w) => overlay(w))
     setProposedNames(pendingNames)
+    setBlank((b) => new Set([...b].filter((n) => !pendingNames.includes(n))))
     if (!selName && pendingNames[0]) setSelected(pendingNames[0])
   }
 
@@ -225,6 +235,8 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     for (const n of names) edited.current.delete(n)
     setUnlocked((u) => { const next = new Set(u); for (const n of names) next.delete(n); return next })
     setProposedNames((p) => p.filter((n) => !names.includes(n)))
+    setBlank((b) => new Set([...b].filter((n) => !names.includes(n))))
+    setByHand((h) => new Set([...h].filter((n) => !names.includes(n))))
   }
 
   const dropDraft = async (accepted: boolean, name?: string) => {
@@ -282,20 +294,29 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
 
   const removeSoul = async () => {
     if (!selName) return
+    const name = selName
+    if (blank.has(name)) { // nothing was rated: just take the chip away
+      forget([name])
+      setWork((w) => { const next = { ...w }; delete next[name]; return next })
+      setSelected(null)
+      return
+    }
     const yes = await confirm({
-      title: t('soul.deleteTitle', { name: selName }),
+      title: t('soul.deleteTitle', { name }),
       description: t('soul.deleteBody'),
       actionLabel: t('soul.delete'),
     })
     if (!yes) return
-    if (has(saved, selName)) {
-      const { [selName]: _gone, ...rest } = saved
+    if (has(saved, name)) {
+      const { [name]: _gone, ...rest } = saved
       updateCharacter(c.id, withSouls(c, rest))
       toast.success(t('soul.deleted'))
     }
-    forget([selName])
-    setWork((w) => { const next = { ...w }; delete next[selName]; return next })
-    setSelected(null)
+    forget([name])
+    // the character stays in the row as "no soul", so it can be rated again
+    setWork((w) => ({ ...w, [name]: {} }))
+    setBlank((b) => new Set(b).add(name))
+    setSelected(name)
   }
 
   const unlock = async () => {
@@ -318,8 +339,43 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     }
   }
 
-  const rateWithMolfar = async () => {
-    const withoutSoul = [...new Set([...guests, ...seen.filter((n) => !has(work, n))])].filter((n) => !minor.some((m) => m.toLowerCase() === n.toLowerCase()))
+  /** Rate one character: its result is merged into the proposal and shown for review. */
+  const rateName = async (name: string) => {
+    setRatingName(name)
+    try {
+      const r = await j<{ ok?: boolean; error?: string }>('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id, names: [name] }) })
+      if (r.ok === false) { toast.error(r.error || t('soul.ratingFailed')); await loadDraft(); return }
+      const fresh = await j<{ draft?: unknown }>(`/dashboard/soul-draft?characterId=${encodeURIComponent(c.id)}`)
+      const next = normalizeDraft(fresh.draft)
+      setDraft(next)
+      const proposal = next && !next.dismissedAt && !next.error ? next.characters[name] : undefined
+      if (!proposal) { toast.error(t('soul.rateEmpty', { name })); return }
+      setWork((w) => ({ ...w, [name]: { ...proposal, ratedBy: next?.by === 'molfar' ? 'molfar' : 'auto' } }))
+      setBlank((b) => { const n2 = new Set(b); n2.delete(name); return n2 })
+      setProposedNames((p) => (p.includes(name) ? p : [...p, name]))
+      setSelected(name)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setUnavailable(true)
+      else toast.error(errMsg(e))
+    } finally {
+      setRatingName(null)
+    }
+  }
+
+  /** "Choose another model": the pick becomes the dashboard's sensor model, then the rating runs again. */
+  const pickSensorModel = async (ref: string) => {
+    try {
+      await j('/dashboard/config', { method: 'PUT', body: JSON.stringify({ sensorModel: ref }) })
+      setSensorModel(ref)
+    } catch (e) {
+      toast.error(errMsg(e))
+      return
+    }
+    await rateNow()
+  }
+
+  const rateWithMolfar = async (only?: string) => {
+    const withoutSoul = only ? [only] : [...new Set([...guests, ...seen.filter((n) => !has(work, n))])].filter((n) => !minor.some((m) => m.toLowerCase() === n.toLowerCase()))
     // chats carry no lorebook list in the store: the card's own books plus the global ones
     // are what the engine scans for every chat of this card
     const books = [...new Set([
@@ -354,6 +410,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
 
   const giveSoul = (name: string) => {
     edited.current.add(name)
+    if (!has(work, name)) setBlank((b) => new Set(b).add(name))
     setWork((w) => (has(w, name) ? w : { ...w, [name]: {} }))
     setSelected(name)
   }
@@ -412,9 +469,18 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
         </div>
       )}
       {failed && draft && (
-        <div className="flex flex-wrap items-center gap-2 border border-destructive/50 bg-destructive/10 p-3 text-xs" role="alert">
-          <span className="min-w-0 flex-1 break-words"><b>{t('soul.ratingFailed')}</b> {draft.error}</span>
-          <Button variant="outline" size="sm" className="rounded-none" disabled={rating || unavailable} onClick={() => void rateNow()}>{t('soul.retry')}</Button>
+        <div className="flex flex-col gap-2 border border-destructive/50 bg-destructive/10 p-3 text-xs" role="alert">
+          <div className="min-w-0 break-words">
+            <b>{t('soul.ratingFailed')}</b> {draft.error}
+            {draft.model && <p className="mt-1 font-mono text-[11px] text-muted-foreground">{t('soul.failedModel', { model: draft.model })}</p>}
+            <p className="mt-1 font-mono text-[11px] text-muted-foreground">{t('soul.sensorModel', { model: sensorModel || t('soul.chatModel') })}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <Button variant="outline" size="sm" className="rounded-none" disabled={rating || unavailable} onClick={() => void rateNow()}>
+              {rating && <CircleNotch className="animate-spin" aria-hidden="true" />}{t('soul.retry')}
+            </Button>
+            <SoulModelPicker disabled={rating || unavailable} onPick={(ref) => void pickSensorModel(ref)} />
+          </div>
         </div>
       )}
       <SoulGuests guests={shownGuests} soulNames={Object.keys(work)} minor={minor} onGive={giveSoul} onSame={sameAs} onHide={hide} onUnhide={unhide} />
@@ -439,6 +505,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
             const overlaid = proposedNames.includes(name)
             const cls = (inWork ? work[name]?.class : draft?.characters[name]?.class) ?? 'neutral'
             const proposed = overlaid || (inDraft && !inWork)
+            const noSoul = inWork && blank.has(name)
             const on = name === selName
             return (
               <button
@@ -449,11 +516,13 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
                 className={cn(
                   'flex items-center gap-1.5 border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
                   on ? 'border-primary bg-primary/15' : 'border-border hover:bg-muted',
-                  proposed && 'border-dashed',
+                  (proposed || noSoul) && 'border-dashed',
+                  noSoul && 'text-muted-foreground',
                 )}
               >
-                <span className="size-2 shrink-0 rounded-full" style={{ background: CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral }} aria-hidden="true" />
+                <span className="size-2 shrink-0 rounded-full" style={{ background: noSoul ? 'transparent' : (CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral), boxShadow: noSoul ? 'inset 0 0 0 1px currentColor' : undefined }} aria-hidden="true" />
                 <span className="max-w-40 truncate">{name}</span>
+                {noSoul && <span className="text-[10px]">{t('soul.noSoul')}</span>}
                 {proposed && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('soul.proposed')}</span>}
                 {inWork && dirtyOf(name) && <span className="size-1.5 shrink-0 rounded-full bg-amber-500" title={t('soul.unsavedDot')} role="img" aria-label={t('soul.unsavedDot')} />}
                 {inDraft && has(saved, name) && <span className="text-[10px] text-muted-foreground">{t('soul.replaces')}</span>}
@@ -487,7 +556,20 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
         </div>
       )}
 
-      {selSoul && selName ? (
+      {selSoul && selName && blank.has(selName) && !byHand.has(selName) ? (
+        <div className="flex flex-col items-start gap-2 border border-dashed border-border p-4" data-testid="soul-not-rated">
+          <p className="text-sm font-semibold">{t('soul.notRated')}</p>
+          <p className="max-w-prose text-xs text-muted-foreground">{t('soul.notRatedHint')}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button size="sm" className="rounded-none" disabled={ratingName !== null || unavailable} onClick={() => void rateName(selName)}>
+              {ratingName === selName && <CircleNotch className="animate-spin" aria-hidden="true" />}
+              {ratingName === selName ? t('soul.rating') : t('soul.rateThis')}
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateWithMolfar(selName)}>{t('soul.rateMolfar')}</Button>
+            <Button variant="outline" size="sm" className="rounded-none" onClick={() => setByHand((h) => new Set(h).add(selName))}>{t('soul.fillByHand')}</Button>
+          </div>
+        </div>
+      ) : selSoul && selName ? (
         <SoulForm
           key={selName}
           soul={selSoul}
