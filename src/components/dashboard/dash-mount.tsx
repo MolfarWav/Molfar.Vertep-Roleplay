@@ -4,23 +4,44 @@
 // does not re-render when the dashboard polls. Nothing renders while the plugin is absent or
 // the first load is running: chats without the plugin do not shift.
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/ui/confirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
 import { DashEmpty } from './dash-empty'
 import { DashPhoneBar, DashPhoneSheet } from './dash-phone'
+import { DashSettings } from './dash-settings'
 import { DashStrip } from './dash-strip'
 import { DashWide } from './dash-wide'
 import { useDashboard, type UseDashboard } from './use-dashboard'
 
 const Ctx = createContext<UseDashboard | null>(null)
 
+/** The open chat's dashboard, or null outside a provider (the live line also renders in chats without one). */
+export function useDashMaybe(): UseDashboard | null {
+  return useContext(Ctx)
+}
+
 export function DashProvider({ chatId, children }: { chatId: string; children: ReactNode }) {
   const dash = useDashboard(chatId)
   return <Ctx.Provider value={dash}>{children}</Ctx.Provider>
+}
+
+/**
+ * Leaving the settings view (Back, Esc, the backdrop, the close button) asks first while a
+ * section has unsaved edits. `DashSettings` reports its dirtiness through `setDirty`.
+ */
+function useSettingsGuard() {
+  const t = useT()
+  const [confirm, dialog] = useConfirm()
+  const dirty = useRef(false)
+  const setDirty = useCallback((d: boolean) => { dirty.current = d }, [])
+  const canLeave = async (): Promise<boolean> =>
+    !dirty.current || confirm({ title: t('dash.set.discardTitle'), description: t('dash.set.discardBody'), actionLabel: t('dash.set.discard') })
+  return { setDirty, canLeave, dialog }
 }
 
 const STRIP_KEY = 'rp.dashStrip'
@@ -63,6 +84,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const userName = useUserName(chatId)
   const [expanded, setExpanded] = useState(readExpanded)
   const [wideOpen, setWideOpen] = useState(false)
+  const [settings, setSettings] = useState(false)
+  const guard = useSettingsGuard()
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
   const toggle = () => setExpanded((v) => { writeExpanded(!v); return !v })
 
@@ -113,7 +136,17 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         avatars={avatars}
         userName={userName}
       />
-      <Sheet open={wideOpen} onOpenChange={setWideOpen}>
+      <Sheet
+        open={wideOpen}
+        onOpenChange={(o) => {
+          if (o) { setWideOpen(true); return }
+          void (async () => {
+            if (settings && !(await guard.canLeave())) return
+            setWideOpen(false)
+            setSettings(false)
+          })()
+        }}
+      >
         <SheetContent
           side="right"
           showCloseButton={false}
@@ -122,17 +155,29 @@ export function DashStripMount({ chatId }: { chatId: string }) {
           <SheetHeader className="sr-only">
             <SheetTitle>{t('dash.title')}</SheetTitle>
           </SheetHeader>
-          <DashWide
-            view={view}
-            focus={dash.focus}
-            onFocus={dash.setFocus}
-            onRefresh={() => { void dash.refresh() }}
-            refreshing={dash.refreshing}
-            onClose={() => setWideOpen(false)}
-            now={dash.now}
-            avatars={avatars}
-            userName={userName}
-          />
+          {settings ? (
+            <DashSettings
+              chatId={chatId}
+              view={view}
+              onBack={() => { void guard.canLeave().then((ok) => { if (ok) setSettings(false) }) }}
+              onSaved={() => { void dash.reload() }}
+              onDirty={guard.setDirty}
+            />
+          ) : (
+            <DashWide
+              view={view}
+              focus={dash.focus}
+              onFocus={dash.setFocus}
+              onRefresh={() => { void dash.refresh() }}
+              refreshing={dash.refreshing}
+              onSettings={() => setSettings(true)}
+              onClose={() => setWideOpen(false)}
+              now={dash.now}
+              avatars={avatars}
+              userName={userName}
+            />
+          )}
+          {guard.dialog}
         </SheetContent>
       </Sheet>
     </div>
@@ -145,6 +190,8 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
   const avatars = useAvatars(chatId, dash?.view?.order)
   const userName = useUserName(chatId)
   const [open, setOpen] = useState(false)
+  const [settings, setSettings] = useState(false)
+  const guard = useSettingsGuard()
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
 
   if (dash.status === 'empty') {
@@ -166,23 +213,54 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
   return (
     <div className="lg:hidden">
       <DashPhoneBar view={view} focus={dash.focus} onOpen={() => setOpen(true)} />
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet
+        open={open}
+        onOpenChange={(o) => {
+          if (o) { setOpen(true); return }
+          void (async () => {
+            if (settings && !(await guard.canLeave())) return
+            setOpen(false)
+            setSettings(false)
+          })()
+        }}
+      >
         <SheetContent side="bottom" className="h-[85dvh] gap-0 p-0">
-          <SheetHeader className="shrink-0 px-4 pt-4 pb-2">
-            <SheetTitle className="font-heading">{t('dash.title')}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <DashPhoneSheet
-              view={view}
-              focus={dash.focus}
-              onFocus={dash.setFocus}
-              onRefresh={() => { void dash.refresh() }}
-              refreshing={dash.refreshing}
-              now={dash.now}
-              avatars={avatars}
-              userName={userName}
-            />
-          </div>
+          {settings ? (
+            <>
+              <SheetHeader className="sr-only">
+                <SheetTitle>{t('dash.set.title')}</SheetTitle>
+              </SheetHeader>
+              <DashSettings
+                chatId={chatId}
+                view={view}
+                onBack={() => { void guard.canLeave().then((ok) => { if (ok) setSettings(false) }) }}
+                onSaved={() => { void dash.reload() }}
+                onDirty={guard.setDirty}
+              />
+            </>
+          ) : (
+            <>
+              <SheetHeader className="shrink-0 flex-row items-center gap-2 px-4 pt-4 pr-12 pb-2">
+                <SheetTitle className="min-w-0 flex-1 font-heading">{t('dash.title')}</SheetTitle>
+                <Button variant="ghost" size="icon-sm" onClick={() => setSettings(true)} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
+                  <GearSix />
+                </Button>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <DashPhoneSheet
+                  view={view}
+                  focus={dash.focus}
+                  onFocus={dash.setFocus}
+                  onRefresh={() => { void dash.refresh() }}
+                  refreshing={dash.refreshing}
+                  now={dash.now}
+                  avatars={avatars}
+                  userName={userName}
+                />
+              </div>
+            </>
+          )}
+          {guard.dialog}
         </SheetContent>
       </Sheet>
     </div>

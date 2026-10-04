@@ -41,6 +41,7 @@ import { ExpressionPanel } from './expression-panel'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
+import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 
 /** The mobile chat's section bar. The desktop header's quick switch has no
  *  place here: presets, personas and connections are each one tap away, and
@@ -890,6 +891,7 @@ export function ChatView() {
                     onSwipeFx={onSwipeFx}
                   />
                 )}
+                {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>
             )
           })}

@@ -21,13 +21,18 @@ export function useTx(): (prefix: string, id: string) => string {
 /** The constellation's gold as text: the fixed gold on dark, a darker one where the page is light. */
 export const GOLD_TEXT = 'text-[#9a6a14] dark:text-[#f2c27a]'
 
+/** "just now", "12 s ago", "3 min ago", "2 h ago". */
+export function ageLabel(t: ReturnType<typeof useT>, at: number, now: number): string {
+  const s = ageSeconds(at, now)
+  if (s < 10) return t('dash.age.now')
+  if (s < 60) return t('dash.age.s', { n: s })
+  if (s < 3600) return t('dash.age.m', { n: Math.floor(s / 60) })
+  return t('dash.age.h', { n: Math.floor(s / 3600) })
+}
+
 export function AgeText({ at, now }: { at: number; now: number }) {
   const t = useT()
-  const s = ageSeconds(at, now)
-  if (s < 10) return <>{t('dash.age.now')}</>
-  if (s < 60) return <>{t('dash.age.s', { n: s })}</>
-  if (s < 3600) return <>{t('dash.age.m', { n: Math.floor(s / 60) })}</>
-  return <>{t('dash.age.h', { n: Math.floor(s / 3600) })}</>
+  return <>{ageLabel(t, at, now)}</>
 }
 
 export function LiveDot({ at, now }: { at: number; now: number }) {

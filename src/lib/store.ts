@@ -34,6 +34,7 @@ import {
 } from './engine'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, postPicture, type GeneratedImage } from './image-gen'
+import { triggerDashUpdate } from './dash-live'
 import { presetImport, regexImport } from './import-shapes'
 
 export type ViewKey =
@@ -1068,6 +1069,10 @@ export const useApp = create<AppState>()(
                   : m)) }
                 : c)),
             }))
+            // the dashboard follows the swipe now showing as the newest message
+            if (get().chats.find((c) => c.id === chatId)?.messages.at(-1)?.id === messageId) {
+              void triggerDashUpdate(chatId, 'swipe', () => get().streaming?.chatId === chatId)
+            }
           } catch (e) {
             toast.error(String((e as Error).message ?? e))
             void refreshChat(set, get, chatId)
@@ -1121,6 +1126,10 @@ export const useApp = create<AppState>()(
             await j(`/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`, {
               method: 'PATCH', body: JSON.stringify({ text: content }),
             })
+            // an edit of the newest message changes what the dashboard should read
+            if (get().chats.find((c) => c.id === chatId)?.messages.at(-1)?.id === messageId) {
+              void triggerDashUpdate(chatId, 'edit', () => get().streaming?.chatId === chatId)
+            }
           } catch (e) {
             toast.error(String((e as Error).message ?? e))
             await refreshChat(set, get, chatId)
@@ -2114,6 +2123,8 @@ async function runStream(
     // the rest of a group turn: each queued member answers in order; Stop
     // (or a failed reply) ends the turn
     const queue = Array.isArray(committedRes?.queue) ? (committedRes.queue as unknown[]).filter((x): x is string => typeof x === 'string') : []
+    // the dashboard reads the newest reply once the turn is over (not between group members)
+    if (committed && queue.length === 0) void triggerDashUpdate(chatId, op, () => get().streaming?.chatId === chatId)
     if (committed && queue.length) {
       void (async () => {
         for (const charId of queue) {

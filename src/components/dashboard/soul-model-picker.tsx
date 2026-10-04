@@ -12,7 +12,7 @@ import { useApp } from '@/lib/store'
 /** cmdk renders every item it gets; a catalog of hundreds is fine, thousands are not. */
 const CAP = 300
 
-export function SoulModelPicker({ disabled, onPick }: { disabled?: boolean; onPick: (ref: string) => void }) {
+export function SoulModelPicker({ disabled, onPick, label }: { disabled?: boolean; onPick: (ref: string) => void; label?: string }) {
   const t = useT()
   const models = useApp((s) => s.models)
   const [open, setOpen] = useState(false)
@@ -20,7 +20,7 @@ export function SoulModelPicker({ disabled, onPick }: { disabled?: boolean; onPi
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         disabled={disabled}
-        render={<Button variant="outline" size="sm" className="rounded-none">{t('soul.chooseModel')}</Button>}
+        render={<Button variant="outline" size="sm" className="rounded-none">{label ?? t('soul.chooseModel')}</Button>}
       />
       <PopoverContent align="start" className="w-80 overflow-hidden p-0">
         <Command>

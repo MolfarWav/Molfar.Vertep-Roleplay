@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowClockwise, X } from '@phosphor-icons/react'
+import { ArrowClockwise, GearSix, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
@@ -13,12 +13,13 @@ import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { AgeText, AvatarButton, AvatarImg, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
 
-export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onClose, now, avatars, userName }: {
+export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, userName }: {
   view: DashView
   focus: string
   onFocus: (name: string) => void
   onRefresh: () => void
   refreshing: boolean
+  onSettings: () => void
   onClose: () => void
   now: number
   avatars: Record<string, string | undefined>
@@ -62,6 +63,9 @@ export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onClose,
         </span>
         <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={refreshing} aria-label={t('dash.refresh')} title={t('dash.refresh')} className="rounded-none">
           <ArrowClockwise className={cn(refreshing && 'animate-spin')} />
+        </Button>
+        <Button variant="ghost" size="icon-sm" onClick={onSettings} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
+          <GearSix />
         </Button>
         <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('dash.close')} title={t('dash.close')} className="rounded-none">
           <X />
