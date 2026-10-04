@@ -134,6 +134,12 @@ describe("plugin prompts: English, with a language line where the model writes f
     expect(CYRILLIC.test(text), "soul has Cyrillic").toBe(false);
     expect(LANGUAGE_LINE.test(text), "soul has no language line").toBe(true);
     expect(text).toContain("in the language of the story");
+    expect(text).toContain("cardType");
+    expect(text).toContain("single");
+    expect(text).toContain("narrator");
+    expect(text).toContain("group");
+    expect(text).toContain("assistant");
+    expect(text).toContain("When the message lists souls this card already has, rate those characters again under the same keys");
   });
 
   it("the summary default", async () => {

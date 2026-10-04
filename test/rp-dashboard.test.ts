@@ -2214,4 +2214,121 @@ describe("souls", () => {
       expect(guests(mock, "nobody").status).toBe(404);
     });
   });
+
+  describe("re-keying proposals to saved souls", () => {
+    it("a re-rating with Cyrillic spellings lands under saved souls with aliases added", () => {
+      writeCard("bram", {
+        name: "Bram",
+        extensions: {
+          molfar_soul: {
+            v: 1,
+            characters: {
+              Medli: { class: "ally", aliases: [], traits: { shyness: 72 }, locked: true },
+              Marianne: { class: "ally", aliases: [] },
+            },
+          },
+        },
+      });
+      const soulReplyWithCyrillic = `{
+        "characters": {
+          "Медли": { "class": "romantic", "pronouns": "she", "traits": { "shyness": 40 } },
+          "Марианна": { "class": "ally", "pronouns": "she" },
+          "Kefka": { "class": "neutral", "pronouns": "they" }
+        }
+      }`;
+      const mock = mockHost([soulReplyWithCyrillic]);
+      const r = drive(mock, {
+        method: "POST",
+        path: "/dashboard/soul/rate",
+        body: { characterId: "bram" },
+      });
+      expect(r.json.ok).toBe(true);
+      const draft = readDraftFile("bram");
+      expect(Object.keys(draft.characters)).toEqual(["Medli", "Marianne", "Kefka"]);
+      expect(draft.characters.Medli.aliases).toContain("Медли");
+      expect(draft.characters.Marianne.aliases).toContain("Марианна");
+      // the re-rating brings its own values: the saved soul is only what the editor compares with
+      expect(draft.characters.Medli.class).toBe("romantic");
+      expect(draft.characters.Medli.traits.shyness).toBe(40);
+      expect(draft.characters.Medli.locked).toBeUndefined();
+    });
+
+    it("GET soul-draft of a hand-written proposal keyed in Cyrillic returns it under saved key", () => {
+      writeCard("bram", {
+        name: "Bram",
+        extensions: {
+          molfar_soul: {
+            v: 1,
+            characters: { Medli: { class: "ally", aliases: [] } },
+          },
+        },
+      });
+      writeDraft("bram", {
+        v: 1,
+        at: 1,
+        by: "molfar",
+        characters: { Медли: { class: "ally", pronouns: "she" } },
+      });
+      const mock = mockHost();
+      const r = drive(mock, {
+        method: "GET",
+        path: "/dashboard/soul-draft",
+        query: { characterId: "bram" },
+      });
+      expect(r.json.draft.characters).toHaveProperty("Medli");
+      expect(r.json.draft.characters.Medli.aliases).toContain("Медли");
+      expect(Object.keys(r.json.draft.characters)).not.toContain("Медли");
+      // file is not rewritten
+      expect(readDraftFile("bram").characters).toHaveProperty("Медли");
+    });
+
+    it("cardType is carried in proposals and kept on merge", () => {
+      writeCard("bram", { name: "Bram" });
+      const soulReplyWithCardType = `{
+        "characters": {
+          "Medli": { "class": "ally", "pronouns": "she" }
+        },
+        "cardType": "narrator"
+      }`;
+      const mock = mockHost([soulReplyWithCardType]);
+      const r = drive(mock, {
+        method: "POST",
+        path: "/dashboard/soul/rate",
+        body: { characterId: "bram" },
+      });
+      expect(r.json.draft.cardType).toBe("narrator");
+      // invalid cardType is dropped
+      const mockBad = mockHost([`{
+        "characters": { "Medli": { "class": "ally" } },
+        "cardType": "robot"
+      }`]);
+      const rBad = drive(mockBad, {
+        method: "POST",
+        path: "/dashboard/soul/rate",
+        body: { characterId: "bram" },
+      });
+      expect(rBad.json.draft.cardType).toBeUndefined();
+    });
+
+    it("named-rating merge keeps existing cardType when new reply has none", () => {
+      writeCard("bram", { name: "Bram" });
+      writeDraft("bram", {
+        v: 1,
+        at: 1,
+        by: "auto",
+        cardType: "narrator",
+        characters: { Medli: { class: "ally" } },
+      });
+      const soulReplyNoCardType = `{
+        "characters": { "Kefka": { "class": "hostile" } }
+      }`;
+      const mock = mockHost([soulReplyNoCardType]);
+      const r = drive(mock, {
+        method: "POST",
+        path: "/dashboard/soul/rate",
+        body: { characterId: "bram", names: ["Kefka"] },
+      });
+      expect(r.json.draft.cardType).toBe("narrator");
+    });
+  });
 });
