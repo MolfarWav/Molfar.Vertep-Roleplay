@@ -15,7 +15,7 @@ import { ApiError, j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import {
-  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, finalizeSoul, isCardType, minorOf, molfarCandidates, molfarDraftText, overlaySoul, refreshOverlays,
+  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, finalizeSoul, isCardType, isNarratorSelf, minorOf, molfarCandidates, molfarDraftText, overlaySoul, refreshOverlays,
   soulsOf, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulClass, type SoulDraft, type SoulMap,
 } from '@/lib/soul'
@@ -47,7 +47,12 @@ function normalizeDraft(raw: unknown): SoulDraft | null {
   return { ...(raw as object), characters, minor: cleanNames(raw.minor) } as SoulDraft
 }
 
-export function SoulTab({ c, active, onPending }: { c: Character; active: boolean; onPending?: (pending: boolean) => void }) {
+/** What the editor's tab trigger shows: unrated = no souls and no live proposal. */
+export type SoulStatus = 'unrated' | 'pending' | 'failed' | null
+const UNRATED_POLL_MS = 10_000
+const UNRATED_POLL_FOR_MS = 5 * 60_000
+
+export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean; onStatus?: (status: SoulStatus) => void }) {
   const t = useT()
   const updateCharacter = useApp((s) => s.updateCharacter)
   const lorebooks = useApp((s) => s.lorebooks)
@@ -82,6 +87,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const [seen, setSeen] = useState<string[]>([])
   const [events, setEvents] = useState<VocabEvent[] | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const [draftLoaded, setDraftLoaded] = useState(false)
   const [rating, setRating] = useState(false)
   const [askedUntil, setAskedUntil] = useState(0)
   const [effects, setEffects] = useState<Effect[] | null>(null)
@@ -122,6 +128,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
       const r = await j<{ draft?: unknown }>(`/dashboard/soul-draft?characterId=${encodeURIComponent(c.id)}`)
       setDraft(normalizeDraft(r.draft))
       setUnavailable(false)
+      setDraftLoaded(true)
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) setUnavailable(true)
     }
@@ -174,7 +181,23 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const pending = !!draft && !draft.dismissedAt && !draft.error && Object.keys(draft.characters).length > 0
   const failed = !!draft && !draft.dismissedAt && !!draft.error
   const pendingNames = pending && draft ? Object.keys(draft.characters) : []
-  useEffect(() => { onPending?.(pending) }, [pending, onPending])
+  const status: SoulStatus = unavailable || !draftLoaded ? null
+    : pending ? 'pending'
+    : failed ? 'failed'
+    : Object.keys(saved).length === 0 ? 'unrated' : null
+  useEffect(() => { onStatus?.(status) }, [status, onStatus])
+
+  // an import rates the card in the background: while nothing is rated, look for the proposal
+  // now and then, also when the tab is not shown, for a few minutes
+  useEffect(() => {
+    if (status !== 'unrated') return
+    const until = Date.now() + UNRATED_POLL_FOR_MS
+    const id = setInterval(() => {
+      if (Date.now() > until) { clearInterval(id); return }
+      if (document.visibilityState === 'visible') void loadDraft()
+    }, UNRATED_POLL_MS)
+    return () => clearInterval(id)
+  }, [status, loadDraft])
 
   const workNames = Object.keys(work)
   const chipNames = [...workNames, ...pendingNames.filter((n) => !has(work, n))]
@@ -437,6 +460,15 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     }
   }
 
+  /** "Rate again" on a saved soul: unsaved edits are only replaced when the user agrees. */
+  const rateAgain = async (name: string) => {
+    if (dirtyOf(name) && edited.current.has(name)) {
+      const yes = await confirm({ title: t('soul.rateAgainTitle'), description: t('soul.rateAgainBody'), actionLabel: t('soul.rateAgain'), destructive: false })
+      if (!yes) return
+    }
+    await rateName(name)
+  }
+
   /** "Choose another model": the pick becomes the dashboard's sensor model, then the rating runs again. */
   const pickSensorModel = async (ref: string) => {
     try {
@@ -486,6 +518,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
       title: t('soul.molfarConfirmTitle'),
       description: names.length ? t('soul.molfarConfirmBody', { names: names.join(', ') }) : t('soul.molfarConfirmMain'),
       actionLabel: t('soul.molfarSend'),
+      destructive: false,
     })
     if (yes) await rateWithMolfar(names)
   }
@@ -494,7 +527,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     ...Object.keys(work), ...pendingNames, ...minor,
     ...Object.values(work).flatMap((sl) => (Array.isArray(sl.aliases) ? sl.aliases : [])),
   ].map((n) => String(n).toLowerCase()))
-  const shownGuests = guests.filter((g) => !taken.has(g.toLowerCase()))
+  const shownGuests = guests.filter((g) => !taken.has(g.toLowerCase()) && !isNarratorSelf({ cardName: c.name, cardType: cardTypeOf(c) }, g))
 
   const giveSoul = (name: string) => {
     edited.current.add(name)
@@ -634,7 +667,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
               <Button variant="outline" size="sm" className="rounded-none" onClick={() => void unlock()}>{t('soul.edit')}</Button>
             )}
             {selName && has(saved, selName) && !blank.has(selName) && (
-              <Button variant="outline" size="sm" className="rounded-none" disabled={rating || ratingName !== null || unavailable} onClick={() => void rateName(selName)}>
+              <Button variant="outline" size="sm" className="rounded-none" disabled={rating || ratingName !== null || unavailable} onClick={() => void rateAgain(selName)}>
                 {ratingName === selName && <CircleNotch className="animate-spin" aria-hidden="true" />}
                 {ratingName === selName ? t('soul.rating') : t('soul.rateAgain')}
               </Button>

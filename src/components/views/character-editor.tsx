@@ -22,7 +22,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useApp } from '@/lib/store'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
-import { SoulTab } from '@/components/dashboard/soul-tab'
+import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
+import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
@@ -42,7 +43,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const c = character
   const t = useT()
   const [tab, setTab] = useState('core')
-  const [soulPending, setSoulPending] = useState(false)
+  const [soulStatus, setSoulStatus] = useState<SoulStatus>(null)
   // opened on a given tab (the chat's "souls proposed" toast)
   const wantTab = useApp((s) => s.characterEditorTab)
   useEffect(() => {
@@ -193,7 +194,16 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         >
           <TabsList className="h-8 w-max flex-nowrap">
             {['core', 'dialogue', 'advanced', ...(c.isGroup ? [] : ['soul']), 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((name) => (
-              <TabsTrigger key={name} value={name} className="flex-none px-2.5 text-xs capitalize">{name === 'soul' ? t('soul.tab') : name}{name === 'soul' && soulPending && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}</TabsTrigger>
+              <TabsTrigger
+                key={name}
+                value={name}
+                className={cn('flex-none px-2.5 text-xs capitalize', name === 'soul' && soulStatus === 'unrated' && 'outline-1 -outline-offset-1 outline-dashed outline-amber-500')}
+              >
+                {name === 'soul' ? t('soul.tab') : name}
+                {name === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
+                {name === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
+                {name === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
+              </TabsTrigger>
             ))}
           </TabsList>
         </div>
@@ -321,7 +331,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {/* stays mounted behind the other tabs: an unsaved working copy must not vanish on a tab switch */}
             {!c.isGroup && (
               <TabsContent value="soul" keepMounted className="min-w-0">
-                <SoulTab key={c.id} c={c} active={tab === 'soul'} onPending={setSoulPending} />
+                <SoulTab key={c.id} c={c} active={tab === 'soul'} onStatus={setSoulStatus} />
               </TabsContent>
             )}
 

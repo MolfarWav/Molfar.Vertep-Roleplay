@@ -125,7 +125,9 @@ export function cardTypeOf(c: Pick<Character, 'cardExtras'>): CardType | null {
 }
 
 /** The `cardExtras` patch that sets (or, with null, clears) the card's kind; every other
- *  key of `extensions` stays, and `extensions` goes when it held nothing else. */
+ *  key of `extensions` stays. An `extensions` that held nothing else stays as `{}`: the
+ *  engine saves a card as the old file merged with what is sent, so a key that is merely
+ *  left out would come back from the old file. */
 export function withCardType(c: Pick<Character, 'cardExtras'>, type: CardType | null): Pick<Character, 'cardExtras'> {
   const extras: Record<string, unknown> = { ...(c.cardExtras ?? {}) }
   const hadExt = isObj(extras.extensions)
@@ -133,9 +135,7 @@ export function withCardType(c: Pick<Character, 'cardExtras'>, type: CardType | 
   const hadType = 'molfar_card_type' in ext
   if (type) ext.molfar_card_type = type
   else delete ext.molfar_card_type
-  if (Object.keys(ext).length) extras.extensions = ext
-  else if (hadType) delete extras.extensions
-  else if (hadExt) extras.extensions = ext
+  if (Object.keys(ext).length || hadType || hadExt) extras.extensions = ext
   return { cardExtras: Object.keys(extras).length ? extras : undefined }
 }
 
@@ -164,8 +164,8 @@ export function minorOf(c: Pick<Character, 'cardExtras'>): string[] {
 }
 
 /** Rewrites the `molfar_soul` bag of a card and nothing else: `edit` gets a copy of
- *  the bag and returns the next one, or null to remove it. `extensions` goes too when
- *  the bag was all it held. */
+ *  the bag and returns the next one, or null to remove it. `extensions` stays as `{}`
+ *  when the bag was all it held (see `withCardType`: a left-out key comes back on save). */
 function patchBag(c: Pick<Character, 'cardExtras'>, edit: (bag: Record<string, unknown>) => Record<string, unknown> | null): Pick<Character, 'cardExtras'> {
   const extras: Record<string, unknown> = { ...(c.cardExtras ?? {}) }
   const hadExt = isObj(extras.extensions)
@@ -175,16 +175,13 @@ function patchBag(c: Pick<Character, 'cardExtras'>, edit: (bag: Record<string, u
   const next = edit({ ...prev })
   if (next) ext.molfar_soul = next
   else delete ext.molfar_soul
-  if (Object.keys(ext).length) extras.extensions = ext
-  else if (hadMol) delete extras.extensions
-  else if (hadExt) extras.extensions = ext
+  if (Object.keys(ext).length || hadMol || hadExt) extras.extensions = ext
   return { cardExtras: Object.keys(extras).length ? extras : undefined }
 }
 
 /** The `cardExtras` patch that stores `souls`: merged into the existing
  *  `extensions`, every other key kept (also inside `molfar_soul`, `minor` among them).
- *  No souls removes `molfar_soul` unless it holds more than `v` and `characters`,
- *  and `extensions` too when it held nothing else. */
+ *  No souls removes `molfar_soul` unless it holds more than `v` and `characters`. */
 export function withSouls(c: Pick<Character, 'cardExtras'>, souls: SoulMap): Pick<Character, 'cardExtras'> {
   return patchBag(c, (bag) => {
     if (Object.keys(souls).length) return { ...bag, v: SOUL_VERSION, characters: souls }
@@ -406,6 +403,11 @@ export function refreshOverlays(o: {
   return { work, proposedNames, overlaidFrom, reblank, changed }
 }
 
+/** True for the card's own name on a narrator card: the narrator is no character to rate. */
+export function isNarratorSelf(o: { cardName: string; cardType: CardType | null }, name: string): boolean {
+  return o.cardType === 'narrator' && o.cardName.trim().toLowerCase() === name.trim().toLowerCase()
+}
+
 /** The names "Rate all with Molfar" should send: guests and seen names that have no
  *  soul, no alias match, no minor mark and are not the narrator card's own name. Unique
  *  case-insensitively, in the order given. */
@@ -431,7 +433,7 @@ export function molfarCandidates(o: {
   addSoulMap(o.draft?.characters)
   o.minor.forEach(add)
   o.draft?.minor?.forEach(add)
-  if (o.cardType === 'narrator') add(o.cardName)
+  if (o.cardType === 'narrator') add(o.cardName) // see isNarratorSelf
   const out: string[] = []
   for (const raw of [...o.guests, ...o.seen]) {
     const name = raw.trim()

@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  cardTypeOf, clampSoul, finalizeSoul, molfarCandidates, molfarDraftText, minorOf, overlaySoul, refreshOverlays, soulsOf, spectrumBand, stableJson, validSoulName, withCardType, withMinor, withSouls,
+  cardTypeOf, clampSoul, finalizeSoul, isNarratorSelf, molfarCandidates, molfarDraftText, minorOf, overlaySoul, refreshOverlays, soulsOf, spectrumBand, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulMap,
 } from "../src/lib/soul";
 import { ASK_MOLFAR_MAX } from "../src/lib/shell-bridge";
@@ -103,11 +103,12 @@ describe("withSouls round trip", () => {
     expect(soulsOf(none)).toEqual({});
   });
 
-  it("no souls drops extensions when molfar_soul was all it held", () => {
+  it("no souls leaves an empty extensions when molfar_soul was all it held", () => {
     const char = cardToCharacter({ spec: "chara_card_v2", name: "Bare", extensions: { molfar_soul: { v: 1, characters: { A: {} } } } } as never, "bare");
     const none = roundTrip(char, {});
-    expect(none.cardExtras).toBeUndefined();
-    expect("extensions" in characterToCard(none)).toBe(false);
+    expect(none.cardExtras).toEqual({ extensions: {} });
+    expect(characterToCard(none).extensions).toEqual({});
+    expect(soulsOf(none)).toEqual({});
   });
 
   it("does not touch an empty extensions object it did not fill", () => {
@@ -259,7 +260,7 @@ describe("minor names", () => {
     const one = { ...char, ...withMinor(char, ["Cook"]) };
     expect(minorOf(one)).toEqual(["Cook"]);
     const cleared = { ...one, ...withMinor(one, []) };
-    expect(cleared.cardExtras).toBeUndefined();
+    expect(cleared.cardExtras).toEqual({ extensions: {} });
     const kept = { ...withBoth(), ...withMinor(withBoth(), []) };
     expect(soulsOf(kept)).toEqual({ A: { class: "ally" } });
   });
@@ -294,11 +295,16 @@ describe("card kind", () => {
     expect(cardTypeOf({ ...typed, ...withMinor(typed, []) })).toBe("narrator");
   });
 
-  it("clearing the kind removes the key, and extensions when it was all there was", () => {
+  it("clearing the kind removes the key, also when it was all there was, through a save that merges", () => {
     const bare = cardToCharacter({ spec: "chara_card_v2", name: "Bare" } as never, "b");
     const set = { ...bare, ...withCardType(bare, "single") };
     expect(cardTypeOf(set)).toBe("single");
-    expect({ ...set, ...withCardType(set, null) }.cardExtras).toBeUndefined();
+    const cleared0 = { ...set, ...withCardType(set, null) };
+    expect(cardTypeOf(cleared0)).toBeNull();
+    // the engine writes the old card file merged with the card it is sent
+    const onDisk = { ...characterToCard(set), ...characterToCard(cleared0) };
+    expect(cardTypeOf(cardToCharacter(onDisk as never, "b"))).toBeNull();
+    expect(cardTypeOf(cardToCharacter(characterToCard(cleared0) as never, "b"))).toBeNull();
     const char = cardToCharacter(baseCard() as never, "n");
     const cleared = { ...char, ...withCardType({ ...char, ...withCardType(char, "group") }, null) };
     expect("molfar_card_type" in (cleared.cardExtras!.extensions as object)).toBe(false);
@@ -429,5 +435,14 @@ describe("molfarCandidates", () => {
 
   it("is empty when everybody is known", () => {
     expect(molfarCandidates({ ...base, seen: ["A"], souls: { A: {} } })).toEqual([]);
+  });
+});
+
+describe("isNarratorSelf", () => {
+  it("is true only for the card's own name on a narrator card, ignoring case and spaces", () => {
+    expect(isNarratorSelf({ cardName: "Yes, My Liege", cardType: "narrator" }, " yes, my liege ")).toBe(true);
+    expect(isNarratorSelf({ cardName: "Yes, My Liege", cardType: "narrator" }, "Medli")).toBe(false);
+    expect(isNarratorSelf({ cardName: "Nest", cardType: "single" }, "Nest")).toBe(false);
+    expect(isNarratorSelf({ cardName: "Nest", cardType: null }, "Nest")).toBe(false);
   });
 });
