@@ -138,6 +138,10 @@ interface AppState {
   ensureChatMessages: (chatId: ID) => Promise<void>
   closeChat: () => void
   openCharacter: (charId: ID | null) => void
+  /** Opens a card's editor on a given tab (the chat's "souls proposed" toast uses it). */
+  openCharacterOnTab: (charId: ID, tab: string) => void
+  /** A tab the character editor should switch to once; it clears the field. */
+  characterEditorTab: string | null
   focusPreset: (presetId: ID) => void
   focusPersona: (personaId: ID) => void
   setSettingsSection: (s: string) => void
@@ -301,6 +305,40 @@ async function noticeInsertTrim(chatId: ID, lang: Lang) {
     // no dashboard plugin in this app: nothing to say
   }
 }
+/** A proposal for souls is waiting for a card of this chat: say so once per proposal,
+ *  with a button that opens the card's Soul tab. "Seen" is the proposal's timestamp, kept
+ *  per card in localStorage (and in memory when storage is unavailable). */
+const soulSeenMem = new Map<ID, number>()
+export async function checkSoulProposals(chatId: ID) {
+  const st = useApp.getState()
+  const chat = st.chats.find((c) => c.id === chatId)
+  const holder = chat ? st.characters.find((c) => c.id === chat.characterId) : undefined
+  const cardIds = !holder ? [] : holder.isGroup ? (holder.members ?? []) : [holder.id]
+  const lang = resolveLanguage(st.settings.language)
+  for (const cardId of cardIds) {
+    try {
+      const { draft } = await j<{ draft: { at?: number; characters?: Record<string, unknown>; dismissedAt?: number; error?: string } | null }>(
+        `/dashboard/soul-draft?characterId=${encodeURIComponent(cardId)}`,
+      )
+      const n = draft?.characters ? Object.keys(draft.characters).length : 0
+      if (!draft || draft.dismissedAt || draft.error || n === 0) continue
+      const at = Number(draft.at) || 0
+      const key = `rp.soulDraftSeen.${cardId}`
+      let seen = soulSeenMem.get(cardId) ?? 0
+      try { seen = Math.max(seen, Number(localStorage.getItem(key)) || 0) } catch { /* storage unavailable */ }
+      if (at <= seen) continue
+      soulSeenMem.set(cardId, at)
+      try { localStorage.setItem(key, String(at)) } catch { /* storage unavailable */ }
+      const card = st.characters.find((c) => c.id === cardId)?.name ?? ''
+      toast(t('soul.notice', lang, { n, card }), {
+        duration: 15_000,
+        action: { label: t('soul.review', lang), onClick: () => useApp.getState().openCharacterOnTab(cardId, 'soul') },
+      })
+    } catch {
+      // no dashboard plugin in this app: nothing to say
+    }
+  }
+}
 /** chats created this client session — off-limits to the boot sweep (the
  *  user may still come back to them before the page closes) */
 const sessionNewChats = new Set<ID>()
@@ -345,6 +383,7 @@ export const useApp = create<AppState>()(
       drawer: null,
       activeChatId: null,
       activeCharacterId: null,
+      characterEditorTab: null,
       focusPresetId: null,
       focusPersonaId: null,
       branchTreeFor: null,
@@ -839,6 +878,10 @@ export const useApp = create<AppState>()(
         set({ view: 'chats', activeChatId: null })
       },
       openCharacter: (charId) => set({ activeCharacterId: charId }),
+      openCharacterOnTab: (charId, tab) => {
+        set({ activeCharacterId: charId, characterEditorTab: tab })
+        get().setView('characters')
+      },
       focusPreset: (presetId) => {
         if (opensAsDrawer(get().view)) set({ focusPresetId: presetId, drawer: 'presets' })
         else set({ view: 'presets', focusPresetId: presetId })
@@ -2043,6 +2086,7 @@ async function runStream(
     // automation hooks fire only after the streaming lock is released
     if (committed) get().runAutoExecutes('onAi', chatId)
     if (committed) void noticeInsertTrim(chatId, resolveLanguage(get().settings.language))
+    if (committed) void checkSoulProposals(chatId)
     // pictures the reply asked for through the drawing tool
     if (committed && op !== 'continue') {
       const replied = get().chats.find((c) => c.id === chatId)?.messages.filter((m) => m.role === 'assistant' && !m.picture).at(-1)

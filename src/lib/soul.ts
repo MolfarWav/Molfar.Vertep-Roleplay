@@ -48,6 +48,8 @@ export interface SoulDraft {
   note?: string
   error?: string
   dismissedAt?: number
+  /** names seen in play that the rating judged minor (no soul) */
+  minor?: string[]
   characters: SoulMap
 }
 
@@ -79,7 +81,7 @@ export const STAT_COLORS: Record<Stat, string> = {
 }
 
 export const MAX_TRIGGERS = 12
-export const MAX_ALIASES = 8
+export const MAX_ALIASES = 16
 export const MAX_COPING = 300
 export const START_LIMIT = 20
 export const RULE_X: readonly number[] = [1.5, 2]
@@ -107,26 +109,73 @@ export function soulsOf(c: Pick<Character, 'cardExtras'>): SoulMap {
   return out
 }
 
-/** The `cardExtras` patch that stores `souls`: merged into the existing
- *  `extensions`, every other key kept (also inside `molfar_soul`). No souls
- *  removes `molfar_soul`, and `extensions` too when it held nothing else. */
-export function withSouls(c: Pick<Character, 'cardExtras'>, souls: SoulMap): Pick<Character, 'cardExtras'> {
+export const MAX_MINOR = 64
+
+/** Names kept as minor: trimmed, unique case-insensitively, at most 64. */
+export function cleanNames(list: unknown): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const n of Array.isArray(list) ? list : []) {
+    if (typeof n !== 'string') continue
+    const name = n.trim()
+    if (!validSoulName(name) || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
+    out.push(name)
+    if (out.length >= MAX_MINOR) break
+  }
+  return out
+}
+
+/** The names the card keeps without a soul on purpose (`molfar_soul.minor`). */
+export function minorOf(c: Pick<Character, 'cardExtras'>): string[] {
+  const ext = c.cardExtras?.extensions
+  const mol = isObj(ext) ? ext.molfar_soul : undefined
+  return cleanNames(isObj(mol) ? mol.minor : undefined)
+}
+
+/** Rewrites the `molfar_soul` bag of a card and nothing else: `edit` gets a copy of
+ *  the bag and returns the next one, or null to remove it. `extensions` goes too when
+ *  the bag was all it held. */
+function patchBag(c: Pick<Character, 'cardExtras'>, edit: (bag: Record<string, unknown>) => Record<string, unknown> | null): Pick<Character, 'cardExtras'> {
   const extras: Record<string, unknown> = { ...(c.cardExtras ?? {}) }
   const hadExt = isObj(extras.extensions)
   const hadMol = hadExt && 'molfar_soul' in (extras.extensions as object)
   const ext: Record<string, unknown> = hadExt ? { ...(extras.extensions as Record<string, unknown>) } : {}
   const prev = isObj(ext.molfar_soul) ? ext.molfar_soul : {}
-  if (Object.keys(souls).length) {
-    ext.molfar_soul = { ...prev, v: SOUL_VERSION, characters: souls }
-  } else {
-    const others = Object.keys(prev).filter((k) => k !== 'v' && k !== 'characters')
-    if (others.length) ext.molfar_soul = { ...prev, v: SOUL_VERSION, characters: {} } // somebody's extra keys stay
-    else delete ext.molfar_soul
-  }
+  const next = edit({ ...prev })
+  if (next) ext.molfar_soul = next
+  else delete ext.molfar_soul
   if (Object.keys(ext).length) extras.extensions = ext
   else if (hadMol) delete extras.extensions
   else if (hadExt) extras.extensions = ext
   return { cardExtras: Object.keys(extras).length ? extras : undefined }
+}
+
+/** The `cardExtras` patch that stores `souls`: merged into the existing
+ *  `extensions`, every other key kept (also inside `molfar_soul`, `minor` among them).
+ *  No souls removes `molfar_soul` unless it holds more than `v` and `characters`,
+ *  and `extensions` too when it held nothing else. */
+export function withSouls(c: Pick<Character, 'cardExtras'>, souls: SoulMap): Pick<Character, 'cardExtras'> {
+  return patchBag(c, (bag) => {
+    if (Object.keys(souls).length) return { ...bag, v: SOUL_VERSION, characters: souls }
+    const others = Object.keys(bag).filter((k) => k !== 'v' && k !== 'characters')
+    return others.length ? { ...bag, v: SOUL_VERSION, characters: {} } : null // somebody's extra keys stay
+  })
+}
+
+/** The `cardExtras` patch that stores the minor names; `characters` and every other key stay.
+ *  An empty list drops `minor`, and the bag too when nothing else is in it. */
+export function withMinor(c: Pick<Character, 'cardExtras'>, list: string[]): Pick<Character, 'cardExtras'> {
+  const names = cleanNames(list)
+  return patchBag(c, (bag) => {
+    const next = { ...bag }
+    if (names.length) next.minor = names
+    else delete next.minor
+    const chars = isObj(next.characters) ? next.characters : {}
+    const others = Object.keys(next).filter((k) => k !== 'v' && k !== 'characters')
+    if (!Object.keys(chars).length && !others.length) return null
+    return { ...next, v: SOUL_VERSION, characters: chars }
+  })
 }
 
 const clampInt = (v: unknown, lo: number, hi: number): number | undefined => {
@@ -234,6 +283,7 @@ export function molfarDraftText(o: { character: Pick<Character, 'id' | 'name'>; 
       + 'Read docs/SOUL.md in the roleplay app for the format and the scales. '
       + `Sources: data/characters/${o.character.id}/card.json; ${lore}; recent messages of ${chat} (data/chats/) only when nothing else describes someone. `
       + 'Rate only main characters, never minor ones. '
+      + 'Key each soul by the spelling the chats use; other spellings go to "aliases", and seen names that deserve no soul go to "minor". '
       + `Write your proposal ONLY to data/dashboard/soul-drafts/${o.character.id}.json with "by": "molfar"; never edit card.json or src/. `
       + 'Then tell me in a few lines what you chose and why; I review it in the card\'s Soul tab. '
   }

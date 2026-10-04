@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  clampSoul, molfarDraftText, soulsOf, spectrumBand, stableJson, validSoulName, withSouls,
+  clampSoul, molfarDraftText, minorOf, soulsOf, spectrumBand, stableJson, validSoulName, withMinor, withSouls,
   type Soul, type SoulMap,
 } from "../src/lib/soul";
 import { ASK_MOLFAR_MAX } from "../src/lib/shell-bridge";
@@ -145,13 +145,13 @@ describe("clampSoul", () => {
     const s = clampSoul({
       triggers: [...rules, { cue: "  ", event: "e", stat: "trust", x: 2 }],
       values: [{ cue: "kept word", event: "kept_promise", stat: "trust", x: 0.2 }],
-      aliases: ["A", "a", " B ", "", ...Array.from({ length: 12 }, (_, i) => `n${i}`)],
+      aliases: ["A", "a", " B ", "", ...Array.from({ length: 20 }, (_, i) => `n${i}`)],
       coping: "x".repeat(500),
     });
     expect(s.triggers).toHaveLength(12);
     expect(s.triggers![0]).toMatchObject({ cue: "cue 0", x: 3 });
     expect(s.values![0]!.x).toBe(1);
-    expect(s.aliases).toHaveLength(8);
+    expect(s.aliases).toHaveLength(16);
     expect(s.aliases!.slice(0, 2)).toEqual(["A", "B"]);
     expect(s.coping).toHaveLength(300);
   });
@@ -218,5 +218,56 @@ describe("soul strings", () => {
       expect((DICTIONARIES.en as Record<string, string>)[k], k).toBeTruthy();
       expect((DICTIONARIES.uk as Record<string, string>)[k], k).toBeTruthy();
     }
+  });
+});
+
+describe("minor names", () => {
+  const withBoth = () => {
+    const char = cardToCharacter({ ...baseCard(), extensions: { ...baseCard().extensions, molfar_soul: { v: 1, characters: { A: { class: "ally" } }, rings: [1] } } } as never, "n");
+    return char;
+  };
+
+  it("minorOf reads the list tolerantly: trimmed, unique case-insensitively, at most 64", () => {
+    expect(minorOf({})).toEqual([]);
+    expect(minorOf({ cardExtras: { extensions: { molfar_soul: { minor: "no" } } } })).toEqual([]);
+    expect(minorOf({ cardExtras: { extensions: { molfar_soul: { minor: [" Guard ", "guard", "", 3, "Cook"] } } } })).toEqual(["Guard", "Cook"]);
+    const many = Array.from({ length: 80 }, (_, i) => `n${i}`);
+    expect(minorOf({ cardExtras: { extensions: { molfar_soul: { minor: many } } } })).toHaveLength(64);
+  });
+
+  it("withMinor keeps characters, unknown keys and other extensions", () => {
+    const char = withBoth();
+    const next = { ...char, ...withMinor(char, [" стражник ", "Стражник", "Cook"]) };
+    expect(minorOf(next)).toEqual(["стражник", "Cook"]);
+    expect(soulsOf(next)).toEqual({ A: { class: "ally" } });
+    const ext = next.cardExtras!.extensions as Record<string, any>;
+    expect(ext.other_mod).toEqual({ a: 1 });
+    expect(ext.molfar_soul.rings).toEqual([1]);
+  });
+
+  it("withSouls keeps minor", () => {
+    const char = { ...withBoth(), ...withMinor(withBoth(), ["Cook"]) };
+    const saved = { ...char, ...withSouls(char, { A: { class: "ally" }, B: {} }) };
+    expect(minorOf(saved)).toEqual(["Cook"]);
+    const none = { ...saved, ...withSouls(saved, {}) };
+    expect(minorOf(none)).toEqual(["Cook"]);
+    expect(soulsOf(none)).toEqual({});
+  });
+
+  it("an empty list drops minor, and the bag when nothing else is in it", () => {
+    const char = cardToCharacter({ spec: "chara_card_v2", name: "Bare" } as never, "bare");
+    const one = { ...char, ...withMinor(char, ["Cook"]) };
+    expect(minorOf(one)).toEqual(["Cook"]);
+    const cleared = { ...one, ...withMinor(one, []) };
+    expect(cleared.cardExtras).toBeUndefined();
+    const kept = { ...withBoth(), ...withMinor(withBoth(), []) };
+    expect(soulsOf(kept)).toEqual({ A: { class: "ally" } });
+  });
+
+  it("round-trips through the card format", () => {
+    const char = cardToCharacter(baseCard() as never, "nest");
+    const again = cardToCharacter(characterToCard({ ...char, ...withMinor(char, ["Cook"]) }) as never, "nest");
+    expect(minorOf(again)).toEqual(["Cook"]);
+    expect((again.cardExtras!.extensions as Record<string, unknown>).other_mod).toEqual({ a: 1 });
   });
 });

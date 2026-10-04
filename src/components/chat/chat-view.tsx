@@ -21,7 +21,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { estimateTokens, formatCost, knownCost } from '@/lib/tokens'
 import { fileToRawDataUrl, fetchWIStatus, type WIStatus } from '@/lib/engine'
-import { useApp, useChat, useCharacter } from '@/lib/store'
+import { useApp, useChat, useCharacter, checkSoulProposals } from '@/lib/store'
 import { speakText, voiceFor } from '@/lib/tts'
 import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
 import { ChatsView } from '@/components/views/chats-view'
@@ -130,6 +130,13 @@ export function ChatView() {
   const [notesOpen, setNotesOpen] = useState(false)
   const [loreOpen, setLoreOpen] = useState(false)
   const [branchesOpen, setBranchesOpen] = useState(false)
+  // a proposal for souls may have been written while the chat was closed or idle
+  useEffect(() => {
+    if (!activeChatId) return
+    void checkSoulProposals(activeChatId)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') void checkSoulProposals(activeChatId) }, 60_000)
+    return () => clearInterval(id)
+  }, [activeChatId])
   // Home's "Branches" button opens the chat and asks for its tree
   const branchTreeFor = useApp((s) => s.branchTreeFor)
   useEffect(() => {

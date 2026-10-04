@@ -41,6 +41,14 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const c = character
   const t = useT()
   const [tab, setTab] = useState('core')
+  const [soulPending, setSoulPending] = useState(false)
+  // opened on a given tab (the chat's "souls proposed" toast)
+  const wantTab = useApp((s) => s.characterEditorTab)
+  useEffect(() => {
+    if (!wantTab) return
+    setTab(wantTab)
+    useApp.setState({ characterEditorTab: null })
+  }, [wantTab])
   const updateCharacter = useApp((s) => s.updateCharacter)
   const duplicateCharacter = useApp((s) => s.duplicateCharacter)
   const lorebooks = useApp((s) => s.lorebooks)
@@ -183,7 +191,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         >
           <TabsList className="h-8 w-max flex-nowrap">
             {['core', 'dialogue', 'advanced', ...(c.isGroup ? [] : ['soul']), 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((name) => (
-              <TabsTrigger key={name} value={name} className="flex-none px-2.5 text-xs capitalize">{name === 'soul' ? t('soul.tab') : name}</TabsTrigger>
+              <TabsTrigger key={name} value={name} className="flex-none px-2.5 text-xs capitalize">{name === 'soul' ? t('soul.tab') : name}{name === 'soul' && soulPending && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}</TabsTrigger>
             ))}
           </TabsList>
         </div>
@@ -311,7 +319,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {/* stays mounted behind the other tabs: an unsaved working copy must not vanish on a tab switch */}
             {!c.isGroup && (
               <TabsContent value="soul" keepMounted className="min-w-0">
-                <SoulTab key={c.id} c={c} active={tab === 'soul'} />
+                <SoulTab key={c.id} c={c} active={tab === 'soul'} onPending={setSoulPending} />
               </TabsContent>
             )}
 

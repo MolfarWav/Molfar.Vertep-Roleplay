@@ -1,6 +1,6 @@
 // The "Soul" tab of the character editor. It keeps a working copy of the card's
-// souls; "Save soul" writes it (and locks traits and spectra), a proposal from
-// the plugin or from Molfar is overlaid onto the copy for review. Contract:
+// souls; "Save soul" writes the selected one (and locks its traits and spectra),
+// a proposal from the plugin or from Molfar is overlaid onto the copy for review. Contract:
 // docs/SOUL.md. The tab stays mounted while the editor shows other tabs, so an
 // unsaved copy survives a tab switch.
 
@@ -15,12 +15,13 @@ import { ApiError, j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import {
-  clampSoul, molfarDraftText, soulsOf, stableJson, validSoulName, withSouls,
+  MAX_ALIASES, clampSoul, cleanNames, minorOf, molfarDraftText, soulsOf, stableJson, validSoulName, withMinor, withSouls,
   type Soul, type SoulClass, type SoulDraft, type SoulMap,
 } from '@/lib/soul'
 import type { Character } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { SoulForm, type VocabEvent } from './soul-form'
+import { SoulGuests } from './soul-guests'
 import type { Effect } from './effect-text'
 
 const CLASS_COLORS: Record<SoulClass, string> = {
@@ -41,10 +42,10 @@ function normalizeDraft(raw: unknown): SoulDraft | null {
       if (validSoulName(name) && isObj(soul)) characters[name] = soul as Soul
     }
   }
-  return { ...(raw as object), characters } as SoulDraft
+  return { ...(raw as object), characters, minor: cleanNames(raw.minor) } as SoulDraft
 }
 
-export function SoulTab({ c, active }: { c: Character; active: boolean }) {
+export function SoulTab({ c, active, onPending }: { c: Character; active: boolean; onPending?: (pending: boolean) => void }) {
   const t = useT()
   const updateCharacter = useApp((s) => s.updateCharacter)
   const lorebooks = useApp((s) => s.lorebooks)
@@ -53,9 +54,10 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
 
   const extras = c.cardExtras
   const saved = useMemo(() => soulsOf({ cardExtras: extras }), [extras])
+  const minor = useMemo(() => minorOf({ cardExtras: extras }), [extras])
   const savedKey = stableJson(saved)
   const [work, setWork] = useState<SoulMap>(saved)
-  const baseKey = useRef(savedKey)
+  const prevSaved = useRef<SoulMap>(saved)
   const edited = useRef(new Set<string>())
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set())
   const [proposedNames, setProposedNames] = useState<string[]>([])
@@ -73,22 +75,34 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
   const [effects, setEffects] = useState<Effect[] | null>(null)
   const effectsReq = useRef(0)
 
-  const dirty = stableJson(work) !== savedKey
+  // a soul is unsaved when its working copy differs from the saved one
+  const dirtyOf = (name: string) => has(work, name) && stableJson(work[name]) !== stableJson(saved[name])
+  const dirtyNames = Object.keys(work).filter(dirtyOf)
 
   // the card changed under us (an import, an accepted proposal, the same card in
-  // another tab): follow it unless the user has edits in progress
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs only when the saved souls change; `work` and `saved` are read as they are at that moment
+  // another tab): every soul without edits in progress follows it
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs only when the saved souls change; `saved` is read as it is at that moment
   useEffect(() => {
-    if (stableJson(work) === baseKey.current) setWork(saved)
-    baseKey.current = savedKey
+    const before = prevSaved.current
+    prevSaved.current = saved
+    setWork((w) => {
+      const next = { ...w }
+      for (const name of new Set([...Object.keys(before), ...Object.keys(saved)])) {
+        if (stableJson(w[name]) !== stableJson(before[name])) continue // edits in progress stay
+        const now = saved[name]
+        if (now) next[name] = now
+        else delete next[name]
+      }
+      return next
+    })
   }, [savedKey])
 
   useEffect(() => {
-    if (!dirty) return
+    if (!dirtyNames.length) return
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault() }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty])
+  }, [dirtyNames.length])
 
   // ── data from the plugin ──
   const loadDraft = useCallback(async () => {
@@ -140,6 +154,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
   const pending = !!draft && !draft.dismissedAt && !draft.error && Object.keys(draft.characters).length > 0
   const failed = !!draft && !draft.dismissedAt && !!draft.error
   const pendingNames = pending && draft ? Object.keys(draft.characters) : []
+  useEffect(() => { onPending?.(pending) }, [pending, onPending])
 
   const workNames = Object.keys(work)
   const chipNames = [...workNames, ...pendingNames.filter((n) => !has(work, n))]
@@ -148,6 +163,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
   const selKey = selSoul ? stableJson(selSoul) : ''
   const lockedNow = selName !== null && !!selSoul && selSoul.locked === true && !unlocked.has(selName)
   const isEmpty = chipNames.length === 0
+  const selDirty = selName !== null && dirtyOf(selName)
 
   // ── effects of the selected soul ──
   // biome-ignore lint/correctness/useExhaustiveDependencies: the key of the selected soul stands for its content
@@ -197,32 +213,55 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
     if (!selName && pendingNames[0]) setSelected(pendingNames[0])
   }
 
-  const persist = (next: SoulMap) => {
-    const out: SoulMap = {}
-    for (const [name, soul] of Object.entries(next)) {
-      const s = clampSoul({ ...soul })
-      s.locked = true
-      if (edited.current.has(name) || !s.ratedBy) s.ratedBy = 'user'
-      out[name] = s
-    }
-    updateCharacter(c.id, withSouls(c, out))
-    baseKey.current = stableJson(out)
-    setWork(out)
-    edited.current.clear()
-    setUnlocked(new Set())
-    setProposedNames([])
-    toast.success(t('soul.saved'))
+  /** The soul as it is written to the card: in range, locked, signed by who set it. */
+  const finalize = (name: string, soul: Soul): Soul => {
+    const out = clampSoul({ ...soul })
+    out.locked = true
+    if (edited.current.has(name) || !out.ratedBy) out.ratedBy = 'user'
+    return out
   }
 
-  const dropDraft = async (accepted: boolean) => {
+  const forget = (names: string[]) => {
+    for (const n of names) edited.current.delete(n)
+    setUnlocked((u) => { const next = new Set(u); for (const n of names) next.delete(n); return next })
+    setProposedNames((p) => p.filter((n) => !names.includes(n)))
+  }
+
+  const dropDraft = async (accepted: boolean, name?: string) => {
+    const q = `characterId=${encodeURIComponent(c.id)}${accepted ? '&accepted=1' : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}`
     try {
-      await j(`/dashboard/soul-draft?characterId=${encodeURIComponent(c.id)}${accepted ? '&accepted=1' : ''}`, { method: 'DELETE' })
+      await j(`/dashboard/soul-draft?${q}`, { method: 'DELETE' })
     } catch (e) { toast.error(errMsg(e)) }
-    await loadDraft()
+    await Promise.all([loadDraft(), loadGuests()])
   }
 
-  const accept = async () => {
-    persist(overlay(work))
+  /** Save soul: only the selected character goes into the card; the other edits stay unsaved. */
+  const saveOne = async () => {
+    if (!selName || !selSoul) return
+    const name = selName
+    const soul = finalize(name, selSoul)
+    updateCharacter(c.id, withSouls(c, { ...saved, [name]: soul }))
+    setWork((w) => ({ ...w, [name]: soul }))
+    forget([name])
+    toast.success(t('soul.saved'))
+    if (pendingNames.includes(name)) await dropDraft(true, name)
+  }
+
+  /** Accept all: every proposed soul and the proposal's minor names go into the card. */
+  const acceptAll = async () => {
+    if (!draft) return
+    const merged: SoulMap = { ...saved }
+    for (const name of pendingNames) {
+      const base = proposedNames.includes(name) && has(work, name)
+        ? work[name]!
+        : { ...draft.characters[name], ratedBy: draft.by === 'molfar' ? 'molfar' : 'auto' } as Soul
+      merged[name] = finalize(name, base)
+    }
+    const withS = withSouls(c, merged)
+    updateCharacter(c.id, withMinor({ cardExtras: withS.cardExtras }, [...minor, ...(draft.minor ?? [])]))
+    setWork((w) => ({ ...w, ...Object.fromEntries(pendingNames.map((n) => [n, merged[n]!])) }))
+    forget(pendingNames)
+    toast.success(t('soul.saved'))
     await dropDraft(true)
   }
 
@@ -249,8 +288,12 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
       actionLabel: t('soul.delete'),
     })
     if (!yes) return
-    edited.current.delete(selName)
-    setProposedNames((p) => p.filter((n) => n !== selName))
+    if (has(saved, selName)) {
+      const { [selName]: _gone, ...rest } = saved
+      updateCharacter(c.id, withSouls(c, rest))
+      toast.success(t('soul.deleted'))
+    }
+    forget([selName])
     setWork((w) => { const next = { ...w }; delete next[selName]; return next })
     setSelected(null)
   }
@@ -276,7 +319,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
   }
 
   const rateWithMolfar = async () => {
-    const withoutSoul = [...new Set([...guests, ...seen.filter((n) => !has(work, n))])]
+    const withoutSoul = [...new Set([...guests, ...seen.filter((n) => !has(work, n))])].filter((n) => !minor.some((m) => m.toLowerCase() === n.toLowerCase()))
     // chats carry no lorebook list in the store: the card's own books plus the global ones
     // are what the engine scans for every chat of this card
     const books = [...new Set([
@@ -303,7 +346,23 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
     }
   }
 
-  const shownGuests = guests.filter((g) => !has(work, g) && !pendingNames.includes(g))
+  const taken = new Set([
+    ...Object.keys(work), ...pendingNames, ...minor,
+    ...Object.values(work).flatMap((sl) => (Array.isArray(sl.aliases) ? sl.aliases : [])),
+  ].map((n) => String(n).toLowerCase()))
+  const shownGuests = guests.filter((g) => !taken.has(g.toLowerCase()))
+
+  const giveSoul = (name: string) => {
+    edited.current.add(name)
+    setWork((w) => (has(w, name) ? w : { ...w, [name]: {} }))
+    setSelected(name)
+  }
+  const sameAs = (name: string, target: string) => {
+    patchSoul(target, (sl) => ({ ...sl, aliases: cleanNames([...(Array.isArray(sl.aliases) ? sl.aliases : []), name]).slice(0, MAX_ALIASES) }))
+    setSelected(target)
+  }
+  const hide = (name: string) => updateCharacter(c.id, withMinor(c, [...minor, name]))
+  const unhide = (name: string) => updateCharacter(c.id, withMinor(c, minor.filter((m) => m !== name)))
 
   const rateButtons = (
     <>
@@ -347,7 +406,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Button variant="outline" size="sm" className="rounded-none" onClick={review} disabled={pendingNames.every((n) => proposedNames.includes(n))}>{t('soul.review')}</Button>
-            <Button size="sm" className="rounded-none" onClick={() => void accept()}>{t('soul.accept')}</Button>
+            <Button size="sm" className="rounded-none" onClick={() => void acceptAll()}>{t('soul.acceptAll')}</Button>
             <Button variant="ghost" size="sm" className="rounded-none" onClick={() => void dismiss()}>{t('soul.dismiss')}</Button>
           </div>
         </div>
@@ -358,22 +417,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
           <Button variant="outline" size="sm" className="rounded-none" disabled={rating || unavailable} onClick={() => void rateNow()}>{t('soul.retry')}</Button>
         </div>
       )}
-      {shownGuests.length > 0 && (
-        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span>{t('soul.seenWithout')}</span>
-          {shownGuests.map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => { edited.current.add(g); setWork((w) => (has(w, g) ? w : { ...w, [g]: {} })); setSelected(g) }}
-              className="border border-border px-1.5 py-0.5 text-foreground transition-colors hover:bg-muted"
-            >
-              + {g}
-            </button>
-          ))}
-          <span>{t('soul.neutralNote')}</span>
-        </p>
-      )}
+      <SoulGuests guests={shownGuests} soulNames={Object.keys(work)} minor={minor} onGive={giveSoul} onSame={sameAs} onHide={hide} onUnhide={unhide} />
 
       {isEmpty ? (
         <div className="flex flex-col items-start gap-2 border border-dashed border-border p-4">
@@ -411,6 +455,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
                 <span className="size-2 shrink-0 rounded-full" style={{ background: CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral }} aria-hidden="true" />
                 <span className="max-w-40 truncate">{name}</span>
                 {proposed && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('soul.proposed')}</span>}
+                {inWork && dirtyOf(name) && <span className="size-1.5 shrink-0 rounded-full bg-amber-500" title={t('soul.unsavedDot')} role="img" aria-label={t('soul.unsavedDot')} />}
                 {inDraft && has(saved, name) && <span className="text-[10px] text-muted-foreground">{t('soul.replaces')}</span>}
               </button>
             )
@@ -424,7 +469,7 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
       )}
 
       {/* actions */}
-      {(!isEmpty || dirty) && (
+      {!isEmpty && (
         <div className="flex flex-wrap items-center gap-1.5">
           {!isEmpty && rateButtons}
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -436,8 +481,8 @@ export function SoulTab({ c, active }: { c: Character; active: boolean }) {
                 <Trash aria-hidden="true" />{t('soul.delete')}
               </Button>
             )}
-            {dirty && <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"><span aria-hidden="true">●</span>{t('soul.unsaved')}</span>}
-            <Button size="sm" className="rounded-none" disabled={!dirty} onClick={() => persist(work)}>{t('soul.save')}</Button>
+            {selDirty && <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"><span aria-hidden="true">●</span>{t('soul.unsaved')}</span>}
+            <Button size="sm" className="rounded-none" disabled={!selDirty} onClick={() => void saveOne()}>{t('soul.save')}</Button>
           </div>
         </div>
       )}
