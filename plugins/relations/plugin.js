@@ -226,6 +226,48 @@ const SOUL_PROMPT_3 = [
   "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
 ].join("\n");
 
+// The first sensor prompt, kept so a stored copy of it follows the current default.
+const SENSOR_PROMPT_1 = [
+  "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
+  "",
+  "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
+  "",
+  "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
+  "",
+  "Truth:",
+  "- Use only what the New messages say or show. Never invent.",
+  "- The Previous state is background. Never report an event, fact or mood from it unless the New messages show it again.",
+  "- When the new text shows nothing for a key, leave the key out.",
+  "",
+  "Events:",
+  "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
+  "- Between two other characters, name no event: describe it in \"edges\".",
+  "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
+  "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
+  "- Nothing in the vocabulary fits: use \"other\". Never stretch an id to fit.",
+  "",
+  "Scene:",
+  "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+  "- present: the people in the scene at the end of the new messages (the full list; [] when the user's character is alone). A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+  "- place and weather: only when stated or changed.",
+  "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
+  "",
+  "Knowledge:",
+  "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
+  "- learned: whenever a character sees, hears or guesses something new about the user's character, add it; at most 4 per turn, the ones that matter. Skip anything already in their Notebook, even in other words.",
+  "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+  "- names: when the user's name is said in a character's presence, set heardUserName true for them. \"calls\" is how they address the user.",
+  "- blindSpot: for the characters named in this turn's events, one short line on what they do not know that matters here. It is for the user's eyes only.",
+  "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
+  "",
+  "Threads:",
+  "- Keep up to three open threads: unanswered questions or promises that drive the story.",
+  "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
+  "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
+  "- In \"open\", list kept threads with their id and new ones with id null.",
+].join("\n");
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -244,12 +286,12 @@ export const DEFAULT_PROMPTS = {
     "- Between two other characters, name no event: describe it in \"edges\".",
     "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
     "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
-    "- Nothing in the vocabulary fits: use \"other\". Never stretch an id to fit.",
+    "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
     "",
     "Scene:",
     "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
     "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
-    "- present: the people in the scene at the end of the new messages (the full list; [] when the user's character is alone). A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+    "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
     "",
@@ -285,7 +327,7 @@ export const DEFAULT_PROMPTS = {
   ].join("\n"),
 };
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -1397,6 +1439,19 @@ function readEvents(list, ctx, known, unknownIds) {
   return events;
 }
 
+/** Is the name (or an alias of its soul, in any script) in the text, allowing for endings? */
+function mentionsName(ctx, text, name) {
+  const soul = soulOf(ctx.souls, name);
+  const names = [name, ...arr(soul && soul.aliases).filter((a) => typeof a === "string")];
+  const words = String(text).toLowerCase().split(/[^\p{L}\p{N}']+/u).filter(Boolean).map(nameKey);
+  return names.some((n) => {
+    if (mentions(text, n)) return true;
+    const k = nameKey(n);
+    const stem = k.length > 5 ? k.slice(0, -2) : k.length > 3 ? k.slice(0, -1) : k;
+    return stem.length >= 3 && words.some((w) => w.startsWith(stem));
+  });
+}
+
 function scenePresent(ctx, out, known) {
   const B = ctx.base && ctx.base.snap;
   const said = unique(arr(out.present).map((n) => sideOf(n, ctx.userName, known)).filter((n) => n && n !== "user"));
@@ -1404,7 +1459,14 @@ function scenePresent(ctx, out, known) {
   // an explicit [] means the user is alone (a narrator card is no person in
   // the scene); only a report without the key falls back
   const start = Array.isArray(out.present) ? said : B ? arr(B.present) : ctx.characters;
-  return unique(start.filter((n) => !struck.includes(n)));
+  const list = start.filter((n) => !struck.includes(n));
+  // a cheap sensor may leave out someone who acts or speaks: whoever was present and is named
+  // (or speaks) in the new messages stays, unless the sensor said they left; nobody new comes in this way
+  if (B && Array.isArray(out.present)) {
+    const text = ctx.newMsgs.map((m) => String(m.text) + (m.role === "user" ? "" : " " + str(m.name))).join("\n");
+    for (const n of arr(B.present)) if (!list.includes(n) && !struck.includes(n) && mentionsName(ctx, text, n)) list.push(n);
+  }
+  return unique(list);
 }
 
 /** Present characters first named in this turn's events, then the old order. */
@@ -1419,10 +1481,13 @@ function orderPresent(present, events, B) {
 function charEntry(ctx, name, events, sensorChar, blind, B) {
   const soul = soulOf(ctx.souls, name);
   const cls = classOf(soul);
-  const old = B && B.chars ? B.chars[name] : null;
+  const old0 = B && B.chars ? B.chars[name] : null;
+  // start values saved after the character entered shift the stats by the difference
+  const re = old0 ? reseed(ctx, name, old0, soul) : null;
+  const old = re ? re.entry : old0;
   const prev = old ? { stats: old.stats, pulse: old.pulse, hostility: old.hostility ?? null } : startChar(soul, cls);
   const turn = applyTurn({ name, prev, soul, cls, events, vocab: ctx.vocab });
-  const entry = { cls, stats: turn.stats, pulse: turn.pulse, hostility: turn.hostility };
+  const entry = { cls, stats: turn.stats, pulse: turn.pulse, hostility: turn.hostility, seed: old ? old.seed : startChar(soul, cls).stats };
   for (const f of TEXT_FIELDS) entry[f] = (isObj(sensorChar) && str(sensorChar[f]) ? cut(str(sensorChar[f]), 300) : old ? old[f] : null) ?? null;
   // what the sensor saw THIS turn; carried values are stale for the prompt insert
   entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
@@ -1441,7 +1506,43 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
     }
   });
   if (last >= 0) events[last].math.push(...turn.math.turn);
-  return { entry, old, prev };
+  return { entry, old, prev, seedLine: re ? re.line : null };
+}
+
+const startStats = (soul, cls) => startChar(soul, cls).stats;
+const sameStats = (a, b) => DISPOSITION.every((k) => (a[k] || 0) === (b[k] || 0));
+
+/**
+ * The start values a legacy entry (no `seed`) was seeded with. Its character's earliest
+ * snapshot tells: all stats near 0 while the soul has a real start means the start never
+ * applied (seed 0); otherwise it is assumed applied (seed = the soul's start).
+ */
+function legacySeed(state, name, start) {
+  let first = null;
+  for (const snap of Object.values(state.snapshots)) {
+    const c = isObj(snap) && isObj(snap.chars) ? snap.chars[name] : null;
+    if (isObj(c) && isObj(c.stats) && (!first || (snap.turn || 0) < (first.turn || 0))) first = { turn: snap.turn, stats: c.stats };
+  }
+  const nearZero = !!first && DISPOSITION.every((k) => Math.abs(num(first.stats[k]) || 0) <= 3);
+  const real = DISPOSITION.some((k) => Math.abs(start[k]) > 3);
+  if (nearZero && real) return Object.fromEntries(DISPOSITION.map((k) => [k, 0]));
+  return { ...start };
+}
+
+/**
+ * Follow a soul whose start values changed after the entry was made: stats move by
+ * newStart - seed, the seed is updated. Returns { entry, line } (line = a history line or null).
+ */
+function reseed(ctx, name, c, soul) {
+  const cls = CLASSES.includes(c.cls) ? c.cls : classOf(soul);
+  const start = startStats(soul, cls);
+  const seed = isObj(c.seed) ? Object.fromEntries(DISPOSITION.map((k) => [k, num(c.seed[k]) || 0])) : legacySeed(ctx.state, name, start);
+  if (sameStats(seed, start)) return { entry: isObj(c.seed) ? c : { ...c, seed: start }, line: null };
+  const stats = { ...c.stats };
+  for (const k of DISPOSITION) stats[k] = clamp((num(stats[k]) || 0) + (start[k] - seed[k]), -100, 100);
+  const entry = { ...c, stats, seed: start, constellation: constellationOf(stats, cls).id };
+  if (entry.constellation !== c.constellation) entry.prevConstellation = c.constellation ?? null;
+  return { entry, line: { turn: ((ctx.base && ctx.base.snap && ctx.base.snap.turn) || 0) + 1, kind: "seed", from: seed, to: start, src: ctx.K } };
 }
 
 /** A history line for each tier crossing and each constellation change. */
@@ -1560,11 +1661,14 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const chars = {};
   for (const name of names) {
     if (!present.includes(name) && !targets.includes(name) && B && B.chars[name]) {
-      chars[name] = { ...B.chars[name], compact: true };
+      const re = reseed(ctx, name, B.chars[name], soulOf(ctx.souls, name));
+      chars[name] = { ...re.entry, compact: true };
+      if (re.line) state.history[name] = [...arr(state.history[name]), re.line];
       continue;
     }
     const made = charEntry(ctx, name, events, sensorChars[name], blind[name], B);
     chars[name] = made.entry;
+    if (made.seedLine) state.history[name] = [...arr(state.history[name]), made.seedLine];
     addHistory(state, name, turn, K, made.prev, made.entry, made.old);
   }
   orderPresent(present, events, B).forEach((name, i) => {

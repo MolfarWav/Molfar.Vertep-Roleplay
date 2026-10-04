@@ -2809,3 +2809,235 @@ describe("preview speakers", () => {
     expect(pv.insert).not.toBeNull();
   });
 });
+
+// ---------- start values that follow later soul edits; presence guard ----------
+describe("seed: soul start values saved after a character entered", () => {
+  const cardFile = () => "characters/aria/card.json";
+  /** The Aria card with this soul (none: a card without a soul). */
+  const setSoul = (soul?: any) =>
+    fs.writeFileSync(path.join(root, cardFile()), JSON.stringify({ spec: "chara_card_v2", name: "Aria", extensions: soul ? { molfar_soul: { v: 1, characters: { Aria: soul } } } : {} }));
+  const more = (n: number) => [...three(), ...Array.from({ length: n }, (_, i) => (i % 2 === 0 ? A("x" + i, "Hm " + i) : U("x" + i, "Yes " + i)))];
+  const quiet = reply({ present: ["Aria"], minutes: 1 });
+  const stats = (st: any, key: string) => st.snapshots[key].chars.Aria.stats;
+  const ZERO = { trust: 0, comfort: 0, attraction: 0, respect: 0, affection: 0 };
+  const seedLines = (st: any) => (st.history.Aria || []).filter((h: any) => h.kind === "seed");
+
+  it("a character born without a soul gets +start when a soul appears; a later edit shifts by the difference", () => {
+    setSoul();
+    writeChat("c1", three());
+    const mock = mockHost([quiet]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    let st = readStateFile("c1");
+    expect(st.snapshots["m3#0"].chars.Aria.seed).toEqual(ZERO);
+    expect(stats(st, "m3#0")).toEqual(ZERO);
+
+    setSoul({ class: "ally", start: { trust: 5, respect: 3 } });
+    writeChat("c1", more(2));
+    mock.push(quiet);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    st = readStateFile("c1");
+    const key = "x1#0";
+    expect(stats(st, key)).toEqual({ ...ZERO, trust: 5, respect: 3 });
+    expect(st.snapshots[key].chars.Aria.seed).toEqual({ ...ZERO, trust: 5, respect: 3 });
+    expect(seedLines(st)).toEqual([{ turn: 2, kind: "seed", from: ZERO, to: { ...ZERO, trust: 5, respect: 3 }, src: key }]);
+    // the dashboard view passes the line through (without src) and the seed with the entry
+    const view = getState(mock, "c1");
+    expect(view.state.snapshots[key].chars.Aria.seed.trust).toBe(5);
+    const shown = drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view;
+    expect(shown.chars.Aria.history.find((h: any) => h.kind === "seed")).toEqual({ turn: 2, kind: "seed", from: ZERO, to: { ...ZERO, trust: 5, respect: 3 } });
+
+    // an edit of the start: only the difference moves
+    setSoul({ class: "ally", start: { trust: 8, respect: 3, affection: -4 } });
+    writeChat("c1", more(4));
+    mock.push(quiet);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    st = readStateFile("c1");
+    const key2 = "x3#0";
+    expect(stats(st, key2)).toEqual({ ...ZERO, trust: 8, respect: 3, affection: -4 });
+    expect(seedLines(st).length).toBe(2);
+    // unchanged soul: nothing more
+    writeChat("c1", more(6));
+    mock.push(quiet);
+    update(mock, "c1");
+    st = readStateFile("c1");
+    expect(seedLines(st).length).toBe(2);
+    expect(stats(st, "x5#0")).toEqual(stats(st, key2));
+  });
+
+  it("the shift is clamped like the physics and also reaches a character who is out of the scene", () => {
+    setSoul();
+    writeChat("c1", three());
+    const mock = mockHost([quiet]);
+    update(mock, "c1");
+    setSoul({ class: "ally", start: { trust: 20 } });
+    writeChat("c1", more(2));
+    // the sensor puts Aria out of the scene: her entry is copied as compact, and still follows the soul
+    mock.push(reply({ present: [], struck: ["Aria"], minutes: 1 }));
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    const entry = st.snapshots["x1#0"].chars.Aria;
+    expect(entry.compact).toBe(true);
+    expect(entry.stats.trust).toBe(20);
+    expect(entry.seed.trust).toBe(20);
+    expect(seedLines(st).length).toBe(1);
+  });
+
+  it("a legacy entry without a seed: an earliest snapshot near zero means the start never applied", () => {
+    setSoul();
+    writeChat("c1", three());
+    const mock = mockHost([quiet]);
+    update(mock, "c1");
+    const legacy = readStateFile("c1");
+    delete legacy.snapshots["m3#0"].chars.Aria.seed;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(legacy));
+    setSoul({ class: "ally", start: { trust: 5, comfort: -2 } });
+    writeChat("c1", more(2));
+    mock.push(quiet);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    expect(stats(st, "x1#0")).toEqual({ ...ZERO, trust: 5, comfort: -2 });
+    expect(seedLines(st).length).toBe(1);
+    expect(seedLines(st)[0].from).toEqual(ZERO);
+  });
+
+  it("a legacy entry whose earliest snapshot already shows the start is assumed seeded: no shift", () => {
+    setSoul({ class: "ally", start: { trust: 10, respect: 8 } });
+    writeChat("c1", three());
+    const mock = mockHost([quiet]);
+    update(mock, "c1");
+    const legacy = readStateFile("c1");
+    expect(stats(legacy, "m3#0")).toEqual({ ...ZERO, trust: 10, respect: 8 });
+    delete legacy.snapshots["m3#0"].chars.Aria.seed;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(legacy));
+    writeChat("c1", more(2));
+    mock.push(quiet);
+    update(mock, "c1");
+    let st = readStateFile("c1");
+    expect(stats(st, "x1#0")).toEqual({ ...ZERO, trust: 10, respect: 8 });
+    expect(seedLines(st)).toEqual([]);
+    // the seed is recorded now, so a later edit shifts by the difference
+    expect(st.snapshots["x1#0"].chars.Aria.seed).toEqual({ ...ZERO, trust: 10, respect: 8 });
+    setSoul({ class: "ally", start: { trust: 12, respect: 8 } });
+    writeChat("c1", more(4));
+    mock.push(quiet);
+    update(mock, "c1");
+    st = readStateFile("c1");
+    expect(stats(st, "x3#0")).toEqual({ ...ZERO, trust: 12, respect: 8 });
+  });
+
+  it("a legacy entry with a small start (within 3) is not shifted", () => {
+    setSoul();
+    writeChat("c1", three());
+    const mock = mockHost([quiet]);
+    update(mock, "c1");
+    const legacy = readStateFile("c1");
+    delete legacy.snapshots["m3#0"].chars.Aria.seed;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(legacy));
+    setSoul({ class: "ally", start: { trust: 3 } });
+    writeChat("c1", more(2));
+    mock.push(quiet);
+    update(mock, "c1");
+    expect(stats(readStateFile("c1"), "x1#0")).toEqual(ZERO);
+  });
+
+  it("a provisional draft without a start, then a saved soul with one, shifts the stats", () => {
+    setSoul();
+    fs.mkdirSync(path.join(root, "dashboard/soul-drafts"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dashboard/soul-drafts/aria.json"), JSON.stringify({ v: 1, at: 7, by: "molfar", characters: { Aria: { class: "ally", pronouns: "she" } } }));
+    writeChat("c1", three());
+    const mock = mockHost([quiet]);
+    update(mock, "c1");
+    expect(readStateFile("c1").snapshots["m3#0"].chars.Aria.seed).toEqual(ZERO);
+    setSoul({ class: "ally", pronouns: "she", start: { trust: 6, affection: 4 } });
+    writeChat("c1", more(2));
+    mock.push(quiet);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    expect(stats(st, "x1#0")).toEqual({ ...ZERO, trust: 6, affection: 4 });
+    expect(seedLines(st).length).toBe(1);
+  });
+});
+
+describe("presence guard", () => {
+  const Bram = (id: string, text: string): Msg => ({ id, role: "char", name: "Bram", text, swipe: 0 });
+  const setAria = (soul: any) => fs.writeFileSync(path.join(root, "characters/aria/card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Aria", extensions: { molfar_soul: { v: 1, characters: { Aria: soul } } } }));
+  /** A base snapshot with Aria and Bram present, then a second update over `msgs` with the sensor's `present`. */
+  function second(msgs: Msg[], out: Record<string, unknown>, soul: any = { class: "ally" }) {
+    setAria(soul);
+    writeChat("c1", [...three(), Bram("b1", "Hm.")], { groupId: "g1", characterId: undefined });
+    const mock = mockHost([reply({ present: ["Aria", "Bram"], minutes: 1 })]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(readStateFile("c1").snapshots["b1#0"].present).toEqual(["Aria", "Bram"]);
+    writeChat("c1", [...three(), Bram("b1", "Hm."), ...msgs], { groupId: "g1", characterId: undefined });
+    mock.push(reply({ minutes: 1, ...out }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    return readStateFile("c1").snapshots[msgs[msgs.length - 1]!.id + "#0"];
+  }
+
+  it("someone present before who is named in the new messages stays, though the sensor left them out", () => {
+    const snap = second([U("u1", "Aria, come here."), Bram("b2", "I will wait.")], { present: ["Bram"] });
+    expect(snap.present).toEqual(["Bram", "Aria"]);
+    expect(snap.chars.Aria.compact).toBe(false);
+  });
+
+  it("a Cyrillic spelling counts through the aliases of the soul, and through the name key without one", () => {
+    const aliased = second([U("u1", "Арія засміялася."), Bram("b2", "Ну.")], { present: ["Bram"] }, { class: "ally", aliases: ["Арія"] });
+    expect(aliased.present).toContain("Aria");
+  });
+
+  it("the name key alone: another script, an ending on the name", () => {
+    const snap = second([U("u1", "Арію ніхто не бачив."), Bram("b2", "Ну.")], { present: ["Bram"] });
+    expect(snap.present).toContain("Aria");
+  });
+
+  it("a speaker of the new messages counts as named", () => {
+    const snap = second([A("a1", "(she nods)"), Bram("b2", "Ok.")], { present: ["Bram"] });
+    expect(snap.present).toContain("Aria");
+  });
+
+  it("not named: dropped as the sensor said", () => {
+    const snap = second([U("u1", "Well then."), Bram("b2", "I will wait.")], { present: ["Bram"] });
+    expect(snap.present).toEqual(["Bram"]);
+  });
+
+  it("named but reported as leaving: not kept", () => {
+    const snap = second([U("u1", "Goodbye, Aria."), Bram("b2", "Hm.")], { present: ["Bram"], struck: ["Aria"] });
+    expect(snap.present).toEqual(["Bram"]);
+  });
+
+  it("someone absent before who is only mentioned is not added", () => {
+    setAria({ class: "ally" });
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], minutes: 1 })]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("a2", "Hm."), U("u2", "Where is Bram?")]);
+    mock.push(reply({ present: ["Aria"], minutes: 1 }));
+    update(mock, "c1");
+    expect(readStateFile("c1").snapshots["u2#0"].present).toEqual(["Aria"]);
+  });
+
+  it("a report without the present key still falls back to the base list", () => {
+    const snap = second([U("u1", "Well then."), Bram("b2", "Ok.")], {});
+    expect(snap.present).toEqual(["Aria", "Bram"]);
+  });
+});
+
+describe("the sensor prompt default", () => {
+  it("says who is present, and the previous default still counts as the default", () => {
+    const text = P.DEFAULT_PROMPTS.sensor as string;
+    expect(text).toContain("acts, speaks or is addressed");
+    expect(text).toContain("Everyone in the Previous state stays present");
+    const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
+    expect(past.length).toBe(1);
+    expect(past[0]).not.toBe(text);
+    expect(past[0]).toContain("the people in the scene at the end of the new messages");
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[0] }));
+    const mock = mockHost();
+    const j = drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    expect(j.custom).toEqual([]);
+    expect(j.sensor).toBe(text);
+    // a changed copy is still the user's own
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[0] + " Extra." }));
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.custom).toEqual(["sensor"]);
+  });
+});
