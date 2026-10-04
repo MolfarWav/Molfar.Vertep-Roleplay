@@ -1493,7 +1493,7 @@ describe("souls", () => {
     const n = P.normalizeSoul(raw);
     expect(n.class).toBeUndefined();
     expect(n.pronouns).toBe("she");
-    expect(n.aliases).toEqual(["Медли", "x".repeat(60), "a", "b", "c", "d", "e", "f"]);
+    expect(n.aliases).toEqual(["Медли", "x".repeat(60), "a", "b", "c", "d", "e", "f", "g", "h"]);
     expect(n.start).toEqual({ trust: 20, comfort: -20, hostility: 100 });
     expect(n.traits).toEqual({ shyness: 100, curiosity: 0 });
     expect(n.spectra).toEqual({ introvert_extrovert: 50 });
@@ -1602,6 +1602,67 @@ describe("souls", () => {
     expect(get().json).toEqual({ draft: null });
     // accepting what is not there is fine
     expect(drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram", accepted: "1" } }).json).toEqual({ ok: true });
+    // DELETE with name removes only that key
+    writeDraft("bram", { v: 1, at: 1, by: "auto", characters: { Medli: { class: "ally" }, Garrett: { class: "neutral" } } });
+    drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram", accepted: "1", name: "Medli" } });
+    expect(readDraftFile("bram")).toMatchObject({ characters: { Garrett: {} } });
+    // removing all names deletes the file
+    drive(mock, { method: "DELETE", path: "/dashboard/soul-draft", query: { characterId: "bram", accepted: "1", name: "Garrett" } });
+    expect(fs.existsSync(draftFile("bram"))).toBe(false);
+  });
+
+  describe("nameKey and transliteration", () => {
+    it("nameKey: lowercase, Cyrillic transliterated, accents dropped", () => {
+      expect(P.nameKey("Medli")).toBe("medli");
+      expect(P.nameKey("MEDLI")).toBe("medli");
+      expect(P.nameKey("Café")).toBe("cafe");
+      // Cyrillic transliteration
+      const medli = String.fromCharCode(0x041c) + String.fromCharCode(0x0435) + String.fromCharCode(0x0434) + String.fromCharCode(0x043b) + String.fromCharCode(0x0438); // Медли
+      expect(P.nameKey(medli)).toBe("medli");
+      const chandra = String.fromCharCode(0x0427) + String.fromCharCode(0x0430) + String.fromCharCode(0x043d) + String.fromCharCode(0x0434) + String.fromCharCode(0x0440) + String.fromCharCode(0x0430); // Чандра
+      expect(P.nameKey(chandra)).toBe("chandra");
+      const t_sha = String.fromCharCode(0x0422) + String.fromCharCode(0x044c) + String.fromCharCode(0x0428) + String.fromCharCode(0x0430); // Т'Ша
+      expect(P.nameKey(t_sha)).toBe("tsha");
+    });
+
+    it("soulOf: exact, case-insensitive, alias, transliteration", () => {
+      const medli = String.fromCharCode(0x041c) + String.fromCharCode(0x0435) + String.fromCharCode(0x0434) + String.fromCharCode(0x043b) + String.fromCharCode(0x0438); // Медли
+      const tsandra = String.fromCharCode(0x0427) + String.fromCharCode(0x044f) + String.fromCharCode(0x043d) + String.fromCharCode(0x0434) + String.fromCharCode(0x0440) + String.fromCharCode(0x0430); // Чандра
+      const tsha = String.fromCharCode(0x0422) + String.fromCharCode(0x044c) + String.fromCharCode(0x0428) + String.fromCharCode(0x0430); // Т'Ша
+      const soul = { class: "ally" };
+      const souls = { Medli: soul };
+      // transliteration: Медли finds Medli
+      expect(P.soulOf(souls, medli)).toBe(soul);
+      // Cyrillic with apostrophe transliterates correctly
+      const tshaAlias = [tsha];
+      const tshaKnown = { "T'Sha": { class: "neutral", aliases: tshaAlias } };
+      expect(P.soulOf(tshaKnown, tsha)).toEqual({ class: "neutral", aliases: tshaAlias });
+    });
+  });
+
+  describe("lorebook aliases", () => {
+    it("a card whose linked lorebook makes a Cyrillic name resolve to a soul through aliases", () => {
+      writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Marianne: { class: "ally", coping: "hums an old song" } } } } });
+      const cardBefore = fs.readFileSync(path.join(root, "characters/bram/card.json"), "utf8");
+      fs.mkdirSync(path.join(root, "lorebooks"), { recursive: true });
+      const marianna = String.fromCharCode(0x041c) + String.fromCharCode(0x0430) + String.fromCharCode(0x0440) + String.fromCharCode(0x0438) + String.fromCharCode(0x0430) + String.fromCharCode(0x043d) + String.fromCharCode(0x043d) + String.fromCharCode(0x0430); // Марианна
+      fs.writeFileSync(path.join(root, "lorebooks/lb1.json"), JSON.stringify({
+        entries: [{ keys: ["Marianne", marianna, "harp"], content: "A character" }],
+      }));
+      writeChat("c1", three(), { characterId: "bram", lorebookIds: ["lb1"] });
+      const mock = mockHost([reply({ present: [marianna], minutes: 1 })]);
+      update(mock, "c1");
+      // the snapshot should have the Cyrillic name with the correct soul (resolved through lorebook aliases)
+      const snap = readStateFile("c1").snapshots["m3#0"];
+      expect(snap.present).toContain(marianna);
+      expect(snap.chars[marianna].cls).toBe("ally");
+      // the prompt insert finds the same soul for the Cyrillic name
+      const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: marianna } });
+      expect(String(pv.json.insert && pv.json.insert.text)).toContain("hums an old song");
+      // a lowercase key is no name, and the card is never written
+      expect(P.soulOf({ Marianne: { aliases: [] } }, "harp")).toBeUndefined();
+      expect(fs.readFileSync(path.join(root, "characters/bram/card.json"), "utf8")).toBe(cardBefore);
+    });
   });
 
   describe("rating a card", () => {
@@ -1746,6 +1807,53 @@ describe("souls", () => {
       // a fenced reply parses, like the sensor's
       mock.push("```json\n" + soulReply + "\n```");
       expect(rate(mock, { characterId: "bram" }).json.ok).toBe(true);
+    });
+
+    it("the rating request's user message has the names section with counts when the card's chats saw names", () => {
+      writeCard("bram", { name: "Bram" });
+      const now = Date.now();
+      writeChat("c1", three(), { characterId: "bram", updatedAt: now });
+      writeChat("c2", three(), { characterId: "bram", updatedAt: now - 5000 });
+      // Create state files with snapshots
+      const stateFile1 = path.join(root, "dashboard/state/c1.json");
+      fs.mkdirSync(path.dirname(stateFile1), { recursive: true });
+      fs.writeFileSync(stateFile1, JSON.stringify({
+        v: 2, chatId: "c1", snapshots: {
+          "m1#0": { turn: 1, at: 1, present: ["Medli", "Garrett"], chars: {} },
+          "m2#0": { turn: 2, at: 2, present: ["Medli", "Garrett"], chars: {} },
+          "m3#0": { turn: 3, at: 3, present: ["Medli", "Garrett"], chars: {} },
+        },
+      }));
+      const stateFile2 = path.join(root, "dashboard/state/c2.json");
+      fs.writeFileSync(stateFile2, JSON.stringify({
+        v: 2, chatId: "c2", snapshots: {
+          "m1#0": { turn: 1, at: 1, present: ["Garrett", "Brigid"], chars: {} },
+          "m2#0": { turn: 2, at: 2, present: ["Garrett", "Brigid"], chars: {} },
+          "m3#0": { turn: 3, at: 3, present: ["Garrett", "Brigid"], chars: {} },
+        },
+      }));
+      const mock = mockHost();
+      const r = P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body: { characterId: "bram" } }, mock.host);
+      const user = mock.requests[0]!.req.messages[0].content as string;
+      // names section appears when there are names
+      expect(user).toContain("Names seen in this card's chats (most seen first):");
+      expect(user).toContain("Garrett (6)"); // present in 3 snapshots in c1 + 3 in c2
+      expect(user).toContain("Medli (3)"); // present in 3 snapshots in c1
+      expect(user).toContain("Brigid (3)"); // present in 3 snapshots in c2
+    });
+
+    it("a reply's minor is carried into the proposal file", () => {
+      writeCard("bram", { name: "Bram" });
+      const mock = mockHost([
+        reply({
+          characters: { Medli: { class: "ally" } },
+          minor: ["Narrator", "Guard"],
+          note: "n",
+        }),
+      ]);
+      rate(mock, { characterId: "bram" });
+      const draft = readDraftFile("bram");
+      expect(draft.minor).toEqual(["Narrator", "Guard"]);
     });
 
     it("a rate-limited reply is asked once more, and only once", () => {
@@ -1989,12 +2097,17 @@ describe("souls", () => {
       const r = guests(mock);
       expect(r.status).toBe(200);
       expect(r.json.seen).toEqual(["Garrett", "You", "Медли", "Isolde", "Medli", "Brigid"]);
-      expect(r.json.guests).toEqual(["Garrett", "Brigid"]);
-      // a dismissed proposal gives no soul
+      // Brigid was seen once: a passer-by, not a guest
+      expect(r.json.guests).toEqual(["Garrett"]);
+      // a dismissed proposal gives no soul: Isolde, seen twice, is a guest again
       writeDraft("bram", { v: 1, at: 1, by: "auto", characters: {}, dismissedAt: 5 });
-      expect(guests(mock).json.guests).toEqual(["Garrett", "Isolde", "Brigid"]);
-      // another card, and a card with no chats
-      expect(guests(mock, "aria").json).toEqual({ guests: ["Zed"], seen: ["Zed"] });
+      stateWith("b", [["Garrett", "Medli", "Brigid", "Isolde"]]);
+      expect(guests(mock).json.guests).toEqual(["Garrett", "Isolde"]);
+      // a name the card keeps as minor is no guest, in any script
+      writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Medli: { class: "ally", aliases: ["Медли"] } }, minor: ["Гарретт"] } } });
+      expect(guests(mock).json.guests).toEqual(["Isolde"]);
+      // another card (Zed seen once), and a card with no chats
+      expect(guests(mock, "aria").json).toEqual({ guests: [], seen: ["Zed"] });
       writeCard("empty", { name: "Empty" });
       expect(guests(mock, "empty").json).toEqual({ guests: [], seen: [] });
     });

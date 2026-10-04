@@ -176,6 +176,21 @@ export const CONSTELLATIONS = [
 // The sensor prompt ships with the plugin. config.json holds one only when the
 // user changed it. The event vocabulary and the output shape are appended in
 // code, so no edit can break the format.
+// The first soul rating prompt, kept so a stored copy of it follows the current default.
+const SOUL_PROMPT_1 = [
+    "You read a roleplay card and its lorebook and rate its main characters for a relationship tracker.",
+    "Rate only recurring characters the sources describe as people with a name and a personality of their own: the card's own character, and for a narrator card the main named characters its story is about. Skip the narrator itself, the user's character (the player, \"you\", {{user}}), and minor figures: unnamed or one-scene people such as guards, servants, merchants and passers-by. At most six characters; fewer is fine; none when no one fits.",
+    "Judge from what the sources say, not from stereotypes. When the sources say nothing about a quality, use 50 (no lean) for a trait or a spectrum, and leave start values out.",
+    "- class: how the character relates to the user at the start: romantic (a love interest), ally, neutral or hostile.",
+    "- start: attitude on first meeting, small numbers from -20 to 20 (most characters within 10 of zero); leave out what is 0.",
+    "- traits, 0 to 100: dominance, confidence, shyness, patience, curiosity.",
+    "- spectra, 0 to 100 (0 = the first word, 100 = the second): introvert_extrovert, cautious_reckless, reserved_emotional, lawful_rebellious, suspicious_trusting, pessimist_optimist.",
+    "- triggers: up to four things that hurt this character more than most people; values: up to four things they prize. Each names one event id from the list below, the stat it hits, and x = 1.5 (strong) or 2 (very strong); cue is a few words.",
+    "- coping: one short line on how they behave under strain.",
+    "- pronouns: she, he or they. aliases: other spellings of the name the sources use.",
+    "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
+].join("\n");
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -221,19 +236,20 @@ export const DEFAULT_PROMPTS = {
   soul: [
     "You read a roleplay card and its lorebook and rate its main characters for a relationship tracker.",
     "Rate only recurring characters the sources describe as people with a name and a personality of their own: the card's own character, and for a narrator card the main named characters its story is about. Skip the narrator itself, the user's character (the player, \"you\", {{user}}), and minor figures: unnamed or one-scene people such as guards, servants, merchants and passers-by. At most six characters; fewer is fine; none when no one fits.",
-    "Judge from what the sources say, not from stereotypes. When the sources say nothing about a quality, use 50 (no lean) for a trait or a spectrum, and leave start values out.",
+    "Judge from what the sources say, not from stereotypes. When the sources say nothing about a quality, use 50 (no lean) for a trait or a spectrum.",
     "- class: how the character relates to the user at the start: romantic (a love interest), ally, neutral or hostile.",
-    "- start: attitude on first meeting, small numbers from -20 to 20 (most characters within 10 of zero); leave out what is 0.",
+    "- start: how the character feels about the user when the story begins, as the card and its first message set it up (a sworn advisor or an old friend already trusts and respects the user; a rival or a captor distrusts them; a stranger stays near 0). Numbers from -20 to 20; leave a stat out only when the sources give it no lean.",
     "- traits, 0 to 100: dominance, confidence, shyness, patience, curiosity.",
     "- spectra, 0 to 100 (0 = the first word, 100 = the second): introvert_extrovert, cautious_reckless, reserved_emotional, lawful_rebellious, suspicious_trusting, pessimist_optimist.",
     "- triggers: up to four things that hurt this character more than most people; values: up to four things they prize. Each names one event id from the list below, the stat it hits, and x = 1.5 (strong) or 2 (very strong); cue is a few words.",
     "- coping: one short line on how they behave under strain.",
     "- pronouns: she, he or they. aliases: other spellings of the name the sources use.",
+    "- Names: the message lists the names already seen in this card's chats. Key each soul by the spelling those chats use; put other spellings of the same character (another script, a transliteration, a nickname) in aliases. Put every seen name that gets no soul (a minor figure, the narrator, the user) in minor.",
     "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
   ].join("\n"),
 };
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [], soul: [] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [], soul: [SOUL_PROMPT_1] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -520,7 +536,20 @@ export function activeLine(msgs) {
 }
 
 // ---------- souls: lookup and clean-up ----------
-/** The soul for a name: the exact key, then a key that differs only in case, then an alias. */
+// Russian and Ukrainian letters as Latin ones, for comparing a name across scripts
+const CYRILLIC_TO_LATIN = {
+  [String.fromCharCode(0x0430)]: "a", [String.fromCharCode(0x0431)]: "b", [String.fromCharCode(0x0432)]: "v", [String.fromCharCode(0x0433)]: "g", [String.fromCharCode(0x0491)]: "g", [String.fromCharCode(0x0434)]: "d", [String.fromCharCode(0x0435)]: "e", [String.fromCharCode(0x0451)]: "e", [String.fromCharCode(0x0454)]: "e", [String.fromCharCode(0x0436)]: "zh", [String.fromCharCode(0x0437)]: "z", [String.fromCharCode(0x0438)]: "i", [String.fromCharCode(0x0456)]: "i", [String.fromCharCode(0x0457)]: "i", [String.fromCharCode(0x0439)]: "i", [String.fromCharCode(0x043a)]: "k", [String.fromCharCode(0x043b)]: "l", [String.fromCharCode(0x043c)]: "m",
+  [String.fromCharCode(0x043d)]: "n", [String.fromCharCode(0x043e)]: "o", [String.fromCharCode(0x043f)]: "p", [String.fromCharCode(0x0440)]: "r", [String.fromCharCode(0x0441)]: "s", [String.fromCharCode(0x0442)]: "t", [String.fromCharCode(0x0443)]: "u", [String.fromCharCode(0x0444)]: "f", [String.fromCharCode(0x0445)]: "kh", [String.fromCharCode(0x0446)]: "ts", [String.fromCharCode(0x0447)]: "ch", [String.fromCharCode(0x0448)]: "sh", [String.fromCharCode(0x0449)]: "shch", [String.fromCharCode(0x044a)]: "", [String.fromCharCode(0x044b)]: "y", [String.fromCharCode(0x044c)]: "", [String.fromCharCode(0x044d)]: "e", [String.fromCharCode(0x044e)]: "yu", [String.fromCharCode(0x044f)]: "ya",
+};
+
+/** A name for comparing across scripts: lowercase, Cyrillic as Latin, accents and everything but a-z and 0-9 dropped. */
+export function nameKey(s) {
+  let out = "";
+  for (const ch of String(s === undefined || s === null ? "" : s).toLowerCase()) out += Object.prototype.hasOwnProperty.call(CYRILLIC_TO_LATIN, ch) ? CYRILLIC_TO_LATIN[ch] : ch;
+  return out.normalize("NFD").replace(/[^a-z0-9]/g, "");
+}
+
+/** The soul for a name: the exact key, a key that differs only in case, an alias, then the same name in another script. */
 export function soulOf(souls, name) {
   if (!isObj(souls)) return undefined;
   const s = str(name);
@@ -529,7 +558,21 @@ export function soulOf(souls, name) {
   const low = s.toLowerCase();
   for (const [k, v] of Object.entries(souls)) if (isObj(v) && k.trim().toLowerCase() === low) return v;
   for (const v of Object.values(souls)) if (isObj(v) && arr(v.aliases).some((a) => typeof a === "string" && a.trim().toLowerCase() === low)) return v;
+  const key = nameKey(s);
+  if (!key) return undefined;
+  for (const [k, v] of Object.entries(souls)) if (isObj(v) && nameKey(k) === key) return v;
+  for (const v of Object.values(souls)) if (isObj(v) && arr(v.aliases).some((a) => typeof a === "string" && nameKey(a) === key)) return v;
   return undefined;
+}
+
+/** A list of names: strings, trimmed, none empty, cut to 60, unique ignoring case, at most 64. */
+function cleanNames(raw) {
+  const out = [];
+  for (const n of arr(raw)) {
+    const s = typeof n === "string" ? cut(n.trim(), 60) : "";
+    if (s && out.length < 64 && !out.some((x) => x.toLowerCase() === s.toLowerCase())) out.push(s);
+  }
+  return out;
 }
 
 /** `names` plus every soul key no listed name already stands for (an alias is not listed twice). */
@@ -581,7 +624,7 @@ export function normalizeSoul(raw) {
     const seen = [];
     for (const a of raw.aliases) {
       const s = typeof a === "string" ? cut(a.trim(), 60) : "";
-      if (s && seen.length < 8 && !seen.some((x) => x.toLowerCase() === s.toLowerCase())) seen.push(s);
+      if (s && seen.length < 16 && !seen.some((x) => x.toLowerCase() === s.toLowerCase())) seen.push(s);
     }
     out.aliases = seen;
   }
@@ -616,6 +659,7 @@ export function normalizeDraft(raw) {
   const dismissed = numOf(raw.dismissedAt);
   if (Number.isFinite(dismissed)) out.dismissedAt = dismissed;
   out.characters = {};
+  if (Array.isArray(raw.minor)) out.minor = cleanNames(raw.minor);
   if (isObj(raw.characters)) {
     for (const [name, soul] of Object.entries(raw.characters)) {
       const n = cut(name.trim(), 60);
@@ -651,6 +695,71 @@ function cardSoulsOf(card) {
   return out;
 }
 
+/** The names a card marks as minor: no soul on purpose. */
+function cardMinorOf(card) {
+  const bag = isObj(card) && card.extensions && card.extensions.molfar_soul;
+  return isObj(bag) ? cleanNames(bag.minor) : [];
+}
+
+/** Lorebook keys as aliases: for each enabled entry, name-like keys (trimmed, 1..40 chars, starts with uppercase, at most 3 words, not a regex). Returns key groups where each key in a group might be an alias for a soul. */
+function lorebookAliases(fsx, cardId, extraLorebookIds) {
+  const groups = [];
+  const card = readCard(fsx, cardId);
+  if (!isObj(card)) return groups;
+  const studio = isObj(card.studio) ? card.studio : {};
+  const bookIds = unique([studio.embeddedLorebookId, ...arr(studio.linkedLorebookIds), ...arr(extraLorebookIds)]).filter((id) => typeof id === "string" && CHAT_ID.test(id));
+  // also check embedded lorebook
+  const books = [];
+  if (isObj(card.character_book)) books.push(entriesOf(card.character_book));
+  for (const id of bookIds) {
+    const book = readJson(fsx, "lorebooks/" + id + ".json", null);
+    if (isObj(book)) books.push(entriesOf(book));
+  }
+  for (const entries of books) {
+    for (const e of entries) {
+      if (!isObj(e) || e.disable === true || e.enabled === false) continue;
+      const keyList = (Array.isArray(e.keys) ? e.keys : Array.isArray(e.key) ? e.key : []).filter((k) => typeof k === "string");
+      const nameKeys = [];
+      for (const k of keyList) {
+        const trimmed = k.trim();
+        if (trimmed.length < 1 || trimmed.length > 40) continue;
+        // a capital letter in any script; digits and signs are no names
+        if (trimmed[0] === trimmed[0].toLowerCase()) continue;
+        const words = trimmed.split(/\s+/).length;
+        if (words > 3) continue;
+        if (trimmed.startsWith("/")) continue;
+        nameKeys.push(trimmed);
+      }
+      if (nameKeys.length) groups.push(nameKeys);
+    }
+  }
+  return groups;
+}
+
+/**
+ * The souls with the lorebook's names merged into their aliases: when a key of
+ * an entry names a soul, the entry's other name keys count as aliases too.
+ * Copies only; what came from the card is never changed or written.
+ */
+function withLorebookAliases(fsx, souls, cardIds, extraLorebookIds) {
+  const groups = [];
+  for (const id of unique(cardIds)) groups.push(...lorebookAliases(fsx, id, extraLorebookIds));
+  if (!groups.length) return souls;
+  const out = { ...souls };
+  for (const group of groups) {
+    const hit = group.map((k) => soulOf(souls, k)).find(Boolean);
+    if (!hit) continue;
+    const key = Object.keys(souls).find((k) => souls[k] === hit);
+    const merged = arr(out[key].aliases).filter((a) => typeof a === "string");
+    for (const k of group) {
+      if (merged.length >= 32) break;
+      if (k.toLowerCase() !== key.toLowerCase() && !merged.some((a) => a.toLowerCase() === k.toLowerCase())) merged.push(k);
+    }
+    out[key] = { ...out[key], aliases: merged };
+  }
+  return out;
+}
+
 /** Add the souls of a live proposal (not dismissed, not failed) for names that have none yet. */
 function addProvisional(souls, draft) {
   if (!draft || draft.dismissedAt || draft.error) return;
@@ -678,7 +787,7 @@ function chatCharacters(fsx, meta) {
   }
   // a proposal the user has not settled yet plays as a provisional soul, behind the souls the cards hold
   for (const id of cards) addProvisional(souls, readDraft(fsx, id));
-  return { names: unique(names), souls };
+  return { names: unique(names), souls: withLorebookAliases(fsx, souls, cards, arr(meta.lorebookIds)) };
 }
 
 // what the user is called when the chat and the persona give no name
@@ -1282,7 +1391,7 @@ const SOUL_SHAPE =
   "{\"characters\": {\"<name>\": {\"class\": \"romantic|ally|neutral|hostile\", \"pronouns\": \"she|he|they\", \"aliases\": [\"other spelling\"], " +
   "\"start\": {\"trust\": 0, \"respect\": 0}, \"traits\": {\"dominance\": 50, \"shyness\": 50}, \"spectra\": {\"introvert_extrovert\": 50}, " +
   "\"triggers\": [{\"cue\": \"a few words\", \"event\": \"event id\", \"stat\": \"stat name\", \"x\": 1.5}], \"values\": [{\"cue\": \"a few words\", \"event\": \"event id\", \"stat\": \"stat name\", \"x\": 1.5}], " +
-  "\"coping\": \"one short line\"}}, \"note\": \"one or two lines on what you chose and why\"}";
+  "\"coping\": \"one short line\"}}, \"minor\": [\"<seen name>\"], \"note\": \"one or two lines on what you chose and why\"}";
 
 function soulSystem(cfg, vocab) {
   // a soul is not per chat: families a chat switched off are still listed
@@ -1356,7 +1465,39 @@ function soulUser(fsx, cardId, opts) {
     if (full) break;
   }
   if (full) sections.push("(more entries left out)");
-  if (str(o.userName)) sections.push("The user's character is " + str(o.userName) + ": never rate them.");
+  // names seen in chats with counts
+  const nameCounts = new Map();
+  let files = [];
+  try {
+    files = fsx.list("chats").filter((f) => f.endsWith(".meta.json"));
+  } catch {}
+  for (const f of files) {
+    const id = f.replace(/\.meta\.json$/, "");
+    const meta = readJson(fsx, "chats/" + f, null);
+    if (!CHAT_ID.test(id) || !isObj(meta) || meta.characterId !== cardId || meta.groupId) continue;
+    for (const snap of Object.values(loadState(fsx, id).state.snapshots)) {
+      if (isObj(snap)) for (const n of arr(snap.present)) if (str(n)) nameCounts.set(str(n), (nameCounts.get(str(n)) || 0) + 1);
+    }
+  }
+  const seenNames = [...nameCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30);
+  if (seenNames.length) {
+    const nameList = seenNames.map((e) => e[0] + " (" + e[1] + ")").join(", ");
+    sections.push("Names seen in this card's chats (most seen first): " + nameList);
+  }
+  // collect user names from all chats
+  const userNames = new Set();
+  for (const f of files) {
+    const id = f.replace(/\.meta\.json$/, "");
+    const meta = readJson(fsx, "chats/" + f, null);
+    if (!CHAT_ID.test(id) || !isObj(meta) || meta.characterId !== cardId || meta.groupId) continue;
+    const uname = userNameOf(fsx, meta);
+    if (uname !== NO_USER_NAME) userNames.add(uname);
+  }
+  const userNamesList = str(o.userName) ? [o.userName, ...arr([...userNames].filter((u) => u !== o.userName))] : [...userNames];
+  const userMsg = userNamesList.length > 1
+    ? "The user's character is " + userNamesList[0] + " (also written " + userNamesList.slice(1).join(", ") + "): never rate them."
+    : userNamesList.length === 1 ? "The user's character is " + userNamesList[0] + ": never rate them." : "";
+  if (userMsg) sections.push(userMsg);
   return sections.join("\n\n");
 }
 
@@ -1386,7 +1527,7 @@ function draftFromReply(reply) {
   const out = parseSensorText(r.text);
   if (!out) return fail("the reply was not JSON");
   if (!isObj(out.characters)) return fail("the reply had no characters");
-  return normalizeDraft({ v: 1, at: Date.now(), by: "auto", model: str(r.model), note: out.note, characters: out.characters });
+  return normalizeDraft({ v: 1, at: Date.now(), by: "auto", model: str(r.model), note: out.note, minor: out.minor, characters: out.characters });
 }
 
 function saveRated(fsx, cardId, reply) {
@@ -1429,6 +1570,7 @@ function planUpdate(fsx, chatId, op) {
   if (!newMsgs.length) return unchanged();
   const { names, souls } = chatCharacters(fsx, chat.meta);
   return {
+    fsx,
     chatId,
     op,
     meta: chat.meta,
@@ -1933,10 +2075,32 @@ function draftRoute(req, fsx) {
   const cardId = String(q.characterId || "");
   if (!CHAT_ID.test(cardId)) return ok({ error: "characterId required" }, 400);
   if (req.method === "GET") return ok({ draft: readDraft(fsx, cardId) });
+  const name = str(q.name);
   if (parseBool(q.accepted) === true) {
-    try {
-      fsx.remove(draftPath(cardId));
-    } catch {}
+    if (name) {
+      // remove only that name from the proposal
+      const old = readDraft(fsx, cardId);
+      if (old && isObj(old.characters)) {
+        delete old.characters[name];
+        if (Object.keys(old.characters).length === 0) {
+          try {
+            fsx.remove(draftPath(cardId));
+          } catch {}
+        } else {
+          const next = { v: 1, at: old.at || Date.now(), by: old.by || "auto" };
+          if (str(old.model)) next.model = old.model;
+          if (str(old.note)) next.note = old.note;
+          if (Array.isArray(old.minor)) next.minor = old.minor;
+          next.characters = old.characters;
+          fsx.write(draftPath(cardId), JSON.stringify(next, null, 2));
+        }
+      }
+    } else {
+      // remove the whole file
+      try {
+        fsx.remove(draftPath(cardId));
+      } catch {}
+    }
     return ok({ ok: true });
   }
   const old = readDraft(fsx, cardId) || {};
@@ -1946,6 +2110,7 @@ function draftRoute(req, fsx) {
 }
 
 const GUEST_CHATS = 30;
+const GUEST_MIN_SEEN = 2;
 
 /** Names the sensor saw in this card's chats that have no soul, and every name it saw. */
 function guestsRoute(req, fsx) {
@@ -1966,17 +2131,24 @@ function guestsRoute(req, fsx) {
   chats.sort((a, b) => b.at - a.at);
   const counts = new Map();
   const users = new Set();
+  const chatLorebookIds = [];
   for (const { id, meta } of chats.slice(0, GUEST_CHATS)) {
     const user = userNameOf(fsx, meta);
     if (user !== NO_USER_NAME) users.add(user.toLowerCase());
+    if (Array.isArray(meta.lorebookIds)) chatLorebookIds.push(...arr(meta.lorebookIds));
     for (const snap of Object.values(loadState(fsx, id).state.snapshots)) {
       for (const n of arr(isObj(snap) ? snap.present : [])) if (str(n)) counts.set(str(n), (counts.get(str(n)) || 0) + 1);
     }
   }
   const seen = [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
-  const souls = cardSoulsOf(card);
-  addProvisional(souls, readDraft(fsx, cardId));
-  return ok({ guests: seen.filter((n) => !soulOf(souls, n) && !users.has(n.toLowerCase())), seen });
+  const draft = readDraft(fsx, cardId);
+  const own = cardSoulsOf(card);
+  addProvisional(own, draft);
+  const souls = withLorebookAliases(fsx, own, [cardId], chatLorebookIds);
+  const minor = [...cardMinorOf(card), ...(draft && Array.isArray(draft.minor) ? draft.minor : [])].map(nameKey).filter(Boolean);
+  // one sighting is a passer-by the story named once, not a guest to rate
+  const guests = seen.filter((n) => counts.get(n) >= GUEST_MIN_SEEN && !users.has(n.toLowerCase()) && !minor.includes(nameKey(n)) && !soulOf(souls, n));
+  return ok({ guests, seen });
 }
 
 /** What a soul changes in play, from the same constants the physics reads. */
