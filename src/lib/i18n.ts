@@ -226,6 +226,16 @@ const en = {
   'soul.rateEmpty': 'The model returned no soul for {name}.',
   'soul.noticeFailed': 'Rating souls for «{card}» failed: {reason}',
   'soul.open': 'Open',
+  'soul.update': 'update',
+  'soul.was': 'was {n}',
+  'kind.narrator': 'Narrator',
+  'kind.single': 'Single',
+  'kind.group': 'Group',
+  'kind.assistant': 'AI assistant',
+  'kind.other': 'Other',
+  'kind.notSet': 'Not set',
+  'kind.set': 'Set kind',
+  'kind.title': 'Card kind',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -448,6 +458,16 @@ const uk: Record<MsgKey, string> = {
   'soul.rateEmpty': 'Модель не повернула душу для {name}.',
   'soul.noticeFailed': 'Оцінка душ для «{card}» не вдалася: {reason}',
   'soul.open': 'Відкрити',
+  'soul.update': 'оновлення',
+  'soul.was': 'було {n}',
+  'kind.narrator': 'Наратор',
+  'kind.single': 'Один персонаж',
+  'kind.group': 'Група',
+  'kind.assistant': 'AI-асистент',
+  'kind.other': 'Інше',
+  'kind.notSet': 'Не вказано',
+  'kind.set': 'Вказати тип',
+  'kind.title': 'Тип картки',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

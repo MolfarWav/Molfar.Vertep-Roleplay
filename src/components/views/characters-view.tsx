@@ -31,6 +31,8 @@ import { buildCardPng, downloadCardPng } from '@/lib/png-card'
 import { importCardFiles } from '@/lib/card-import'
 import { downloadJson } from '@/lib/interop'
 import { CharacterEditor } from '@/components/views/character-editor'
+import { CardKindBadge } from '@/components/dashboard/card-kind'
+import { cardTypeOf } from '@/lib/soul'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
@@ -347,6 +349,7 @@ export function CharactersView() {
                         {c.favorite && <Star weight="fill" className="size-3 text-primary" aria-hidden="true" />}
                         {c.isGroup && <Badge variant="outline" className="text-[10px]">group</Badge>}
                       </span>
+                      <CardKindBadge type={cardTypeOf(c)} className="w-fit" />
                       <span className="text-[11px] text-muted-foreground">
                         {settings.charSubheader === 'creator' ? `by ${c.creator}` : `v${c.version}`}
                       </span>
@@ -407,6 +410,7 @@ export function CharactersView() {
                     <span className="flex items-center gap-1.5 text-sm font-medium">
                       {c.name}
                       {c.favorite && <Star weight="fill" className="size-3 text-primary" aria-hidden="true" />}
+                      <CardKindBadge type={cardTypeOf(c)} className="px-1.5 py-0 text-[10px]" />
                     </span>
                     <span className="line-clamp-1 text-xs text-muted-foreground">{c.description}</span>
                   </span>

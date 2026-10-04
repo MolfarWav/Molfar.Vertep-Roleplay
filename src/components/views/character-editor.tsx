@@ -23,6 +23,7 @@ import { useApp } from '@/lib/store'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { SoulTab } from '@/components/dashboard/soul-tab'
+import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
@@ -158,6 +159,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </Button>
         <img src={c.avatar || DEFAULT_AVATAR} alt="" className="size-8 rounded-md object-cover" />
         <h1 className="text-sm font-semibold" style={{ color: c.colors.name || undefined }}>{c.name}</h1>
+        {!c.isGroup && <CardKindMenu c={c} />}
         <Badge variant="secondary">{formatTokens(totalTokens)} tok</Badge>
         <Badge variant="outline">{formatTokens(permanentTokens)} permanent</Badge>
         <Badge variant="outline">{chats.filter((ch) => ch.characterId === c.id).length} chats</Badge>

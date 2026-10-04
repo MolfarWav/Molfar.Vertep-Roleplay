@@ -19,6 +19,8 @@ import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressio
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
 import { ModelMark } from '@/components/model-mark'
+import { CardKindBadge } from '@/components/dashboard/card-kind'
+import { cardTypeOf } from '@/lib/soul'
 import { useTouchUi } from '@/hooks/use-touch-ui'
 import { useApp } from '@/lib/store'
 import { useDisplayTexts, type DisplayScript } from '@/hooks/use-display-texts'
@@ -491,6 +493,7 @@ export const MessageRow = memo(function MessageRow({
   const speaker = isUser
     ? authorPersona ?? currentPersona
     : characters.find((c) => c.id === (message.characterId ?? chat.characterId))
+  const speakerKind = isUser ? null : cardTypeOf(characters.find((c) => c.id === (message.characterId ?? chat.characterId)) ?? {})
   const name = isUser ? (message.authorName ?? currentPersona?.name ?? 'You') : (speaker?.name ?? character.name)
   const avatar = isUser ? ((authorPersona ?? currentPersona)?.avatar ?? DEFAULT_AVATAR) : (speaker && 'avatar' in speaker ? speaker.avatar : character.avatar)
   // expression sprites: the reply's own words pick the sprite (keyword
@@ -701,7 +704,11 @@ export const MessageRow = memo(function MessageRow({
               <div className="flex flex-col gap-2 p-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{name}</p>
-                  <p className="text-xs text-muted-foreground">{isUser ? 'Your persona' : 'Character'}</p>
+                  {speakerKind ? (
+                    <CardKindBadge type={speakerKind} className="mt-0.5" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">{isUser ? 'Your persona' : 'Character'}</p>
+                  )}
                 </div>
                 {!isUser && (
                   <Button

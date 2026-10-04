@@ -25,15 +25,30 @@ interface Props {
   events: VocabEvent[] | null
   /** null while loading or when the plugin is not there */
   effects: Effect[] | null
+  /** the soul as it is saved on the card, when the one shown is a proposal replacing it */
+  was?: Soul | null
   onChange: (fn: (s: Soul) => Soul) => void
 }
 
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0')
 
-export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
+/** The value cell: the number, and under it "was N" when the saved soul had another one. */
+function ValueCell({ now, was, text }: { now: number; was?: number; text: (n: number) => string }) {
+  const t = useT()
+  return (
+    <span className="flex flex-col items-end leading-tight" aria-hidden="true">
+      <span className="font-mono text-[11px]">{text(now)}</span>
+      {was !== undefined && was !== now && <span className="whitespace-nowrap text-[9px] text-muted-foreground">{t('soul.was', { n: text(was) })}</span>}
+    </span>
+  )
+}
+
+export function SoulForm({ soul, locked, events, effects, was, onChange }: Props) {
   const t = useT()
   const lang = useLang()
   const cls: SoulClass = soul.class ?? 'neutral'
+  const savedCls: SoulClass | undefined = was ? (was.class ?? 'neutral') : undefined
+  const savedPron = was ? (was.pronouns ?? 'they') : undefined
 
   const setStart = (stat: DispositionStat | 'hostility', v: number) => onChange((s) => ({ ...s, start: { ...s.start, [stat]: v } }))
   const setTrait = (id: TraitId, v: number) => onChange((s) => ({ ...s, traits: { ...s.traits, [id]: v } }))
@@ -57,6 +72,8 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
               label={t('soul.class')}
               value={cls}
               onChange={setClass}
+              was={savedCls}
+              wasLabel={savedCls ? t('soul.was', { n: t(mk(`soul.class.${savedCls}`)) }) : undefined}
               options={CLASSES.map((id) => ({ id, label: t(mk(`soul.class.${id}`)) }))}
             />
           </div>
@@ -66,6 +83,8 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
               label={t('soul.pronouns')}
               value={soul.pronouns ?? 'they'}
               onChange={(p) => onChange((s) => ({ ...s, pronouns: p }))}
+              was={savedPron}
+              wasLabel={savedPron ? t('soul.was', { n: t(mk(`soul.pron.${savedPron}`)) }) : undefined}
               options={PRONOUNS.map((id) => ({ id, label: t(mk(`soul.pron.${id}`)) }))}
             />
           </div>
@@ -74,18 +93,18 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
             {DISPOSITION.map((stat) => {
               const v = soul.start?.[stat] ?? 0
               return (
-                <div key={stat} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.25rem] items-center gap-2 text-xs">
+                <div key={stat} className="grid grid-cols-[5.5rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
                   <span className="truncate">{statLabel(t, stat)}</span>
-                  <RangeBar value={v} min={-20} max={20} fillFrom={0} color={STAT_COLORS[stat]} label={statLabel(t, stat)} onChange={(n) => setStart(stat, n)} />
-                  <span className="text-right font-mono text-[11px]" aria-hidden="true">{signed(v)}</span>
+                  <RangeBar value={v} min={-20} max={20} fillFrom={0} color={STAT_COLORS[stat]} label={statLabel(t, stat)} was={was ? (was.start?.[stat] ?? 0) : undefined} onChange={(n) => setStart(stat, n)} />
+                  <ValueCell now={v} was={was ? (was.start?.[stat] ?? 0) : undefined} text={signed} />
                 </div>
               )
             })}
             {cls === 'hostile' && (
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.25rem] items-center gap-2 text-xs">
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
                 <span className="truncate">{t('soul.stat.hostility')}</span>
-                <RangeBar value={soul.start?.hostility ?? 0} min={0} max={100} color={STAT_COLORS.hostility} label={t('soul.hostilityStart')} onChange={(n) => setStart('hostility', n)} />
-                <span className="text-right font-mono text-[11px]" aria-hidden="true">{soul.start?.hostility ?? 0}</span>
+                <RangeBar value={soul.start?.hostility ?? 0} min={0} max={100} color={STAT_COLORS.hostility} label={t('soul.hostilityStart')} was={was ? (was.start?.hostility ?? 0) : undefined} onChange={(n) => setStart('hostility', n)} />
+                <ValueCell now={soul.start?.hostility ?? 0} was={was ? (was.start?.hostility ?? 0) : undefined} text={String} />
               </div>
             )}
           </div>
@@ -96,10 +115,10 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
             {TRAITS.map((id) => {
               const v = soul.traits?.[id] ?? 50
               return (
-                <div key={id} className="grid grid-cols-[6.5rem_minmax(0,1fr)_2.25rem] items-center gap-2 text-xs">
+                <div key={id} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
                   <span className="truncate" title={t(mk(`soul.trait.${id}`))}>{t(mk(`soul.trait.${id}`))}</span>
-                  <RangeBar value={v} min={0} max={100} color="#8b8478" disabled={locked} label={t(mk(`soul.trait.${id}`))} onChange={(n) => setTrait(id, n)} />
-                  <span className="text-right font-mono text-[11px]" aria-hidden="true">{v}</span>
+                  <RangeBar value={v} min={0} max={100} color="#8b8478" disabled={locked} label={t(mk(`soul.trait.${id}`))} was={was?.traits?.[id]} onChange={(n) => setTrait(id, n)} />
+                  <ValueCell now={v} was={was?.traits?.[id]} text={String} />
                 </div>
               )
             })}
@@ -125,8 +144,8 @@ export function SoulForm({ soul, locked, events, effects, onChange }: Props) {
                     <span className="min-w-0 break-words">{left}</span>
                     <span className="min-w-0 break-words text-right">{right}</span>
                   </div>
-                  <RangeBar value={v} min={0} max={100} fillFrom={50} color="#8b8478" disabled={locked} label={`${left} ↔ ${right}`} onChange={(n) => setSpectrum(id, n)} />
-                  <div className="pt-0.5 text-center text-[11px] text-foreground/80">{word}</div>
+                  <RangeBar value={v} min={0} max={100} fillFrom={50} color="#8b8478" disabled={locked} label={`${left} ↔ ${right}`} was={was?.spectra?.[id]} onChange={(n) => setSpectrum(id, n)} />
+                  <div className="pt-0.5 text-center text-[11px] text-foreground/80">{word}{was?.spectra?.[id] !== undefined && was.spectra[id] !== v && <span className="text-muted-foreground"> · {t('soul.was', { n: was.spectra[id]! })}</span>}</div>
                 </div>
               )
             })}

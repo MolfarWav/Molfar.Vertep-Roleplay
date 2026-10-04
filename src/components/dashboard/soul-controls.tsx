@@ -21,17 +21,21 @@ export function SubLabel({ children }: { children: ReactNode }) {
   return <div className="text-[11px] text-muted-foreground">{children}</div>
 }
 
-export function Segmented<T extends string>({ value, options, onChange, label, className }: {
+export function Segmented<T extends string>({ value, options, onChange, label, className, was, wasLabel }: {
   value: T
   options: readonly { id: T; label: string }[]
   onChange: (v: T) => void
   label: string
   className?: string
+  /** the choice that is saved on the card, outlined faintly when it differs from the current one */
+  was?: T
+  wasLabel?: string
 }) {
   return (
     <div role="radiogroup" aria-label={label} className={cn('flex flex-wrap gap-1.5', className)}>
       {options.map((o) => {
         const on = o.id === value
+        const wasThis = was !== undefined && was !== value && o.id === was
         return (
           <button
             key={o.id}
@@ -42,7 +46,9 @@ export function Segmented<T extends string>({ value, options, onChange, label, c
             className={cn(
               'border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
               on ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+              wasThis && 'outline outline-1 -outline-offset-1 outline-dashed outline-foreground/40',
             )}
+            title={wasThis ? wasLabel : undefined}
           >
             {o.label}
           </button>
@@ -56,7 +62,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, c
  *  travel so the pointer lands where the diamond is. */
 const pos = (frac: number) => `calc(6px + (100% - 12px) * ${frac})`
 
-export function RangeBar({ value, min, max, onChange, color, disabled, label, fillFrom }: {
+export function RangeBar({ value, min, max, onChange, color, disabled, label, fillFrom, was }: {
   value: number
   min: number
   max: number
@@ -66,6 +72,8 @@ export function RangeBar({ value, min, max, onChange, color, disabled, label, fi
   label: string
   /** the value the fill grows from (0 for signed values, 50 for a spectrum); default: the left end */
   fillFrom?: number
+  /** the saved value: a faint marker on the track while the current one differs */
+  was?: number
 }) {
   const span = max - min
   const f = span > 0 ? Math.min(1, Math.max(0, (value - min) / span)) : 0
@@ -80,6 +88,14 @@ export function RangeBar({ value, min, max, onChange, color, disabled, label, fi
         style={{ left: pos(lo), right: `calc(100% - ${pos(hi)})`, background: color }}
       />
       <div className="absolute top-1/2 h-3 w-px -translate-y-1/2 bg-border" style={{ left: pos(fillFrom !== undefined ? f0 : 0.5) }} aria-hidden="true" />
+      {was !== undefined && was !== value && span > 0 && (
+        <div
+          className="pointer-events-none absolute top-1/2 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-foreground/45"
+          style={{ left: pos(Math.min(1, Math.max(0, (was - min) / span))) }}
+          aria-hidden="true"
+          data-was={was}
+        />
+      )}
       <input
         type="range"
         min={min}

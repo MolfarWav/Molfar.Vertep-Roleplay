@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  clampSoul, molfarDraftText, minorOf, soulsOf, spectrumBand, stableJson, validSoulName, withMinor, withSouls,
+  cardTypeOf, clampSoul, molfarDraftText, minorOf, soulsOf, spectrumBand, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulMap,
 } from "../src/lib/soul";
 import { ASK_MOLFAR_MAX } from "../src/lib/shell-bridge";
@@ -269,5 +269,39 @@ describe("minor names", () => {
     const again = cardToCharacter(characterToCard({ ...char, ...withMinor(char, ["Cook"]) }) as never, "nest");
     expect(minorOf(again)).toEqual(["Cook"]);
     expect((again.cardExtras!.extensions as Record<string, unknown>).other_mod).toEqual({ a: 1 });
+  });
+});
+
+describe("card kind", () => {
+  it("cardTypeOf reads a known kind and nothing else", () => {
+    expect(cardTypeOf({})).toBeNull();
+    expect(cardTypeOf({ cardExtras: { extensions: { molfar_card_type: "narrator" } } })).toBe("narrator");
+    expect(cardTypeOf({ cardExtras: { extensions: { molfar_card_type: "wizard" } } })).toBeNull();
+    expect(cardTypeOf({ cardExtras: { extensions: "no" } })).toBeNull();
+  });
+
+  it("withCardType keeps souls, minor and every other extensions key, through the card format", () => {
+    const char = cardToCharacter({ ...baseCard(), extensions: { ...baseCard().extensions, molfar_soul: { v: 1, characters: { A: { class: "ally" } }, minor: ["Cook"] } } } as never, "n");
+    const typed = { ...char, ...withCardType(char, "narrator") };
+    const again = cardToCharacter(characterToCard(typed) as never, "n");
+    expect(cardTypeOf(again)).toBe("narrator");
+    expect(soulsOf(again)).toEqual({ A: { class: "ally" } });
+    expect(minorOf(again)).toEqual(["Cook"]);
+    expect((again.cardExtras!.extensions as Record<string, unknown>).other_mod).toEqual({ a: 1 });
+    // souls and minor writes keep the kind
+    const saved = { ...typed, ...withSouls(typed, { B: {} }), };
+    expect(cardTypeOf(saved)).toBe("narrator");
+    expect(cardTypeOf({ ...typed, ...withMinor(typed, []) })).toBe("narrator");
+  });
+
+  it("clearing the kind removes the key, and extensions when it was all there was", () => {
+    const bare = cardToCharacter({ spec: "chara_card_v2", name: "Bare" } as never, "b");
+    const set = { ...bare, ...withCardType(bare, "single") };
+    expect(cardTypeOf(set)).toBe("single");
+    expect({ ...set, ...withCardType(set, null) }.cardExtras).toBeUndefined();
+    const char = cardToCharacter(baseCard() as never, "n");
+    const cleared = { ...char, ...withCardType({ ...char, ...withCardType(char, "group") }, null) };
+    expect("molfar_card_type" in (cleared.cardExtras!.extensions as object)).toBe(false);
+    expect((cleared.cardExtras!.extensions as Record<string, unknown>).other_mod).toEqual({ a: 1 });
   });
 });

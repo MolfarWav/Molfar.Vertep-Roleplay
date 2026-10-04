@@ -15,7 +15,7 @@ import { ApiError, j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import {
-  MAX_ALIASES, clampSoul, cleanNames, minorOf, molfarDraftText, soulsOf, stableJson, validSoulName, withMinor, withSouls,
+  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, isCardType, withCardType, minorOf, molfarDraftText, soulsOf, stableJson, validSoulName, withMinor, withSouls,
   type Soul, type SoulClass, type SoulDraft, type SoulMap,
 } from '@/lib/soul'
 import type { Character } from '@/lib/types'
@@ -67,6 +67,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   // souls that are not rated yet (a blank "Give a soul", "+ Add", or one just deleted) and the ones whose form was opened by hand
   const [blank, setBlank] = useState<Set<string>>(new Set())
   const [byHand, setByHand] = useState<Set<string>>(new Set())
+  const wasBlank = useRef(new Set<string>())
   const [ratingName, setRatingName] = useState<string | null>(null)
   const [sensorModel, setSensorModel] = useState('')
   const [newName, setNewName] = useState('')
@@ -158,6 +159,13 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     return () => clearInterval(id)
   }, [active, unavailable, rating, askedUntil, loadDraft])
 
+  // a proposal may arrive from Molfar or from the plugin at any time: look now and then while the tab is open
+  useEffect(() => {
+    if (!active || unavailable) return
+    const id = setInterval(() => { if (document.visibilityState === 'visible') void loadDraft() }, 30_000)
+    return () => clearInterval(id)
+  }, [active, unavailable, loadDraft])
+
   const pending = !!draft && !draft.dismissedAt && !draft.error && Object.keys(draft.characters).length > 0
   const failed = !!draft && !draft.dismissedAt && !!draft.error
   const pendingNames = pending && draft ? Object.keys(draft.characters) : []
@@ -171,6 +179,25 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
   const lockedNow = selName !== null && !!selSoul && selSoul.locked === true && !unlocked.has(selName)
   const isEmpty = chipNames.length === 0
   const selDirty = selName !== null && dirtyOf(selName)
+
+  // a live proposal always wins over "no soul": a blank name it covers shows the proposed values
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when a proposal arrives or a name turns blank
+  useEffect(() => {
+    if (!draft || !pending) return
+    const hit = pendingNames.filter((n) => blank.has(n) && has(work, n))
+    if (!hit.length) return
+    for (const n of hit) wasBlank.current.add(n)
+    setWork((w) => {
+      const next = { ...w }
+      for (const n of hit) {
+        const proposal = draft.characters[n]
+        if (proposal) next[n] = { ...proposal, ratedBy: draft.by === 'molfar' ? 'molfar' : 'auto' }
+      }
+      return next
+    })
+    setBlank((b) => new Set([...b].filter((n) => !hit.includes(n))))
+    setProposedNames((p) => [...new Set([...p, ...hit])])
+  }, [draft, blank])
 
   // ── effects of the selected soul ──
   // biome-ignore lint/correctness/useExhaustiveDependencies: the key of the selected soul stands for its content
@@ -235,6 +262,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
     for (const n of names) edited.current.delete(n)
     setUnlocked((u) => { const next = new Set(u); for (const n of names) next.delete(n); return next })
     setProposedNames((p) => p.filter((n) => !names.includes(n)))
+    for (const n of names) wasBlank.current.delete(n)
     setBlank((b) => new Set([...b].filter((n) => !names.includes(n))))
     setByHand((h) => new Set([...h].filter((n) => !names.includes(n))))
   }
@@ -270,7 +298,10 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
       merged[name] = finalize(name, base)
     }
     const withS = withSouls(c, merged)
-    updateCharacter(c.id, withMinor({ cardExtras: withS.cardExtras }, [...minor, ...(draft.minor ?? [])]))
+    const withM = withMinor({ cardExtras: withS.cardExtras }, [...minor, ...(draft.minor ?? [])])
+    // the rating's guess of the card's kind counts only when the card has none
+    const kind = !cardTypeOf(c) && isCardType(draft.cardType) ? draft.cardType : null
+    updateCharacter(c.id, kind ? withCardType({ cardExtras: withM.cardExtras }, kind) : withM)
     setWork((w) => ({ ...w, ...Object.fromEntries(pendingNames.map((n) => [n, merged[n]!])) }))
     forget(pendingNames)
     toast.success(t('soul.saved'))
@@ -283,11 +314,14 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
       for (const name of proposedNames) {
         const old = saved[name]
         if (old) next[name] = old
+        else if (wasBlank.current.has(name)) next[name] = {}
         else delete next[name]
         edited.current.delete(name)
       }
       return next
     })
+    setBlank((b) => new Set([...b, ...proposedNames.filter((n) => !has(saved, n) && wasBlank.current.has(n))]))
+    wasBlank.current.clear()
     setProposedNames([])
     await dropDraft(false)
   }
@@ -504,28 +538,28 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
             const inDraft = pendingNames.includes(name)
             const overlaid = proposedNames.includes(name)
             const cls = (inWork ? work[name]?.class : draft?.characters[name]?.class) ?? 'neutral'
+            const isUpdate = inDraft && has(saved, name)
             const proposed = overlaid || (inDraft && !inWork)
-            const noSoul = inWork && blank.has(name)
+            const noSoul = inWork && blank.has(name) && !inDraft
             const on = name === selName
             return (
               <button
                 key={name}
                 type="button"
                 aria-pressed={on}
-                onClick={() => { if (!inWork) review(); setSelected(name) }}
+                onClick={() => { if (!inWork || (inDraft && !overlaid)) review(); setSelected(name) }}
                 className={cn(
                   'flex items-center gap-1.5 border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
                   on ? 'border-primary bg-primary/15' : 'border-border hover:bg-muted',
-                  (proposed || noSoul) && 'border-dashed',
+                  (proposed || isUpdate || noSoul) && 'border-dashed',
                   noSoul && 'text-muted-foreground',
                 )}
               >
                 <span className="size-2 shrink-0 rounded-full" style={{ background: noSoul ? 'transparent' : (CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral), boxShadow: noSoul ? 'inset 0 0 0 1px currentColor' : undefined }} aria-hidden="true" />
                 <span className="max-w-40 truncate">{name}</span>
                 {noSoul && <span className="text-[10px]">{t('soul.noSoul')}</span>}
-                {proposed && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('soul.proposed')}</span>}
+                {(proposed || isUpdate) && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t(isUpdate ? 'soul.update' : 'soul.proposed')}</span>}
                 {inWork && dirtyOf(name) && <span className="size-1.5 shrink-0 rounded-full bg-amber-500" title={t('soul.unsavedDot')} role="img" aria-label={t('soul.unsavedDot')} />}
-                {inDraft && has(saved, name) && <span className="text-[10px] text-muted-foreground">{t('soul.replaces')}</span>}
               </button>
             )
           })}
@@ -556,7 +590,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
         </div>
       )}
 
-      {selSoul && selName && blank.has(selName) && !byHand.has(selName) ? (
+      {selSoul && selName && blank.has(selName) && !pendingNames.includes(selName) && !byHand.has(selName) ? (
         <div className="flex flex-col items-start gap-2 border border-dashed border-border p-4" data-testid="soul-not-rated">
           <p className="text-sm font-semibold">{t('soul.notRated')}</p>
           <p className="max-w-prose text-xs text-muted-foreground">{t('soul.notRatedHint')}</p>
@@ -576,6 +610,7 @@ export function SoulTab({ c, active, onPending }: { c: Character; active: boolea
           locked={lockedNow}
           events={events}
           effects={effects}
+          was={proposedNames.includes(selName) ? (saved[selName] ?? null) : null}
           onChange={(fn) => patchSoul(selName, fn)}
         />
       ) : !isEmpty ? (

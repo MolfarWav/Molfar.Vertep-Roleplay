@@ -50,6 +50,8 @@ export interface SoulDraft {
   dismissedAt?: number
   /** names seen in play that the rating judged minor (no soul) */
   minor?: string[]
+  /** the rating's guess of the card's kind */
+  cardType?: string
   characters: SoulMap
 }
 
@@ -107,6 +109,34 @@ export function soulsOf(c: Pick<Character, 'cardExtras'>): SoulMap {
     out[name] = soul as Soul
   }
   return out
+}
+
+/** The card's kind (`extensions.molfar_card_type`), shown as a badge. */
+export const CARD_TYPES = ['narrator', 'single', 'group', 'assistant', 'other'] as const
+export type CardType = (typeof CARD_TYPES)[number]
+
+export const isCardType = (v: unknown): v is CardType => typeof v === 'string' && (CARD_TYPES as readonly string[]).includes(v)
+
+/** The kind the card says it is; null = not set. */
+export function cardTypeOf(c: Pick<Character, 'cardExtras'>): CardType | null {
+  const ext = c.cardExtras?.extensions
+  const v = isObj(ext) ? ext.molfar_card_type : undefined
+  return isCardType(v) ? v : null
+}
+
+/** The `cardExtras` patch that sets (or, with null, clears) the card's kind; every other
+ *  key of `extensions` stays, and `extensions` goes when it held nothing else. */
+export function withCardType(c: Pick<Character, 'cardExtras'>, type: CardType | null): Pick<Character, 'cardExtras'> {
+  const extras: Record<string, unknown> = { ...(c.cardExtras ?? {}) }
+  const hadExt = isObj(extras.extensions)
+  const ext: Record<string, unknown> = hadExt ? { ...(extras.extensions as Record<string, unknown>) } : {}
+  const hadType = 'molfar_card_type' in ext
+  if (type) ext.molfar_card_type = type
+  else delete ext.molfar_card_type
+  if (Object.keys(ext).length) extras.extensions = ext
+  else if (hadType) delete extras.extensions
+  else if (hadExt) extras.extensions = ext
+  return { cardExtras: Object.keys(extras).length ? extras : undefined }
 }
 
 export const MAX_MINOR = 64
