@@ -1,6 +1,6 @@
 
 import { Fragment, useEffect, useState } from 'react'
-import { CircleNotch } from '@phosphor-icons/react'
+import { CircleNotch, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -176,10 +176,11 @@ function renderView(v: ViewKey) {
 function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
   const drawer = useApp((s) => s.drawer)
   const closeDrawer = useApp((s) => s.closeDrawer)
-  const wide = useIsWideRail()
+  const wide = useRailWide()
   const t = useT()
   const item = SECTIONS.find((i) => i.key === drawer)
   const label = item ? t(item.labelKey) : ''
+  const railOffset = !isDesktop ? 'top-11' : wide ? 'left-[206px]' : 'left-12'
   return (
     // non-modal and without pointer dismissal: the rail (or the chat's section
     // bar) stays live, since pressing it must not read as an outside-close; the
@@ -192,7 +193,7 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
         aria-label={label}
         // the drawer and its dim sit beside the rail / below the section bar,
         // never over it: it stays clickable to flip sections or close
-        overlayClassName={cn('bg-black/45', isDesktop ? (wide ? 'left-[206px]' : 'left-12') : 'top-11')}
+        overlayClassName={cn('bg-black/45', railOffset)}
         onOverlayClick={closeDrawer}
         className={cn(
           'gap-0',
@@ -219,13 +220,54 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
   )
 }
 
+/** The rail shows labels when the window is wide enough and the user has not
+ *  collapsed it; collapsed, it is the slim icon rail. */
+function useRailWide() {
+  const roomy = useIsWideRail()
+  const collapsed = useApp((s) => s.railCollapsed)
+  return roomy && !collapsed
+}
+
 function IconRail() {
   const view = useApp((s) => s.view)
   const drawer = useApp((s) => s.drawer)
   const navigate = useApp((s) => s.navigate)
   const closeDrawer = useApp((s) => s.closeDrawer)
-  const wide = useIsWideRail()
+  const railCollapsed = useApp((s) => s.railCollapsed)
+  const setRailCollapsed = useApp((s) => s.setRailCollapsed)
+  // the toggle exists only where a labeled rail fits; a slim rail has nothing to hide
+  const roomy = useIsWideRail()
+  const wide = roomy && !railCollapsed
   const t = useT()
+
+  const toggleLabel = t(wide ? 'nav.hideRail' : 'nav.showRail')
+  const toggle = !roomy ? null : wide ? (
+    <button
+      type="button"
+      onClick={() => setRailCollapsed(true)}
+      aria-label={toggleLabel}
+      title={toggleLabel}
+      className="mx-2 mb-1 flex h-8 shrink-0 items-center justify-end rounded-md pr-1 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+    >
+      <CaretLeft className="size-4" aria-hidden="true" />
+    </button>
+  ) : (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={() => setRailCollapsed(false)}
+            aria-label={toggleLabel}
+            className="mx-auto mb-1 flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+          >
+            <CaretRight className="size-4" aria-hidden="true" />
+          </button>
+        }
+      />
+      <TooltipContent side="right">{toggleLabel}</TooltipContent>
+    </Tooltip>
+  )
 
   return (
     <nav
@@ -235,6 +277,7 @@ function IconRail() {
         wide ? 'w-[206px]' : 'w-12',
       )}
     >
+      {toggle}
       {sectionGroups().map((group, gi) => (
         <Fragment key={String(group[0]!.group)}>
           {gi > 0 && <RailDivider wide={wide} pinned={group[0]!.group === 'end'} />}

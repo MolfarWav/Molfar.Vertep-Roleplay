@@ -1,11 +1,12 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
-import { ALL, characterOptions, personaOptions, type ChatFilter } from '@/lib/chat-filters'
+import { ALL, characterOptions, type ChatFilter } from '@/lib/chat-filters'
 import { cn } from '@/lib/utils'
 
-/** Persona and Character selects for a chat list. They offer only what the
- *  list's chats actually use; "All" is the default. Shared by Home and Chats. */
+/** Persona and Character selects for a chat list. Personas list every defined
+ *  persona (there are only a few); characters list only what the chats
+ *  actually use. "All" is the default. Shared by Home and Chats. */
 export function ChatFilters({ value, onChange, className }: {
   value: ChatFilter
   onChange: (next: ChatFilter) => void
@@ -15,7 +16,8 @@ export function ChatFilters({ value, onChange, className }: {
   const chats = useApp((s) => s.chats)
   const personas = useApp((s) => s.personas)
   const characters = useApp((s) => s.characters)
-  const personaOpts = personaOptions(chats, personas)
+  // every persona: when all visible chats share one, a used-only list would hide the filter
+  const personaOpts = personas
   const characterOpts = characterOptions(chats, characters)
   // nothing to choose between yet
   if (personaOpts.length < 2 && characterOpts.length < 2) return null

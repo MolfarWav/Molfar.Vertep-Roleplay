@@ -125,6 +125,10 @@ interface AppState {
   /** /help reference dialog (commands + macros) */
   helpOpen: boolean
   setHelpOpen: (v: boolean) => void
+  /** the user collapsed the labeled nav rail to its slim icon form (wide
+   *  windows only); persisted between sessions */
+  railCollapsed: boolean
+  setRailCollapsed: (v: boolean) => void
   // lifecycle
   hydrate: () => Promise<void>
   /** Refresh ONLY the lorebooks list — the light path imports and single-book
@@ -412,6 +416,8 @@ export const useApp = create<AppState>()(
       composerDraft: null,
       deleteMode: false,
       helpOpen: false,
+      railCollapsed: false,
+      setRailCollapsed: (v) => set({ railCollapsed: v }),
 
       // ─────────────────────────────────────────────────────────── lifecycle ──
       hydrate: async () => {
@@ -1866,6 +1872,7 @@ export const useApp = create<AppState>()(
         activeCharacterId: s.activeCharacterId,
         selectedSettingsSection: s.selectedSettingsSection,
         inputHistory: s.inputHistory,
+        railCollapsed: s.railCollapsed,
       }) as never,
     },
   ),

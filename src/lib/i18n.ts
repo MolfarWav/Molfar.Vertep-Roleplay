@@ -21,6 +21,8 @@ const en = {
   'nav.extensions': 'Tools',
   'nav.settings': 'Settings',
   'nav.more': 'More',
+  'nav.hideRail': 'Hide labels',
+  'nav.showRail': 'Show labels',
 
   'home.pickUp': 'Pick up the story',
   'home.continue': 'Continue',
@@ -403,6 +405,8 @@ const uk: Record<MsgKey, string> = {
   'nav.extensions': 'Інструменти',
   'nav.settings': 'Налаштування',
   'nav.more': 'Ще',
+  'nav.hideRail': 'Сховати підписи',
+  'nav.showRail': 'Показати підписи',
 
   'home.pickUp': 'Продовжити історію',
   'home.continue': 'Продовжити',
