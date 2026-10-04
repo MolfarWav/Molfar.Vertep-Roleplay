@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react"
-import { Plus, Trash, Asterisk, UploadSimple, DownloadSimple, Flask, X } from '@phosphor-icons/react'
+import { Plus, Trash, Asterisk, UploadSimple, DownloadSimple, Flask, X, CaretDown, CaretRight, SlidersHorizontal, Globe, UserCircle, Chats } from '@phosphor-icons/react'
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -149,6 +149,117 @@ export function RegexView() {
     if (firstId) setSelectedId(firstId)
   }
 
+  // ── Grouped master list: preset groups first (each under its preset
+  // header), then global / character / chat, each in run order. Preset groups start collapsed
+  // unless they hold the selection, so big preset packs don't flood the list.
+  type RegexGroup = {
+    key: string
+    title: string
+    kind: 'preset' | 'global' | 'character' | 'chat'
+    targetId: string | null
+    scripts: RegexScript[]
+  }
+  const presetById = new Map(presets.map((p) => [p.id, p]))
+  const charById = new Map(characters.map((c) => [c.id, c]))
+  const chatById = new Map(chats.map((c) => [c.id, c]))
+  const groups: RegexGroup[] = (() => {
+    const out: RegexGroup[] = []
+    const presetBuckets = new Map<string | null, RegexScript[]>()
+    const charBuckets = new Map<string | null, RegexScript[]>()
+    const chatBuckets = new Map<string | null, RegexScript[]>()
+    const global: RegexScript[] = []
+    for (const s of scripts) {
+      if (s.scope === 'preset') {
+        const k = s.scopeTargetId ?? null
+        presetBuckets.set(k, [...(presetBuckets.get(k) ?? []), s])
+      } else if (s.scope === 'character') {
+        const k = s.scopeTargetId ?? null
+        charBuckets.set(k, [...(charBuckets.get(k) ?? []), s])
+      } else if (s.scope === 'chat') {
+        const k = s.scopeTargetId ?? null
+        chatBuckets.set(k, [...(chatBuckets.get(k) ?? []), s])
+      } else global.push(s)
+    }
+    // scripts run in list order: show them in it
+    const byOrder = (a: RegexScript, b: RegexScript) => a.order - b.order
+    for (const [pid, list] of [...presetBuckets.entries()].sort(([a], [b]) =>
+      (presetById.get(a ?? '')?.name ?? '~~').localeCompare(presetById.get(b ?? '')?.name ?? '~~'))) {
+      const p = pid ? presetById.get(pid) : undefined
+      out.push({
+        key: `preset:${pid ?? 'unbound'}`,
+        title: p ? p.name : 'Preset: unbound',
+        kind: 'preset', targetId: pid,
+        scripts: [...list].sort(byOrder),
+      })
+    }
+    if (global.length) out.push({ key: 'global', title: 'Global', kind: 'global', targetId: null, scripts: [...global].sort(byOrder) })
+    for (const [cid, list] of charBuckets) {
+      const c = cid ? charById.get(cid) : undefined
+      out.push({ key: `char:${cid ?? 'unbound'}`, title: c ? c.name : 'Character: unbound', kind: 'character', targetId: cid, scripts: [...list].sort(byOrder) })
+    }
+    for (const [cid, list] of chatBuckets) {
+      const c = cid ? chatById.get(cid) : undefined
+      out.push({ key: `chat:${cid ?? 'unbound'}`, title: c ? c.title : 'Chat: unbound', kind: 'chat', targetId: cid, scripts: [...list].sort(byOrder) })
+    }
+    return out
+  })()
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const isCollapsed = (g: RegexGroup) => {
+    if (collapsed[g.key] !== undefined) return collapsed[g.key]
+    if (g.kind === 'preset') return !g.scripts.some((s) => s.id === selectedId)
+    return false
+  }
+  const toggleGroup = (g: RegexGroup) => {
+    const shut = isCollapsed(g)
+    setCollapsed((c) => ({ ...c, [g.key]: !shut }))
+  }
+  const addToGroup = (g: RegexGroup) => {
+    const id = addRegex(g.kind === 'global' ? 'global' : g.kind)
+    if (g.targetId) updateRegex(id, { scopeTargetId: g.targetId })
+    setCollapsed((c) => ({ ...c, [g.key]: false }))
+    select(id)
+  }
+  const deleteGroup = (g: RegexGroup) => {
+    void confirm({
+      title: `Delete ${g.scripts.length} script${g.scripts.length === 1 ? '' : 's'} of “${g.title}”?`,
+      description: 'The scripts are removed for good and stop working everywhere. This cannot be undone.',
+    }).then((yes) => {
+      if (!yes) return
+      const ids = new Set(g.scripts.map((s) => s.id))
+      for (const s of g.scripts) deleteRegex(s.id)
+      if (selectedId && ids.has(selectedId)) {
+        const next = scripts.find((r) => !ids.has(r.id))?.id ?? null
+        setSelectedId(next)
+        setDetailOpen(false)
+      }
+      toast.success(`Deleted ${ids.size} script${ids.size === 1 ? '' : 's'}`)
+    })
+  }
+  const GROUP_ICON = { preset: SlidersHorizontal, global: Globe, character: UserCircle, chat: Chats } as const
+  const renderRow = (script: RegexScript) => (
+    <button
+      key={script.id}
+      type="button"
+      onClick={() => select(script.id)}
+      className={cn(
+        "flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+        selectedId === script.id ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50",
+      )}
+    >
+      <Asterisk className="size-3.5 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{script.name}</span>
+      {script.scope !== "global" && (
+        <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
+          {SCOPE_LABEL[script.scope].slice(0, 4)}
+        </span>
+      )}
+      <span
+        className={cn("size-1.5 shrink-0 rounded-full", script.enabled ? "bg-primary" : "bg-muted-foreground/30")}
+        aria-hidden
+      />
+    </button>
+  )
+
   return (
     <>
     <MasterDetail
@@ -190,30 +301,56 @@ export function RegexView() {
           </div>
         </div>
         <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-0.5 p-1.5">
-            {scripts.map((script) => (
-              <button
-                key={script.id}
-                type="button"
-                onClick={() => select(script.id)}
-                className={cn(
-                  "flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                  selectedId === script.id ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                <Asterisk className="size-3.5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{script.name}</span>
-                {script.scope !== "global" && (
-                  <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
-                    {SCOPE_LABEL[script.scope].slice(0, 4)}
-                  </span>
-                )}
-                <span
-                  className={cn("size-1.5 shrink-0 rounded-full", script.enabled ? "bg-primary" : "bg-muted-foreground/30")}
-                  aria-hidden
-                />
-              </button>
-            ))}
+          <div className="flex flex-col gap-1.5 p-1.5">
+            {groups.map((g) => {
+              const GIcon = GROUP_ICON[g.kind]
+              const shut = isCollapsed(g)
+              return (
+                <div key={g.key} className="overflow-hidden rounded-lg border border-border/50">
+                  <div className="flex items-center gap-0.5 bg-muted/50 py-0.5 pl-1 pr-0.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(g)}
+                      aria-expanded={!shut}
+                      title={shut ? `Expand ${g.title}` : `Collapse ${g.title}`}
+                      className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1.5 text-left hover:bg-accent/50"
+                    >
+                      {shut ? <CaretRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <CaretDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                      <GIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate text-xs font-semibold">{g.title}</span>
+                      <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                        {g.scripts.length}
+                      </span>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0"
+                      onClick={() => addToGroup(g)}
+                      aria-label={`Add script to ${g.title}`}
+                      title={`Add script to ${g.title}`}
+                    >
+                      <Plus className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteGroup(g)}
+                      aria-label={`Delete all ${g.scripts.length} scripts of ${g.title}`}
+                      title={`Delete all scripts of ${g.title}`}
+                    >
+                      <Trash className="size-3.5" />
+                    </Button>
+                  </div>
+                  {!shut && (
+                    <div className="flex flex-col gap-0.5 p-1">
+                      {g.scripts.map(renderRow)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             {scripts.length === 0 && <p className="px-2 py-4 text-center text-xs text-muted-foreground">No scripts yet</p>}
           </div>
         </ScrollArea>

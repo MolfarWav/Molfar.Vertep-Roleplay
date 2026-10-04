@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/components/ui/confirm'
 import { useApp } from '@/lib/store'
+import { useT } from '@/hooks/use-t'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { useDragList } from '@/lib/drag-list'
 import { presetExport, downloadJson } from '@/lib/interop'
@@ -87,6 +88,7 @@ export function PresetsView() {
   const [diffOpen, setDiffOpen] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
   const preset = presets.find((p) => p.id === selectedId) ?? presets[0]
+  const t = useT()
 
   const select = (id: string) => {
     setSelectedId(id)
@@ -224,7 +226,7 @@ export function PresetsView() {
                 <GitDiff className="size-3.5" aria-hidden="true" />Compare
               </Button>
               <Button variant="outline" size="sm" className="text-xs" onClick={() => importRef.current?.click()}>
-                <UploadSimple className="size-3.5" aria-hidden="true" />Import
+                <DownloadSimple className="size-3.5" aria-hidden="true" />Import
               </Button>
               <Button
                 variant="outline"
@@ -232,7 +234,7 @@ export function PresetsView() {
                 className="text-xs"
                 onClick={() => { downloadJson(presetExport(preset, useApp.getState().regexScripts), `${preset.name.replace(/[^\w-]+/g, '_')}.json`); toast.success('Exported preset') }}
               >
-                <DownloadSimple className="size-3.5" aria-hidden="true" />Export
+                <UploadSimple className="size-3.5" aria-hidden="true" />Export
               </Button>
               {preset.readOnly ? (
                 <Button size="sm" className="text-xs" onClick={() => { const id = duplicatePreset(preset.id); setSelectedId(id); toast.success('Editable copy created') }}>
@@ -243,7 +245,7 @@ export function PresetsView() {
                   <Button variant="ghost" size="sm" onClick={() => { const id = duplicatePreset(preset.id); setSelectedId(id) }} aria-label="Duplicate preset">
                     <Copy className="size-4" aria-hidden="true" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => { usePreset(preset.id); toast.success(`Using preset: ${preset.name}`) }} disabled={preset.id === activeId}>Use this preset</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { usePreset(preset.id); toast.success(`Using preset: ${preset.name}`) }} disabled={preset.id === activeId} className="text-sm">Use this preset</Button>
                   <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void confirm({
                     title: `Delete ${preset.name}?`,
                     description: 'The preset file is removed from disk. Chats that used it fall back to the default.',
@@ -274,6 +276,7 @@ export function PresetsView() {
                 <TabsTrigger value="shaping" className="flex-none px-2.5 text-xs">Shaping</TabsTrigger>
                 <TabsTrigger value="utility" className="flex-none px-2.5 text-xs">Utility prompts</TabsTrigger>
                 <TabsTrigger value="variables" className="flex-none px-2.5 text-xs">Variables</TabsTrigger>
+                <TabsTrigger value="regex" className="flex-none px-2.5 text-xs">{t('preset.regexTab')}</TabsTrigger>
               </TabsList>
             </div>
             <div className={cn('p-4', preset.readOnly && 'pointer-events-none opacity-60')}>
@@ -341,6 +344,9 @@ export function PresetsView() {
                     onClick={() => { const name = `var${preset.variables.length + 1}`; updatePreset(preset.id, { variables: [...preset.variables, { id: uid('var'), name, label: name, type: 'text', defaultValue: '' }] }); toast.success(`Added {{var:${name}}}, edit it below`) }}>
                     <Plus className="size-3.5" aria-hidden="true" />Add variable
                   </Button>
+                </TabsContent>
+                <TabsContent value="regex" className="mx-auto flex max-w-2xl flex-col gap-2">
+                  <PresetRegexPanel preset={preset} />
                 </TabsContent>
               </div>
             </ScrollArea>
@@ -642,34 +648,36 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
                   ))}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                  <span>Triggers:</span>
-                  {triggerOptions.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      disabled={ro}
-                      onClick={() => upSection(s.id, { injectionTriggers: s.injectionTriggers.includes(t) ? s.injectionTriggers.filter((x) => x !== t) : [...s.injectionTriggers, t] })}
-                      className={cn('rounded-full border px-1.5 py-0.5', s.injectionTriggers.includes(t) ? 'border-primary bg-primary/15 text-primary' : 'border-border')}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                  <label className="ml-auto flex items-center gap-1">
-                    <Switch checked={s.forbidOverrides} disabled={ro} onCheckedChange={(v) => upSection(s.id, { forbidOverrides: v })} aria-label="Forbid overrides" />
-                    forbid overrides
-                  </label>
-                </div>
+                <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-2">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>Triggers:</span>
+                    {triggerOptions.map((tg) => (
+                      <button
+                        key={tg}
+                        type="button"
+                        disabled={ro}
+                        onClick={() => upSection(s.id, { injectionTriggers: s.injectionTriggers.includes(tg) ? s.injectionTriggers.filter((x) => x !== tg) : [...s.injectionTriggers, tg] })}
+                        className={cn('rounded-full border px-1.5 py-0.5', s.injectionTriggers.includes(tg) ? 'border-primary bg-primary/15 text-primary' : 'border-border')}
+                      >
+                        {tg}
+                      </button>
+                    ))}
+                    <label className="ml-auto flex items-center gap-1">
+                      <Switch checked={s.forbidOverrides} disabled={ro} onCheckedChange={(v) => upSection(s.id, { forbidOverrides: v })} aria-label="Forbid overrides" />
+                      forbid overrides
+                    </label>
+                  </div>
 
-                <div>
-                  <Button
-                    variant="ghost" size="sm" className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
-                    disabled={ro}
-                    onClick={() => removeToLibrary(s.id)}
-                  >
-                    <LibraryIcon className="size-3" aria-hidden="true" />
-                    Remove
-                  </Button>
+                  <div className="border-t border-primary/20 pt-1.5">
+                    <Button
+                      variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                      disabled={ro}
+                      onClick={() => removeToLibrary(s.id)}
+                    >
+                      <LibraryIcon className="size-3.5" aria-hidden="true" />
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -747,6 +755,101 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/** Regex scripts bound to this preset (scope 'preset'): the last tab of the
+ *  preset editor. Lists what runs while the preset is active, binds existing
+ *  scripts to it, makes new ones, unbinds back to global. */
+function PresetRegexPanel({ preset }: { preset: Preset }) {
+  const t = useT()
+  const scripts = useApp((s) => s.regexScripts)
+  const updateRegex = useApp((s) => s.updateRegex)
+  const addRegex = useApp((s) => s.addRegex)
+  const deleteRegex = useApp((s) => s.deleteRegex)
+  const [confirm, confirmDialog] = useConfirm()
+  const [bindId, setBindId] = useState('')
+  const ro = preset.readOnly
+  const bound = scripts
+    .filter((r) => r.scope === 'preset' && r.scopeTargetId === preset.id)
+    .sort((a, b) => a.order - b.order)
+  // only free (global) scripts: binding one bound elsewhere would silently move it
+  const candidates = scripts.filter((r) => r.scope === 'global')
+  const pick = candidates.some((r) => r.id === bindId) ? bindId : ''
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <p className="text-xs font-medium">{t('preset.regexTitle')} · {bound.length}</p>
+        {!ro && bound.length > 0 && (
+          <Button
+            variant="ghost" size="sm" className="ml-auto h-6 text-[11px] text-destructive"
+            onClick={() => void confirm({
+              title: t('preset.regexDeleteAllTitle', { n: bound.length }),
+              description: t('preset.regexDeleteAllBody'),
+            }).then((yes) => {
+              if (!yes) return
+              for (const r of bound) deleteRegex(r.id)
+              toast.success(t('preset.regexDeleteAll'))
+            })}
+            aria-label={t('preset.regexDeleteAll')}
+          >
+            <Trash className="size-3" aria-hidden="true" />
+            {t('preset.regexDeleteAll')}
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{t('preset.regexHint')}</p>
+      {bound.length === 0 && (
+        <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+          {t('preset.regexEmpty')}
+        </p>
+      )}
+      {bound.map((r) => (
+        <div key={r.id} className={cn('flex flex-wrap items-center gap-2 rounded-md border border-border px-2.5 py-1.5', !r.enabled && 'opacity-60')}>
+          <Switch checked={r.enabled} disabled={ro} onCheckedChange={(v) => updateRegex(r.id, { enabled: v })} aria-label={`Enable ${r.name}`} />
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">{r.name}</span>
+          <code className="hidden min-w-0 max-w-56 truncate font-mono text-[10px] text-muted-foreground sm:block">
+            {r.find || '—'} → {r.replace || '—'}
+          </code>
+          <Button
+            variant="ghost" size="sm" className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+            disabled={ro}
+            onClick={() => updateRegex(r.id, { scope: 'global', scopeTargetId: null })}
+          >
+            {t('preset.regexUnbind')}
+          </Button>
+        </div>
+      ))}
+      {!ro && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Select value={pick} onValueChange={(v) => v && setBindId(v)} disabled={candidates.length === 0}>
+            <SelectTrigger className="h-7 w-44 text-[11px]" aria-label={candidates.length === 0 ? t('preset.regexNoFree') : t('preset.regexPick')}>
+              <SelectValue placeholder={candidates.length === 0 ? t('preset.regexNoFree') : t('preset.regexPick')} />
+            </SelectTrigger>
+            <SelectContent>
+              {candidates.map((r) => (
+                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline" size="sm" className="h-7 text-xs"
+            disabled={!pick}
+            onClick={() => { if (!pick) return; updateRegex(pick, { scope: 'preset', scopeTargetId: preset.id }); setBindId(''); toast.success(t('preset.regexBind')) }}
+          >
+            {t('preset.regexBind')}
+          </Button>
+          <Button
+            variant="outline" size="sm" className="h-7 text-xs"
+            onClick={() => { const id = addRegex('preset'); updateRegex(id, { scopeTargetId: preset.id }); toast.success(t('preset.regexNew')) }}
+          >
+            <Plus className="size-3.5" aria-hidden="true" />{t('preset.regexNew')}
+          </Button>
+        </div>
+      )}
+      {confirmDialog}
     </div>
   )
 }

@@ -21,6 +21,17 @@ const PANEL_ICONS: Record<string, typeof DiceFive> = {
   dices: DiceFive, wrench: Wrench, zap: Lightning, book: BookOpenText, plug: Plug, blocks: SquaresFour,
 }
 
+function ToolGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="shrink-0 px-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+const TRIGGER_CLS = "flex-none gap-1.5"
+
 export function ExtensionsView() {
   const [tab, setTab] = useState('regex')
   // panels are PLUGIN-provided UI: every app plugin may export a uiPanel hook
@@ -51,38 +62,45 @@ export function ExtensionsView() {
       <PaneTitle section="extensions" icon={<PuzzlePiece className="size-4 text-primary" aria-hidden="true" />} />
     </header>
   ) : null
-  // horizontal strip: triggers are flex-none so they overflow instead
-  // of compressing — touch-scroll on mobile, wheel-scroll on desktop
+  // Grouped toolbar: plugin panels first, then text/voice generation,
+  // then system tabs. Each group is its OWN TabsList pill (Base UI tabs only
+  // lay out triggers that are direct children of a list — wrapper boxes
+  // inside one shared list collapse and paint the tabs over the content).
   const strip = (
-        <div
-          className="overflow-x-auto overscroll-x-contain border-b border-border px-4 no-scrollbar"
-          onWheel={(e) => {
-            if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-              e.currentTarget.scrollLeft += e.deltaY
-            }
-          }}
-        >
-          {/* wide screens show every tab at once (wrapped rows) instead of a
-              one-line scroller; narrow screens keep the touch strip */}
-          <TabsList className="my-2 h-9 w-max flex-nowrap md:h-auto md:w-full md:flex-wrap md:gap-y-1">
-            {panels.map((p) => {
-              const Icon = PANEL_ICONS[p.icon ?? ''] ?? PuzzlePiece
-              const value = `panel:${p.label}`
-              return (
-                <TabsTrigger key={value} value={value} className="flex-none gap-1.5">
-                  <Icon className="size-3.5" aria-hidden="true" /> {p.label}
-                </TabsTrigger>
-              )
-            })}
-            <TabsTrigger value="regex" className="flex-none gap-1.5"><Asterisk className="size-3.5" aria-hidden="true" /> Regex</TabsTrigger>
-            <TabsTrigger value="translation" className="flex-none gap-1.5"><Translate className="size-3.5" aria-hidden="true" /> Translation</TabsTrigger>
-            <TabsTrigger value="image-gen" className="flex-none gap-1.5"><Image className="size-3.5" aria-hidden="true" /> Image Generation</TabsTrigger>
-            <TabsTrigger value="tts" className="flex-none gap-1.5"><Waveform className="size-3.5" aria-hidden="true" /> TTS</TabsTrigger>
-            <TabsTrigger value="data-bank" className="flex-none gap-1.5"><Database className="size-3.5" aria-hidden="true" /> Data Bank</TabsTrigger>
-            <TabsTrigger value="backgrounds" className="flex-none gap-1.5"><Image className="size-3.5" aria-hidden="true" /> Backgrounds</TabsTrigger>
-            <TabsTrigger value="mcp" className="flex-none gap-1.5"><Plug className="size-3.5" aria-hidden="true" /> MCP</TabsTrigger>
-            <TabsTrigger value="plugins" className="flex-none gap-1.5"><SquaresFour className="size-3.5" aria-hidden="true" /> Plugins</TabsTrigger>
-          </TabsList>
+        <div className="border-b border-border bg-muted/20 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            {panels.length > 0 && (
+              <ToolGroup label="Panels">
+                <TabsList className="h-auto">
+                  {panels.map((p) => {
+                    const Icon = PANEL_ICONS[p.icon ?? ''] ?? PuzzlePiece
+                    const value = `panel:${p.label}`
+                    return (
+                      <TabsTrigger key={value} value={value} className={TRIGGER_CLS}>
+                        <Icon className="size-3.5" aria-hidden="true" /> {p.label}
+                      </TabsTrigger>
+                    )
+                  })}
+                </TabsList>
+              </ToolGroup>
+            )}
+            <ToolGroup label="Text & voice">
+              <TabsList className="h-auto">
+                <TabsTrigger value="regex" className={TRIGGER_CLS}><Asterisk className="size-3.5" aria-hidden="true" /> Regex</TabsTrigger>
+                <TabsTrigger value="translation" className={TRIGGER_CLS}><Translate className="size-3.5" aria-hidden="true" /> Translation</TabsTrigger>
+                <TabsTrigger value="image-gen" className={TRIGGER_CLS}><Image className="size-3.5" aria-hidden="true" /> Image Generation</TabsTrigger>
+                <TabsTrigger value="tts" className={TRIGGER_CLS}><Waveform className="size-3.5" aria-hidden="true" /> TTS</TabsTrigger>
+                <TabsTrigger value="data-bank" className={TRIGGER_CLS}><Database className="size-3.5" aria-hidden="true" /> Data Bank</TabsTrigger>
+              </TabsList>
+            </ToolGroup>
+            <ToolGroup label="System">
+              <TabsList className="h-auto">
+                <TabsTrigger value="backgrounds" className={TRIGGER_CLS}><Image className="size-3.5" aria-hidden="true" /> Backgrounds</TabsTrigger>
+                <TabsTrigger value="mcp" className={TRIGGER_CLS}><Plug className="size-3.5" aria-hidden="true" /> MCP</TabsTrigger>
+                <TabsTrigger value="plugins" className={TRIGGER_CLS}><SquaresFour className="size-3.5" aria-hidden="true" /> Plugins</TabsTrigger>
+              </TabsList>
+            </ToolGroup>
+          </div>
         </div>
   )
 
