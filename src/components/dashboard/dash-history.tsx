@@ -1,5 +1,5 @@
 import type { DashChar } from '@/lib/dashboard'
-import { DISPOSITION } from '@/lib/dashboard'
+import { DISPOSITION, signed } from '@/lib/dashboard'
 import type { DispositionStat } from '@/lib/soul'
 import { STAT_COLORS } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
@@ -10,6 +10,14 @@ export function StoryList({ char, className }: { char: DashChar; className?: str
   const t = useT()
   const tx = useTx()
   const lines = [...char.history].sort((a, b) => b.turn - a.turn)
+  /** "start values from the Soul applied (trust +10, respect +12)": only the stats that moved. */
+  const seedText = (from: Record<string, number>, to: Record<string, number>) => {
+    const moved = [...new Set([...Object.keys(from), ...Object.keys(to)])]
+      .map((k) => [k, (to[k] ?? 0) - (from[k] ?? 0)] as const)
+      .filter(([, d]) => d !== 0)
+      .map(([k, d]) => `${tx('soul.stat', k).toLowerCase()} ${signed(d)}`)
+    return moved.length ? t('dash.story.seed', { changes: moved.join(', ') }) : t('dash.story.seedNone')
+  }
   return (
     <Box title={t('dash.story')} className={className}>
       {lines.length === 0 ? (
@@ -17,7 +25,7 @@ export function StoryList({ char, className }: { char: DashChar; className?: str
       ) : (
         <ul className="flex flex-col">
           {lines.map((line) => (
-            <li key={line.kind === 'tier' ? `${line.turn}|${line.stat}|${line.from}|${line.to}` : `${line.turn}|${line.from}|${line.to}`} className="flex min-w-0 items-baseline gap-2 border-b border-dashed border-border py-1.5 text-sm first:pt-0 last:border-b-0 last:pb-0">
+            <li key={`${line.turn}|${line.kind}|${line.kind === 'tier' ? line.stat : ''}|${line.kind === 'seed' ? JSON.stringify(line.to) : `${line.from}|${line.to}`}`} className="flex min-w-0 items-baseline gap-2 border-b border-dashed border-border py-1.5 text-sm first:pt-0 last:border-b-0 last:pb-0">
               <span className="min-w-0 flex-1 break-words">
                 {line.kind === 'tier'
                   ? t('dash.story.tier', {
@@ -25,7 +33,9 @@ export function StoryList({ char, className }: { char: DashChar; className?: str
                       from: tx(`dash.tier.${line.stat}`, String(line.from)),
                       to: tx(`dash.tier.${line.stat}`, String(line.to)),
                     })
-                  : t('dash.story.constellation', { from: tx('dash.const', line.from), to: tx('dash.const', line.to) })}
+                  : line.kind === 'seed'
+                    ? seedText(line.from, line.to)
+                    : t('dash.story.constellation', { from: tx('dash.const', line.from), to: tx('dash.const', line.to) })}
               </span>
               <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{t('dash.story.turn', { n: line.turn })}</span>
             </li>

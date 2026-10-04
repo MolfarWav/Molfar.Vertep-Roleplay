@@ -7,7 +7,7 @@ import { useT } from '@/hooks/use-t'
 import { useDashLive } from '@/lib/dash-live'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { ageLabel } from './dash-common'
+import { ageLabel, liveError } from './dash-common'
 import { useDashMaybe } from './dash-mount'
 
 const LINE = 'flex min-w-0 flex-wrap items-center gap-x-1.5 px-1 text-[11px] leading-snug text-muted-foreground'
@@ -49,10 +49,7 @@ export function DashLiveLine({ chatId }: { chatId: string }) {
   }
 
   // an error counts until a newer snapshot lands
-  const since = view?.at ?? 0
-  const error = last && !last.ok && last.at > since
-    ? (last.error ?? '')
-    : view?.lastError && view.lastError.at > since ? view.lastError.message : null
+  const error = liveError(last, view)
   if (error !== null) {
     return (
       <Follow className={cn(LINE, 'text-amber-600 dark:text-amber-400')}>

@@ -11,11 +11,13 @@ function HowIcon({ how }: { how: How }) {
   return <Brain className={cls} aria-hidden="true" />
 }
 
-export function Notebook({ name, char, userName, className }: {
+export function Notebook({ name, char, userName, className, id }: {
   name: string
   char: DashChar
   userName: string
   className?: string
+  /** makes the box a scroll target (the strip's note chips) */
+  id?: string
 }) {
   const t = useT()
   const tx = useTx()
@@ -23,7 +25,7 @@ export function Notebook({ name, char, userName, className }: {
   const you = userName || t('dash.you')
   const entries = [...char.notebook].sort((a, b) => b.turn - a.turn)
   return (
-    <Box title={t('dash.notebook', { name })} className={className}>
+    <Box id={id} title={t('dash.notebook', { name })} className={className}>
       <div className="mb-2 min-w-0 text-sm break-words">
         {char.name?.knowsUserName ? t('dash.name.known') : t('dash.name.unknown')}
         {char.name?.calls ? <span className="text-muted-foreground"> · {t('dash.name.calls', { calls: char.name.calls })}</span> : null}

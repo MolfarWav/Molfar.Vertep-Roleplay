@@ -41,6 +41,8 @@ export interface NameInfo { knowsUserName: boolean; calls: string }
 export type HistoryLine =
   | { turn: number; kind: 'tier'; stat: DispositionStat; from: number; to: number }
   | { turn: number; kind: 'constellation'; from: string; to: string }
+  /** the soul's start values changed after the character entered: the stats shifted by to - from */
+  | { turn: number; kind: 'seed'; from: Record<string, number>; to: Record<string, number> }
 
 export interface DashChar {
   cls: SoulClass

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowClockwise, GearSix, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +13,10 @@ import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { AgeText, AvatarButton, AvatarImg, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
 
-export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, userName }: {
+export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, userName }: {
+  chatId: string
+  /** changes each time the strip's note chips ask for the notebook: scroll it into view */
+  notebookSignal?: number
   view: DashView
   focus: string
   onFocus: (name: string) => void
@@ -29,6 +32,12 @@ export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onSettin
   const tx = useTx()
   const char = view.chars[focus]
   const [chartStat, setChartStat] = useState<DispositionStat>('trust')
+  useEffect(() => {
+    if (!notebookSignal) return
+    const el = document.getElementById('dash-notebook')
+    el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    el?.focus({ preventScroll: true })
+  }, [notebookSignal])
   if (!char) return null
 
   const fullChars = view.order.filter((n) => view.chars[n] && !view.chars[n].compact)
@@ -150,7 +159,7 @@ export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onSettin
         </div>
 
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
-          <Notebook name={focus} char={char} userName={userName} />
+          <Notebook id="dash-notebook" className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
             <Box title={t('dash.threads')}>
               <ThreadList threads={sortedThreads(view.threads)} />
@@ -211,7 +220,7 @@ export function DashWide({ view, focus, onFocus, onRefresh, refreshing, onSettin
           <div className="flex flex-wrap gap-x-2">
             <span className="font-mono break-all">{view.sensorModel}</span>
             <span>·</span>
-            <FooterLine view={view} />
+            <FooterLine view={view} chatId={chatId} />
           </div>
           <span>{t('dash.footer.tokens', { in: view.usage.inTokens, out: view.usage.outTokens, calls: view.usage.calls })}</span>
           <span>{t('dash.footer.rule')}</span>

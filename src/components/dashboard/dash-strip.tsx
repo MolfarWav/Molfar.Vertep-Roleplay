@@ -10,11 +10,14 @@ import { DISPOSITION } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { AgeText, AvatarButton, FooterLine, Label, LiveDot, NameChip, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
 
-export function DashStrip({ view, focus, onFocus, onOpen, onRefresh, refreshing, collapsed, onCollapse, now, avatars }: {
+export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, onRefresh, refreshing, collapsed, onCollapse, now, avatars }: {
+  chatId: string
   view: DashView
   focus: string
   onFocus: (name: string) => void
   onOpen: () => void
+  /** open the wide view on the focused character, the notebook in view */
+  onNotebook: () => void
   onRefresh: () => void
   refreshing: boolean
   collapsed: boolean
@@ -113,9 +116,9 @@ export function DashStrip({ view, focus, onFocus, onOpen, onRefresh, refreshing,
           </div>
 
           <div className={cn(section, 'flex flex-wrap items-center gap-1.5')}>
-            <Badge variant="outline" className="rounded-none text-[10px]">{t('dash.notes.about', { n: counts.about })}</Badge>
-            <Badge variant="outline" className="rounded-none text-[10px]">{t('dash.notes.heard', { n: counts.heard })}</Badge>
-            <NameChip char={char} />
+            <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-[10px] hover:bg-muted">{t('dash.notes.about', { n: counts.about })}</Badge>
+            <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-[10px] hover:bg-muted">{t('dash.notes.heard', { n: counts.heard })}</Badge>
+            <NameChip char={char} onClick={onNotebook} />
           </div>
 
           <div className="flex flex-col gap-2 px-3 py-2.5">
@@ -128,7 +131,7 @@ export function DashStrip({ view, focus, onFocus, onOpen, onRefresh, refreshing,
       </ScrollArea>
 
       <div className="shrink-0 border-t border-border px-3 py-2">
-        <FooterLine view={view} />
+        <FooterLine view={view} chatId={chatId} />
       </div>
     </aside>
   )

@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { ageSeconds, type Clock, type DashChar, type DashView } from '@/lib/dashboard'
 import { useT } from '@/hooks/use-t'
+import { useDashLive, type DashLast } from '@/lib/dash-live'
 import { DICTIONARIES, type MsgKey } from '@/lib/i18n'
 
 /**
@@ -104,13 +105,19 @@ export function AvatarButton({ name, url, onFocus, focused, className }: {
   )
 }
 
-export function NameChip({ char }: { char: DashChar }) {
+export function NameChip({ char, onClick }: { char: DashChar; onClick?: () => void }) {
   const t = useT()
-  return (
-    <span className="min-w-0 text-[11px] text-muted-foreground break-words">
+  const text = (
+    <>
       {char.name?.knowsUserName ? t('dash.name.known') : t('dash.name.unknown')}
       {char.name?.calls ? ` · ${t('dash.name.calls', { calls: char.name.calls })}` : ''}
-    </span>
+    </>
+  )
+  if (!onClick) return <span className="min-w-0 text-[11px] text-muted-foreground break-words">{text}</span>
+  return (
+    <button type="button" onClick={onClick} title={t('dash.notes.open')} className="min-w-0 rounded-none text-left text-[11px] text-muted-foreground break-words underline-offset-2 hover:text-foreground hover:underline">
+      {text}
+    </button>
   )
 }
 
@@ -126,12 +133,33 @@ export function Notices({ view, className }: { view: DashView; className?: strin
   )
 }
 
-/** "sensor · 1.2 s · insert ≈180 tok" on one wrapping line. */
-export function FooterLine({ view, className }: { view: DashView; className?: string }) {
+/** The message of a failed update that no newer snapshot has replaced, else null (the live line and the footer share it). */
+export function liveError(last: DashLast | undefined, view: DashView | null): string | null {
+  const since = view?.at ?? 0
+  if (last && !last.ok && last.at > since) return last.error ?? ''
+  if (view?.lastError && view.lastError.at > since) return view.lastError.message
+  return null
+}
+
+/** "● sensor · 1.2 s · insert ≈180 tok" on one wrapping line; the dot and the first part follow the sensor's state. */
+export function FooterLine({ view, chatId, className }: { view: DashView; chatId: string; className?: string }) {
   const t = useT()
+  const running = useDashLive((s) => !!s.running[chatId]) && view.mode !== 'manual'
+  const last = useDashLive((s) => s.last[chatId])
+  const failed = liveError(last, view) !== null
+  const state = running ? 'running' : failed ? 'error' : view.stale ? 'stale' : 'ready'
+  const dot = { running: 'animate-pulse bg-amber-500', error: 'bg-amber-500', stale: 'bg-muted-foreground/60', ready: 'bg-emerald-500' }[state]
+  const text = { running: 'text-amber-600 dark:text-amber-400', error: 'text-amber-600 dark:text-amber-400', stale: 'text-muted-foreground', ready: 'text-muted-foreground' }[state]
+  const label = state === 'running' ? t('dash.footer.running')
+    : state === 'error' ? t('dash.footer.error')
+      : state === 'stale' ? t('dash.footer.stale')
+        : t('dash.footer.sensor', { s: (view.usage.lastMs / 1000).toFixed(1) })
   return (
-    <div className={cn('flex flex-wrap gap-x-2 text-[11px] text-muted-foreground', className)}>
-      <span>{t('dash.footer.sensor', { s: (view.usage.lastMs / 1000).toFixed(1) })}</span>
+    <div className={cn('flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground', className)}>
+      <span className={cn('flex items-center gap-1.5', text)} aria-live="polite">
+        <span className={cn('inline-block size-2 shrink-0 rounded-full', dot)} aria-hidden="true" />
+        {label}
+      </span>
       <span>·</span>
       <span>{view.insertEnabled && view.insert ? t('dash.footer.insert', { n: view.insert.tokens }) : t('dash.footer.insertOff')}</span>
     </div>
@@ -143,9 +171,9 @@ export function Label({ children, className }: { children: ReactNode; className?
 }
 
 /** A titled box of the wide view and the phone sheet. */
-export function Box({ title, children, className }: { title?: ReactNode; children: ReactNode; className?: string }) {
+export function Box({ title, children, className, id }: { title?: ReactNode; children: ReactNode; className?: string; id?: string }) {
   return (
-    <section className={cn('min-w-0 border border-border bg-card p-3', className)}>
+    <section id={id} tabIndex={id ? -1 : undefined} className={cn('min-w-0 border border-border bg-card p-3 outline-none', className)}>
       {title ? <Label className="mb-2">{title}</Label> : null}
       {children}
     </section>

@@ -85,6 +85,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const [expanded, setExpanded] = useState(readExpanded)
   const [wideOpen, setWideOpen] = useState(false)
   const [settings, setSettings] = useState(false)
+  const [notebookSignal, setNotebookSignal] = useState(0)
   const guard = useSettingsGuard()
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
   const toggle = () => setExpanded((v) => { writeExpanded(!v); return !v })
@@ -124,10 +125,12 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   return (
     <div className="hidden h-full shrink-0 lg:block">
       <DashStrip
+        chatId={chatId}
         view={view}
         focus={dash.focus}
         onFocus={dash.setFocus}
         onOpen={() => setWideOpen(true)}
+        onNotebook={() => { setSettings(false); setNotebookSignal(Date.now()); setWideOpen(true) }}
         onRefresh={() => { void dash.refresh() }}
         refreshing={dash.refreshing}
         collapsed={!expanded}
@@ -165,6 +168,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
             />
           ) : (
             <DashWide
+              chatId={chatId}
+              notebookSignal={notebookSignal}
               view={view}
               focus={dash.focus}
               onFocus={dash.setFocus}
