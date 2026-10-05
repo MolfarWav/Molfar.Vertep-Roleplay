@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ManageChatsDialog } from "@/components/chat/manage-chats-dialog"
 import { QuickReplyBar } from "@/components/chat/qr-bar"
+import { StoryNudgeButton, StoryNudgeChip } from "@/components/chat/story-nudge"
 import { ExpandedEditor } from "@/components/chat/expanded-editor"
 import { ImageGenDialog, type ImageGenStart } from "@/components/chat/image-gen-dialog"
 import { GalleryDialog } from "@/components/chat/gallery-dialog"
@@ -408,7 +409,9 @@ export function Composer({ chatId }: { chatId: ID }) {
         </div>
       )}
 
-      {/* Three controls only: menu · input · send. */}
+      <StoryNudgeChip chatId={chatId} />
+
+      {/* Menu · input · "Story, move" (only with the dashboard plugin) · send. */}
       <div className="flex items-end gap-1.5">
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -567,6 +570,8 @@ export function Composer({ chatId }: { chatId: ID }) {
           className="hidden"
           onChange={(e) => { handleFiles(e.target.files); e.target.value = "" }}
         />
+
+        <StoryNudgeButton chatId={chatId} isEmpty={!value.trim()} isStreaming={isStreaming} onSendEmpty={handleSend} />
 
         {isStreaming ? (
           <Button variant="destructive" size="icon" className="size-9 shrink-0" onClick={stopStreaming} aria-label="Stop generating">

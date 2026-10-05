@@ -3,6 +3,7 @@
 // already settled the view for the active line, so nothing here filters notes by
 // source or picks snapshots.
 
+import { j } from '@/lib/engine'
 import type { DispositionStat, PulseStat, SoulClass } from '@/lib/soul'
 
 export type How = 'saw' | 'heard' | 'guess'
@@ -119,7 +120,11 @@ export interface DashView {
   mode: 'sensor' | 'fast' | 'manual' | string
   /** the open-thread limit (config `maxThreads`), when the plugin says */
   maxThreads?: number
+  /** the pending "Story, move" nudge (threadId null = all open threads); absent on an older plugin */
+  nudge?: Nudge | null
 }
+
+export interface Nudge { threadId: string | null; at: number }
 
 /** The plugin has the user overlay (notes and threads can be edited). */
 export function canEditNotes(view: DashView | null): boolean {
@@ -212,4 +217,16 @@ export function starRadius(v: number): number {
   const c = Math.max(-100, Math.min(100, v))
   const k = Math.sqrt(Math.abs(c) / 100)
   return c >= 0 ? ZERO_RADIUS + k * (EDGE_RADIUS - ZERO_RADIUS) : ZERO_RADIUS - k * ZERO_RADIUS
+}
+
+/** Arm the one-time "Story, move" nudge for the next reply (POST /dashboard/nudge). Throws with the server's message (409 when the thread is no longer open). */
+export async function armNudge(chatId: string, threadId: string | null): Promise<Nudge | null> {
+  const r = await j<{ ok?: boolean; nudge?: Nudge | null }>('/dashboard/nudge', { method: 'POST', body: JSON.stringify({ chatId, threadId }) })
+  return r?.nudge ?? null
+}
+
+/** Cancel the pending nudge (DELETE /dashboard/nudge); the new nudge is always null. */
+export async function clearNudge(chatId: string): Promise<null> {
+  await j<{ ok?: boolean }>(`/dashboard/nudge?chatId=${encodeURIComponent(chatId)}`, { method: 'DELETE' })
+  return null
 }

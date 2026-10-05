@@ -3197,7 +3197,8 @@ const toolX = (r) => ({
       const prefill = reply.assistantPrefill;
       if (prefill && !replyText.startsWith(prefill)) replyText = prefill + replyText;
       replyText = onSave(replyText, "ai_output", speaker);
-      if (reply.reasoning) reply.reasoning = onSave(reply.reasoning, "reasoning", speaker);
+      // a thinking model may draft the state tag in its reasoning too
+      if (reply.reasoning) reply.reasoning = onSave(cutStateTag(reply.reasoning).text, "reasoning", speaker);
       const charMsg = {
         id: uid(), name: speaker.name, charId: speaker.id, role: "char",
         text: replyText, at: Date.now(), swipes: [replyText], swipe: 0,
@@ -3263,7 +3264,8 @@ const toolX = (r) => ({
       const prefill = reply.assistantPrefill;
       if (prefill && !replyText.startsWith(prefill)) replyText = prefill + replyText;
       replyText = onSave(replyText, "ai_output", speaker);
-      if (reply.reasoning) reply.reasoning = onSave(reply.reasoning, "reasoning", speaker);
+      // a thinking model may draft the state tag in its reasoning too
+      if (reply.reasoning) reply.reasoning = onSave(cutStateTag(reply.reasoning).text, "reasoning", speaker);
       const charMsg = {
         id: uid(), name: speaker.name, charId: speaker.id, role: "char",
         text: replyText, at: Date.now(), swipes: [replyText], swipe: 0,
@@ -3336,7 +3338,8 @@ const toolX = (r) => ({
       const swipPrefill = reply.assistantPrefill;
       if (swipPrefill && !fresh.startsWith(swipPrefill)) fresh = swipPrefill + fresh;
       fresh = onSave(fresh, "ai_output", speaker);
-      if (reply.reasoning) reply.reasoning = onSave(reply.reasoning, "reasoning", speaker);
+      // a thinking model may draft the state tag in its reasoning too
+      if (reply.reasoning) reply.reasoning = onSave(cutStateTag(reply.reasoning).text, "reasoning", speaker);
       swipes.push(fresh);
       chat.msgs[idx] = { ...msg, text: fresh, swipe: swipes.length - 1, swipes, translation: undefined, extra: pushSwipeMeta({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) }, swipes.length, swipeMetaEntry(reply)) };
       applyStashVars(req, meta);
@@ -3448,7 +3451,8 @@ const toolX = (r) => ({
       const extra = onSave(cutReply(reply).text, "ai_output", speaker);
       // the report of this reply (if one waits) no longer covers its text: the sensor reads it again
       dropFastState(fsx, id, msg.id + "#" + (msg.swipe || 0));
-      if (reply.reasoning) reply.reasoning = onSave(reply.reasoning, "reasoning", speaker);
+      // a thinking model may draft the state tag in its reasoning too
+      if (reply.reasoning) reply.reasoning = onSave(cutStateTag(reply.reasoning).text, "reasoning", speaker);
       const merged = msg.text + (/\s$/.test(msg.text) ? "" : " ") + extra;
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];
       swipes[msg.swipe || 0] = merged;
