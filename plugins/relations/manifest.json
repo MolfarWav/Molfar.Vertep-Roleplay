@@ -1,6 +1,6 @@
 {
   "name": "Relationship dashboard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Tracks how each character stands toward the user. A sensor model reports what happened in the new messages; code turns that into trust, comfort, attraction, respect, affection, excitement and arousal, plus mood, clock, notebook and open threads. One snapshot per chat message, so a swipe or a deleted message never leaves stale numbers behind. State lives in data/dashboard/state/<chatId>.json.",
   "origin": "local",
   "permissions": ["routes", "llm", "fs", "schedule", "hooks"],

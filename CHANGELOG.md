@@ -4,12 +4,15 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.24.0
+
 - **"Story, move"**: one press makes the next reply move the story on its own, pulling on the dashboard's open threads (all of them, or the one you pick). The nudge rides that one request only: it is never saved in the chat or shown as a message. Its wording is a setting.
 - **Dashboard fast mode** (for strong models; Settings of the dashboard, Mode): the story reply itself ends with the state report, which is cut out before you see or save the reply, so there is no separate sensor call. It adds some text to every request (the settings say about how much); when a reply leaves the report out or it cannot be read, the usual sensor runs.
 - **New chat look**: messages read like a book page (Noto Serif, more line spacing; your own font and spacing choices are kept), characters in an arched portrait, your turns set off to the right, and a heading with an embroidered band where the story moves to a new place (from the dashboard). Message actions (Edit, Copy, Regenerate, More) show under the text when you point at a message and always on phones; More is grouped into Message, Story and Delete. Model, time, tokens and cost of a reply show on hover. The display mode, avatar shape and message tint settings are gone: there is one look.
 - **From the chat to the card**: clicking a character's portrait (in a message or the chat header) opens Card, Soul, Dashboard and View portrait; in a group chat it acts on the character who spoke. The chat header's model and cost badges moved into an "i" button with the chat's model, spend, tokens and context use, and the header no longer gets cut off on narrow windows.
 - **A reply that starts with the character's name** ("Aria: …") no longer shows the name twice: new replies lose it when saved (also in group turns), older ones hide it on screen.
 - **Litopys** adds its lore to replies only when you turn on "Insert into the prompt" in its settings (off by default). It never actually reached the prompt before because of an engine bug fixed in Molfar Vertep 0.8.1; the dashboard's own insert, "Story, move" and fast mode need that engine version too.
+- The browser tab shows the Molfar Vertep logo.
 
 ## 4.23.0
 

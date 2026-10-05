@@ -1,6 +1,6 @@
 {
   "name": "Studio Engine",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "Chats (flat + per-message swipes), characters, group chats, personas, presets (prompt list + sampler), regex, world info, prompt assembly, generation via the kernel llm bridge (reply requests are marked tool-accepting; the agentic tools plugin contributes definitions), data bank (chunked docs injected into prompts), translation providers, chat summarization (ordered summary prompt list + memory cutoff), chat-local macro variables, backup zip export.",
   "origin": "local",
   "permissions": [
