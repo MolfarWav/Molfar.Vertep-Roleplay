@@ -35,10 +35,12 @@ interface VocabRow {
 /** GET /dashboard/config (the plugin's `configBody`). */
 interface DashConfig {
   sensorModel: string
-  mode: 'sensor' | 'manual'
+  mode: 'sensor' | 'fast' | 'manual'
   families: Record<string, boolean>
   familyList: string[]
   injection: { enabled: boolean; maxTokens: number }
+  /** what fast mode adds to every reply, in tokens (about); absent on an older plugin */
+  fastTokens?: number
   /** the sensor's reply limit; absent on an older plugin */
   sensorMaxTokens?: number
   catchUp: boolean
@@ -57,7 +59,7 @@ interface DashConfig {
 /** The part of the config the Sensor section edits and PUT /dashboard/config takes. */
 interface Form {
   sensorModel: string
-  mode: 'sensor' | 'manual'
+  mode: 'sensor' | 'fast' | 'manual'
   families: Record<string, boolean>
   injection: { enabled: boolean; maxTokens: number }
   sensorMaxTokens: number
@@ -79,7 +81,7 @@ interface PromptMeta {
 }
 
 /** What the sections need besides the form and the rows. */
-interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean }
+interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean; fastTokens: number | null }
 
 interface Preview {
   insert: { text: string; tokens: number; budget: number; trimmed: string[]; notebookOf: string | null } | null
@@ -110,7 +112,7 @@ function readTab(): Section {
 function pickForm(c: DashConfig): Form {
   return {
     sensorModel: c.sensorModel ?? '',
-    mode: c.mode === 'manual' ? 'manual' : 'sensor',
+    mode: c.mode === 'manual' || c.mode === 'fast' ? c.mode : 'sensor',
     families: Object.fromEntries(c.familyList.map((f) => [f, c.families?.[f] !== false])),
     injection: { enabled: c.injection?.enabled !== false, maxTokens: c.injection?.maxTokens ?? 200 },
     sensorMaxTokens: c.sensorMaxTokens ?? DEFAULT_SENSOR_TOKENS,
@@ -175,7 +177,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
    * sent: edits typed while it ran stay in the form and stay unsaved against the new base.
    */
   const apply = useCallback((c: DashConfig, what: { form?: boolean; rows?: boolean; sentForm?: Form; sentRows?: VocabRow[] }) => {
-    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, ...promptMeta(c) })
+    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, fastTokens: typeof c.fastTokens === 'number' ? c.fastTokens : null, ...promptMeta(c) })
     if (what.form) {
       const f = pickForm(c)
       setFormBase(f)
@@ -416,12 +418,12 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
   const t = useT()
   const tx = useTx()
   const patch = (p: Partial<Form>) => setForm((cur) => (cur ? { ...cur, ...p } : cur))
-  const modes: Form['mode'][] = ['sensor', 'manual']
+  const modes: Form['mode'][] = ['sensor', 'fast', 'manual']
   return (
     <>
       <div className="flex flex-col gap-4 p-4">
         <Fieldset label={t('dash.set.mode')}>
-          <div className="flex w-fit border border-border" role="group" aria-label={t('dash.set.mode')}>
+          <div className="flex w-fit max-w-full flex-wrap border border-border" role="group" aria-label={t('dash.set.mode')}>
             {modes.map((m) => (
               <button
                 key={m}
@@ -434,7 +436,7 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">{t(`dash.set.mode.${form.mode}.hint`)}</p>
+          <p className="text-[11px] text-muted-foreground">{t(`dash.set.mode.${form.mode}.hint`, { n: meta.fastTokens ?? 0 })}</p>
         </Fieldset>
 
         <Fieldset label={t('dash.set.model')}>

@@ -176,7 +176,8 @@ export function FooterLine({ view, chatId, className }: { view: DashView; chatId
   const label = state === 'running' ? t('dash.footer.running')
     : state === 'error' ? t('dash.footer.error')
       : state === 'stale' ? t('dash.footer.stale')
-        : t('dash.footer.sensor', { s: (view.usage.lastMs / 1000).toFixed(1) })
+        : view.fast ? t('dash.footer.fast')
+          : t('dash.footer.sensor', { s: (view.usage.lastMs / 1000).toFixed(1) })
   return (
     <div className={cn('flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground', className)}>
       <span className={cn('flex items-center gap-1.5', text)} aria-live="polite">

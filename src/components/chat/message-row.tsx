@@ -26,6 +26,7 @@ import { useApp } from '@/lib/store'
 import { useDisplayTexts, type DisplayScript } from '@/hooks/use-display-texts'
 import { cssAttrValue } from '@/lib/scope-css'
 import { balanceStreamingMarkdown } from '@/lib/rich-parts'
+import { hideStateTag } from '@/lib/state-tag'
 import { j } from '@/lib/engine'
 import { speakText, stopSpeaking, useSpeakingKey, voiceFor } from '@/lib/tts'
 import type { Chat, Character, Message, RegexScript, ToolPart } from '@/lib/types'
@@ -449,7 +450,8 @@ export const MessageRow = memo(function MessageRow({
   }, [regexScripts, message.role, personas, chat, character, index])
   // while streaming, unclosed emphasis/fence markers get synthetic closers
   // so each tick renders as finished markdown (never committed)
-  const rawDisplayed = isStreamingThis ? balanceStreamingMarkdown(rawContent) : rawContent
+  // the dashboard's fast-mode state tag never shows, streaming or saved
+  const rawDisplayed = isStreamingThis ? balanceStreamingMarkdown(hideStateTag(rawContent, true)) : hideStateTag(rawContent)
   const content = useDisplayTexts([rawDisplayed], displayScripts)[0] ?? rawDisplayed
   const activeSwipeData = message.swipes[shownSwipe]
   // committed segments: messages whose generation used tools render thinking,
@@ -477,8 +479,8 @@ export const MessageRow = memo(function MessageRow({
     return nodes
   }, [isStreamingThis, streamingMarks, streamingShown, streamingFull])
   // text segments of both timelines run through the same worker-backed pass
-  const partTexts = useDisplayTexts(parts ? parts.filter((p) => p.type === 'text').map((p) => p.text) : [], displayScripts)
-  const liveTexts = useDisplayTexts(liveTimeline ? liveTimeline.filter((n) => n.type === 'text').map((n) => n.text) : [], displayScripts)
+  const partTexts = useDisplayTexts(parts ? parts.filter((p) => p.type === 'text').map((p) => hideStateTag(p.text)) : [], displayScripts)
+  const liveTexts = useDisplayTexts(liveTimeline ? liveTimeline.filter((n) => n.type === 'text').map((n) => hideStateTag(n.text, true)) : [], displayScripts)
   const isUser = message.role === 'user'
   // per-message <style> blocks are rewritten under this row's own boundary,
   // so one message cannot restyle another's text

@@ -221,7 +221,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
 
         <div className="flex flex-col gap-1 border-t border-border pt-2 text-[11px] text-muted-foreground">
           <div className="flex flex-wrap gap-x-2">
-            <span className="font-mono break-all">{view.sensorModel}</span>
+            {view.fast ? <span>{t('dash.footer.fast')}</span> : <span className="font-mono break-all">{view.sensorModel}</span>}
             <span>·</span>
             <FooterLine view={view} chatId={chatId} />
           </div>

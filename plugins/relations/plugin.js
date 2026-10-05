@@ -3351,6 +3351,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     op: snap.op || null,
     partial: !!snap.partial,
     sensorModel: snap.sensorModel || "",
+    // fast mode: the state was read from the story reply, not by a sensor call
+    fast: !!snap.fast,
     // the newest message has no snapshot yet: the catch-up has not run
     stale: idx !== keys.length - 1,
     clock: isObj(snap.clock) ? snap.clock : null,

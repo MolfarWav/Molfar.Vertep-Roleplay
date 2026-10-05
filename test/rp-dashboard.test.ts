@@ -3836,6 +3836,7 @@ describe("fast mode", () => {
     expect(mock.requests.length).toBe(0);
     // the view tells which snapshot was read from the reply
     expect(getState(mock, "c1").state.snapshots["m4#0"].fast).toBe(true);
+    expect(drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view.fast).toBe(true);
   });
 
   it("the last entry takes its file with it; a cut-off body is applied as partial; a fenced body works", () => {

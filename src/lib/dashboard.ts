@@ -120,6 +120,8 @@ export interface DashView {
   mode: 'sensor' | 'fast' | 'manual' | string
   /** the open-thread limit (config `maxThreads`), when the plugin says */
   maxThreads?: number
+  /** the newest snapshot was read from the story reply itself (fast mode), not by a sensor call; absent on an older plugin */
+  fast?: boolean
   /** the pending "Story, move" nudge (threadId null = all open threads); absent on an older plugin */
   nudge?: Nudge | null
 }
