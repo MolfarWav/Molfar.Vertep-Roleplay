@@ -375,8 +375,8 @@ h1 {
    built from the base path). A later "vn" look would be a sibling block.
    ────────────────────────────────────────────────────────────── */
 .look-stage {
-  --ls-av-w: calc(58px * var(--avatar-scale, 1));
-  --ls-av-h: calc(74px * var(--avatar-scale, 1));
+  --ls-av-w: calc(68px * var(--avatar-scale, 1));
+  --ls-av-h: calc(88px * var(--avatar-scale, 1));
   --ls-gap: 20px;
 }
 
@@ -393,7 +393,7 @@ h1 {
 .look-stage .ls-row.is-user {
   display: block;
   width: fit-content;
-  max-width: 62%;
+  max-width: 54%;
   margin-left: auto;
   padding-left: 16px;
   border-left: 2px solid color-mix(in srgb, var(--cta) 60%, transparent);
@@ -494,7 +494,7 @@ h1 {
 
 /* the prose */
 .look-stage .mes_text {
-  font-size: calc(17px * var(--prose-scale, 1));
+  font-size: calc(15px * var(--prose-scale, 1));
   line-height: var(--prose-line-height, 1.8);
 }
 .look-stage .mes_text p {
@@ -660,12 +660,12 @@ h1 {
 
 @media (max-width: 599px) {
   .look-stage {
-    --ls-av-w: calc(40px * var(--avatar-scale, 1));
-    --ls-av-h: calc(52px * var(--avatar-scale, 1));
+    --ls-av-w: calc(46px * var(--avatar-scale, 1));
+    --ls-av-h: calc(60px * var(--avatar-scale, 1));
     --ls-gap: 12px;
   }
   .look-stage .ls-row.is-user {
-    max-width: 86%;
+    max-width: 80%;
   }
   .look-stage .ls-meta,
   .look-stage .ls-act-label {
@@ -679,7 +679,7 @@ h1 {
     font-size: 16px;
   }
   .look-stage .mes_text {
-    font-size: calc(16.5px * var(--prose-scale, 1));
+    font-size: calc(15px * var(--prose-scale, 1));
   }
 }
 

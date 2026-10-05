@@ -569,7 +569,7 @@ export function ChatView() {
   // spans the window; here the boundary is centred at every width setting.
   const chatMax =
     settings.chatWidth === 'full' ? '100%' :
-    settings.chatWidth === 'comfortable' ? '48rem' :
+    settings.chatWidth === 'comfortable' ? (look === 'stage' ? '72rem' : '48rem') :
     settings.chatWidth === 'compact' ? '36rem' :
     `${settings.chatWidthCustom}px`
 
@@ -812,7 +812,7 @@ export function ChatView() {
           textarea grows upward, so the message you're reading stays put. */}
       <div ref={scrollRef} data-chat-log data-pinned="true" onScroll={onScroll} className="relative z-10 min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch]" style={{ fontSize: `${settings.fontScale}%` }}>
         <div
-          className={cn('chat-column flex flex-col gap-1 px-2 py-3 sm:px-4', look === 'stage' && 'look-stage')}
+          className={cn('chat-column flex flex-col gap-1 py-3', look === 'stage' ? 'look-stage px-3 sm:px-6 lg:px-8' : 'px-2 sm:px-4')}
           data-no-av={settings.hideAvatars ? '' : undefined}
           style={{
             // the ornament images, as CSS masks (a root url(/...) in the stylesheet breaks under a base path)
