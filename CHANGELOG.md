@@ -2,6 +2,18 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.23.0
+
+- **The dashboard updates right after each reply**, no longer about a minute later. An edit or a Continue of the newest message is read again; a swipe gets its own state. A line under the newest message says what is happening: updating, updated (how long ago, how long the reading took, and what the characters learned), behind, or not updated with a Retry. The sensor line under the strip shows the same by colour.
+- **Dashboard settings** (the gear in the wide view and in the phone sheet): the sensor (automatic or manual, its model, its reply limit, the prompt insert and its limit, catch-up, automatic souls, event groups, call and token counters), the event vocabulary (change an event's numbers, switch events off, add your own, reset), what the model sees (the exact words each character gets before a reply, with checks for no numbers, no blind spot and only that character's notebook) and Tune with Molfar (an unsent request to Molfar to change the vocabulary or settings for you).
+- **The sensor prompt in blocks**: role, language, truth, events, scene, knowledge, threads and reply size, each edited and restored on its own; joined, they are what the sensor gets.
+- **Your notebook**: edit or remove any note (removed ones can be restored), write your own (marked "written by you"), and mark notes pinned (always reaches the story model), important (goes first) or everyday (dropped first when the words do not fit).
+- **Threads you manage**: resolve, reopen, edit or add story threads; set how many may be open at once; every few turns (your setting) the sensor is asked whether old threads are settled. A question or greeting with nothing at stake is no longer filed as a thread.
+- **How a character addresses you** is tracked (a name, a nickname, a title); a change shows in the story list and the story model uses it. A character who plainly knows you (serves you, lives or works with you) counts as knowing your name even when it was never said.
+- **Start values from a Soul saved later now apply**: a character who entered before their soul had start values (or whose start values you changed) shifts by the difference, shown in the story list.
+- Characters who act or speak stay in the scene when a cheap sensor model leaves them out; the sensor sees each character's pronouns; shorter sensor replies (no blind spot or notes about your own character, no single summary given to everyone as a fact).
+- Each part of the day has its own colour and sign; the constellation spreads small values so changes are visible, with a legend in the wide view; the notebook chips in the strip open the notebook; long boxes in the wide view scroll inside.
+
 ## 4.22.0
 
 - **Relationship dashboard** (new plugin "Relationship dashboard"): after replies a small model call (the sensor) reads the turn and names what happened; code turns it into each character's attitude to you (trust, comfort, attraction, respect, affection), pulse (excitement, arousal), a named pattern of the relationship (a constellation such as Friendship or Honor without trust), the scene clock and place, open story threads, and a notebook of what each character knows about you and how (saw, heard from someone, guesses). The sensor runs in the background about a minute after a reply; "Refresh" runs it at once. Swipes and rewinds follow the active line: a discarded swipe leaves no trace.
