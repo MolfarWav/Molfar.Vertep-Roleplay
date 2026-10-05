@@ -948,7 +948,7 @@ describe("config", () => {
     expect(item.deleteUrl).toBeUndefined();
     const field = (it: any, key: string) => it.fields.find((f: any) => f.key === key);
     const partKeys = P.SENSOR_PARTS.map((x: any) => "sensorPart_" + x.key);
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul"]);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul", "nudge"]);
     expect(item.fields[0].kind).toBe("model");
     expect(field(item, "autoSoul")).toMatchObject({ kind: "select", list: ["on", "off"], value: "on" });
     expect(field(item, "sensorPart_role")).toMatchObject({ kind: "textarea", advanced: true, value: P.DEFAULT_SENSOR_PARTS.role });
@@ -3588,5 +3588,198 @@ describe("overlay keys and the open thread limit line", () => {
     update(mock, "c1");
     expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Open thread limit: 5.");
     expect(P.DEFAULT_PROMPTS.sensor).toContain("up to the open thread limit given in the input");
+  });
+});
+
+describe("story, move (nudge)", () => {
+  const SYS = (content: string) => ({ role: "system", content });
+  const ask = (mock: ReturnType<typeof mockHost>, chatId: string, messages: any = [SYS("card"), { role: "user", content: "hi" }], extra: Record<string, unknown> = {}, requestExtra: Record<string, unknown> = {}) =>
+    P.llmRequest({ key: "reply", request: { sessionId: chatId, messages, ...requestExtra }, ...extra }, mock.host) as { messages: any[] } | null;
+  const nudge = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown> = {}) => drive(mock, { method: "POST", path: "/dashboard/nudge", body: { chatId: "c1", ...body } });
+  const unnudge = (mock: ReturnType<typeof mockHost>, chatId = "c1") => drive(mock, { method: "DELETE", path: "/dashboard/nudge", query: { chatId } });
+  const view = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view;
+  const nudgeFile = (id = "c1") => path.join(root, "dashboard/nudge", id + ".json");
+  const NOTE = "[For this reply only: do not just react to the last message.";
+  /** A chat with one update behind it: open thread t1 "Who has the key?", plus the user's ut1. */
+  function started() {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", op: "thread-add", text: "Find the missing letter." } }).status).toBe(200);
+    return mock;
+  }
+  const noteOf = (out: { messages: any[] } | null) => String(out!.messages[out!.messages.length - 1].content);
+
+  it("1. POST arms, DELETE clears, a closed thread is 409, a bad chat id 400", () => {
+    const mock = started();
+    expect(view(mock).nudge).toBeNull();
+    const armed = nudge(mock);
+    expect(armed.status).toBe(200);
+    expect(armed.json).toMatchObject({ ok: true, nudge: { threadId: null } });
+    expect(typeof armed.json.nudge.at).toBe("number");
+    expect(JSON.parse(fs.readFileSync(nudgeFile(), "utf8"))).toEqual({ v: 1, threadId: null, at: armed.json.nudge.at });
+    expect(view(mock).nudge).toEqual(armed.json.nudge);
+    // arming again replaces it
+    expect(nudge(mock, { threadId: "ut1" }).json.nudge.threadId).toBe("ut1");
+    expect(view(mock).nudge.threadId).toBe("ut1");
+    expect(unnudge(mock).json).toEqual({ ok: true, nudge: null });
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+    expect(view(mock).nudge).toBeNull();
+    // clearing nothing is fine
+    expect(unnudge(mock).status).toBe(200);
+    // not an open thread: unknown, or resolved by the user
+    expect(nudge(mock, { threadId: "t99" })).toMatchObject({ status: 409, json: { error: "thread not open" } });
+    expect(drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", op: "thread-edit", id: "t1", status: "resolved" } }).status).toBe(200);
+    expect(nudge(mock, { threadId: "t1" }).status).toBe(409);
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+    expect(nudge(mock, { chatId: "../x" }).status).toBe(400);
+    expect(nudge(mock, { chatId: "" }).status).toBe(400);
+    expect(unnudge(mock, "../x").status).toBe(400);
+    expect(nudge(mock, { chatId: "ghost" }).status).toBe(404);
+  });
+
+  it("2. a send with the nudge for all threads: the note ends the last user message, nothing is mutated, the file is used up", () => {
+    const mock = started();
+    nudge(mock);
+    const msgs = [SYS("card"), { role: "assistant", content: "Y" }, { role: "user", content: "Z" }];
+    const copy = JSON.parse(JSON.stringify(msgs));
+    const out = ask(mock, "c1", msgs, { turn: { op: "send" } })!;
+    // the insert plus the note: one patch
+    expect(out.messages.length).toBe(4);
+    expect(out.messages[1].content.startsWith("[Background, the scene:")).toBe(true);
+    const last = out.messages[3];
+    expect(last.role).toBe("user");
+    expect(last.content.startsWith("Z\n\n" + NOTE)).toBe(true);
+    expect(last.content).toContain("pulling on one of these open threads: Who has the key?; Find the missing letter. Stay in character");
+    expect(last.content.endsWith("never mention this note.]")).toBe(true);
+    expect(last.content).not.toContain("{threads}");
+    // the request's own array and objects are as they were
+    expect(msgs).toEqual(copy);
+    expect(out.messages[3]).not.toBe(msgs[2]);
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+    // the chat file never held it, and the next request has no note
+    expect(fs.readFileSync(path.join(root, "chats/c1.jsonl"), "utf8")).not.toContain("For this reply only");
+    expect(ask(mock, "c1", msgs)!.messages.map((m) => m.content).join("|")).not.toContain(NOTE);
+  });
+
+  it("3. one picked thread: only its text appears", () => {
+    const mock = started();
+    nudge(mock, { threadId: "ut1" });
+    const note = noteOf(ask(mock, "c1", [SYS("card"), { role: "user", content: "go" }]));
+    expect(note).toContain("moves the story forward, pulling on this open thread: Find the missing letter. Stay in character");
+    expect(note).not.toContain("Who has the key?");
+    expect(note).not.toContain("one of these");
+    // a thread resolved after arming: the note falls back to all open threads
+    nudge(mock, { threadId: "ut1" });
+    drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", op: "thread-edit", id: "ut1", status: "resolved" } });
+    const later = noteOf(ask(mock, "c1", [SYS("card"), { role: "user", content: "go" }]));
+    expect(later).toContain("pulling on one of these open threads: Who has the key?. Stay");
+    expect(later).not.toContain("Find the missing letter");
+  });
+
+  it("4. an empty send, next, or a swipe of the last reply: the note is a user message of its own", () => {
+    const mock = started();
+    for (const op of ["send", "next", "swipe"]) {
+      nudge(mock);
+      const msgs = [SYS("card"), { role: "user", content: "hi" }, { role: "assistant", content: "Hello." }];
+      const out = ask(mock, "c1", msgs, { turn: { op } })!;
+      expect(out.messages.length).toBe(5);
+      expect(out.messages[4]).toEqual({ role: "user", content: expect.stringContaining(NOTE) });
+      expect(out.messages[3]).toEqual(msgs[2]);
+      expect(msgs.length).toBe(3);
+      expect(fs.existsSync(nudgeFile())).toBe(false);
+    }
+    // a last user message made of parts (not a string) is left alone: the note follows it
+    nudge(mock);
+    const parts = { role: "user", content: [{ type: "text", text: "look" }] };
+    const out = ask(mock, "c1", [SYS("card"), parts])!;
+    expect(out.messages[2]).toBe(parts);
+    expect(out.messages[3].role).toBe("user");
+    expect(out.messages[3].content).toContain(NOTE);
+  });
+
+  it("5. impersonate and continue get no note and keep the file; a missing label counts as a send", () => {
+    const mock = started();
+    nudge(mock);
+    const before = fs.readFileSync(nudgeFile(), "utf8");
+    for (const op of ["impersonate", "continue"]) {
+      const out = ask(mock, "c1", [SYS("card"), { role: "user", content: "hi" }], { turn: { op } });
+      expect(JSON.stringify(out)).not.toContain(NOTE);
+      expect(fs.readFileSync(nudgeFile(), "utf8")).toBe(before);
+    }
+    // the label on the request, like an older engine
+    expect(JSON.stringify(ask(mock, "c1", undefined, {}, { turn: { op: "continue" } }))).not.toContain(NOTE);
+    expect(fs.existsSync(nudgeFile())).toBe(true);
+    // no label at all: applied like a send
+    expect(noteOf(ask(mock, "c1"))).toContain(NOTE);
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+  });
+
+  it("6. with the insert switched off the note still applies and the insert does not", () => {
+    const mock = started();
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ injection: { enabled: false } }));
+    expect(ask(mock, "c1")).toBeNull();
+    nudge(mock);
+    const out = ask(mock, "c1")!;
+    expect(out.messages.length).toBe(2);
+    expect(out.messages.some((m) => String(m.content).startsWith("[Background, the scene:"))).toBe(false);
+    expect(out.messages[1].content.startsWith("hi\n\n" + NOTE)).toBe(true);
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+  });
+
+  it("7. an expired file is ignored and removed by the hook; the view shows none and removes nothing", () => {
+    const mock = started();
+    fs.mkdirSync(path.join(root, "dashboard/nudge"), { recursive: true });
+    fs.writeFileSync(nudgeFile(), JSON.stringify({ v: 1, threadId: null, at: Date.now() - 31 * 60 * 1000 }));
+    expect(view(mock).nudge).toBeNull();
+    expect(fs.existsSync(nudgeFile())).toBe(true);
+    expect(JSON.stringify(ask(mock, "c1"))).not.toContain(NOTE);
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+    // inside the limit it still counts
+    fs.writeFileSync(nudgeFile(), JSON.stringify({ v: 1, threadId: null, at: Date.now() - 29 * 60 * 1000 }));
+    expect(view(mock).nudge).toMatchObject({ threadId: null });
+    expect(JSON.stringify(ask(mock, "c1"))).toContain(NOTE);
+    // a damaged file is dropped too
+    fs.writeFileSync(nudgeFile(), "{nope");
+    expect(view(mock).nudge).toBeNull();
+    expect(JSON.stringify(ask(mock, "c1"))).not.toContain(NOTE);
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+  });
+
+  it("8. a chat with no dashboard state: the note applies with nothing after the story forward", () => {
+    writeChat("fresh", three());
+    const mock = mockHost();
+    expect(drive(mock, { method: "POST", path: "/dashboard/nudge", body: { chatId: "fresh" } }).status).toBe(200);
+    // a thread cannot be picked without state
+    expect(drive(mock, { method: "POST", path: "/dashboard/nudge", body: { chatId: "fresh", threadId: "t1" } }).status).toBe(409);
+    const out = ask(mock, "fresh")!;
+    expect(out.messages.length).toBe(2);
+    const note = out.messages[1].content as string;
+    expect(note).toContain("moves the story forward. Stay in character and in the scene; never mention this note.]");
+    expect(note).not.toContain("pulling");
+    expect(fs.existsSync(nudgeFile("fresh"))).toBe(false);
+  });
+
+  it("9. a custom nudge prompt is used; one equal to the default is not stored", () => {
+    const mock = started();
+    expect(P.DEFAULT_PROMPTS.nudge).toContain("{threads}");
+    expect(CYRILLIC.test(P.DEFAULT_PROMPTS.nudge)).toBe(false);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { nudge: "(Surprise me{threads}.)" } });
+    expect(JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8")).nudge).toBe("(Surprise me{threads}.)");
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.custom).toContain("nudge");
+    nudge(mock, { threadId: "ut1" });
+    expect(noteOf(ask(mock, "c1"))).toBe("hi\n\n(Surprise me, pulling on this open thread: Find the missing letter.)");
+    // a prompt without {threads} gets nothing substituted
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { nudge: "Something happens." } });
+    nudge(mock);
+    expect(noteOf(ask(mock, "c1"))).toBe("hi\n\nSomething happens.");
+    // the default (even with other whitespace) is not stored, and clears a stored one
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { nudge: P.DEFAULT_PROMPTS.nudge + "  " } });
+    const cfgFile = path.join(root, "dashboard/config.json");
+    expect(fs.existsSync(cfgFile) ? JSON.parse(fs.readFileSync(cfgFile, "utf8")).nudge : undefined).toBeUndefined();
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.custom).not.toContain("nudge");
+    // the panel field carries the prompt
+    const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "nudge");
+    expect(field).toMatchObject({ kind: "textarea", advanced: true, label: "Story, move prompt", value: P.DEFAULT_PROMPTS.nudge });
   });
 });

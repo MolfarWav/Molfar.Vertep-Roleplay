@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- **"Story, move"**: one press makes the next reply move the story on its own, pulling on the dashboard's open threads (all of them, or the one you pick). The nudge rides that one request only: it is never saved in the chat or shown as a message. Its wording is a setting.
+
 ## 4.23.0
 
 - **The dashboard updates right after each reply**, no longer about a minute later. An edit or a Continue of the newest message is read again; a swipe gets its own state. A line under the newest message says what is happening: updating, updated (how long ago, how long the reading took, and what the characters learned), behind, or not updated with a Retry. The sensor line under the strip shows the same by colour.

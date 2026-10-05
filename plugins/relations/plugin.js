@@ -13,6 +13,8 @@
  *  GET  /dashboard/state?chatId=           state + active keys + current key
  *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets, and the speakers it can be built for
  *  GET  /dashboard/notice?chatId=          the last insert that did not fit the limit
+ *  POST /dashboard/nudge {chatId, threadId?}  "Story, move": the next reply moves the story (one open thread, or null = all)
+ *  DELETE /dashboard/nudge?chatId=         take the nudge back
  *
  * Before each reply, the llmRequest hook adds "how the characters are right
  * now" in words as the last leading system message (buildInsert).
@@ -34,6 +36,7 @@
  *  dashboard/state/<chatId>.json   one chat
  *  dashboard/soul-drafts/<characterId>.json  proposed souls waiting for review
  *  dashboard/notes/<chatId>.json   what the user added or changed (notes, tags, threads); updates never write it
+ *  dashboard/nudge/<chatId>.json   one pending "Story, move" nudge {v, threadId, at}; removed when used, 30 minutes to live
  *  dashboard/config.json           only what differs from the defaults
  *  dashboard/events.json           optional own event vocabulary
  *  _debug/dashboard.json           last sensor call, only when debug is on
@@ -47,6 +50,9 @@ const DEBUG_FILE = "_debug/dashboard.json";
 // the last time an insert did not fit the user's limit, per chat (the app shows it once)
 const NOTICE_DIR = "dashboard/notice/";
 const NOTES_DIR = "dashboard/notes/";
+// the user's one-time "Story, move" nudge per chat: rides the next reply request only, never the chat file
+const NUDGE_DIR = "dashboard/nudge/";
+const NUDGE_TTL_MS = 30 * 60 * 1000;
 const SNAPSHOT_LIMIT = 40;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
@@ -503,6 +509,9 @@ export const DEFAULT_PROMPTS = {
     "- Names: the message lists the names already seen in this card's chats with counts. Key each soul by the spelling those chats use; put other spellings of the same character (another script, a transliteration, a nickname) in aliases. When the message lists souls this card already has, do what the message says about them; a name that is the same character in another spelling is not a new character. Put every seen name that gets no soul (a minor figure, the narrator, the user) in minor. A name seen only once and not described in the card or lorebook is minor.",
     "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
   ].join("\n"),
+  // the "Story, move" note added to the end of one reply request; {threads} is filled in code (see nudgeText)
+  nudge:
+    "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]",
 };
 // The sensor prompt in blocks the user can edit one by one: the default is cut at its headings
 // (blank-line paragraphs), and the blocks joined with a blank line give the default back exactly.
@@ -535,7 +544,7 @@ const sensorFromParts = (stored) =>
   SENSOR_PARTS.map((part) => (isObj(stored) && typeof stored[part.key] === "string" && stored[part.key].trim() ? stored[part.key] : DEFAULT_SENSOR_PARTS[part.key])).join("\n\n");
 
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -2497,7 +2506,7 @@ function pickChat(fsx) {
 /** State and notice files of chats that no longer exist (at most 20 per tick). */
 function removeOrphans(fsx) {
   let removed = 0;
-  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR]) {
+  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR, NUDGE_DIR]) {
     let files = [];
     try {
       files = fsx.list(dir.slice(0, -1)).filter((f) => f.endsWith(".json"));
@@ -2784,23 +2793,112 @@ export function llmRequest(ctx, host) {
   if (!CHAT_ID.test(chatId) || !Array.isArray(req.messages)) return null;
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return null;
-  try {
-    const cfg = loadConfig(fsx);
-    if (cfg.injection && cfg.injection.enabled === false) return null;
-    const insert = buildInsert(fsx, chatId, turnOf(ctx), cfg);
-    if (insert && insert.trimmed.length) {
-      // the only write a hook does: its own small file (the app's data watcher ignores dashboard/)
-      try {
-        fsx.write(NOTICE_DIR + chatId + ".json", JSON.stringify({ at: Date.now(), trimmed: insert.trimmed, wanted: insert.wanted, budget: insert.budget }));
-      } catch {}
-    }
-    return insert ? { messages: withInsert(req.messages, insert.text) } : null;
-  } catch (e) {
+  const fail = (what, e) => {
     try {
-      host.log("dashboard insert: " + (e && e.message ? e.message : String(e)));
+      host.log("dashboard " + what + ": " + (e && e.message ? e.message : String(e)));
     } catch {}
+  };
+  let messages = req.messages;
+  let changed = false;
+  let cfg = null;
+  const turn = turnOf(ctx);
+  try {
+    cfg = loadConfig(fsx);
+    if (!(cfg.injection && cfg.injection.enabled === false)) {
+      const insert = buildInsert(fsx, chatId, turn, cfg);
+      if (insert && insert.trimmed.length) {
+        // a hook's writes are its own small files (the app's data watcher ignores dashboard/)
+        try {
+          fsx.write(NOTICE_DIR + chatId + ".json", JSON.stringify({ at: Date.now(), trimmed: insert.trimmed, wanted: insert.wanted, budget: insert.budget }));
+        } catch {}
+      }
+      if (insert) {
+        messages = withInsert(messages, insert.text);
+        changed = true;
+      }
+    }
+  } catch (e) {
+    fail("insert", e);
+  }
+  // the user asked for it explicitly: it applies even when the insert is switched off or failed above
+  try {
+    const note = takeNudge(fsx, chatId, turn, cfg || mergeConfig({}));
+    if (note) {
+      messages = withNudge(messages, note);
+      changed = true;
+    }
+  } catch (e) {
+    fail("nudge", e);
+  }
+  return changed ? { messages } : null;
+}
+
+/** Open threads (id, text) the story stands on at this turn; none without dashboard state. */
+function openThreadsAt(fsx, chatId, turn) {
+  const chat = readChat(fsx, chatId);
+  if (!chat) return [];
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed) return [];
+  const at = snapshotFor(state, activeLine(chat.msgs), turn);
+  if (!at) return [];
+  return effectiveThreads(loadOverlay(fsx, chatId), at.snap.threads, at.snap.turn)
+    .filter((t) => t.status === "open" && str(t.text))
+    .map((t) => ({ id: String(t.id), text: cut(str(t.text), 300) }));
+}
+
+/** The pending nudge as stored, or null: missing, malformed or older than the limit. Never removes. */
+function readNudge(fsx, chatId) {
+  const n = readJson(fsx, NUDGE_DIR + chatId + ".json", null);
+  if (!isObj(n) || !Number.isFinite(n.at) || Date.now() - n.at > NUDGE_TTL_MS) return null;
+  return { threadId: typeof n.threadId === "string" && n.threadId ? n.threadId : null, at: n.at };
+}
+
+/** The note for one reply. open = [{id, text}]; a picked thread that is no longer open falls back to all. */
+export function nudgeText(cfg, threadId, open) {
+  const picked = threadId ? open.find((t) => t.id === threadId) : null;
+  // no ids, no digits from code; a trailing dot would double the one after {threads}
+  const clean = (t) => t.text.replace(/[.\s]+$/, "");
+  const where = picked ? ", pulling on this open thread: " + clean(picked) : open.length ? ", pulling on one of these open threads: " + open.map(clean).join("; ") : "";
+  return promptOf("nudge", cfg).split("{threads}").join(where);
+}
+
+// continue extends a reply and impersonate writes the user's own line: no nudge there
+// (an engine without turn labels gives "": it counts as a send)
+const NUDGE_OPS = ["send", "next", "swipe", ""];
+
+/**
+ * The note for this request, or null. Applying it consumes it (removes the file): a reply that
+ * fails loses it and the user arms it again, since the hook cannot see the outcome.
+ */
+function takeNudge(fsx, chatId, turn, cfg) {
+  const file = NUDGE_DIR + chatId + ".json";
+  // no file: nothing to do; a file that is damaged or too old is dropped below
+  try {
+    fsx.read(file);
+  } catch {
     return null;
   }
+  const drop = () => {
+    try {
+      fsx.remove(file);
+    } catch {}
+  };
+  const n = readNudge(fsx, chatId);
+  if (!n) {
+    drop();
+    return null;
+  }
+  if (!NUDGE_OPS.includes(turn.op)) return null;
+  const text = nudgeText(cfg, n.threadId, openThreadsAt(fsx, chatId, turn));
+  drop();
+  return text;
+}
+
+/** The note goes last so it weighs on this reply: onto a trailing user text, else as a message of its own. Copies only. */
+function withNudge(messages, text) {
+  const last = messages[messages.length - 1];
+  if (last && last.role === "user" && typeof last.content === "string") return [...messages.slice(0, -1), { ...last, content: last.content + "\n\n" + text }];
+  return [...messages, { role: "user", content: text }];
 }
 
 /** Names an insert can be built for: the newest snapshot of the active line, present non-compact characters first. */
@@ -3110,6 +3208,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
     maxThreads: maxThreadsOf(cfg),
     mode: cfg.mode,
+    // reading only: an expired file is removed by the hook, not here
+    nudge: readNudge(fsx, chatId),
   };
 }
 
@@ -3328,6 +3428,20 @@ function putConfig(req, fsx) {
   return ok(configBody(fsx));
 }
 
+/** POST /dashboard/nudge: arm "Story, move" for the next reply; one pending nudge per chat, arming again replaces it. */
+function armNudge(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  if (!readChat(fsx, chatId)) return ok({ error: "no such chat" }, 404);
+  const threadId = typeof b.threadId === "string" && b.threadId ? b.threadId : null;
+  // the same threads the view shows: the newest snapshot of the active line, the user's edits applied
+  if (threadId && !openThreadsAt(fsx, chatId, { op: "send" }).some((t) => t.id === threadId)) return ok({ error: "thread not open" }, 409);
+  const nudge = { threadId, at: Date.now() };
+  fsx.write(NUDGE_DIR + chatId + ".json", JSON.stringify({ v: 1, ...nudge }));
+  return ok({ ok: true, nudge });
+}
+
 export function handleRoute(req, host) {
   const path = String((req && req.path) || "").split("?")[0];
   if (!path.startsWith("/dashboard/")) return null;
@@ -3347,6 +3461,15 @@ export function handleRoute(req, host) {
     const chatId = String((req.query && req.query.chatId) || "");
     if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
     return ok({ notice: readJson(fsx, NOTICE_DIR + chatId + ".json", null) });
+  }
+  if (path === "/dashboard/nudge" && method === "POST") return armNudge(req, fsx);
+  if (path === "/dashboard/nudge" && method === "DELETE") {
+    const chatId = String((req.query && req.query.chatId) || "");
+    if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+    try {
+      fsx.remove(NUDGE_DIR + chatId + ".json");
+    } catch {}
+    return ok({ ok: true, nudge: null });
   }
   if (path === "/dashboard/config" && method === "GET") return ok(configBody(fsx));
   if (path === "/dashboard/config" && method === "PUT") return putConfig(req, fsx);
@@ -3417,6 +3540,7 @@ export function uiPanel(_ctx, host) {
                 value: isObj(cfg.sensorParts) && typeof cfg.sensorParts[part.key] === "string" && cfg.sensorParts[part.key].trim() ? cfg.sensorParts[part.key] : DEFAULT_SENSOR_PARTS[part.key],
               }))),
           { key: "soul", label: "Soul rating prompt", hint: custom.includes("soul") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the rating call is told. The event list, the stat names and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("soul", cfg) },
+          { key: "nudge", label: "Story, move prompt", hint: custom.includes("nudge") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change the note the next reply gets when you press Story, move. {threads} is replaced by the open thread(s) it pulls on; leave it out to send none.", kind: "textarea", rows: 5, advanced: true, value: promptOf("nudge", cfg) },
         ],
       },
     ],
