@@ -1168,6 +1168,8 @@ function nearestSnapshot(state, keys, before) {
 // ---------- config ----------
 const DEFAULT_CONFIG = {
   sensorModel: "",
+  // max_tokens of the sensor call and of the soul rating call
+  sensorMaxTokens: 3000,
   mode: "sensor",
   families: { trust: true, warmth: true, power: true, body: true, conflict: true, care: true, knowledge: true },
   injection: { enabled: true, maxTokens: 300 },
@@ -1175,6 +1177,11 @@ const DEFAULT_CONFIG = {
   // rate a card's main characters by itself when it has no soul yet
   autoSoul: true,
   debug: false,
+};
+
+const maxTokensOf = (cfg) => {
+  const n = num(cfg && cfg.sensorMaxTokens);
+  return Number.isFinite(n) ? clamp(Math.round(n), 1000, 8000) : DEFAULT_CONFIG.sensorMaxTokens;
 };
 
 /** A prompt as the user would see it changed: whitespace does not count. */
@@ -1217,6 +1224,7 @@ function nextConfig(stored, b) {
     else next[key] = value;
   };
   if (b.sensorModel !== undefined) put("sensorModel", typeof b.sensorModel === "string" ? b.sensorModel.trim().slice(0, 160) : "", DEFAULT_CONFIG.sensorModel);
+  if (Number.isFinite(num(b.sensorMaxTokens))) put("sensorMaxTokens", maxTokensOf(b), DEFAULT_CONFIG.sensorMaxTokens);
   if (b.mode === "sensor" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
   if (parseBool(b.catchUp) !== undefined) put("catchUp", parseBool(b.catchUp), DEFAULT_CONFIG.catchUp);
   if (parseBool(b.autoSoul) !== undefined) put("autoSoul", parseBool(b.autoSoul), DEFAULT_CONFIG.autoSoul);
@@ -1328,7 +1336,12 @@ function sensorUser(ctx) {
     const soul = soulOf(ctx.souls, n);
     return soul ? classOf(soul) : ctx.characters.includes(n) ? "the card: a character, or a narrator who is no person in the scene" : "neutral";
   };
-  const classes = listed.map((n) => n + " (" + label(n) + ")").join(", ");
+  // pronouns when the soul has them, so notes and moods use the right gender
+  const pronounWord = (n) => {
+    const soul = soulOf(ctx.souls, n);
+    return soul && PRONOUN_KEYS.includes(soul.pronouns) ? ", " + soul.pronouns : "";
+  };
+  const classes = listed.map((n) => n + " (" + label(n) + pronounWord(n) + ")").join(", ");
   return [
     "Characters\nuser: " + ctx.userName + ". " + classes + ".",
     previousStateText(ctx),
@@ -1910,7 +1923,7 @@ function askSoul(host, cfg, cardId, meta, key, opts) {
     ...(model ? { model } : {}),
     systemPrompt: soulSystem(cfg, loadVocab(fsx)),
     messages: [{ role: "user", content: soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName, rateNames }) }],
-    presetParams: { temperature: 0.3, max_tokens: 3000 },
+    presetParams: { temperature: 0.3, max_tokens: maxTokensOf(cfg) },
   });
 }
 
@@ -2016,7 +2029,7 @@ function askSensor(host, ctx, key) {
     ...(model ? { model } : {}),
     systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),
     messages: [{ role: "user", content: sensorUser(ctx) }],
-    presetParams: { temperature: 0.2, max_tokens: 3000 },
+    presetParams: { temperature: 0.2, max_tokens: maxTokensOf(ctx.cfg) },
   });
 }
 
@@ -2876,6 +2889,7 @@ export function uiPanel(_ctx, host) {
         ...(custom.length ? { deleteUrl: "/dashboard/config/prompts", deleteLabel: "Restore default prompts" } : {}),
         fields: [
           { key: "sensorModel", label: "Sensor model", hint: "Empty = the chat's own model. A cheap, fast model is enough: it only reports what happened, as JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.sensorModel || "" },
+          { key: "sensorMaxTokens", label: "Sensor reply limit, tokens", hint: "The most the sensor (and the soul rating) may write per call. A higher limit allows longer replies, which are slower and cost more; if replies are cut off, raise it. 1000 to 8000, default 3000.", kind: "number", value: cfg.sensorMaxTokens },
           { key: "mode", label: "Mode", hint: "sensor: update after replies. manual: no automatic updates.", kind: "select", list: ["sensor", "manual"], value: cfg.mode },
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
           { key: "insertTokens", label: "Insert limit, tokens per character", hint: "The block of one character may take this much; the scene, open threads and closing line come on top. Over the limit, the lines about the others go first, then the notebooks. Default 300.", kind: "number", value: cfg.injection.maxTokens },

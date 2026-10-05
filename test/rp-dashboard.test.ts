@@ -944,21 +944,21 @@ describe("config", () => {
     const item = plain.items[0];
     expect(item.saveUrl).toBe("/dashboard/config");
     expect(item.deleteUrl).toBeUndefined();
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "mode", "insert", "insertTokens", "catchUp", "autoSoul", "sensor", "soul"]);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "mode", "insert", "insertTokens", "catchUp", "autoSoul", "sensor", "soul"]);
     expect(item.fields[0].kind).toBe("model");
-    expect(item.fields[5]).toMatchObject({ key: "autoSoul", kind: "select", list: ["on", "off"], value: "on" });
-    expect(item.fields[6]).toMatchObject({ kind: "textarea", advanced: true });
-    expect(item.fields[7]).toMatchObject({ kind: "textarea", advanced: true, label: "Soul rating prompt", value: P.DEFAULT_PROMPTS.soul });
+    expect(item.fields[6]).toMatchObject({ key: "autoSoul", kind: "select", list: ["on", "off"], value: "on" });
+    expect(item.fields[7]).toMatchObject({ kind: "textarea", advanced: true });
+    expect(item.fields[8]).toMatchObject({ kind: "textarea", advanced: true, label: "Soul rating prompt", value: P.DEFAULT_PROMPTS.soul });
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensor: "Mine." } });
     const custom = P.uiPanel({}, mock.host).items[0];
     expect(custom.deleteUrl).toBe("/dashboard/config/prompts");
-    expect(custom.fields[6].value).toBe("Mine.");
+    expect(custom.fields[7].value).toBe("Mine.");
     // the automatic rating switch is stored only when it is off, and a custom soul prompt is kept like the sensor's
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "off", soul: "My rating." } });
     expect(stored()).toEqual({ sensor: "Mine.", autoSoul: false, soul: "My rating." });
     const off = P.uiPanel({}, mock.host).items[0];
-    expect(off.fields[5].value).toBe("off");
-    expect(off.fields[7].value).toBe("My rating.");
+    expect(off.fields[6].value).toBe("off");
+    expect(off.fields[8].value).toBe("My rating.");
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on" } });
     expect(stored().autoSoul).toBeUndefined();
     expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.soul).toBe(P.DEFAULT_PROMPTS.soul);
@@ -2081,7 +2081,7 @@ describe("souls", () => {
       expect(readDraftFile("bram")).toMatchObject({ by: "auto", note: "Chosen from the card" });
       expect(fs.existsSync(path.join(root, "dashboard/state"))).toBe(false);
       // the sensor already knows the new soul
-      expect(mock.requests[1]!.req.messages[0].content).toContain("Medli (ally)");
+      expect(mock.requests[1]!.req.messages[0].content).toContain("Medli (ally, she)");
       const c = pass(mock, call, b);
       expect(c.json.ok).toBe(true);
       const snap = readStateFile("c1").snapshots["m3#0"];
@@ -2117,7 +2117,7 @@ describe("souls", () => {
         autoOn(mock);
         expect(update(mock, "c1").json.ok).toBe(true);
         expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
-        expect(mock.requests[0]!.req.messages[0].content).not.toContain("Medli (ally)");
+        expect(mock.requests[0]!.req.messages[0].content).not.toContain("Medli (ally, she)");
         const who = readStateFile("c1").snapshots["m3#0"].chars.Medli;
         expect(who.cls).toBe("neutral");
         expect(who.stats.trust).toBe(0);
@@ -3101,5 +3101,69 @@ describe("compact reports: the user's own character and generic notes", () => {
     expect(texts("Cara")).toEqual([]);
     expect(texts("Dov")).toEqual(["The user has a scar"]);
     expect(st.counters.note).toBe(3);
+  });
+});
+
+describe("sensor reply limit and pronouns in the sensor input", () => {
+  const putCfg = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "PUT", path: "/dashboard/config", body });
+  const storedCfg = () => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const quietReply = reply({ present: ["Aria"], minutes: 1 });
+
+  it("sensorMaxTokens: default 3000, clamped 1000..8000, stored only when not the default", () => {
+    const mock = mockHost([quietReply]);
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.sensorMaxTokens).toBe(3000);
+    expect(putCfg(mock, { sensorMaxTokens: 5000 }).json.sensorMaxTokens).toBe(5000);
+    expect(storedCfg().sensorMaxTokens).toBe(5000);
+    expect(putCfg(mock, { sensorMaxTokens: 500 }).json.sensorMaxTokens).toBe(1000);
+    expect(putCfg(mock, { sensorMaxTokens: "99999" }).json.sensorMaxTokens).toBe(8000);
+    expect(putCfg(mock, { sensorMaxTokens: "junk" }).json.sensorMaxTokens).toBe(8000);
+    // the panel envelope
+    expect(putCfg(mock, { enabled: true, values: { sensorMaxTokens: "4500" } }).json.sensorMaxTokens).toBe(4500);
+    // back to the default: not stored
+    putCfg(mock, { sensorMaxTokens: 3000 });
+    expect(storedCfg().sensorMaxTokens).toBeUndefined();
+    // the panel has the field with its value
+    const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "sensorMaxTokens");
+    expect(field).toMatchObject({ kind: "number", value: 3000 });
+    expect(String(field.hint)).toContain("slower");
+  });
+
+  it("the sensor call and the soul rating call use it as max_tokens", () => {
+    writeChat("c1", three());
+    const mock = mockHost([quietReply]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests[0]!.req.presetParams.max_tokens).toBe(3000);
+    putCfg(mock, { sensorMaxTokens: 6000 });
+    writeChat("c2", three());
+    mock.push(quietReply);
+    update(mock, "c2");
+    expect(mock.requests.at(-1)!.req.presetParams.max_tokens).toBe(6000);
+    // the rating of a card
+    const before = mock.requests.length;
+    P.handleRoute({ method: "POST", path: "/dashboard/soul/rate", query: {}, body: { characterId: "bram" } }, mock.host);
+    const rating = mock.requests.slice(before).find((r) => r.key.startsWith("soul"));
+    expect(rating).toBeDefined();
+    expect(rating!.req.presetParams.max_tokens).toBe(6000);
+  });
+
+  it("the Characters line carries the soul's pronouns, and only when it has them", () => {
+    fs.writeFileSync(
+      path.join(root, "characters/aria/card.json"),
+      JSON.stringify({ spec: "chara_card_v2", name: "Aria", extensions: { molfar_soul: { v: 1, characters: { Aria: { class: "ally", pronouns: "she" }, Tom: { class: "neutral", pronouns: "he" }, Sam: { class: "neutral" } } } } }),
+    );
+    writeChat("c1", three());
+    const mock = mockHost([quietReply]);
+    update(mock, "c1");
+    const input = mock.requests[0]!.req.messages[0].content as string;
+    expect(input).toContain("Aria (ally, she)");
+    expect(input).toContain("Tom (neutral, he)");
+    expect(input).toContain("Sam (neutral)");
+    expect(input).not.toContain("Sam (neutral,");
   });
 });
