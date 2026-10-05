@@ -37,6 +37,7 @@
  *  dashboard/soul-drafts/<characterId>.json  proposed souls waiting for review
  *  dashboard/notes/<chatId>.json   what the user added or changed (notes, tags, threads); updates never write it
  *  dashboard/nudge/<chatId>.json   one pending "Story, move" nudge {v, threadId, at}; removed when used, 30 minutes to live
+ *  dashboard/fast/<chatId>.json    fast mode: the state a story reply carried, {v, entries: {"<msgId>#<swipe>": {body, at, model, closed}}}; the chat plugin writes it, the update uses and removes it
  *  dashboard/config.json           only what differs from the defaults
  *  dashboard/events.json           optional own event vocabulary
  *  _debug/dashboard.json           last sensor call, only when debug is on
@@ -53,6 +54,10 @@ const NOTES_DIR = "dashboard/notes/";
 // the user's one-time "Story, move" nudge per chat: rides the next reply request only, never the chat file
 const NUDGE_DIR = "dashboard/nudge/";
 const NUDGE_TTL_MS = 30 * 60 * 1000;
+// fast mode: the story reply ends with <vertep_state>{sensor JSON}</vertep_state>; the chat plugin cuts it out and
+// keeps its body here until the update for that message key uses it
+const FAST_DIR = "dashboard/fast/";
+const FAST_TTL_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 40;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
@@ -512,6 +517,10 @@ export const DEFAULT_PROMPTS = {
   // the "Story, move" note added to the end of one reply request; {threads} is filled in code (see nudgeText)
   nudge:
     "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]",
+  // fast mode: what the story model is told about the state tag; the sensor's rules, the event list, the output shape and
+  // the previous state are added in code (see fastInstructions)
+  fast:
+    "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in the language the story is written in. Keep ids, keys and enum values exactly as given, and every name as the story spells it. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
 // The sensor prompt in blocks the user can edit one by one: the default is cut at its headings
 // (blank-line paragraphs), and the blocks joined with a blank line give the default back exactly.
@@ -544,7 +553,7 @@ const sensorFromParts = (stored) =>
   SENSOR_PARTS.map((part) => (isObj(stored) && typeof stored[part.key] === "string" && stored[part.key].trim() ? stored[part.key] : DEFAULT_SENSOR_PARTS[part.key])).join("\n\n");
 
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [], fast: [] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -1542,7 +1551,7 @@ function nextConfig(stored, b) {
     }
     put("sensorParts", sp, {});
   }
-  if (b.mode === "sensor" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
+  if (b.mode === "sensor" || b.mode === "fast" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
   if (parseBool(b.catchUp) !== undefined) put("catchUp", parseBool(b.catchUp), DEFAULT_CONFIG.catchUp);
   if (parseBool(b.autoSoul) !== undefined) put("autoSoul", parseBool(b.autoSoul), DEFAULT_CONFIG.autoSoul);
   if (parseBool(b.debug) !== undefined) put("debug", parseBool(b.debug), DEFAULT_CONFIG.debug);
@@ -1663,7 +1672,8 @@ function threadCheckText(ctx) {
   );
 }
 
-function sensorUser(ctx) {
+/** The "Characters" block: the user, and every character with what the card says they are. */
+function castText(ctx) {
   const listed = withSoulNames(ctx.souls, [...ctx.characters, ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])]);
   // a card without a soul may be a narrator card; the sensor decides from the text
   const label = (n) => {
@@ -1676,8 +1686,12 @@ function sensorUser(ctx) {
     return soul && PRONOUN_KEYS.includes(soul.pronouns) ? ", " + soul.pronouns : "";
   };
   const classes = listed.map((n) => n + " (" + label(n) + pronounWord(n) + ")").join(", ");
+  return "Characters\nuser: " + ctx.userName + ". " + classes + ".";
+}
+
+function sensorUser(ctx) {
   return [
-    "Characters\nuser: " + ctx.userName + ". " + classes + ".",
+    castText(ctx),
     previousStateText(ctx),
     ...notebookTexts(ctx),
     ...[threadCheckText(ctx)].filter(Boolean),
@@ -2405,6 +2419,8 @@ function commitUpdate(fsx, ctx, r) {
   try {
     if (ctx.resense) dropSnapshot(ctx.state, ctx.K);
     const snapshot = applySensor(ctx, out, ctx.op, str(r.model), unknownIds);
+    // fast mode: the report came with the story reply, so no sensor call and no tokens of its own
+    if (r.fast) snapshot.fast = true;
     const usage = isObj(r.usage) ? r.usage : {};
     ctx.state.usage = {
       ...ctx.state.usage,
@@ -2412,6 +2428,7 @@ function commitUpdate(fsx, ctx, r) {
       inTokens: ctx.state.usage.inTokens + (num(usage.input) || 0),
       outTokens: ctx.state.usage.outTokens + (num(usage.output) || 0),
       lastMs: num(r.genTimeMs) || 0,
+      ...(r.fast ? { fast: (num(ctx.state.usage.fast) || 0) + 1 } : {}),
     };
     ctx.state.lastError = null;
     saveState(fsx, ctx);
@@ -2449,6 +2466,8 @@ function runUpdate(host, input) {
       // plan again: the chat now sees the provisional souls
       ctx = planUpdate(fsx, input.chatId, input.op);
       if (ctx.final) return { done: ctx.final };
+      const early = fastReply(host, ctx);
+      if (early) return { done: commitUpdate(fsx, ctx, early) };
       askSensor(host, ctx, "sensor");
       return { pending: carry({ rated: true }) };
     }
@@ -2461,6 +2480,9 @@ function runUpdate(host, input) {
   const key = input.retry ? "sensor_retry" : "sensor";
   const r = host.llm.results[key];
   if (!r) {
+    // fast mode: the story reply may already carry the report; anything unusable falls through to the sensor
+    const fast = fastReply(host, ctx);
+    if (fast) return { done: commitUpdate(fsx, ctx, fast) };
     askSensor(host, ctx, key);
     return { pending: carry({}) };
   }
@@ -2506,7 +2528,7 @@ function pickChat(fsx) {
 /** State and notice files of chats that no longer exist (at most 20 per tick). */
 function removeOrphans(fsx) {
   let removed = 0;
-  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR, NUDGE_DIR]) {
+  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR, NUDGE_DIR, FAST_DIR]) {
     let files = [];
     try {
       files = fsx.list(dir.slice(0, -1)).filter((f) => f.endsWith(".json"));
@@ -2516,7 +2538,9 @@ function removeOrphans(fsx) {
     for (const f of files) {
       if (removed >= 20) return;
       const id = f.replace(/\.json$/, "");
-      if (readJson(fsx, "chats/" + id + ".meta.json", null) !== null) continue;
+      // fast entries also go when a day old (a mode switched back to sensor never uses them)
+      const stale = dir === FAST_DIR && fastExpired(readJson(fsx, dir + f, null));
+      if (readJson(fsx, "chats/" + id + ".meta.json", null) !== null && !stale) continue;
       try {
         fsx.remove(dir + f);
         removed++;
@@ -2820,6 +2844,20 @@ export function llmRequest(ctx, host) {
   } catch (e) {
     fail("insert", e);
   }
+  // fast mode: right after the insert, the note that asks for the state report at the end of the reply
+  let fast = false;
+  try {
+    if (cfg && cfg.mode === "fast" && FAST_OPS.includes(turn.op)) {
+      const fctx = fastContext(fsx, chatId, turn, cfg);
+      if (fctx) {
+        messages = withInsert(messages, fastInstructions(fctx));
+        fast = true;
+        changed = true;
+      }
+    }
+  } catch (e) {
+    fail("fast", e);
+  }
   // the user asked for it explicitly: it applies even when the insert is switched off or failed above
   try {
     const note = takeNudge(fsx, chatId, turn, cfg || mergeConfig({}));
@@ -2830,6 +2868,8 @@ export function llmRequest(ctx, host) {
   } catch (e) {
     fail("nudge", e);
   }
+  // last of all, so it follows the nudge
+  if (fast) messages = withNudge(messages, FAST_REMINDER);
   return changed ? { messages } : null;
 }
 
@@ -2899,6 +2939,124 @@ function withNudge(messages, text) {
   const last = messages[messages.length - 1];
   if (last && last.role === "user" && typeof last.content === "string") return [...messages.slice(0, -1), { ...last, content: last.content + "\n\n" + text }];
   return [...messages, { role: "user", content: text }];
+}
+
+// ---------- fast mode: the sensor's report rides on the story reply ----------
+// The same turns the nudge applies to. Continue extends a reply (the sensor reads it again) and impersonate writes
+// the user's own line: neither carries a report.
+const FAST_OPS = NUDGE_OPS;
+const FAST_REMINDER = "[End this reply with the <vertep_state> tag as instructed.]";
+// the sensor rules that still make sense inside a story reply: not its role, language or size lines (the note has its own)
+const FAST_PARTS = ["truth", "events", "scene", "knowledge", "threads"];
+
+function fastRules(cfg) {
+  // a whole custom sensor prompt is cut at its headings; a part it lacks falls back to the default
+  const own = wholeSensorCustom(cfg) ? splitSensor(cfg.sensor) : isObj(cfg.sensorParts) ? cfg.sensorParts : {};
+  return FAST_PARTS.map((key) => (typeof own[key] === "string" && own[key].trim() ? own[key] : DEFAULT_SENSOR_PARTS[key])).join("\n\n");
+}
+
+/**
+ * The system note that asks the story model for the report. ctx is what the sensor would get
+ * (cast, previous state with thread and note ids), so the ids in the report match.
+ */
+export function fastInstructions(ctx) {
+  return [
+    promptOf("fast", ctx.cfg),
+    fastRules(ctx.cfg),
+    "Event vocabulary\n" + vocabularyText(ctx.vocab, ctx.cfg),
+    "Output shape\n" + OUTPUT_SHAPE + "\nLeave out any key this turn gives nothing for.",
+    castText(ctx),
+    previousStateText(ctx),
+    ...notebookTexts(ctx),
+    ...[threadCheckText(ctx)].filter(Boolean),
+  ].join("\n\n");
+}
+
+/** The sensor's context for the reply about to be written: the story as it stands before it (nothing is saved for it yet). */
+function fastContext(fsx, chatId, turn, cfg) {
+  const chat = readChat(fsx, chatId);
+  if (!chat) return null;
+  const { state } = loadState(fsx, chatId);
+  const at = snapshotFor(state, activeLine(chat.msgs), turn);
+  const overlay = loadOverlay(fsx, chatId);
+  const { names, souls } = chatCharacters(fsx, chat.meta);
+  return {
+    cfg,
+    vocab: loadVocab(fsx),
+    state,
+    overlay,
+    base: at ? { key: at.key, snap: at.snap } : null,
+    // notebooks of the line up to the base: the keys after it have no snapshot yet
+    line: at ? at.keys.map((key) => ({ key })) : [],
+    K: null,
+    resense: false,
+    threads: effectiveThreads(overlay, at ? at.snap.threads : [], at ? at.snap.turn : 0),
+    characters: names,
+    souls,
+    userName: userNameOf(fsx, chat.meta),
+  };
+}
+
+/** About how many tokens fast mode adds to one reply: three characters in the scene, two open threads, the user's own event list. */
+function fastTokens(cfg, vocab) {
+  const names = ["Aria", "Bram", "Cora"];
+  const stats = { trust: 20, comfort: 15, attraction: 5, respect: 25, affection: 10 };
+  const chars = {};
+  for (const n of names) chars[n] = { stats, mood: "wary, curious", holding: "a mug" };
+  const snap = { turn: 6, clock: { day: 2, time: "19:40", band: "evening", place: "the tavern", weather: "rain" }, present: names, chars };
+  const ctx = {
+    cfg,
+    vocab,
+    state: emptyState("sample"),
+    overlay: normalizeOverlay(null),
+    base: { key: "m0#0", snap },
+    line: [],
+    K: null,
+    resense: false,
+    threads: [{ id: "t1", text: "Who took the key?", status: "open" }, { id: "t2", text: "Will Bram keep his promise?", status: "open" }],
+    characters: names,
+    souls: { Aria: { class: "ally", pronouns: "she" }, Bram: { class: "neutral", pronouns: "he" }, Cora: { class: "neutral", pronouns: "she" } },
+    userName: "You",
+  };
+  return estimateTokens(fastInstructions(ctx)) + estimateTokens("\n\n" + FAST_REMINDER);
+}
+
+const readFast = (fsx, chatId) => {
+  const doc = readJson(fsx, FAST_DIR + chatId + ".json", null);
+  return { v: 1, entries: isObj(doc) && isObj(doc.entries) ? doc.entries : {} };
+};
+
+/** Forget one entry (the update used it or turned it down); the file goes with its last entry. */
+function dropFast(fsx, chatId, key) {
+  try {
+    const doc = readFast(fsx, chatId);
+    if (!(key in doc.entries)) return;
+    delete doc.entries[key];
+    if (Object.keys(doc.entries).length) fsx.write(FAST_DIR + chatId + ".json", JSON.stringify(doc));
+    else fsx.remove(FAST_DIR + chatId + ".json");
+  } catch {}
+}
+
+/** No entry is younger than a day (or none is left): the file is only clutter. */
+const fastExpired = (doc) => !isObj(doc) || !isObj(doc.entries) || !Object.values(doc.entries).some((e) => isObj(e) && Date.now() - Number(e.at) <= FAST_TTL_MS);
+
+/**
+ * Fast mode: the report the story reply carried for the key about to be sensed, as a reply for commitUpdate,
+ * or null (the sensor runs as in mode sensor). An entry is used up either way. A re-read of a changed message never uses one.
+ */
+function fastReply(host, ctx) {
+  if (ctx.cfg.mode !== "fast" || ctx.resense) return null;
+  const entry = readFast(host.fs, ctx.chatId).entries[ctx.K];
+  if (!isObj(entry)) return null;
+  dropFast(host.fs, ctx.chatId, ctx.K);
+  const body = typeof entry.body === "string" ? entry.body : "";
+  if (!parseSensorText(body)) {
+    try {
+      host.log("dashboard fast: the state in the reply was not usable, asking the sensor");
+    } catch {}
+    return null;
+  }
+  return { text: body, model: str(entry.model), fast: true };
 }
 
 /** Names an insert can be built for: the newest snapshot of the active line, present non-compact characters first. */
@@ -3245,6 +3403,8 @@ function configBody(fsx) {
     sensor: promptOf("sensor", cfg),
     sensorMode: wholeSensorCustom(cfg) ? "whole" : "parts",
     sensorParts,
+    // what fast mode adds to every reply, in tokens (the UI hint says "about N")
+    fastTokens: fastTokens(cfg, loadVocab(fsx)),
     custom: customPrompts(fsx),
     events: vocabRows(userEventRows(fsx)),
     deltaKeys: DELTA_KEYS,
@@ -3513,7 +3673,7 @@ export function uiPanel(_ctx, host) {
       {
         id: "config",
         title: "Sensor",
-        subtitle: (cfg.mode === "manual" ? "manual" : "sensor") + " · " + (str(cfg.sensorModel) || "chat model"),
+        subtitle: (cfg.mode === "manual" || cfg.mode === "fast" ? cfg.mode : "sensor") + " · " + (str(cfg.sensorModel) || "chat model"),
         enabled: cfg.mode !== "manual",
         saveUrl: "/dashboard/config",
         ...(custom.length ? { deleteUrl: "/dashboard/config/prompts", deleteLabel: "Restore default prompts" } : {}),
@@ -3522,7 +3682,7 @@ export function uiPanel(_ctx, host) {
           { key: "sensorMaxTokens", label: "Sensor reply limit, tokens", hint: "The most the sensor (and the soul rating) may write per call. A higher limit allows longer replies, which are slower and cost more; if replies are cut off, raise it. 1000 to 8000, default 3000.", kind: "number", value: cfg.sensorMaxTokens },
           { key: "maxThreads", label: "Open threads at most", hint: "How many open threads the story may carry, yours included. 1 to 6, default 3.", kind: "number", value: cfg.maxThreads },
           { key: "threadCheckEvery", label: "Check old threads every N turns", hint: "Every N turns the sensor is asked whether threads open that long are settled, dropped or still open. 0 = never. Default 5.", kind: "number", value: cfg.threadCheckEvery },
-          { key: "mode", label: "Mode", hint: "sensor: update after replies. manual: no automatic updates.", kind: "select", list: ["sensor", "manual"], value: cfg.mode },
+          { key: "mode", label: "Mode", hint: "sensor: a separate call reads each reply. fast: for strong models, the story reply itself ends with the report, so there is no separate call (adds about " + fastTokens(cfg, fsx ? loadVocab(fsx) : DEFAULT_VOCAB) + " tokens to every reply); when the reply leaves it out, the sensor runs. manual: no automatic updates.", kind: "select", list: ["sensor", "fast", "manual"], value: cfg.mode },
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
           { key: "insertTokens", label: "Insert limit, tokens per character", hint: "The block of one character may take this much; the scene, open threads and closing line come on top. Over the limit, the lines about the others go first, then the notebooks. Default 300.", kind: "number", value: cfg.injection.maxTokens },
           { key: "catchUp", label: "Catch up", hint: "Update a recently active chat in the background when it missed an update.", kind: "select", list: ["on", "off"], value: cfg.catchUp ? "on" : "off" },
@@ -3541,6 +3701,7 @@ export function uiPanel(_ctx, host) {
               }))),
           { key: "soul", label: "Soul rating prompt", hint: custom.includes("soul") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the rating call is told. The event list, the stat names and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("soul", cfg) },
           { key: "nudge", label: "Story, move prompt", hint: custom.includes("nudge") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change the note the next reply gets when you press Story, move. {threads} is replaced by the open thread(s) it pulls on; leave it out to send none.", kind: "textarea", rows: 5, advanced: true, value: promptOf("nudge", cfg) },
+          { key: "fast", label: "Fast mode prompt", hint: custom.includes("fast") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change the note the story model gets in fast mode. The sensor's rules, the event list, the output shape and the previous state are added by code; keep the <vertep_state> tag in it.", kind: "textarea", rows: 8, advanced: true, value: promptOf("fast", cfg) },
         ],
       },
     ],

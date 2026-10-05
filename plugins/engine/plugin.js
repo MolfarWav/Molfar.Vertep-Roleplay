@@ -35,6 +35,111 @@ const slug = (s) =>
   String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "item";
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// ---------- dashboard fast mode: the state tag at the end of a story reply ----------
+// In fast mode the dashboard asks the story model to end its reply with
+// <vertep_state>{json}</vertep_state>. The tag never reaches a saved message:
+// it is cut out here (in every mode, a model may keep writing it) and its body
+// waits in dashboard/fast/<chatId>.json for the dashboard update (plugins/relations).
+const FAST_TAG = "vertep_state";
+const FAST_DIR = "dashboard/fast/";
+const FAST_BODY_MAX = 16000;
+const FAST_MAX_ENTRIES = 20;
+const FAST_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The reply text without its state tag: { text, body, closed }. The last
+ * <vertep_state> is the report (body = what lies between the tags); without a
+ * closing tag the reply was cut off and the tag runs to the end. Earlier tags go
+ * too. Text without a tag comes back unchanged with body null.
+ */
+export function cutStateTag(text) {
+  const open = "<" + FAST_TAG + ">";
+  const close = "</" + FAST_TAG + ">";
+  const whole = String(text == null ? "" : text);
+  let rest = whole;
+  let body = null;
+  let closed = false;
+  for (;;) {
+    const at = rest.lastIndexOf(open);
+    if (at < 0) break;
+    const from = at + open.length;
+    const end = rest.indexOf(close, from);
+    if (body === null) {
+      body = end < 0 ? rest.slice(from) : rest.slice(from, end);
+      closed = end >= 0;
+    }
+    rest = rest.slice(0, at) + (end < 0 ? "" : rest.slice(end + close.length));
+  }
+  return body === null ? { text: whole, body: null, closed: false } : { text: rest.trimEnd(), body, closed };
+}
+
+/** The same cut over the text parts of a tool-using or aborted reply; a part that was only the tag goes. */
+function cutPartsTag(parts) {
+  if (!Array.isArray(parts)) return { parts, body: null, closed: false };
+  let body = null;
+  let closed = false;
+  const out = [];
+  for (const p of parts) {
+    if (!p || p.type !== "text" || typeof p.text !== "string") { out.push(p); continue; }
+    const c = cutStateTag(p.text);
+    if (c.body === null) { out.push(p); continue; }
+    body = c.body;
+    closed = c.closed;
+    if (c.text.trim()) out.push({ ...p, text: c.text });
+  }
+  return { parts: out, body, closed };
+}
+
+/** A finished reply with its tag cut from text and parts (reply.parts is replaced): { text, body, closed }. */
+function cutReply(reply) {
+  const t = cutStateTag(String(reply.text || "").trim());
+  if (Array.isArray(reply.parts)) {
+    const p = cutPartsTag(reply.parts);
+    reply.parts = p.parts;
+    // a reply whose text lost the tag but whose parts kept it (or the other way round) still has its body
+    if (t.body === null && p.body !== null) return { text: t.text, body: p.body, closed: p.closed };
+  }
+  return t;
+}
+
+/** Keep what a whole reply reported for the dashboard update; only in fast mode; a failure never fails the reply. */
+function saveFastState(fsx, chatId, key, cut, model) {
+  try {
+    if (!cut || typeof cut.body !== "string" || !cut.body.trim()) return;
+    let mode = "";
+    try { mode = JSON.parse(fsx.read("dashboard/config.json")).mode; } catch {}
+    if (mode !== "fast") return;
+    const file = FAST_DIR + chatId + ".json";
+    let entries = {};
+    try {
+      const doc = JSON.parse(fsx.read(file));
+      if (doc && typeof doc === "object" && doc.entries && typeof doc.entries === "object") entries = doc.entries;
+    } catch {}
+    const now = Date.now();
+    entries[key] = { body: cut.body.slice(0, FAST_BODY_MAX), at: now, model: String(model || ""), closed: cut.closed === true };
+    // a day old goes; of the rest the newest 20 stay
+    const keep = Object.keys(entries)
+      .filter((k) => k === key || now - Number(entries[k] && entries[k].at) <= FAST_TTL_MS)
+      .sort((a, b) => Number(entries[b].at) - Number(entries[a].at))
+      .slice(0, FAST_MAX_ENTRIES);
+    const next = {};
+    for (const k of keep) next[k] = entries[k];
+    fsx.write(file, JSON.stringify({ v: 1, entries: next }));
+  } catch {}
+}
+
+/** A reply that was extended no longer matches what it reported: forget the entry of its key (the sensor reads it again). */
+function dropFastState(fsx, chatId, key) {
+  try {
+    const file = FAST_DIR + chatId + ".json";
+    const doc = JSON.parse(fsx.read(file));
+    if (!doc || typeof doc !== "object" || !doc.entries || !(key in doc.entries)) return;
+    delete doc.entries[key];
+    if (Object.keys(doc.entries).length) fsx.write(file, JSON.stringify(doc));
+    else fsx.remove(file);
+  } catch {}
+}
+
 // ---------- macros (subset evaluated server-side) ----------
 function strHash(s) {
   let h = 5381;
@@ -3080,6 +3185,9 @@ const toolX = (r) => ({
       if (userMsg) chat.msgs.push(userMsg);
       let speaker = members[0] || null;
       let replyText = String(reply.text || "").trim();
+      // fast mode: the state report ends the reply; it is not part of the story
+      const stateTag = cutReply(reply);
+      replyText = stateTag.text;
       const plan = group && req.stash && Array.isArray(req.stash.plan) ? req.stash.plan : null;
       if (group) speaker = (plan && members.find((m) => m.id === plan[0])) || null;
       if (!speaker) return err(400, "chat has no participating characters");
@@ -3111,6 +3219,7 @@ const toolX = (r) => ({
       // the interval counter advances only when extraction ran this turn
       const memoryRan = memReply !== undefined;
       saveChat(fsx, id, touch({ ...meta, tainted: true, ...(memoryRan ? { memoryExtractedAt: chat.msgs.length } : {}) }), chat.msgs);
+      saveFastState(fsx, id, charMsg.id + "#0", stateTag, reply.model);
       return ok({
         user: userMsg, reply: charMsg,
         ...(memoriesAdded ? { memoriesAdded } : {}),
@@ -3149,7 +3258,8 @@ const toolX = (r) => ({
         return pendingOut(meta, a.trimmed ? { trimmed: a.trimmed } : undefined);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      let replyText = String(reply.text || "").trim();
+      const stateTag = cutReply(reply);
+      let replyText = stateTag.text;
       const prefill = reply.assistantPrefill;
       if (prefill && !replyText.startsWith(prefill)) replyText = prefill + replyText;
       replyText = onSave(replyText, "ai_output", speaker);
@@ -3162,6 +3272,7 @@ const toolX = (r) => ({
       chat.msgs.push(charMsg);
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
+      saveFastState(fsx, id, charMsg.id + "#0", stateTag, reply.model);
       return ok({ reply: charMsg, ...(req.stash && req.stash.trimmed ? { trimmed: req.stash.trimmed } : {}) });
     }
 
@@ -3220,7 +3331,8 @@ const toolX = (r) => ({
         return pendingOut(meta);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      let fresh = stripEchoedName(String(reply.text || "").trim(), readJson("presets/" + (meta.presetId || "default") + ".json", null), !!group, msg.name);
+      const stateTag = cutReply(reply);
+      let fresh = stripEchoedName(stateTag.text, readJson("presets/" + (meta.presetId || "default") + ".json", null), !!group, msg.name);
       const swipPrefill = reply.assistantPrefill;
       if (swipPrefill && !fresh.startsWith(swipPrefill)) fresh = swipPrefill + fresh;
       fresh = onSave(fresh, "ai_output", speaker);
@@ -3229,6 +3341,7 @@ const toolX = (r) => ({
       chat.msgs[idx] = { ...msg, text: fresh, swipe: swipes.length - 1, swipes, translation: undefined, extra: pushSwipeMeta({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) }, swipes.length, swipeMetaEntry(reply)) };
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
+      saveFastState(fsx, id, msg.id + "#" + (swipes.length - 1), stateTag, reply.model);
       return ok({ message: chat.msgs[idx], swipe: swipes.length - 1, count: swipes.length });
     }
 
@@ -3244,8 +3357,9 @@ const toolX = (r) => ({
       const b = body();
       const stripPreset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
       const cancelSpeaker = members.find((m) => m.id === (chat.msgs.find((x) => x.id === b.targetMessageId) || {}).charId) || members[0] || null;
-      const text = onSave(stripEchoedName(String(b.text ?? ""), stripPreset, !!group, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
-      const parts = Array.isArray(b.parts) ? b.parts : null;
+      // the client froze what it showed, which may still carry the state tag: cut it, keep nothing of it
+      const text = onSave(stripEchoedName(cutStateTag(String(b.text ?? "")).text, stripPreset, !!group, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
+      const parts = Array.isArray(b.parts) ? cutPartsTag(b.parts).parts : null;
       if (!text.trim() && !(parts && parts.length)) return err(400, "nothing to keep");
       let idx = -1;
       if (b.targetMessageId) {
@@ -3331,7 +3445,9 @@ const toolX = (r) => ({
         return pendingOut(meta);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      const extra = onSave(String(reply.text || "").trim(), "ai_output", speaker);
+      const extra = onSave(cutReply(reply).text, "ai_output", speaker);
+      // the report of this reply (if one waits) no longer covers its text: the sensor reads it again
+      dropFastState(fsx, id, msg.id + "#" + (msg.swipe || 0));
       if (reply.reasoning) reply.reasoning = onSave(reply.reasoning, "reasoning", speaker);
       const merged = msg.text + (/\s$/.test(msg.text) ? "" : " ") + extra;
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];

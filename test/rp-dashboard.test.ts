@@ -948,7 +948,7 @@ describe("config", () => {
     expect(item.deleteUrl).toBeUndefined();
     const field = (it: any, key: string) => it.fields.find((f: any) => f.key === key);
     const partKeys = P.SENSOR_PARTS.map((x: any) => "sensorPart_" + x.key);
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul", "nudge"]);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul", "nudge", "fast"]);
     expect(item.fields[0].kind).toBe("model");
     expect(field(item, "autoSoul")).toMatchObject({ kind: "select", list: ["on", "off"], value: "on" });
     expect(field(item, "sensorPart_role")).toMatchObject({ kind: "textarea", advanced: true, value: P.DEFAULT_SENSOR_PARTS.role });
@@ -3781,5 +3781,317 @@ describe("story, move (nudge)", () => {
     // the panel field carries the prompt
     const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "nudge");
     expect(field).toMatchObject({ kind: "textarea", advanced: true, label: "Story, move prompt", value: P.DEFAULT_PROMPTS.nudge });
+  });
+});
+
+// ---------- fast mode: the report rides on the story reply ----------
+describe("fast mode", () => {
+  const SYS = (content: string) => ({ role: "system", content });
+  const ask = (mock: ReturnType<typeof mockHost>, chatId: string, messages: any = [SYS("card"), { role: "user", content: "hi" }], extra: Record<string, unknown> = {}) =>
+    P.llmRequest({ key: "reply", request: { sessionId: chatId, messages }, ...extra }, mock.host) as { messages: any[] } | null;
+  const setConfig = (cfg: Record<string, unknown>) => fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, ...cfg }));
+  const fastFile = (id = "c1") => path.join(root, "dashboard/fast", id + ".json");
+  const putFast = (entries: Record<string, unknown>, id = "c1") => {
+    fs.mkdirSync(path.join(root, "dashboard/fast"), { recursive: true });
+    fs.writeFileSync(fastFile(id), JSON.stringify({ v: 1, entries }));
+  };
+  const entry = (body: string, extra: Record<string, unknown> = {}) => ({ body, at: Date.now(), model: "story/model", closed: true, ...extra });
+  const four = () => [...three(), A("m4", "I believe you.")];
+  const REMINDER = "[End this reply with the <vertep_state> tag as instructed.]";
+  const NOTE = "[For this reply only: do not just react to the last message.";
+  const instructionsOf = (out: { messages: any[] } | null) => {
+    const m = out?.messages.find((x) => x.role === "system" && String(x.content).startsWith("Dashboard note:"));
+    if (!m) throw new Error("no fast instructions in the patch");
+    return String(m.content);
+  };
+  /** A chat with one sensor update behind it (open thread t1 "Who has the key?"), then the given mode switched on. */
+  function started(mode = "fast") {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    setConfig({ mode });
+    return mock;
+  }
+
+  it("4. an update with an entry for the key: no sensor call, the snapshot is fast, the entry is used up, the same chat is unchanged", () => {
+    setConfig({ mode: "fast" });
+    writeChat("c1", four());
+    putFast({ "m4#0": entry(keptPromise), "other#0": entry("{}") });
+    const mock = mockHost([]);
+    const r = update(mock, "c1", "send");
+    expect(r.json.ok).toBe(true);
+    expect(mock.requests.length).toBe(0);
+    const st = readStateFile("c1");
+    const snap = st.snapshots["m4#0"];
+    expect(snap).toMatchObject({ fast: true, sensorModel: "story/model", op: "send", turn: 1 });
+    expect(snap.partial).toBeUndefined();
+    expect(snap.events[0]).toMatchObject({ id: "kept_promise", to: "Aria" });
+    expect(snap.clock).toMatchObject({ place: "Hall", minutes: 10 });
+    // the report counts as a call with no tokens
+    expect(st.usage).toMatchObject({ calls: 1, fast: 1, inTokens: 0, outTokens: 0, lastMs: 0 });
+    // the entry is gone, the other one stays
+    expect(Object.keys(JSON.parse(fs.readFileSync(fastFile(), "utf8")).entries)).toEqual(["other#0"]);
+    // the signature covers the saved texts: the next update sees nothing new and asks nothing
+    expect(update(mock, "c1").json.unchanged).toBe(true);
+    expect(mock.requests.length).toBe(0);
+    // the view tells which snapshot was read from the reply
+    expect(getState(mock, "c1").state.snapshots["m4#0"].fast).toBe(true);
+  });
+
+  it("the last entry takes its file with it; a cut-off body is applied as partial; a fenced body works", () => {
+    setConfig({ mode: "fast" });
+    writeChat("c1", four());
+    putFast({ "m4#0": entry('{"present": ["Aria"], "minutes": 10, "events": [{"id": "compliment", "weight": "routine", "from": "user", "to": "Aria"}], "chars": {"Aria": {"mood', { closed: false }) });
+    const mock = mockHost([]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests.length).toBe(0);
+    expect(readStateFile("c1").snapshots["m4#0"]).toMatchObject({ fast: true, partial: true });
+    expect(fs.existsSync(fastFile())).toBe(false);
+    writeChat("c2", four());
+    putFast({ "m4#0": entry("```json\n" + keptPromise + "\n```") }, "c2");
+    expect(update(mock, "c2").json.ok).toBe(true);
+    expect(readStateFile("c2").snapshots["m4#0"].fast).toBe(true);
+    expect(mock.requests.length).toBe(0);
+  });
+
+  it("5. an entry that is not JSON is dropped and the sensor runs; no entry, or one for another swipe: the sensor", () => {
+    setConfig({ mode: "fast" });
+    writeChat("c1", four());
+    putFast({ "m4#0": entry("this is not a report at all") });
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
+    expect(fs.existsSync(fastFile())).toBe(false);
+    const snap = readStateFile("c1").snapshots["m4#0"];
+    expect(snap.fast).toBeUndefined();
+    expect(snap.sensorModel).toBe("mock/sensor");
+    expect(readStateFile("c1").usage).toMatchObject({ calls: 1, inTokens: 100 });
+    expect(readStateFile("c1").usage.fast).toBeUndefined();
+    // no file at all
+    writeChat("c2", four());
+    mock.push(keptPromise);
+    expect(update(mock, "c2").json.ok).toBe(true);
+    expect(mock.requests.map((x) => x.key)).toEqual(["sensor", "sensor"]);
+    // an entry for another key (another swipe) is not this message's
+    writeChat("c3", four());
+    putFast({ "m4#1": entry(keptPromise) }, "c3");
+    mock.push(keptPromise);
+    expect(update(mock, "c3").json.ok).toBe(true);
+    expect(mock.requests.length).toBe(3);
+    expect(JSON.parse(fs.readFileSync(fastFile("c3"), "utf8")).entries["m4#1"]).toBeDefined();
+    // a body that is not text
+    writeChat("c4", four());
+    putFast({ "m4#0": { body: 5, at: Date.now() } }, "c4");
+    mock.push(keptPromise);
+    expect(update(mock, "c4").json.ok).toBe(true);
+    expect(mock.requests.length).toBe(4);
+  });
+
+  it("5. a re-read after an edit goes to the sensor and leaves the entry; mode sensor never uses an entry", () => {
+    setConfig({ mode: "fast" });
+    writeChat("c1", four());
+    putFast({ "m4#0": entry(keptPromise) });
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(readStateFile("c1").snapshots["m4#0"].fast).toBe(true);
+    // the user edits the reply: the text changed, the sensor reads it again even though an entry waits
+    writeChat("c1", [...three(), A("m4", "I believe you, truly.")]);
+    putFast({ "m4#0": entry(keptPromise) });
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
+    const snap = readStateFile("c1").snapshots["m4#0"];
+    expect(snap).toMatchObject({ op: "resense", sensorModel: "mock/sensor" });
+    expect(snap.fast).toBeUndefined();
+    expect(fs.existsSync(fastFile())).toBe(true);
+    // mode sensor: the entry is ignored
+    setConfig({ mode: "sensor" });
+    writeChat("c2", four());
+    putFast({ "m4#0": entry(keptPromise) }, "c2");
+    mock.push(keptPromise);
+    expect(update(mock, "c2").json.ok).toBe(true);
+    expect(mock.requests.length).toBe(2);
+    expect(readStateFile("c2").snapshots["m4#0"].fast).toBeUndefined();
+    expect(fs.existsSync(fastFile("c2"))).toBe(true);
+  });
+
+  it("a card with no soul is rated first, then the entry is used: one request in all", () => {
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ mode: "fast" }));
+    writeChat("c1", four(), { characterId: "bram" });
+    putFast({ "m4#0": entry(reply({ present: ["Bram"], minutes: 3 })) });
+    const mock = mockHost([reply({ characters: { Bram: { class: "ally", pronouns: "he" } }, cardType: "single" })]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests.map((x) => x.key)).toEqual(["soul_rate_bram"]);
+    const snap = readStateFile("c1").snapshots["m4#0"];
+    expect(snap.fast).toBe(true);
+    expect(snap.chars.Bram.cls).toBe("ally");
+    expect(fs.existsSync(fastFile())).toBe(false);
+  });
+
+  it("the catch-up tick uses an entry the UI trigger did not get to; the sweep drops files of gone chats and day-old ones", () => {
+    setConfig({ mode: "fast" });
+    writeChat("c1", four(), { updatedAt: Date.now() - 5 * 60_000 });
+    putFast({ "m4#0": entry(keptPromise) });
+    const mock = mockHost([]);
+    P.onTick({ pluginId: "relations" }, mock.host);
+    expect(mock.requests.length).toBe(0);
+    expect(readStateFile("c1").snapshots["m4#0"]).toMatchObject({ op: "catchup", fast: true });
+    expect(fs.existsSync(fastFile())).toBe(false);
+    // nothing to update now: the tick sweeps
+    putFast({ "x#0": entry("{}") }, "gone");
+    putFast({ "x#0": entry("{}", { at: Date.now() - 25 * 3600 * 1000 }) }, "c1");
+    P.onTick({ pluginId: "relations" }, mock.host);
+    expect(fs.existsSync(fastFile("gone"))).toBe(false);
+    expect(fs.existsSync(fastFile("c1"))).toBe(false);
+  });
+
+  it("6. the hook in fast mode: a system note right after the insert, a reminder ending the last user message, nothing mutated", () => {
+    const mock = started();
+    const msgs = [SYS("A"), SYS("B"), { role: "user", content: "X" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }];
+    const copy = JSON.parse(JSON.stringify(msgs));
+    const out = ask(mock, "c1", msgs, { turn: { op: "send" } })!;
+    expect(out.messages.length).toBe(7);
+    expect(out.messages.slice(0, 2)).toEqual([SYS("A"), SYS("B")]);
+    expect(out.messages[2].content.startsWith("[Background, the scene:")).toBe(true);
+    expect(out.messages[3].role).toBe("system");
+    expect(out.messages[3].content.startsWith("Dashboard note:")).toBe(true);
+    expect(out.messages.slice(4, 6)).toEqual(msgs.slice(2, 4));
+    expect(out.messages[6]).toEqual({ role: "user", content: "Z\n\n" + REMINDER });
+    expect(msgs).toEqual(copy);
+    // what the note carries: the tag, the rules, the vocabulary, the shape, the cast, the previous state with thread ids
+    const text = instructionsOf(out);
+    expect(text).toContain("<vertep_state>");
+    expect(text).toContain("</vertep_state>");
+    for (const head of ["Truth:", "Events:", "Scene:", "Knowledge:", "Threads:", "Event vocabulary\n", "Output shape\n", "Characters\nuser: You.", "Previous state\n"]) expect(text).toContain(head);
+    expect(text).toContain("kept_promise");
+    expect(text).toContain("Open threads: t1 \"Who has the key?\"");
+    expect(text).toContain("Open thread limit: 3.");
+    expect(text).toContain("Aria (ally)");
+    expect(text).toContain("Present: Aria.");
+    // not the sensor's own role, language or size lines
+    expect(text).not.toContain("You are the scene sensor");
+    expect(text).not.toContain("Language: Write every text value");
+    expect(text).not.toContain("Keep the whole reply compact");
+    expect(CYRILLIC.test(text)).toBe(false);
+    // the thread check is asked only when it is due
+    expect(text).not.toContain("Thread check");
+  });
+
+  it("6. the note carries the notebook ids of the present characters, as the sensor would", () => {
+    const mock = started();
+    const note = readStateFile("c1").notebook.Aria[0];
+    const out = ask(mock, "c1", undefined, { turn: { op: "send" } })!;
+    expect(instructionsOf(out)).toContain("Notebook of Aria\n" + note.id + " saw: The user keeps their word");
+  });
+
+  it("6. mode sensor and manual add neither the note nor the reminder; continue and impersonate neither, in fast mode too", () => {
+    for (const mode of ["sensor", "manual"]) {
+      const mock = started(mode);
+      expect(JSON.stringify(ask(mock, "c1", undefined, { turn: { op: "send" } }))).not.toContain("vertep_state");
+      fs.rmSync(path.join(root, "dashboard/state"), { recursive: true, force: true });
+    }
+    const mock = started("fast");
+    for (const op of ["continue", "impersonate"]) {
+      const out = ask(mock, "c1", undefined, { turn: { op } });
+      expect(JSON.stringify(out)).not.toContain("vertep_state");
+      expect(JSON.stringify(out)).not.toContain("Dashboard note");
+    }
+    // ops that start a reply: send, next, swipe, and an engine with no label at all
+    for (const turn of [{ op: "send" }, { op: "next" }, { op: "swipe" }, undefined]) {
+      const out = ask(mock, "c1", undefined, turn ? { turn } : {})!;
+      expect(instructionsOf(out)).toContain("<vertep_state>");
+      expect(out.messages[out.messages.length - 1].content).toBe("hi\n\n" + REMINDER);
+    }
+    // the label on the request, like an older engine
+    expect(JSON.stringify(P.llmRequest({ key: "reply", request: { sessionId: "c1", messages: [SYS("card"), { role: "user", content: "hi" }], turn: { op: "impersonate" } } }, mock.host))).not.toContain("vertep_state");
+    // other keys are never touched
+    expect(P.llmRequest({ key: "sensor", request: { sessionId: "c1", messages: [] } }, mock.host)).toBeNull();
+  });
+
+  it("6. with the nudge armed both go in, the nudge first; a swipe reads the story from before its target", () => {
+    const mock = started();
+    drive(mock, { method: "POST", path: "/dashboard/nudge", body: { chatId: "c1" } });
+    const out = ask(mock, "c1", undefined, { turn: { op: "send" } })!;
+    const last = String(out.messages[out.messages.length - 1].content);
+    expect(last.startsWith("hi\n\n" + NOTE)).toBe(true);
+    expect(last.endsWith("\n\n" + REMINDER)).toBe(true);
+    expect(last.indexOf(NOTE)).toBeLessThan(last.indexOf(REMINDER));
+    expect(fs.existsSync(path.join(root, "dashboard/nudge/c1.json"))).toBe(false);
+    // the snapshot sits on m3#0: a swipe of m3 starts from the story before it
+    const swipe = ask(mock, "c1", undefined, { turn: { op: "swipe", targetId: "m3" } })!;
+    expect(instructionsOf(swipe)).toContain("Previous state\n(none: this is the start)");
+    expect(instructionsOf(ask(mock, "c1", undefined, { turn: { op: "send" } }))).toContain("Present: Aria.");
+  });
+
+  it("6. with no state yet the note still goes in; with the insert off it goes in alone; an empty message list gets a reminder message", () => {
+    setConfig({ mode: "fast" });
+    writeChat("fresh", three());
+    const mock = mockHost();
+    const out = ask(mock, "fresh")!;
+    expect(out.messages.length).toBe(3);
+    expect(out.messages[1].content).toContain("Previous state\n(none: this is the start)");
+    expect(out.messages[2].content).toBe("hi\n\n" + REMINDER);
+    expect(out.messages.some((m) => String(m.content).startsWith("[Background, the scene:"))).toBe(false);
+    // a chat that does not exist: nothing
+    expect(ask(mock, "ghost")).toBeNull();
+    // insert off, state present
+    const m2 = started();
+    setConfig({ mode: "fast", injection: { enabled: false } });
+    const alone = ask(m2, "c1")!;
+    expect(alone.messages.length).toBe(3);
+    expect(alone.messages.some((m) => String(m.content).startsWith("[Background, the scene:"))).toBe(false);
+    expect(instructionsOf(alone)).toContain("Open threads: t1");
+    // no messages at all: the note, and the reminder as a message of its own
+    const bare = ask(m2, "c1", [])!;
+    expect(bare.messages.length).toBe(2);
+    expect(bare.messages[1]).toEqual({ role: "user", content: REMINDER });
+  });
+
+  it("the fast prompt: shipped in English, kept only when changed, shown in the panel; the mode is accepted", () => {
+    const mock = mockHost();
+    expect(P.DEFAULT_PROMPTS.fast).toContain("<vertep_state>");
+    expect(CYRILLIC.test(P.DEFAULT_PROMPTS.fast)).toBe(false);
+    expect(P.DEFAULT_PROMPTS.fast).toContain("language the story is written in");
+    const stored = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "fast" } });
+    expect(stored().mode).toBe("fast");
+    expect(P.uiPanel({}, mock.host).items[0].subtitle.startsWith("fast")).toBe(true);
+    // an unknown mode changes nothing
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "turbo" } });
+    expect(stored().mode).toBe("fast");
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "sensor" } });
+    expect(stored().mode).toBeUndefined();
+    // a custom paragraph is used and listed; the default is not stored
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "fast", fast: "Custom note. <vertep_state>{}</vertep_state>" } });
+    expect(stored().fast).toBe("Custom note. <vertep_state>{}</vertep_state>");
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.custom).toContain("fast");
+    writeChat("c1", three());
+    const out = ask(mock, "c1", undefined, { turn: { op: "send" } })!;
+    expect(out.messages[1].content.startsWith("Custom note.")).toBe(true);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { fast: P.DEFAULT_PROMPTS.fast + " " } });
+    expect(stored().fast).toBeUndefined();
+    const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "fast");
+    expect(field).toMatchObject({ kind: "textarea", advanced: true, label: "Fast mode prompt", value: P.DEFAULT_PROMPTS.fast });
+    const modeField = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "mode");
+    expect(modeField.list).toEqual(["sensor", "fast", "manual"]);
+    // the config body carries the size of the note, and the hint says it
+    const tokens = drive(mock, { method: "GET", path: "/dashboard/config" }).json.fastTokens;
+    expect(tokens).toBeGreaterThan(500);
+    expect(modeField.hint).toContain("adds about " + tokens + " tokens");
+    // restoring the prompts brings the default back
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { fast: "Mine." } });
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.fast).toBe(P.DEFAULT_PROMPTS.fast);
+  });
+
+  it("the note uses the user's sensor parts, and a whole custom sensor prompt by its headings (a part it lacks is the default)", () => {
+    const mock = started();
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensorParts: { truth: "Truth:\n- Stick to the text, MARKER-T." } } });
+    expect(instructionsOf(ask(mock, "c1", undefined, { turn: { op: "send" } }))).toContain("MARKER-T");
+    drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" });
+    setConfig({ mode: "fast", sensor: "Mine, no headings at all. Report JSON." });
+    const text = instructionsOf(ask(mock, "c1", undefined, { turn: { op: "send" } }));
+    expect(text).not.toContain("Mine, no headings");
+    expect(text).toContain("Truth:");
+    setConfig({ mode: "fast", sensor: "Intro.\n\nTruth:\n- Only MARKER-W." });
+    expect(instructionsOf(ask(mock, "c1", undefined, { turn: { op: "send" } }))).toContain("MARKER-W");
   });
 });

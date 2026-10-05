@@ -5,6 +5,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 ## Unreleased
 
 - **"Story, move"**: one press makes the next reply move the story on its own, pulling on the dashboard's open threads (all of them, or the one you pick). The nudge rides that one request only: it is never saved in the chat or shown as a message. Its wording is a setting.
+- **Dashboard fast mode** (for strong models; Settings of the dashboard, Mode): the story reply itself ends with the state report, which is cut out before you see or save the reply, so there is no separate sensor call. It adds some text to every request (the settings say about how much); when a reply leaves the report out or it cannot be read, the usual sensor runs.
 
 ## 4.23.0
 
