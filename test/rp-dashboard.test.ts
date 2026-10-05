@@ -467,7 +467,7 @@ describe("update route", () => {
     expect(req.systemPrompt).toContain("\"open\": [ { \"id\": \"t1 or null\"");
     expect(req.systemPrompt.endsWith("Leave out any key the new messages give nothing for.")).toBe(true);
     const user = req.messages[0].content as string;
-    expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\n\nNew messages\n[user] Hello.")).toBe(true);
+    expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\nOpen thread limit: 3.\n\nNew messages\n[user] Hello.")).toBe(true);
     expect(CYRILLIC.test(req.systemPrompt)).toBe(false);
   });
 
@@ -543,7 +543,9 @@ describe("update route", () => {
     expect(aria.prev.stats).toEqual(readStateFile("c1").snapshots["m3#0"].chars.Aria.stats);
     expect(aria.series.map((s: any) => s.turn)).toEqual([1, 2]);
     // the note of the discarded swipe is not in the view, and no src leaks out
-    expect(aria.notebook).toEqual([{ id: "n1", text: "The user keeps their word", how: "saw", from: null, turn: 1 }]);
+    expect(aria.notebook).toEqual([{ id: "n1", text: "The user keeps their word", how: "saw", from: null, turn: 1, tag: null }]);
+    expect(aria.retired).toEqual([]);
+    expect(v.maxThreads).toBe(3);
     expect(JSON.stringify(v)).not.toContain('"src"');
     expect(aria.pulseBase).toEqual({ excitement: 12, arousal: 9 });
     expect(typeof aria.rated).toBe("boolean");
@@ -944,21 +946,25 @@ describe("config", () => {
     const item = plain.items[0];
     expect(item.saveUrl).toBe("/dashboard/config");
     expect(item.deleteUrl).toBeUndefined();
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "mode", "insert", "insertTokens", "catchUp", "autoSoul", "sensor", "soul"]);
+    const field = (it: any, key: string) => it.fields.find((f: any) => f.key === key);
+    const partKeys = P.SENSOR_PARTS.map((x: any) => "sensorPart_" + x.key);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul"]);
     expect(item.fields[0].kind).toBe("model");
-    expect(item.fields[6]).toMatchObject({ key: "autoSoul", kind: "select", list: ["on", "off"], value: "on" });
-    expect(item.fields[7]).toMatchObject({ kind: "textarea", advanced: true });
-    expect(item.fields[8]).toMatchObject({ kind: "textarea", advanced: true, label: "Soul rating prompt", value: P.DEFAULT_PROMPTS.soul });
+    expect(field(item, "autoSoul")).toMatchObject({ kind: "select", list: ["on", "off"], value: "on" });
+    expect(field(item, "sensorPart_role")).toMatchObject({ kind: "textarea", advanced: true, value: P.DEFAULT_SENSOR_PARTS.role });
+    expect(field(item, "soul")).toMatchObject({ kind: "textarea", advanced: true, label: "Soul rating prompt", value: P.DEFAULT_PROMPTS.soul });
+    // a whole custom prompt (the older way) shows as one textarea
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensor: "Mine." } });
     const custom = P.uiPanel({}, mock.host).items[0];
     expect(custom.deleteUrl).toBe("/dashboard/config/prompts");
-    expect(custom.fields[7].value).toBe("Mine.");
+    expect(field(custom, "sensor").value).toBe("Mine.");
+    expect(field(custom, "sensorPart_role")).toBeUndefined();
     // the automatic rating switch is stored only when it is off, and a custom soul prompt is kept like the sensor's
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "off", soul: "My rating." } });
     expect(stored()).toEqual({ sensor: "Mine.", autoSoul: false, soul: "My rating." });
     const off = P.uiPanel({}, mock.host).items[0];
-    expect(off.fields[6].value).toBe("off");
-    expect(off.fields[8].value).toBe("My rating.");
+    expect(field(off, "autoSoul").value).toBe("off");
+    expect(field(off, "soul").value).toBe("My rating.");
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on" } });
     expect(stored().autoSoul).toBeUndefined();
     expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.soul).toBe(P.DEFAULT_PROMPTS.soul);
@@ -3028,7 +3034,14 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(3);
+    expect(past.length).toBe(5);
+    expect(past[4]).toContain("Keep up to three open threads");
+    expect(text).toContain("the open thread limit given in the input");
+    expect(text).not.toContain("three open threads");
+    expect(past[3]).toContain("already knows the user's character personally");
+    expect(past[3]).not.toContain("the exact form of address");
+    expect(text).toContain("the exact form of address the character uses");
+    expect(text).toContain("with nothing at stake is not a thread");
     expect(past[1]).toContain("acts, speaks or is addressed");
     expect(past[1]).toContain("one short line on what they do not know");
     expect(text).toContain("up to 15 words");
@@ -3177,5 +3190,403 @@ describe("sensor reply limit and pronouns in the sensor input", () => {
     expect(input).toContain("Tom (neutral, he)");
     expect(input).toContain("Sam (neutral)");
     expect(input).not.toContain("Sam (neutral,");
+  });
+});
+
+// ---------- round 3: the user's overlay, thread checks, prompt blocks, forms of address ----------
+describe("the user's notes and threads (overlay)", () => {
+  const stored = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
+  const notes = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", ...body } });
+  const view = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view;
+  const overlayFile = () => path.join(root, "dashboard/notes/c1.json");
+  const readOverlay = () => JSON.parse(fs.readFileSync(overlayFile(), "utf8"));
+  const grow = (n: number) => [...three(), ...Array.from({ length: n }, (_, i) => (i % 2 === 0 ? A("x" + i, "Hm " + i) : U("x" + i, "Yes " + i)))];
+  const quiet = reply({ present: ["Aria"], minutes: 1 });
+  /** One update (keptPromise: note n1 "The user keeps their word", thread t1). */
+  function started() {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    return mock;
+  }
+
+  it("add: a user note with an id of its own, shown in the view, state untouched", () => {
+    const mock = started();
+    const before = fs.readFileSync(stateFile("c1"), "utf8");
+    expect(notes(mock, { op: "add", name: "Nobody", text: "x" }).status).toBe(400);
+    expect(notes(mock, { op: "add", name: "Aria", text: "  " }).status).toBe(400);
+    expect(notes(mock, { op: "add", name: "Aria", text: "x", tag: "huge" }).status).toBe(400);
+    expect(notes(mock, { op: "add", name: "Aria", text: "x", how: "dreamt" }).status).toBe(400);
+    expect(notes(mock, { op: "nope" }).status).toBe(400);
+    expect(drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "../x", op: "add" } }).status).toBe(400);
+    expect(fs.existsSync(overlayFile())).toBe(false);
+    const r = notes(mock, { op: "add", name: "Aria", text: "z".repeat(400), how: "heard", tag: "pinned" });
+    expect(r.json.ok).toBe(true);
+    const aria = r.json.view.chars.Aria;
+    expect(aria.notebook.map((n: any) => n.id)).toEqual(["n1", "u1"]);
+    expect(aria.notebook[1]).toMatchObject({ id: "u1", how: "heard", tag: "pinned", by: "user", believes: true });
+    expect(aria.notebook[1].text.length).toBe(300);
+    expect(aria.notebook[0].tag).toBeNull();
+    expect(aria.notebook[0].by).toBeUndefined();
+    expect(readOverlay()).toMatchObject({ v: 1, counter: 1, added: { Aria: [{ id: "u1", how: "heard", tag: "pinned" }] } });
+    expect(fs.readFileSync(stateFile("c1"), "utf8")).toBe(before);
+  });
+
+  it("edit and retire/restore: sensor notes through edits, the user's own in place", () => {
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: "Mine" });
+    expect(notes(mock, { op: "edit", id: "n9", text: "x" }).status).toBe(404);
+    expect(notes(mock, { op: "edit", id: "n1" }).status).toBe(400);
+    const e = notes(mock, { op: "edit", id: "n1", text: "The user always keeps their word", tag: "important" }).json.view.chars.Aria;
+    expect(e.notebook[0]).toMatchObject({ id: "n1", text: "The user always keeps their word", tag: "important", edited: true });
+    expect(readOverlay().edits.n1).toEqual({ text: "The user always keeps their word", tag: "important" });
+    // a tag cleared with null
+    expect(notes(mock, { op: "edit", id: "n1", tag: null }).json.view.chars.Aria.notebook[0].tag).toBeNull();
+    // the user's own note is changed where it is
+    const u = notes(mock, { op: "edit", id: "u1", text: "Mine, changed", tag: "everyday" }).json.view.chars.Aria.notebook[1];
+    expect(u).toMatchObject({ text: "Mine, changed", tag: "everyday", by: "user" });
+    expect(readOverlay().edits.u1).toBeUndefined();
+    // retire and restore
+    const gone = notes(mock, { op: "retire", id: "n1" }).json.view.chars.Aria;
+    expect(gone.notebook.map((n: any) => n.id)).toEqual(["u1"]);
+    expect(gone.retired.map((n: any) => n.id)).toEqual(["n1"]);
+    notes(mock, { op: "retire", id: "u1" });
+    expect(view(mock).chars.Aria.retired.map((n: any) => n.id)).toEqual(["n1", "u1"]);
+    expect(notes(mock, { op: "retire", id: "n9" }).status).toBe(404);
+    notes(mock, { op: "restore", id: "u1" });
+    const back = notes(mock, { op: "restore", id: "n1" }).json.view.chars.Aria;
+    expect(back.notebook.map((n: any) => n.id)).toEqual(["n1", "u1"]);
+    expect(back.retired).toEqual([]);
+    // the restored note keeps its edit (the text), the edit entry is not empty
+    expect(readOverlay().edits.n1.text).toBe("The user always keeps their word");
+  });
+
+  it("the sensor reads the effective notes, labelled; it cannot retire a note of the user", () => {
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: "Likes tea" });
+    notes(mock, { op: "edit", id: "n1", text: "Keeps promises" });
+    writeChat("c1", grow(2));
+    mock.push(reply({ present: ["Aria"], minutes: 1, retire: ["u1", "n1"] }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const input = mock.requests.at(-1)!.req.messages[0].content as string;
+    expect(input).toContain("n1 saw: Keeps promises");
+    expect(input).toContain("u1 saw: Likes tea (written by the user)");
+    expect(input).not.toContain("The user keeps their word");
+    const st = readStateFile("c1");
+    expect(st.notebook.Aria.find((n: any) => n.id === "n1").retiredBy).toBe("x1#0");
+    // the user's note is not in the state at all, and is still live in the view
+    expect(JSON.stringify(st)).not.toContain("Likes tea");
+    expect(view(mock).chars.Aria.notebook.map((n: any) => n.id)).toEqual(["u1"]);
+  });
+
+  it("the insert orders notes pinned, important, unmarked, everyday; newest first in a group", () => {
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: "ev-a", tag: "everyday" });
+    notes(mock, { op: "add", name: "Aria", text: "pin-b", tag: "pinned" });
+    notes(mock, { op: "add", name: "Aria", text: "imp-c", tag: "important" });
+    notes(mock, { op: "add", name: "Aria", text: "plain-d" });
+    const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
+    expect(pv.insert.text).toContain("Saw: pin-b; imp-c; plain-d; The user keeps their word; ev-a.");
+  });
+
+  it("over the limit the notebook lines go from the end; pinned lines stay", () => {
+    const mock = started();
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { insertTokens: 50 } });
+    notes(mock, { op: "add", name: "Aria", text: "PINNED-KEEP", tag: "pinned" });
+    for (let i = 0; i < 8; i++) notes(mock, { op: "add", name: "Aria", text: "filler-" + i + " " + "w".repeat(120) });
+    const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
+    expect(pv.insert.text).toContain("PINNED-KEEP");
+    expect(pv.insert.text).not.toContain("filler-7");
+    expect(pv.insert.trimmed).toContain("notebooks");
+    expect(pv.insert.notebookOf).toEqual(["Aria"]);
+    // without a pinned note nothing of the notebook is left
+    notes(mock, { op: "retire", id: "u1" });
+    const none = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
+    expect(none.insert.text).not.toContain("PINNED-KEEP");
+    expect(none.insert.text).not.toContain("What Aria knows");
+    expect(none.insert.notebookOf).toEqual([]);
+  });
+
+  it("a thread of the user: carried by the next update, counted in the limit, resolved stays resolved", () => {
+    const mock = started();
+    const add = notes(mock, { op: "thread-add", text: "Find the missing letter" });
+    expect(add.json.view.threads.find((t: any) => t.id === "ut1")).toMatchObject({ text: "Find the missing letter", status: "open", by: "user" });
+    // limit 3: t1 and ut1 are open, one more fits, the next is refused
+    expect(notes(mock, { op: "thread-add", text: "Second" }).status).toBe(200);
+    expect(notes(mock, { op: "thread-add", text: "Third" }).status).toBe(409);
+    expect(notes(mock, { op: "thread-add", text: "  " }).status).toBe(400);
+    writeChat("c1", grow(2));
+    mock.push(reply({ present: ["Aria"], minutes: 1, threads: { resolved: ["ut1"], open: [{ id: "t1", text: "Who has the key?" }] } }));
+    update(mock, "c1");
+    const input = mock.requests.at(-1)!.req.messages[0].content as string;
+    expect(input).toContain('ut1 "Find the missing letter"');
+    expect(input).toContain('ut2 "Second"');
+    const snap = readStateFile("c1").snapshots["x1#0"];
+    expect(snap.threads.find((t: any) => t.id === "ut1").status).toBe("resolved");
+    expect(snap.threads.find((t: any) => t.id === "ut2")).toMatchObject({ status: "open", by: "user" });
+    // a thread the user resolved stays resolved: the sensor is not shown it and does not carry it
+    notes(mock, { op: "thread-edit", id: "t1", status: "resolved" });
+    expect(notes(mock, { op: "thread-edit", id: "t9", status: "open" }).status).toBe(404);
+    expect(notes(mock, { op: "thread-edit", id: "t1", status: "maybe" }).status).toBe(400);
+    writeChat("c1", grow(4));
+    mock.push(quiet);
+    update(mock, "c1");
+    expect((mock.requests.at(-1)!.req.messages[0].content as string)).not.toContain('t1 "Who has the key?"');
+    const snap2 = readStateFile("c1").snapshots["x3#0"];
+    expect(snap2.threads.map((t: any) => t.id)).toEqual(["ut2"]);
+    // editing text, and reopening
+    const ut = notes(mock, { op: "thread-edit", id: "ut1", status: "open", text: "Letter found?" }).json.view.threads;
+    expect(ut.find((t: any) => t.id === "ut1")).toMatchObject({ text: "Letter found?", status: "open", by: "user" });
+  });
+
+  it("maxThreads is the open limit for the sensor's own threads too", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], minutes: 1, threads: { open: ["a", "b", "c", "d"].map((t) => ({ id: null, text: "Thread " + t })) } })]);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: 2 } });
+    update(mock, "c1");
+    expect(readStateFile("c1").snapshots["m3#0"].threads.length).toBe(2);
+    expect(notes(mock, { op: "thread-add", text: "More" }).status).toBe(409);
+    const body = (v: unknown) => drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: v } }).json.maxThreads;
+    expect([body(9), body(0), body("x"), body(3)]).toEqual([6, 1, 1, 3]);
+    expect(stored().maxThreads).toBeUndefined();
+  });
+
+  it("removes the notes file of a chat that no longer exists", () => {
+    fs.mkdirSync(path.join(root, "dashboard/notes"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dashboard/notes/gone.json"), "{}");
+    writeChat("alive", three(), { updatedAt: Date.now() - 5 * 3600_000 });
+    fs.writeFileSync(path.join(root, "dashboard/notes/alive.json"), "{}");
+    const mock = mockHost();
+    P.onTick({ pluginId: "relations" }, mock.host);
+    expect(fs.readdirSync(path.join(root, "dashboard/notes"))).toEqual(["alive.json"]);
+  });
+});
+
+describe("thread checks", () => {
+  const stored = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
+  const grow = (n: number) => [...three(), ...Array.from({ length: n }, (_, i) => (i % 2 === 0 ? A("x" + i, "Hm " + i) : U("x" + i, "Yes " + i)))];
+  const inputOf = (mock: ReturnType<typeof mockHost>) => mock.requests.at(-1)!.req.messages[0].content as string;
+
+  it("the sensor input gets a Thread check section on schedule, listing old open threads", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { threadCheckEvery: 2 } });
+    update(mock, "c1");
+    expect(inputOf(mock)).not.toContain("Thread check");
+    const seen: boolean[] = [];
+    for (let k = 1; k <= 3; k++) {
+      writeChat("c1", grow(2 * k));
+      mock.push(reply({ present: ["Aria"], minutes: 1, threads: { open: [{ id: "t1", text: "Who has the key?" }] } }));
+      update(mock, "c1");
+      seen.push(inputOf(mock).includes("Thread check"));
+    }
+    // turns 2 and 3: the thread is 1 and 2 turns old, no check; turn 4: due
+    expect(seen).toEqual([false, false, true]);
+    const text = inputOf(mock);
+    expect(text).toContain('t1 "Who has the key?" (3 turns)');
+    expect(text).toContain("Has the story settled this, dropped it, or is it still open? Resolve settled or dropped ones.");
+    // 0 = never
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { threadCheckEvery: 0 } });
+    writeChat("c1", grow(8));
+    mock.push(reply({ present: ["Aria"], minutes: 1 }));
+    update(mock, "c1");
+    expect(inputOf(mock)).not.toContain("Thread check");
+    expect(drive(mock, { method: "PUT", path: "/dashboard/config", body: { threadCheckEvery: 99 } }).json.threadCheckEvery).toBe(50);
+  });
+
+  it("the check is on schedule only, not on every turn once a thread is overdue", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { threadCheckEvery: 3 } });
+    update(mock, "c1");
+    const seen: boolean[] = [];
+    for (let k = 1; k <= 5; k++) {
+      writeChat("c1", grow(2 * k));
+      mock.push(reply({ present: ["Aria"], minutes: 1, threads: { open: [{ id: "t1", text: "Who has the key?" }] } }));
+      update(mock, "c1");
+      seen.push(inputOf(mock).includes("Thread check"));
+    }
+    // next turns 2..6: thread 1 turn old at 2; 4 is not a multiple of 3; only turn 6 is due (not every turn once overdue)
+    expect(seen).toEqual([false, false, false, false, true]);
+  });
+});
+
+describe("the sensor prompt in blocks", () => {
+  const stored = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
+  const putCfg = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "PUT", path: "/dashboard/config", body });
+  const getCfg = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+
+  it("the blocks joined with a blank line are the default prompt, character for character", () => {
+    const parts = P.SENSOR_PARTS as { key: string; title: string }[];
+    expect(parts.map((p) => p.key)).toEqual(["role", "language", "truth", "events", "scene", "knowledge", "threads", "style"]);
+    for (const p of parts) expect(typeof P.DEFAULT_SENSOR_PARTS[p.key]).toBe("string");
+    expect(parts.map((p) => P.DEFAULT_SENSOR_PARTS[p.key]).join("\n\n")).toBe(P.DEFAULT_PROMPTS.sensor);
+    expect(P.DEFAULT_SENSOR_PARTS.truth.startsWith("Truth:")).toBe(true);
+    expect(P.DEFAULT_SENSOR_PARTS.threads.startsWith("Threads:")).toBe(true);
+    expect(P.DEFAULT_SENSOR_PARTS.language.startsWith("Language:")).toBe(true);
+    expect(P.DEFAULT_SENSOR_PARTS.style).toBe("Keep the whole reply compact: short values, no filler.");
+    // nothing stored: the effective prompt is the default itself
+    expect(P.promptOf("sensor", {})).toBe(P.DEFAULT_PROMPTS.sensor);
+  });
+
+  it("only changed blocks are stored; the sensor gets them joined; one or all restored", () => {
+    const mock = mockHost([keptPromise]);
+    const j0 = getCfg(mock);
+    expect(j0.sensorMode).toBe("parts");
+    expect(j0.sensorParts.map((p: any) => [p.key, p.custom])).toEqual(P.SENSOR_PARTS.map((p: any) => [p.key, false]));
+    expect(j0.sensorParts[0]).toMatchObject({ key: "role", title: "Role and reply format", text: P.DEFAULT_SENSOR_PARTS.role, default: P.DEFAULT_SENSOR_PARTS.role });
+    expect(j0.sensor).toBe(P.DEFAULT_PROMPTS.sensor);
+    const j = putCfg(mock, { sensorParts: { role: "You read a story.", truth: P.DEFAULT_SENSOR_PARTS.truth + "  ", nope: "x", scene: "" } }).json;
+    // the part equal to its default (whitespace aside), the empty one and the unknown key are not stored
+    expect(stored().sensorParts).toEqual({ role: "You read a story." });
+    expect(j.sensorParts.find((p: any) => p.key === "role")).toMatchObject({ text: "You read a story.", custom: true });
+    expect(j.sensorParts.find((p: any) => p.key === "truth").custom).toBe(false);
+    expect(j.custom).toEqual(["sensor"]);
+    expect(j.sensorMode).toBe("parts");
+    expect(j.sensor.startsWith("You read a story.\n\nLanguage:")).toBe(true);
+    expect(j.sensor.endsWith(P.DEFAULT_SENSOR_PARTS.style)).toBe(true);
+    // the call uses it
+    writeChat("c1", three());
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(mock.requests[0]!.req.systemPrompt.startsWith("You read a story.\n\nLanguage:")).toBe(true);
+    // cut to 4000, a second part, restore one
+    putCfg(mock, { sensorParts: { events: "e".repeat(5000) } });
+    expect(stored().sensorParts.events.length).toBe(4000);
+    expect(stored().sensorParts.role).toBe("You read a story.");
+    const one = drive(mock, { method: "DELETE", path: "/dashboard/config/prompts", query: { part: "role" } }).json;
+    expect(stored().sensorParts).toEqual({ events: "e".repeat(4000) });
+    expect(one.sensorParts.find((p: any) => p.key === "role").custom).toBe(false);
+    // a part set back to its default by hand is dropped
+    putCfg(mock, { sensorParts: { events: P.DEFAULT_SENSOR_PARTS.events } });
+    expect(stored().sensorParts).toBeUndefined();
+    // restore all
+    putCfg(mock, { sensorParts: { scene: "S." }, soul: "My rating." });
+    const all = drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json;
+    expect(stored().sensorParts).toBeUndefined();
+    expect(all.custom).toEqual([]);
+    expect(all.sensor).toBe(P.DEFAULT_PROMPTS.sensor);
+  });
+
+  it("a whole custom prompt still wins over blocks; the panel has one textarea per block", () => {
+    const mock = mockHost();
+    putCfg(mock, { sensorParts: { role: "Blocks." }, sensor: "The whole thing." });
+    const j = getCfg(mock);
+    expect(j.sensorMode).toBe("whole");
+    expect(j.sensor).toBe("The whole thing.");
+    expect(P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "sensor").value).toBe("The whole thing.");
+    drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" });
+    expect(getCfg(mock).sensorMode).toBe("parts");
+    // the panel envelope: one field per block
+    putCfg(mock, { enabled: true, values: { sensorPart_truth: "Only facts.", sensorPart_scene: P.DEFAULT_SENSOR_PARTS.scene } });
+    expect(stored().sensorParts).toEqual({ truth: "Only facts." });
+    const item = P.uiPanel({}, mock.host).items[0];
+    expect(item.fields.find((f: any) => f.key === "sensorPart_truth")).toMatchObject({ kind: "textarea", advanced: true, value: "Only facts." });
+    expect(item.fields.find((f: any) => f.key === "sensorPart_scene").value).toBe(P.DEFAULT_SENSOR_PARTS.scene);
+    expect(item.deleteUrl).toBe("/dashboard/config/prompts");
+  });
+
+  it("the previous default sensor prompt counts as the default", () => {
+    const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[past.length - 1] }));
+    const j = getCfg(mockHost());
+    expect(j.sensorMode).toBe("parts");
+    expect(j.custom).toEqual([]);
+    expect(j.sensor).toBe(P.DEFAULT_PROMPTS.sensor);
+  });
+});
+
+describe("forms of address", () => {
+  const stored = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
+  const grow = (n: number) => [...three(), ...Array.from({ length: n }, (_, i) => (i % 2 === 0 ? A("x" + i, "Hm " + i) : U("x" + i, "Yes " + i)))];
+  const callsLines = (st: any) => (st.history.Aria || []).filter((h: any) => h.kind === "calls");
+
+  it("a change of how a character addresses the user is a history line; a report without it keeps the old one", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria", calls: "sir", heardUserName: true }] })]);
+    update(mock, "c1");
+    expect(callsLines(readStateFile("c1"))).toEqual([{ turn: 1, kind: "calls", from: "", to: "sir", src: "m3#0" }]);
+    // the same word again: no line; a report with no calls keeps "sir"
+    writeChat("c1", grow(2));
+    mock.push(reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria", calls: "sir" }] }));
+    update(mock, "c1");
+    writeChat("c1", grow(4));
+    mock.push(reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria" }] }));
+    update(mock, "c1");
+    let st = readStateFile("c1");
+    expect(callsLines(st).length).toBe(1);
+    expect(st.names.Aria.at(-1)).toMatchObject({ calls: "sir", knowsUserName: true });
+    // a new word
+    writeChat("c1", grow(6));
+    mock.push(reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria", calls: "my lord" }] }));
+    update(mock, "c1");
+    st = readStateFile("c1");
+    expect(callsLines(st).at(-1)).toMatchObject({ turn: 4, kind: "calls", from: "sir", to: "my lord", src: "x5#0" });
+    // the view carries the line (without src)
+    const shown = drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view;
+    expect(shown.chars.Aria.history.filter((h: any) => h.kind === "calls").map((h: any) => h.to)).toEqual(["sir", "my lord"]);
+    expect(shown.chars.Aria.history.some((h: any) => "src" in h)).toBe(false);
+  });
+
+  it("the insert names the form of address when the character knows the name and uses another word", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria", calls: "sir", heardUserName: true }] })]);
+    update(mock, "c1");
+    const text = () => drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json.insert.text as string;
+    expect(text()).toContain('Calls You "sir".');
+    // the same as the name: nothing
+    writeChat("c1", grow(2));
+    mock.push(reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria", calls: "You" }] }));
+    update(mock, "c1");
+    expect(text()).not.toContain("Calls You");
+    // a character who does not know the name gets the older line, not this one
+    writeChat("c2", three());
+    mock.push(reply({ present: ["Aria"], minutes: 1, names: [{ who: "Aria", calls: "stranger" }] }));
+    update(mock, "c2");
+    const t2 = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c2", speaker: "Aria" } }).json.insert.text as string;
+    expect(t2).not.toContain("Calls You");
+    expect(t2).toContain('Knows You only as "stranger"');
+  });
+});
+
+describe("overlay keys and the open thread limit line", () => {
+  const notes = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", ...body } });
+
+  it("a name or id that is an object key of the prototype chain is refused, and dropped when read", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    for (const name of ["__proto__", "constructor", "prototype", "toString"]) {
+      expect(notes(mock, { op: "add", name, text: "x" }).status).toBe(400);
+    }
+    expect(notes(mock, { op: "edit", id: "__proto__", text: "x" }).status).toBe(404);
+    expect(notes(mock, { op: "retire", id: "constructor" }).status).toBe(404);
+    expect(notes(mock, { op: "thread-edit", id: "__proto__", status: "resolved" }).status).toBe(404);
+    expect(fs.existsSync(path.join(root, "dashboard/notes/c1.json"))).toBe(false);
+    expect(({} as any).text).toBeUndefined();
+    // a hand-written file with such keys: they are ignored, the rest works
+    fs.mkdirSync(path.join(root, "dashboard/notes"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "dashboard/notes/c1.json"),
+      '{"v":1,"counter":1,"added":{"__proto__":[{"id":"u1","text":"evil"}],"Aria":[{"id":"u2","text":"fine"}]},"edits":{"__proto__":{"retired":true},"constructor":{"text":"x"}},"threads":{"added":[],"edits":{"__proto__":{"status":"resolved"}}}}',
+    );
+    const r = notes(mock, { op: "add", name: "Aria", text: "Another" });
+    expect(r.json.ok).toBe(true);
+    expect(r.json.view.chars.Aria.notebook.map((n: any) => n.text)).toEqual(["The user keeps their word", "fine", "Another"]);
+    const saved = fs.readFileSync(path.join(root, "dashboard/notes/c1.json"), "utf8");
+    expect(saved).not.toContain("evil");
+    expect(saved).not.toContain("__proto__");
+    expect(Object.getPrototypeOf(JSON.parse(saved).added)).toBe(Object.prototype);
+  });
+
+  it("the sensor input states the open thread limit", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise, reply({ present: ["Aria"], minutes: 1 })]);
+    update(mock, "c1");
+    expect(mock.requests[0]!.req.messages[0].content).toContain("Open thread limit: 3.");
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: 5 } });
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes.")]);
+    update(mock, "c1");
+    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Open thread limit: 5.");
+    expect(P.DEFAULT_PROMPTS.sensor).toContain("up to the open thread limit given in the input");
   });
 });

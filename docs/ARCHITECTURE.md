@@ -30,6 +30,7 @@
 | `regex/<id>.json` | JSON | Replace scripts: `findRegex`, `replaceString`, `placements`, `scope` |
 | `groups/<id>.json` | JSON | Group chats: `memberIds`, `mode`, `mutedIds` |
 | `dashboard/state/<chatId>.json` | JSON | Relationship dashboard state per chat: snapshots by `<msgId>#<swipe>`, notebook, names, history (written by the `relations` plugin) |
+| `dashboard/notes/<chatId>.json` | JSON | What the user added or changed in a chat's dashboard: own notes (`u<k>`), tags, edits and removals of notes, own threads (`ut<k>`) and thread edits. Written only by `POST /dashboard/notes`, never by an update (written by the `relations` plugin routes) |
 | `dashboard/soul-drafts/<characterId>.json` | JSON | Proposed souls of one card waiting for the user's review (`by` auto or molfar, `note`, `error`, `dismissedAt`, `characters`); see `docs/SOUL.md` (written by the `relations` plugin) |
 | `chats/<id>.jsonl` | JSONL | Messages: flat list with `swipes[]` (reply variants) |
 | `chats/<id>.meta.json` | JSON | Metadata: `title`, `characterId`, `groupId`, `presetId`, `personaId`, `authorNote`, `lorebookIds`, `summary`, `memoryCutoffMessageId` |

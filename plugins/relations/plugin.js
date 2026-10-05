@@ -19,6 +19,7 @@
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompt
+ *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/events                back to the default vocabulary
  *
@@ -32,6 +33,7 @@
  * Files (fs root = the app's data/):
  *  dashboard/state/<chatId>.json   one chat
  *  dashboard/soul-drafts/<characterId>.json  proposed souls waiting for review
+ *  dashboard/notes/<chatId>.json   what the user added or changed (notes, tags, threads); updates never write it
  *  dashboard/config.json           only what differs from the defaults
  *  dashboard/events.json           optional own event vocabulary
  *  _debug/dashboard.json           last sensor call, only when debug is on
@@ -44,6 +46,7 @@ const EVENTS_FILE = "dashboard/events.json";
 const DEBUG_FILE = "_debug/dashboard.json";
 // the last time an insert did not fit the user's limit, per chat (the app shows it once)
 const NOTICE_DIR = "dashboard/notice/";
+const NOTES_DIR = "dashboard/notes/";
 const SNAPSHOT_LIMIT = 40;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
@@ -353,6 +356,94 @@ const SENSOR_PROMPT_3 = [
   "Keep the whole reply compact: short values, no filler.",
 ].join("\n");
 
+// The fourth sensor prompt (before thread rules and the exact form of address).
+const SENSOR_PROMPT_4 = [
+  "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
+  "",
+  "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
+  "",
+  "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
+  "",
+  "Truth:",
+  "- Use only what the New messages say or show. Never invent.",
+  "- The Previous state is background. Never report an event, fact or mood from it unless the New messages show it again.",
+  "- When the new text shows nothing for a key, leave the key out.",
+  "",
+  "Events:",
+  "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
+  "- Between two other characters, name no event: describe it in \"edges\".",
+  "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
+  "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
+  "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
+  "",
+  "Scene:",
+  "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+  "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+  "- place and weather: only when stated or changed.",
+  "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
+  "",
+  "Knowledge:",
+  "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
+  "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words.",
+  "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+  "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is how they address the user.",
+  "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
+  "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
+  "",
+  "Threads:",
+  "- Keep up to three open threads: unanswered questions or promises that drive the story.",
+  "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
+  "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
+  "- In \"open\", list kept threads with their id and new ones with id null.",
+  "",
+  "Keep the whole reply compact: short values, no filler.",
+].join("\n");
+
+// The fifth sensor prompt (before the open thread limit came from the input).
+const SENSOR_PROMPT_5 = [
+  "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
+  "",
+  "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
+  "",
+  "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
+  "",
+  "Truth:",
+  "- Use only what the New messages say or show. Never invent.",
+  "- The Previous state is background. Never report an event, fact or mood from it unless the New messages show it again.",
+  "- When the new text shows nothing for a key, leave the key out.",
+  "",
+  "Events:",
+  "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
+  "- Between two other characters, name no event: describe it in \"edges\".",
+  "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
+  "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
+  "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
+  "",
+  "Scene:",
+  "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+  "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+  "- place and weather: only when stated or changed.",
+  "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
+  "",
+  "Knowledge:",
+  "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
+  "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words.",
+  "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+  "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
+  "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
+  "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
+  "",
+  "Threads:",
+  "- Keep up to three open threads: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.",
+  "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
+  "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
+  "- In \"open\", list kept threads with their id and new ones with id null.",
+  "",
+  "Keep the whole reply compact: short values, no filler.",
+].join("\n");
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -384,12 +475,12 @@ export const DEFAULT_PROMPTS = {
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
     "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words.",
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
-    "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is how they address the user.",
+    "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
     "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
     "",
     "Threads:",
-    "- Keep up to three open threads: unanswered questions or promises that drive the story.",
+    "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.",
     "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
     "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
     "- In \"open\", list kept threads with their id and new ones with id null.",
@@ -413,8 +504,38 @@ export const DEFAULT_PROMPTS = {
     "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
   ].join("\n"),
 };
+// The sensor prompt in blocks the user can edit one by one: the default is cut at its headings
+// (blank-line paragraphs), and the blocks joined with a blank line give the default back exactly.
+export const SENSOR_PARTS = [
+  { key: "role", title: "Role and reply format" },
+  { key: "language", title: "Language" },
+  { key: "truth", title: "Truth" },
+  { key: "events", title: "Events" },
+  { key: "scene", title: "Scene" },
+  { key: "knowledge", title: "Knowledge" },
+  { key: "threads", title: "Threads" },
+  { key: "style", title: "Reply size" },
+];
+const SENSOR_HEADINGS = { "Language:": "language", "Truth:": "truth", "Events:": "events", "Scene:": "scene", "Knowledge:": "knowledge", "Threads:": "threads" };
+function splitSensor(text) {
+  const parts = {};
+  let key = "role";
+  for (const para of text.split("\n\n")) {
+    const first = para.split("\n")[0];
+    const head = Object.keys(SENSOR_HEADINGS).map((h) => (first.startsWith(h) ? SENSOR_HEADINGS[h] : null)).find(Boolean);
+    if (head) key = head;
+    else if (key === "threads" && parts.threads !== undefined) key = "style";
+    parts[key] = parts[key] === undefined ? para : parts[key] + "\n\n" + para;
+  }
+  return parts;
+}
+export const DEFAULT_SENSOR_PARTS = splitSensor(DEFAULT_PROMPTS.sensor);
+/** The sensor prompt from the user's changed parts (or the defaults). */
+const sensorFromParts = (stored) =>
+  SENSOR_PARTS.map((part) => (isObj(stored) && typeof stored[part.key] === "string" && stored[part.key].trim() ? stored[part.key] : DEFAULT_SENSOR_PARTS[part.key])).join("\n\n");
+
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -1203,6 +1324,105 @@ function dropSnapshot(state, K) {
   }
 }
 
+// ---------- the user's overlay: notes and threads the user owns ----------
+// dashboard/notes/<chatId>.json is written only by the user's routes, never by an update,
+// so an edit cannot race a sensor call. Unknown ids in it are ignored.
+const NOTE_TAGS = ["pinned", "important", "everyday"];
+const HOW_WORDS = ["saw", "heard", "guess"];
+const TAG_RANK = { pinned: 0, important: 1, everyday: 3 };
+const noteRank = (n) => (n && Object.prototype.hasOwnProperty.call(TAG_RANK, n.tag) ? TAG_RANK[n.tag] : 2);
+const NOTE_LIMIT = 12;
+
+// a user-supplied string must never become one of these object keys
+const UNSAFE_KEYS = ["__proto__", "constructor", "prototype"];
+const safeKey = (k) => typeof k === "string" && k !== "" && !UNSAFE_KEYS.includes(k);
+const ownKey = (obj, k) => safeKey(k) && isObj(obj) && Object.prototype.hasOwnProperty.call(obj, k);
+/** A copy of an object keyed by user strings, without the unsafe keys. */
+const safeBag = (v) => {
+  const out = {};
+  if (isObj(v)) for (const [k, x] of Object.entries(v)) if (safeKey(k)) out[k] = x;
+  return out;
+};
+
+const emptyOverlay = () => ({ v: 1, counter: 0, added: {}, edits: {}, threads: { added: [], edits: {} } });
+function normalizeOverlay(raw) {
+  if (!isObj(raw)) return emptyOverlay();
+  const t = isObj(raw.threads) ? raw.threads : {};
+  const counter = num(raw.counter);
+  return {
+    ...raw,
+    v: 1,
+    counter: Number.isFinite(counter) ? Math.max(0, Math.trunc(counter)) : 0,
+    added: safeBag(raw.added),
+    edits: safeBag(raw.edits),
+    threads: { ...t, added: arr(t.added), edits: safeBag(t.edits) },
+  };
+}
+const loadOverlay = (fsx, chatId) => normalizeOverlay(readJson(fsx, NOTES_DIR + chatId + ".json", null));
+const saveOverlay = (fsx, chatId, ov) => fsx.write(NOTES_DIR + chatId + ".json", JSON.stringify(ov, null, 2));
+
+/**
+ * The notebook as it counts: the active sensor notes with the user's edits applied, plus the
+ * notes the user added. Retired ones go to `retired` (same shape). Notes are copies.
+ */
+export function effectiveNotebook(state, keys, ov) {
+  const edits = isObj(ov && ov.edits) ? ov.edits : {};
+  const live = {};
+  const retired = {};
+  const place = (name, n) => listIn(isObj(edits[n.id]) && edits[n.id].retired === true ? retired : live, name).push(n);
+  for (const [name, notes] of Object.entries(activeNotebook(state, keys))) {
+    for (const n0 of notes) {
+      const e = isObj(edits[n0.id]) ? edits[n0.id] : null;
+      const n = { ...n0 };
+      if (e) {
+        if (str(e.text) && cut(str(e.text), 300) !== n0.text) {
+          n.text = cut(str(e.text), 300);
+          n.edited = true;
+        }
+        if (NOTE_TAGS.includes(e.tag)) n.tag = e.tag;
+        else if (e.tag === null) delete n.tag;
+      }
+      place(name, n);
+    }
+  }
+  for (const [name, list] of Object.entries(isObj(ov && ov.added) ? ov.added : {})) {
+    for (const a of arr(list)) {
+      if (!isObj(a) || typeof a.id !== "string" || !str(a.text)) continue;
+      const how = HOW_WORDS.includes(a.how) ? a.how : "saw";
+      place(name, {
+        id: a.id,
+        text: cut(str(a.text), 300),
+        how,
+        from: null,
+        ...(how === "heard" ? { believes: true } : {}),
+        turn: Number.isFinite(num(a.turn)) ? num(a.turn) : null,
+        src: "user",
+        by: "user",
+        ...(NOTE_TAGS.includes(a.tag) ? { tag: a.tag } : {}),
+      });
+    }
+  }
+  return { live, retired };
+}
+
+/** Threads as they count: the snapshot's threads with the user's edits, plus the ones the user added (by id, once). */
+export function effectiveThreads(ov, base, turn) {
+  const edits = isObj(ov && ov.threads && ov.threads.edits) ? ov.threads.edits : {};
+  const fix = (t) => {
+    const e = isObj(edits[t.id]) ? edits[t.id] : null;
+    if (e && str(e.text)) t.text = cut(str(e.text), 300);
+    if (e && (e.status === "open" || e.status === "resolved")) t.status = e.status;
+    if (/^ut\d+$/.test(String(t.id))) t.by = "user";
+    return t;
+  };
+  const out = arr(base).filter(isObj).map((t) => fix({ ...t }));
+  for (const a of arr(ov && ov.threads && ov.threads.added)) {
+    if (!isObj(a) || typeof a.id !== "string" || !str(a.text) || out.some((t) => t.id === a.id)) continue;
+    out.push(fix({ id: a.id, text: cut(str(a.text), 300), since: Number.isFinite(num(a.since)) ? num(a.since) : turn || 0, status: "open" }));
+  }
+  return out;
+}
+
 /** The newest active key that has a snapshot, searching keys[0..before). */
 function nearestSnapshot(state, keys, before) {
   for (let i = before - 1; i >= 0; i--) if (state.snapshots[keys[i]]) return i;
@@ -1214,6 +1434,11 @@ const DEFAULT_CONFIG = {
   sensorModel: "",
   // max_tokens of the sensor call and of the soul rating call
   sensorMaxTokens: 3000,
+  // open threads at most (the user's own count too); and: every N turns the sensor is asked about old threads (0 = never)
+  maxThreads: 3,
+  threadCheckEvery: 5,
+  // only the parts of the sensor prompt the user changed: { key: text }
+  sensorParts: {},
   mode: "sensor",
   families: { trust: true, warmth: true, power: true, body: true, conflict: true, care: true, knowledge: true },
   injection: { enabled: true, maxTokens: 300 },
@@ -1238,6 +1463,16 @@ function storedConfig(fsx) {
   const raw = readJson(fsx, CONFIG_FILE, null);
   const cfg = isObj(raw) ? { ...raw } : {};
   for (const key of PROMPT_KEYS) if (typeof cfg[key] !== "string" || isDefaultPrompt(key, cfg[key])) delete cfg[key];
+  // a changed part is kept; a part equal to its default, empty, or unknown is not
+  const parts = {};
+  if (isObj(cfg.sensorParts)) {
+    for (const part of SENSOR_PARTS) {
+      const v = cfg.sensorParts[part.key];
+      if (typeof v === "string" && v.trim() && promptKey(v) !== promptKey(DEFAULT_SENSOR_PARTS[part.key])) parts[part.key] = v;
+    }
+  }
+  if (Object.keys(parts).length) cfg.sensorParts = parts;
+  else delete cfg.sensorParts;
   return cfg;
 }
 
@@ -1245,12 +1480,29 @@ const mergeConfig = (stored) => ({
   ...DEFAULT_CONFIG,
   ...DEFAULT_PROMPTS,
   ...stored,
+  sensorParts: isObj(stored.sensorParts) ? stored.sensorParts : {},
   families: { ...DEFAULT_CONFIG.families, ...(isObj(stored.families) ? stored.families : {}) },
   injection: { ...DEFAULT_CONFIG.injection, ...(isObj(stored.injection) ? stored.injection : {}) },
 });
 const loadConfig = (fsx) => mergeConfig(storedConfig(fsx));
-const customPrompts = (fsx) => PROMPT_KEYS.filter((key) => key in storedConfig(fsx));
-export const promptOf = (key, cfg) => (cfg && typeof cfg[key] === "string" && !isDefaultPrompt(key, cfg[key]) ? cfg[key] : DEFAULT_PROMPTS[key]);
+const customPrompts = (fsx) => {
+  const stored = storedConfig(fsx);
+  return PROMPT_KEYS.filter((key) => key in stored || (key === "sensor" && isObj(stored.sensorParts)));
+};
+const wholeSensorCustom = (cfg) => !!cfg && typeof cfg.sensor === "string" && !isDefaultPrompt("sensor", cfg.sensor);
+export const promptOf = (key, cfg) => {
+  if (key === "sensor" && !wholeSensorCustom(cfg)) return sensorFromParts(cfg && cfg.sensorParts);
+  return cfg && typeof cfg[key] === "string" && !isDefaultPrompt(key, cfg[key]) ? cfg[key] : DEFAULT_PROMPTS[key];
+};
+
+const maxThreadsOf = (cfg) => {
+  const n = num(cfg && cfg.maxThreads);
+  return Number.isFinite(n) ? clamp(Math.round(n), 1, 6) : DEFAULT_CONFIG.maxThreads;
+};
+const threadCheckOf = (cfg) => {
+  const n = num(cfg && cfg.threadCheckEvery);
+  return Number.isFinite(n) ? clamp(Math.round(n), 0, 50) : DEFAULT_CONFIG.threadCheckEvery;
+};
 
 function parseBool(v) {
   if (v === true || v === false) return v;
@@ -1269,6 +1521,18 @@ function nextConfig(stored, b) {
   };
   if (b.sensorModel !== undefined) put("sensorModel", typeof b.sensorModel === "string" ? b.sensorModel.trim().slice(0, 160) : "", DEFAULT_CONFIG.sensorModel);
   if (Number.isFinite(num(b.sensorMaxTokens))) put("sensorMaxTokens", maxTokensOf(b), DEFAULT_CONFIG.sensorMaxTokens);
+  if (Number.isFinite(num(b.maxThreads))) put("maxThreads", maxThreadsOf(b), DEFAULT_CONFIG.maxThreads);
+  if (Number.isFinite(num(b.threadCheckEvery))) put("threadCheckEvery", threadCheckOf(b), DEFAULT_CONFIG.threadCheckEvery);
+  if (isObj(b.sensorParts)) {
+    const sp = { ...(isObj(next.sensorParts) ? next.sensorParts : {}) };
+    for (const part of SENSOR_PARTS) {
+      const v = b.sensorParts[part.key];
+      if (typeof v !== "string") continue;
+      if (!v.trim() || promptKey(v) === promptKey(DEFAULT_SENSOR_PARTS[part.key])) delete sp[part.key];
+      else sp[part.key] = v.slice(0, 4000);
+    }
+    put("sensorParts", sp, {});
+  }
   if (b.mode === "sensor" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
   if (parseBool(b.catchUp) !== undefined) put("catchUp", parseBool(b.catchUp), DEFAULT_CONFIG.catchUp);
   if (parseBool(b.autoSoul) !== undefined) put("autoSoul", parseBool(b.autoSoul), DEFAULT_CONFIG.autoSoul);
@@ -1330,7 +1594,7 @@ function clockLine(c) {
 
 function previousStateText(ctx) {
   const B = ctx.base && ctx.base.snap;
-  if (!B) return "Previous state\n(none: this is the start)";
+  if (!B) return "Previous state\n(none: this is the start)\nOpen thread limit: " + maxThreadsOf(ctx.cfg) + ".";
   const who = { user: ctx.userName, their: "their", self: "themself" };
   const lines = [clockLine(B.clock || {})];
   const scene = [B.clock && B.clock.place, B.clock && B.clock.weather].filter(Boolean).join("; ");
@@ -1345,18 +1609,19 @@ function previousStateText(ctx) {
     if (c.holding) line += " Holding: " + c.holding + ".";
     lines.push(line);
   }
-  const open = arr(B.threads).filter((t) => t.status === "open");
+  const open = arr(ctx.threads).filter((t) => t.status === "open");
   if (open.length) lines.push("Open threads: " + open.map((t) => t.id + " \"" + t.text + "\"").join(", "));
+  lines.push("Open thread limit: " + maxThreadsOf(ctx.cfg) + ".");
   return "Previous state\n" + lines.join("\n");
 }
 
 function noteLine(n) {
-  return n.id + " " + n.how + (n.how === "heard" && n.from ? " from " + n.from : "") + ": " + n.text;
+  return n.id + " " + n.how + (n.how === "heard" && n.from ? " from " + n.from : "") + ": " + n.text + (n.by === "user" ? " (written by the user)" : "");
 }
 
 function notebookTexts(ctx) {
   // a re-sense starts without what the old snapshot of K wrote
-  const live = activeNotebook(ctx.state, ctx.line.map((l) => l.key).filter((k) => !(ctx.resense && k === ctx.K)));
+  const live = effectiveNotebook(ctx.state, ctx.line.map((l) => l.key).filter((k) => !(ctx.resense && k === ctx.K)), ctx.overlay).live;
   const B = ctx.base && ctx.base.snap;
   const out = [];
   for (const name of B ? arr(B.present) : ctx.characters) {
@@ -1371,6 +1636,22 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 function newMessagesText(msgs) {
   const lines = msgs.map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || m.role || "narrator") + "] " + cutMiddle(String(m.text).trim(), 1500));
   return "New messages\n" + lines.join("\n").slice(-8000);
+}
+
+/** Every N turns (only then): ask about open threads that have been open that long. */
+function threadCheckText(ctx) {
+  const every = threadCheckOf(ctx.cfg);
+  if (!every) return null;
+  const B = ctx.base && ctx.base.snap;
+  const next = (B ? B.turn || 0 : 0) + 1;
+  const open = arr(ctx.threads).filter((t) => t.status === "open");
+  const age = (t) => next - (Number.isFinite(num(t.since)) ? num(t.since) : next);
+  const old = open.filter((t) => age(t) >= every);
+  if (!old.length || next % every !== 0) return null;
+  return (
+    "Thread check\nOpen for " + every + " turns or more: " + old.map((t) => t.id + " \"" + t.text + "\" (" + age(t) + " turns)").join("; ") + ".\n" +
+    "Has the story settled this, dropped it, or is it still open? Resolve settled or dropped ones."
+  );
 }
 
 function sensorUser(ctx) {
@@ -1390,6 +1671,7 @@ function sensorUser(ctx) {
     "Characters\nuser: " + ctx.userName + ". " + classes + ".",
     previousStateText(ctx),
     ...notebookTexts(ctx),
+    ...[threadCheckText(ctx)].filter(Boolean),
     newMessagesText(ctx.newMsgs),
   ].join("\n\n");
 }
@@ -1663,7 +1945,9 @@ const sameText = (t) => str(t).toLowerCase().replace(/\s+/g, " ");
 function applyNotebook(ctx, out, present, turn, K) {
   const { state } = ctx;
   const keys = ctx.line.map((l) => l.key);
-  const live = activeNotebook(state, keys);
+  // sensor notes (to retire) and the notes as they read now, the user's included (to tell on)
+  const raw = activeNotebook(state, keys);
+  const live = effectiveNotebook(state, keys, ctx.overlay).live;
   const add = (who, note) => {
     state.counters.note += 1;
     listIn(state.notebook, who).push({ id: "n" + state.counters.note, ...note, turn, src: K });
@@ -1698,7 +1982,8 @@ function applyNotebook(ctx, out, present, turn, K) {
     if (note && present.includes(to) && to !== from) add(to, { text: note.text, how: "heard", from, believes: true });
   }
   const retire = arr(out.retire).map(str);
-  for (const notes of Object.values(live)) for (const n of notes) if (retire.includes(n.id)) n.retiredBy = K;
+  // the user's own notes (u...) are never retired by the sensor
+  for (const notes of Object.values(raw)) for (const n of notes) if (retire.includes(n.id) && !String(n.id).startsWith("u")) n.retiredBy = K;
 }
 
 function applyNames(ctx, out, present, turn, K) {
@@ -1710,14 +1995,18 @@ function applyNames(ctx, out, present, turn, K) {
     if (!present.includes(who)) continue;
     const before = arr(live[who]).slice(-1)[0];
     const knows = n.heardUserName === true || !!(before && before.knowsUserName);
-    listIn(ctx.state.names, who).push({ knowsUserName: knows, calls: cut(str(n.calls), 100), turn, src: K });
+    // a report without a form of address keeps the last one
+    const calls = cut(str(n.calls), 100) || (before ? str(before.calls) : "");
+    listIn(ctx.state.names, who).push({ knowsUserName: knows, calls, turn, src: K });
+    if (calls && calls !== (before ? str(before.calls) : "")) listIn(ctx.state.history, who).push({ turn, kind: "calls", from: before ? str(before.calls) : "", to: calls, src: K });
   }
 }
 
 function applyThreads(ctx, out, turn) {
   const { state } = ctx;
   const B = ctx.base && ctx.base.snap;
-  const threads = arr(B && B.threads).filter((t) => t.status === "open").map((t) => ({ ...t }));
+  const threads = arr(ctx.threads).filter((t) => t.status === "open").map((t) => ({ ...t }));
+  const limit = maxThreadsOf(ctx.cfg);
   const spec = isObj(out.threads) ? out.threads : {};
   for (const id of arr(spec.resolved).map(str)) {
     const t = threads.find((x) => x.id === id);
@@ -1729,7 +2018,7 @@ function applyThreads(ctx, out, turn) {
     if (!text) continue;
     const known = isObj(item) ? threads.find((t) => t.id === str(item.id) && t.status === "open") : null;
     if (known) known.text = text;
-    else if (openCount() < 3) {
+    else if (openCount() < limit) {
       state.counters.thread += 1;
       threads.push({ id: "t" + state.counters.thread, text, since: turn, status: "open" });
     }
@@ -2047,9 +2336,13 @@ function planUpdate(fsx, chatId, op) {
   // the newest message changed (edit, Continue): read it again
   if (existing && textSig(newMsgs) === existing.sig) return unchanged();
   const { names, souls } = chatCharacters(fsx, chat.meta);
+  const overlay = loadOverlay(fsx, chatId);
   return {
     fsx,
     chatId,
+    overlay,
+    // the base snapshot's threads with the user's edits and additions: what the sensor sees and carries
+    threads: effectiveThreads(overlay, base && base.snap.threads, base ? base.snap.turn : 0),
     op: existing ? "resense" : op,
     ...(existing ? { resense: true } : {}),
     meta: chat.meta,
@@ -2204,7 +2497,7 @@ function pickChat(fsx) {
 /** State and notice files of chats that no longer exist (at most 20 per tick). */
 function removeOrphans(fsx) {
   let removed = 0;
-  for (const dir of [STATE_DIR, NOTICE_DIR]) {
+  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR]) {
     let files = [];
     try {
       files = fsx.list(dir.slice(0, -1)).filter((f) => f.endsWith(".json"));
@@ -2355,7 +2648,14 @@ function sceneLine(snap, user) {
 }
 
 /** The full block of one character. withNotes = false when it would leak. */
-function characterBlock(ctx, name, withNotes) {
+/** A character's notes by importance: pinned, important, unmarked, everyday; newest first in a group. Pinned always stay. */
+function pickNotes(list, limit) {
+  const sorted = list.slice().reverse().sort((a, b) => noteRank(a) - noteRank(b));
+  const pinned = sorted.filter((n) => noteRank(n) === 0);
+  return [...pinned, ...sorted.filter((n) => noteRank(n) !== 0).slice(0, Math.max(0, limit - pinned.length))];
+}
+
+function characterBlock(ctx, name, withNotes, limit) {
   const { snap, user } = ctx;
   const c = snap.chars[name];
   const soul = soulOf(ctx.souls, name);
@@ -2380,10 +2680,13 @@ function characterBlock(ctx, name, withNotes) {
   ].filter(Boolean);
   if (body.length) lines.push(body.join(" "));
   if (withNotes) {
-    const notes = arr(ctx.notebook[name]).slice(-12);
+    const notes = pickNotes(arr(ctx.notebook[name]), limit === undefined ? NOTE_LIMIT : limit);
     const nameEntry = arr(ctx.names[name]).slice(-1)[0];
     lines.push(knowsLine(name, user, notes, nameEntry, pr));
   }
+  // the form of address, when the character knows the name and uses another word
+  const asked = arr(ctx.names[name]).slice(-1)[0];
+  if (asked && asked.knowsUserName && str(asked.calls) && str(asked.calls).toLowerCase() !== str(user).toLowerCase()) lines.push("Calls " + user + " \"" + cut(str(asked.calls), 100) + "\".");
   if (soul && str(soul.coping)) lines.push("Under strain: " + cut(str(soul.coping), 200) + ".");
   lines.push("]");
   return lines.join("\n");
@@ -2409,6 +2712,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   if (!at || !isObj(at.snap.chars)) return null;
   const { names: cards, souls } = chatCharacters(fsx, chat.meta);
   const snap = at.snap;
+  const overlay = loadOverlay(fsx, chatId);
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
   // a one-card chat whose card is in the scene is an ordinary character chat: the card speaks
@@ -2425,18 +2729,21 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     snap,
     souls,
     user: userNameOf(fsx, chat.meta),
-    notebook: activeNotebook(state, at.keys),
+    notebook: effectiveNotebook(state, at.keys, overlay).live,
     names: activeNames(state, at.keys),
   };
   const rest = present.filter((n) => !focus.includes(n));
   // where the story can go: the model had nothing to pull on and the story stood still (no ids: no digits)
-  const open = arr(snap.threads).filter((t) => t.status === "open" && str(t.text)).map((t) => str(t.text));
+  const open = effectiveThreads(overlay, snap.threads, snap.turn).filter((t) => t.status === "open" && str(t.text)).map((t) => str(t.text));
   const threads = open.length ? "[Open threads the story can move toward: " + open.join("; ") + ".]" : "";
   // maxTokens is per character block; the scene, threads and closing lines come on top
   const shared = estimateTokens(sceneLine(snap, ctx.user) + threads + CLOSING);
   const budget = (Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
-  const build = (withRest, notes) => {
-    const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, notes.includes(n)))];
+  // a character with no pinned note shows no notebook line once the limit is 0
+  const hasPinned = (n) => arr(ctx.notebook[n]).some((x) => noteRank(x) === 0);
+  const showsNotes = (n, notes, limit) => notes.includes(n) && (limit > 0 || hasPinned(n));
+  const build = (withRest, notes, limit) => {
+    const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
     if (threads) blocks.push(threads);
     blocks.push(threads ? CLOSING : CLOSING.replace("; the open threads are there to pull on", ""));
@@ -2444,19 +2751,23 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   };
   // over the user's limit: drop the others' lines first, then the notebooks; say what went
   const trimmed = [];
-  let notes = notesFor;
-  let text = build(true, notes);
+  const notes = notesFor;
+  let limit = NOTE_LIMIT;
+  let text = build(true, notes, limit);
   const wanted = estimateTokens(text);
   if (estimateTokens(text) > budget && rest.length) {
-    text = build(false, notes);
+    text = build(false, notes, limit);
     trimmed.push("others");
   }
+  // then notebook lines from the end of the importance order; pinned lines are never cut
   if (estimateTokens(text) > budget && notes.length) {
-    notes = [];
-    text = build(false, notes);
+    while (estimateTokens(text) > budget && limit > 0) {
+      limit--;
+      text = build(false, notes, limit);
+    }
     trimmed.push("notebooks");
   }
-  return { text, tokens: estimateTokens(text), wanted, budget, trimmed, focus, notebookOf: notes.filter((n) => focus.includes(n)), key: at.key };
+  return { text, tokens: estimateTokens(text), wanted, budget, trimmed, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
 /** The insert goes in as the last of the leading system messages (after the card and preset, before the history). */
@@ -2734,7 +3045,19 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   const snap = state.snapshots[key];
   const before = nearestSnapshot(state, keys, idx);
   const prevSnap = before >= 0 ? state.snapshots[keys[before]] : null;
-  const notebook = activeNotebook(state, keys);
+  const overlay = loadOverlay(fsx, chatId);
+  const book = effectiveNotebook(state, keys, overlay);
+  const noteItem = ({ id, text, how, from, believes, turn, tag, by, edited }) => ({
+    id,
+    text,
+    how,
+    from: from ?? null,
+    ...(how === "heard" ? { believes: believes !== false } : {}),
+    turn,
+    tag: tag ?? null,
+    ...(by === "user" ? { by: "user" } : {}),
+    ...(edited ? { edited: true } : {}),
+  });
   const names = activeNames(state, keys);
   const history = activeHistory(state, keys);
   const chat = readChat(fsx, chatId);
@@ -2751,7 +3074,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       rated: !!soul,
       pulseBase: pulseBases(soul),
       prev: isObj(p) ? { stats: p.stats, pulse: p.pulse, hostility: p.hostility ?? null, constellation: p.constellation ?? null } : null,
-      notebook: arr(notebook[name]).map(({ id, text, how, from, believes, turn }) => ({ id, text, how, from: from ?? null, ...(how === "heard" ? { believes: believes !== false } : {}), turn })),
+      notebook: arr(book.live[name]).map(noteItem),
+      retired: arr(book.retired[name]).map(noteItem),
       name: arr(names[name]).slice(-1).map(({ knowsUserName, calls }) => ({ knowsUserName: !!knowsUserName, calls: calls || "" }))[0] || null,
       history: arr(history[name]).map(({ src: _src, ...line }) => line),
       series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
@@ -2777,13 +3101,14 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     present,
     order,
     events: arr(snap.events),
-    threads: arr(snap.threads),
+    threads: effectiveThreads(overlay, snap.threads, snap.turn),
     edges: arr(snap.edges),
     chars,
     usage: state.usage,
     lastError: state.lastError,
     insert,
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
+    maxThreads: maxThreadsOf(cfg),
     mode: cfg.mode,
   };
 }
@@ -2810,7 +3135,21 @@ function readState(req, fsx) {
 
 function configBody(fsx) {
   const cfg = loadConfig(fsx);
-  return { ...cfg, custom: customPrompts(fsx), events: vocabRows(userEventRows(fsx)), deltaKeys: DELTA_KEYS, familyList: FAMILIES };
+  const sensorParts = SENSOR_PARTS.map((part) => {
+    const text = typeof cfg.sensorParts[part.key] === "string" && cfg.sensorParts[part.key].trim() ? cfg.sensorParts[part.key] : DEFAULT_SENSOR_PARTS[part.key];
+    return { key: part.key, title: part.title, text, default: DEFAULT_SENSOR_PARTS[part.key], custom: promptKey(text) !== promptKey(DEFAULT_SENSOR_PARTS[part.key]) };
+  });
+  return {
+    ...cfg,
+    // the prompt as the sensor gets it (parts joined, or the whole custom prompt)
+    sensor: promptOf("sensor", cfg),
+    sensorMode: wholeSensorCustom(cfg) ? "whole" : "parts",
+    sensorParts,
+    custom: customPrompts(fsx),
+    events: vocabRows(userEventRows(fsx)),
+    deltaKeys: DELTA_KEYS,
+    familyList: FAMILIES,
+  };
 }
 
 const MAX_EVENT_ROWS = 200;
@@ -2837,6 +3176,112 @@ function writeEventRows(fsx, rows) {
   const raw = readJson(fsx, EVENTS_FILE, null);
   if (!rows.length && raw === null) return;
   fsx.write(EVENTS_FILE, JSON.stringify({ ...(isObj(raw) ? raw : {}), events: rows }, null, 2));
+}
+
+// ---------- route: the user's own notes and threads ----------
+const NO_VIEW = (fsx, chatId) => {
+  const chat = readChat(fsx, chatId);
+  const { state, existed } = loadState(fsx, chatId);
+  const keys = chat ? activeLine(chat.msgs).map((l) => l.key) : [];
+  return { chat, state, existed, keys };
+};
+
+/** The settled view of a chat for the UI, or null when it has no snapshot. */
+function viewOf(fsx, chatId) {
+  const { state, existed, keys } = NO_VIEW(fsx, chatId);
+  return existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null;
+}
+
+/** POST /dashboard/notes { chatId, op, ... }: edits go to the overlay file, never to the state. */
+function notesRoute(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const op = str(b.op);
+  const { state, existed, keys } = NO_VIEW(fsx, chatId);
+  const ov = loadOverlay(fsx, chatId);
+  const bad = (msg, status) => ok({ error: msg }, status || 400);
+  const tagOf = (v) => (v === null || NOTE_TAGS.includes(v) ? v : undefined);
+  const current = keys.slice().reverse().find((k) => state.snapshots[k]) || null;
+  const snap = current ? state.snapshots[current] : null;
+  const noteId = safeKey(str(b.id)) ? str(b.id) : "";
+  const knownNote = () => {
+    if (/^u\d+$/.test(noteId)) return Object.values(ov.added).some((l) => arr(l).some((a) => isObj(a) && a.id === noteId));
+    return Object.values(state.notebook).some((l) => arr(l).some((n) => isObj(n) && n.id === noteId));
+  };
+  const editOf = (id) => (isObj(ov.edits[id]) ? { ...ov.edits[id] } : {});
+  const putEdit = (id, e) => {
+    if (Object.keys(e).length) ov.edits[id] = e;
+    else delete ov.edits[id];
+  };
+
+  if (op === "add") {
+    const name = str(b.name);
+    const text = cut(str(b.text), 300);
+    if (!text) return bad("text required");
+    if (!snap || !ownKey(snap.chars, name) || !isObj(snap.chars[name])) return bad("no such character in the scene state");
+    if (b.how !== undefined && !HOW_WORDS.includes(b.how)) return bad("how must be saw, heard or guess");
+    if (b.tag !== undefined && tagOf(b.tag) === undefined) return bad("bad tag");
+    ov.counter += 1;
+    listIn(ov.added, name).push({
+      id: "u" + ov.counter,
+      text,
+      how: b.how || "saw",
+      ...(NOTE_TAGS.includes(b.tag) ? { tag: b.tag } : {}),
+      at: Date.now(),
+      turn: snap.turn || 0,
+    });
+  } else if (op === "edit") {
+    if (!noteId || !knownNote()) return bad("no such note", 404);
+    if (b.tag !== undefined && tagOf(b.tag) === undefined) return bad("bad tag");
+    const text = b.text === undefined ? undefined : cut(str(b.text), 300);
+    if (b.text !== undefined && !text) return bad("text required");
+    if (text === undefined && b.tag === undefined) return bad("nothing to change");
+    if (noteId.startsWith("u")) {
+      // the user's own note is edited in place
+      for (const list of Object.values(ov.added)) {
+        const a = arr(list).find((x) => isObj(x) && x.id === noteId);
+        if (!a) continue;
+        if (text !== undefined) a.text = text;
+        if (b.tag === null) delete a.tag;
+        else if (b.tag !== undefined) a.tag = b.tag;
+      }
+    } else {
+      const e = editOf(noteId);
+      if (text !== undefined) e.text = text;
+      if (b.tag !== undefined) e.tag = b.tag;
+      putEdit(noteId, e);
+    }
+  } else if (op === "retire" || op === "restore") {
+    if (!noteId || !knownNote()) return bad("no such note", 404);
+    const e = editOf(noteId);
+    if (op === "retire") e.retired = true;
+    else delete e.retired;
+    putEdit(noteId, e);
+  } else if (op === "thread-add") {
+    const text = cut(str(b.text), 300);
+    if (!text) return bad("text required");
+    const open = effectiveThreads(ov, snap && snap.threads, snap ? snap.turn : 0).filter((t) => t.status === "open").length;
+    if (open >= maxThreadsOf(loadConfig(fsx))) return bad("open thread limit reached", 409);
+    ov.counter += 1;
+    ov.threads.added.push({ id: "ut" + ov.counter, text, at: Date.now(), since: snap ? snap.turn || 0 : 0 });
+  } else if (op === "thread-edit") {
+    const id = safeKey(str(b.id)) ? str(b.id) : "";
+    const known = !!id && effectiveThreads(ov, snap && snap.threads, snap ? snap.turn : 0).some((t) => t.id === id);
+    if (!known) return bad("no such thread", 404);
+    const text = b.text === undefined ? undefined : cut(str(b.text), 300);
+    if (b.text !== undefined && !text) return bad("text required");
+    if (b.status !== undefined && b.status !== "open" && b.status !== "resolved") return bad("status must be open or resolved");
+    if (text === undefined && b.status === undefined) return bad("nothing to change");
+    const e = isObj(ov.threads.edits[id]) ? { ...ov.threads.edits[id] } : {};
+    if (text !== undefined) e.text = text;
+    if (b.status !== undefined) e.status = b.status;
+    ov.threads.edits[id] = e;
+  } else {
+    return bad("unknown op");
+  }
+  saveOverlay(fsx, chatId, ov);
+  return ok({ ok: true, view: existed ? viewOf(fsx, chatId) : null });
 }
 
 function putEvents(req, fsx) {
@@ -2868,6 +3313,11 @@ function putConfig(req, fsx) {
   const b = isObj(b0.values) ? { ...b0, ...b0.values } : b0;
   // the panel switch is the mode: off = manual
   if (typeof b0.enabled === "boolean" && b.mode === undefined) b.mode = b0.enabled ? "sensor" : "manual";
+  // the panel's one textarea per sensor prompt part
+  for (const part of SENSOR_PARTS) {
+    const v = b["sensorPart_" + part.key];
+    if (typeof v === "string") b.sensorParts = { ...(isObj(b.sensorParts) ? b.sensorParts : {}), [part.key]: v };
+  }
   // the panel's flat fields for the prompt insert
   if (b.insert !== undefined || b.insertTokens !== undefined) {
     b.injection = { ...(isObj(b.injection) ? b.injection : {}) };
@@ -2908,10 +3358,23 @@ export function handleRoute(req, host) {
   // "Restore default prompts" in the panel
   if (path === "/dashboard/config/prompts" && method === "DELETE") {
     const next = { ...storedConfig(fsx) };
-    for (const key of PROMPT_KEYS) delete next[key];
+    const only = str(req.query && req.query.part);
+    if (only) {
+      // one part back to its default
+      if (isObj(next.sensorParts)) {
+        const sp = { ...next.sensorParts };
+        delete sp[only];
+        if (Object.keys(sp).length) next.sensorParts = sp;
+        else delete next.sensorParts;
+      }
+    } else {
+      for (const key of PROMPT_KEYS) delete next[key];
+      delete next.sensorParts;
+    }
     writeConfig(fsx, next);
     return ok(configBody(fsx));
   }
+  if (path === "/dashboard/notes" && method === "POST") return notesRoute(req, fsx);
   return null;
 }
 
@@ -2934,12 +3397,25 @@ export function uiPanel(_ctx, host) {
         fields: [
           { key: "sensorModel", label: "Sensor model", hint: "Empty = the chat's own model. A cheap, fast model is enough: it only reports what happened, as JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.sensorModel || "" },
           { key: "sensorMaxTokens", label: "Sensor reply limit, tokens", hint: "The most the sensor (and the soul rating) may write per call. A higher limit allows longer replies, which are slower and cost more; if replies are cut off, raise it. 1000 to 8000, default 3000.", kind: "number", value: cfg.sensorMaxTokens },
+          { key: "maxThreads", label: "Open threads at most", hint: "How many open threads the story may carry, yours included. 1 to 6, default 3.", kind: "number", value: cfg.maxThreads },
+          { key: "threadCheckEvery", label: "Check old threads every N turns", hint: "Every N turns the sensor is asked whether threads open that long are settled, dropped or still open. 0 = never. Default 5.", kind: "number", value: cfg.threadCheckEvery },
           { key: "mode", label: "Mode", hint: "sensor: update after replies. manual: no automatic updates.", kind: "select", list: ["sensor", "manual"], value: cfg.mode },
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
           { key: "insertTokens", label: "Insert limit, tokens per character", hint: "The block of one character may take this much; the scene, open threads and closing line come on top. Over the limit, the lines about the others go first, then the notebooks. Default 300.", kind: "number", value: cfg.injection.maxTokens },
           { key: "catchUp", label: "Catch up", hint: "Update a recently active chat in the background when it missed an update.", kind: "select", list: ["on", "off"], value: cfg.catchUp ? "on" : "off" },
           { key: "autoSoul", label: "Rate characters automatically", hint: "When a card is imported or first played and has no soul, one call on the sensor model proposes souls for its main characters. You review them in the card's Soul tab.", kind: "select", list: ["on", "off"], value: cfg.autoSoul === false ? "off" : "on" },
-          { key: "sensor", label: "Sensor prompt", hint: custom.includes("sensor") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the sensor is told. The event list and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("sensor", cfg) },
+          // one textarea per block of the sensor prompt; a whole custom prompt (older way) stays one textarea
+          ...(wholeSensorCustom(cfg)
+            ? [{ key: "sensor", label: "Sensor prompt (whole)", hint: "A custom prompt for the whole sensor. Restore default prompts (below) puts the default back, in blocks. The event list and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("sensor", cfg) }]
+            : SENSOR_PARTS.map((part) => ({
+                key: "sensorPart_" + part.key,
+                label: "Sensor prompt: " + part.title,
+                hint: isObj(cfg.sensorParts) && part.key in cfg.sensorParts ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the sensor is told. The event list and the output shape are added by code.",
+                kind: "textarea",
+                rows: 6,
+                advanced: true,
+                value: isObj(cfg.sensorParts) && typeof cfg.sensorParts[part.key] === "string" && cfg.sensorParts[part.key].trim() ? cfg.sensorParts[part.key] : DEFAULT_SENSOR_PARTS[part.key],
+              }))),
           { key: "soul", label: "Soul rating prompt", hint: custom.includes("soul") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the rating call is told. The event list, the stat names and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("soul", cfg) },
         ],
       },
