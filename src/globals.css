@@ -365,3 +365,329 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   .swipe-out, .swipe-in { animation: none; }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Chat look "stage" (Roleplay 4.24): plain prose on the page, an arched portrait
+   beside a character's turns, the user's turns offset to the right, scene changes
+   as a heading between stitched bands, the actions in a row under the text.
+   Everything lives under .look-stage, which the chat view sets on the message
+   column together with --orn-url / --stitch-a-url / --stitch-b-url (image URLs
+   built from the base path). A later "vn" look would be a sibling block.
+   ────────────────────────────────────────────────────────────── */
+.look-stage {
+  --ls-av-w: calc(58px * var(--avatar-scale, 1));
+  --ls-av-h: calc(74px * var(--avatar-scale, 1));
+  --ls-gap: 20px;
+}
+
+.look-stage .ls-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--ls-av-w) minmax(0, 1fr);
+  column-gap: var(--ls-gap);
+  align-items: start;
+}
+.look-stage .ls-row.no-av {
+  grid-template-columns: minmax(0, 1fr);
+}
+.look-stage .ls-row.is-user {
+  display: block;
+  width: fit-content;
+  max-width: 62%;
+  margin-left: auto;
+  padding-left: 16px;
+  border-left: 2px solid color-mix(in srgb, var(--cta) 60%, transparent);
+}
+.look-stage .ls-col {
+  min-width: 0;
+}
+
+/* the arched portrait */
+.look-stage .ls-av {
+  padding-bottom: 8px;
+}
+.look-stage .ls-av-btn {
+  display: block;
+  border-radius: calc(var(--ls-av-w) / 2) calc(var(--ls-av-w) / 2) 2px 2px;
+  transition: opacity 0.15s;
+}
+.look-stage .ls-av-btn:hover {
+  opacity: 0.85;
+}
+.look-stage .ls-av-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.look-stage .ls-arch {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--ls-av-w);
+  height: var(--ls-av-h);
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--ls-av-w) / 2) calc(var(--ls-av-w) / 2) 2px 2px;
+  background: var(--card);
+}
+.look-stage .ls-arch > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: calc(var(--ls-av-w) / 2 - 3px) calc(var(--ls-av-w) / 2 - 3px) 0 0;
+}
+.look-stage .ls-arch::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -9px;
+  height: 6px;
+  background-color: var(--cta);
+  -webkit-mask: var(--orn-url) center / contain no-repeat;
+  mask: var(--orn-url) center / contain no-repeat;
+  opacity: 0.9;
+}
+
+/* the name line */
+.look-stage .ls-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 22px;
+  margin-bottom: 4px;
+}
+.look-stage .ls-name {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.look-stage .ls-name-btn {
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.look-stage .ls-name-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.look-stage .ls-time {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.look-stage .ls-meta {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.look-stage .ls-row:hover .ls-meta,
+.look-stage .ls-row:focus-within .ls-meta {
+  opacity: 1;
+}
+
+/* the prose */
+.look-stage .mes_text {
+  font-size: calc(17px * var(--prose-scale, 1));
+  line-height: var(--prose-line-height, 1.8);
+}
+.look-stage .mes_text p {
+  margin-bottom: var(--prose-para-gap, 0.8em);
+}
+.look-stage .mes_text p:last-child {
+  margin-bottom: 0;
+}
+.look-stage .think-text .mes_text {
+  font-size: calc(15px * var(--prose-scale, 1));
+  line-height: 1.5;
+}
+
+/* "Thought for 4.2s" */
+.look-stage .ls-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  transition: color 0.15s;
+}
+.look-stage .ls-chip:hover {
+  color: var(--foreground);
+}
+
+/* under the text: swipe arrows, then the actions */
+.look-stage .ls-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 30px;
+  margin-top: 4px;
+}
+.look-stage .ls-swipes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.look-stage .ls-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.look-stage .ls-row:hover .ls-acts,
+.look-stage .ls-row:focus-within .ls-acts,
+.look-stage .ls-acts.is-pinned,
+.look-stage .ls-acts:has([aria-expanded="true"]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+.look-stage .ls-act {
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.look-stage .ls-act:hover {
+  color: var(--foreground);
+}
+.look-stage .ls-act svg {
+  width: 15px;
+  height: 15px;
+}
+.look-stage .ls-acts.is-touch .ls-act {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+}
+.look-stage .ls-acts.is-touch .ls-act-label {
+  display: none;
+}
+
+/* a scene change */
+.look-stage .ls-scene {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 12px;
+  text-align: center;
+}
+.look-stage .ls-scene-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 70%;
+}
+.look-stage .ls-scene b {
+  font-family: var(--font-heading);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+.look-stage .ls-scene small {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+.look-stage .ls-band {
+  position: relative;
+  flex: 1;
+  height: 13px;
+  opacity: 0.85;
+}
+.look-stage .ls-band::before,
+.look-stage .ls-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: auto 100%;
+  mask-size: auto 100%;
+}
+.look-stage .ls-band::before {
+  background: var(--cta);
+  -webkit-mask-image: var(--stitch-a-url);
+  mask-image: var(--stitch-a-url);
+}
+.look-stage .ls-band::after {
+  background: var(--foreground);
+  opacity: 0.45;
+  -webkit-mask-image: var(--stitch-b-url);
+  mask-image: var(--stitch-b-url);
+}
+/* the pattern meets the title symmetrically */
+.look-stage .ls-band.is-left::before,
+.look-stage .ls-band.is-left::after {
+  -webkit-mask-position: right center;
+  mask-position: right center;
+}
+.look-stage .ls-band.is-right::before,
+.look-stage .ls-band.is-right::after {
+  -webkit-mask-position: left center;
+  mask-position: left center;
+}
+
+/* the dashboard's live line, in the text column */
+.look-stage .ls-live {
+  margin-left: calc(var(--ls-av-w) + var(--ls-gap));
+  font-family: var(--prose-font, Georgia), Georgia, serif;
+  font-size: 13.5px;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+.look-stage[data-no-av] .ls-live {
+  margin-left: 0;
+}
+
+@media (max-width: 599px) {
+  .look-stage {
+    --ls-av-w: calc(40px * var(--avatar-scale, 1));
+    --ls-av-h: calc(52px * var(--avatar-scale, 1));
+    --ls-gap: 12px;
+  }
+  .look-stage .ls-row.is-user {
+    max-width: 86%;
+  }
+  .look-stage .ls-meta,
+  .look-stage .ls-act-label {
+    display: none;
+  }
+  .look-stage .ls-act {
+    min-width: 32px;
+    padding: 0 6px;
+  }
+  .look-stage .ls-scene b {
+    font-size: 16px;
+  }
+  .look-stage .mes_text {
+    font-size: calc(16.5px * var(--prose-scale, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .look-stage .ls-meta,
+  .look-stage .ls-acts,
+  .look-stage .ls-av-btn,
+  .look-stage .ls-chip {
+    transition: none;
+  }
+}

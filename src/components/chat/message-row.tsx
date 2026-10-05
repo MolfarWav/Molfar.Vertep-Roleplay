@@ -1,26 +1,26 @@
 
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cleanPreview } from '@/lib/preview'
-import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, GitBranch, BookmarkSimple, Eye, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, ArrowsOut, Wrench, ArrowUp, ArrowDown } from '@phosphor-icons/react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, Eye, GitBranch, BookmarkSimple, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, Wrench, ArrowUp, ArrowDown, ArrowLineDown, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RichText } from '@/components/rich-blocks'
 import { Markdown } from '@/components/markdown'
 import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
 import { ModelMark } from '@/components/model-mark'
-import { CardKindBadge } from '@/components/dashboard/card-kind'
-import { cardTypeOf } from '@/lib/soul'
+import { AvatarMenu } from '@/components/chat/avatar-menu'
+import { messageActions, type MessageActionId } from '@/lib/message-actions'
+import { hideEchoedName } from '@/lib/echo-name'
+import { useT } from '@/hooks/use-t'
 import { useTouchUi } from '@/hooks/use-touch-ui'
 import { useApp } from '@/lib/store'
 import { useDisplayTexts, type DisplayScript } from '@/hooks/use-display-texts'
@@ -33,6 +33,11 @@ import type { Chat, Character, Message, RegexScript, ToolPart } from '@/lib/type
 import { estimateTokens, formatCost, formatTokens, knownCost } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, copyText, readableNameColor, shortModel } from '@/lib/utils'
 import { toast } from 'sonner'
+
+const ACTION_ICONS: Record<MessageActionId, typeof Copy> = {
+  copy: Copy, translate: Translate, speak: SpeakerHigh, bookmark: BookmarkSimple, fork: GitBranch, genData: Info, peek: Scan,
+  hide: Ghost, summarize: Brain, undoSummary: ArrowCounterClockwise, moveUp: ArrowUp, moveDown: ArrowDown, delete: Trash, deleteBelow: ArrowLineDown,
+}
 
 // claim the wheel ALWAYS while the cursor is over the box: scrolling inside
 // a thinking block never moves the page, even at its top/bottom boundaries
@@ -113,6 +118,7 @@ function ThinkBlock({ text, ms, live, open, onOpenChange, onEdit }: {
   /** present on committed segments: the thinking is editable on its own */
   onEdit?: (text: string) => void
 }) {
+  const t = useT()
   const boxRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
   const [editing, setEditing] = useState(false)
@@ -132,16 +138,16 @@ function ThinkBlock({ text, ms, live, open, onOpenChange, onEdit }: {
   const isOpen = editing ? true : open != null ? open : true
   return (
     <Collapsible open={isOpen} onOpenChange={(o) => { if (!editing) onOpenChange?.(o) }}>
-      <div className="mt-1 flex items-start gap-1">
+      <div className="flex items-start gap-1">
         <CollapsibleTrigger
           render={
-            <button type="button" className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+            <button type="button" className="ls-chip">
               <Brain className="size-3" aria-hidden="true" />
               {ms != null && ms > 0
-                ? `Thought for ${(ms / 1000) < 10 ? (ms / 1000).toFixed(1) : Math.round(ms / 1000)}s`
+                ? t('msg.thoughtFor', { s: (ms / 1000) < 10 ? (ms / 1000).toFixed(1) : Math.round(ms / 1000) })
                 : live
-                  ? 'Thinking…'
-                  : 'Thought'}
+                  ? t('msg.thinking')
+                  : t('msg.thought')}
             </button>
           }
         />
@@ -211,6 +217,7 @@ export const MessageRow = memo(function MessageRow({
    *  swipe / exits left, +1 = previous / exits right; range = px to travel) */
   onSwipeFx?: (index: number, dir: 1 | -1, range: number) => void
 }) {
+  const t = useT()
   const settings = useApp((s) => s.settings)
   const activeModel = useApp((s) => s.model)
   const characters = useApp((s) => s.characters)
@@ -394,6 +401,7 @@ export const MessageRow = memo(function MessageRow({
   useLayoutEffect(() => {
     if (isStreamingThis) pinAtCommitRef.current = readerAtBottom()
   })
+  const speakerName = characters.find((c) => c.id === (message.characterId ?? chat.characterId))?.name ?? character.name
   const rawContent = isStreamingThis ? streamingFull.slice(0, streamingShown) : message.swipes[shownSwipe]?.content ?? ''
   // Display-only regex runs CLIENT-SIDE on the rendered text; the saved
   // message is never touched. Saved-text scripts ran engine-side when the
@@ -451,7 +459,9 @@ export const MessageRow = memo(function MessageRow({
   // while streaming, unclosed emphasis/fence markers get synthetic closers
   // so each tick renders as finished markdown (never committed)
   // the dashboard's fast-mode state tag never shows, streaming or saved
-  const rawDisplayed = isStreamingThis ? balanceStreamingMarkdown(hideStateTag(rawContent, true)) : hideStateTag(rawContent)
+  // a leading echo of the speaker's own name ("Aria:") is cut on display: replies saved before the engine did it still carry it
+  const echoOf = (text: string) => (message.role === 'assistant' ? hideEchoedName(text, speakerName) : text)
+  const rawDisplayed = isStreamingThis ? balanceStreamingMarkdown(echoOf(hideStateTag(rawContent, true))) : echoOf(hideStateTag(rawContent))
   const content = useDisplayTexts([rawDisplayed], displayScripts)[0] ?? rawDisplayed
   const activeSwipeData = message.swipes[shownSwipe]
   // committed segments: messages whose generation used tools render thinking,
@@ -479,8 +489,8 @@ export const MessageRow = memo(function MessageRow({
     return nodes
   }, [isStreamingThis, streamingMarks, streamingShown, streamingFull])
   // text segments of both timelines run through the same worker-backed pass
-  const partTexts = useDisplayTexts(parts ? parts.filter((p) => p.type === 'text').map((p) => hideStateTag(p.text)) : [], displayScripts)
-  const liveTexts = useDisplayTexts(liveTimeline ? liveTimeline.filter((n) => n.type === 'text').map((n) => hideStateTag(n.text, true)) : [], displayScripts)
+  const partTexts = useDisplayTexts(parts ? parts.filter((p) => p.type === 'text').map((p, k) => (k === 0 ? echoOf(hideStateTag(p.text)) : hideStateTag(p.text))) : [], displayScripts)
+  const liveTexts = useDisplayTexts(liveTimeline ? liveTimeline.filter((n) => n.type === 'text').map((n, k) => (k === 0 ? echoOf(hideStateTag(n.text, true)) : hideStateTag(n.text, true))) : [], displayScripts)
   const isUser = message.role === 'user'
   // per-message <style> blocks are rewritten under this row's own boundary,
   // so one message cannot restyle another's text
@@ -495,7 +505,6 @@ export const MessageRow = memo(function MessageRow({
   const speaker = isUser
     ? authorPersona ?? currentPersona
     : characters.find((c) => c.id === (message.characterId ?? chat.characterId))
-  const speakerKind = isUser ? null : cardTypeOf(characters.find((c) => c.id === (message.characterId ?? chat.characterId)) ?? {})
   const name = isUser ? (message.authorName ?? currentPersona?.name ?? 'You') : (speaker?.name ?? character.name)
   const avatar = isUser ? ((authorPersona ?? currentPersona)?.avatar ?? DEFAULT_AVATAR) : (speaker && 'avatar' in speaker ? speaker.avatar : character.avatar)
   // expression sprites: the reply's own words pick the sprite (keyword
@@ -530,113 +539,117 @@ export const MessageRow = memo(function MessageRow({
   const msgCost = knownCost(realUsage)
   const isCutoff = chat.memoryCutoffMessageId === message.id
 
-  const mode = settings.displayMode
-
   const startEdit = () => {
     setDraft(swipe?.content ?? '')
     setEditing(true)
   }
 
-  // 'rect' is the tall rounded-rectangle portrait crop — a shape, not a
-  // corner radius, so it carries its own box + fixed rounding (percent radii
-  // go elliptical on non-square boxes). The other three are radii on a
-  // square crop.
-  const isRect = settings.avatarShape === 'rect'
-  const avatarShape = settings.avatarShape === 'circle' ? 'rounded-full' : settings.avatarShape === 'square' ? 'rounded-none' : 'rounded-[20%]'
-  const isPortrait = settings.avatarStyle === 'portrait'
-  // Portrait avatars render tall; the thumb style keeps a square/round crop.
-  const avatarSize = isPortrait || isRect ? 'h-[4.5rem] w-14' : 'size-10'
   const spacing = settings.messageSpacing
-  const rowPad = spacing === 'compact' ? 'px-2 py-1.5' : spacing === 'cozy' ? 'px-3 py-2.5' : 'px-3.5 py-3'
-  const rowGap = spacing === 'compact' ? 'gap-2' : spacing === 'cozy' ? 'gap-2.5' : 'gap-3'
+  const rowPad = spacing === 'compact' ? 'py-1' : spacing === 'cozy' ? 'py-2' : 'py-3'
+  const showPortrait = !isUser && !settings.hideAvatars
+  const speakerId = speaker && 'id' in speaker ? speaker.id : (message.characterId ?? chat.characterId)
+  const speakerColors = speaker && 'colors' in speaker ? speaker.colors : character.colors
+  const nameColor = isUser ? 'var(--tap-quotes)' : readableNameColor(speakerColors.name)
+  const modelId = swipe?.model || (isStreamingThis ? activeModel : '') || ''
 
-  const copyBody = () => { void copyText(content).then(ok => { if (ok) toast.success('Copied'); else toast.error('Copy failed') }) }
+  const copyBody = () => { void copyText(content).then(ok => { if (ok) toast.success(t('msg.copied')); else toast.error(t('msg.copyFailed')) }) }
+
+  // what is on the right of the name line (hover only, never on a phone): each part only when its setting is on and the value is known
+  const meta: { k: string; node: ReactNode }[] = []
+  if (!isUser && settings.showModelIcons && modelId) {
+    meta.push({ k: "model", node: <span className="inline-flex items-center gap-1" title={modelId}><ModelMark model={modelId} className="size-3.5" />{shortModel(modelId)}</span> })
+  }
+  if (settings.showGenTimer && !isUser && !isStreamingThis && swipe && swipe.genTimeMs > 0) meta.push({ k: "time", node: <span>{(swipe.genTimeMs / 1000).toFixed(1)}s</span> })
+  if (settings.showTokens && !isStreamingThis) meta.push({ k: "tokens", node: <span>{realUsage ? realUsage.output : tokens}t</span> })
+  if (settings.showCost && !isStreamingThis && msgCost != null) meta.push({ k: "cost", node: <span>{formatCost(msgCost)}</span> })
+  if (settings.showMessageIds) meta.push({ k: "id", node: <span>#{index}</span> })
+
+  const canAct = !editing && !isStreamingThis && !slidePhase
+  const showSwipes = !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis
+  const pinned = settings.expandMessageActions || coarsePointer
+
+  const runAction = (id: MessageActionId) => {
+    switch (id) {
+      case 'copy': copyBody(); break
+      case 'translate': if (message.translation) setMessageTranslation(chat.id, message.id, null); else void translate(); break
+      case 'speak': speak(); break
+      case 'bookmark': toggleBookmark(chat.id, message.id, t('msg.bookmarkAt', { n: index })); break
+      case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break
+      case 'genData': setGenOpen(true); break
+      case 'peek': setPeekOpen(true); break
+      case 'hide': toggleHidden(chat.id, message.id); break
+      case 'summarize': {
+        const tid = toast.loading(t('msg.summarizing'))
+        void compactChat(chat.id, { upTo: message.id })
+          .then((r) => toast.success(t('msg.summarized', { n: r.covered }), { id: tid }))
+          .catch((e) => toast.error(String((e as Error).message ?? e), { id: tid }))
+        break
+      }
+      case 'undoSummary':
+        void undoCompaction(chat.id)
+          .then(() => toast.success(t('msg.summaryRestored')))
+          .catch((e) => toast.error(String((e as Error).message ?? e)))
+        break
+      case 'moveUp': moveMessage(chat.id, message.id, -1); break
+      case 'moveDown': moveMessage(chat.id, message.id, 1); break
+      case 'delete': deleteMessage(chat.id, message.id, 'this'); break
+      case 'deleteBelow': deleteMessage(chat.id, message.id, 'below'); break
+    }
+  }
+  const actionGroups = messageActions({
+    isUser, index, count: chat.messages.length, isCutoff, compactions: chat.compactions,
+    hidden: !!message.hidden, bookmarked: !!message.bookmarked,
+    translated: !!message.translation, translating: translateBusy, speaking: isSpeaking,
+  })
+
   const moreMenu = (
-<DropdownMenu>
+    <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-sm" aria-label="More actions">
+          <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.more')}>
             <DotsThree aria-hidden="true" />
+            <span className="ls-act-label">{t('msg.more')}</span>
           </Button>
         }
       />
-      <DropdownMenuContent align="end">
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={copyBody}>
-            <Copy className="size-4" aria-hidden="true" />
-            Copy text
-          </DropdownMenuItem>
-          {!isUser && (
-            <DropdownMenuItem onClick={() => regenerate(chat.id)}>
-              <ArrowsClockwise className="size-4" aria-hidden="true" />
-              Regenerate
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => toggleBookmark(chat.id, message.id, `Bookmark at #${index}`)}>
-            <BookmarkSimple className="size-4" aria-hidden="true" />
-            {message.bookmarked ? 'Remove bookmark' : 'Bookmark'}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => { void forkAndOpen(chat.id, message.id); toast.success('Branched from here') }}>
-            <GitBranch className="size-4" aria-hidden="true" />
-            Fork here
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => message.translation ? setMessageTranslation(chat.id, message.id, null) : void translate()}>
-            <Translate className="size-4" aria-hidden="true" />
-            {translateBusy ? 'Translating…' : message.translation ? 'Remove translation' : `Translate to ${settings.translation.targetLanguage}`}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={speak}>
-            {isSpeaking ? <Square weight="fill" className="size-4" aria-hidden="true" /> : <SpeakerHigh className="size-4" aria-hidden="true" />}
-            {isSpeaking ? 'Stop speaking' : 'Speak'}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toggleHidden(chat.id, message.id)}>
-            {message.hidden ? <Eye className="size-4" aria-hidden="true" /> : <Ghost className="size-4" aria-hidden="true" />}
-            {message.hidden ? 'Unhide from AI' : 'Hide from AI'}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setPeekOpen(true)}>
-            <Scan className="size-4" aria-hidden="true" />
-            Prompt peek
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setGenOpen(true)}>
-            <Info className="size-4" aria-hidden="true" />
-            Generation data
-          </DropdownMenuItem>
-          {isCutoff && chat.compactions > 0 ? (
-            <DropdownMenuItem onClick={() => {
-              void undoCompaction(chat.id)
-                .then(() => toast.success('Summary restored to before the last compaction'))
-                .catch((e) => toast.error(String((e as Error).message ?? e)))
-            }}>
-              <Brain className="size-4" aria-hidden="true" />
-              Undo last summary
-            </DropdownMenuItem>
-          ) : !isCutoff && index > 0 && (
-            <DropdownMenuItem onClick={() => {
-              const t = toast.loading('Summarizing…')
-              void compactChat(chat.id, { upTo: message.id })
-                .then((r) => toast.success(`${r.covered} messages folded into the summary`, { id: t }))
-                .catch((e) => toast.error(String((e as Error).message ?? e), { id: t }))
-            }}>
-              <Brain className="size-4" aria-hidden="true" />
-              Summarize everything above
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => moveMessage(chat.id, message.id, -1)}>
-            <ArrowUp className="size-4" aria-hidden="true" />
-            Move up
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => moveMessage(chat.id, message.id, 1)}>
-            <ArrowDown className="size-4" aria-hidden="true" />
-            Move down
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => deleteMessage(chat.id, message.id, 'this')}>
-            <Trash className="size-4" aria-hidden="true" />
-            Delete this
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => deleteMessage(chat.id, message.id, 'below')}>Delete below</DropdownMenuItem>
-        </DropdownMenuGroup>
+      <DropdownMenuContent align="end" className="w-64">
+        {actionGroups.map((group, gi) => (
+          <Fragment key={group.id}>
+            {gi > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{t(group.labelKey)}</DropdownMenuLabel>
+              {group.items.map((item) => {
+                const Icon = item.id === 'hide' && message.hidden ? Eye : ACTION_ICONS[item.id]
+                return (
+                  <DropdownMenuItem
+                    key={item.id}
+                    variant={item.danger ? 'destructive' : 'default'}
+                    disabled={item.disabled}
+                    onClick={() => runAction(item.id)}
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    {t(item.labelKey, { lang: settings.translation.targetLanguage })}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuGroup>
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )
+
+  const portrait = (
+    <div className="ls-arch">
+      <img
+        src={shownAvatar || DEFAULT_AVATAR}
+        alt=""
+        draggable={false}
+        onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
+      />
+    </div>
+  )
+
   return (
     <div className="group/msg" id={`msg-${message.id}`}>
       {isCutoff && (
@@ -650,170 +663,73 @@ export const MessageRow = memo(function MessageRow({
         ref={rowRef}
         data-message-id={message.id}
         data-char-id={!isUser ? (message.characterId ?? chat.characterId) : undefined}
-        style={slidePhase === 'out' && lockH > 0
-          ? { height: lockH }
-          : settings.messageTint && !isUser && character.colors.bubble ? { backgroundColor: character.colors.bubble + '26' } : undefined}
+        style={slidePhase === 'out' && lockH > 0 ? { height: lockH } : undefined}
         className={cn(
-          'relative flex rounded-lg transition-colors',
-          rowGap,
+          'ls-row',
+          isUser && 'is-user',
+          !isUser && !showPortrait && 'no-av',
           rowPad,
           slidePhase === 'out' && 'swipe-out',
           slidePhase === 'in' && 'swipe-in',
-          mode === 'bubbles' && (isUser ? 'bg-secondary/70' : 'bg-card/80') + ' border border-border/60',
-          mode === 'flat' && 'border-b border-border/40 rounded-none',
-          mode === 'minimal' && cn('border-l-2 rounded-none pl-3', isUser ? 'border-primary/60' : 'border-muted-foreground/40'),
-          mode === 'document' && 'px-0',
           message.hidden && !message.picture && 'opacity-50',
           summarized && !message.hidden && 'opacity-70',
         )}
       >
-        {!settings.hideAvatars && mode !== 'document' && (
-          <div className="flex shrink-0 flex-col items-center gap-0.5 self-start" style={{ zoom: 'var(--avatar-scale, 1)' }}>
-          <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
-            <PopoverTrigger
-              render={
-                <button
-                  type="button"
-                  className="shrink-0 rounded-md ring-offset-background transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  aria-label={`View ${name} avatar`}
-                >
-                  {/* Tall portrait crops get a subtle rounding — rounded-md read
-                      as pill-like on a 56px-wide crop (user feedback). The
-                      rectangle shape pins its own radius. */}
-                  <Avatar className={cn(avatarSize, isRect ? 'rounded-lg' : isPortrait ? 'rounded-sm' : avatarShape)}>
-                    <AvatarImage src={shownAvatar || DEFAULT_AVATAR} alt="" className="object-cover" />
-                    <AvatarFallback>{name.slice(0, 2)}</AvatarFallback>
-                  </Avatar>
-                </button>
-              }
-            />
-            <PopoverContent align="start" className="w-60 p-0">
+        {showPortrait && (
+          <div className="ls-av">
+            <AvatarMenu characterId={speakerId} onViewPortrait={() => setLightboxOpen(true)} align="start">
               <button
                 type="button"
-                className="relative block w-full"
-                aria-label={`Enlarge ${name} portrait`}
-                onClick={() => { setAvatarOpen(false); setLightboxOpen(true) }}
+                className="ls-av-btn"
+                aria-label={t('avatar.menu', { name })}
               >
-                <img
-                  src={shownAvatar || DEFAULT_AVATAR}
-                  alt={`${name} portrait`}
-                  className="h-56 w-full rounded-t-md object-cover"
-                />
-                <span className="absolute right-1.5 top-1.5 rounded-md bg-background/80 p-1 text-foreground backdrop-blur">
-                  <ArrowsOut className="size-3.5" aria-hidden="true" />
-                </span>
+                {portrait}
               </button>
-              <div className="flex flex-col gap-2 p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{name}</p>
-                  {speakerKind ? (
-                    <CardKindBadge type={speakerKind} className="mt-0.5" />
-                  ) : (
-                    <p className="text-xs text-muted-foreground">{isUser ? 'Your persona' : 'Character'}</p>
-                  )}
-                </div>
-                {!isUser && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => { setAvatarOpen(false); setView('characters') }}
-                  >
-                    Open character
-                  </Button>
-                )}
-                {isUser && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => { setAvatarOpen(false); setView('personas') }}
-                  >
-                    Open persona
-                  </Button>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-          {/* Full-size portrait view: uncropped, click the popover image or the
-              expand badge to open. */}
-          <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-            <DialogContent className="w-full max-w-[min(92vw,720px)] gap-0 border-border/40 bg-black/85 p-2 backdrop-blur">
-              <img
-                src={shownAvatar || DEFAULT_AVATAR}
-                alt={`${name} portrait`}
-                className="max-h-[80dvh] w-full rounded-md object-contain"
-              />
-              <p className="pt-2 pb-1 text-center text-sm font-medium">{name}</p>
-              <p className="pb-1 text-center text-xs text-muted-foreground">{isUser ? 'Your persona' : 'Character'}</p>
-            </DialogContent>
-          </Dialog>
-          {/* per-message stats UNDER the profile: id → seconds → tokens
-              (greeting/manual turns have no seconds; cached read joins the
-              name line with the time and model badge). All hidden while THIS
-              message generates a new swipe — they belong to the outgoing
-              swipe, and the incoming one reports its own when it commits) */}
-          <div className="flex flex-col items-center font-mono text-[9px] leading-tight text-muted-foreground">
-            {settings.showMessageIds && <span>#{index}</span>}
-            {settings.showGenTimer && !isUser && !isStreamingThis && swipe && swipe.genTimeMs > 0 && (
-              <span>{(swipe.genTimeMs / 1000).toFixed(1)}s</span>
-            )}
-            {settings.showTokens && !isStreamingThis && <span>{realUsage ? realUsage.output : tokens}t</span>}
-            {settings.showCost && !isStreamingThis && msgCost != null && <span>{formatCost(msgCost)}</span>}
-          </div>
+            </AvatarMenu>
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          {mode !== 'document' && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-              <span className="font-semibold" style={{ color: !isUser ? readableNameColor(character.colors.name) : undefined }}>
-                {name}
+        <div className="ls-col">
+          <div className="ls-head">
+            {isUser ? (
+              <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
+                <PopoverTrigger render={<button type="button" className="ls-name ls-name-btn" style={{ color: nameColor }}>{name}</button>} />
+                <PopoverContent align="start" className="w-56">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{name}</p>
+                    <p className="text-xs text-muted-foreground">{t('msg.yourPersona')}</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setAvatarOpen(false); setView('personas') }}>
+                    {t('msg.openPersona')}
+                  </Button>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <span className="ls-name" style={{ color: nameColor }}>{name}</span>
+            )}
+            {settings.showTimestamps && (
+              <span className="ls-time">
+                {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
-              {settings.showTimestamps && (
-                <span className="text-muted-foreground">
-                  {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
-              {settings.hideAvatars && settings.showMessageIds && <span className="text-muted-foreground">#{index}</span>}
-              {/* no model chip for model-less turns (greetings, hand-written
-                  messages) — an empty bordered box reads as a broken badge.
-                  Icon only: hover (title) or tap reveals the model name.
-                  Cached read sits LEFT of the badge (user-requested order). */}
-              {settings.showCache && !isStreamingThis && realUsage && (realUsage.cacheRead ?? 0) > 0 && (
-                <span className="text-muted-foreground">{formatTokens(realUsage.cacheRead ?? 0)} cached</span>
-              )}
-              {settings.showModelIcons && !isUser && !!(swipe?.model || (isStreamingThis ? activeModel : '')) && (
-                <Popover>
-                  <PopoverTrigger
-                    render={
-                      <button
-                        type="button"
-                        title={shortModel(swipe?.model || activeModel || '')}
-                        aria-label={`Model: ${shortModel(swipe?.model || activeModel || '')}`}
-                        className="-mx-1.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:text-muted-foreground"
-                      >
-                        <ModelMark model={swipe?.model || activeModel || ''} className="size-4" />
-                      </button>
-                    }
-                  />
-                  <PopoverContent className="w-auto p-2 font-mono text-[10px]">{shortModel(swipe?.model || activeModel || '')}</PopoverContent>
-                </Popover>
-              )}
-              {settings.hideAvatars && settings.showGenTimer && !isUser && !isStreamingThis && swipe && swipe.genTimeMs > 0 && (
-                <span className="text-muted-foreground">{(swipe.genTimeMs / 1000).toFixed(1)}s</span>
-              )}
-              {settings.hideAvatars && settings.showTokens && !isStreamingThis && <span className="text-muted-foreground">{realUsage ? realUsage.output : tokens}t</span>}
-              {settings.hideAvatars && settings.showCost && !isStreamingThis && msgCost != null && <span className="text-muted-foreground">{formatCost(msgCost)}</span>}
-              {settings.showEdited && message.edited && <span className="text-muted-foreground italic">edited</span>}
-              {message.hidden && !message.picture && (
-                <span className="flex items-center gap-0.5 text-muted-foreground">
-                  <Ghost className="size-3" aria-hidden="true" />
-                  hidden from AI
-                </span>
-              )}
-              {message.bookmarked && <BookmarkSimple weight="fill" className="size-3 text-primary" aria-hidden="true" />}
-            </div>
-          )}
+            )}
+            {settings.showCache && !isStreamingThis && realUsage && (realUsage.cacheRead ?? 0) > 0 && (
+              <span className="ls-time">{t('msg.cached', { n: formatTokens(realUsage.cacheRead ?? 0) })}</span>
+            )}
+            {settings.showEdited && message.edited && <span className="ls-time italic">{t('msg.edited')}</span>}
+            {message.hidden && !message.picture && (
+              <span className="ls-time inline-flex items-center gap-0.5">
+                <Ghost className="size-3" aria-hidden="true" />
+                {t('msg.hiddenFromAi')}
+              </span>
+            )}
+            {message.bookmarked && <BookmarkSimple weight="fill" className="size-3 self-center text-primary" aria-hidden="true" />}
+            {meta.length > 0 && (
+              <span className="ls-meta">
+                {meta.map((m, i) => (
+                  <Fragment key={m.k}>{i > 0 && <span aria-hidden="true"> · </span>}{m.node}</Fragment>
+                ))}
+              </span>
+            )}
+          </div>
 
           {/* LIVE thinking while the model streams: watch the
               reasoning grow, then the reply starts below it */}
@@ -821,13 +737,13 @@ export const MessageRow = memo(function MessageRow({
             <Collapsible open={thinkOpen[0] ?? settings.reasoningAutoExpand} onOpenChange={(o) => thinkToggle(0, o)}>
               <CollapsibleTrigger
                 render={
-                  <button type="button" className="mt-1 flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+                  <button type="button" className="ls-chip">
                     {streamingFull ? (
-                      `Thought for ${((streamingThinkMs ?? 0) / 1000) < 10 ? ((streamingThinkMs ?? 0) / 1000).toFixed(1) : Math.round((streamingThinkMs ?? 0) / 1000)}s`
+                      t('msg.thoughtFor', { s: ((streamingThinkMs ?? 0) / 1000) < 10 ? ((streamingThinkMs ?? 0) / 1000).toFixed(1) : Math.round((streamingThinkMs ?? 0) / 1000) })
                     ) : (
                       <>
                         <CircleNotch className="size-3 animate-spin" aria-hidden="true" />
-                        Thinking…
+                        {t('msg.thinking')}
                       </>
                     )}
                   </button>
@@ -853,14 +769,14 @@ export const MessageRow = memo(function MessageRow({
               open={reasonEditing ? true : (thinkOpen[0] ?? (settings.reasoningAutoExpand || presetSamplers.reasoning.display === 'expanded'))}
               onOpenChange={(o) => { if (!reasonEditing) thinkToggle(0, o) }}
             >
-              <div className="mt-1 flex items-start gap-1">
+              <div className="flex items-start gap-1">
                 <CollapsibleTrigger
                   render={
-                    <button type="button" className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+                    <button type="button" className="ls-chip">
                       <Brain className="size-3" aria-hidden="true" />
                       {swipe.reasoningTime != null
-                        ? `Thought for ${swipe.reasoningTime < 10 ? swipe.reasoningTime.toFixed(1) : Math.round(swipe.reasoningTime)}s`
-                        : 'Thought'}
+                        ? t('msg.thoughtFor', { s: swipe.reasoningTime < 10 ? swipe.reasoningTime.toFixed(1) : Math.round(swipe.reasoningTime) })
+                        : t('msg.thought')}
                     </button>
                   }
                 />
@@ -892,10 +808,10 @@ export const MessageRow = memo(function MessageRow({
                     </div>
                   </div>
                 ) : (
-                  <div ref={trapWheel} className="think-text mt-1 max-h-64 overflow-y-auto rounded-md border border-border bg-muted/30 p-2 text-xs italic text-muted-foreground">
+                  <div ref={trapWheel} className="think-text mb-2 max-h-64 overflow-y-auto rounded-md border border-border bg-muted/30 p-2 text-xs italic text-muted-foreground">
                     <Markdown content={swipe.reasoning} />
                     <div className="mt-1 flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => { void copyText(swipe.reasoning ?? '').then(ok => { if (ok) toast.success('Reasoning copied'); else toast.error('Copy failed') }) }}>Copy</Button>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => { void copyText(swipe.reasoning ?? '').then(ok => { if (ok) toast.success('Reasoning copied'); else toast.error(t('msg.copyFailed')) }) }}>{t('msg.copy')}</Button>
                     </div>
                   </div>
                 )}
@@ -914,7 +830,7 @@ export const MessageRow = memo(function MessageRow({
             </div>
           ) : (
             <div
-              className={cn('relative mt-0.5', message.hidden && 'line-through decoration-muted-foreground/50', settings.italicNarration && 'narration-italic')}
+              className={cn('relative', message.hidden && 'line-through decoration-muted-foreground/50', settings.italicNarration && 'narration-italic')}
               // Narration (*asterisks*) picks up a muted wash of the speaker's
               // own name colour, so actions read as belonging to whoever is
               // talking. `color-mix` keeps it dim enough to stay secondary to
@@ -996,71 +912,80 @@ export const MessageRow = memo(function MessageRow({
           {/* Attachments */}
           <AttachmentGallery attachments={message.attachments} picture={message.picture === true} />
 
-          {/* Swipes on last assistant message */}
-          {!isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis && (
-            <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Previous swipe"
-                disabled={message.activeSwipe === 0}
-                onClick={() => setSwipe(chat.id, message.id, message.activeSwipe - 1)}
-              >
-                <CaretLeft aria-hidden="true" />
-              </Button>
-              <button type="button" className="tabular-nums hover:text-foreground" onClick={() => setSwipesOpen(true)}>
-                {message.activeSwipe + 1} / {message.swipes.length}
-              </button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Next swipe or generate new"
-                onClick={() => {
-                  if (message.activeSwipe < message.swipes.length - 1) setSwipe(chat.id, message.id, message.activeSwipe + 1)
-                  else if (isLast) regenerate(chat.id)
-                }}
-              >
-                <CaretRight aria-hidden="true" />
-              </Button>
+          {/* Under the text: swipe arrows (always visible on the newest reply), then the actions.
+              The actions fade in on row hover / focus; touch and "Expand Message Actions" pin them.
+              Hidden while editing, streaming and mid-swipe, as before. */}
+          {(showSwipes || canAct || (isSpeaking && !slidePhase)) && (
+            <div className="ls-tools">
+              {showSwipes && (
+                <div className="ls-swipes">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('msg.prevSwipe')}
+                    disabled={message.activeSwipe === 0}
+                    onClick={() => setSwipe(chat.id, message.id, message.activeSwipe - 1)}
+                  >
+                    <CaretLeft aria-hidden="true" />
+                  </Button>
+                  <button type="button" className="tabular-nums hover:text-foreground" onClick={() => setSwipesOpen(true)}>
+                    {message.activeSwipe + 1} / {message.swipes.length}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('msg.nextSwipe')}
+                    onClick={() => {
+                      if (message.activeSwipe < message.swipes.length - 1) setSwipe(chat.id, message.id, message.activeSwipe + 1)
+                      else if (isLast) regenerate(chat.id)
+                    }}
+                  >
+                    <CaretRight aria-hidden="true" />
+                  </Button>
+                </div>
+              )}
+              {isSpeaking && !slidePhase && (
+                <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.stopTts')} onClick={stopSpeaking}>
+                  <Square weight="fill" className="size-3" aria-hidden="true" />
+                  <span className="ls-act-label">{t('msg.stopTts')}</span>
+                </Button>
+              )}
+              {canAct && (
+                <div className={cn('ls-acts', pinned && 'is-pinned', coarsePointer && 'is-touch')}>
+                  <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.edit')} onClick={startEdit}>
+                    <PencilSimple aria-hidden="true" />
+                    <span className="ls-act-label">{t('msg.edit')}</span>
+                  </Button>
+                  <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.copy')} onClick={copyBody}>
+                    <Copy aria-hidden="true" />
+                    <span className="ls-act-label">{t('msg.copy')}</span>
+                  </Button>
+                  {!isUser && (
+                    <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.regenerate')} onClick={() => regenerate(chat.id)}>
+                      <ArrowsClockwise aria-hidden="true" />
+                      <span className="ls-act-label">{t('msg.regenerate')}</span>
+                    </Button>
+                  )}
+                  {moreMenu}
+                </div>
+              )}
             </div>
           )}
         </div>
-        {/* Balances the avatar block so the text column sits clear of the
-            avatar; the RIGHT gap runs about half the left one — the reply
-            gets more room to run long lines, without hugging the wall. */}
-        {!settings.hideAvatars && mode !== 'document' && (
-          <div aria-hidden className="shrink-0" style={{ width: isPortrait || isRect ? '1.75rem' : '1.25rem', zoom: 'var(--avatar-scale, 1)' }} />
-        )}
-
-        {/* Message toolbar — hidden while a swipe transition runs (the row is
-            mid-slide; floating controls would ride along and read as a glitch).
-            Invisible MUST mean unclickable: the bar floats over row corners,
-            and an opacity-0 strip that still catches clicks turns stray corner
-            clicks into accidental actions. Desktop reveals the full bar on
-            hover; touch shows a minimal always-on bar — more menu + edit, the
-            reference layout — so two small icons don't eat the screen */}
-        {!editing && !isStreamingThis && !slidePhase && (
-          <div className={cn(
-            'absolute -top-3 right-2 flex items-center rounded-md border border-border bg-popover shadow-sm',
-            settings.expandMessageActions || coarsePointer
-              ? 'pointer-events-auto opacity-100'
-              : 'pointer-events-none opacity-0 transition-opacity group-hover/msg:pointer-events-auto group-hover/msg:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100',
-          )}>
-            {coarsePointer && moreMenu}
-            {coarsePointer && <ToolbarBtn label="Edit" onClick={startEdit}><PencilSimple aria-hidden="true" /></ToolbarBtn>}
-            {!coarsePointer && isSpeaking && (
-              <ToolbarBtn label="Stop TTS" onClick={stopSpeaking}>
-                <Square weight="fill" className="size-3" aria-hidden="true" />
-              </ToolbarBtn>
-            )}
-            {!coarsePointer && <ToolbarBtn label="Edit" onClick={startEdit}><PencilSimple aria-hidden="true" /></ToolbarBtn>}
-            {!coarsePointer && <ToolbarBtn label="Copy" onClick={copyBody}><Copy aria-hidden="true" /></ToolbarBtn>}
-            {!coarsePointer && !isUser && <ToolbarBtn label="Regenerate" onClick={() => regenerate(chat.id)}><ArrowsClockwise aria-hidden="true" /></ToolbarBtn>}
-            {!coarsePointer && moreMenu}
-          </div>
-        )}
-
       </div>
+
+      {/* Full-size portrait view: uncropped; opened from the avatar menu's "View portrait". */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="w-full max-w-[min(92vw,720px)] gap-0 border-border/40 bg-black/85 p-2 backdrop-blur">
+          <img
+            src={shownAvatar || DEFAULT_AVATAR}
+            alt={`${name} portrait`}
+            className="max-h-[80dvh] w-full rounded-md object-contain"
+          />
+          <p className="pt-2 pb-1 text-center text-sm font-medium">{name}</p>
+          <p className="pb-1 text-center text-xs text-muted-foreground">{t('msg.character')}</p>
+        </DialogContent>
+      </Dialog>
 
       {/* Swipe picker */}
       <Dialog open={swipesOpen} onOpenChange={setSwipesOpen}>
@@ -1166,20 +1091,5 @@ function SwipeCard({ chatId, messageId, index, active, content, model, onPick }:
       </div>
       <p className="mt-1 line-clamp-3 text-xs">{cleanPreview(content)}</p>
     </div>
-  )
-}
-
-function ToolbarBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant="ghost" size="icon-sm" onClick={onClick} aria-label={label}>
-            {children}
-          </Button>
-        }
-      />
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   )
 }

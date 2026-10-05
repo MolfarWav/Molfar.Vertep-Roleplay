@@ -25,6 +25,7 @@ function mix(a: string, b: string, t: number): string {
  */
 /** Built-in prose fonts. */
 export const PROSE_FONTS: { id: AppSettings['proseFont']; label: string; stack: string }[] = [
+  { id: 'noto-serif', label: 'Noto Serif', stack: '"Noto Serif", Georgia, serif' },
   { id: 'noto', label: 'Noto Sans', stack: '"Noto Sans Variable", "Noto Sans", sans-serif' },
   { id: 'system', label: 'System', stack: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
   { id: 'inter', label: 'Inter', stack: '"Inter Variable", Inter, sans-serif' },

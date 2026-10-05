@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { ageLabel, liveError } from './dash-common'
 import { useDashMaybe } from './dash-mount'
 
-const LINE = 'flex min-w-0 flex-wrap items-center gap-x-1.5 px-1 text-[11px] leading-snug text-muted-foreground'
+const LINE = 'ls-live flex min-w-0 flex-wrap items-center gap-x-1.5 px-1 text-[11px] leading-snug text-muted-foreground'
 const LINK = 'rounded-none underline underline-offset-2 hover:text-foreground disabled:opacity-50'
 
 /** The line grows after the reply landed: a log pinned to its bottom follows it, so the line is never half under the composer. */
@@ -77,7 +77,7 @@ export function DashLiveLine({ chatId }: { chatId: string }) {
     .slice(0, 2)
 
   return (
-    <Follow className="flex min-w-0 flex-col gap-0.5 px-1 text-[11px] leading-snug text-muted-foreground">
+    <Follow className="ls-live flex min-w-0 flex-col gap-0.5 px-1 text-[11px] leading-snug text-muted-foreground">
       <span>{view.fast ? t('dash.live.fast', { age }) : ms > 0 ? t('dash.live.updatedIn', { age, s: (ms / 1000).toFixed(1) }) : t('dash.live.updated', { age })}</span>
       {notes.map(({ name, n }) => {
         const text = n.text.length > 60 ? `${n.text.slice(0, 60)}…` : n.text

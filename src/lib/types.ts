@@ -605,7 +605,11 @@ export interface ConnectionProfile {
 export interface AppSettings {
   themeMode: 'dark' | 'light'
   activeThemeId: ID
+  /** Kept for old saves: every value renders the same look now (see lookVersion). */
   displayMode: 'bubbles' | 'flat' | 'minimal' | 'document'
+  /** Which chat-look defaults the saved settings were last moved to. Absent = 1;
+   *  2 = the stage look (Noto Serif, line height 1.8, 14px paragraph gap). */
+  lookVersion?: number
   chatWidth: 'full' | 'comfortable' | 'compact' | 'custom'
   chatWidthCustom: number
   fontScale: number
@@ -616,7 +620,7 @@ export interface AppSettings {
   paragraphSpacing: number
   /** Chat prose font — 'system' (regular text) is the default; Inter/Georgia/
    *  JetBrains Mono/Verdana/Times are the built-in alternatives. */
-  proseFont: 'noto' | 'system' | 'inter' | 'georgia' | 'jetbrains' | 'verdana' | 'times'
+  proseFont: 'noto-serif' | 'noto' | 'system' | 'inter' | 'georgia' | 'jetbrains' | 'verdana' | 'times'
   uiScale: number
   avatarScale: number
   streamingFps: number

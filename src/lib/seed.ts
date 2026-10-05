@@ -172,7 +172,7 @@ export function withBuiltinThemes(themes: ThemePreset[]): ThemePreset[] {
 export function defaultSettings(): AppSettings {
   return {
     themeMode: 'dark', activeThemeId: 'theme_vertep', displayMode: 'bubbles',
-    chatWidth: 'comfortable', chatWidthCustom: 760, fontScale: 100, lineSpacing: 136, paragraphSpacing: 10, proseFont: 'noto', uiScale: 100,
+    chatWidth: 'comfortable', chatWidthCustom: 760, fontScale: 100, lineSpacing: 180, paragraphSpacing: 14, proseFont: 'noto-serif', lookVersion: 2, uiScale: 100,
     avatarScale: 100, streamingFps: 30,
     avatarShape: 'rounded', avatarStyle: 'thumb', messageSpacing: 'roomy', hideAvatars: false,
     showTimestamps: true, showMessageIds: false, showEdited: false, showTokens: true, showCost: true, reasoningAutoExpand: false, italicNarration: false, showModelIcons: true, showGenTimer: true, showExpressionSprites: true, showCache: true,

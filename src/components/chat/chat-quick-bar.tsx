@@ -125,7 +125,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
           aria-label={`Switch context: preset ${preset?.name ?? 'none'}, persona ${persona?.name ?? 'none'}, model ${modelLabel}`}
           title={`Preset: ${preset?.name ?? '—'}\nPersona: ${persona?.name ?? '—'}\nModel: ${current ? `${current.provider} · ${current.id}` : modelLabel}`}
         >
-          {/* below md only the three icons show: the labels would not fit the header on a phone */}
+          {/* labels: the preset from md, persona and model from xl (the header must not be cut off) */}
           {/* preset segment */}
           <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
             <SlidersHorizontal className="size-3.5 shrink-0 text-amber-500/90" aria-hidden="true" />
@@ -144,13 +144,13 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
             ) : (
               <User className="size-3.5 shrink-0 text-sky-500/90" aria-hidden="true" />
             )}
-            <span className="hidden max-w-20 truncate text-muted-foreground md:inline">{persona?.name ?? '—'}</span>
+            <span className="hidden max-w-20 truncate text-muted-foreground xl:inline">{persona?.name ?? '—'}</span>
           </span>
           <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
           {/* model segment */}
           <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
             <ModelMark model={chat ? (current?.ref ?? model ?? '') : ''} className="size-3.5 shrink-0 text-emerald-500/90" />
-            <span className="hidden max-w-28 truncate font-mono text-muted-foreground md:inline">{modelLabel}</span>
+            <span className="hidden max-w-28 truncate font-mono text-muted-foreground xl:inline">{modelLabel}</span>
           </span>
           <CaretDown className="mr-1.5 size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         </PopoverTrigger>

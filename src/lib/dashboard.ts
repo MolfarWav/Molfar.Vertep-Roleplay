@@ -124,6 +124,8 @@ export interface DashView {
   fast?: boolean
   /** the pending "Story, move" nudge (threadId null = all open threads); absent on an older plugin */
   nudge?: Nudge | null
+  /** where the story changed place along the active line: the message key ("<id>#<swipe>") and the new place, with the clock as it was then; absent on an older plugin */
+  scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null }[]
 }
 
 export interface Nudge { threadId: string | null; at: number }

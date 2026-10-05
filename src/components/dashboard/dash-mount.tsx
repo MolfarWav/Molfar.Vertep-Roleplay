@@ -4,7 +4,7 @@
 // does not re-render when the dashboard polls. Nothing renders while the plugin is absent or
 // the first load is running: chats without the plugin do not shift.
 
-import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
@@ -38,6 +38,23 @@ function useSettingsGuard() {
   const canLeave = async (): Promise<boolean> =>
     !dirty.current || confirm({ title: t('dash.set.discardTitle'), description: t('dash.set.discardBody'), actionLabel: t('dash.set.discard') })
   return { setDirty, canLeave, dialog }
+}
+
+/**
+ * "Open the dashboard" requests (the avatar menu) arrive as a store counter. A mount reacts
+ * only to a change after it mounted, and only when its own layout is the one on screen: both
+ * mounts are always in the tree, CSS hides one (the strip from 1024 px, the phone bar below).
+ */
+function useDashOpenRequest(wide: boolean, onOpen: () => void) {
+  const counter = useApp((s) => s.dashOpen)
+  const seen = useRef(counter)
+  const open = useRef(onOpen)
+  open.current = onOpen
+  useEffect(() => {
+    if (counter === seen.current) return
+    seen.current = counter
+    if (window.matchMedia('(min-width: 1024px)').matches === wide) open.current()
+  }, [counter, wide])
 }
 
 const STRIP_KEY = 'rp.dashStrip'
@@ -83,6 +100,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const [settings, setSettings] = useState(false)
   const [notebookSignal, setNotebookSignal] = useState(0)
   const guard = useSettingsGuard()
+  // an empty dashboard has no sheet: asking for it unfolds the strip
+  useDashOpenRequest(true, () => { setSettings(false); if (dash?.status === 'empty') { setExpanded(true); writeExpanded(true) } else setWideOpen(true) })
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
   const toggle = () => setExpanded((v) => { writeExpanded(!v); return !v })
 
@@ -193,6 +212,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState(false)
   const guard = useSettingsGuard()
+  useDashOpenRequest(false, () => { setSettings(false); if (dash?.status !== 'empty') setOpen(true) })
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
 
   if (dash.status === 'empty') {

@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { ModelMark } from '@/components/model-mark'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -29,7 +28,7 @@ import { sectionsFor } from '@/components/shell/sections'
 import { useT } from '@/hooks/use-t'
 import { cleanPreview } from '@/lib/preview'
 import type { ID } from '@/lib/types'
-import { DEFAULT_AVATAR, cn, readableNameColor, shortModel } from '@/lib/utils'
+import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
 import { cssAttrValue, scopeCss } from '@/lib/scope-css'
 import { toast } from 'sonner'
 import { MessageRow } from './message-row'
@@ -42,6 +41,12 @@ import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
+import { AvatarMenu } from './avatar-menu'
+import { ChatDetailsButton } from './chat-details'
+import { SceneBefore } from './scene-heading'
+
+/** The chat look. Only 'stage' exists today; a later 'vn' look switches the class and the markup here. */
+const look: 'stage' | 'vn' = 'stage'
 
 /** The mobile chat's section bar. The desktop header's quick switch has no
  *  place here: presets, personas and connections are each one tap away, and
@@ -519,21 +524,28 @@ export function ChatView() {
   // before usage tracking simply don't contribute, and if nothing reported
   // cost the badge stays hidden rather than claiming "free".
   const defaultModel = useApp((s) => s.model)
-  const { chatCost, costMsgs, chatModel } = useMemo(() => {
-    if (!chat) return { chatCost: null as number | null, costMsgs: 0, chatModel: '' }
+  const { chatCost, costMsgs, chatModel, tokensIn, tokensOut, lastInput } = useMemo(() => {
+    if (!chat) return { chatCost: null as number | null, costMsgs: 0, chatModel: '', tokensIn: null as number | null, tokensOut: null as number | null, lastInput: null as number | null }
     // the ACTIVE swipe of the last reply — swipes can come from different
     // models, so the first swipe's model would mislabel the badge
     const lastAssistant = [...chat.messages].reverse().find((m) => m.role === 'assistant')
     const lastModel = lastAssistant?.swipes[lastAssistant.activeSwipe]?.model ?? ''
     let cost = 0
     let n = 0
+    let tin = 0
+    let tout = 0
+    let usageN = 0
     for (const m of chat.messages) {
-      const c = knownCost(m.swipes[m.activeSwipe]?.usage)
+      const usage = m.swipes[m.activeSwipe]?.usage
+      const c = knownCost(usage)
       if (c != null) { cost += c; n++ }
+      if (usage) { tin += usage.input; tout += usage.output; usageN++ }
     }
-    return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel }
+    const lastUsage = lastAssistant?.swipes[lastAssistant.activeSwipe]?.usage
+    return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: lastUsage ? lastUsage.input : null }
   }, [chat])
 
+  const contextSize = (presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0])?.samplers.contextSize ?? null
   const startIdx = chat ? Math.max(0, chat.messages.length - visibleCount) : 0
   // the newest real turn owns the swipe controls; a picture posted after a
   // reply does not take them over
@@ -613,11 +625,15 @@ export function ChatView() {
           <Button variant="ghost" size="icon-sm" onClick={closeChat} aria-label="Back to chats">
             <ArrowLeft aria-hidden="true" />
           </Button>
-          <Avatar className="size-8 rounded-md">
-            <AvatarImage src={character.avatar || DEFAULT_AVATAR} alt="" />
-            <AvatarFallback>{character.name.slice(0, 2)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
+          <AvatarMenu characterId={character.id} align="start">
+            <button type="button" className="shrink-0 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Avatar className="size-8 rounded-md">
+                <AvatarImage src={character.avatar || DEFAULT_AVATAR} alt="" />
+                <AvatarFallback>{character.name.slice(0, 2)}</AvatarFallback>
+              </Avatar>
+            </button>
+          </AvatarMenu>
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium leading-tight" style={{ color: readableNameColor(character.colors.name) }}>
               {character.name}
             </p>
@@ -636,28 +652,19 @@ export function ChatView() {
               </button>
             </p>
           </div>
-          {settings.showModelIcons && (
-            <Badge variant="outline" className="ml-1 hidden shrink-0 gap-1 font-mono text-[11px] sm:inline-flex">
-              <ModelMark model={chatModel || defaultModel || ''} className="size-3.5" />
-              {shortModel(chatModel || defaultModel || '') || 'no model'}
-            </Badge>
-          )}
-          {settings.showCost && chatCost !== null && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">
-                    {formatCost(chatCost)}
-                  </Badge>
-                }
-              />
-              <TooltipContent>
-                Actual spend across {costMsgs} generated message{costMsgs === 1 ? '' : 's'} (engine-reported)
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <ChatQuickSwitch chatId={chat.id} />
+            <ChatDetailsButton
+              title={chat.title}
+              chatIndex={chatIndex}
+              chatCount={charChats.length}
+              model={chatModel || defaultModel || null}
+              cost={chatCost}
+              costMsgs={costMsgs}
+              tokensIn={tokensIn}
+              tokensOut={tokensOut}
+              context={lastInput != null && contextSize ? { used: lastInput, total: contextSize } : null}
+            />
             <HeaderIcon label="Find in chat (Ctrl+F)" onClick={() => setFindOpen((o) => !o)}>
               <MagnifyingGlass aria-hidden="true" />
             </HeaderIcon>
@@ -687,6 +694,14 @@ export function ChatView() {
         <Button variant="ghost" size="icon-sm" onClick={() => { closeDrawer(); closeChat() }} aria-label="Back to chats">
           <ArrowLeft aria-hidden="true" />
         </Button>
+        <AvatarMenu characterId={character.id} align="start">
+          <button type="button" className="mx-0.5 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Avatar className="size-7 rounded-full">
+              <AvatarImage src={character.avatar || DEFAULT_AVATAR} alt="" />
+              <AvatarFallback>{character.name.slice(0, 2)}</AvatarFallback>
+            </Avatar>
+          </button>
+        </AvatarMenu>
         <div className="flex min-w-0 flex-1 items-center justify-around overflow-x-auto">
           {CHAT_BAR_SECTIONS.map((item) => (
             <button
@@ -797,12 +812,19 @@ export function ChatView() {
           textarea grows upward, so the message you're reading stays put. */}
       <div ref={scrollRef} data-chat-log data-pinned="true" onScroll={onScroll} className="relative z-10 min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch]" style={{ fontSize: `${settings.fontScale}%` }}>
         <div
-          className="chat-column flex flex-col gap-1 px-2 py-3 sm:px-4"
-          style={swipeFx ? ({
-            '--swipe-out-x': `${swipeFx.dir * swipeFx.range}px`,
-            '--swipe-in-x': `${-swipeFx.dir * swipeFx.range}px`,
-            '--swipe-dur': `${swipeFx.dur}ms`,
-          }) as React.CSSProperties : undefined}
+          className={cn('chat-column flex flex-col gap-1 px-2 py-3 sm:px-4', look === 'stage' && 'look-stage')}
+          data-no-av={settings.hideAvatars ? '' : undefined}
+          style={{
+            // the ornament images, as CSS masks (a root url(/...) in the stylesheet breaks under a base path)
+            '--orn-url': `url("${import.meta.env.BASE_URL}divider-mute.svg")`,
+            '--stitch-a-url': `url("${import.meta.env.BASE_URL}ornament-stitch-a.svg")`,
+            '--stitch-b-url': `url("${import.meta.env.BASE_URL}ornament-stitch-b.svg")`,
+            ...(swipeFx ? {
+              '--swipe-out-x': `${swipeFx.dir * swipeFx.range}px`,
+              '--swipe-in-x': `${-swipeFx.dir * swipeFx.range}px`,
+              '--swipe-dur': `${swipeFx.dur}ms`,
+            } : {}),
+          } as React.CSSProperties}
         >
           {startIdx > 0 && (
             <button
@@ -828,6 +850,7 @@ export function ChatView() {
                     <div className="h-px flex-1 bg-border" />
                   </div>
                 )}
+                {look === 'stage' && !deleteMode && <SceneBefore messageKey={`${msg.id}#${msg.activeSwipe}`} />}
                 {cutoffIndex >= 0 && i === cutoffIndex + 1 && i > 0 && (
                   <div className="my-3 flex items-center gap-3">
                     <div className="h-px flex-1 bg-destructive/40" />
@@ -1323,20 +1346,6 @@ function DisplaySettings() {
   return (
     <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
       <FieldGroup>
-        <Field>
-          <FieldLabel>Display mode</FieldLabel>
-          <Select value={settings.displayMode} onValueChange={(v) => v && updateSettings({ displayMode: v as never })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="bubbles">Bubbles</SelectItem>
-                <SelectItem value="flat">Flat</SelectItem>
-                <SelectItem value="minimal">Minimal (accent bars)</SelectItem>
-                <SelectItem value="document">Document</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
         <Field>
           <FieldLabel>Chat width</FieldLabel>
           <Select value={settings.chatWidth} onValueChange={(v) => v && updateSettings({ chatWidth: v as never })}>

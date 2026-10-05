@@ -36,6 +36,7 @@ import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
 import { presetImport, regexImport } from './import-shapes'
+import { migrateLook } from './migrate-look'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks'
@@ -147,6 +148,10 @@ interface AppState {
   openCharacterOnTab: (charId: ID, tab: string) => void
   /** A tab the character editor should switch to once; it clears the field. */
   characterEditorTab: string | null
+  /** Counter, not persisted: bumped by openDashboard(); the mounted dashboard sheet opens when it changes. */
+  dashOpen: number
+  /** Asks the open chat's dashboard to open (wide sheet on desktop, bottom sheet on a phone). */
+  openDashboard: () => void
   focusPreset: (presetId: ID) => void
   focusPersona: (personaId: ID) => void
   setSettingsSection: (s: string) => void
@@ -398,6 +403,8 @@ export const useApp = create<AppState>()(
       activeChatId: null,
       activeCharacterId: null,
       characterEditorTab: null,
+      dashOpen: 0,
+      openDashboard: () => set((s) => ({ dashOpen: s.dashOpen + 1 })),
       focusPresetId: null,
       focusPersonaId: null,
       branchTreeFor: null,
@@ -659,9 +666,15 @@ export const useApp = create<AppState>()(
             delete (cur as typeof legacy).notify
             return { settings: { ...s.settings, summary: cur } }
           })
+          // chat look: the old prose defaults move to the stage look once. The
+          // engine copy's own version decides (its `ui` was merged over the local
+          // values above, so the local version alone could claim a move it never had)
+          const lookFrom = settings.ui ? ((settings.ui as { lookVersion?: number }).lookVersion ?? 1) : (get().settings.lookVersion ?? 1)
+          const look = migrateLook(get().settings, lookFrom)
+          if (look.changed) set({ settings: look.settings })
           // the normalized shape must reach the ENGINE too — assemble() reads
           // settings.json directly (write-back only when it actually changed)
-          if (JSON.stringify((settings.ui ?? {}).summary ?? null) !== JSON.stringify(get().settings.summary)) {
+          if (look.changed || JSON.stringify((settings.ui ?? {}).summary ?? null) !== JSON.stringify(get().settings.summary)) {
             void j('/settings', { method: 'PUT', body: JSON.stringify({ ui: get().settings }) }).catch(() => undefined)
           }
           // library.json — the local collections, agent-editable in ONE file
