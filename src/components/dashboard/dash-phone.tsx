@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
-import { AvatarButton, CharFields, Label, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
+import { AvatarButton, BandMark, bandTextClass, CharFields, Label, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
 
 export function DashPhoneBar({ view, focus, onOpen }: {
   view: DashView
@@ -30,7 +30,12 @@ export function DashPhoneBar({ view, focus, onOpen }: {
       className="flex h-9 w-full shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-left text-sm"
     >
       {clock?.time ? <span className="shrink-0 font-mono text-[13px] tabular-nums">{clock.time}</span> : null}
-      {band && <span className={cn('shrink-0 text-muted-foreground', !clock?.time && 'text-foreground')}>{band}</span>}
+      {band && (
+        <span className={cn('flex shrink-0 items-center gap-1', bandTextClass(clock?.band))}>
+          <BandMark band={clock?.band} />
+          {band}
+        </span>
+      )}
       {clock?.place && <span className="min-w-0 flex-1 truncate text-muted-foreground">{clock.place}</span>}
       <span className={cn('truncate font-heading', GOLD_TEXT, clock?.place ? 'max-w-[40%]' : 'ml-auto')}>
         {tx('dash.const', char.constellation)}

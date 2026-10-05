@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { BANDS, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
-import { AgeText, AvatarButton, AvatarImg, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
+import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
 
 export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, userName }: {
   chatId: string
@@ -95,9 +95,10 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
                       key={b}
                       className={cn(
                         'border-b-2 px-2 py-0.5 font-heading text-[12px]',
-                        b === band ? 'border-cta bg-accent text-foreground' : i < bandIdx ? 'border-border text-muted-foreground' : 'border-transparent text-muted-foreground/60',
+                        b === band ? cn('border-cta bg-accent', bandTextClass(b)) : i < bandIdx ? 'border-border text-muted-foreground' : 'border-transparent text-muted-foreground/60',
                       )}
                     >
+                      <BandMark band={b} className={cn('mr-1', b !== band && 'opacity-60')} />
                       {tx('dash.band', b)}
                     </span>
                   ))}
@@ -120,6 +121,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
               <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={250} labels />
               <div className={cn('font-heading text-xl', GOLD_TEXT)}>{constName}</div>
               <div className="text-center text-xs text-muted-foreground">{tx('dash.constLine', char.constellation)}</div>
+              <div className="text-center text-[11px] text-muted-foreground/80">{t('dash.const.legend')}</div>
               {char.prevConstellation && char.prevConstellation !== char.constellation && (
                 <div className="text-[11px] text-muted-foreground">{t('dash.trace', { name: tx('dash.const', char.prevConstellation) })}</div>
               )}

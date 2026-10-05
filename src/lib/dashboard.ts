@@ -168,7 +168,16 @@ export function sortedThreads(list: Thread[]): Thread[] {
   return [...open, ...list.filter((t) => t.status !== 'open')]
 }
 
-/** Where the star of a value sits on its ray, 0 (centre, -100) .. 1 (edge, +100). */
-export function rayPosition(v: number): number {
-  return (Math.max(-100, Math.min(100, v)) + 100) / 200
+/** The dashed zero ring and the outer edge of the constellation, in viewBox units (the box is 100 wide). */
+export const ZERO_RADIUS = 21.5
+export const EDGE_RADIUS = 43
+
+/**
+ * Distance of a star from the centre: -100 at the centre, 0 on the dashed ring, +100 at the edge,
+ * monotonic. A square root spreads the small values, which otherwise sit on the zero ring.
+ */
+export function starRadius(v: number): number {
+  const c = Math.max(-100, Math.min(100, v))
+  const k = Math.sqrt(Math.abs(c) / 100)
+  return c >= 0 ? ZERO_RADIUS + k * (EDGE_RADIUS - ZERO_RADIUS) : ZERO_RADIUS - k * ZERO_RADIUS
 }

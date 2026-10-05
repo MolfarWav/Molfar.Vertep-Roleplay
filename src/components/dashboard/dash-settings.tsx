@@ -39,6 +39,8 @@ interface DashConfig {
   families: Record<string, boolean>
   familyList: string[]
   injection: { enabled: boolean; maxTokens: number }
+  /** the sensor's reply limit; absent on an older plugin */
+  sensorMaxTokens?: number
   catchUp: boolean
   autoSoul: boolean
   sensor: string
@@ -53,6 +55,7 @@ interface Form {
   mode: 'sensor' | 'manual'
   families: Record<string, boolean>
   injection: { enabled: boolean; maxTokens: number }
+  sensorMaxTokens: number
   catchUp: boolean
   autoSoul: boolean
   sensor: string
@@ -73,6 +76,9 @@ const TAB_KEY = 'rp.dashSettingsTab'
 const ID_RE = /^[a-z][a-z0-9_]{0,47}$/
 const MIN_TOKENS = 50
 const MAX_TOKENS = 2000
+const MIN_SENSOR_TOKENS = 1000
+const MAX_SENSOR_TOKENS = 8000
+const DEFAULT_SENSOR_TOKENS = 3000
 const FIELD = 'rounded-none'
 
 function readTab(): Section {
@@ -88,6 +94,7 @@ function pickForm(c: DashConfig): Form {
     mode: c.mode === 'manual' ? 'manual' : 'sensor',
     families: Object.fromEntries(c.familyList.map((f) => [f, c.families?.[f] !== false])),
     injection: { enabled: c.injection?.enabled !== false, maxTokens: c.injection?.maxTokens ?? 200 },
+    sensorMaxTokens: c.sensorMaxTokens ?? DEFAULT_SENSOR_TOKENS,
     catchUp: c.catchUp !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
@@ -95,6 +102,7 @@ function pickForm(c: DashConfig): Form {
 }
 
 const clampTokens = (n: number) => Math.min(MAX_TOKENS, Math.max(MIN_TOKENS, Math.round(Number.isFinite(n) ? n : MIN_TOKENS)))
+const clampSensorTokens = (n: number) => Math.min(MAX_SENSOR_TOKENS, Math.max(MIN_SENSOR_TOKENS, Math.round(Number.isFinite(n) ? n : DEFAULT_SENSOR_TOKENS)))
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** The rows PUT /dashboard/events takes: only what differs from the defaults. */
@@ -160,11 +168,25 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     if (!form) return
     setSaving(true)
     try {
-      const body = { ...form, injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) } }
+      const body = { ...form, injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) }, sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens) }
       apply(await j<DashConfig>('/dashboard/config', { method: 'PUT', body: JSON.stringify(body) }), { form: true, sentForm: form })
       toast.success(t('dash.set.saved'))
       onSaved?.()
     } catch (e) { fail(e) } finally { setSaving(false) }
+  }
+
+  /** The insert limit from the "What the model sees" section: saved at once, the rest of the form untouched. */
+  const saveInsertLimit = async (n: number): Promise<boolean> => {
+    try {
+      const c = await j<DashConfig>('/dashboard/config', { method: 'PUT', body: JSON.stringify({ injection: { maxTokens: n } }) })
+      const next = c.injection?.maxTokens ?? n
+      const was = formBase?.injection.maxTokens
+      setFormBase((f) => (f ? { ...f, injection: { ...f.injection, maxTokens: next } } : f))
+      setForm((f) => (f && f.injection.maxTokens === was ? { ...f, injection: { ...f.injection, maxTokens: next } } : f))
+      toast.success(t('dash.set.saved'))
+      onSaved?.()
+      return true
+    } catch (e) { fail(e); return false }
   }
 
   const restorePrompts = async () => {
@@ -238,7 +260,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
       />
     )
   } else if (section === 'preview') {
-    body = <PreviewSection chatId={chatId} injectionOn={formBase.injection.enabled} />
+    body = <PreviewSection chatId={chatId} injectionOn={formBase.injection.enabled} limit={formBase.injection.maxTokens} onSaveLimit={saveInsertLimit} />
   } else {
     body = <MolfarSection form={form} rows={rows} />
   }
@@ -377,6 +399,17 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                 />
               </label>
             )}
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>{t('dash.set.sensorTokens')}</span>
+              <Input
+                type="number" min={MIN_SENSOR_TOKENS} max={MAX_SENSOR_TOKENS} step={100}
+                value={form.sensorMaxTokens}
+                onChange={(e) => patch({ sensorMaxTokens: Number(e.target.value) })}
+                onBlur={() => patch({ sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens) })}
+                className={cn(FIELD, 'w-24')}
+              />
+            </label>
+            <p className="-mt-1 text-[11px] text-amber-600 dark:text-amber-400">{t('dash.set.sensorTokens.warn')}</p>
             <SwitchRow label={t('dash.set.catchUp')} hint={t('dash.set.catchUp.hint')} checked={form.catchUp} onChange={(v) => patch({ catchUp: v })} />
             <SwitchRow label={t('dash.set.autoSoul')} hint={t('dash.set.autoSoul.hint')} checked={form.autoSoul} onChange={(v) => patch({ autoSoul: v })} />
           </div>
@@ -642,13 +675,22 @@ function CheckLine({ ok, children }: { ok: boolean; children: ReactNode }) {
   )
 }
 
-function PreviewSection({ chatId, injectionOn }: { chatId: string; injectionOn: boolean }) {
+function PreviewSection({ chatId, injectionOn, limit, onSaveLimit }: {
+  chatId: string
+  injectionOn: boolean
+  /** the saved insert limit, tokens per character */
+  limit: number
+  onSaveLimit: (n: number) => Promise<boolean>
+}) {
   const t = useT()
   const tx = useTx()
   const [speaker, setSpeaker] = useState('')
   const [data, setData] = useState<Preview | null>(null)
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [draft, setDraft] = useState(String(limit))
+  const [savingLimit, setSavingLimit] = useState(false)
+  useEffect(() => { setDraft(String(limit)) }, [limit])
   // only the newest request may show its answer or end the spinner
   const seq = useRef(0)
 
@@ -670,6 +712,14 @@ function PreviewSection({ chatId, injectionOn }: { chatId: string; injectionOn: 
   }, [chatId])
   useEffect(() => { void load(speaker) }, [load, speaker])
   useEffect(() => () => { seq.current++ }, [])
+
+  const draftN = clampTokens(Number(draft))
+  const saveLimit = async () => {
+    setSavingLimit(true)
+    const ok = await onSaveLimit(draftN)
+    setSavingLimit(false)
+    if (ok) await load(speaker)
+  }
 
   if (failed) {
     return (
@@ -704,6 +754,20 @@ function PreviewSection({ chatId, injectionOn }: { chatId: string; injectionOn: 
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>{t('dash.set.tokensOf', { n: ins.tokens, budget: ins.budget })}</span>
             {ins.trimmed.map((x) => <span key={x}>{t('dash.set.trimmed', { what: tx('dash.set.trimmed', x) })}</span>)}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <label htmlFor="dash-insert-limit">{t('dash.set.limit')}</label>
+              <Input
+                id="dash-insert-limit" type="number" min={MIN_TOKENS} max={MAX_TOKENS} step={10}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => setDraft(String(draftN))}
+                className={cn(FIELD, 'h-7 w-24')}
+              />
+              <Button size="xs" className={FIELD} disabled={savingLimit || draftN === limit} onClick={() => { void saveLimit() }}>{t('dash.set.save')}</Button>
+            </div>
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">{t('dash.set.limit.warn')}</p>
           </div>
           {data.checks && (
             <ul className="flex flex-col gap-1">

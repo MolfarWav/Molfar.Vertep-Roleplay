@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import type { DispositionStat } from '@/lib/soul'
 import { DISPOSITION, STAT_COLORS } from '@/lib/soul'
-import { CONSTELLATION_GOLD, CONSTELLATION_STATS, COLD_STAR, rayPosition, ZERO_RING } from '@/lib/dashboard'
+import { CONSTELLATION_GOLD, CONSTELLATION_STATS, COLD_STAR, EDGE_RADIUS, starRadius, ZERO_RADIUS, ZERO_RING } from '@/lib/dashboard'
 import { useT } from '@/hooks/use-t'
 import { useTx } from './dash-common'
 
@@ -21,10 +21,10 @@ export function Constellation({ stats, prevStats, id, prevId, size, labels }: {
   const cy = 50
   const rays = DISPOSITION.map((stat, i) => {
     const angle = (i * 72 - 90) * Math.PI / 180
-    return { stat, x: cx + Math.cos(angle) * 40, y: cy + Math.sin(angle) * 40, angle }
+    return { stat, x: cx + Math.cos(angle) * EDGE_RADIUS, y: cy + Math.sin(angle) * EDGE_RADIUS, angle }
   })
   const starAt = (stat: DispositionStat, v: number) => {
-    const r = rayPosition(v) * 40
+    const r = starRadius(v)
     const angle = (DISPOSITION.indexOf(stat) * 72 - 90) * Math.PI / 180
     return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r }
   }
@@ -56,7 +56,7 @@ export function Constellation({ stats, prevStats, id, prevId, size, labels }: {
       {rays.map((ray) => (
         <line key={ray.stat} x1={cx} y1={cy} x2={ray.x} y2={ray.y} stroke="currentColor" strokeWidth={0.4} opacity={0.25} />
       ))}
-      <circle cx={cx} cy={cy} r={20} fill="none" stroke={ZERO_RING} strokeWidth={0.4} strokeDasharray="1.5 1.5" />
+      <circle cx={cx} cy={cy} r={ZERO_RADIUS} fill="none" stroke={ZERO_RING} strokeWidth={0.4} strokeDasharray="1.5 1.5" />
       {DISPOSITION.map((stat) => {
         const v = stats[stat]
         const pt = starAt(stat, v)
@@ -75,8 +75,8 @@ export function Constellation({ stats, prevStats, id, prevId, size, labels }: {
       {drawLines(prevPts, 0.35, '1 1.2')}
       {drawLines(currPts, 0.9)}
       {labels && size >= 170 && rays.map((ray) => {
-        const lx = cx + Math.cos(ray.angle) * 46
-        const ly = cy + Math.sin(ray.angle) * 46
+        const lx = cx + Math.cos(ray.angle) * (EDGE_RADIUS + 5)
+        const ly = cy + Math.sin(ray.angle) * (EDGE_RADIUS + 5)
         const anchor = Math.abs(Math.cos(ray.angle)) < 0.3 ? 'middle' : Math.cos(ray.angle) > 0 ? 'start' : 'end'
         return (
           <text

@@ -41,6 +41,26 @@ export function LiveDot({ at, now }: { at: number; now: number }) {
   return <span className={cn('inline-block size-2 shrink-0 rounded-full', live ? 'bg-emerald-500' : 'bg-muted-foreground/60')} aria-hidden="true" />
 }
 
+/**
+ * One look for each time-of-day band (ids as in BANDS): an emoji and a text colour, a darker
+ * tone in the light theme and a lighter one in the dark, each at least 4.5:1 on the card.
+ */
+export const BAND_LOOK: Record<string, { icon: string; text: string }> = {
+  dawn: { icon: '🌅', text: 'text-[#b4486a] dark:text-[#f4a8b8]' },
+  morning: { icon: '☀️', text: 'text-[#9a6200] dark:text-[#ffd23f]' },
+  'late morning': { icon: '🌤️', text: 'text-[#7a6a00] dark:text-[#f2dc7a]' },
+  day: { icon: '🌞', text: 'text-[#7a6b25] dark:text-[#fff3c4]' },
+  evening: { icon: '🌇', text: 'text-[#b3470f] dark:text-[#ff9a56]' },
+  night: { icon: '🌙', text: 'text-[#3a5fb0] dark:text-[#8fb4ff]' },
+}
+
+export const bandTextClass = (band: string | null | undefined): string => (band ? BAND_LOOK[band]?.text ?? '' : '')
+
+export function BandMark({ band, className }: { band: string | null | undefined; className?: string }) {
+  const look = band ? BAND_LOOK[band] : undefined
+  return look ? <span className={cn('shrink-0', className)} aria-hidden="true">{look.icon}</span> : null
+}
+
 /** Time (or band word) large, then band · day · minutes, place, weather. */
 export function SceneBlock({ clock }: { clock: Clock | null }) {
   const t = useT()
@@ -52,10 +72,13 @@ export function SceneBlock({ clock }: { clock: Clock | null }) {
       {clock.time ? (
         <div className="font-heading text-3xl leading-none tabular-nums">{clock.time}</div>
       ) : band ? (
-        <div className="font-heading text-3xl leading-none break-words">{band}</div>
+        <div className={cn('flex min-w-0 items-center gap-2 font-heading text-3xl leading-none break-words', bandTextClass(clock.band))}>
+          <BandMark band={clock.band} />
+          {band}
+        </div>
       ) : null}
       <div className="flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
-        {clock.time && band && <span>{band}</span>}
+        {clock.time && band && <span className={cn('flex items-center gap-1', bandTextClass(clock.band))}><BandMark band={clock.band} />{band}</span>}
         <span>{t('dash.day', { n: clock.day })}</span>
         {clock.minutes > 0 && <span>{t('dash.minutes', { n: clock.minutes })}</span>}
       </div>
