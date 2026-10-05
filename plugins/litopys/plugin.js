@@ -53,6 +53,9 @@ const DEFAULT_CONFIG = {
   autoApplySafe: true,     // exact-dupe merges apply without approval
   maxFacts: 80,
   maxChronicle: 200,
+  // the lore block in every reply's prompt: off until asked for. Its hook never ran on
+  // imported installs (an engine bug, fixed in 0.8.1), and Memory v2 will carry these facts
+  inject: false,
 };
 
 // The prompts ship with the plugin. config.json holds a prompt only when the
@@ -887,6 +890,7 @@ export function handleRoute(req, host) {
     if (b.curateEveryNTurns !== undefined) next.curateEveryNTurns = clamp(Math.round(Number(b.curateEveryNTurns) || 12), 4, 100);
     if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
     if (b.autoApplySafe !== undefined) next.autoApplySafe = b.autoApplySafe !== false;
+    if (b.inject !== undefined) next.inject = b.inject === true || b.inject === "on";
     // a prompt saved as the default (or emptied) goes back to following it
     for (const key of PROMPT_KEYS) {
       if (typeof b[key] !== "string") continue;
@@ -937,6 +941,7 @@ export function uiPanel(_ctx, host) {
         fields: [
           { key: "extractEveryNTurns", label: "Scribe pass", hint: "New messages before a scribe run (×2 per turn). Lower = fresher lore, more calls.", kind: "number", value: cfg.extractEveryNTurns },
           { key: "curateEveryNTurns", label: "Curator pass", hint: "New messages before a cleanup proposal. Keep high — curation is rare by design.", kind: "number", value: cfg.curateEveryNTurns },
+          { key: "inject", label: "Insert into the prompt", hint: "Add the recap and active facts (up to 4000 characters) to every reply. Off by default: the dashboard and Memory already carry the story.", kind: "select", list: ["off", "on"], value: cfg.inject === true ? "on" : "off" },
           { key: "model", label: "Extraction model", hint: "Same model name can live on several endpoints — the picker groups by endpoint. Empty = chat's own model. Cheap + fast is ideal, both passes output strict JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
           { key: "scribePrompt", label: "Scribe prompt", hint: promptHint("scribePrompt", "What the scribe extracts from new messages."), kind: "textarea", rows: 10, advanced: true, value: cfg.scribePrompt },
           { key: "curatePrompt", label: "Curator prompt", hint: promptHint("curatePrompt", "How the curator judges the lore it cleans up."), kind: "textarea", rows: 10, advanced: true, value: cfg.curatePrompt },
@@ -954,6 +959,7 @@ export function llmRequest(ctx, host) {
   if (!sessionId) return null;
   const fsx = host && host.fs;
   if (!fsx) return null;
+  if (loadConfig(fsx).inject !== true) return null;
   const store = loadStore(fsx);
   const cst = store.chats[sessionId] || emptyChatStore();
   const story = cst.storySoFar || "";

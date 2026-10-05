@@ -54,3 +54,15 @@ describe("litopys by hand", () => {
     expect(call("POST", "/litopys/story", { chatId: "c1" }).status).toBe(400);
   });
 });
+
+describe("litopys prompt insert", () => {
+  it("stays out of the prompt until the user switches it on", () => {
+    call("POST", "/litopys/facts", { chatId: "c1", action: "add", text: "The well is dry." });
+    const ask = () => L.llmRequest({ key: "reply", request: { sessionId: "c1", systemPrompt: "S" } }, host());
+    expect(ask()).toBeNull();
+    call("PUT", "/litopys/config", { enabled: true, values: { inject: "on" } });
+    expect(ask().systemPrompt).toContain("The well is dry.");
+    call("PUT", "/litopys/config", { values: { inject: "off" } });
+    expect(ask()).toBeNull();
+  });
+});
