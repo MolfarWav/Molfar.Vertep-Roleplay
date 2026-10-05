@@ -6,7 +6,7 @@ import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { Box, useTx } from './dash-common'
 
-export function StoryList({ char, className }: { char: DashChar; className?: string }) {
+export function StoryList({ char, className, compact }: { char: DashChar; className?: string; compact?: boolean }) {
   const t = useT()
   const tx = useTx()
   const lines = [...char.history].sort((a, b) => b.turn - a.turn)
@@ -19,7 +19,7 @@ export function StoryList({ char, className }: { char: DashChar; className?: str
     return moved.length ? t('dash.story.seed', { changes: moved.join(', ') }) : t('dash.story.seedNone')
   }
   return (
-    <Box title={t('dash.story')} className={className}>
+    <Box title={t('dash.story')} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
       {lines.length === 0 ? (
         <div className="text-sm text-muted-foreground">{t('dash.story.none')}</div>
       ) : (
@@ -35,7 +35,9 @@ export function StoryList({ char, className }: { char: DashChar; className?: str
                     })
                   : line.kind === 'seed'
                     ? seedText(line.from, line.to)
-                    : t('dash.story.constellation', { from: tx('dash.const', line.from), to: tx('dash.const', line.to) })}
+                    : line.kind === 'calls'
+                      ? t(line.from ? 'dash.story.calls' : 'dash.story.callsStart', { to: line.to })
+                      : t('dash.story.constellation', { from: tx('dash.const', line.from), to: tx('dash.const', line.to) })}
               </span>
               <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{t('dash.story.turn', { n: line.turn })}</span>
             </li>

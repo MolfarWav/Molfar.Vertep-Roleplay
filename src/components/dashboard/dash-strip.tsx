@@ -5,10 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
 import { HostilityBar, SignedBar } from './dash-bars'
 import { cn } from '@/lib/utils'
-import { noteCounts, sortedThreads, type DashView } from '@/lib/dashboard'
+import { canEditNotes, noteCounts, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
-import { AgeText, AvatarButton, FooterLine, Label, LiveDot, NameChip, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
+import { AgeText, AvatarButton, FooterLine, Label, LiveDot, NameChip, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { ThreadList } from './dash-threads'
 
 export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, onRefresh, refreshing, collapsed, onCollapse, now, avatars }: {
   chatId: string
@@ -112,7 +113,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
 
           <div className={cn(section, 'flex flex-col gap-1.5')}>
             <Label>{t('dash.threads')}</Label>
-            <ThreadList threads={sortedThreads(view.threads)} limit={3} openOnly />
+            <ThreadList threads={sortedThreads(view.threads)} limit={3} openOnly editable={canEditNotes(view)} />
           </div>
 
           <div className={cn(section, 'flex flex-wrap items-center gap-1.5')}>

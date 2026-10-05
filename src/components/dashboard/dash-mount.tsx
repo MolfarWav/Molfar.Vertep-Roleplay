@@ -4,30 +4,26 @@
 // does not re-render when the dashboard polls. Nothing renders while the plugin is absent or
 // the first load is running: chats without the plugin do not shift.
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
+import { DashCtx, useDashMaybe } from './dash-context'
 import { DashEmpty } from './dash-empty'
 import { DashPhoneBar, DashPhoneSheet } from './dash-phone'
 import { DashSettings } from './dash-settings'
 import { DashStrip } from './dash-strip'
 import { DashWide } from './dash-wide'
-import { useDashboard, type UseDashboard } from './use-dashboard'
+import { useDashboard } from './use-dashboard'
 
-const Ctx = createContext<UseDashboard | null>(null)
-
-/** The open chat's dashboard, or null outside a provider (the live line also renders in chats without one). */
-export function useDashMaybe(): UseDashboard | null {
-  return useContext(Ctx)
-}
+export { useDashMaybe }
 
 export function DashProvider({ chatId, children }: { chatId: string; children: ReactNode }) {
   const dash = useDashboard(chatId)
-  return <Ctx.Provider value={dash}>{children}</Ctx.Provider>
+  return <DashCtx.Provider value={dash}>{children}</DashCtx.Provider>
 }
 
 /**
@@ -78,7 +74,7 @@ function useUserName(chatId: string): string {
 }
 
 export function DashStripMount({ chatId }: { chatId: string }) {
-  const dash = useContext(Ctx)
+  const dash = useContext(DashCtx)
   const t = useT()
   const avatars = useAvatars(chatId, dash?.view?.order)
   const userName = useUserName(chatId)
@@ -190,7 +186,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
 }
 
 export function DashPhoneMount({ chatId }: { chatId: string }) {
-  const dash = useContext(Ctx)
+  const dash = useContext(DashCtx)
   const t = useT()
   const avatars = useAvatars(chatId, dash?.view?.order)
   const userName = useUserName(chatId)

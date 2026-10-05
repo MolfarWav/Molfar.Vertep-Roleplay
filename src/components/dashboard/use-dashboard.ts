@@ -24,6 +24,8 @@ export interface UseDashboard {
   refresh: () => Promise<void>
   /** read the state again, without running the sensor */
   reload: () => Promise<void>
+  /** change the user's notes or threads (POST /dashboard/notes) and redraw from the answer */
+  act: (body: { op: string } & Record<string, unknown>) => Promise<boolean>
   refreshing: boolean
   now: number
 }
@@ -88,6 +90,22 @@ export function useDashboard(chatId: string): UseDashboard {
     try { await load() } finally { setRefreshing(false) }
   }, [load])
 
+  const act = useCallback(async (body: { op: string } & Record<string, unknown>): Promise<boolean> => {
+    const id = chatRef.current
+    if (!id) return false
+    try {
+      const r = await j<{ ok?: boolean; error?: string; view?: DashView }>('/dashboard/notes', { method: 'POST', body: JSON.stringify({ chatId: id, ...body }) })
+      if (r?.ok === false) { toast.error(tRef.current('dash.notes.error', { message: r.error || 'unknown error' })); return false }
+      const view = r?.view
+      if (view && chatRef.current === id) setData((d) => (d && d.chatId === id ? { chatId: id, res: { ...d.res, view } } : d))
+      else await load()
+      return true
+    } catch (e) {
+      toast.error(tRef.current('dash.notes.error', { message: String((e as Error)?.message ?? e) }))
+      return false
+    }
+  }, [load])
+
   const mine = data && data.chatId === chatId ? data.res : null
   const view = mine?.view ?? null
   const status: DashStatus = failed === chatId && !mine ? 'absent' : !mine ? 'loading' : !mine.exists || !view ? 'empty' : 'ready'
@@ -95,5 +113,5 @@ export function useDashboard(chatId: string): UseDashboard {
   const first = view ? view.order.find((n) => view.chars[n] && !view.chars[n].compact) ?? view.order[0] ?? '' : ''
   const focus = view && picked && view.chars[picked] ? picked : first
 
-  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload: load, refreshing, now }
+  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload: load, act, refreshing, now }
 }

@@ -34,13 +34,29 @@ export interface DashEvent {
   math: string[]
 }
 
-export interface Thread { id: string; text: string; since: number; status: 'open' | 'resolved' }
+/** A thread; `by: 'user'` when the user added it (round 3 plugin). */
+export interface Thread { id: string; text: string; since: number; status: 'open' | 'resolved'; by?: 'user' }
 export interface Edge { from: string; to: string; role: string; warmth: string }
-export interface Note { id: string; text: string; how: How; from: string | null; believes?: boolean; turn: number }
+export type NoteTag = 'pinned' | 'important' | 'everyday'
+export const NOTE_TAGS: readonly NoteTag[] = ['pinned', 'important', 'everyday']
+/** A notebook entry. `tag`, `by` and `edited` come from the user overlay (round 3 plugin); an older plugin sends none. */
+export interface Note {
+  id: string
+  text: string
+  how: How
+  from: string | null
+  believes?: boolean
+  turn: number
+  tag?: NoteTag | null
+  by?: 'user'
+  edited?: boolean
+}
 export interface NameInfo { knowsUserName: boolean; calls: string }
 export type HistoryLine =
   | { turn: number; kind: 'tier'; stat: DispositionStat; from: number; to: number }
   | { turn: number; kind: 'constellation'; from: string; to: string }
+  /** the form of address changed ("" = none before) */
+  | { turn: number; kind: 'calls'; from: string; to: string }
   /** the soul's start values changed after the character entered: the stats shifted by to - from */
   | { turn: number; kind: 'seed'; from: Record<string, number>; to: Record<string, number> }
 
@@ -69,6 +85,8 @@ export interface DashChar {
   /** the same character in the snapshot before, for change arrows */
   prev: { stats: Stats; pulse: Pulse; hostility: number | null; constellation: string | null } | null
   notebook: Note[]
+  /** notes the user removed (restorable); absent on an older plugin, which also means notes cannot be edited */
+  retired?: Note[]
   name: NameInfo | null
   history: HistoryLine[]
   /** up to the last 10 snapshots that have this character, oldest first */
@@ -99,6 +117,20 @@ export interface DashView {
   insert: { tokens: number; budget: number; trimmed: string[] } | null
   insertEnabled: boolean
   mode: 'sensor' | 'fast' | 'manual' | string
+  /** the open-thread limit (config `maxThreads`), when the plugin says */
+  maxThreads?: number
+}
+
+/** The plugin has the user overlay (notes and threads can be edited). */
+export function canEditNotes(view: DashView | null): boolean {
+  return !!view && Object.values(view.chars).some((c) => Array.isArray(c.retired))
+}
+
+/** The insert's order: pinned, important, unmarked, everyday. */
+const TAG_RANK: Record<string, number> = { pinned: 0, important: 1, everyday: 3 }
+export function sortedNotes(list: Note[]): Note[] {
+  const rank = (n: Note) => (n.tag ? TAG_RANK[n.tag] ?? 2 : 2)
+  return [...list].sort((a, b) => rank(a) - rank(b) || (b.turn ?? 0) - (a.turn ?? 0))
 }
 
 export interface DashResponse {

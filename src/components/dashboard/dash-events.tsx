@@ -1,20 +1,23 @@
 import type { DashEvent } from '@/lib/dashboard'
+import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import { Box, useTx } from './dash-common'
 
 const chip = 'border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground'
 
-export function EventList({ events, userName, className }: {
+export function EventList({ events, userName, className, compact }: {
   events: DashEvent[]
   userName: string
   className?: string
+  /** the wide view: at most ~360 px tall, scrolls inside */
+  compact?: boolean
 }) {
   const t = useT()
   const tx = useTx()
   const you = userName || t('dash.you')
   const side = (s: string | null) => (s === 'user' ? you : s)
   return (
-    <Box title={t('dash.changed')} className={className}>
+    <Box title={t('dash.changed')} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
       {events.length === 0 ? (
         <div className="text-sm text-muted-foreground">{t('dash.changed.none')}</div>
       ) : (

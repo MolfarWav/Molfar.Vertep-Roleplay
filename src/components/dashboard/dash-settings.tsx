@@ -47,6 +47,11 @@ interface DashConfig {
   custom: string[]
   deltaKeys: string[]
   events: VocabRow[]
+  /** round 3 plugin: absent on an older one */
+  maxThreads?: number
+  threadCheckEvery?: number
+  sensorMode?: 'parts' | 'whole'
+  sensorParts?: { key: string; title: string; text: string; default: string; custom: boolean }[]
 }
 
 /** The part of the config the Sensor section edits and PUT /dashboard/config takes. */
@@ -56,13 +61,25 @@ interface Form {
   families: Record<string, boolean>
   injection: { enabled: boolean; maxTokens: number }
   sensorMaxTokens: number
+  maxThreads: number
+  threadCheckEvery: number
   catchUp: boolean
   autoSoul: boolean
+  /** the whole prompt: only sent in "whole" and legacy mode */
   sensor: string
+  /** the prompt's blocks by key: only sent in "parts" mode */
+  parts: Record<string, string>
+}
+
+/** The prompt as the plugin offers it: in blocks, one custom text ("whole"), or an older plugin ("legacy"). */
+interface PromptMeta {
+  custom: string[]
+  sensorMode: 'parts' | 'whole' | 'legacy'
+  partList: { key: string; title: string; default: string; custom: boolean }[]
 }
 
 /** What the sections need besides the form and the rows. */
-interface Meta { familyList: string[]; deltaKeys: string[]; custom: string[] }
+interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean }
 
 interface Preview {
   insert: { text: string; tokens: number; budget: number; trimmed: string[]; notebookOf: string | null } | null
@@ -79,6 +96,8 @@ const MAX_TOKENS = 2000
 const MIN_SENSOR_TOKENS = 1000
 const MAX_SENSOR_TOKENS = 8000
 const DEFAULT_SENSOR_TOKENS = 3000
+const DEFAULT_MAX_THREADS = 3
+const DEFAULT_THREAD_CHECK = 5
 const FIELD = 'rounded-none'
 
 function readTab(): Section {
@@ -95,14 +114,27 @@ function pickForm(c: DashConfig): Form {
     families: Object.fromEntries(c.familyList.map((f) => [f, c.families?.[f] !== false])),
     injection: { enabled: c.injection?.enabled !== false, maxTokens: c.injection?.maxTokens ?? 200 },
     sensorMaxTokens: c.sensorMaxTokens ?? DEFAULT_SENSOR_TOKENS,
+    maxThreads: c.maxThreads ?? DEFAULT_MAX_THREADS,
+    threadCheckEvery: c.threadCheckEvery ?? DEFAULT_THREAD_CHECK,
     catchUp: c.catchUp !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
+    parts: Object.fromEntries((c.sensorParts ?? []).map((p) => [p.key, p.text])),
+  }
+}
+
+function promptMeta(c: DashConfig): PromptMeta {
+  return {
+    custom: c.custom ?? [],
+    sensorMode: c.sensorParts ? (c.sensorMode === 'whole' ? 'whole' : 'parts') : 'legacy',
+    partList: (c.sensorParts ?? []).map((p) => ({ key: p.key, title: p.title, default: typeof p.default === 'string' ? p.default : '', custom: !!p.custom })),
   }
 }
 
 const clampTokens = (n: number) => Math.min(MAX_TOKENS, Math.max(MIN_TOKENS, Math.round(Number.isFinite(n) ? n : MIN_TOKENS)))
 const clampSensorTokens = (n: number) => Math.min(MAX_SENSOR_TOKENS, Math.max(MIN_SENSOR_TOKENS, Math.round(Number.isFinite(n) ? n : DEFAULT_SENSOR_TOKENS)))
+const clampThreads = (n: number) => Math.min(6, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MAX_THREADS)))
+const clampCheck = (n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** The rows PUT /dashboard/events takes: only what differs from the defaults. */
@@ -143,7 +175,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
    * sent: edits typed while it ran stay in the form and stay unsaved against the new base.
    */
   const apply = useCallback((c: DashConfig, what: { form?: boolean; rows?: boolean; sentForm?: Form; sentRows?: VocabRow[] }) => {
-    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], custom: c.custom ?? [] })
+    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, ...promptMeta(c) })
     if (what.form) {
       const f = pickForm(c)
       setFormBase(f)
@@ -168,7 +200,16 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     if (!form) return
     setSaving(true)
     try {
-      const body = { ...form, injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) }, sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens) }
+      const { sensor, parts, ...rest } = form
+      const body = {
+        ...rest,
+        injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) },
+        sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens),
+        maxThreads: clampThreads(form.maxThreads),
+        threadCheckEvery: clampCheck(form.threadCheckEvery),
+        // blocks, or the one custom text: never both (a whole prompt would shadow the blocks)
+        ...(meta?.sensorMode === 'parts' ? { sensorParts: parts } : { sensor }),
+      }
       apply(await j<DashConfig>('/dashboard/config', { method: 'PUT', body: JSON.stringify(body) }), { form: true, sentForm: form })
       toast.success(t('dash.set.saved'))
       onSaved?.()
@@ -189,15 +230,35 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     } catch (e) { fail(e); return false }
   }
 
+  /** Only the prompt comes back to default: the other unsaved edits stay. */
   const restorePrompts = async () => {
     try {
       const c = await j<DashConfig>('/dashboard/config/prompts', { method: 'DELETE' })
-      // only the prompt comes back to default: the other unsaved edits stay
-      setForm((f) => (f ? { ...f, sensor: c.sensor } : f))
-      setFormBase((f) => (f ? { ...f, sensor: c.sensor } : f))
-      setMeta((m) => (m ? { ...m, custom: c.custom ?? [] } : m))
+      const f = pickForm(c)
+      setForm((cur) => (cur ? { ...cur, sensor: f.sensor, parts: f.parts } : cur))
+      setFormBase((cur) => (cur ? { ...cur, sensor: f.sensor, parts: f.parts } : cur))
+      setMeta((m) => (m ? { ...m, ...promptMeta(c) } : m))
       toast.success(t('dash.set.promptsRestored'))
     } catch (e) { fail(e) }
+  }
+
+  const restorePart = async (key: string) => {
+    try {
+      const c = await j<DashConfig>(`/dashboard/config/prompts?part=${encodeURIComponent(key)}`, { method: 'DELETE' })
+      const text = c.sensorParts?.find((p) => p.key === key)?.text
+      if (text !== undefined) {
+        setForm((cur) => (cur ? { ...cur, parts: { ...cur.parts, [key]: text } } : cur))
+        setFormBase((cur) => (cur ? { ...cur, parts: { ...cur.parts, [key]: text } } : cur))
+      }
+      setMeta((m) => (m ? { ...m, ...promptMeta(c) } : m))
+      toast.success(t('dash.set.promptsRestored'))
+    } catch (e) { fail(e) }
+  }
+
+  /** A whole custom prompt cannot be cut into blocks by code: starting over from the default blocks is the way. */
+  const splitPrompt = async () => {
+    if (!(await confirm({ title: t('dash.set.splitTitle'), description: t('dash.set.splitBody'), actionLabel: t('dash.set.split') }))) return
+    await restorePrompts()
   }
 
   const saveRows = async () => {
@@ -249,7 +310,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     body = (
       <SensorSection
         meta={meta} form={form} setForm={setForm} view={view} saving={saving}
-        dirty={!same(form, formBase)} onSave={saveForm} onRestorePrompts={restorePrompts}
+        dirty={!same(form, formBase)} onSave={saveForm} onRestorePrompts={restorePrompts} onRestorePart={restorePart} onSplit={splitPrompt}
       />
     )
   } else if (section === 'events') {
@@ -340,7 +401,7 @@ function Fieldset({ label, children }: { label: string; children: ReactNode }) {
 
 // ---------- Sensor ----------
 
-function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRestorePrompts }: {
+function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRestorePrompts, onRestorePart, onSplit }: {
   meta: Meta
   form: Form
   setForm: (f: (cur: Form | null) => Form | null) => void
@@ -349,6 +410,8 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
   dirty: boolean
   onSave: () => void
   onRestorePrompts: () => void
+  onRestorePart: (key: string) => void
+  onSplit: () => void
 }) {
   const t = useT()
   const tx = useTx()
@@ -410,6 +473,30 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
               />
             </label>
             <p className="-mt-1 text-[11px] text-amber-600 dark:text-amber-400">{t('dash.set.sensorTokens.warn')}</p>
+            {meta.threadCfg && (
+              <>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span>{t('dash.set.maxThreads')}</span>
+                  <Input
+                    type="number" min={1} max={6} step={1}
+                    value={form.maxThreads}
+                    onChange={(e) => patch({ maxThreads: Number(e.target.value) })}
+                    onBlur={() => patch({ maxThreads: clampThreads(form.maxThreads) })}
+                    className={cn(FIELD, 'w-24')}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span>{t('dash.set.threadCheck')}</span>
+                  <Input
+                    type="number" min={0} max={50} step={1}
+                    value={form.threadCheckEvery}
+                    onChange={(e) => patch({ threadCheckEvery: Number(e.target.value) })}
+                    onBlur={() => patch({ threadCheckEvery: clampCheck(form.threadCheckEvery) })}
+                    className={cn(FIELD, 'w-24')}
+                  />
+                </label>
+              </>
+            )}
             <SwitchRow label={t('dash.set.catchUp')} hint={t('dash.set.catchUp.hint')} checked={form.catchUp} onChange={(v) => patch({ catchUp: v })} />
             <SwitchRow label={t('dash.set.autoSoul')} hint={t('dash.set.autoSoul.hint')} checked={form.autoSoul} onChange={(v) => patch({ autoSoul: v })} />
           </div>
@@ -447,10 +534,56 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
             {t('dash.set.advanced')}
           </CollapsibleTrigger>
           <CollapsibleContent className="flex flex-col gap-2">
-            <label className="text-sm" htmlFor="dash-sensor-prompt">{t('dash.set.prompt')}</label>
-            <Textarea id="dash-sensor-prompt" rows={12} value={form.sensor} onChange={(e) => patch({ sensor: e.target.value })} className={cn(FIELD, 'font-mono text-xs')} />
-            {meta.custom.includes('sensor') && (
-              <Button size="sm" variant="outline" className={cn(FIELD, 'w-fit')} onClick={onRestorePrompts}>{t('dash.set.restorePrompts')}</Button>
+            {meta.sensorMode === 'parts' ? (
+              <>
+                <span className="text-sm">{t('dash.set.prompt')}</span>
+                {meta.partList.map((p) => {
+                  const text = form.parts[p.key] ?? ''
+                  const changed = text !== p.default
+                  return (
+                    <Collapsible key={p.key} className="border border-border">
+                      <CollapsibleTrigger className="group/part flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm hover:bg-muted">
+                        <CaretRight className="size-3 shrink-0 group-data-[panel-open]/part:hidden" aria-hidden="true" />
+                        <CaretDown className="hidden size-3 shrink-0 group-data-[panel-open]/part:block" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                        {changed && <Badge variant="outline" className="h-4 rounded-none px-1 text-[10px]">{t('dash.set.source.changed')}</Badge>}
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="flex flex-col gap-1.5 border-t border-border p-2">
+                        <Textarea
+                          rows={8}
+                          value={text}
+                          maxLength={4000}
+                          aria-label={p.title}
+                          onChange={(e) => patch({ parts: { ...form.parts, [p.key]: e.target.value } })}
+                          className={cn(FIELD, 'font-mono text-xs')}
+                        />
+                        {changed && (
+                          <Button size="xs" variant="outline" className={cn(FIELD, 'w-fit')} onClick={() => (p.custom ? onRestorePart(p.key) : patch({ parts: { ...form.parts, [p.key]: p.default } }))}>
+                            {t('dash.set.partRestore')}
+                          </Button>
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )
+                })}
+                {meta.partList.some((p) => p.custom) && (
+                  <Button size="sm" variant="outline" className={cn(FIELD, 'w-fit')} onClick={onRestorePrompts}>{t('dash.set.restoreAllPrompts')}</Button>
+                )}
+              </>
+            ) : (
+              <>
+                <label className="text-sm" htmlFor="dash-sensor-prompt">{t('dash.set.prompt')}</label>
+                {meta.sensorMode === 'whole' && <p className="text-[11px] text-muted-foreground">{t('dash.set.wholeNote')}</p>}
+                <Textarea id="dash-sensor-prompt" rows={12} value={form.sensor} onChange={(e) => patch({ sensor: e.target.value })} className={cn(FIELD, 'font-mono text-xs')} />
+                <div className="flex flex-wrap gap-2">
+                  {meta.sensorMode === 'whole' && (
+                    <Button size="sm" variant="outline" className={FIELD} onClick={onSplit}>{t('dash.set.split')}</Button>
+                  )}
+                  {meta.custom.includes('sensor') && (
+                    <Button size="sm" variant="outline" className={FIELD} onClick={onRestorePrompts}>{t('dash.set.restorePrompts')}</Button>
+                  )}
+                </div>
+              </>
             )}
           </CollapsibleContent>
         </Collapsible>

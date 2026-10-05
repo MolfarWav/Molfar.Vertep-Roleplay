@@ -231,29 +231,3 @@ export function CharFields({ char }: { char: DashChar }) {
     </div>
   )
 }
-
-/** Open threads first, resolved ones struck through. */
-export function ThreadList({ threads, limit, openOnly }: { threads: DashView['threads']; limit?: number; openOnly?: boolean }) {
-  const t = useT()
-  let list = threads
-  if (openOnly) list = list.filter((th) => th.status === 'open')
-  if (limit) list = list.slice(0, limit)
-  if (list.length === 0) return <p className="text-[11px] text-muted-foreground">{t('dash.threads.none')}</p>
-  return (
-    <ul className="flex flex-col gap-1.5">
-      {list.map((th) => (
-        <li key={th.id} className={cn('flex gap-1.5 text-xs leading-snug', th.status !== 'open' && 'text-muted-foreground')}>
-          <span aria-hidden="true" className="mt-[5px] size-1.5 shrink-0 rotate-45 bg-cta" />
-          <span className="min-w-0 flex-1">
-            <span className={cn('break-words', th.status !== 'open' && 'line-through')}>{th.text}</span>
-            {!openOnly && (
-              <span className="ml-2 whitespace-nowrap text-[11px]">
-                {th.status === 'open' ? t('dash.thread.since', { n: th.since }) : t('dash.thread.resolved')}
-              </span>
-            )}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
-}

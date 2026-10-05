@@ -8,10 +8,11 @@ import { Notebook } from './dash-notebook'
 import { StatChart, StoryList } from './dash-history'
 import { EventList } from './dash-events'
 import { cn } from '@/lib/utils'
-import { BANDS, sortedThreads, type DashView } from '@/lib/dashboard'
+import { BANDS, canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
-import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
+import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { ThreadList } from './dash-threads'
 
 export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, userName }: {
   chatId: string
@@ -153,18 +154,18 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         </div>
 
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
-          <EventList events={view.events} userName={userName} />
+          <EventList events={view.events} userName={userName} compact />
           <div className="flex min-w-0 flex-col gap-3">
-            <StoryList char={char} />
+            <StoryList char={char} compact />
             <StatChart char={char} stat={chartStat} onStat={setChartStat} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
-          <Notebook id="dash-notebook" className="scroll-mt-16" name={focus} char={char} userName={userName} />
+          <Notebook id="dash-notebook" compact className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
             <Box title={t('dash.threads')}>
-              <ThreadList threads={sortedThreads(view.threads)} />
+              <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
             </Box>
 
             <Box title={t('dash.ensemble')}>

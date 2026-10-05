@@ -8,10 +8,11 @@ import { Notebook } from './dash-notebook'
 import { EventList } from './dash-events'
 import { StatChart, StoryList } from './dash-history'
 import { cn } from '@/lib/utils'
-import { sortedThreads, type DashView } from '@/lib/dashboard'
+import { canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
-import { AvatarButton, BandMark, bandTextClass, CharFields, Label, Notices, SceneBlock, ThreadList, useTx, GOLD_TEXT } from './dash-common'
+import { AvatarButton, BandMark, bandTextClass, CharFields, Label, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { ThreadList } from './dash-threads'
 
 export function DashPhoneBar({ view, focus, onOpen }: {
   view: DashView
@@ -107,7 +108,7 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
             )}
             <div className="flex flex-col gap-1.5">
               <Label>{t('dash.threads')}</Label>
-              <ThreadList threads={sortedThreads(view.threads)} />
+              <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
             </div>
             <Notices view={view} />
           </div>
