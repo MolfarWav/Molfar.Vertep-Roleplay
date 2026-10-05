@@ -3003,18 +3003,24 @@ const pushSwipeMeta = (extra, swipesLen, entry) => {
   base.push(entry ?? null);
   return { ...extra, swipeMeta: base };
 };
-// do names ride this prompt? (mirror of the assembly's names-behavior check)
-const namesRidePrompt = (preset, isGroup) => {
-  const v = preset && preset.studio && preset.studio.namesBehavior;
-  return v === "content" || v === "completion" || ((!v || v === "default") && isGroup);
-};
-// models echo the speaker prefix when names ride the prompt; strip a leading
-// "Name:" so the reply doesn't render the character's own name twice
-const stripEchoedName = (text, preset, isGroup, name) => {
-  if (!name || !namesRidePrompt(preset, isGroup)) return String(text || "");
+// models echo the speaker's own name at the start of a reply ("Aria:"). Strip that
+// echo whether or not names ride the prompt: only at the very start, once,
+// case-insensitive, as Name: / Name : / **Name:** / **Name**: / *Name:* / *Name*: /
+// __Name:__ / _Name:_. The name is matched literally. Same rule as hideEchoedName
+// in src/lib/echo-name.ts (plugins cannot import from src/): keep the two in step.
+const stripEchoedName = (text, name) => {
   const t = String(text || "");
-  const prefix = name + ":";
-  return t.startsWith(prefix) ? t.slice(prefix.length).trimStart() : t;
+  const n = String(name || "").trim();
+  if (!n) return t;
+  const body = t.trimStart();
+  const at = (form) => body.slice(0, form.length).toLowerCase() === form.toLowerCase();
+  for (const form of ["**" + n + ":**", "**" + n + "**:", "*" + n + ":*", "*" + n + "*:", "__" + n + ":__", "_" + n + ":_"]) {
+    if (at(form)) return body.slice(form.length).trimStart();
+  }
+  if (!at(n)) return t;
+  let i = n.length;
+  while (body[i] === " " || body[i] === "\t") i++;
+  return body[i] === ":" ? body.slice(i + 1).trimStart() : t;
 };
 const toolX = (r) => ({
       ...(Array.isArray(r.toolTrace) && r.toolTrace.length ? { tools: r.toolTrace } : {}),
@@ -3191,7 +3197,7 @@ const toolX = (r) => ({
       const plan = group && req.stash && Array.isArray(req.stash.plan) ? req.stash.plan : null;
       if (group) speaker = (plan && members.find((m) => m.id === plan[0])) || null;
       if (!speaker) return err(400, "chat has no participating characters");
-      replyText = stripEchoedName(replyText, readJson("presets/" + (meta.presetId || "default") + ".json", null), !!group, speaker.name);
+      replyText = stripEchoedName(replyText, speaker.name);
       // assistant prefill: the committed message starts with it (servers that
       // echo the trailing assistant turn are detected, not doubled)
       const prefill = reply.assistantPrefill;
@@ -3260,7 +3266,7 @@ const toolX = (r) => ({
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
       const stateTag = cutReply(reply);
-      let replyText = stateTag.text;
+      let replyText = stripEchoedName(stateTag.text, speaker.name);
       const prefill = reply.assistantPrefill;
       if (prefill && !replyText.startsWith(prefill)) replyText = prefill + replyText;
       replyText = onSave(replyText, "ai_output", speaker);
@@ -3334,7 +3340,7 @@ const toolX = (r) => ({
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
       const stateTag = cutReply(reply);
-      let fresh = stripEchoedName(stateTag.text, readJson("presets/" + (meta.presetId || "default") + ".json", null), !!group, msg.name);
+      let fresh = stripEchoedName(stateTag.text, msg.name);
       const swipPrefill = reply.assistantPrefill;
       if (swipPrefill && !fresh.startsWith(swipPrefill)) fresh = swipPrefill + fresh;
       fresh = onSave(fresh, "ai_output", speaker);
@@ -3358,10 +3364,9 @@ const toolX = (r) => ({
     // of double-writing)
     if (op === "cancelled" && req.method === "POST") {
       const b = body();
-      const stripPreset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
       const cancelSpeaker = members.find((m) => m.id === (chat.msgs.find((x) => x.id === b.targetMessageId) || {}).charId) || members[0] || null;
       // the client froze what it showed, which may still carry the state tag: cut it, keep nothing of it
-      const text = onSave(stripEchoedName(cutStateTag(String(b.text ?? "")).text, stripPreset, !!group, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
+      const text = onSave(stripEchoedName(cutStateTag(String(b.text ?? "")).text, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
       const parts = Array.isArray(b.parts) ? cutPartsTag(b.parts).parts : null;
       if (!text.trim() && !(parts && parts.length)) return err(400, "nothing to keep");
       let idx = -1;

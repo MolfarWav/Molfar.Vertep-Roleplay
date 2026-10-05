@@ -4096,3 +4096,179 @@ describe("fast mode", () => {
     expect(instructionsOf(ask(mock, "c1", undefined, { turn: { op: "send" } }))).toContain("MARKER-W");
   });
 });
+
+describe("place log and scenes", () => {
+  const at = (place: string, minutes = 5) => reply({ present: ["Aria"], minutes, place });
+  const view = (mock: ReturnType<typeof mockHost>) => drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view;
+  const scenes = (mock: ReturnType<typeof mockHost>) => view(mock).scenes.map((s: any) => [s.key, s.place]);
+  const grow = (n: number): Msg[] => {
+    const out: Msg[] = [];
+    for (let i = 1; i <= n; i++) out.push(i % 2 ? U("m" + i, "You " + i) : A("m" + i, "Aria " + i));
+    return out;
+  };
+  const snap = (turn: number, at: number, clock: Record<string, unknown>) => ({ turn, at, op: "send", sig: "00000000", clock, present: [], events: [], chars: {}, edges: [], threads: [], extra: {} });
+  const writeState = (state: Record<string, unknown>) => {
+    fs.mkdirSync(path.join(root, "dashboard/state"), { recursive: true });
+    fs.writeFileSync(stateFile("c1"), JSON.stringify({ v: 2, chatId: "c1", ...state }));
+  };
+
+  it("two place changes over several turns make the scenes, a revisit counts, a repeat does not", () => {
+    writeChat("c1", grow(3));
+    const mock = mockHost([at("Hall")]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    writeChat("c1", grow(5));
+    mock.push(at("Hall"));
+    update(mock, "c1");
+    writeChat("c1", grow(7));
+    mock.push(at("Garden"));
+    update(mock, "c1");
+    writeChat("c1", grow(9));
+    mock.push(at("Hall"));
+    update(mock, "c1");
+    expect(scenes(mock)).toEqual([
+      ["m3#0", "Hall"],
+      ["m7#0", "Garden"],
+      ["m9#0", "Hall"],
+    ]);
+    const first = view(mock).scenes[0];
+    expect(first).toEqual({ key: "m3#0", place: "Hall", day: 1, time: null, band: null });
+    // the log holds every written key, in order
+    expect(Object.keys(readStateFile("c1").places)).toEqual(["m3#0", "m5#0", "m7#0", "m9#0"]);
+    expect(readStateFile("c1").places["m7#0"]).toEqual({ place: "Garden", day: 1, time: null, band: null });
+  });
+
+  it("a change of case or spaces only is not a scene", () => {
+    writeChat("c1", grow(3));
+    const mock = mockHost([at("The Hall")]);
+    update(mock, "c1");
+    writeChat("c1", grow(5));
+    mock.push(at("  the hall  "));
+    update(mock, "c1");
+    writeChat("c1", grow(7));
+    mock.push(at("THE HALL"));
+    update(mock, "c1");
+    expect(scenes(mock)).toEqual([["m3#0", "The Hall"]]);
+    expect(readStateFile("c1").places["m5#0"].place).toBe("the hall");
+  });
+
+  it("a swipe that changes the place: only the active swipe counts", () => {
+    writeChat("c1", grow(3));
+    const mock = mockHost([at("Hall")]);
+    update(mock, "c1");
+    writeChat("c1", [...grow(3), A("m4", "Aria 4")]);
+    mock.push(at("Cellar"));
+    update(mock, "c1");
+    expect(scenes(mock)).toEqual([
+      ["m3#0", "Hall"],
+      ["m4#0", "Cellar"],
+    ]);
+    writeChat("c1", [...grow(3), { ...A("m4", "Aria 4 again"), swipe: 1 }]);
+    mock.push(at("Roof"));
+    update(mock, "c1");
+    expect(scenes(mock)).toEqual([
+      ["m3#0", "Hall"],
+      ["m4#1", "Roof"],
+    ]);
+    // the discarded swipe's record stays in the log but is not on the line
+    expect(Object.keys(readStateFile("c1").places)).toEqual(["m3#0", "m4#0", "m4#1"]);
+    // swiping back shows the first swipe's scene again
+    writeChat("c1", [...grow(3), { ...A("m4", "Aria 4"), swipe: 0 }]);
+    expect(scenes(mock)).toEqual([
+      ["m3#0", "Hall"],
+      ["m4#0", "Cellar"],
+    ]);
+  });
+
+  it("a re-sense of the newest message rewrites its record and moves it to the end", () => {
+    writeChat("c1", grow(3));
+    const mock = mockHost([at("Hall")]);
+    update(mock, "c1");
+    writeChat("c1", grow(5));
+    mock.push(at("Garden"));
+    update(mock, "c1");
+    writeChat("c1", [...grow(4), U("m5", "You 5, edited")]);
+    mock.push(at("Market"));
+    expect(update(mock, "c1", "edit").json.ok).toBe(true);
+    const places = readStateFile("c1").places;
+    expect(Object.keys(places)).toEqual(["m3#0", "m5#0"]);
+    expect(places["m5#0"].place).toBe("Market");
+  });
+
+  it("places outlive the snapshot cap", () => {
+    const keys = grow(60).map((m) => m.id + "#0");
+    const places: Record<string, unknown> = {};
+    keys.forEach((k, i) => (places[k] = { place: i < 30 ? "Hall" : "Garden", day: 1, time: null, band: null }));
+    // only the last 40 snapshots are left, as after the cap
+    const snapshots: Record<string, unknown> = {};
+    keys.slice(-40).forEach((k, i) => (snapshots[k] = snap(i + 1, i + 1, { day: 1, place: "Garden" })));
+    writeChat("c1", grow(60));
+    writeState({ snapshots, places });
+    const mock = mockHost();
+    expect(scenes(mock)).toEqual([
+      ["m1#0", "Hall"],
+      ["m31#0", "Garden"],
+    ]);
+  });
+
+  it("an old state without places falls back to the snapshot clocks", () => {
+    writeChat("c1", grow(7));
+    writeState({
+      snapshots: {
+        "m3#0": snap(1, 1, { day: 2, time: "10:00", band: "morning", place: "Hall" }),
+        "m5#0": snap(2, 2, { day: 2, place: "hall" }),
+        "m7#0": snap(3, 3, { day: 3, time: "08:30", band: "morning", place: " Garden " }),
+      },
+    });
+    const mock = mockHost();
+    const before = fs.readFileSync(stateFile("c1"), "utf8");
+    expect(view(mock).scenes).toEqual([
+      { key: "m3#0", place: "Hall", day: 2, time: "10:00", band: "morning" },
+      { key: "m7#0", place: "Garden", day: 3, time: "08:30", band: "morning" },
+    ]);
+    // the view never writes
+    expect(fs.readFileSync(stateFile("c1"), "utf8")).toBe(before);
+  });
+
+  it("a key without a place is skipped, and a record without one does not end the scene", () => {
+    writeChat("c1", grow(5));
+    writeState({
+      snapshots: { "m5#0": snap(3, 3, { day: 1, place: "Hall" }) },
+      places: {
+        "m1#0": { place: "Hall", day: 1, time: null, band: null },
+        "m2#0": { place: null, day: 1, time: null, band: null },
+        "m3#0": { place: "hall", day: 1, time: null, band: null },
+        "m4#0": { place: "Barn", day: 1, time: null, band: null },
+      },
+    });
+    expect(scenes(mockHost())).toEqual([
+      ["m1#0", "Hall"],
+      ["m4#0", "Barn"],
+      ["m5#0", "Hall"],
+    ]);
+  });
+
+  it("keeps the last 200 scenes", () => {
+    const msgs = grow(300);
+    const places: Record<string, unknown> = {};
+    msgs.forEach((m, i) => (places[m.id + "#0"] = { place: i % 2 ? "B" : "A", day: 1 + i, time: null, band: null }));
+    writeChat("c1", msgs);
+    writeState({ snapshots: { "m300#0": snap(1, 1, { day: 300, place: "B" }) }, places });
+    const list = view(mockHost()).scenes;
+    expect(list.length).toBe(200);
+    expect(list[199].key).toBe("m300#0");
+    expect(list[0].key).toBe("m101#0");
+  });
+
+  it("the log keeps at most 2000 keys, the oldest go first", () => {
+    const places: Record<string, unknown> = {};
+    for (let i = 0; i < 2000; i++) places["old" + i + "#0"] = { place: "Hall", day: 1, time: null, band: null };
+    writeChat("c1", grow(3));
+    writeState({ snapshots: {}, places });
+    const mock = mockHost([at("Hall")]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const after = Object.keys(readStateFile("c1").places);
+    expect(after.length).toBe(2000);
+    expect(after[0]).toBe("old1#0");
+    expect(after.at(-1)).toBe("m3#0");
+  });
+});

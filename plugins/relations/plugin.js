@@ -59,6 +59,10 @@ const NUDGE_TTL_MS = 30 * 60 * 1000;
 const FAST_DIR = "dashboard/fast/";
 const FAST_TTL_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 40;
+// the place log (state.places) outlives the snapshot cap: the scene list reads it
+const PLACES_LIMIT = 2000;
+// the scene list keeps this many of the newest scenes
+const SCENES_LIMIT = 200;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
 const CHAT_ID = /^[A-Za-z0-9_-]{1,120}$/;
@@ -1257,6 +1261,7 @@ function emptyState(chatId) {
     v: 2,
     chatId,
     snapshots: {},
+    places: {},
     notebook: {},
     names: {},
     history: {},
@@ -1270,7 +1275,7 @@ function emptyState(chatId) {
 function normalizeState(raw, chatId) {
   const base = emptyState(chatId);
   const st = { ...base, ...(isObj(raw) ? raw : {}), v: 2, chatId };
-  for (const k of ["snapshots", "notebook", "names", "history"]) if (!isObj(st[k])) st[k] = {};
+  for (const k of ["snapshots", "places", "notebook", "names", "history"]) if (!isObj(st[k])) st[k] = {};
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
@@ -1324,9 +1329,60 @@ function textSig(msgs) {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+/**
+ * The place log: one record per message key, written with every snapshot and kept past the snapshot cap.
+ * A re-written key moves to the end (insertion order = recency); over PLACES_LIMIT the oldest go.
+ */
+function logPlace(state, K, clock) {
+  if (!isObj(state.places)) state.places = {};
+  const c = isObj(clock) ? clock : {};
+  const place = typeof c.place === "string" && c.place.trim() ? c.place.trim() : null;
+  delete state.places[K];
+  state.places[K] = {
+    place,
+    day: Number.isFinite(c.day) ? c.day : null,
+    time: typeof c.time === "string" && c.time ? c.time : null,
+    band: typeof c.band === "string" && c.band ? c.band : null,
+  };
+  const keys = Object.keys(state.places);
+  for (const old of keys.slice(0, Math.max(0, keys.length - PLACES_LIMIT))) delete state.places[old];
+}
+
+/**
+ * Where the story moved along the active line: one entry per change of place (the first place counts).
+ * A key without a log record falls back to its snapshot clock (chats from before the log). Read only.
+ */
+export function scenesOf(state, keys) {
+  const places = isObj(state.places) ? state.places : {};
+  const snaps = isObj(state.snapshots) ? state.snapshots : {};
+  const out = [];
+  let last = null;
+  for (const key of keys) {
+    let rec = places[key];
+    if (!isObj(rec)) {
+      const snap = snaps[key];
+      rec = isObj(snap) && isObj(snap.clock) ? snap.clock : null;
+    }
+    if (!rec) continue;
+    const place = typeof rec.place === "string" ? rec.place.trim() : "";
+    if (!place) continue;
+    if (last !== null && place.toLowerCase() === last) continue;
+    last = place.toLowerCase();
+    out.push({
+      key,
+      place,
+      day: Number.isFinite(rec.day) ? rec.day : null,
+      time: typeof rec.time === "string" && rec.time ? rec.time : null,
+      band: typeof rec.band === "string" && rec.band ? rec.band : null,
+    });
+  }
+  return out.slice(-SCENES_LIMIT);
+}
+
 /** Remove everything the snapshot of key K wrote (a re-sense starts clean). Counters stay. */
 function dropSnapshot(state, K) {
   delete state.snapshots[K];
+  if (isObj(state.places)) delete state.places[K];
   for (const [name, notes] of Object.entries(state.notebook)) {
     const kept = arr(notes).filter((n) => n.src !== K);
     for (const n of kept) if (n.retiredBy === K) delete n.retiredBy;
@@ -2119,6 +2175,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
   state.snapshots[K] = snapshot;
   const order = Object.keys(state.snapshots).sort((a, b) => (state.snapshots[b].at || 0) - (state.snapshots[a].at || 0));
   for (const old of order.slice(SNAPSHOT_LIMIT)) delete state.snapshots[old];
+  logPlace(state, K, snapshot.clock);
   return snapshot;
 }
 
@@ -3356,6 +3413,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     // the newest message has no snapshot yet: the catch-up has not run
     stale: idx !== keys.length - 1,
     clock: isObj(snap.clock) ? snap.clock : null,
+    scenes: scenesOf(state, keys),
     present,
     order,
     events: arr(snap.events),

@@ -1140,23 +1140,65 @@ describe("rp studio engine: example separator + echoed name strip", () => {
     expect(exampleMsg.content).not.toContain("<START>");
   }, 30_000);
 
-  it("a leading 'Name:' the model echoes is stripped when names ride the prompt", async () => {
+  const setNames = (v: string) => {
     const base = JSON.parse(fs.readFileSync(path.join(root, "presets", "default.json"), "utf8")) as { studio?: Record<string, unknown> };
-    base.studio = { ...base.studio, namesBehavior: "content" };
+    base.studio = { ...base.studio, namesBehavior: v };
     fs.writeFileSync(path.join(root, "presets", "default.json"), JSON.stringify(base));
-    const m = mockHost({ text: "Aria: Sure thing, coming up." });
+  };
+  /** One fresh chat with Aria, one send answered with `text`; the stored reply text. */
+  const sendOnce = async (text: string) => {
+    for (const f of fs.readdirSync(path.join(root, "chats"))) fs.rmSync(path.join(root, "chats", f), { force: true });
+    const m = mockHost({ text });
     await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
     const id = chatIdOf();
     const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "one coffee" } }, m);
-    expect((r.json.reply as { text: string }).text).toBe("Sure thing, coming up.");
-    // and with names OFF the echo is kept verbatim (nothing rides, nothing strips)
-    base.studio = { ...base.studio, namesBehavior: "none" };
-    fs.writeFileSync(path.join(root, "presets", "default.json"), JSON.stringify(base));
-    const m2 = mockHost({ text: "Aria: Kept verbatim." });
-    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m2);
-    const id2 = chatIdOf();
-    const r2 = await drive(engineUrl, { method: "POST", path: `/chats/${id2}/send`, body: { text: "another" } }, m2);
-    expect((r2.json.reply as { text: string }).text).toBe("Aria: Kept verbatim.");
+    return (r.json.reply as { text: string }).text;
+  };
+
+  it("a leading 'Name:' the model echoes is stripped, whether or not names ride the prompt", async () => {
+    setNames("content");
+    expect(await sendOnce("Aria: Sure thing, coming up.")).toBe("Sure thing, coming up.");
+    setNames("none");
+    expect(await sendOnce("Aria: Also stripped.")).toBe("Also stripped.");
+    setNames("default");
+    expect(await sendOnce("Aria: And by default.")).toBe("And by default.");
+  }, 30_000);
+
+  it("the bold form, another case and a space before the colon are stripped too", async () => {
+    expect(await sendOnce("**Aria:** Bold.")).toBe("Bold.");
+    expect(await sendOnce("*Aria*: Italic.")).toBe("Italic.");
+    expect(await sendOnce("ARIA : Shouted.")).toBe("Shouted.");
+  }, 30_000);
+
+  it("a name that is not at the start, or another name, stays", async () => {
+    expect(await sendOnce("Sure, Aria: coming up.")).toBe("Sure, Aria: coming up.");
+    expect(await sendOnce("Bo: Not me.")).toBe("Bo: Not me.");
+    expect(await sendOnce("Aria smiled.")).toBe("Aria smiled.");
+  }, 30_000);
+
+  it("a group turn (next) strips the speaker's own name", async () => {
+    fs.mkdirSync(path.join(root, "characters", "bo"), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", "bo", "card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Bo", description: "chill", first_mes: "" }));
+    fs.writeFileSync(path.join(root, "groups", "duo.json"), JSON.stringify({ id: "duo", name: "Duo", memberIds: ["aria", "bo"], mode: "list", mutedIds: [] }));
+    const m = mockHost({ text: "Bo: Right here." });
+    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { groupId: "duo" } }, m);
+    const id = (chat.json.meta as { id: string }).id;
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello both" } }, m);
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/next`, body: { charId: "bo" } }, m);
+    expect((r.json.reply as { name: string; text: string }).name).toBe("Bo");
+    expect((r.json.reply as { text: string }).text).toBe("Right here.");
+  }, 30_000);
+
+  it("a swipe strips the echo; continue does not", async () => {
+    const m = mockHost({ text: "Aria: Fresh take." });
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = chatIdOf();
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hi" } }, m);
+    const sw = await drive(engineUrl, { method: "POST", path: `/chats/${id}/swipe`, body: { dir: 1 } }, m);
+    expect((sw.json.message as { text: string }).text).toBe("Fresh take.");
+    const m2 = mockHost({ text: "Aria: and then more." });
+    const c = await drive(engineUrl, { method: "POST", path: `/chats/${id}/continue`, body: {} }, m2);
+    expect((c.json.message as { text: string }).text).toContain("Aria: and then more.");
   }, 30_000);
 });
 
