@@ -3028,11 +3028,23 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(2);
+    expect(past.length).toBe(3);
     expect(past[1]).toContain("acts, speaks or is addressed");
     expect(past[1]).toContain("one short line on what they do not know");
     expect(text).toContain("up to 15 words");
     // the previous default also counts as the default
+    // the names rule: a character who already knows the user's character counts too
+    expect(text).toContain("already knows the user's character personally");
+    expect(text).toContain("never guess");
+    expect(past[2]).not.toContain("already knows the user's character");
+    expect(past[2]).toContain("up to 15 words");
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[2] }));
+    expect(drive(mockHost(), { method: "GET", path: "/dashboard/config" }).json.sensor).toBe(text);
+    // and the sensor input names the user's character, so "calls" can be filled
+    writeChat("c1", three());
+    const names = mockHost([reply({ present: ["Aria"], minutes: 1 })]);
+    update(names, "c1");
+    expect(names.requests[0]!.req.messages[0].content).toContain("user: You.");
     fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: past[1] }));
     expect(drive(mockHost(), { method: "GET", path: "/dashboard/config" }).json.custom).toEqual([]);
     expect(past[0]).not.toBe(text);
