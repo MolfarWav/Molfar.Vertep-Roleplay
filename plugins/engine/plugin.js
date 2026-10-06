@@ -584,6 +584,42 @@ function cacheWiVectorBatch(fsx, entries, vectors) {
   saveWiVectors(fsx, map);
 }
 
+/** The embed pass of a reply op. When memory vectors or vectorized entries
+ *  exist, the scan window (pending user text + the last 4 messages) is embedded
+ *  first: returns { pending } (the caller marks the chat generating and returns
+ *  it as the route result) or { scanVec } (null when nothing embedded). The
+ *  runtime allows 3 passes: embed, model request, commit. */
+function semanticPrep(host, fsx, meta, staged, text, req) {
+  if (host.llm.embed && embedCap(fsx)) {
+    const scanEmbedText = (text ? text + "\n" : "") + staged.slice(-4).map((m) => m.text || "").join("\n");
+    const personaIds = (() => {
+      const pid = meta.personaId || (() => { try { return JSON.parse(fsx.read("settings.json")).personaId; } catch { return null; } })();
+      let p = null;
+      try { p = pid ? JSON.parse(fsx.read("personas/" + pid + ".json")) : null; } catch {}
+      return p && Array.isArray(p.lorebookIds) ? p.lorebookIds : [];
+    })();
+    const work = semanticEmbedWork(fsx, meta, personaIds, scanEmbedText);
+    const haveScan = host.llm.embedResults && host.llm.embedResults.scan !== undefined;
+    if (work && !haveScan) {
+      host.llm.embed("scan", { texts: [scanEmbedText, ...work.needed.map((e) => e.text)] });
+      return { pending: pendingOut(meta, { wiEmbed: work.needed }) };
+    }
+    if (work && haveScan) {
+      const res = host.llm.embedResults.scan;
+      if (Array.isArray(res)) {
+        setEmbedCap(fsx, true);
+        if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) {
+          cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1));
+        }
+      } else {
+        setEmbedCap(fsx, false);
+      }
+    }
+  }
+  const scan = host.llm.embedResults && host.llm.embedResults.scan;
+  return { scanVec: Array.isArray(scan) && scan[0] ? scan[0] : null };
+}
+
 function loadMemories(fsx, chatId) {
   try {
     const arr = JSON.parse(fsx.read("chats/" + chatId + ".memories.json"));
@@ -3157,34 +3193,9 @@ const toolX = (r) => ({
         const staged = userMsg ? [...chat.msgs, userMsg] : chat.msgs;
         // semantic prep: when memory vectors or vectorized entries exist,
         // embed the scan window (+ uncached entries) first — one extra pass
-        if (host.llm.embed && embedCap(fsx)) {
-          const scanEmbedText = (text ? text + "\n" : "") + staged.slice(-4).map((m) => m.text || "").join("\n");
-          const personaIdsA = (() => {
-            const pid = meta.personaId || (() => { try { return JSON.parse(fsx.read("settings.json")).personaId; } catch { return null; } })();
-            const p = pid ? readJson("personas/" + pid + ".json", null) : null;
-            return p && Array.isArray(p.lorebookIds) ? p.lorebookIds : [];
-          })();
-          const work = semanticEmbedWork(fsx, meta, personaIdsA, scanEmbedText);
-          const haveScan = host.llm.embedResults && host.llm.embedResults.scan !== undefined;
-          if (work && !haveScan) {
-            host.llm.embed("scan", { texts: [scanEmbedText, ...work.needed.map((e) => e.text)] });
-            markGenerating();
-            return pendingOut(meta, { wiEmbed: work.needed });
-          }
-          if (work && haveScan) {
-            const res = host.llm.embedResults.scan;
-            if (Array.isArray(res)) {
-              setEmbedCap(fsx, true);
-              if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) {
-                cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1));
-              }
-            } else {
-              setEmbedCap(fsx, false);
-            }
-          }
-        }
-        const scanVecSend = host.llm.embedResults && Array.isArray(host.llm.embedResults.scan) && host.llm.embedResults.scan[0] ? host.llm.embedResults.scan[0] : null;
-        const a = assemble(fsx, meta, staged, speaker, text, { scanVec: scanVecSend, gen: "send" });
+        const sp = semanticPrep(host, fsx, meta, staged, text, req);
+        if (sp.pending) { markGenerating(); return sp.pending; }
+        const a = assemble(fsx, meta, staged, speaker, text, { scanVec: sp.scanVec, gen: "send" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -3287,7 +3298,9 @@ const toolX = (r) => ({
       if (!speaker) return err(400, "charId must be a member of this group");
       const reply = host.llm.results.reply;
       if (!reply) {
-        const a = assemble(fsx, meta, chat.msgs, speaker, null);
+        const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
+        if (sp.pending) { markGenerating(); return sp.pending; }
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { scanVec: sp.scanVec });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -3361,7 +3374,9 @@ const toolX = (r) => ({
       const speaker = members.find((m) => m.id === msg.charId) || members[0] || null;
       if (!speaker) return err(400, "speaker character missing");
       if (!reply) {
-        const a = assemble(fsx, meta, before, speaker, null, { gen: "swipe" });
+        const sp = semanticPrep(host, fsx, meta, before, "", req);
+        if (sp.pending) { markGenerating(); return sp.pending; }
+        const a = assemble(fsx, meta, before, speaker, null, { scanVec: sp.scanVec, gen: "swipe" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -3462,7 +3477,9 @@ const toolX = (r) => ({
       if (!speaker) return err(400, "speaker character missing");
       const reply = host.llm.results.reply;
       if (!reply) {
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { gen: "continue" });
+        const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
+        if (sp.pending) { markGenerating(); return sp.pending; }
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { scanVec: sp.scanVec, gen: "continue" });
         // continue nudge: preset utility prompt (blank = plain continue, no
         // nudge appended — no hidden default text)
         const preset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
@@ -3750,7 +3767,10 @@ const toolX = (r) => ({
     if (op === "impersonate" && req.method === "POST") {
       const reply = host.llm.results.reply;
       if (!reply) {
-        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { gen: "impersonate" });
+        // not marked generating: an impersonation never writes the transcript
+        const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
+        if (sp.pending) return sp.pending;
+        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { scanVec: sp.scanVec, gen: "impersonate" });
         const un = chatUserName(fsx, meta);
         // impersonation prompt: preset utility prompt, macros expanded
         // (blank = impersonate from history alone — no hidden default text)

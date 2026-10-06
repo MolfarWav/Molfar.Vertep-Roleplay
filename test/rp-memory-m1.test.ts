@@ -181,3 +181,86 @@ describe("M1.1 history budget in tokens, with reserves", () => {
     expect((await trimmedFor(preset)).trimmed).toBe(normal);
   });
 });
+
+describe("M1.2 every reply op embeds the scan window", () => {
+  const harbor = (texts: string[]) => texts.map((t) => (t.includes("harbor") ? [1, 0] : [0, 1]));
+  const sentText = (m: ReturnType<typeof mockHost>) =>
+    (m.requests.filter((r) => r.key === "reply").at(-1)!.req as { messages: { content: string }[] }).messages.map((x) => x.content).join("\n");
+
+  async function setup() {
+    writeJson("lorebooks/vecbook.json", {
+      id: "vecbook", name: "vecbook", vectorized: { scoreThreshold: 0.35 },
+      entries: [{ uid: 0, title: "V", keys: [], content: "The harbor district floods every spring.", enabled: true, order: 100, position: "before_char", status: "vectorized" }],
+    });
+    writeJson("groups/duo.json", { id: "duo", name: "Duo", memberIds: ["aria", "bo"], mode: "list", mutedIds: [] });
+    writeJson("characters/bo/card.json", { spec: "chara_card_v2", name: "Bo", description: "chill", first_mes: "" });
+    const m = mockHost({ embedder: harbor });
+    return m;
+  }
+  async function chatWith(m: ReturnType<typeof mockHost>, body: Record<string, unknown>) {
+    await drive(engineUrl, { method: "POST", path: "/chats", body }, m);
+    const id = chatIdOf();
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { lorebookIds: ["vecbook"] } }, m);
+    seedPairs(id, 3, "We watched the harbor at night.");
+    return id;
+  }
+
+  it("send: the scan vector reaches assemble (the vectorized entry fires)", async () => {
+    const m = await setup();
+    const id = await chatWith(m, { characterId: "aria" });
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "and the harbor again" } }, m);
+    expect(r.pending).toBe(false);
+    expect(r.passes).toBe(3);
+    expect(sentText(m)).toContain("harbor district floods");
+  });
+
+  for (const [op, body] of [
+    ["swipe", { dir: 1 }],
+    ["continue", {}],
+    ["impersonate", {}],
+  ] as const) {
+    it(`${op}: embeds first, then the model request carries the vectorized entry, in 3 passes`, async () => {
+      const m = await setup();
+      const id = await chatWith(m, { characterId: "aria" });
+      const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/${op}`, body }, m);
+      expect(r.status).toBe(200);
+      expect(r.pending).toBe(false);
+      expect(r.passes).toBe(3);
+      expect(m.embedRequests.length).toBe(1);
+      expect(sentText(m)).toContain("harbor district floods");
+    });
+  }
+
+  it("next: a group member's turn embeds first too", async () => {
+    const m = await setup();
+    const id = await chatWith(m, { groupId: "duo" });
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/next`, body: { charId: "bo" } }, m);
+    expect(r.status).toBe(200);
+    expect(r.pending).toBe(false);
+    expect(r.passes).toBe(3);
+    expect(sentText(m)).toContain("harbor district floods");
+  });
+
+  it("without anything to embed a swipe still takes two passes", async () => {
+    const m = mockHost({ embedder: harbor });
+    const id = await newChat(m);
+    seedPairs(id, 2, "plain talk");
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/swipe`, body: { dir: 1 } }, m);
+    expect(r.passes).toBe(2);
+    expect(m.embedRequests.length).toBe(0);
+  });
+
+  it("a failed embed does not break the op", async () => {
+    const m = mockHost({ embedder: () => null });
+    writeJson("lorebooks/vecbook.json", {
+      id: "vecbook", name: "vecbook", entries: [{ uid: 0, title: "V", keys: [], content: "x harbor", enabled: true, order: 100, position: "before_char", status: "vectorized" }],
+    });
+    const id = await newChat(m);
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { lorebookIds: ["vecbook"] } }, m);
+    seedPairs(id, 2, "harbor");
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/continue`, body: {} }, m);
+    expect(r.status).toBe(200);
+    expect(r.pending).toBe(false);
+    expect(r.passes).toBe(3);
+  });
+});
