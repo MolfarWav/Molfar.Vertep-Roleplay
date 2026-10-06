@@ -16,7 +16,7 @@ const DRAFT_APP = 'Build me a small app for my Roleplay workspace: '
 const DRAFT_CHIPS = [
   { key: 'home.chip1', draft: 'Create a Roleplay character card from this description: ' },
   { key: 'home.chip2', draft: 'Build me a dashboard for my Roleplay workspace that shows: ' },
-  { key: 'home.chip3', draft: 'Review my Litopys (the Roleplay world-lore keeper): check its vault for contradictions, duplicates and stale facts, and propose a cleanup.' },
+  { key: 'home.chip3', draft: 'Review my Litopys memory (the Litopys section of Roleplay: chapters and facts per chat, stored in data/litopys/chats): look for contradictions, duplicates and stale facts, and propose a cleanup.' },
 ] as const
 
 /** Hands a draft to Molfar and keeps the engine's refusal for an inline message. */
