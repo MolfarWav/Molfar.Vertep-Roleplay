@@ -1407,6 +1407,112 @@ const TAG_RANK = { pinned: 0, important: 1, everyday: 3 };
 const noteRank = (n) => (n && Object.prototype.hasOwnProperty.call(TAG_RANK, n.tag) ? TAG_RANK[n.tag] : 2);
 const NOTE_LIMIT = 12;
 
+// ---------- words, for picking notes by what the scene is about ----------
+// The same Cyrillic-aware matching as the engine plugin (norm / tokens / stem / sameWord): a plugin
+// is one file with no imports, so it is copied. Apostrophe variants and \u0451 fold, stop words drop,
+// inflections match by stem, short words match whole.
+const WORD_APOS = /['\u2019\u02BC\u2018`\u00B4\u02B9\u2032]/g;
+const WORD_STOP = new Set(
+  (
+    "the and for are but not you all any can had her was his that this with have " +
+    "from they them then than there here what when where which while who whom will your into upon over under " +
+    "again once only very just also been being because both each more most other some such too own same about " +
+    "after before between during through above below off out up down further she him hers its our ours " +
+    "their theirs myself yourself himself herself itself ourselves themselves " +
+    "\u0456 \u0439 \u0442\u0430 \u0430 \u0430\u043B\u0435 \u0430\u0431\u043E \u0449\u043E \u0446\u0435 \u044F\u043A \u0442\u0430\u043A \u043D\u0435 \u043D\u0456 \u0436 \u0436\u0435 \u0431\u0438 \u0431 \u0431\u043E \u0432 \u0443 \u043D\u0430 \u0434\u043E \u0437 \u0456\u0437 \u0437\u0456 \u0437\u0430 \u0432\u0456\u0434 \u0434\u043B\u044F \u043F\u043E \u043F\u0440\u043E \u043F\u0440\u0438 \u043F\u0456\u0434 \u043D\u0430\u0434 \u043C\u0456\u0436 \u0447\u0435\u0440\u0435\u0437 \u0449\u043E\u0431 " +
+    "\u043A\u043E\u043B\u0438 \u0434\u0435 \u0442\u0430\u043C \u0442\u0443\u0442 \u0432\u0436\u0435 \u0449\u0435 \u0442\u0435\u0436 \u0442\u0430\u043A\u043E\u0436 \u043B\u0438\u0448\u0435 \u0442\u0456\u043B\u044C\u043A\u0438 \u0434\u0443\u0436\u0435 \u0439\u043E\u0433\u043E \u0457\u0457 \u0457\u0445 \u0457\u0439 \u0439\u043E\u043C\u0443 \u0432\u0456\u043D \u0432\u043E\u043D\u0430 \u0432\u043E\u043D\u043E \u0432\u043E\u043D\u0438 \u043C\u0438 \u0432\u0438 \u044F \u0442\u0438 \u043C\u0435\u043D\u0435 \u0442\u0435\u0431\u0435 \u0441\u0435\u0431\u0435 " +
+    "\u043C\u0456\u0439 \u043C\u043E\u044F \u043C\u043E\u0454 \u043C\u043E\u0457 \u0442\u0432\u0456\u0439 \u0442\u0432\u043E\u044F \u0441\u0432\u0456\u0439 \u0441\u0432\u043E\u044F \u0446\u0435\u0439 \u0446\u044F \u0446\u0456 \u0442\u043E\u0439 \u0442\u0435 \u0431\u0443\u0432 \u0431\u0443\u043B\u0430 \u0431\u0443\u043B\u043E \u0431\u0443\u043B\u0438 \u0454 \u0431\u0443\u0434\u0435 \u0431\u0443\u0442\u0438 \u043C\u043E\u0436\u0435 \u0442\u0440\u0435\u0431\u0430 " +
+    "\u0438 \u0432\u043E \u0447\u0442\u043E \u043E\u043D \u043E\u043D\u0430 \u043E\u043D\u043E \u043E\u043D\u0438 \u0441 \u0441\u043E \u043A\u0430\u043A \u0442\u043E \u0432\u0441\u0435 \u0442\u0430\u043A \u0435\u0433\u043E \u0435\u0435 \u043D\u043E \u0434\u0430 \u043A \u0432\u044B \u0431\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u043C\u043D\u0435 \u0432\u043E\u0442 \u043E\u0442 \u043C\u0435\u043D\u044F \u0435\u0449\u0435 \u043D\u0435\u0442 \u043E \u0438\u0437 \u0435\u043C\u0443 \u043A\u043E\u0433\u0434\u0430 \u0434\u0430\u0436\u0435 " +
+    "\u043D\u0443 \u043B\u0438 \u0435\u0441\u043B\u0438 \u0443\u0436\u0435 \u0438\u043B\u0438 \u043D\u0438 \u0431\u044B\u0442\u044C \u0431\u044B\u043B \u043D\u0435\u0433\u043E \u0432\u0430\u0441 \u0432\u0435\u0434\u044C \u043F\u043E\u0442\u043E\u043C \u0441\u0435\u0431\u044F \u043D\u0438\u0447\u0435\u0433\u043E \u0435\u0439 \u0442\u0443\u0442 \u0433\u0434\u0435 \u0435\u0441\u0442\u044C \u043D\u0430\u0434\u043E \u043D\u0435\u0439 \u043C\u044B \u0442\u0435\u0431\u044F \u0447\u0435\u043C \u0441\u0430\u043C \u0431\u0435\u0437 " +
+    "\u0447\u0435\u0433\u043E \u0440\u0430\u0437 \u0442\u043E\u0436\u0435 \u043F\u043E\u0434 \u043A\u0442\u043E \u044D\u0442\u043E\u0442 \u0442\u043E\u0433\u043E \u043F\u043E\u0442\u043E\u043C\u0443 \u044D\u0442\u043E\u0433\u043E \u043A\u0430\u043A\u043E\u0439 \u0437\u0434\u0435\u0441\u044C \u044D\u0442\u043E\u043C \u043C\u043E\u0439 \u0442\u0435\u043C \u0447\u0442\u043E\u0431\u044B \u0441\u0435\u0439\u0447\u0430\u0441"
+  ).split(" "),
+);
+function normText(s) {
+  return String(s).normalize("NFD").replace(/\u0301/g, "").normalize("NFC").toLowerCase().replace(WORD_APOS, "'").replace(/\u0451/g, "\u0435");
+}
+function wordTokens(s) {
+  return normText(s)
+    .split(/[^\p{L}\p{N}']+/u)
+    .map((t) => t.replace(/^'+|'+$/g, ""))
+    .filter((t) => t && !WORD_STOP.has(t));
+}
+const WORD_SUFFIX = /(\u0430\u043C\u0438|\u044F\u043C\u0438|\u043E\u0432\u0456|\u0435\u0432\u0456|\u043E\u0433\u043E|\u043E\u043C\u0443|\u0438\u043C\u0438|\u0435\u043C\u0443|\u0456\u0439|\u043E\u0457|\u043E\u044E|\u0435\u044E|\u044F\u0445|\u0430\u0445|\u0456\u0432|\u044F\u043C|\u0430\u043C|\u043E\u043C|\u0435\u043C|\u0438\u043C|\u0438\u0445|\u0438\u0439|\u044B\u0439|\u0430\u044F|\u044F\u044F|\u043E\u0435|\u0435\u0435|\u0443\u044E|\u044E\u044E|\u043E\u0432|\u0435\u0432|\u0435\u0439|\u044B|\u0438|\u0456|\u0430|\u044F|\u0443|\u044E|\u043E|\u0435|\u044C|\u0439)$/;
+function wordStem(t) {
+  if (t.length <= 3) return t;
+  const r = t.replace(WORD_SUFFIX, "");
+  return r.length >= 3 ? r : t;
+}
+/** Two words are the same: short ones exactly, longer ones by stem. */
+function sameWord(a, b) {
+  if (a.length <= 3 || b.length <= 3) return a === b;
+  const x = wordStem(a);
+  const y = wordStem(b);
+  if (x === y) return true;
+  const [sh, lg] = x.length <= y.length ? [x, y] : [y, x];
+  return sh.length >= 4 && lg.startsWith(sh) && lg.length - sh.length <= 2;
+}
+
+/** Character trigrams of a text, normalized; a text under 3 characters is its own gram. */
+function trigrams(text) {
+  const t = normText(text).replace(/\s+/g, " ").trim();
+  const out = new Set();
+  if (t.length < 3) {
+    if (t) out.add(t);
+    return out;
+  }
+  for (let i = 0; i + 3 <= t.length; i++) out.add(t.slice(i, i + 3));
+  return out;
+}
+/** Dice similarity of two texts by character trigrams, 0 to 1. */
+export function diceSimilarity(a, b) {
+  const x = trigrams(a);
+  const y = trigrams(b);
+  if (!x.size || !y.size) return 0;
+  let hit = 0;
+  for (const g of x) if (y.has(g)) hit++;
+  return (2 * hit) / (x.size + y.size);
+}
+const DUP_SIMILARITY = 0.85;
+/** A note that says what one of `list` already says. */
+const duplicateNote = (text, list) => arr(list).some((n) => n && diceSimilarity(text, n.text) >= DUP_SIMILARITY);
+
+/**
+ * A character's notes ranked for a scene: pinned first (newest first), then the rest by how much
+ * of the scene they talk about (a word few notes use counts more: 10 * ln(1 + N / df)), an important
+ * tag (+5; an everyday one -2) and recency (+3 for the newest, none past the last 20). A note that matches nothing can
+ * still make it by tag and recency. Ties go to the newer note.
+ */
+export function rankNotes(list, sceneText) {
+  const all = arr(list).filter(isObj);
+  const pinned = all.filter((n) => noteRank(n) === 0).reverse();
+  const rest = all.filter((n) => noteRank(n) !== 0);
+  const scene = wordTokens(sceneText || "");
+  const keys = new Map();
+  const df = new Map();
+  for (const n of rest) {
+    const ks = unique(wordTokens(str(n.text)));
+    keys.set(n, ks);
+    for (const w of new Set(ks.map(wordStem))) df.set(w, (df.get(w) || 0) + 1);
+  }
+  const total = Math.max(1, rest.length);
+  const scored = rest.map((n, i) => {
+    let score = 0;
+    if (scene.length) for (const k of keys.get(n)) if (scene.some((w) => sameWord(k, w))) score += 10 * Math.log(1 + total / (df.get(wordStem(k)) || 1));
+    if (n.tag === "important") score += 5;
+    else if (n.tag === "everyday") score -= 2;
+    score += 3 * Math.max(0, (20 - (rest.length - 1 - i)) / 20);
+    return { n, i, score };
+  });
+  scored.sort((a, b) => b.score - a.score || b.i - a.i);
+  return [...pinned, ...scored.map((x) => x.n)];
+}
+/** At most `limit` notes for a scene; pinned ones always stay, even past the limit. */
+export function relevantNotes(list, sceneText, limit) {
+  const ranked = rankNotes(list, sceneText);
+  const pinned = ranked.filter((n) => noteRank(n) === 0).length;
+  return ranked.slice(0, Math.max(pinned, limit));
+}
+
 // a user-supplied string must never become one of these object keys
 const UNSAFE_KEYS = ["__proto__", "constructor", "prototype"];
 const safeKey = (k) => typeof k === "string" && k !== "" && !UNSAFE_KEYS.includes(k);
@@ -1698,8 +1804,14 @@ function notebookTexts(ctx) {
   const live = effectiveNotebook(ctx.state, ctx.line.map((l) => l.key).filter((k) => !(ctx.resense && k === ctx.K)), ctx.overlay).live;
   const B = ctx.base && ctx.base.snap;
   const out = [];
+  const news = arr(ctx.newMsgs).map((m) => str(m && m.text)).join("\n");
   for (const name of B ? arr(B.present) : ctx.characters) {
-    const notes = (live[name] || []).slice(-20);
+    const list = live[name] || [];
+    // the 8 newest, and of the older ones the 12 that matter most to the new messages
+    const newest = list.slice(-8);
+    const older = rankNotes(list.slice(0, Math.max(0, list.length - 8)), news).slice(0, 12);
+    const keep = new Set([...newest, ...older].map((n) => n.id));
+    const notes = list.filter((n) => keep.has(n.id));
     if (notes.length) out.push("Notebook of " + name + "\n" + notes.map(noteLine).join("\n"));
   }
   return out;
@@ -2027,9 +2139,17 @@ function applyNotebook(ctx, out, present, turn, K) {
   // sensor notes (to retire) and the notes as they read now, the user's included (to tell on)
   const raw = activeNotebook(state, keys);
   const live = effectiveNotebook(state, keys, ctx.overlay).live;
+  const retire = arr(out.retire).map(str);
+  // the user's own notes (u...) are never retired by the sensor
+  const retiring = (n) => retire.includes(n.id) && !String(n.id).startsWith("u");
+  // what a holder's notebook already says (notes the sensor retires in this same report do not count,
+  // so a rewrite lands), and what this report has put in so far
+  const fresh = {};
+  const says = (who, text) => duplicateNote(text, arr(live[who]).filter((n) => !retiring(n))) || duplicateNote(text, fresh[who]);
   const add = (who, note) => {
     state.counters.note += 1;
     listIn(state.notebook, who).push({ id: "n" + state.counters.note, ...note, turn, src: K });
+    listIn(fresh, who).push(note);
   };
   // the same text for three or more characters is a summary, not a fact
   const holders = {};
@@ -2050,6 +2170,8 @@ function applyNotebook(ctx, out, present, turn, K) {
     // "heard" with no teller: the user told them
     const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, ctx.userName, present) : "user";
     const from = how === "heard" ? teller : null;
+    // near the same words as a note already there: nothing new to keep
+    if (says(who, text)) continue;
     add(who, how === "heard" ? { text, how, from, believes: true } : { text, how, from: null });
     used++;
   }
@@ -2058,11 +2180,9 @@ function applyNotebook(ctx, out, present, turn, K) {
     const from = canonName(t.from, present);
     const to = canonName(t.to, present);
     const note = arr(live[from]).find((n) => n.id === str(t.note));
-    if (note && present.includes(to) && to !== from) add(to, { text: note.text, how: "heard", from, believes: true });
+    if (note && present.includes(to) && to !== from && !says(to, note.text)) add(to, { text: note.text, how: "heard", from, believes: true });
   }
-  const retire = arr(out.retire).map(str);
-  // the user's own notes (u...) are never retired by the sensor
-  for (const notes of Object.values(raw)) for (const n of notes) if (retire.includes(n.id) && !String(n.id).startsWith("u")) n.retiredBy = K;
+  for (const notes of Object.values(raw)) for (const n of notes) if (retiring(n)) n.retiredBy = K;
 }
 
 function applyNames(ctx, out, present, turn, K) {
@@ -2677,7 +2797,13 @@ function turnOf(ctx) {
   const t = isObj(ctx.turn) ? ctx.turn : ctx.request && isObj(ctx.request.turn) ? ctx.request.turn : {};
   const msgs = ctx.request && Array.isArray(ctx.request.messages) ? ctx.request.messages : [];
   const lastUser = msgs.filter((m) => m && m.role === "user" && typeof m.content === "string").slice(-1)[0];
-  return { op: str(t.op), speakerName: str(t.speakerName), targetId: str(t.targetId), userText: lastUser ? lastUser.content.slice(-2000) : "" };
+  // the newest three messages of the request (not the system ones): what the scene is about now
+  const recent = msgs
+    .filter((m) => m && m.role !== "system" && typeof m.content === "string")
+    .slice(-3)
+    .map((m) => m.content.slice(-1500))
+    .join("\n");
+  return { op: str(t.op), speakerName: str(t.speakerName), targetId: str(t.targetId), userText: lastUser ? lastUser.content.slice(-2000) : "", recent };
 }
 
 /** Is the name in the text, allowing for endings (Mariann for Marianna, Chandru for Chandra)? */
@@ -2738,11 +2864,9 @@ function sceneLine(snap, user) {
 }
 
 /** The full block of one character. withNotes = false when it would leak. */
-/** A character's notes by importance: pinned, important, unmarked, everyday; newest first in a group. Pinned always stay. */
-function pickNotes(list, limit) {
-  const sorted = list.slice().reverse().sort((a, b) => noteRank(a) - noteRank(b));
-  const pinned = sorted.filter((n) => noteRank(n) === 0);
-  return [...pinned, ...sorted.filter((n) => noteRank(n) !== 0).slice(0, Math.max(0, limit - pinned.length))];
+/** A character's notes for this scene: pinned always, then the ones the scene is about, then the important and recent ones. */
+function pickNotes(list, limit, sceneText) {
+  return relevantNotes(list, sceneText, limit);
 }
 
 function characterBlock(ctx, name, withNotes, limit) {
@@ -2770,7 +2894,7 @@ function characterBlock(ctx, name, withNotes, limit) {
   ].filter(Boolean);
   if (body.length) lines.push(body.join(" "));
   if (withNotes) {
-    const notes = pickNotes(arr(ctx.notebook[name]), limit === undefined ? NOTE_LIMIT : limit);
+    const notes = pickNotes(arr(ctx.notebook[name]), limit === undefined ? NOTE_LIMIT : limit, ctx.sceneText);
     const nameEntry = arr(ctx.names[name]).slice(-1)[0];
     lines.push(knowsLine(name, user, notes, nameEntry, pr));
   }
@@ -2788,7 +2912,7 @@ function compactLine(ctx, name) {
 }
 
 /**
- * The insert for one reply, or null. turn = {op, speakerName, targetId, userText}.
+ * The insert for one reply, or null. turn = {op, speakerName, targetId, userText, recent?}.
  * Returns { text, tokens, focus, notebookOf, key }.
  */
 export function buildInsert(fsx, chatId, turn, cfg) {
@@ -2821,6 +2945,8 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     user: userNameOf(fsx, chat.meta),
     notebook: effectiveNotebook(state, at.keys, overlay).live,
     names: activeNames(state, at.keys),
+    // the notes follow the scene: the user's message, the newest messages, who is here
+    sceneText: [str(turn.userText), typeof turn.recent === "string" ? turn.recent : line.slice(-3).map((m) => str(m.text)).join("\n"), ...present].join("\n"),
   };
   const rest = present.filter((n) => !focus.includes(n));
   // where the story can go: the model had nothing to pull on and the story stood still (no ids: no digits)

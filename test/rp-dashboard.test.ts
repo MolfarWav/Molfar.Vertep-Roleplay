@@ -4272,3 +4272,164 @@ describe("place log and scenes", () => {
     expect(after.at(-1)).toBe("m3#0");
   });
 });
+
+describe("notes follow the scene", () => {
+  const notes = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", ...body } });
+  const preview = (mock: ReturnType<typeof mockHost>, text = "") =>
+    drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria", ...(text ? { text } : {}) } }).json.insert.text as string;
+  /** One update behind it (n1 "The user keeps their word"). */
+  function started() {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    return mock;
+  }
+  const filler = (mock: ReturnType<typeof mockHost>, n: number, from = 0) => {
+    for (let i = from; i < from + n; i++) notes(mock, { op: "add", name: "Aria", text: "Unrelated trivia number " + i + " about weather and tea" });
+  };
+  const quietReply = () => reply({ present: ["Aria"], minutes: 1 });
+
+  it("relevantNotes: an old note about the scene beats newer unrelated ones", () => {
+    const old = { id: "a", text: "Aria is afraid of the old bell tower" };
+    const list = [old, ...Array.from({ length: 15 }, (_, i) => ({ id: "f" + i, text: "Filler number " + i + " about tea" }))];
+    const got = P.relevantNotes(list, "we walk toward the bell tower", 5);
+    expect(got.length).toBe(5);
+    expect(got[0].id).toBe("a");
+    // without a matching scene the newest win
+    const plain = P.relevantNotes(list, "nothing in common", 5).map((n: any) => n.id);
+    expect(plain).not.toContain("a");
+    expect(plain[0]).toBe("f14");
+  });
+
+  it("relevantNotes: pinned always stay, past the limit; the important tag lifts a note; Cyrillic inflections match", () => {
+    const list = [
+      { id: "p1", text: "pinned one", tag: "pinned" },
+      { id: "p2", text: "pinned two", tag: "pinned" },
+      { id: "i", text: "marked important", tag: "important" },
+      ...Array.from({ length: 6 }, (_, k) => ({ id: "f" + k, text: "filler " + k })),
+      { id: "ua", text: "Арія боїться старої дзвіниці" },
+      ...Array.from({ length: 6 }, (_, k) => ({ id: "g" + k, text: "other " + k })),
+    ];
+    const one = P.relevantNotes(list, "", 1).map((n: any) => n.id);
+    expect(one).toEqual(["p2", "p1"]); // both pinned, newest first, limit 1 notwithstanding
+    const got = P.relevantNotes(list, "ми йдемо до дзвіниці", 4).map((n: any) => n.id);
+    expect(got).toContain("ua");
+    expect(got.slice(0, 2)).toEqual(["p2", "p1"]);
+    const imp = P.relevantNotes(list, "", 4).map((n: any) => n.id);
+    expect(imp).toContain("i");
+  });
+
+  it("the insert carries an old note about what the user just wrote, and pinned ones always", () => {
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: "Pinned: never speaks of the harbor fire", tag: "pinned" });
+    notes(mock, { op: "add", name: "Aria", text: "Is afraid of the old bell tower" });
+    filler(mock, 20);
+    const plain = preview(mock);
+    expect(plain).not.toContain("bell tower");
+    expect(plain).toContain("harbor fire");
+    const about = preview(mock, "Let us climb the bell tower");
+    expect(about).toContain("bell tower");
+    expect(about).toContain("harbor fire");
+  });
+
+  it("the insert reads the newest messages of the request too", () => {
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: "Is afraid of the old bell tower" });
+    filler(mock, 20);
+    const ask = (messages: any[]) =>
+      (P.llmRequest({ key: "reply", request: { sessionId: "c1", messages } }, mock.host) as { messages: any[] }).messages.find((x) => String(x.content).startsWith("[Background, the scene:")).content as string;
+    expect(ask([{ role: "system", content: "card" }, { role: "user", content: "hi" }])).not.toContain("bell tower");
+    const withScene = ask([
+      { role: "system", content: "card" },
+      { role: "assistant", content: "The bell tower looms over the square." },
+      { role: "user", content: "We stop." },
+    ]);
+    expect(withScene).toContain("bell tower");
+  });
+
+  it("the sensor sees the 8 newest notes and the older ones that match the new messages", () => {
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: "Is afraid of the old bell tower" });
+    filler(mock, 29);
+    writeChat("c1", [...three(), A("m4", "The bell tower rises ahead."), U("m5", "I look up at it.")]);
+    mock.push(quietReply());
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const input = mock.requests.at(-1)!.req.messages[0].content as string;
+    const block = input.split("Notebook of Aria\n")[1]!.split("\n\n")[0]!;
+    expect(block).toContain("afraid of the old bell tower");
+    expect(block).toContain("trivia number 28"); // the newest
+    expect(block).not.toContain("trivia number 0 "); // an old unrelated one
+    // chronological: the old matching note comes before the newest
+    expect(block.indexOf("bell tower")).toBeLessThan(block.indexOf("trivia number 28"));
+    expect(block.split("\n").length).toBeLessThanOrEqual(20);
+  });
+
+  it("a near-duplicate of a live note is skipped, a different one is kept", () => {
+    const longNote = "The user carries a long letter from the capital, sealed with black wax";
+    const mock = started();
+    notes(mock, { op: "add", name: "Aria", text: longNote });
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes.")]);
+    mock.push(
+      reply({
+        present: ["Aria"],
+        minutes: 1,
+        learned: [
+          { who: "Aria", text: "The user carries a long letter from the capital, sealed with red wax", how: "saw" },
+          { who: "Aria", text: "The user dreams of the mountains", how: "saw" },
+        ],
+      }),
+    );
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const st = readStateFile("c1");
+    const texts = st.notebook.Aria.map((n: any) => n.text);
+    expect(texts).toContain("The user dreams of the mountains");
+    expect(texts).not.toContain("The user carries a long letter from the capital, sealed with red wax");
+    expect(texts.length).toBe(2); // n1 and the new different one
+  });
+
+  it("two near-same notes in one report keep one; a rewrite of a note the sensor retires lands", () => {
+    const mock = started();
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes.")]);
+    mock.push(
+      reply({
+        present: ["Aria"],
+        minutes: 1,
+        learned: [
+          { who: "Aria", text: "The user always keeps their promises to the people of the harbor", how: "saw" },
+          { who: "Aria", text: "The user always keeps their promises to the people of the harbour", how: "saw" },
+        ],
+      }),
+    );
+    update(mock, "c1");
+    const harbor = readStateFile("c1").notebook.Aria.filter((n: any) => /harbou?r/.test(n.text));
+    expect(harbor.length).toBe(1);
+    // the sensor retires n1 and writes it again nearly the same: the new one is kept
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes."), A("m6", "Ok."), U("m7", "Right.")]);
+    mock.push(reply({ present: ["Aria"], minutes: 1, retire: ["n1"], learned: [{ who: "Aria", text: "The user keeps their word.", how: "saw" }] }));
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    const n1 = st.notebook.Aria.find((n: any) => n.id === "n1");
+    expect(n1.retiredBy).toBeTruthy();
+    expect(st.notebook.Aria.some((n: any) => n.text === "The user keeps their word." && !n.retiredBy)).toBe(true);
+  });
+
+  it("a told copy that the listener already holds is not added again", () => {
+    writeChat("c1", three());
+    const mock = mockHost([
+      reply({
+        present: ["Aria", "Bram"],
+        minutes: 1,
+        learned: [
+          { who: "Aria", text: "The user was born by the sea", how: "saw" },
+          { who: "Bram", text: "The user was born by the sea", how: "heard", from: "Aria" },
+        ],
+      }),
+    ]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes.")]);
+    mock.push(reply({ present: ["Aria", "Bram"], minutes: 1, told: [{ from: "Aria", to: "Bram", note: "n1" }] }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const st = readStateFile("c1");
+    expect((st.notebook.Bram || []).filter((n: any) => /born by the sea/.test(n.text)).length).toBe(1);
+  });
+});
