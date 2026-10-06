@@ -134,7 +134,7 @@ const isDefaultPrompt = (key, text) =>
 
 /** config.json as stored, minus prompts that are a default (so they follow it). */
 function storedConfig(fsx) {
-  const raw = readWithLegacy(fsx, CONFIG_FILE, null);
+  const raw = readOwn(fsx, CONFIG_FILE, null);
   const cfg = raw && typeof raw === "object" ? { ...raw } : {};
   for (const key of PROMPT_KEYS) if (typeof cfg[key] !== "string" || isDefaultPrompt(key, cfg[key])) delete cfg[key];
   return cfg;
@@ -147,17 +147,40 @@ function loadConfig(fsx) {
 
 /** Which prompts the user changed. */
 const customPrompts = (fsx) => PROMPT_KEYS.filter((key) => key in storedConfig(fsx));
-// Renamed from Archivarius: data written before the rename lives in archivarius/*.
-// Read it as a fallback; the first save writes litopys/* and the old files stay as a backup.
+// Renamed from Archivarius: a store written before the rename lives in archivarius/*.
+// It moves over ONCE: when litopys/store.json is missing and archivarius/store.json
+// exists, the store, proposals and config are copied into litopys/ (a file litopys
+// already has stays). After that archivarius/ is never read; its files stay on disk.
 const LEGACY_DIR = "archivarius/";
-const readWithLegacy = (fsx, file, dflt) => {
-  const cur = readJson(fsx, file, null);
-  if (cur !== null) return cur;
-  return readJson(fsx, LEGACY_DIR + file.split("/").pop(), dflt);
+function moveLegacy(fsx) {
+  try {
+    if (fsx.list("litopys").includes("store.json")) return;
+  } catch {}
+  const old = readJson(fsx, LEGACY_DIR + "store.json", null);
+  if (old === null) return;
+  try {
+    fsx.write(STORE_FILE, JSON.stringify(old, null, 2));
+    for (const file of [PROPOSALS_FILE, CONFIG_FILE]) {
+      const name = file.split("/").pop();
+      let have = true;
+      try {
+        have = fsx.list("litopys").includes(name);
+      } catch {
+        have = false;
+      }
+      if (have) continue;
+      const prev = readJson(fsx, LEGACY_DIR + name, null);
+      if (prev !== null) fsx.write(file, JSON.stringify(prev, null, 2));
+    }
+  } catch {}
+}
+const readOwn = (fsx, file, dflt) => {
+  moveLegacy(fsx);
+  return readJson(fsx, file, dflt);
 };
-const loadStore = (fsx) => readWithLegacy(fsx, STORE_FILE, { chats: {} });
+const loadStore = (fsx) => readOwn(fsx, STORE_FILE, { chats: {} });
 const saveStore = (fsx, s) => fsx.write(STORE_FILE, JSON.stringify(s, null, 2));
-const loadProposals = (fsx) => readWithLegacy(fsx, PROPOSALS_FILE, { items: [] });
+const loadProposals = (fsx) => readOwn(fsx, PROPOSALS_FILE, { items: [] });
 const saveProposals = (fsx, p) => fsx.write(PROPOSALS_FILE, JSON.stringify(p, null, 2));
 
 function slugify(name, fallback) {
