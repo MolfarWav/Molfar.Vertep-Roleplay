@@ -4433,3 +4433,55 @@ describe("notes follow the scene", () => {
     expect((st.notebook.Bram || []).filter((n: any) => /born by the sea/.test(n.text)).length).toBe(1);
   });
 });
+
+describe("scene boundary and note weight (memory M2)", () => {
+  const withScene = (scene: unknown, learned: unknown[] = []) => reply({ present: ["Aria"], minutes: 5, place: "Hall", scene, learned });
+
+  it("a snapshot stores the sensor's scene field", () => {
+    writeChat("c1", three());
+    const mock = mockHost([withScene({ new: true, label: "A fight in the hall" })]);
+    update(mock, "c1");
+    expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: true, label: "A fight in the hall" });
+  });
+
+  it("a missing, malformed or half-formed scene is { new: false }", () => {
+    expect(P.readScene(undefined)).toEqual({ new: false });
+    expect(P.readScene("yes")).toEqual({ new: false });
+    expect(P.readScene({ label: "x" })).toEqual({ new: false });
+    expect(P.readScene({ new: "true", label: "x" })).toEqual({ new: false });
+    expect(P.readScene({ new: false, label: "Quiet" })).toEqual({ new: false, label: "Quiet" });
+    expect(P.readScene({ new: true, label: "x".repeat(200) }).label.length).toBe(60);
+    writeChat("c1", three());
+    update(mockHost([withScene(null)]), "c1");
+    expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
+  });
+
+  it("notes keep the sensor's weight; anything else is everyday", () => {
+    writeChat("c1", three());
+    const mock = mockHost([
+      withScene({ new: false }, [
+        { who: "Aria", text: "The user carries an old locket", how: "saw", weight: "key" },
+        { who: "Aria", text: "The user takes sugar in tea", how: "saw", weight: "important" },
+        { who: "Aria", text: "The user wears a green scarf", how: "saw", weight: "huge" },
+        { who: "Aria", text: "The user hums when nervous", how: "saw" },
+      ]),
+    ]);
+    update(mock, "c1");
+    const notes = readStateFile("c1").notebook.Aria as { text: string; weight: string }[];
+    expect(notes.map((n) => n.weight)).toEqual(["key", "important", "everyday", "everyday"]);
+  });
+
+  it("the sensor prompt asks for the scene field and the note weight; the old default is a past default", () => {
+    expect(P.DEFAULT_PROMPTS.sensor).toContain("scene: new is true when this turn starts a new scene");
+    expect(P.DEFAULT_PROMPTS.sensor).toContain("key (changes who");
+    writeChat("c1", three());
+    const mock = mockHost([withScene({ new: false })]);
+    update(mock, "c1");
+    const system = String(mock.requests[0].req.systemPrompt);
+    expect(system).toContain('"scene": { "new": false');
+    expect(system).toContain("everyday|important|key");
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-1)[0];
+    expect(old).not.toContain("scene: new is true");
+    expect(old).toContain("Keep open threads, up to the open thread limit");
+  });
+});
