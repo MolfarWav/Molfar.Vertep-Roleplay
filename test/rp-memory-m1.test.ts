@@ -339,17 +339,17 @@ describe("M1.4 Litopys adopts the Archivarius store once", () => {
   it("only the old dir: store, proposals and config are copied, the old files stay", async () => {
     writeJson("archivarius/store.json", oldStore);
     writeJson("archivarius/proposals.json", { items: [{ id: "p1", chatId: "c-old-111111", status: "pending" }] });
-    writeJson("archivarius/config.json", { extractEveryNTurns: 5 });
+    writeJson("archivarius/config.json", { recentMessages: 25 });
     const cfg = await litopysRoute("/litopys/config");
-    expect(cfg.json.extractEveryNTurns).toBe(5);
+    expect(cfg.json.recentMessages).toBe(25);
     expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "store.json"), "utf8"))).toEqual(oldStore);
     expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "proposals.json"), "utf8")).items[0].id).toBe("p1");
-    expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "config.json"), "utf8")).extractEveryNTurns).toBe(5);
+    expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "config.json"), "utf8")).recentMessages).toBe(25);
     expect(fs.existsSync(path.join(root, "archivarius", "store.json"))).toBe(true);
     // copied once: a later change to the old files is not read again
     writeJson("archivarius/store.json", { chats: {} });
-    const st = await litopysRoute("/litopys/state?chatId=c-old-111111");
-    expect(JSON.stringify(st.json)).toContain("\"facts\":1");
+    await litopysRoute("/litopys/config");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "store.json"), "utf8"))).toEqual(oldStore);
   });
 
   it("both present: litopys wins and nothing is copied", async () => {
@@ -357,20 +357,20 @@ describe("M1.4 Litopys adopts the Archivarius store once", () => {
     writeJson("litopys/store.json", mine);
     writeJson("archivarius/store.json", oldStore);
     writeJson("archivarius/proposals.json", { items: [{ id: "p1", chatId: "x", status: "pending" }] });
-    writeJson("archivarius/config.json", { extractEveryNTurns: 9 });
+    writeJson("archivarius/config.json", { recentMessages: 90 });
     const cfg = await litopysRoute("/litopys/config");
-    expect(cfg.json.extractEveryNTurns).not.toBe(9);
+    expect(cfg.json.recentMessages).not.toBe(90);
     expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "store.json"), "utf8"))).toEqual(mine);
     expect(fs.existsSync(path.join(root, "litopys", "proposals.json"))).toBe(false);
     expect(fs.existsSync(path.join(root, "litopys", "config.json"))).toBe(false);
   });
 
   it("a file litopys already has is not overwritten by the move", async () => {
-    writeJson("litopys/config.json", { extractEveryNTurns: 3 });
+    writeJson("litopys/config.json", { recentMessages: 30 });
     writeJson("archivarius/store.json", oldStore);
-    writeJson("archivarius/config.json", { extractEveryNTurns: 9 });
+    writeJson("archivarius/config.json", { recentMessages: 90 });
     const cfg = await litopysRoute("/litopys/config");
-    expect(cfg.json.extractEveryNTurns).toBe(3);
+    expect(cfg.json.recentMessages).toBe(30);
     expect(fs.existsSync(path.join(root, "litopys", "store.json"))).toBe(true);
   });
 

@@ -108,9 +108,9 @@ async function summaryInstructions(mock: ReturnType<typeof mockHost>, id: string
 }
 
 describe("plugin prompts: English, with a language line where the model writes for the user", () => {
-  it("the Litopys scribe and curator defaults", async () => {
+  it("the Litopys chapter default", async () => {
     const r = await drive(litopysUrl, { method: "GET", path: "/litopys/config" }, mockHost());
-    for (const key of ["scribePrompt", "curatePrompt"]) {
+    for (const key of ["chapter"]) {
       const text = r.json[key] as string;
       expect(text.length, key).toBeGreaterThan(100);
       expect(CYRILLIC.test(text), `${key} has Cyrillic`).toBe(false);

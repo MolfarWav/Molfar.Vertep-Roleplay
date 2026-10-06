@@ -1,160 +1,170 @@
 /**
- * Litopys — world-lore keeper for roleplay chats.
+ * Litopys 2.0: chapters and facts per chat, in shadow mode.
  *
- * Two passes, one plugin (separated by cadence and rights, not by process):
+ * One chapter per closed scene, built by one model call per tick (the oldest
+ * closed scene that has none), plus fact operations that come back with it.
+ * Nothing is injected into the prompt yet: the old Memory keeps working and the
+ * user compares the two (see PLAN.md, M2). The module is evaluated afresh on
+ * every pass of a hook, so all state lives in files.
  *
- *  SCRIBE (frequent, append-only, safe):
- *    reads recent messages → proposes world facts (places, NPCs, items,
- *    events, lore — NEVER relationship feelings/metrics, that's the tracker's
- *    job), chronicle events and a running story recap.
- *    Applies: new facts (exact-dupes skipped), chronicle, storySoFar.
- *    Exact-text retirements auto-apply; rewrites go to proposals.
- *    Source of truth: data/litopys/store.json (ids, statuses, history).
- *    Human face: data/vault-chats/<character>.md, regenerated on every commit.
- *
- *  CURATOR (rare, destructive power — mostly 제안):
- *    reads the whole lore store (+ tracker facts/threads) → an LLM pass
- *    judges each item: keep | merge | retire | rewrite.
- *    Auto-applies ONLY exact-duplicate merges; everything else becomes a
- *    proposal in data/litopys/proposals.json for approval
- *    (Litopys panel or POST /litopys/proposals).
- *    Also backfills missing ids in tracker facts/threads so later ops can
- *    address them precisely.
- *
- *  Timeline/chronicle is append-only — curation never deletes history, it
- *  retires facts (status kept in JSON, hidden from MD).
+ * Files (under data/litopys/):
+ *   chats/<chatId>.json      chapters, facts, proposals, the scene in progress,
+ *                            counters and the worker's last run
+ *   vectors/<chatId>.json    { id: { hash, vector } } for chapters and facts
+ *   config.json              the user's changes to the defaults
+ *   embed-status.json        { ok, checkedAt }: a failed embed pauses for 1 hour
+ *   store.json, proposals.json   Litopys 1.x, kept as a backup; read by the
+ *                            migration, trimmed for deleted chats
  *
  * Routes (under /v1/apps/roleplay/):
- *  POST /litopys/poll {chatId} — scribe now (two-phase)
- *  POST /litopys/curate {chatId} — curator now (two-phase)
- *  GET  /litopys/state?chatId= — store slice + pending proposal count
- *  GET  /litopys/proposals?chatId= — pending (+ recent decided) proposals
- *    (each item also carries targetTexts[] — human-readable texts resolved
- *    from ids at read time, so the panel never shows raw f… ids)
- *  POST /litopys/proposals {action: approve|reject, ids[]} — apply
- *  POST /litopys/facts {chatId, action: add|retire|update|restore, id?, text?} —
- *    manual fact edit: add writes a new fact, retire hides one at once,
- *    update replaces its text, restore brings a retired one back. All
- *    commit to store.json + re-render the vault MD at once.
- *  POST /litopys/story {chatId, text} — the user's own recap ("" clears)
- *  GET /litopys/config · PUT /litopys/config
- *  DELETE /litopys/config/prompts — back to the shipped prompts
+ *  GET /litopys/config . PUT /litopys/config
+ *  DELETE /litopys/config/prompts   back to the shipped prompt
  */
+
+// PART A: utils, config, legacy store, chat reading, scenes, worker request / parse / apply
+
+const LITOPYS_DIR = "litopys";
+const CHAT_DIR = "litopys/chats/";
+const VECTOR_DIR = "litopys/vectors/";
+const CONFIG_FILE = "litopys/config.json";
 const STORE_FILE = "litopys/store.json";
 const PROPOSALS_FILE = "litopys/proposals.json";
-const CONFIG_FILE = "litopys/config.json";
+const EMBED_STATUS_FILE = "litopys/embed-status.json";
 const VAULT_DIR = "vault-chats";
-
-const DEFAULT_CONFIG = {
-  enabled: true,
-  extractEveryNTurns: 2,   // scribe when >= this*2 new messages
-  curateEveryNTurns: 12,   // curator when >= this*2 new messages
-  model: "",               // extraction model ref; "" = chat model
-  autoApplySafe: true,     // exact-dupe merges apply without approval
-  maxFacts: 80,
-  maxChronicle: 200,
-  // the lore block in every reply's prompt: off until asked for. Its hook never ran on
-  // imported installs (an engine bug, fixed in 0.8.1), and Memory v2 will carry these facts
-  inject: false,
-};
-
-// The prompts ship with the plugin. config.json holds a prompt only when the
-// user changed it, so a better default reaches everyone who did not, and
-// "Restore default prompts" in the panel drops the user's copy. The JSON
-// schema and the lists the model works on are appended in code: no edit here
-// can break the output format.
-const DEFAULT_PROMPTS = {
-  scribePrompt: [
-    "You keep the lore record of an ongoing roleplay story. From the RECENT MESSAGES, record what is now true in the story's world, so it can be recalled many scenes later.",
-    "",
-    "Facts:",
-    "- Record only what the messages state or show as true in the story. Never guess, never explain motives, never add knowledge from outside the story.",
-    "- Keep what stays true across scenes: places and how they connect; characters and who they are (role, allegiance, kinship, lasting appearance); important objects and who holds them; past events that matter; rules of the world (magic, technology, laws, customs).",
-    "- Leave out what holds for one scene only: moods and passing feelings, momentary actions, the time of day, the weather, today's clothes.",
-    "- A claim, belief or lie of a character is not a fact of the world: record it as theirs (\"Mira says the bridge is guarded\").",
-    "- Write each fact as one sentence that makes sense read alone: names, never pronouns. Use the names in the CHARACTER and USER lines for the two leads.",
-    "- Add only what CURRENT FACTS does not already say, even in other words. At most 8 new facts: keep the most important.",
-    "- When a message changes a current fact, put it in updated, quoting the current text exactly. When it ends or disproves one, quote it exactly in retired.",
-    "- Out-of-character notes and instructions to the AI are not part of the story.",
-    "",
-    "Chronicle: the events in THESE messages that move the story, in order, one short line each: who did what, and what came of it. Skip small talk.",
-    "",
-    "Recap (storySoFar): the whole story so far in at most 250 words, past tense: CURRENT RECAP brought up to date with these messages. Say where things stand, what is unresolved and what the characters are after. Return null when nothing important changed.",
-    "",
-    "Language: write facts, chronicle and recap in the language the story is written in (the language most messages use). Keep every name exactly as the story spells it.",
-  ].join("\n"),
-  curatePrompt: [
-    "You maintain the lore record of a roleplay story. Read EVERY listed item. Return an op only for an item that needs one; every item you leave out is kept as it is.",
-    "",
-    "- merge: two or more items say the same thing. targets[0] is the one kept; give text when a combined wording is clearer than any of them.",
-    "- rewrite: the item is true but badly worded: a pronoun instead of a name, vague, two facts in one, or a rumor stated as truth. text is the fixed wording, with the same meaning.",
-    "- retire: the item is no longer true or no longer matters: a later item contradicts it, it was resolved and nothing refers to it since, or it is a one-scene detail (a mood, the weather, the time of day) that slipped in.",
-    "",
-    "Be conservative: when unsure, keep. Age alone is never a reason to retire: a long-past event that shaped the story stays. Never add facts of your own. Quote targets exactly as listed. Write text in the language of the items. Give each op a reason of a few words.",
-  ].join("\n"),
-};
-
-// Defaults earlier versions wrote into config.json in full. A config holding
-// one verbatim never chose it, so it follows the current default.
-const PAST_DEFAULT_PROMPTS = {
-  scribePrompt: [
-    "You are a lore archivist for a roleplay conversation. Extract WORLD facts only: places, NPCs, items, events, rules of the world. " +
-      "NEVER relationship content (feelings, attraction, trust, dynamic between CHARACTER and USER) — a separate tracker owns that. " +
-      "NEVER scene-volatile detail (exact hour, weather right now) — that lives in the scene block, not the lore. " +
-      "Facts must be durable: true across many scenes. One fact per line, self-contained (names, not pronouns). " +
-      "If a new message contradicts or replaces an earlier-listed fact, quote it in updated/retired — never silently duplicate. " +
-      "Chronicle: only plot-moving events from THESE messages (who did what, 1 line each). storySoFar: full replacement recap ≤250 words, or null to keep.",
-  ],
-  curatePrompt: [
-    "You are the curator of a lore vault. Judge EVERY listed item. " +
-      "merge: exact or near duplicates (keep the clearest wording). retire: played-out, resolved, contradicted by later events, or scene-volatile trivia that slipped in. " +
-      "rewrite: true fact with bad wording (pronouns, vagueness). keep: everything still true and useful. " +
-      "Be conservative with retire: when in doubt, keep. A fact is played-out only if the story moved past it AND nothing references it anymore. " +
-      "Reason each op in a few words.",
-  ],
-};
-const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
+const RETRY_MS = 600000;
+const DICE_LIMIT = 0.85;
 
 // ---------- tiny utils ----------
-const readJson = (fsx, path, dflt) => {
+export function readJson(fsx, path, dflt) {
   try {
     return JSON.parse(fsx.read(path));
   } catch {
     return dflt;
   }
-};
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
-const uid = () => "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const norm = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
 
-/** A prompt as the user would see it changed: whitespace does not count. */
+export function isObj(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+export function clamp(n, lo, hi) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return lo;
+  return Math.min(hi, Math.max(lo, v));
+}
+
+export function str(v) {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+export function cut(s, n) {
+  return str(s).slice(0, n);
+}
+
+export function arr(v) {
+  return Array.isArray(v) ? v : [];
+}
+
+export function norm(s) {
+  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// FNV-1a 32-bit, 8 hex chars
+export function fnv1a(s) {
+  s = String(s || "");
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/** FNV-1a of the covered messages' texts joined by char code 1. msgs = array of message objects. */
+export function chapterSig(msgs) {
+  const s = arr(msgs).map((m) => String((m && m.text) || "")).join(String.fromCharCode(1));
+  return fnv1a(s);
+}
+
+const WORD_APOS = /['\u2019\u02BC\u2018`\u00B4\u02B9\u2032]/g;
+function normText(s) {
+  return String(s).normalize("NFD").replace(/\u0301/g, "").normalize("NFC").toLowerCase().replace(WORD_APOS, "'").replace(/\u0451/g, "\u0435");
+}
+
+function trigrams(text) {
+  const t = normText(text).replace(/\s+/g, " ").trim();
+  const out = new Set();
+  if (t.length < 3) {
+    if (t) out.add(t);
+    return out;
+  }
+  for (let i = 0; i + 3 <= t.length; i++) out.add(t.slice(i, i + 3));
+  return out;
+}
+
+/** Dice similarity of two texts by character trigrams, 0 to 1. */
+export function diceSimilarity(a, b) {
+  const x = trigrams(a);
+  const y = trigrams(b);
+  if (!x.size || !y.size) return 0;
+  let hit = 0;
+  for (const g of x) if (y.has(g)) hit++;
+  return (2 * hit) / (x.size + y.size);
+}
+
+// ---------- config ----------
+export const DEFAULT_CONFIG = {
+  enabled: true,
+  model: "",
+  recentMessages: 20,
+  scene: {
+    minMessages: 6,
+    maxMessages: 40,
+  },
+  pinLimit: 5,
+};
+
+export const DEFAULT_PROMPTS = {
+  chapter: [
+    "You keep the story record of an ongoing roleplay. From the Scene messages, write the chapter of what happened and the durable facts that came out of it. The Previous chapter and the Known facts are background: do not retell them, repeat them or contradict them without cause.",
+    "",
+    "Chapter:",
+    "- 3-6 sentences, past tense, third person, names not pronouns.",
+    "- State consequences, not a retelling: who won or lost, who is hurt, what was gained or lost, how people's feelings toward each other changed, what was decided or promised, who learned what.",
+    "- Never invent; use only what the messages say.",
+    "",
+    "Facts:",
+    "- Durable things only, one short self-contained sentence each, at most 8.",
+    "- subject: a name, the user's character's name, or \"world\".",
+    "- knownBy: names who witnessed or were told, or \"all\".",
+    "- type: event|trait|change|relation|world|plan. change = a lasting change that overrides the character card (a lost arm, a new scar, a title).",
+    "- weight: everyday|important|key.",
+    "- To change a known fact: {op:\"update\", id, text} or {op:\"retire\", id, reason}. New facts {op:\"add\", ...}. Never repeat a known fact.",
+    "- Use only what the messages say; never invent and never add knowledge from outside the story.",
+    "",
+    "Language: write the chapter and the facts in the language the story is written in (the language most messages use). Keep every name exactly as the story spells it.",
+    "",
+    "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
+  ].join("\n"),
+};
+
+export const WORKER_SHAPE =
+  '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
+
+const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
+const PAST_DEFAULT_PROMPTS = {
+  chapter: [],
+};
+
 const promptKey = (s) => String(s || "").replace(/\s+/g, " ").trim();
 const isDefaultPrompt = (key, text) =>
-  !promptKey(text) || [DEFAULT_PROMPTS[key], ...PAST_DEFAULT_PROMPTS[key]].some((d) => promptKey(d) === promptKey(text));
+  !promptKey(text) || [DEFAULT_PROMPTS[key], ...(PAST_DEFAULT_PROMPTS[key] || [])].some((d) => promptKey(d) === promptKey(text));
 
-/** config.json as stored, minus prompts that are a default (so they follow it). */
-function storedConfig(fsx) {
-  const raw = readOwn(fsx, CONFIG_FILE, null);
-  const cfg = raw && typeof raw === "object" ? { ...raw } : {};
-  for (const key of PROMPT_KEYS) if (typeof cfg[key] !== "string" || isDefaultPrompt(key, cfg[key])) delete cfg[key];
-  return cfg;
-}
-
-/** The config in effect: defaults, then what the user chose. */
-function loadConfig(fsx) {
-  return { ...DEFAULT_CONFIG, ...DEFAULT_PROMPTS, ...storedConfig(fsx) };
-}
-
-/** Which prompts the user changed. */
-const customPrompts = (fsx) => PROMPT_KEYS.filter((key) => key in storedConfig(fsx));
-// Renamed from Archivarius: a store written before the rename lives in archivarius/*.
-// It moves over ONCE: when litopys/store.json is missing and archivarius/store.json
-// exists, the store, proposals and config are copied into litopys/ (a file litopys
-// already has stays). After that archivarius/ is never read; its files stay on disk.
+// ---------- legacy store helpers (exactly as in the 1.x file) ----------
 const LEGACY_DIR = "archivarius/";
-function moveLegacy(fsx) {
+export function moveLegacy(fsx) {
   try {
-    if (fsx.list("litopys").includes("store.json")) return;
+    if (fsx.list(LITOPYS_DIR).includes("store.json")) return;
   } catch {}
   const old = readJson(fsx, LEGACY_DIR + "store.json", null);
   if (old === null) return;
@@ -164,7 +174,7 @@ function moveLegacy(fsx) {
       const name = file.split("/").pop();
       let have = true;
       try {
-        have = fsx.list("litopys").includes(name);
+        have = fsx.list(LITOPYS_DIR).includes(name);
       } catch {
         have = false;
       }
@@ -174,574 +184,1101 @@ function moveLegacy(fsx) {
     }
   } catch {}
 }
-const readOwn = (fsx, file, dflt) => {
+
+export function readOwn(fsx, file, dflt) {
   moveLegacy(fsx);
   return readJson(fsx, file, dflt);
-};
-const loadStore = (fsx) => readOwn(fsx, STORE_FILE, { chats: {} });
-const saveStore = (fsx, s) => fsx.write(STORE_FILE, JSON.stringify(s, null, 2));
-const loadProposals = (fsx) => readOwn(fsx, PROPOSALS_FILE, { items: [] });
-const saveProposals = (fsx, p) => fsx.write(PROPOSALS_FILE, JSON.stringify(p, null, 2));
-
-function slugify(name, fallback) {
-  const s = String(name || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яёїіє]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-  return s || fallback;
 }
 
-function emptyChatStore() {
-  return {
-    charName: null,
-    userName: null,
-    slug: null,
-    worldFacts: [],    // [{ id, text, kind, at, updatedAt, status: active|retired }]
-    chronicle: [],     // [{ at, note }]
-    storySoFar: null,
-    lastExtractLen: 0,
-    turnsExtracted: 0,
-    lastCurateLen: 0,
-    turnsCurated: 0,
+export function loadStore(fsx) {
+  return readOwn(fsx, STORE_FILE, { chats: {} });
+}
+
+export function saveStore(fsx, s) {
+  fsx.write(STORE_FILE, JSON.stringify(s, null, 2));
+}
+
+export function loadProposals(fsx) {
+  return readOwn(fsx, PROPOSALS_FILE, { items: [] });
+}
+
+export function saveProposals(fsx, p) {
+  fsx.write(PROPOSALS_FILE, JSON.stringify(p, null, 2));
+}
+
+/** config.json as stored, minus prompts that are a default (so they follow it). */
+function storedConfig(fsx) {
+  const raw = readOwn(fsx, CONFIG_FILE, null);
+  // only keys this version knows: the 1.x keys (extractEveryNTurns, inject, ...) are ignored
+  const cfg = {};
+  if (isObj(raw)) {
+    for (const key of Object.keys(DEFAULT_CONFIG)) if (key in raw) cfg[key] = raw[key];
+    for (const key of PROMPT_KEYS) if (typeof raw[key] === "string" && !isDefaultPrompt(key, raw[key])) cfg[key] = raw[key];
+  }
+  return cfg;
+}
+
+/** The config in effect: defaults, then what the user chose. */
+export function loadConfig(fsx) {
+  const stored = storedConfig(fsx);
+  const scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
+  const cfg = { ...DEFAULT_CONFIG, ...DEFAULT_PROMPTS, ...stored };
+  cfg.scene = {
+    minMessages: clamp(scene.minMessages, 1, 40),
+    maxMessages: clamp(scene.maxMessages, 10, 200),
   };
+  if (cfg.scene.maxMessages < cfg.scene.minMessages) cfg.scene.maxMessages = cfg.scene.minMessages;
+  cfg.recentMessages = clamp(cfg.recentMessages, 6, 200);
+  cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
+  return cfg;
 }
 
-function record(st, note, cfg) {
-  st.chronicle.push({ at: Date.now(), note: String(note).slice(0, 300) });
-  if (st.chronicle.length > (cfg.maxChronicle || 200)) st.chronicle.splice(0, st.chronicle.length - (cfg.maxChronicle || 200));
+/** A whole number from a value, or the fallback when it is not a number. */
+const intOf = (v, dflt) => (v !== "" && v !== null && Number.isFinite(Number(v)) ? Math.round(Number(v)) : dflt);
+
+/** The PUT logic described in item 13. Writes the file, returns loadConfig(fsx). */
+export function patchConfig(fsx, body) {
+  const b0 = body && typeof body === "object" ? body : {};
+  const b = b0.values && typeof b0.values === "object" ? { ...b0, ...b0.values } : b0;
+  const stored = storedConfig(fsx);
+  const next = { ...DEFAULT_CONFIG, ...stored };
+  if (b.enabled !== undefined) next.enabled = b.enabled !== false && b.enabled !== "off";
+  if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
+  if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 20), 6, 200);
+  if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
+  next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
+  // the panel sends flat keys (scene_minMessages), direct callers a nested scene
+  const sc = { ...(isObj(b.scene) ? b.scene : {}), ...(b.scene_minMessages !== undefined ? { minMessages: b.scene_minMessages } : {}), ...(b.scene_maxMessages !== undefined ? { maxMessages: b.scene_maxMessages } : {}) };
+  if (sc.minMessages !== undefined) next.scene.minMessages = clamp(intOf(sc.minMessages, 6), 1, 40);
+  if (sc.maxMessages !== undefined) next.scene.maxMessages = clamp(intOf(sc.maxMessages, 40), 10, 200);
+  if (next.scene.maxMessages < next.scene.minMessages) next.scene.maxMessages = next.scene.minMessages;
+  for (const key of PROMPT_KEYS) {
+    if (typeof b[key] !== "string") continue;
+    if (isDefaultPrompt(key, b[key])) delete next[key];
+    else next[key] = b[key].slice(0, 8000);
+  }
+  fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
+  return loadConfig(fsx);
 }
 
-function readMsgs(fsx, chatId) {
-  const lines = [];
+/** Deletes the stored prompt, returns loadConfig(fsx). */
+export function resetPrompts(fsx) {
+  const stored = storedConfig(fsx);
+  for (const key of PROMPT_KEYS) delete stored[key];
+  fsx.write(CONFIG_FILE, JSON.stringify(stored, null, 2));
+  return loadConfig(fsx);
+}
+
+/** Which prompts the user changed. */
+export function customPrompts(fsx) {
+  return PROMPT_KEYS.filter((key) => key in storedConfig(fsx));
+}
+
+// ---------- chat reading ----------
+export function readChat(fsx, chatId) {
+  const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  if (!isObj(meta)) return null;
+  const msgs = [];
   try {
     for (const line of String(fsx.read("chats/" + chatId + ".jsonl")).split("\n")) {
-      const t = line.trim();
-      if (t) {
-        try {
-          lines.push(JSON.parse(t));
-        } catch {}
-      }
+      if (!line.trim()) continue;
+      try {
+        const m = JSON.parse(line);
+        if (isObj(m)) msgs.push(m);
+      } catch {}
     }
   } catch {}
-  return lines;
+  return { meta, msgs };
 }
 
-function transcriptOf(msgs, n) {
-  const lines = [];
-  for (const m of msgs.slice(-n)) {
-    const who = m.role === "user" ? "User" : m.name || "Character";
-    const t = String(m.text || "").trim();
-    if (t) lines.push(who + ": " + t.slice(0, 1500));
+/** The ACTIVE LINE array of message objects (role user|char, non-empty id, hidden !== true). */
+export function activeLine(msgs) {
+  return msgs.filter(
+    (m) =>
+      (m.role === "user" || m.role === "char") &&
+      m.id !== undefined &&
+      m.id !== null &&
+      m.id !== "" &&
+      m.hidden !== true,
+  );
+}
+
+export function readDash(fsx, chatId) {
+  return readJson(fsx, "dashboard/state/" + chatId + ".json", { snapshots: {} });
+}
+
+const JUMP_MINUTES = 360;
+/** The place a snapshot's clock carries ("" when none). */
+const placeOf = (snap) => (snap && isObj(snap.clock) ? str(snap.clock.place) : "");
+
+export function snapOf(dash, msg) {
+  if (!dash || !isObj(dash.snapshots)) return null;
+  const key = msg.id + "#" + (Number.isFinite(msg.swipe) ? msg.swipe : 0);
+  const s = dash.snapshots[key];
+  return isObj(s) ? s : null;
+}
+
+// ---------- scenes ----------
+function clockMinutes(clock) {
+  if (!clock || !clock.time) return null;
+  const [h, m] = String(clock.time).split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const day = Number(clock.day) || 1;
+  return (day - 1) * 1440 + h * 60 + m;
+}
+
+/**
+ * findScenes(line, dash, cfg) -> [{ from, to, fromIdx, toIdx, count, kind, label, place, closed, open }]
+ * Covers the whole line without gaps.
+ */
+export function findScenes(line, dash, cfg) {
+  if (!line.length) return [];
+  const cfgScene = cfg.scene || DEFAULT_CONFIG.scene;
+  const minMessages = clamp(cfgScene.minMessages, 1, 40);
+  const maxMessages = clamp(cfgScene.maxMessages, 10, 200);
+  const hasDash = dash && isObj(dash.snapshots) && Object.keys(dash.snapshots).length > 0;
+
+  // Boundaries: a sensor flag, a new place, a clock jump of more than 6 hours
+  const bounds = new Set([0]);
+  let prevClock = null;
+  let prevPlace = null;
+  let sawSnap = false;
+  for (let i = 0; i < line.length; i++) {
+    const snap = hasDash ? snapOf(dash, line[i]) : null;
+    if (!snap) continue;
+    sawSnap = true;
+    const place = placeOf(snap);
+    const minutes = clockMinutes(snap.clock);
+    const placeChanged = !!(place && prevPlace && place.toLowerCase() !== prevPlace.toLowerCase());
+    const timeJump = minutes !== null && prevClock !== null && Math.abs(minutes - prevClock) > JUMP_MINUTES;
+    if (i > 0 && ((snap.scene && snap.scene.new === true) || placeChanged || timeJump)) bounds.add(i);
+    if (place) prevPlace = place;
+    if (minutes !== null) prevClock = minutes;
   }
-  return lines.join("\n");
+
+  // no dashboard data: every maxMessages messages is a boundary
+  if (!sawSnap) {
+    for (let i = maxMessages; i < line.length; i += maxMessages) bounds.add(i);
+  }
+
+  // Build raw scenes
+  const raw = [];
+  const boundArr = [...bounds].sort((a, b) => a - b);
+  for (let i = 0; i < boundArr.length; i++) {
+    const fromIdx = boundArr[i];
+    const toIdx = i + 1 < boundArr.length ? boundArr[i + 1] - 1 : line.length - 1;
+    if (toIdx < fromIdx) continue;
+    raw.push({ fromIdx, toIdx });
+  }
+  if (!raw.length) raw.push({ fromIdx: 0, toIdx: line.length - 1 });
+
+  // Merge short scenes into previous
+  const merged = [];
+  for (const r of raw) {
+    const len = r.toIdx - r.fromIdx + 1;
+    if (len < minMessages && merged.length) {
+      merged[merged.length - 1].toIdx = r.toIdx;
+    } else {
+      merged.push({ ...r });
+    }
+  }
+
+  // Split long scenes into parts
+  const scenes = [];
+  for (const r of merged) {
+    const len = r.toIdx - r.fromIdx + 1;
+    if (len > maxMessages) {
+      // n parts of nearly equal size, none over the maximum
+      const n = Math.ceil(len / maxMessages);
+      const base = Math.floor(len / n);
+      const extra = len % n;
+      let fromIdx = r.fromIdx;
+      for (let i = 0; i < n; i++) {
+        const toIdx = fromIdx + base + (i < extra ? 1 : 0) - 1;
+        scenes.push({ fromIdx, toIdx, kind: "part" });
+        fromIdx = toIdx + 1;
+      }
+    } else {
+      scenes.push({ fromIdx: r.fromIdx, toIdx: r.toIdx, kind: "scene" });
+    }
+  }
+
+  // Finalize scenes
+  const recent = clamp(cfg.recentMessages, 6, 200);
+  const result = [];
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    const from = line[s.fromIdx].id;
+    const to = line[s.toIdx].id;
+    const count = s.toIdx - s.fromIdx + 1;
+    // label: the sensor's label of the first message, else the place; place: of the last snapshot in the scene
+    let label = "";
+    let firstPlace = "";
+    let lastPlace = null;
+    const first = snapOf(dash, line[s.fromIdx]);
+    if (first && first.scene && str(first.scene.label)) label = cut(first.scene.label, 80);
+    for (let j = s.fromIdx; j <= s.toIdx; j++) {
+      const snap = snapOf(dash, line[j]);
+      const p = snap ? placeOf(snap) : "";
+      if (!p) continue;
+      if (!firstPlace) firstPlace = p;
+      lastPlace = p;
+    }
+    if (!label) label = firstPlace;
+    // closed: a later scene exists AND its last message index < line.length - recentMessages
+    const closed = i < scenes.length - 1 && s.toIdx < line.length - recent;
+    result.push({
+      from,
+      to,
+      fromIdx: s.fromIdx,
+      toIdx: s.toIdx,
+      count,
+      kind: s.kind,
+      label,
+      place: lastPlace,
+      closed,
+      open: false,
+    });
+  }
+  // Mark the last scene as open
+  if (result.length) result[result.length - 1].open = true;
+  return result;
 }
 
-function parseOut(text) {
+/**
+ * Where a chapter sits in the line: { fromIdx, toIdx, orphan, partial }.
+ * orphan: its first message is gone (no range). partial: its last message is gone,
+ * the range then runs count messages from the first one.
+ */
+export function rangeOf(ch, line) {
+  const at = (id) => line.findIndex((m) => m.id === id);
+  const fromIdx = ch && ch.from ? at(ch.from) : -1;
+  if (fromIdx < 0) return { fromIdx: -1, toIdx: -1, orphan: true, partial: false };
+  const toAt = at(ch.to);
+  if (toAt >= fromIdx) return { fromIdx, toIdx: toAt, orphan: false, partial: false };
+  return { fromIdx, toIdx: Math.min(line.length - 1, fromIdx + Math.max(1, Number(ch.count) || 1) - 1), orphan: false, partial: true };
+}
+
+/** A chapter whose messages changed (or went missing) is stale. True when any chapter changed. */
+export function markStale(st, line) {
+  let changed = false;
+  for (const ch of st.chapters) {
+    const r = rangeOf(ch, line);
+    const stale = r.orphan || r.partial || chapterSig(line.slice(r.fromIdx, r.toIdx + 1)) !== ch.sig;
+    if (stale && !ch.stale) {
+      ch.stale = true;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
+ * The oldest closed scene that needs a chapter: { scene, replaces } or null.
+ * A scene has a chapter when one overlaps it. A stale chapter of kind scene or part (not
+ * merged, not edited) is rebuilt in place. A merged chapter (the old summary) ends
+ * mid-scene: the part of the scene after it still gets its own chapter.
+ */
+export function pickWork(st, line, dash, cfg) {
+  const minMessages = (cfg.scene && cfg.scene.minMessages) || DEFAULT_CONFIG.scene.minMessages;
+  const ranges = st.chapters.map((ch) => ({ ch, r: rangeOf(ch, line) })).filter((x) => !x.r.orphan);
+  for (const scene of findScenes(line, dash, cfg).filter((x) => x.closed)) {
+    const hit = ranges.filter((x) => x.r.fromIdx <= scene.toIdx && x.r.toIdx >= scene.fromIdx);
+    if (!hit.length) return { scene, replaces: null };
+    const own = hit.filter((x) => x.ch.kind !== "merged");
+    if (!own.length) {
+      // only the old summary overlaps: cover what comes after it
+      const after = Math.max(...hit.map((x) => x.r.toIdx)) + 1;
+      if (after <= scene.toIdx && scene.toIdx - after + 1 >= minMessages) {
+        return { scene: { ...scene, from: line[after].id, fromIdx: after, count: scene.toIdx - after + 1, label: scene.label }, replaces: null };
+      }
+      continue;
+    }
+    const target = own.find((x) => x.ch.from === scene.from && x.ch.to === scene.to) || own[0];
+    if (target.ch.stale && !target.ch.edited) return { scene, replaces: target.ch.id };
+  }
+  return null;
+}
+
+/** The scene's character names: message names + user + present names from snapshots. */
+export function sceneNames(scene, line, dash, meta) {
+  const names = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx; i++) {
+    const m = line[i];
+    if (m.name) names.add(m.name);
+    if (dash && isObj(dash.snapshots)) {
+      const snap = snapOf(dash, m);
+      if (snap && Array.isArray(snap.present)) {
+        for (const p of snap.present) if (typeof p === "string") names.add(p);
+      }
+    }
+  }
+  if (meta && meta.userName) names.add(meta.userName);
+  return [...names];
+}
+
+/** item 6: returns the request object for host.llm.request. */
+export function buildWorkerRequest(st, work, line, dash, cfg, meta) {
+  const scene = work.scene;
+  const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const parts = [];
+
+  // Previous chapter
+  const prevCh = st.chapters.filter((c) => {
+    const r = rangeOf(c, line);
+    return !r.orphan && r.toIdx < scene.fromIdx;
+  }).sort((a, b) => rangeOf(b, line).toIdx - rangeOf(a, line).toIdx)[0];
+  if (prevCh) parts.push("Previous chapter\n" + prevCh.text);
+
+  // Known facts
+  const names = sceneNames(scene, line, dash, meta);
+  const nameSet = new Set(names.map((n) => n.toLowerCase()));
+  const activeFacts = st.facts.filter((f) => {
+    if (f.status !== "active") return false;
+    const subj = str(f.subject).toLowerCase();
+    if (subj === "world") return true;
+    if (nameSet.has(subj)) return true;
+    if (f.knownBy === "all") return false;
+    if (Array.isArray(f.knownBy)) {
+      return f.knownBy.some((k) => nameSet.has(str(k).toLowerCase()));
+    }
+    return false;
+  });
+  activeFacts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + f.text);
+  if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
+
+  // Scene messages
+  const msgLines = [];
+  for (let i = scene.fromIdx; i <= scene.toIdx; i++) {
+    const m = line[i];
+    const name = m.role === "user" ? meta && meta.userName ? meta.userName : m.name : m.name || "Character";
+    const text = cut(m.text, 1500);
+    if (text) msgLines.push("[" + name + "] " + text);
+  }
+  parts.push("Scene messages\n" + msgLines.join("\n"));
+
+  const userText = parts.join("\n\n");
+  const systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + "\n\nOutput shape\n" + WORKER_SHAPE;
+
+  const req = {
+    systemPrompt,
+    messages: [{ role: "user", content: userText }],
+    presetParams: { temperature: 0.3, max_tokens: 2000 },
+  };
+  if (model) req.model = model;
+  // NEVER set a reasoning field (reasoning stays off)
+  return req;
+}
+
+// ---------- reply parsing ----------
+function firstObject(s) {
+  const start = s.indexOf("{");
+  if (start < 0) return { body: null, cuts: [] };
+  const stack = [];
+  const cuts = [];
+  let inString = false;
+  let escaped = false;
+  let out = "";
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === "\"") inString = false;
+      continue;
+    }
+    if (ch === ",") {
+      let j = i + 1;
+      while (j < s.length && /\s/.test(s[j])) j++;
+      if (s[j] === "}" || s[j] === "]") continue;
+      cuts.push(out + stack.slice().reverse().join(""));
+    }
+    out += ch;
+    if (ch === "\"") inString = true;
+    else if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") {
+      stack.pop();
+      if (!stack.length) return { body: out, cuts: [] };
+    }
+  }
+  return { body: null, cuts: cuts.reverse() };
+}
+
+const parseObj = (body) => {
+  try {
+    const v = JSON.parse(body);
+    return isObj(v) ? v : null;
+  } catch {
+    return null;
+  }
+};
+
+/** item 7: parse the worker's reply JSON, tolerating a cut reply. */
+export function parseWorkerReply(text) {
   if (!text) return null;
   let s = String(text).trim();
   const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(s);
   if (fence) s = fence[1].trim();
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start === -1 || end <= start) return null;
-  try {
-    return JSON.parse(s.slice(start, end + 1));
-  } catch {
-    return null;
+  const fo = firstObject(s);
+  if (fo.body) {
+    const v = parseObj(fo.body);
+    if (v && isObj(v.chapter) && str(v.chapter.text)) {
+      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: arr(v.facts).slice(0, 12) };
+    }
   }
+  for (const cutStr of fo.cuts) {
+    const v = parseObj(cutStr);
+    if (v && isObj(v.chapter) && str(v.chapter.text)) {
+      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: arr(v.facts).slice(0, 12) };
+    }
+  }
+  return null;
 }
 
-// ---------- MD render (human face of the JSON truth) ----------
-function renderMd(fsx, chatId, cst, tst) {
-  const facts = (cst.worldFacts || []).filter((f) => f.status !== "retired");
-  const L = [];
-  L.push("---");
-  L.push("chat: " + chatId);
-  L.push("character: " + (cst.charName || "?"));
-  L.push("user: " + (cst.userName || "?"));
-  L.push("updated: " + new Date().toISOString().slice(0, 10));
-  L.push("turns: " + (cst.turnsExtracted || 0));
-  L.push("---");
-  L.push("");
-  L.push("# " + (cst.charName || "Chat"));
-  L.push("");
-  L.push("## Суть лінії");
-  L.push(cst.storySoFar || "_(переказ ще не складений — з'явиться після кількох проходів Писаря)_");
-  L.push("");
-  if (tst && tst.metrics) {
-    const icons = { affection: "💕", romance: "💘", lust: "🔥", trust: "🛡️", respect: "🎖️", comfort: "😌" };
-    const bond = Object.keys(icons)
-      .map((k) => icons[k] + " " + k[0].toUpperCase() + k.slice(1) + " " + (Number(tst.metrics[k]) || 0))
-      .join(" · ");
-    L.push("## Бонд (зріз трекера)");
-    L.push(bond + (tst.phase ? " · Phase: " + tst.phase : "") + (tst.mood ? " · Mood: " + tst.mood : ""));
-    L.push("");
-  }
-  if (tst && tst.scene && (tst.scene.location || tst.scene.context)) {
-    L.push("## Сцена");
-    L.push([tst.scene.time, tst.scene.date, tst.scene.location, tst.scene.weather].filter(Boolean).join(" · "));
-    if (tst.scene.context) L.push(tst.scene.context);
-    L.push("");
-  }
-  L.push("## Факти світу");
-  if (facts.length) for (const f of facts) L.push("- " + f.text);
-  else L.push("_(поки немає)_");
-  L.push("");
-  const chron = (cst.chronicle || []).filter((c) => c.note && !String(c.note).startsWith("tracked"));
-  if (chron.length) {
-    L.push("## Хроніка");
-    for (const c of chron.slice(-20)) L.push("- " + c.note);
-    L.push("");
-  }
-  if (tst && tst.threads && tst.threads.length) {
-    L.push("## Відкриті хвости (трекер)");
-    for (const t of tst.threads) L.push("- " + t.text);
-    L.push("");
-  }
-  L.push("## Нотатки агента");
-  L.push("- Бонд-метрики, настрій і хвости веде трекер; тут — світ, події, переказ.");
-  L.push("- Хроніка append-only: Доглядач прибирає факти (retire), але не історію.");
-  try {
-    fsx.write(VAULT_DIR + "/" + slugify(cst.charName, "chat") + "-" + chatId.slice(-6) + ".md", L.join("\n"));
-  } catch (e) {
-    try {
-      host_log(fsx, e);
-    } catch {}
-  }
-}
-function host_log(_fsx, _e) {}
+// ---------- applying the worker result ----------
+/** item 8: mutate st including st.worker; returns the chapter object made. */
+export function applyWorkerResult(st, work, parsed, ctx) {
+  const { scene, replaces } = work;
+  const { now, model, usage, ms, line } = ctx;
+  const chapterId = replaces || "c" + ++st.counters.chapter;
+  const factAdds = [];
 
-// ---------- SCRIBE ----------
-function scribePromptFor(cfg, cst, charName, userName, transcript) {
-  const schema =
-    "OUTPUT JSON ONLY:\n" +
-    "{\n" +
-    '  "facts": [{ "text": string, "kind": "place"|"npc"|"item"|"event"|"lore" }],\n' +
-    '  "chronicle": string[],\n' +
-    '  "storySoFar": string | null,\n' +
-    '  "retired": string[],\n' +
-    '  "updated": [{ "match": string, "text": string }]\n' +
-    "}\n" +
-    "facts: durable world facts from THESE messages. chronicle: plot-moving events from THESE messages. " +
-    "retired: exact texts from CURRENT FACTS below that these messages played out or contradicted. " +
-    "updated: {match: exact current text, text: replacement}.";
-  const current = (cst.worldFacts || []).filter((f) => f.status !== "retired").map((f) => f.text);
-  return (
-    cfg.scribePrompt + "\n\n" + schema + "\n\n" +
-    "CHARACTER: " + (charName || "?") + " | USER: " + (userName || "User") + "\n" +
-    "CURRENT FACTS:\n" + (current.length ? current.map((t) => "- " + t).join("\n") : "(none)") + "\n" +
-    "CURRENT RECAP: " + (cst.storySoFar || "(none)") + "\n" +
-    "RECENT MESSAGES:\n" + transcript
-  );
+  const newChapter = {
+    id: chapterId,
+    from: scene.from,
+    to: scene.to,
+    count: scene.count,
+    sig: chapterSig(line.slice(scene.fromIdx, scene.toIdx + 1)),
+    label: cut(parsed.chapter.label, 80) || scene.label || "",
+    text: cut(parsed.chapter.text, 1500),
+    kind: scene.kind,
+    at: now,
+  };
+  if (scene.place) newChapter.place = scene.place;
+  if (model) newChapter.model = model;
+  const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
+  if (at >= 0) st.chapters[at] = newChapter;
+  else st.chapters.push(newChapter);
+  // chapters stay in story order; one whose messages are gone goes last
+  const pos = (c) => {
+    const r = rangeOf(c, line);
+    return r.orphan ? Infinity : r.fromIdx;
+  };
+  st.chapters.sort((a, b) => pos(a) - pos(b));
+
+  // Fact ops
+  for (const op of arr(parsed.facts)) {
+    if (!isObj(op) || factAdds.length >= 8) break;
+    const opName = str(op.op);
+    if (opName === "add") {
+      const text = cut(op.text, 300);
+      if (!text) continue;
+      const subject = str(op.subject) || "world";
+      const knownBy = op.knownBy === "all" ? "all" : Array.isArray(op.knownBy) && op.knownBy.length ? op.knownBy.map((x) => str(x)).filter(Boolean) : "all";
+      const typeMap = ["event", "trait", "change", "relation", "world", "plan"];
+      const type = typeMap.includes(op.type) ? op.type : "event";
+      const weightMap = ["everyday", "important", "key"];
+      const weight = weightMap.includes(op.weight) ? op.weight : "everyday";
+      // Skip when Dice >= 0.85 against any active fact with the same subject
+      const dup = st.facts.some(
+        (f) => f.status === "active" && str(f.subject).toLowerCase() === subject.toLowerCase() && diceSimilarity(text, f.text) >= DICE_LIMIT,
+      );
+      if (dup) continue;
+      if (factAdds.length >= 8) break;
+      const fact = {
+        id: "f" + ++st.counters.fact,
+        text,
+        subject,
+        knownBy,
+        type,
+        weight,
+        pinned: false,
+        status: "active",
+        src: { from: scene.from, to: scene.to, chapter: chapterId },
+        origin: "chapter",
+        at: now,
+        updatedAt: now,
+      };
+      if (weight === "key") fact.pinProposed = true;
+      st.facts.push(fact);
+      factAdds.push(fact);
+    } else if (opName === "update") {
+      const id = str(op.id);
+      const target = st.facts.find((f) => f.id === id && f.status === "active");
+      if (!target) continue;
+      const text = cut(op.text, 300);
+      if (!text) continue;
+      if (op.type === "change" || target.type === "change") {
+        // Apply at once: supersede
+        target.status = "superseded";
+        target.updatedAt = now;
+        const newFact = {
+          id: "f" + ++st.counters.fact,
+          text,
+          subject: target.subject,
+          knownBy: target.knownBy,
+          weight: target.weight,
+          pinned: target.pinned,
+          type: "change",
+          supersedes: target.id,
+          status: "active",
+          src: { from: scene.from, to: scene.to, chapter: chapterId },
+          origin: "chapter",
+          at: now,
+          updatedAt: now,
+        };
+        st.facts.push(newFact);
+        factAdds.push(newFact);
+      } else {
+        // a rewrite of an ordinary fact is never silent: a proposal
+        const identical = st.proposals.some((p) => p.op === "rewrite" && p.status === "pending" && arr(p.targets).includes(target.id));
+        if (!identical) {
+          st.proposals.push({
+            id: "p" + ++st.counters.proposal,
+            op: "rewrite",
+            targets: [target.id],
+            text,
+            reason: "chapter " + chapterId,
+            status: "pending",
+            chapter: chapterId,
+            at: now,
+          });
+        }
+      }
+    } else if (opName === "retire") {
+      const id = str(op.id);
+      const target = st.facts.find((f) => f.id === id && f.status === "active");
+      if (!target) continue;
+      const reason = cut(op.reason, 200);
+      const identical = st.proposals.some((p) => p.op === "retire" && p.status === "pending" && arr(p.targets).includes(target.id));
+      if (!identical) {
+        st.proposals.push({
+          id: "p" + ++st.counters.proposal,
+          op: "retire",
+          targets: [target.id],
+          reason,
+          status: "pending",
+          chapter: chapterId,
+          at: now,
+        });
+      }
+    }
+  }
+
+  // Keep proposals at most 100 entries (drop oldest non-pending first)
+  if (st.proposals.length > 100) {
+    const nonPending = st.proposals.filter((p) => p.status !== "pending");
+    let excess = st.proposals.length - 100;
+    while (excess > 0 && nonPending.length) {
+      const idx = st.proposals.indexOf(nonPending.shift());
+      if (idx !== -1) {
+        st.proposals.splice(idx, 1);
+        excess--;
+      }
+    }
+    while (st.proposals.length > 100) st.proposals.shift();
+  }
+
+  st.worker = {
+    lastRunAt: now,
+    lastScene: { from: scene.from, to: scene.to },
+    ok: true,
+    ms,
+    usage,
+  };
+  delete st.worker.error;
+  delete st.worker.retryAt;
+  return newChapter;
 }
 
-function armScribe(fsx, chatId, cfg, host) {
-  const msgs = readMsgs(fsx, chatId);
-  const meta = readJson(fsx, "chats/" + chatId + ".meta.json", {}) || {};
-  const store = loadStore(fsx);
-  const cst = store.chats[chatId] || emptyChatStore();
-  const charName = cst.charName || meta.title || msgs.find((m) => m.role === "char" && m.name)?.name || null;
-  const userName = cst.userName || meta.userName || null;
-  const transcript = transcriptOf(msgs, 24);
-  if (!transcript) return { error: "chat has no trackable messages" };
-  host.llm.request("arch_scribe_" + chatId + "_" + msgs.length, {
-    messages: [{ role: "user", content: scribePromptFor(cfg, cst, charName, userName, transcript) }],
-    ...(cfg.model && String(cfg.model).trim() ? { model: String(cfg.model).trim() } : {}),
-  });
-  return { armed: true };
+/** item 8 failure: sets st.worker only. */
+export function failWorker(st, work, message, ctx) {
+  const { now, ms, usage } = ctx;
+  st.worker = {
+    lastRunAt: now,
+    lastScene: { from: work.scene.from, to: work.scene.to },
+    ok: false,
+    error: cut(message, 200) || "worker failed",
+    retryAt: now + RETRY_MS,
+  };
+  if (ms !== undefined) st.worker.ms = ms;
+  if (usage !== undefined) st.worker.usage = usage;
 }
 
-function addProposal(fsx, chatId, op, scope, targets, text, reason) {
-  const p = loadProposals(fsx);
-  p.items.push({
-    id: uid(),
+// ---------- chat files and sidecars ----------
+
+export function emptyChat(chatId) {
+  return {
+    v: 2,
     chatId,
-    op,            // merge | retire | rewrite
-    scope,         // lore | tracker
-    targets: targets || [],
-    text: text || null,
-    reason: String(reason || "").slice(0, 200),
-    at: Date.now(),
-    status: "pending",
-  });
-  if (p.items.length > 100) p.items.splice(0, p.items.length - 100);
-  saveProposals(fsx, p);
+    migrated: false,
+    chapters: [],
+    facts: [],
+    proposals: [],
+    scene: { openFrom: null },
+    counters: { chapter: 0, fact: 0, proposal: 0 },
+  };
 }
 
-function collectScribe(fsx, chatId, host, cfg, key) {
-  const reply = host.llm.results[key];
-  if (!reply) return { error: "no result" };
-  const out = parseOut(reply.text);
-  if (!out) return { error: "scribe did not return valid JSON", raw: String(reply.text || "").slice(0, 400) };
-  const store = loadStore(fsx);
-  const cst = store.chats[chatId] || emptyChatStore();
-  const notes = [];
-  const active = () => (cst.worldFacts || []).filter((f) => f.status !== "retired");
-
-  for (const f of Array.isArray(out.facts) ? out.facts.slice(0, 8) : []) {
-    const text = String((f && f.text) || "").trim().slice(0, 250);
-    if (!text) continue;
-    if (active().some((x) => norm(x.text) === norm(text))) continue;
-    cst.worldFacts.push({ id: uid(), text, kind: (f && f.kind) || "lore", at: Date.now(), updatedAt: Date.now(), status: "active" });
-    notes.push("Fact: " + text);
-  }
-  for (const c of Array.isArray(out.chronicle) ? out.chronicle.slice(0, 5) : []) {
-    const note = String(c).trim().slice(0, 250);
-    if (note) record(cst, note, cfg);
-  }
-  if (typeof out.storySoFar === "string" && out.storySoFar.trim()) {
-    cst.storySoFar = out.storySoFar.trim().slice(0, 1500);
-    notes.push("Recap updated");
-  }
-  // exact-text retirements: safe, auto-apply
-  for (const r of Array.isArray(out.retired) ? out.retired.slice(0, 5) : []) {
-    const hit = active().find((x) => norm(x.text) === norm(r));
-    if (hit) {
-      hit.status = "retired";
-      hit.updatedAt = Date.now();
-      record(cst, "retired: " + hit.text, cfg);
-      notes.push("Retired: " + hit.text);
-    }
-  }
-  // rewrites: never silent — proposals
-  for (const u of Array.isArray(out.updated) ? out.updated.slice(0, 5) : []) {
-    if (!u || !u.match || !u.text) continue;
-    const hit = active().find((x) => norm(x.text) === norm(u.match));
-    if (hit && norm(hit.text) !== norm(u.text)) {
-      addProposal(fsx, chatId, "rewrite", "lore", [hit.id], String(u.text).slice(0, 250), "scribe: fact changed");
-      notes.push("Proposed rewrite: " + hit.text);
-    }
-  }
-
-  if (cst.worldFacts.filter((f) => f.status !== "retired").length > (cfg.maxFacts || 80)) {
-    notes.push("Fact cap reached — run the curator");
-  }
-  const msgs = readMsgs(fsx, chatId);
-  cst.lastExtractLen = msgs.length;
-  cst.turnsExtracted = (cst.turnsExtracted || 0) + 1;
-  if (!cst.charName) {
-    const meta = readJson(fsx, "chats/" + chatId + ".meta.json", {}) || {};
-    cst.charName = meta.title || msgs.find((m) => m.role === "char" && m.name)?.name || null;
-    cst.userName = meta.userName || null;
-    cst.slug = slugify(cst.charName, chatId);
-  }
-  store.chats[chatId] = cst;
-  saveStore(fsx, store);
-  renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
-  return { done: true, notes };
-}
-
-// ---------- tracker interop (read-only snapshot + id backfill) ----------
-function trackerSnapshot(fsx, chatId) {
-  try {
-    const st = (readJson(fsx, "tracker/state.json", { chats: {} }).chats || {})[chatId];
-    return st || null;
-  } catch {
-    return null;
-  }
-}
-function trackerState(fsx) {
-  return readJson(fsx, "tracker/state.json", { chats: {} });
-}
-function saveTrackerState(fsx, s) {
-  fsx.write("tracker/state.json", JSON.stringify(s, null, 2));
-}
-
-// ---------- CURATOR ----------
-function curatePromptFor(cfg, cst, tst) {
-  const schema =
-    "OUTPUT JSON ONLY:\n" +
-    '{ "ops": [{ "scope": "lore"|"tracker", "op": "merge"|"retire"|"rewrite", "targets": [exact texts from the lists], "text": string|null, "reason": string }] }\n' +
-    "merge: targets[0] is the survivor (or text = merged wording). retire: played-out/resolved/trivia. rewrite: text = replacement for targets[0].";
-  const lore = (cst.worldFacts || []).filter((f) => f.status !== "retired").map((f) => f.text);
-  const tf = tst && Array.isArray(tst.facts) ? tst.facts.map((f) => f.text) : [];
-  const tt = tst && Array.isArray(tst.threads) ? tst.threads.map((t) => t.text) : [];
-  return (
-    cfg.curatePrompt + "\n\n" + schema + "\n\n" +
-    "LORE FACTS:\n" + (lore.length ? lore.map((t) => "- " + t).join("\n") : "(none)") + "\n" +
-    "TRACKER FACTS (relationship — retire only if factually resolved, never for style):\n" +
-    (tf.length ? tf.map((t) => "- " + t).join("\n") : "(none)") + "\n" +
-    "TRACKER THREADS:\n" + (tt.length ? tt.map((t) => "- " + t).join("\n") : "(none)")
-  );
-}
-
-function armCurate(fsx, chatId, cfg, host) {
-  const msgs = readMsgs(fsx, chatId);
-  if (!msgs.length) return { error: "chat has no messages" };
-  const store = loadStore(fsx);
-  const cst = store.chats[chatId] || emptyChatStore();
-  const tst = trackerSnapshot(fsx, chatId);
-  if (!cst.worldFacts.length && !(tst && (tst.facts || []).length)) return { error: "nothing to curate yet" };
-  host.llm.request("arch_curate_" + chatId + "_" + msgs.length, {
-    messages: [{ role: "user", content: curatePromptFor(cfg, cst, tst) }],
-    ...(cfg.model && String(cfg.model).trim() ? { model: String(cfg.model).trim() } : {}),
-  });
-  return { armed: true };
-}
-
-/** Backfill missing ids in tracker facts/threads so ops can address them. Saves when changed. */
-function backfillTrackerIds(fsx, chatId) {
-  const s = trackerState(fsx);
-  const st = s.chats[chatId];
-  if (!st) return null;
-  let dirty = false;
-  for (const arr of [st.facts, st.threads]) {
-    if (Array.isArray(arr)) for (const x of arr) if (x && !x.id) {
-      x.id = uid();
-      dirty = true;
-    }
-  }
-  if (dirty) {
-    s.chats[chatId] = st;
-    saveTrackerState(fsx, s);
-  }
+export function loadChatFile(fsx, chatId) {
+  const st = readJson(fsx, CHAT_DIR + chatId + ".json", null);
+  if (!isObj(st)) return null;
+  st.v = typeof st.v === "number" ? st.v : 2;
+  st.chatId = st.chatId || chatId;
+  st.migrated = st.migrated === true;
+  st.chapters = arr(st.chapters);
+  st.facts = arr(st.facts);
+  st.proposals = arr(st.proposals);
+  st.scene = isObj(st.scene) ? st.scene : { openFrom: null };
+  st.counters = isObj(st.counters)
+    ? {
+        chapter: Number(st.counters.chapter) || 0,
+        fact: Number(st.counters.fact) || 0,
+        proposal: Number(st.counters.proposal) || 0,
+      }
+    : { chapter: 0, fact: 0, proposal: 0 };
   return st;
 }
 
-function findLore(cst, text) {
-  const n = norm(text);
-  return (cst.worldFacts || []).find((f) => f.status !== "retired" && (f.id === text || norm(f.text) === n));
+export function saveChatFile(fsx, st) {
+  fsx.write(CHAT_DIR + st.chatId + ".json", JSON.stringify(st, null, 2));
 }
 
-/** Resolve proposal targets (ids or texts) to human-readable texts at read time. Never persisted. */
-function targetTextsFor(fsx, chatId, scope, targets) {
-  const list = Array.isArray(targets) ? targets : [];
-  if (!list.length) return [];
-  try {
-    if (scope === "tracker") {
-      const st = (readJson(fsx, "tracker/state.json", { chats: {} }).chats || {})[chatId];
-      const pool = st ? [...(st.facts || []), ...(st.threads || [])] : [];
-      return list.map((t) => {
-        const hit = pool.find((x) => x && (x.id === t || norm(x.text) === norm(t)));
-        return hit && hit.text ? hit.text : String(t);
+function loadVectors(fsx, chatId) {
+  return readJson(fsx, VECTOR_DIR + chatId + ".json", {});
+}
+
+function saveVectors(fsx, chatId, map) {
+  fsx.write(VECTOR_DIR + chatId + ".json", JSON.stringify(map, null, 2));
+}
+
+// ---------- migration ----------
+
+export function migrateChat(fsx, chatId, meta, line, now) {
+  const st = emptyChat(chatId);
+  st.migrated = true;
+
+  const activeFacts = () => st.facts.filter((f) => f.status === "active");
+
+  function addFact(text, extras) {
+    const t = str(text);
+    if (!t) return null;
+    if (activeFacts().some((f) => diceSimilarity(t, f.text) >= DICE_LIMIT)) return null;
+    st.counters.fact += 1;
+    const id = "f" + st.counters.fact;
+    st.facts.push({
+      id,
+      text: t,
+      subject: "world",
+      knownBy: "all",
+      type: "event",
+      weight: "important",
+      pinned: false,
+      status: "active",
+      origin: "migrated",
+      at: now,
+      updatedAt: now,
+      ...extras,
+    });
+    return id;
+  }
+
+  const store = loadStore(fsx);
+  const oldChat = (store && store.chats && store.chats[chatId]) || null;
+  if (oldChat && Array.isArray(oldChat.worldFacts)) {
+    for (const old of oldChat.worldFacts) {
+      if (!isObj(old)) continue;
+      const kind = String(old.kind || "").toLowerCase();
+      const type = kind === "npc" ? "trait" : kind === "event" ? "event" : "world";
+      const status = old.status === "retired" ? "retired" : "active";
+      addFact(old.text, {
+        type,
+        status,
+        at: old.at || now,
+        updatedAt: old.updatedAt || now,
+        weight: "important",
+        origin: "migrated",
       });
     }
-    const store = loadStore(fsx);
-    const cst = store.chats[chatId];
-    if (!cst) return list.map((t) => String(t));
-    return list.map((t) => {
-      // match active first, then retired (so decided proposals still read well)
-      const n = norm(t);
-      const hit =
-        (cst.worldFacts || []).find((f) => f.id === t) ||
-        (cst.worldFacts || []).find((f) => norm(f.text) === n);
-      return hit && hit.text ? hit.text : String(t);
-    });
-  } catch {
-    return list.map((t) => String(t));
   }
-}
 
-const enrichProposal = (fsx, p) => ({ ...p, targetTexts: targetTextsFor(fsx, p.chatId, p.scope, p.targets) });
-
-function collectCurate(fsx, chatId, host, cfg, key) {
-  const reply = host.llm.results[key];
-  if (!reply) return { error: "no result" };
-  const out = parseOut(reply.text);
-  if (!out) return { error: "curator did not return valid JSON", raw: String(reply.text || "").slice(0, 400) };
-  const store = loadStore(fsx);
-  const cst = store.chats[chatId] || emptyChatStore();
-  backfillTrackerIds(fsx, chatId);
-  const notes = [];
-  let auto = 0;
-  const ops = Array.isArray(out.ops) ? out.ops.slice(0, 20) : [];
-
-  for (const o of ops) {
-    if (!o || (o.op !== "merge" && o.op !== "retire" && o.op !== "rewrite")) continue;
-    const scope = o.scope === "tracker" ? "tracker" : "lore";
-    const targets = Array.isArray(o.targets) ? o.targets.map((t) => String(t)).slice(0, 4) : [];
-    if (!targets.length) continue;
-    const reason = String(o.reason || "curator").slice(0, 200);
-
-    // SAFE + automatic: exact-duplicate merge inside lore (no judgment call)
-    if (scope === "lore" && o.op === "merge" && cfg.autoApplySafe !== false && targets.length >= 2) {
-      const hits = targets.map((t) => findLore(cst, t)).filter(Boolean);
-      const uniq = new Set(hits.map((h) => norm(h.text)));
-      if (hits.length >= 2 && uniq.size === 1) {
-        const keep = hits[0];
-        if (o.text && norm(o.text) !== norm(keep.text)) {
-          keep.text = String(o.text).slice(0, 250);
-          keep.updatedAt = Date.now();
-        }
-        for (const h of hits.slice(1)) {
-          h.status = "retired";
-          h.updatedAt = Date.now();
-        }
-        record(cst, "merged " + hits.length + " exact dupes", cfg);
-        auto++;
-        notes.push("Auto-merged " + hits.length + " duplicates");
-        continue;
+  const vectors = loadVectors(fsx, chatId);
+  let vectorsChanged = false;
+  const memories = readJson(fsx, "chats/" + chatId + ".memories.json", []);
+  if (Array.isArray(memories)) {
+    for (const m of memories) {
+      if (!isObj(m)) continue;
+      const t = str(m.text);
+      if (!t) continue;
+      let weight = "everyday";
+      if (typeof m.importance === "number") {
+        if (m.importance >= 5) weight = "key";
+        else if (m.importance >= 3) weight = "important";
+      }
+      const id = addFact(t, {
+        weight,
+        pinned: !!m.pinned,
+        type: "event",
+        origin: "migrated",
+        at: m.at || now,
+        updatedAt: now,
+      });
+      if (id && Array.isArray(m.vector) && m.vector.length > 0) {
+        vectors[id] = { hash: fnv1a(t), vector: m.vector };
+        vectorsChanged = true;
       }
     }
-    addProposal(fsx, chatId, o.op, scope, targets, o.text ? String(o.text).slice(0, 250) : null, reason);
-    notes.push("Proposed " + o.op + " (" + scope + "): " + (o.text || targets[0]));
+  }
+  if (vectorsChanged) saveVectors(fsx, chatId, vectors);
+
+  if (meta && meta.summary && meta.memoryCutoffMessageId && line && line.length) {
+    const cutoffIdx = line.findIndex((m) => m && m.id === meta.memoryCutoffMessageId);
+    if (cutoffIdx >= 0) {
+      const slice = line.slice(0, cutoffIdx + 1);
+      st.counters.chapter += 1;
+      st.chapters.push({
+        id: "c" + st.counters.chapter,
+        from: line[0].id,
+        to: meta.memoryCutoffMessageId,
+        count: slice.length,
+        sig: chapterSig(slice),
+        label: "",
+        text: str(meta.summary),
+        kind: "merged",
+        place: null,
+        at: now,
+      });
+    }
   }
 
-  const msgs = readMsgs(fsx, chatId);
-  cst.lastCurateLen = msgs.length;
-  cst.turnsCurated = (cst.turnsCurated || 0) + 1;
-  store.chats[chatId] = cst;
-  saveStore(fsx, store);
-  renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
-  return { done: true, autoApplied: auto, notes };
+  return st;
 }
 
-// ---------- proposals ----------
-function applyProposal(fsx, chatId, p, cfg) {
-  const store = loadStore(fsx);
-  const cst = store.chats[chatId];
-  if (!cst) return { error: "no lore store for chat" };
+// ---------- fork ----------
 
-  if (p.scope === "lore") {
-    const hits = (p.targets || []).map((t) => findLore(cst, t)).filter(Boolean);
-    if (!hits.length) return { error: "targets gone (already applied?)" };
-    if (p.op === "retire") {
-      for (const h of hits) {
-        h.status = "retired";
-        h.updatedAt = Date.now();
-      }
-      record(cst, "retired: " + hits.map((h) => h.text).join(" | "), cfg);
-    } else if (p.op === "merge") {
-      const keep = hits[0];
-      if (p.text) keep.text = p.text;
-      keep.updatedAt = Date.now();
-      for (const h of hits.slice(1)) {
-        h.status = "retired";
-        h.updatedAt = Date.now();
-      }
-      record(cst, "merged: " + hits.map((h) => h.text).join(" | "), cfg);
-    } else if (p.op === "rewrite") {
-      if (!p.text) return { error: "rewrite needs text" };
-      hits[0].text = p.text;
-      hits[0].updatedAt = Date.now();
-      record(cst, "rewrote → " + p.text, cfg);
-    }
-    store.chats[chatId] = cst;
-    saveStore(fsx, store);
-    renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
-    return { ok: true };
-  }
-
-  // tracker scope: match by id first, then exact text
-  const s = trackerState(fsx);
-  const st = s.chats[chatId];
-  if (!st) return { error: "no tracker state for chat" };
-  const match = (arr, t) => (Array.isArray(arr) ? arr.find((x) => x && (x.id === t || norm(x.text) === norm(t))) : null);
-  const pool = [...(st.facts || []), ...(st.threads || [])];
-  const hits = (p.targets || []).map((t) => pool.find((x) => x && (x.id === t || norm(x.text) === norm(t)))).filter(Boolean);
-  if (!hits.length) return { error: "targets gone (already applied?)" };
-  const drop = (arr, h) => {
-    const i = (arr || []).indexOf(h);
-    if (i !== -1) arr.splice(i, 1);
+export function forkFrom(fsx, parentSt, parentLine, parentMessageId, chatId, childLine, now) {
+  const child = emptyChat(chatId);
+  child.migrated = true;
+  child.counters = {
+    chapter: Number(parentSt.counters.chapter) || 0,
+    fact: Number(parentSt.counters.fact) || 0,
+    proposal: Number(parentSt.counters.proposal) || 0,
   };
-  if (p.op === "retire") {
-    for (const h of hits) {
-      drop(st.facts, h);
-      drop(st.threads, h);
+
+  const boundaryIndex = parentMessageId != null ? parentLine.findIndex((m) => m && m.id === parentMessageId) : parentLine.length - 1;
+  const copyAll = parentMessageId == null;
+  const copiedIds = new Set();
+
+  for (const ch of parentSt.chapters) {
+    const r = rangeOf(ch, parentLine);
+    if (r.orphan || r.toIdx < 0) continue;
+    if (copyAll || r.toIdx <= boundaryIndex) {
+      child.chapters.push({ ...ch });
+      copiedIds.add(ch.id);
     }
-    st.timeline.push({ at: Date.now(), kind: "manual", note: "litopys retired: " + hits.map((h) => h.text).join(" | ").slice(0, 200) });
-  } else if (p.op === "merge") {
-    const keep = hits[0];
-    if (p.text) keep.text = p.text;
-    for (const h of hits.slice(1)) {
-      drop(st.facts, h);
-      drop(st.threads, h);
-    }
-  } else if (p.op === "rewrite") {
-    if (!p.text) return { error: "rewrite needs text" };
-    hits[0].text = p.text;
   }
-  if (st.timeline.length > 200) st.timeline.splice(0, st.timeline.length - 200);
-  s.chats[chatId] = st;
-  saveTrackerState(fsx, s);
-  return { ok: true };
+
+  for (const f of parentSt.facts) {
+    let include = false;
+    if (!f.src || f.src.to == null) {
+      include = true;
+    } else {
+      const idx = parentLine.findIndex((m) => m && m.id === f.src.to);
+      if (idx === -1) continue;
+      if (copyAll || idx <= boundaryIndex) include = true;
+    }
+    if (include) {
+      child.facts.push({ ...f });
+      copiedIds.add(f.id);
+    }
+  }
+
+  // a superseded fact whose successor stayed behind in the parent is current here
+  for (const f of child.facts) {
+    if (f.status !== "superseded") continue;
+    const successor = parentSt.facts.find((x) => x.supersedes === f.id);
+    if (!successor || !copiedIds.has(successor.id)) f.status = "active";
+  }
+
+  const parentVectors = loadVectors(fsx, parentSt.chatId);
+  const childVectors = {};
+  let vectorsChanged = false;
+  for (const id of copiedIds) {
+    if (parentVectors[id]) {
+      childVectors[id] = parentVectors[id];
+      vectorsChanged = true;
+    }
+  }
+  if (vectorsChanged) saveVectors(fsx, chatId, childVectors);
+
+  return child;
 }
 
-// ---------- sweep ----------
-function collectAny(fsx, host, cfg) {
-  const done = [];
-  const results = (host.llm && host.llm.results) || {};
-  for (const key of Object.keys(results)) {
-    if (!results[key]) continue;
-    let m = /^arch_scribe_(.+)_\d+$/.exec(key);
-    if (m) {
-      done.push({ kind: "scribe", chatId: m[1], ...collectScribe(fsx, m[1], host, cfg, key) });
+// ---------- vectors ----------
+
+export function needVectors(fsx, st) {
+  const map = loadVectors(fsx, st.chatId);
+  const out = [];
+  for (const ch of st.chapters) {
+    const text = str(ch.text);
+    if (!text) continue;
+    const hash = fnv1a(text);
+    const entry = map[ch.id];
+    if (!entry || entry.hash !== hash) out.push({ id: ch.id, text, hash });
+  }
+  for (const f of st.facts) {
+    if (f.status !== "active") continue;
+    const text = str(f.text);
+    if (!text) continue;
+    const hash = fnv1a(text);
+    const entry = map[f.id];
+    if (!entry || entry.hash !== hash) out.push({ id: f.id, text, hash });
+  }
+  return out.slice(0, 64);
+}
+
+export function finishEmbed(fsx, st, needed, vectors) {
+  if (!needed.length || !Array.isArray(vectors)) return 0;
+  const map = loadVectors(fsx, st.chatId);
+  let stored = 0;
+  for (let i = 0; i < needed.length && i < vectors.length; i++) {
+      const v = vectors[i];
+      if (Array.isArray(v) && v.length && v.every((n) => typeof n === "number" && Number.isFinite(n))) {
+      map[needed[i].id] = { hash: needed[i].hash, vector: v };
+      stored++;
+    }
+  }
+  if (stored > 0) saveVectors(fsx, st.chatId, map);
+  return stored;
+}
+
+export function embedAllowed(fsx) {
+  const status = readJson(fsx, EMBED_STATUS_FILE, null);
+  if (!isObj(status)) return true;
+  if (status.ok === false) {
+    const checked = Number(status.checkedAt) || 0;
+    if (Date.now() - checked < 3600000) return false;
+  }
+  return true;
+}
+
+export function setEmbedStatus(fsx, ok) {
+  fsx.write(EMBED_STATUS_FILE, JSON.stringify({ ok: !!ok, checkedAt: Date.now() }, null, 2));
+}
+
+// ---------- housekeeping ----------
+
+export function pruneOrphans(fsx, store, files) {
+  if (!Array.isArray(files)) return false;
+  const live = new Set(
+    files
+      .filter((f) => typeof f === "string" && f.endsWith(".jsonl"))
+      .map((f) => f.slice(0, -6)),
+  );
+  const gone = Object.keys(store.chats || {}).filter((id) => !live.has(id));
+  const goneSet = new Set(gone);
+  let storeChanged = false;
+  let proposalsChanged = false;
+
+  if (gone.length) {
+    for (const id of gone) delete store.chats[id];
+    storeChanged = true;
+
+    let vault = [];
+    try {
+      vault = fsx.list(VAULT_DIR);
+    } catch {}
+    const liveTails = new Set([...live].map((id) => id.slice(-6)));
+    for (const id of gone) {
+      const tail = id.slice(-6);
+      if (!liveTails.has(tail)) {
+        for (const f of vault) {
+          if (f.endsWith("-" + tail + ".md")) {
+            try {
+              fsx.remove(VAULT_DIR + "/" + f);
+            } catch {}
+          }
+        }
+      }
+    }
+
+    const props = loadProposals(fsx);
+    const items = Array.isArray(props.items) ? props.items : [];
+    const kept = items.filter((p) => !(p && goneSet.has(p.chatId)));
+    if (kept.length !== items.length) {
+      saveProposals(fsx, { ...props, items: kept });
+      proposalsChanged = true;
+    }
+  }
+
+  for (const dir of [CHAT_DIR, VECTOR_DIR]) {
+    let list = [];
+    try {
+      list = fsx.list(dir);
+    } catch {
       continue;
     }
-    m = /^arch_curate_(.+)_\d+$/.exec(key);
-    if (m) done.push({ kind: "curator", chatId: m[1], ...collectCurate(fsx, m[1], host, cfg, key) });
-  }
-  return done;
-}
-
-function due(fsx, chatId, cst, cfg, kind) {
-  const msgs = readMsgs(fsx, chatId);
-  if (!msgs.length) return false;
-  if (kind === "scribe") {
-    return msgs.length - (Number(cst.lastExtractLen) || 0) >= clamp(Number(cfg.extractEveryNTurns) || 2, 1, 20) * 2;
-  }
-  return msgs.length - (Number(cst.lastCurateLen) || 0) >= clamp(Number(cfg.curateEveryNTurns) || 12, 4, 100) * 2;
-}
-
-/** A deleted chat leaves nothing behind: its store entry, its proposals and its
- *  vault page go. `files` is the listing of chats/ (null when it failed:
- *  nothing is dropped on a guess). True when the store or proposals changed. */
-function pruneOrphans(fsx, store, files) {
-  if (!Array.isArray(files)) return false;
-  const live = new Set(files.filter((f) => f.endsWith(".jsonl")).map((f) => f.slice(0, -6)));
-  const gone = Object.keys(store.chats || {}).filter((id) => !live.has(id));
-  if (!gone.length) return false;
-  const goneSet = new Set(gone);
-  const liveTails = new Set([...live].map((id) => id.slice(-6)));
-  let vault = [];
-  try {
-    vault = fsx.list(VAULT_DIR);
-  } catch {}
-  for (const id of gone) {
-    delete store.chats[id];
-    const tail = id.slice(-6);
-    if (liveTails.has(tail)) continue;
-    for (const f of vault) {
-      if (f.endsWith("-" + tail + ".md")) {
+    for (const f of list) {
+      if (!f.endsWith(".json")) continue;
+      const id = f.slice(0, -5);
+      if (!live.has(id)) {
         try {
-          fsx.remove(VAULT_DIR + "/" + f);
+          fsx.remove(dir + f);
         } catch {}
       }
     }
   }
-  const props = loadProposals(fsx);
-  const items = Array.isArray(props.items) ? props.items : [];
-  const kept = items.filter((p) => !(p && goneSet.has(p.chatId)));
-  if (kept.length !== items.length) saveProposals(fsx, { ...props, items: kept });
-  return true;
+
+  return storeChanged || proposalsChanged;
+}
+
+export function ensureChat(fsx, chatId, meta, line, depth) {
+  let st = loadChatFile(fsx, chatId);
+  if (st) {
+    if (st.migrated !== true) {
+      st = migrateChat(fsx, chatId, meta, line, Date.now());
+      saveChatFile(fsx, st);
+      return { st, changed: true };
+    }
+    return { st, changed: false };
+  }
+  const now = Date.now();
+  if (meta.parentChatId && depth < 3) {
+    const parent = readChat(fsx, meta.parentChatId);
+    if (parent) {
+      const parentSt = ensureChat(fsx, meta.parentChatId, parent.meta, activeLine(parent.msgs), depth + 1).st;
+      st = forkFrom(fsx, parentSt, activeLine(parent.msgs), meta.parentMessageId, chatId, line, now);
+    }
+  }
+  if (!st) st = migrateChat(fsx, chatId, meta, line, now);
+  st.migrated = true;
+  saveChatFile(fsx, st);
+  return { st, changed: true };
+}
+
+export function pickChats(fsx, now) {
+  const out = [];
+  let files = [];
+  try {
+    files = fsx.list("chats") || [];
+  } catch {
+    return out;
+  }
+  for (const f of files) {
+    if (!f.endsWith(".meta.json")) continue;
+    const chatId = f.slice(0, -10);
+    const meta = readJson(fsx, "chats/" + f, null);
+    if (!isObj(meta) || meta.temporary) continue;
+    if (!meta.updatedAt || now - meta.updatedAt > 7 * 24 * 3600 * 1000) continue;
+    let hasJsonl = false;
+    try {
+      hasJsonl = files.includes(chatId + ".jsonl");
+    } catch {
+      hasJsonl = false;
+    }
+    if (!hasJsonl) continue;
+    out.push({ chatId, meta });
+  }
+  out.sort((a, b) => (b.meta.updatedAt || 0) - (a.meta.updatedAt || 0));
+  return out;
 }
 
 export function onTick(_ctx, host) {
-  const fsx = host && host.fs ? host.fs : null;
-  if (!fsx) return;
-  const cfg = loadConfig(fsx);
-  if (cfg.enabled === false) return;
   try {
-    for (const c of collectAny(fsx, host, cfg)) {
-      if (c.error) host.log("litopys " + c.kind + " " + c.chatId + ": " + c.error);
-    }
-    const store = loadStore(fsx);
+    const fsx = host && host.fs ? host.fs : null;
+    if (!fsx) return;
+    const cfg = loadConfig(fsx);
+    if (cfg.enabled === false) return;
     let all = null;
     try {
       all = fsx.list("chats");
     } catch {}
+    const store = loadStore(fsx);
     if (pruneOrphans(fsx, store, all)) saveStore(fsx, store);
-    const chats = (all || []).filter((f) => f.endsWith(".meta.json"));
-    for (const f of chats) {
-      const chatId = f.replace(/\.meta\.json$/, "");
-      const meta = readJson(fsx, "chats/" + f, null);
-      if (!meta || meta.temporary) continue;
-      const cst = store.chats[chatId] || emptyChatStore();
-      if (due(fsx, chatId, cst, cfg, "scribe")) {
-        if (armScribe(fsx, chatId, cfg, host).armed) break;
-      } else if (due(fsx, chatId, cst, cfg, "curate")) {
-        if (armCurate(fsx, chatId, cfg, host).armed) break;
+
+    if (host.llm && host.llm.embedResults) {
+      for (const key of Object.keys(host.llm.embedResults)) {
+        if (!key.startsWith("lit_emb_")) continue;
+        const vectors = host.llm.embedResults[key];
+        if (!vectors) {
+          setEmbedStatus(fsx, false);
+          return;
+        }
+        const chatId = key.slice(8);
+        const st = loadChatFile(fsx, chatId);
+        if (!st) return;
+        const needed = needVectors(fsx, st);
+        const n = finishEmbed(fsx, st, needed, vectors);
+        setEmbedStatus(fsx, n > 0);
+        return;
+      }
+    }
+
+    const now = Date.now();
+    let chats = [];
+    try {
+      chats = pickChats(fsx, now);
+    } catch (e) {
+      host.log("litopys pickChats: " + (e && e.message ? e.message : String(e)));
+      return;
+    }
+
+    for (const item of chats) {
+      try {
+        const { chatId, meta } = item;
+        const rc = readChat(fsx, chatId);
+        if (!rc) continue;
+        const line = activeLine(rc.msgs);
+        if (!line.length) continue;
+        const dash = readDash(fsx, chatId);
+        const ensured = ensureChat(fsx, chatId, meta, line, 0);
+        let st = ensured.st;
+        let changed = ensured.changed;
+        if (st.worker && st.worker.retryAt && st.worker.retryAt > now) continue;
+        if (markStale(st, line)) changed = true;
+        const scenes = findScenes(line, dash, cfg);
+        const lastScene = scenes[scenes.length - 1];
+        if (lastScene) {
+          const openFrom = line[lastScene.fromIdx] ? line[lastScene.fromIdx].id : null;
+          if (st.scene.openFrom !== openFrom || st.scene.label !== (lastScene.label || "")) {
+            st.scene.openFrom = openFrom;
+            st.scene.label = lastScene.label || "";
+            changed = true;
+          }
+        }
+        if (changed) saveChatFile(fsx, st);
+        const work = pickWork(st, line, dash, cfg);
+        if (!work) continue;
+        const key = "lit_" + chatId + "_" + work.scene.from + "_" + work.scene.to;
+        if (host.llm && host.llm.results && host.llm.results[key]) {
+          const reply = host.llm.results[key];
+          if (reply && !reply.error && reply.text) {
+            const parsed = parseWorkerReply(reply.text);
+            if (parsed) {
+              const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line });
+              saveChatFile(fsx, st);
+              // the new chapter and facts get their vectors in the next pass
+              if (chapter && embedAllowed(fsx) && typeof host.llm.embed === "function") {
+                const needed = needVectors(fsx, st);
+                if (needed.length) host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text) });
+              }
+              return;
+            }
+          }
+          failWorker(st, work, reply && reply.error ? reply.error : "empty or invalid reply", { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs });
+          saveChatFile(fsx, st);
+          return;
+        }
+        const req = buildWorkerRequest(st, work, line, dash, cfg, meta);
+        if (host.llm && typeof host.llm.request === "function") host.llm.request(key, req);
+        return;
+      } catch (e) {
+        try {
+          host.log("litopys onTick chat: " + (e && e.message ? e.message : String(e)));
+        } catch {}
       }
     }
   } catch (e) {
@@ -751,286 +1288,54 @@ export function onTick(_ctx, host) {
   }
 }
 
-// ---------- routes ----------
 export function handleRoute(req, host) {
-  const fsx = host.fs;
+  const fsx = host && host.fs ? host.fs : null;
+  if (!fsx) return null;
   const path = String(req.path || "").split("?")[0];
-  const body = () => (req.body && typeof req.body === "object" ? req.body : {});
-  const ok = (json, status) => ({ status: status || 200, json });
-  const err = (status, error) => ({ status, json: { error } });
-  const cfg = loadConfig(fsx);
-  const needChat = () => {
-    const { chatId } = body();
-    if (!chatId) return { error: err(400, "chatId required") };
-    if (!readJson(fsx, "chats/" + chatId + ".meta.json", null)) return { error: err(404, "no such chat") };
-    return { chatId };
-  };
-
-  if (path === "/litopys/poll" && req.method === "POST") {
-    const n = needChat();
-    if (n.error) return n.error;
-    const swept = collectAny(fsx, host, cfg).filter((c) => c.chatId === n.chatId && c.kind === "scribe");
-    const fresh = swept.find((c) => !c.error && !c.duplicate) || swept.find((c) => !c.error);
-    if (fresh) return ok(fresh);
-    const bad = swept.find((c) => c.error);
-    if (bad) return err(502, bad.error);
-    const r = armScribe(fsx, n.chatId, cfg, host);
-    if (r.error) return err(400, r.error);
-    return { __llmPending: true };
+  if (path === "/litopys/config" && req.method === "GET") {
+    return { status: 200, json: loadConfig(fsx) };
   }
-
-  if (path === "/litopys/curate" && req.method === "POST") {
-    const n = needChat();
-    if (n.error) return n.error;
-    const swept = collectAny(fsx, host, cfg).filter((c) => c.chatId === n.chatId && c.kind === "curator");
-    const fresh = swept.find((c) => !c.error) || null;
-    if (fresh) return ok(fresh);
-    const bad = swept.find((c) => c.error);
-    if (bad) return err(502, bad.error);
-    const r = armCurate(fsx, n.chatId, cfg, host);
-    if (r.error) return err(400, r.error);
-    return { __llmPending: true };
-  }
-
-  if (path === "/litopys/state" && req.method === "GET") {
-    const chatId = (req.query && req.query.chatId) || null;
-    const store = loadStore(fsx);
-    const pending = loadProposals(fsx).items.filter((p) => p.status === "pending").length;
-    if (chatId) {
-      const cst = store.chats[chatId] || null;
-      return ok({ chatId, lore: cst, pending });
-    }
-    const out = Object.entries(store.chats || {}).map(([id, c]) => ({
-      chatId: id,
-      charName: c.charName,
-      facts: (c.worldFacts || []).filter((f) => f.status !== "retired").length,
-      retired: (c.worldFacts || []).filter((f) => f.status === "retired").length,
-      turnsExtracted: c.turnsExtracted,
-      turnsCurated: c.turnsCurated,
-    }));
-    return ok({ chats: out, pending });
-  }
-
-  if (path === "/litopys/proposals" && req.method === "GET") {
-    const chatId = (req.query && req.query.chatId) || null;
-    const items = loadProposals(fsx).items.filter((p) => !chatId || p.chatId === chatId);
-    const pending = items.filter((p) => p.status === "pending").map((p) => enrichProposal(fsx, p));
-    const decided = items.filter((p) => p.status !== "pending").slice(-20).map((p) => enrichProposal(fsx, p));
-    return ok({ pending, decided });
-  }
-
-  if (path === "/litopys/proposals" && req.method === "POST") {
-    const b = body();
-    if (!b.action || !Array.isArray(b.ids)) return err(400, "action + ids[] required");
-    const p = loadProposals(fsx);
-    const results = [];
-    for (const id of b.ids) {
-      const item = p.items.find((x) => x.id === id && x.status === "pending");
-      if (!item) {
-        results.push({ id, error: "not found or already decided" });
-        continue;
-      }
-      if (b.action === "reject") {
-        item.status = "rejected";
-        results.push({ id, rejected: true });
-        continue;
-      }
-      if (b.action !== "approve") {
-        results.push({ id, error: "unknown action" });
-        continue;
-      }
-      const r = applyProposal(fsx, item.chatId, item, cfg);
-      if (r.error) {
-        results.push({ id, error: r.error });
-      } else {
-        item.status = "approved";
-        results.push({ id, approved: true });
-      }
-    }
-    saveProposals(fsx, p);
-    return ok({ results });
-  }
-
-  if (path === "/litopys/facts" && req.method === "POST") {
-    const b = body();
-    const chatId = b.chatId;
-    if (!chatId) return err(400, "chatId required");
-    if (!readJson(fsx, "chats/" + chatId + ".meta.json", null)) return err(404, "no such chat");
-    const action = b.action;
-    const store = loadStore(fsx);
-    // a fact written by hand: the chat may have no lore store yet
-    if (action === "add") {
-      const text = String(b.text || "").trim().slice(0, 250);
-      if (!text) return err(400, "text required");
-      const cst = store.chats[chatId] || emptyChatStore();
-      cst.worldFacts = cst.worldFacts || [];
-      if (cst.worldFacts.some((f) => f.status !== "retired" && norm(f.text) === norm(text))) return err(409, "another active fact already has this text");
-      const fact = { id: uid(), text, kind: "manual", at: Date.now(), updatedAt: Date.now(), status: "active" };
-      cst.worldFacts.push(fact);
-      record(cst, "added manually: " + text, cfg);
-      store.chats[chatId] = cst;
-      saveStore(fsx, store);
-      renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
-      return ok({ ok: true, id: fact.id, status: fact.status, text: fact.text });
-    }
-    const id = String(b.id || b.factId || "").trim();
-    if (!id) return err(400, "id required");
-    const cst = store.chats[chatId];
-    if (!cst) return err(404, "no lore store for chat");
-    const hit = (cst.worldFacts || []).find((f) => f.id === id || norm(f.text) === norm(id));
-    if (!hit) return err(404, "fact not found (already retired?)");
-    if (action === "retire") {
-      if (hit.status !== "retired") {
-        hit.status = "retired";
-        hit.updatedAt = Date.now();
-        record(cst, "retired manually: " + hit.text, cfg);
-      }
-    } else if (action === "update") {
-      const text = String(b.text || "").trim().slice(0, 250);
-      if (!text) return err(400, "text required");
-      if (norm(text) !== norm(hit.text)) {
-        const dupe = (cst.worldFacts || []).find(
-          (f) => f !== hit && f.status !== "retired" && norm(f.text) === norm(text),
-        );
-        if (dupe) return err(409, "another active fact already has this text");
-        hit.text = text;
-        hit.updatedAt = Date.now();
-        if (hit.status === "retired") hit.status = "active";
-        record(cst, "rewrote manually → " + text, cfg);
-      }
-    } else if (action === "restore") {
-      if (hit.status === "retired") {
-        const dupe = (cst.worldFacts || []).find((f) => f !== hit && f.status !== "retired" && norm(f.text) === norm(hit.text));
-        if (dupe) return err(409, "another active fact already has this text");
-        hit.status = "active";
-        hit.updatedAt = Date.now();
-        record(cst, "restored manually: " + hit.text, cfg);
-      }
-    } else {
-      return err(400, "action must be add|retire|update|restore");
-    }
-    store.chats[chatId] = cst;
-    saveStore(fsx, store);
-    renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
-    return ok({ ok: true, id: hit.id, status: hit.status, text: hit.text });
-  }
-
-  // the user's own wording of the story so far; empty clears it
-  if (path === "/litopys/story" && req.method === "POST") {
-    const b = body();
-    const chatId = b.chatId;
-    if (!chatId) return err(400, "chatId required");
-    if (!readJson(fsx, "chats/" + chatId + ".meta.json", null)) return err(404, "no such chat");
-    if (typeof b.text !== "string") return err(400, "text required");
-    const store = loadStore(fsx);
-    const cst = store.chats[chatId] || emptyChatStore();
-    const text = b.text.trim().slice(0, 1500);
-    if ((cst.storySoFar || "") !== text) {
-      cst.storySoFar = text || null;
-      record(cst, text ? "story so far rewritten manually" : "story so far cleared manually", cfg);
-      store.chats[chatId] = cst;
-      saveStore(fsx, store);
-      renderMd(fsx, chatId, cst, trackerSnapshot(fsx, chatId));
-    }
-    return ok({ ok: true, storySoFar: cst.storySoFar || null });
-  }
-
-  if (path === "/litopys/config" && req.method === "GET") return ok(cfg);
-
   if (path === "/litopys/config" && req.method === "PUT") {
-    // the generic panel editor sends { enabled, values: { key → value } };
-    // direct callers send a flat body — accept both
-    const b0 = body();
-    const b = b0.values && typeof b0.values === "object" ? { ...b0, ...b0.values } : b0;
-    const next = { ...DEFAULT_CONFIG, ...storedConfig(fsx) };
-    if (b.enabled !== undefined) next.enabled = b.enabled !== false;
-    if (b.extractEveryNTurns !== undefined) next.extractEveryNTurns = clamp(Math.round(Number(b.extractEveryNTurns) || 2), 1, 20);
-    if (b.curateEveryNTurns !== undefined) next.curateEveryNTurns = clamp(Math.round(Number(b.curateEveryNTurns) || 12), 4, 100);
-    if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
-    if (b.autoApplySafe !== undefined) next.autoApplySafe = b.autoApplySafe !== false;
-    if (b.inject !== undefined) next.inject = b.inject === true || b.inject === "on";
-    // a prompt saved as the default (or emptied) goes back to following it
-    for (const key of PROMPT_KEYS) {
-      if (typeof b[key] !== "string") continue;
-      if (isDefaultPrompt(key, b[key])) delete next[key];
-      else next[key] = b[key].slice(0, 8000);
-    }
-    fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
-    return ok(loadConfig(fsx));
+    const cfg = patchConfig(fsx, req.body || {});
+    return { status: 200, json: cfg };
   }
-
-  // "Restore default prompts" in the panel
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
-    const next = { ...DEFAULT_CONFIG, ...storedConfig(fsx) };
-    for (const key of PROMPT_KEYS) delete next[key];
-    fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
-    return ok(loadConfig(fsx));
+    const cfg = resetPrompts(fsx);
+    return { status: 200, json: cfg };
   }
-
   return null;
 }
 
 export function uiPanel(_ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
   const cfg = fsx ? loadConfig(fsx) : { ...DEFAULT_CONFIG, ...DEFAULT_PROMPTS };
-  const custom = fsx ? customPrompts(fsx) : [];
-  const promptHint = (key, what) =>
-    what + (custom.includes(key) ? " Changed from the default: Restore default prompts (below) puts it back." : " This is the default; edit it to change what the model is told.");
   let chats = 0;
-  let pending = 0;
   if (fsx) {
-    chats = Object.keys((loadStore(fsx).chats || {})).length;
-    pending = loadProposals(fsx).items.filter((p) => p.status === "pending").length;
+    try {
+      chats = fsx.list("litopys/chats").filter((f) => f.endsWith(".json")).length;
+    } catch {}
   }
-  const scribeEvery = clamp(Math.round(Number(cfg.extractEveryNTurns) || 2), 1, 20);
-  const curateEvery = clamp(Math.round(Number(cfg.curateEveryNTurns) || 12), 4, 100);
+  const custom = fsx ? customPrompts(fsx) : [];
   return {
     label: "Litopys",
     icon: "book",
-    hint: "World-lore keeper: scribe extracts facts + chronicle (" + chats + " chats), curator proposes cleanup (" + pending + " pending). Vault: data/vault-chats/.",
+    hint: "Chapters and facts per chat, built in shadow mode (" + chats + " chats have a file).",
     items: [
       {
         id: "config",
-        title: "Scribe & Curator",
-        subtitle: "scribe every ~" + scribeEvery * 2 + " msgs · curate every ~" + curateEvery * 2 + " msgs · " + (cfg.model ? cfg.model : "chat model"),
+        title: "Chapters and facts",
         enabled: cfg.enabled !== false,
         saveUrl: "/litopys/config",
         ...(custom.length ? { deleteUrl: "/litopys/config/prompts", deleteLabel: "Restore default prompts" } : {}),
         fields: [
-          { key: "extractEveryNTurns", label: "Scribe pass", hint: "New messages before a scribe run (×2 per turn). Lower = fresher lore, more calls.", kind: "number", value: cfg.extractEveryNTurns },
-          { key: "curateEveryNTurns", label: "Curator pass", hint: "New messages before a cleanup proposal. Keep high — curation is rare by design.", kind: "number", value: cfg.curateEveryNTurns },
-          { key: "inject", label: "Insert into the prompt", hint: "Add the recap and active facts (up to 4000 characters) to every reply. Off by default: the dashboard and Memory already carry the story.", kind: "select", list: ["off", "on"], value: cfg.inject === true ? "on" : "off" },
-          { key: "model", label: "Extraction model", hint: "Same model name can live on several endpoints — the picker groups by endpoint. Empty = chat's own model. Cheap + fast is ideal, both passes output strict JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
-          { key: "scribePrompt", label: "Scribe prompt", hint: promptHint("scribePrompt", "What the scribe extracts from new messages."), kind: "textarea", rows: 10, advanced: true, value: cfg.scribePrompt },
-          { key: "curatePrompt", label: "Curator prompt", hint: promptHint("curatePrompt", "How the curator judges the lore it cleans up."), kind: "textarea", rows: 10, advanced: true, value: cfg.curatePrompt },
+          { key: "model", label: "Model", hint: "Empty = the chat's own model.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
+          { key: "recentMessages", label: "Recent messages", hint: "A scene is closed when it is older than this many newest messages.", kind: "number", value: cfg.recentMessages },
+          { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
+          { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
+          { key: "pinLimit", label: "Pin limit", hint: "Not used by this shadow-mode version yet.", kind: "number", value: cfg.pinLimit },
+          { key: "chapter", label: "Chapter prompt", hint: custom.includes("chapter") ? "Changed from the default." : "This is the default.", kind: "textarea", rows: 10, advanced: true, value: cfg.chapter },
         ],
       },
     ],
   };
-}
-
-/** Hooks into the chat generation so the model sees the Litopys lore store.
- *  Only fires for reply passes that have a sessionId (chat id). */
-export function llmRequest(ctx, host) {
-  if (ctx.key !== "reply") return null;
-  const sessionId = ctx.request && ctx.request.sessionId;
-  if (!sessionId) return null;
-  const fsx = host && host.fs;
-  if (!fsx) return null;
-  if (loadConfig(fsx).inject !== true) return null;
-  const store = loadStore(fsx);
-  const cst = store.chats[sessionId] || emptyChatStore();
-  const story = cst.storySoFar || "";
-  const facts = (cst.worldFacts || []).filter((f) => f.status === "active").reverse();
-  if (!story && !facts.length) return null;
-  const header = "[World memory — established facts]\n";
-  let block = header;
-  if (story) block += story + "\n";
-  for (const f of facts) {
-    const line = "- " + f.text + "\n";
-    if ((block + line).length > 4000) break;
-    block += line;
-  }
-  if (block === header) return null;
-  return { systemPrompt: (ctx.request.systemPrompt || "") + "\n\n" + block };
 }
