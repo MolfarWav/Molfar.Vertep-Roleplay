@@ -1288,10 +1288,125 @@ export function onTick(_ctx, host) {
   }
 }
 
+// ---------- read-only view (the Litopys section) ----------
+const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const LIST_LIMIT = 300;
+
+/** The name a chat is about: its character, or its group. "" when neither can be read. */
+function chatSubject(fsx, meta) {
+  try {
+    if (meta.groupId) {
+      const g = readJson(fsx, "groups/" + meta.groupId + ".json", null);
+      if (isObj(g) && g.name) return str(g.name);
+    }
+    if (meta.characterId) {
+      const card = readJson(fsx, "characters/" + meta.characterId + "/card.json", null);
+      if (isObj(card)) return str(card.name || (isObj(card.data) ? card.data.name : ""));
+    }
+  } catch {}
+  return "";
+}
+
+function workerView(st, line) {
+  const w = st && isObj(st.worker) ? st.worker : null;
+  if (!w) return null;
+  const out = { lastRunAt: Number(w.lastRunAt) || 0, ok: w.ok === true };
+  if (isObj(w.lastScene)) {
+    out.lastScene = { from: str(w.lastScene.from), to: str(w.lastScene.to) };
+    if (line) {
+      // message numbers (1-based) when the messages are still in the chat, else 0
+      out.lastScene.fromNo = line.findIndex((m) => m.id === out.lastScene.from) + 1;
+      out.lastScene.toNo = line.findIndex((m) => m.id === out.lastScene.to) + 1;
+    }
+  }
+  if (w.error) out.error = str(w.error);
+  if (Number.isFinite(w.ms)) out.ms = w.ms;
+  if (w.retryAt) out.retryAt = Number(w.retryAt) || 0;
+  return out;
+}
+
+/** GET /litopys/chats: every chat with its Litopys counts. Reads only. */
+export function listChatsView(fsx) {
+  let files = [];
+  try {
+    files = fsx.list("chats") || [];
+  } catch {}
+  const items = [];
+  for (const f of files) {
+    if (!f.endsWith(".meta.json")) continue;
+    const id = f.slice(0, -10);
+    if (!SAFE_ID.test(id)) continue;
+    const meta = readJson(fsx, "chats/" + f, null);
+    if (!isObj(meta) || meta.temporary) continue;
+    const st = loadChatFile(fsx, id);
+    items.push({
+      id,
+      title: str(meta.title) || id,
+      name: chatSubject(fsx, meta),
+      updatedAt: Number(meta.updatedAt) || 0,
+      hasData: !!st,
+      chapters: st ? st.chapters.length : 0,
+      facts: st ? st.facts.filter((x) => x.status === "active").length : 0,
+      proposals: st ? st.proposals.filter((x) => x.status === "pending").length : 0,
+      worker: workerView(st),
+    });
+  }
+  items.sort((a, b) => b.updatedAt - a.updatedAt);
+  return { items: items.slice(0, LIST_LIMIT), total: items.length };
+}
+
+/** GET /litopys/chat?chatId=: one chat's chapters, facts, proposals, scene and worker. null = no such chat. */
+export function chatView(fsx, chatId) {
+  if (!SAFE_ID.test(chatId)) return null;
+  const rc = readChat(fsx, chatId);
+  if (!rc) return null;
+  const line = activeLine(rc.msgs);
+  const st = loadChatFile(fsx, chatId);
+  const chapters = [];
+  for (const ch of st ? st.chapters : []) {
+    const r = rangeOf(ch, line);
+    chapters.push({
+      id: ch.id,
+      label: str(ch.label),
+      text: str(ch.text),
+      kind: ch.kind || "scene",
+      count: Number(ch.count) || 0,
+      fromNo: r.orphan ? 0 : r.fromIdx + 1,
+      toNo: r.orphan ? 0 : r.toIdx + 1,
+      place: ch.place ? str(ch.place) : undefined,
+      at: Number(ch.at) || 0,
+      stale: ch.stale === true,
+      edited: ch.edited === true,
+    });
+  }
+  return {
+    chatId,
+    title: str(rc.meta.title) || chatId,
+    name: chatSubject(fsx, rc.meta),
+    messages: line.length,
+    hasData: !!st,
+    migrated: st ? st.migrated : false,
+    chapters,
+    facts: st ? st.facts : [],
+    proposals: st ? st.proposals : [],
+    scene: st ? st.scene : { openFrom: null },
+    sceneFromNo: st && st.scene && st.scene.openFrom ? line.findIndex((m) => m.id === st.scene.openFrom) + 1 : 0,
+    worker: workerView(st, line),
+  };
+}
+
 export function handleRoute(req, host) {
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return null;
   const path = String(req.path || "").split("?")[0];
+  if (path === "/litopys/chats" && req.method === "GET") {
+    return { status: 200, json: listChatsView(fsx) };
+  }
+  if (path === "/litopys/chat" && req.method === "GET") {
+    const view = chatView(fsx, String((req.query && req.query.chatId) || ""));
+    if (!view) return { status: 404, json: { error: "chat not found" } };
+    return { status: 200, json: view };
+  }
   if (path === "/litopys/config" && req.method === "GET") {
     return { status: 200, json: loadConfig(fsx) };
   }
