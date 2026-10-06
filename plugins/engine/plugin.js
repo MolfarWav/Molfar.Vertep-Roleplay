@@ -867,6 +867,44 @@ function presetMaxCtx(preset) {
   return (preset && typeof preset.openai_max_context === "number" && preset.openai_max_context > 0)
     ? preset.openai_max_context : 16384;
 }
+/** Token estimate by script (the engine's estimateTextTokens): ASCII ~3.5 chars
+ *  a token, other letters (Cyrillic, Greek...) ~2, CJK and the rest 1. chars/4
+ *  undercounts non-English text by half. */
+function estimateTokens(text) {
+  const s = String(text == null ? "" : text);
+  let ascii = 0, alpha = 0, other = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) ascii++;
+    else if (c < 0x2e80) alpha++;
+    else other++;
+  }
+  return Math.ceil(ascii / 3.5 + alpha / 2 + other);
+}
+/** Tokens the sibling plugins' hooks may add to the request after assembly
+ *  (their inserts are not in the trimmed prompt, so they get a reserve): the
+ *  dashboard's notes and focus lines, Litopys's lore block. A config that is
+ *  missing or unreadable counts as that plugin's default. */
+function hookInsertReserve(fsx) {
+  let reserve = 0;
+  let dash = {};
+  try {
+    const c = JSON.parse(fsx.read("dashboard/config.json"));
+    if (c && typeof c === "object" && c.injection && typeof c.injection === "object") dash = c.injection;
+  } catch {}
+  if (dash.enabled !== false) {
+    const n = Number(dash.maxTokens);
+    const max = Number.isFinite(n) ? Math.min(2000, Math.max(50, Math.round(n))) : 300;
+    reserve += max * 2 + 200;
+  }
+  let lit = {};
+  try {
+    const c = JSON.parse(fsx.read("litopys/config.json"));
+    if (c && typeof c === "object") lit = c;
+  } catch {}
+  if (lit.inject === true) reserve += 1200;
+  return reserve;
+}
 /** World info budget: 25% of
  *  the USABLE context (context minus the reserved response length), chars/4
  *  estimate. Entries claim it in order-DESCENDING priority; entries that
@@ -1542,12 +1580,16 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     history.push({ role, content: body });
   }
 
-  // context trimming (chars/4 estimate against openai_max_context)
-  const budget = presetMaxCtx(preset) * 4;
-  const fixedLen = () => before.concat(extras, after).reduce((a, m) => a + m.content.length, 0);
+  // context trimming: a token estimate against openai_max_context, minus the
+  // room the reply needs and what the sibling plugins' hooks add later
+  const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
+  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx) - 64;
+  const msgTokens = (m) => estimateTokens(m.content) + 4;
+  const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
   // what fell out is reported: automatic compaction fires on it
   let trimmed = 0;
-  while (fixedLen() + history.reduce((a, m) => a + m.content.length, 0) > budget && history.length > 1) { history.splice(0, 1); trimmed++; }
+  let histTokens = history.reduce((a, m) => a + msgTokens(m), 0);
+  while (fixedTokens() + histTokens > budget && history.length > 1) { histTokens -= msgTokens(history[0]); history.splice(0, 1); trimmed++; }
 
   // utility prompts (preset-level, blank = off):
   //  - new-chat marker rides at the very top of a freshly started chat
