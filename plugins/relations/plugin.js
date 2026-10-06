@@ -459,6 +459,50 @@ const SENSOR_PROMPT_5 = [
   "Keep the whole reply compact: short values, no filler.",
 ].join("\n");
 
+// The sixth sensor prompt (before the scene field and the note weight).
+const SENSOR_PROMPT_6 = [
+  "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
+  "",
+  "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
+  "",
+  "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
+  "",
+  "Truth:",
+  "- Use only what the New messages say or show. Never invent.",
+  "- The Previous state is background. Never report an event, fact or mood from it unless the New messages show it again.",
+  "- When the new text shows nothing for a key, leave the key out.",
+  "",
+  "Events:",
+  "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
+  "- Between two other characters, name no event: describe it in \"edges\".",
+  "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
+  "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
+  "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
+  "",
+  "Scene:",
+  "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+  "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+  "- place and weather: only when stated or changed.",
+  "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
+  "",
+  "Knowledge:",
+  "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
+  "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words.",
+  "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+  "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
+  "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
+  "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
+  "",
+  "Threads:",
+  "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.",
+  "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
+  "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
+  "- In \"open\", list kept threads with their id and new ones with id null.",
+  "",
+  "Keep the whole reply compact: short values, no filler.",
+].join("\n");
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -484,11 +528,12 @@ export const DEFAULT_PROMPTS = {
     "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
     "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
+    "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words naming the new scene, in the language of the story; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
     "",
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
-    "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words.",
+    "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
     "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
@@ -557,16 +602,17 @@ const sensorFromParts = (stored) =>
   SENSOR_PARTS.map((part) => (isObj(stored) && typeof stored[part.key] === "string" && stored[part.key].trim() ? stored[part.key] : DEFAULT_SENSOR_PARTS[part.key])).join("\n\n");
 
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [], fast: [] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [], fast: [] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
   "{ \"present\": [\"name\"], \"struck\": [\"name\"],",
   "  \"minutes\": 0, \"time\": \"HH:MM or dawn|morning|late morning|day|evening|night\", \"day\": 1,",
   "  \"place\": \"text\", \"weather\": \"text\",",
+  "  \"scene\": { \"new\": false, \"label\": \"2-5 words\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
   "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": \"text\", \"holding\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\" } },",
-  "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\" } ],",
+  "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
   "  \"retire\": [\"entry id\"],",
   "  \"names\": [ { \"who\": \"name\", \"heardUserName\": true, \"calls\": \"text\" } ],",
@@ -2133,6 +2179,16 @@ function addHistory(state, name, turn, K, prev, entry, old) {
 
 const sameText = (t) => str(t).toLowerCase().replace(/\s+/g, " ");
 
+const NOTE_WEIGHTS = ["everyday", "important", "key"];
+/** A note's weight as the sensor gave it; anything else is everyday. */
+const weightOf = (v) => (NOTE_WEIGHTS.includes(str(v).toLowerCase()) ? str(v).toLowerCase() : "everyday");
+
+/** The sensor's scene field: { new, label }. Missing or malformed is { new: false }. */
+export function readScene(v) {
+  if (!isObj(v) || typeof v.new !== "boolean") return { new: false };
+  return { new: v.new, label: cut(str(v.label), 60) };
+}
+
 function applyNotebook(ctx, out, present, turn, K) {
   const { state } = ctx;
   const keys = ctx.line.map((l) => l.key);
@@ -2172,7 +2228,8 @@ function applyNotebook(ctx, out, present, turn, K) {
     const from = how === "heard" ? teller : null;
     // near the same words as a note already there: nothing new to keep
     if (says(who, text)) continue;
-    add(who, how === "heard" ? { text, how, from, believes: true } : { text, how, from: null });
+    const weight = weightOf(l.weight);
+    add(who, how === "heard" ? { text, how, from, believes: true, weight } : { text, how, from: null, weight });
     used++;
   }
   for (const t of arr(out.told)) {
@@ -2180,7 +2237,7 @@ function applyNotebook(ctx, out, present, turn, K) {
     const from = canonName(t.from, present);
     const to = canonName(t.to, present);
     const note = arr(live[from]).find((n) => n.id === str(t.note));
-    if (note && present.includes(to) && to !== from && !says(to, note.text)) add(to, { text: note.text, how: "heard", from, believes: true });
+    if (note && present.includes(to) && to !== from && !says(to, note.text)) add(to, { text: note.text, how: "heard", from, believes: true, weight: weightOf(note.weight) });
   }
   for (const notes of Object.values(raw)) for (const n of notes) if (retiring(n)) n.retiredBy = K;
 }
@@ -2285,6 +2342,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     sig: textSig(ctx.newMsgs),
     ...(out.__partial ? { partial: true } : {}),
     clock: advanceClock(B && B.clock, out, op),
+    scene: readScene(out.scene),
     present,
     events,
     chars,

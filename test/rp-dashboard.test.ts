@@ -684,7 +684,7 @@ describe("update route", () => {
     );
     update(mock, "g");
     st = readStateFile("g");
-    expect(st.notebook.Bram).toEqual([{ id: "n3", text: "The user has a key", how: "heard", from: "Aria", believes: true, turn: 2, src: "m5#0" }]);
+    expect(st.notebook.Bram).toEqual([{ id: "n3", text: "The user has a key", how: "heard", from: "Aria", believes: true, turn: 2, src: "m5#0", weight: "everyday" }]);
     expect(st.notebook.Aria.find((n: any) => n.id === "n2").retiredBy).toBe("m5#0");
     const keys = ["m1#0", "m2#0", "m3#0", "m4#0", "m5#0"];
     expect(P.activeNotebook(st, keys).Aria.map((n: any) => n.id)).toEqual(["n1"]);
@@ -3034,7 +3034,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(5);
+    expect(past.length).toBe(6);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limit given in the input");
     expect(text).not.toContain("three open threads");
