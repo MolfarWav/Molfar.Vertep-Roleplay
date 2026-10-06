@@ -264,3 +264,67 @@ describe("M1.2 every reply op embeds the scan window", () => {
     expect(r.passes).toBe(3);
   });
 });
+
+describe("M1.3 a deleted chat leaves no memory behind", () => {
+  it("DELETE /chats/:id removes the facts vault too", async () => {
+    const m = mockHost();
+    const id = await newChat(m);
+    fs.writeFileSync(path.join(root, "chats", id + ".memories.json"), JSON.stringify([{ id: "m1", text: "a fact", importance: 3 }]));
+    const keep = path.join(root, "chats", "other.memories.json");
+    fs.writeFileSync(keep, "[]");
+    const r = await drive(engineUrl, { method: "DELETE", path: `/chats/${id}` }, m);
+    expect(r.status).toBe(200);
+    expect(fs.existsSync(path.join(root, "chats", id + ".memories.json"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "chats", id + ".jsonl"))).toBe(false);
+    expect(fs.existsSync(keep)).toBe(true);
+  });
+
+  it("deleting a character takes its solo chats' vaults along", async () => {
+    const m = mockHost();
+    const id = await newChat(m);
+    fs.writeFileSync(path.join(root, "chats", id + ".memories.json"), "[]");
+    await drive(engineUrl, { method: "DELETE", path: "/characters/aria" }, m);
+    expect(fs.existsSync(path.join(root, "chats", id + ".memories.json"))).toBe(false);
+  });
+
+  const litopysTick = async (m: ReturnType<typeof mockHost>) => {
+    const mod = (await import(litopysUrl)) as { onTick: Function };
+    mod.onTick({}, m.host);
+  };
+  const entry = (name: string) => ({ charName: name, userName: "You", slug: "x", worldFacts: [{ id: "f1", text: "a fact", kind: "lore", status: "active" }], chronicle: [], storySoFar: null, lastExtractLen: 2, turnsExtracted: 1, lastCurateLen: 0, turnsCurated: 0 });
+
+  it("Litopys onTick drops the entry, proposals and vault page of a chat whose transcript is gone", async () => {
+    const live = "c-live-aaaaaa", dead = "c-dead-bbbbbb";
+    for (const id of [live]) {
+      fs.writeFileSync(path.join(root, "chats", id + ".jsonl"), JSON.stringify({ role: "user", text: "hi" }) + "\n");
+      fs.writeFileSync(path.join(root, "chats", id + ".meta.json"), JSON.stringify({ id }));
+    }
+    writeJson("litopys/store.json", { chats: { [live]: entry("Aria"), [dead]: entry("Aria") } });
+    writeJson("litopys/proposals.json", { items: [{ id: "p1", chatId: live, status: "pending" }, { id: "p2", chatId: dead, status: "pending" }] });
+    fs.mkdirSync(path.join(root, "vault-chats"), { recursive: true });
+    fs.writeFileSync(path.join(root, "vault-chats", "aria-aaaaaa.md"), "live");
+    fs.writeFileSync(path.join(root, "vault-chats", "aria-bbbbbb.md"), "dead");
+    await litopysTick(mockHost());
+    const store = JSON.parse(fs.readFileSync(path.join(root, "litopys", "store.json"), "utf8"));
+    expect(Object.keys(store.chats)).toEqual([live]);
+    const props = JSON.parse(fs.readFileSync(path.join(root, "litopys", "proposals.json"), "utf8"));
+    expect(props.items.map((p: { id: string }) => p.id)).toEqual(["p1"]);
+    expect(fs.existsSync(path.join(root, "vault-chats", "aria-bbbbbb.md"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "vault-chats", "aria-aaaaaa.md"))).toBe(true);
+  });
+
+  it("nothing to drop means nothing is written", async () => {
+    const live = "c-live-aaaaaa";
+    fs.writeFileSync(path.join(root, "chats", live + ".jsonl"), JSON.stringify({ role: "user", text: "hi" }) + "\n");
+    fs.writeFileSync(path.join(root, "chats", live + ".meta.json"), JSON.stringify({ id: live }));
+    writeJson("litopys/store.json", { chats: { [live]: entry("Aria") } });
+    const before = fs.statSync(path.join(root, "litopys", "store.json")).mtimeMs;
+    const writes: string[] = [];
+    const m = mockHost();
+    const write = m.host.fs.write;
+    m.host.fs.write = (rel: string, c: string) => { writes.push(rel); write(rel, c); };
+    await litopysTick(m);
+    expect(writes.filter((w) => w.startsWith("litopys/"))).toEqual([]);
+    expect(fs.statSync(path.join(root, "litopys", "store.json")).mtimeMs).toBe(before);
+  });
+});

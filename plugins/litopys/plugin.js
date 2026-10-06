@@ -661,6 +661,39 @@ function due(fsx, chatId, cst, cfg, kind) {
   return msgs.length - (Number(cst.lastCurateLen) || 0) >= clamp(Number(cfg.curateEveryNTurns) || 12, 4, 100) * 2;
 }
 
+/** A deleted chat leaves nothing behind: its store entry, its proposals and its
+ *  vault page go. `files` is the listing of chats/ (null when it failed:
+ *  nothing is dropped on a guess). True when the store or proposals changed. */
+function pruneOrphans(fsx, store, files) {
+  if (!Array.isArray(files)) return false;
+  const live = new Set(files.filter((f) => f.endsWith(".jsonl")).map((f) => f.slice(0, -6)));
+  const gone = Object.keys(store.chats || {}).filter((id) => !live.has(id));
+  if (!gone.length) return false;
+  const goneSet = new Set(gone);
+  const liveTails = new Set([...live].map((id) => id.slice(-6)));
+  let vault = [];
+  try {
+    vault = fsx.list(VAULT_DIR);
+  } catch {}
+  for (const id of gone) {
+    delete store.chats[id];
+    const tail = id.slice(-6);
+    if (liveTails.has(tail)) continue;
+    for (const f of vault) {
+      if (f.endsWith("-" + tail + ".md")) {
+        try {
+          fsx.remove(VAULT_DIR + "/" + f);
+        } catch {}
+      }
+    }
+  }
+  const props = loadProposals(fsx);
+  const items = Array.isArray(props.items) ? props.items : [];
+  const kept = items.filter((p) => !(p && goneSet.has(p.chatId)));
+  if (kept.length !== items.length) saveProposals(fsx, { ...props, items: kept });
+  return true;
+}
+
 export function onTick(_ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return;
@@ -671,10 +704,12 @@ export function onTick(_ctx, host) {
       if (c.error) host.log("litopys " + c.kind + " " + c.chatId + ": " + c.error);
     }
     const store = loadStore(fsx);
-    let chats = [];
+    let all = null;
     try {
-      chats = fsx.list("chats").filter((f) => f.endsWith(".meta.json"));
+      all = fsx.list("chats");
     } catch {}
+    if (pruneOrphans(fsx, store, all)) saveStore(fsx, store);
+    const chats = (all || []).filter((f) => f.endsWith(".meta.json"));
     for (const f of chats) {
       const chatId = f.replace(/\.meta\.json$/, "");
       const meta = readJson(fsx, "chats/" + f, null);

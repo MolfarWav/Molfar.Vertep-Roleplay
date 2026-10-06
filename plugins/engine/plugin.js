@@ -2366,6 +2366,7 @@ export function handleRoute(req, host) {
             if (meta && meta.characterId === id && !meta.groupId) {
               try { fsx.remove("chats/" + meta.id + ".jsonl"); } catch {}
               try { fsx.remove("chats/" + meta.id + ".meta.json"); } catch {}
+              try { fsx.remove("chats/" + meta.id + ".memories.json"); } catch {}
             }
           }
         } catch {}
@@ -3151,6 +3152,8 @@ const toolX = (r) => ({
     if (!op && req.method === "DELETE") {
       try { fsx.remove("chats/" + id + ".jsonl"); } catch {}
       try { fsx.remove("chats/" + id + ".meta.json"); } catch {}
+      // the facts vault belongs to the chat
+      try { fsx.remove("chats/" + id + ".memories.json"); } catch {}
       return ok({ ok: true });
     }
 
