@@ -38,7 +38,7 @@ update at all.
 
 The roleplay studio, v4: a power-user roleplay UI. Left nav rail (components/shell/
 sections.ts is the one list, items carry a `group`: Home, Chats | Characters,
-Marketplace, Personas, Lorebooks | Presets, Connections | Shortcuts, Tools |
+Marketplace, Personas, Lorebooks, Litopys | Presets, Connections | Shortcuts, Tools |
 Settings pinned at the bottom) + Ctrl+K command palette. From 1280px the rail is
 206px with labels (Kurale) and ornament dividers; below that it is icons with
 tooltips; on phones it is the bottom tab bar. On desktop a section always opens
@@ -263,7 +263,8 @@ data/
 ├─ databank/<id>.json   { name, scope, enabled, size, chunks: [{i, text}] }
 ├─ dashboard/           relations plugin: state/<chatId>.json, soul-drafts/<characterId>.json, config.json, events.json
 ├─ litopys/             litopys plugin (shadow mode, nothing reaches the prompt yet): chats/<chatId>.json (chapters, facts,
-│                       proposals, worker state), vectors/<chatId>.json, config.json; store.json = the 1.x backup
+│                       proposals, worker state), vectors/<chatId>.json, config.json; store.json = the 1.x backup.
+│                       The read-only Litopys rail section (components/library/) reads GET /litopys/chats and /litopys/chat?chatId=.
 └─ personas/<id>.json   user personas
 ```
 

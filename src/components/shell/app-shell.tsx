@@ -21,6 +21,7 @@ import { ChatView } from '@/components/chat/chat-view'
 import { PersonasView } from '@/components/views/personas-view'
 import { PresetsView } from '@/components/views/presets-view'
 import { LorebooksView } from '@/components/views/lorebooks-view'
+import { LitopysView } from '@/components/library/litopys-view'
 import { QuickRepliesView } from '@/components/views/quickreplies-view'
 import { ExtensionsView } from '@/components/views/extensions-view'
 import { ConnectionsView } from '@/components/views/connections-view'
@@ -160,6 +161,7 @@ function renderView(v: ViewKey) {
     case 'personas': return <PersonasView />
     case 'presets': return <PresetsView />
     case 'lorebooks': return <LorebooksView />
+    case 'litopys': return <LitopysView />
     case 'quickreplies': return <QuickRepliesView />
     case 'extensions': return <ExtensionsView />
     case 'connections': return <ConnectionsView />

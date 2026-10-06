@@ -63,11 +63,11 @@ describe("placeholders and relative time", () => {
 });
 
 describe("rail groups", () => {
-  it("split Home+Chats | Characters, Marketplace, Personas, Lorebooks | Presets, Connections | Shortcuts, Tools | Settings", () => {
+  it("split Home+Chats | Characters, Marketplace, Personas, Lorebooks, Litopys | Presets, Connections | Shortcuts, Tools | Settings", () => {
     const groups = sectionGroups().map((g) => g.map((s) => s.key));
     expect(groups).toEqual([
       ["home", "chats"],
-      ["characters", "marketplace", "personas", "lorebooks"],
+      ["characters", "marketplace", "personas", "lorebooks", "litopys"],
       ["presets", "connections"],
       ["quickreplies", "extensions"],
       ["settings"],

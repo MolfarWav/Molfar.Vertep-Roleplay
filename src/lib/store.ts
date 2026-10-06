@@ -39,13 +39,13 @@ import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
 
 export type ViewKey =
-  | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks'
+  | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys'
   | 'quickreplies' | 'extensions' | 'connections' | 'settings' | 'chat'
 
 /** Sections that can be a drawer (see opensAsDrawer). Home and the chat
  *  surfaces are always pages. */
 export const DRAWER_VIEWS = new Set<ViewKey>([
-  'characters', 'marketplace', 'personas', 'presets', 'lorebooks', 'quickreplies', 'extensions', 'connections', 'settings',
+  'characters', 'marketplace', 'personas', 'presets', 'lorebooks', 'litopys', 'quickreplies', 'extensions', 'connections', 'settings',
 ])
 
 const isDesktopViewport = () =>
