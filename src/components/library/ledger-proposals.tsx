@@ -108,7 +108,8 @@ function ProposalRow({ chat, proposal, onChat, onRefresh, pin, busy, setBusy }: 
           <div className="mt-1.5 text-sm space-y-1">
             {proposal.op === 'rewrite' && targets[0] && (
               <>
-                <div><span className="text-muted-foreground">{t('lit.now')}</span> {targets[0].text}</div>
+                {/* an accepted rewrite already is the fact's text: "now" would just repeat it */}
+                {proposal.status !== 'accepted' && <div><span className="text-muted-foreground">{t('lit.now')}</span> {targets[0].text}</div>}
                 {proposal.text != null && (
                   <div><span className="text-muted-foreground">{t('lit.proposed')}</span> {proposal.text}</div>
                 )}
@@ -178,6 +179,7 @@ export function ProposalsTab({ chat, onChat, onRefresh }: TabProps) {
         <p className="text-xs text-muted-foreground">{t('lit.noProposals')}</p>
       ) : (
         <>
+          {pending.length === 0 && <p className="text-xs text-muted-foreground">{t('lit.noProposals')}</p>}
           {pending.length > 0 && (
             <ul className="flex flex-col gap-2">
               {pending.map((p) => (

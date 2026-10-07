@@ -615,11 +615,11 @@ export function FactsTab({ chat, onChat }: TabProps) {
           />
         </div>
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | LitFactType)}>
-          <SelectTrigger className="min-w-0 text-sm md:min-w-[120px]">
+          <SelectTrigger className="w-full min-w-0 text-sm md:w-auto md:min-w-[120px]" aria-label={t('lit.f.type')}>
             <SelectValue placeholder={t('lit.type.event')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t('lit.status.all')}</SelectItem>
+            <SelectItem value="all">{t('lit.filter.anyType')}</SelectItem>
             {FACT_TYPES.map((tKey) => (
               <SelectItem key={tKey} value={tKey}>
                 {t(typeKey(tKey))}
@@ -628,11 +628,11 @@ export function FactsTab({ chat, onChat }: TabProps) {
           </SelectContent>
         </Select>
         <Select value={weightFilter} onValueChange={(v) => setWeightFilter(v as 'all' | LitFactWeight)}>
-          <SelectTrigger className="min-w-0 text-sm md:min-w-[120px]">
+          <SelectTrigger className="w-full min-w-0 text-sm md:w-auto md:min-w-[120px]" aria-label={t('lit.f.weight')}>
             <SelectValue placeholder={t('lit.weight.everyday')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t('lit.status.all')}</SelectItem>
+            <SelectItem value="all">{t('lit.filter.anyWeight')}</SelectItem>
             {FACT_WEIGHTS.map((w) => (
               <SelectItem key={w} value={w}>
                 {t(weightKey(w))}
@@ -641,11 +641,11 @@ export function FactsTab({ chat, onChat }: TabProps) {
           </SelectContent>
         </Select>
         <Select value={whoFilter} onValueChange={(v) => setWhoFilter(v ?? 'all')}>
-          <SelectTrigger className="min-w-0 text-sm md:min-w-[120px]">
+          <SelectTrigger className="w-full min-w-0 text-sm md:w-auto md:min-w-[120px]" aria-label={t('lit.f.knownBy')}>
             <SelectValue placeholder={t('lit.f.knownBy')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t('lit.status.all')}</SelectItem>
+            <SelectItem value="all">{t('lit.filter.anyone')}</SelectItem>
             {names.map((n) => (
               <SelectItem key={n} value={n}>
                 {n}
@@ -654,7 +654,7 @@ export function FactsTab({ chat, onChat }: TabProps) {
           </SelectContent>
         </Select>
         <Select value={stateFilter} onValueChange={(v) => setStateFilter(v as StateFilter)}>
-          <SelectTrigger className="min-w-0 text-sm md:min-w-[120px]">
+          <SelectTrigger className="w-full min-w-0 text-sm md:w-auto md:min-w-[120px]" aria-label={t('lit.status')}>
             <SelectValue placeholder={t('lit.status.active')} />
           </SelectTrigger>
           <SelectContent>

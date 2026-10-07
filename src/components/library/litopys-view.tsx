@@ -7,7 +7,7 @@ import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { fetchLitChats, type LitChatItem } from './litopys-api'
+import { fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
 import { LedgerChat } from './ledger'
 import { WorkerDot } from './worker-dot'
 
@@ -55,6 +55,22 @@ export function LitopysView() {
     setSelectedId(id)
     setDetailOpen(true)
   }
+  // an edit in the Ledger shows in the chat list at once, not at the next poll
+  const syncItem = useCallback((c: LitChat) => {
+    setItems((cur) =>
+      cur?.map((x) =>
+        x.id === c.chatId
+          ? {
+              ...x,
+              chapters: c.chapters.length,
+              facts: c.facts.filter((f) => f.status === 'active').length,
+              proposals: c.proposals.filter((p) => p.status === 'pending').length,
+              worker: c.worker ?? x.worker,
+            }
+          : x,
+      ) ?? cur,
+    )
+  }, [])
   const withData = items ? items.filter((x) => x.hasData).length : undefined
   const current = items?.find((x) => x.id === selectedId)
 
@@ -68,7 +84,7 @@ export function LitopysView() {
         master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} />}
         detail={
           selectedId ? (
-            <LedgerChat chatId={selectedId} refreshKey={tick} />
+            <LedgerChat chatId={selectedId} refreshKey={tick} onLoaded={syncItem} />
           ) : (
             <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
               {items === null ? '…' : items.length ? t('lit.pick') : t('lit.noChats')}

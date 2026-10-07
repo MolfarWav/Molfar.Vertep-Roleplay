@@ -40,7 +40,8 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
   switch (a.kind as LitActivityKind) {
     case 'fact.add': return t('lit.act.factAdd', { text })
     case 'fact.edit': return t('lit.act.factEdit', { text })
-    case 'fact.pin': return t('lit.act.factPin', { text })
+    case 'fact.pin':
+      return typeof d.replaced === 'string' ? t('lit.act.factPinReplace', { text, replaced: d.replaced }) : t('lit.act.factPin', { text })
     case 'fact.unpin': return t('lit.act.factUnpin', { text })
     case 'fact.retire': return t('lit.act.factRetire', { text })
     case 'fact.restore': return t('lit.act.factRestore', { text })

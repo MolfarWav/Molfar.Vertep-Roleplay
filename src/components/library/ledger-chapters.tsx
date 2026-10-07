@@ -222,7 +222,7 @@ function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps) {
         </DropdownMenu>
       </div>
 
-      <div className="mt-1 hidden md:flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+      <div className={cn("mt-1 hidden gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100", editing ? "md:hidden" : "md:flex")}>
         <Button size="xs" variant="ghost" disabled={disabled || busy !== null} onClick={() => setEditing(true)}>
           <PencilSimple className="size-3.5" aria-hidden="true" />
           {t('lit.edit')}

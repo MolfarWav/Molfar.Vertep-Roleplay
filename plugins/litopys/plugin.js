@@ -2264,7 +2264,10 @@ export function factRoute(fsx, body) {
       if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
       const err = pinFact(st, fact, str(b.replace), cfg.pinLimit, now);
       if (err) return err;
-      addActivity(st, "user", "fact.pin", "Pinned: " + quote(fact.text), b.replace ? [fact.id, str(b.replace)] : [fact.id], now, { text: fact.text });
+      // a replace names the fact that gave up its pin, so the Activity tab says both
+      const other = b.replace ? st.facts.find((f) => f.id === str(b.replace) && f.pinned !== true) : null;
+      const text = "Pinned: " + quote(fact.text) + (other ? " in place of " + quote(other.text) : "");
+      addActivity(st, "user", "fact.pin", text, other ? [fact.id, other.id] : [fact.id], now, other ? { text: fact.text, replaced: other.text } : { text: fact.text });
       return;
     }
     if (op === "unpin") {
