@@ -630,6 +630,14 @@ const parseObj = (body) => {
   }
 };
 
+/** The fact ops wherever the model put them: "facts", "fact_ops", "ops", or inside "chapter". */
+function factOps(v) {
+  for (const x of [v.facts, v.fact_ops, v.factOps, v.ops, isObj(v.chapter) ? v.chapter.facts : undefined]) {
+    if (Array.isArray(x)) return x.slice(0, 12);
+  }
+  return [];
+}
+
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
 export function parseWorkerReply(text) {
   if (!text) return null;
@@ -640,19 +648,28 @@ export function parseWorkerReply(text) {
   if (fo.body) {
     const v = parseObj(fo.body);
     if (v && isObj(v.chapter) && str(v.chapter.text)) {
-      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: arr(v.facts).slice(0, 12) };
+      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: factOps(v) };
     }
   }
   for (const cutStr of fo.cuts) {
     const v = parseObj(cutStr);
     if (v && isObj(v.chapter) && str(v.chapter.text)) {
-      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: arr(v.facts).slice(0, 12) };
+      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: factOps(v) };
     }
   }
   return null;
 }
 
 // ---------- applying the worker result ----------
+/** Models drop "op" on new facts or say "new": no id means add. */
+function factOp(op) {
+  const raw = str(op.op || op.action).toLowerCase();
+  if (raw === "add" || raw === "new" || raw === "create" || raw === "insert") return "add";
+  if (raw === "update" || raw === "edit" || raw === "change") return "update";
+  if (raw === "retire" || raw === "remove" || raw === "delete") return "retire";
+  return raw || (op.id === undefined || op.id === null || op.id === "" ? "add" : "");
+}
+
 /** item 8: mutate st including st.worker; returns the chapter object made. */
 export function applyWorkerResult(st, work, parsed, ctx) {
   const { scene, replaces } = work;
@@ -686,7 +703,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   // Fact ops
   for (const op of arr(parsed.facts)) {
     if (!isObj(op) || factAdds.length >= 8) break;
-    const opName = str(op.op);
+    const opName = factOp(op);
     if (opName === "add") {
       const text = cut(op.text, 300);
       if (!text) continue;
@@ -802,7 +819,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     ok: true,
     ms,
     usage,
+    facts: { got: arr(parsed.facts).length, added: factAdds.length },
   };
+  if (ctx.reply) st.worker.reply = cut(ctx.reply, 4000);
   delete st.worker.error;
   delete st.worker.retryAt;
   return newChapter;
@@ -820,6 +839,7 @@ export function failWorker(st, work, message, ctx) {
   };
   if (ms !== undefined) st.worker.ms = ms;
   if (usage !== undefined) st.worker.usage = usage;
+  if (ctx.reply) st.worker.reply = cut(ctx.reply, 4000);
 }
 
 // ---------- chat files and sidecars ----------
@@ -1272,7 +1292,7 @@ export function onTick(_ctx, host) {
           if (reply && !reply.error && reply.text) {
             const parsed = parseWorkerReply(reply.text);
             if (parsed) {
-              const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line });
+              const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text });
               saveChatFile(fsx, st);
               // the new chapter and facts get their vectors in the next pass
               if (chapter && embedAllowed(fsx) && typeof host.llm.embed === "function") {
@@ -1282,7 +1302,7 @@ export function onTick(_ctx, host) {
               return;
             }
           }
-          failWorker(st, work, reply && reply.error ? reply.error : "empty or invalid reply", { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs });
+          failWorker(st, work, reply && reply.error ? reply.error : "empty or invalid reply", { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs, reply: reply && reply.text });
           saveChatFile(fsx, st);
           return;
         }

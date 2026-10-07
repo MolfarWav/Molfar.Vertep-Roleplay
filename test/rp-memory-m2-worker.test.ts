@@ -733,3 +733,25 @@ describe("switches", () => {
     expect(L.llmRequest).toBeUndefined();
   });
 });
+
+describe("tolerant fact ops", () => {
+  const work = (ln: Msg[]) => ({ scene: { from: "m1", to: "m6", fromIdx: 0, toIdx: 5, count: 6, kind: "scene", label: "" }, replaces: null });
+  it("a fact without op, or with op new, is an add; facts under another key are read", () => {
+    const ln = line(story(10));
+    const st = L.emptyChat("c1");
+    const parsed = L.parseWorkerReply(
+      JSON.stringify({
+        chapter: { label: "Glade", text: "Aria met Bram in the glade." },
+        fact_ops: [
+          { text: "Bram fell from a rift in the sky.", subject: "Bram", knownBy: "all", type: "event", weight: "important" },
+          { op: "new", text: "Aria keeps a black cat.", subject: "Aria", type: "trait" },
+          { op: "update", text: "no id, no target" },
+        ],
+      }),
+    );
+    L.applyWorkerResult(st, work(ln), parsed, { now: 1, line: ln, reply: "raw text" });
+    expect(st.facts.map((f: any) => f.text)).toEqual(["Bram fell from a rift in the sky.", "Aria keeps a black cat."]);
+    expect(st.worker.facts).toEqual({ got: 3, added: 2 });
+    expect(st.worker.reply).toBe("raw text");
+  });
+});
