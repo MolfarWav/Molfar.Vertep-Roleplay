@@ -638,6 +638,28 @@ function factOps(v) {
   return [];
 }
 
+/** The chapter as asked ({chapter:{label,text}}) or flat ({chapter:"label", text} or {label, text}). */
+function workerShape(v) {
+  if (!v) return null;
+  let label = "";
+  let text = "";
+  if (isObj(v.chapter)) {
+    label = str(v.chapter.label || v.chapter.title);
+    text = str(v.chapter.text);
+  } else if (typeof v.chapter === "string" && str(v.text)) {
+    label = str(v.chapter);
+    text = str(v.text);
+  } else if (typeof v.chapter === "string") {
+    text = str(v.chapter);
+    label = str(v.label || v.title);
+  } else if (str(v.text)) {
+    label = str(v.label || v.title);
+    text = str(v.text);
+  }
+  if (!text) return null;
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v) };
+}
+
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
 export function parseWorkerReply(text) {
   if (!text) return null;
@@ -646,16 +668,12 @@ export function parseWorkerReply(text) {
   if (fence) s = fence[1].trim();
   const fo = firstObject(s);
   if (fo.body) {
-    const v = parseObj(fo.body);
-    if (v && isObj(v.chapter) && str(v.chapter.text)) {
-      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: factOps(v) };
-    }
+    const got = workerShape(parseObj(fo.body));
+    if (got) return got;
   }
   for (const cutStr of fo.cuts) {
-    const v = parseObj(cutStr);
-    if (v && isObj(v.chapter) && str(v.chapter.text)) {
-      return { chapter: { label: cut(v.chapter.label, 80), text: cut(v.chapter.text, 1500) }, facts: factOps(v) };
-    }
+    const got = workerShape(parseObj(cutStr));
+    if (got) return got;
   }
   return null;
 }

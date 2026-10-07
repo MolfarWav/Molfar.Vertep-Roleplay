@@ -755,3 +755,15 @@ describe("tolerant fact ops", () => {
     expect(st.worker.reply).toBe("raw text");
   });
 });
+
+describe("flat worker replies", () => {
+  it("reads chapter as a label string with text beside it", () => {
+    const r = L.parseWorkerReply('{"chapter":"A Stranger Falls","text":"Jude found Kael.","facts":[{"op":"add","text":"Kael came through a rift.","subject":"Kael"}]}');
+    expect(r).toMatchObject({ chapter: { label: "A Stranger Falls", text: "Jude found Kael." } });
+    expect(r.facts).toHaveLength(1);
+  });
+  it("reads chapter as the text itself, and label/text at the top", () => {
+    expect(L.parseWorkerReply('{"chapter":"Jude found Kael.","label":"Glade"}')).toMatchObject({ chapter: { label: "Glade", text: "Jude found Kael." } });
+    expect(L.parseWorkerReply('{"label":"Glade","text":"Jude found Kael.","facts":[]}')).toMatchObject({ chapter: { label: "Glade", text: "Jude found Kael." } });
+  });
+});
