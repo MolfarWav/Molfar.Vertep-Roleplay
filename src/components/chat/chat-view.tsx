@@ -917,7 +917,7 @@ export function ChatView() {
                     index={i}
                     character={character}
                     isLast={i === lastReplyIndex}
-                    summarized={i < summaryCutIndex}
+                    summarized={i <= summaryCutIndex}
                     slidePhase={swipeFx && i >= swipeFx.index ? swipeFx.phase : null}
                     onSwipeFx={onSwipeFx}
                   />

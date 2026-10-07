@@ -90,7 +90,7 @@ export function MemorySummarySection() {
             onBlur={(e) => {
               const v = clamp(Number(e.target.value), 200, 4000)
               setCfg({ ...cfg, budget: v })
-              if (v !== cfg.budget) save({ budget: v })
+              save({ budget: v })
             }}
             className="w-32"
           />
@@ -108,7 +108,7 @@ export function MemorySummarySection() {
             onBlur={(e) => {
               const v = clamp(Number(e.target.value), 6, 200)
               setCfg({ ...cfg, recentMessages: v })
-              if (v !== cfg.recentMessages) save({ recentMessages: v })
+              save({ recentMessages: v })
             }}
             className="w-32"
           />
@@ -138,7 +138,7 @@ export function MemorySummarySection() {
               onBlur={(e) => {
                 const v = clamp(Number(e.target.value), 1, 40)
                 setCfg({ ...cfg, scene: { ...cfg.scene, minMessages: v } })
-                if (v !== cfg.scene.minMessages) saveScene({ minMessages: v })
+                saveScene({ minMessages: v })
               }}
               className="w-32"
             />
@@ -155,7 +155,7 @@ export function MemorySummarySection() {
               onBlur={(e) => {
                 const v = clamp(Number(e.target.value), 10, 200)
                 setCfg({ ...cfg, scene: { ...cfg.scene, maxMessages: v } })
-                if (v !== cfg.scene.maxMessages) saveScene({ maxMessages: v })
+                saveScene({ maxMessages: v })
               }}
               className="w-32"
             />
@@ -173,7 +173,7 @@ export function MemorySummarySection() {
             onBlur={(e) => {
               const v = clamp(Number(e.target.value), 1, 20)
               setCfg({ ...cfg, pinLimit: v })
-              if (v !== cfg.pinLimit) save({ pinLimit: v })
+              save({ pinLimit: v })
             }}
             className="w-32"
           />
