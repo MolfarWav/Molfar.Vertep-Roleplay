@@ -524,6 +524,7 @@ export function coveredCount(st, line) {
   const ranges = st.chapters
     .filter((ch) => isObj(ch) && ch.stale !== true)
     .map((ch) => rangeOf(ch, line))
+    .concat(skipRanges(st, line))
     .filter((r) => !r.orphan && !r.partial)
     .sort((a, b) => a.fromIdx - b.fromIdx);
   let covered = 0;
@@ -550,24 +551,60 @@ export function cutCount(st, line, cfg) {
  * mid-scene: the part of the scene after it still gets its own chapter.
  */
 export function pickWork(st, line, dash, cfg) {
+  return workList(st, line, dash, cfg, 1)[0] || null;
+}
+
+/** M4a: how many closed scenes still wait for a chapter (the "next" of the worker line). */
+export function countWork(st, line, dash, cfg) {
+  return workList(st, line, dash, cfg, Infinity).length;
+}
+
+/**
+ * Where the user deleted a chapter and asked to keep it gone (st.skipScenes, message ids): the
+ * worker never chapters those messages again, and the cut counts them as held, or the cut
+ * would stop there for good.
+ */
+export function skipRanges(st, line) {
+  const out = [];
+  for (const s of arr(st && st.skipScenes)) {
+    if (!isObj(s)) continue;
+    const fromIdx = line.findIndex((m) => m.id === s.from);
+    const toIdx = line.findIndex((m) => m.id === s.to);
+    if (fromIdx < 0 || toIdx < fromIdx) continue;
+    out.push({ fromIdx, toIdx, orphan: false, partial: false });
+  }
+  return out;
+}
+
+function workList(st, line, dash, cfg, limit) {
   const minMessages = (cfg.scene && cfg.scene.minMessages) || DEFAULT_CONFIG.scene.minMessages;
   const ranges = st.chapters.map((ch) => ({ ch, r: rangeOf(ch, line) })).filter((x) => !x.r.orphan);
+  const skips = skipRanges(st, line);
+  const out = [];
   for (const scene of findScenes(line, dash, cfg).filter((x) => x.closed)) {
+    if (out.length >= limit) break;
+    if (skips.some((r) => r.fromIdx <= scene.toIdx && r.toIdx >= scene.fromIdx)) continue;
     const hit = ranges.filter((x) => x.r.fromIdx <= scene.toIdx && x.r.toIdx >= scene.fromIdx);
-    if (!hit.length) return { scene, replaces: null };
+    if (!hit.length) {
+      out.push({ scene, replaces: null });
+      continue;
+    }
     const own = hit.filter((x) => x.ch.kind !== "merged");
     if (own.length) {
       const target = own.find((x) => x.ch.from === scene.from && x.ch.to === scene.to) || own[0];
-      if (target.ch.stale && !target.ch.edited) return { scene, replaces: target.ch.id };
+      if (target.ch.stale && !target.ch.edited) {
+        out.push({ scene, replaces: target.ch.id });
+        continue;
+      }
     }
     // the old summary, or a chapter written before the scene grew (a greeting that later
     // joined it), ends mid-scene: cover what comes after it
     const after = Math.max(...hit.map((x) => x.r.toIdx)) + 1;
     if (after <= scene.toIdx && scene.toIdx - after + 1 >= minMessages) {
-      return { scene: { ...scene, from: line[after].id, fromIdx: after, count: scene.toIdx - after + 1, label: scene.label }, replaces: null };
+      out.push({ scene: { ...scene, from: line[after].id, fromIdx: after, count: scene.toIdx - after + 1, label: scene.label }, replaces: null });
     }
   }
-  return null;
+  return out;
 }
 
 /** The scene's character names: message names + user + present names from snapshots. */
@@ -1048,16 +1085,21 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         at: now,
         updatedAt: now,
       };
-      if (weight === "key") fact.pinProposed = true;
       st.facts.push(fact);
       factAdds.push(fact);
+      // only the user pins; the worker proposes a pin for a key fact (M4a)
+      if (weight === "key") {
+        fact.pinProposed = true;
+        st.proposals.push({ id: "p" + ++st.counters.proposal, op: "pin", targets: [fact.id], reason: "key fact", status: "pending", chapter: chapterId, at: now });
+      }
     } else if (opName === "update") {
       const id = str(op.id);
       const target = st.facts.find((f) => f.id === id && f.status === "active");
       if (!target) continue;
       const text = cut(op.text, 300);
       if (!text) continue;
-      if (op.type === "change" || target.type === "change") {
+      // the user's own wording is never replaced by the worker, only proposed (M4a)
+      if ((op.type === "change" || target.type === "change") && target.edited !== true) {
         // Apply at once: supersede
         target.status = "superseded";
         target.updatedAt = now;
@@ -1130,6 +1172,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
 
   st.worker = {
     lastRunAt: now,
+    lastProgressAt: now,
     lastScene: { from: scene.from, to: scene.to },
     ok: true,
     ms,
@@ -1145,6 +1188,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
 /** item 8 failure: sets st.worker only. */
 export function failWorker(st, work, message, ctx) {
   const { now, ms, usage } = ctx;
+  const before = isObj(st.worker) ? st.worker : {};
   st.worker = {
     lastRunAt: now,
     lastScene: { from: work.scene.from, to: work.scene.to },
@@ -1152,6 +1196,7 @@ export function failWorker(st, work, message, ctx) {
     error: cut(message, 200) || "worker failed",
     retryAt: now + RETRY_MS,
   };
+  if (before.lastProgressAt) st.worker.lastProgressAt = before.lastProgressAt;
   if (ms !== undefined) st.worker.ms = ms;
   if (usage !== undefined) st.worker.usage = usage;
   if (ctx.reply) st.worker.reply = cut(ctx.reply, 4000);
@@ -1189,11 +1234,31 @@ export function loadChatFile(fsx, chatId) {
         proposal: Number(st.counters.proposal) || 0,
       }
     : { chapter: 0, fact: 0, proposal: 0 };
+  st.rev = Number(st.rev) || 0;
+  st.activity = arr(st.activity);
+  st.skipScenes = arr(st.skipScenes);
   return st;
 }
 
+/**
+ * Write the record unless someone else saved it since it was read (M4a): routes and the tick
+ * normally run one at a time on the engine's single sandbox thread, but a replaced or retiring
+ * sandbox worker can overlap another. false = the file on disk moved on; reload and redo.
+ */
 export function saveChatFile(fsx, st) {
+  const disk = readJson(fsx, CHAT_DIR + st.chatId + ".json", null);
+  if (isObj(disk) && (Number(disk.rev) || 0) !== (Number(st.rev) || 0)) return false;
+  st.rev = (Number(st.rev) || 0) + 1;
   fsx.write(CHAT_DIR + st.chatId + ".json", JSON.stringify(st, null, 2));
+  return true;
+}
+
+const ACTIVITY_KEEP = 100;
+/** M4a: one line of the Activity tab, newest last. by: user|worker|sweep|notes|rebuild. */
+export function addActivity(st, by, kind, text, ids, now) {
+  st.activity = arr(st.activity);
+  st.activity.push({ at: now || Date.now(), by, kind, text: cut(text, 200), ids: arr(ids).map(str).filter(Boolean) });
+  if (st.activity.length > ACTIVITY_KEEP) st.activity.splice(0, st.activity.length - ACTIVITY_KEEP);
 }
 
 function loadVectors(fsx, chatId) {
@@ -1484,7 +1549,9 @@ export function ensureChat(fsx, chatId, meta, line, depth) {
   let st = loadChatFile(fsx, chatId);
   if (st) {
     if (st.migrated !== true) {
+      const rev = st.rev;
       st = migrateChat(fsx, chatId, meta, line, Date.now());
+      st.rev = rev;
       saveChatFile(fsx, st);
       return { st, changed: true };
     }
@@ -1506,6 +1573,8 @@ export function ensureChat(fsx, chatId, meta, line, depth) {
 
 export function pickChats(fsx, now) {
   const out = [];
+  const wokenMap = readJson(fsx, WAKE_FILE, {});
+  const woken = isObj(wokenMap) ? wokenMap : {};
   let files = [];
   try {
     files = fsx.list("chats") || [];
@@ -1517,7 +1586,8 @@ export function pickChats(fsx, now) {
     const chatId = f.slice(0, -10);
     const meta = readJson(fsx, "chats/" + f, null);
     if (!isObj(meta) || meta.temporary) continue;
-    if (!meta.updatedAt || now - meta.updatedAt > 7 * 24 * 3600 * 1000) continue;
+    // an older chat is visited only while the user asked for work on it (a rebuild, a rewrite)
+    if (!woken[chatId] && (!meta.updatedAt || now - meta.updatedAt > 7 * 24 * 3600 * 1000)) continue;
     let hasJsonl = false;
     try {
       hasJsonl = files.includes(chatId + ".jsonl");
@@ -1527,7 +1597,8 @@ export function pickChats(fsx, now) {
     if (!hasJsonl) continue;
     out.push({ chatId, meta });
   }
-  out.sort((a, b) => (b.meta.updatedAt || 0) - (a.meta.updatedAt || 0));
+  const order = (x) => Math.max(Number(x.meta.updatedAt) || 0, Number(woken[x.chatId]) || 0);
+  out.sort((a, b) => order(b) - order(a));
   return out;
 }
 
@@ -1596,11 +1667,14 @@ export function sweepMigrate(fsx, now, limit = 20) {
     if (!rc || rc.meta.temporary) continue;
     if (!st || st.migrated !== true) st = ensureChat(fsx, chatId, rc.meta, activeLine(rc.msgs), 0).st;
     if (hasVault) {
-      importMemories(st, readJson(fsx, vault, []), now);
-      saveChatFile(fsx, st);
-      try {
-        fsx.remove(vault);
-      } catch {}
+      const n = importMemories(st, readJson(fsx, vault, []), now);
+      if (n) addActivity(st, "sweep", "import", n + " facts taken from the old Memory", [], now);
+      // the old vault goes only once its facts are safely in the record
+      if (saveChatFile(fsx, st)) {
+        try {
+          fsx.remove(vault);
+        } catch {}
+      }
     }
     touched++;
   }
@@ -1728,6 +1802,7 @@ export function moveNotes(fsx, chatId, st, dash, line, userName, now) {
     });
     n++;
   }
+  if (n) addActivity(st, "notes", "notes.move", n + " dashboard notes became facts", st.facts.slice(-n).map((f) => f.id), now);
   return n;
 }
 
@@ -1735,10 +1810,15 @@ export function moveNotes(fsx, chatId, st, dash, line, userName, now) {
 export function finishRebuild(st, now) {
   const g = st.rebuild;
   if (!isObj(g)) return false;
-  const facts = arr(g.facts);
+  const carried = new Set(arr(g.carried));
+  const inUse = new Map(arr(st.facts).map((f) => [f.id, f]));
+  // a carried fact the user edited, retired or deleted during the rebuild stays that way
+  const facts = arr(g.facts)
+    .map((f) => (carried.has(f.id) ? (inUse.has(f.id) ? { ...inUse.get(f.id) } : null) : f))
+    .filter(Boolean);
   const ids = new Set(facts.map((f) => f.id));
   for (const f of arr(st.facts)) {
-    if (f.origin !== "user" && f.origin !== "dashboard") continue;
+    if (carried.has(f.id) || f.status !== "active" || !keptByUser(f)) continue;
     if (facts.some((x) => x.text === f.text && x.subject === f.subject)) continue;
     const copy = { ...f };
     if (ids.has(copy.id)) {
@@ -1753,10 +1833,18 @@ export function finishRebuild(st, now) {
   st.proposals = arr(g.proposals);
   st.counters = { ...st.counters, chapter: g.counters.chapter, fact: Math.max(g.counters.fact, st.counters.fact), proposal: Math.max(g.counters.proposal, st.counters.proposal) };
   st.worker = isObj(g.worker) ? g.worker : st.worker;
+  delete st.inFlight;
+  st.queue = isObj(g.queue) ? g.queue : { next: 0 };
   st.rebuiltAt = now;
   delete st.rebuild;
   delete st.cut;
+  addActivity(st, "rebuild", "rebuild.finish", "Rebuilt: " + st.chapters.length + " chapters, " + st.facts.filter((f) => f.status === "active").length + " facts", [], now);
   return true;
+}
+
+/** Facts the user wrote or touched (or the dashboard gave): a rebuild keeps them. */
+function keptByUser(f) {
+  return f.origin === "user" || f.origin === "dashboard" || f.edited === true || f.pinned === true;
 }
 
 /** Start over from the messages, as a new generation beside the record in use: chapters and the facts written
@@ -1765,19 +1853,31 @@ export function finishRebuild(st, now) {
 export function rebuildChat(fsx, chatId, cfg) {
   if (!SAFE_ID.test(chatId)) return null;
   const rc = readChat(fsx, chatId);
-  const st = loadChatFile(fsx, chatId);
-  if (!rc || !st) return null;
-  // the record in use keeps riding the prompt until the new one covers every closed scene
-  st.rebuild = {
-    startedAt: Date.now(),
-    chapters: [],
-    facts: st.facts.filter((f) => f.status === "active" && (f.origin === "user" || f.origin === "dashboard")).map((f) => ({ ...f })),
-    proposals: [],
-    counters: { chapter: 0, fact: st.counters.fact, proposal: st.counters.proposal },
-  };
-  saveChatFile(fsx, st);
-  const line = activeLine(rc.msgs);
-  return { scenes: findScenes(line, readDash(fsx, chatId), cfg).filter((s) => s.closed).length };
+  if (!rc) return null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const st = loadChatFile(fsx, chatId);
+    if (!st) return null;
+    // the record in use keeps riding the prompt until the new one covers every closed scene;
+    // chapters the user edited are kept as written (the worker never rebuilds them), and so are
+    // the user's facts and the ones the user edited or pinned
+    const now = Date.now();
+    st.rebuild = {
+      startedAt: now,
+      chapters: st.chapters.filter((ch) => ch.edited === true).map((ch) => ({ ...ch })),
+      facts: st.facts.filter((f) => f.status === "active" && keptByUser(f)).map((f) => ({ ...f })),
+      proposals: [],
+      // facts copied from the record in use: at the swap they take the state the user left them in
+      carried: st.facts.filter((f) => f.status === "active" && keptByUser(f)).map((f) => f.id),
+      skipScenes: arr(st.skipScenes).map((s) => ({ ...s })),
+      counters: { chapter: st.counters.chapter, fact: st.counters.fact, proposal: st.counters.proposal },
+    };
+    addActivity(st, "user", "rebuild.start", "Rebuild from scratch started", [], now);
+    if (!saveChatFile(fsx, st)) continue;
+    wake(fsx, chatId, true);
+    const line = activeLine(rc.msgs);
+    return { scenes: findScenes(line, readDash(fsx, chatId), cfg).filter((s) => s.closed).length };
+  }
+  return { busy: true };
 }
 
 
@@ -1864,33 +1964,72 @@ export function onTick(_ctx, host) {
           st.cut = { upTo, count: cut, at: now };
           changed = true;
         }
-        const work = pickWork(gen, line, dash, cfg);
+        const works = workList(gen, line, dash, cfg, Infinity);
+        const work = works[0] || null;
+        // M4a+: closed scenes left, for the worker line and the chat list
+        if (!isObj(gen.queue) || gen.queue.next !== works.length) {
+          gen.queue = { next: works.length };
+          changed = true;
+        }
         if (!work && gen !== st) {
           finishRebuild(st, now);
-          saveChatFile(fsx, st);
+          if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
           continue;
         }
-        if (changed) saveChatFile(fsx, st);
-        if (!work) continue;
-        const key = (gen !== st ? "litr_" : "lit_") + chatId + "_" + work.scene.from + "_" + work.scene.to;
+        if (!work) {
+          if (changed) saveChatFile(fsx, st);
+          wake(fsx, chatId, false);
+          continue;
+        }
+        const keyOf = (s, g, w) => (g !== s ? "litr_" : "lit_") + chatId + "_" + w.scene.from + "_" + w.scene.to;
+        const key = keyOf(st, gen, work);
         if (host.llm && host.llm.results && host.llm.results[key]) {
           const reply = host.llm.results[key];
-          if (reply && !reply.error && reply.text) {
-            const parsed = parseWorkerReply(reply.text);
+          const parsed = reply && !reply.error && reply.text ? parseWorkerReply(reply.text) : null;
+          // applied to the record as it is on disk; a save that lost a race is redone once
+          let cur = st;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            let g = gen;
+            let w = work;
+            if (attempt) {
+              cur = loadChatFile(fsx, chatId);
+              if (!cur) break;
+              g = isObj(cur.rebuild) ? cur.rebuild : cur;
+              w = pickWork(g, line, dash, cfg);
+              if (!w || keyOf(cur, g, w) !== key) break;
+            }
+            delete g.inFlight;
+            const by = g !== cur ? "rebuild" : "worker";
             if (parsed) {
-              const chapter = applyWorkerResult(gen, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text, sources: sourceSentences(fsx, meta) });
-              saveChatFile(fsx, st);
-              if (chapter && embedAllowed(fsx) && typeof host.llm.embed === "function") {
-                const needed = needVectors(fsx, st);
+              const before = new Set(g.facts.map((f) => f.id));
+              const pendingBefore = g.proposals.filter((p) => p.status === "pending").length;
+              const chapter = applyWorkerResult(g, w, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text, sources: sourceSentences(fsx, meta) });
+              const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
+              const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
+              const span = "messages " + (w.scene.fromIdx + 1) + "-" + (w.scene.toIdx + 1);
+              const verb = w.replaces ? "Rewrote" : "Wrote";
+              addActivity(cur, by, "chapter.write", verb + ' the chapter "' + (chapter.label || chapter.id) + '" (' + span + "): " + added.length + " facts, " + proposed + " proposals", [chapter.id, ...added], now);
+              if (!saveChatFile(fsx, cur)) continue;
+              if (embedAllowed(fsx) && typeof host.llm.embed === "function") {
+                const needed = needVectors(fsx, cur);
                 if (needed.length) host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text) });
               }
-              return;
+            } else {
+              const wasOk = !isObj(g.worker) || g.worker.ok !== false;
+              const message = reply && reply.error ? reply.error : "empty or invalid reply";
+              failWorker(g, w, message, { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs, reply: reply && reply.text });
+              if (wasOk) addActivity(cur, by, "worker.fail", "The worker failed: " + str(message), [], now);
+              if (!saveChatFile(fsx, cur)) continue;
             }
+            break;
           }
-          failWorker(gen, work, reply && reply.error ? reply.error : "empty or invalid reply", { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs, reply: reply && reply.text });
-          saveChatFile(fsx, st);
+          beat(fsx, chatId, now);
           return;
         }
+        // M4a+: the request in flight, so the view can show the worker alive
+        gen.inFlight = { key, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
+        if (!saveChatFile(fsx, st)) return;
+        beat(fsx, chatId, now);
         const req = buildWorkerRequest(gen, work, line, dash, cfg, meta);
         if (host.llm && typeof host.llm.request === "function") host.llm.request(key, req);
         return;
@@ -1905,6 +2044,377 @@ export function onTick(_ctx, host) {
       host.log("litopys onTick: " + (e && e.message ? e.message : String(e)));
     } catch {}
   }
+}
+
+// ---------- M4a+: is the worker alive ----------
+const WAKE_FILE = "litopys/wake.json";
+const BEAT_FILE = "litopys/worker.json";
+const TICK_MS = 60000; // the manifest's schedule.intervalMs
+const STALL_MS = 3 * TICK_MS;
+
+/** Chats the worker visits whatever their age (a rebuild, a rewrite or a deleted chapter asked for work). */
+export function wake(fsx, chatId, on) {
+  const map = readJson(fsx, WAKE_FILE, {});
+  const list = isObj(map) ? map : {};
+  if (on ? list[chatId] : !list[chatId]) return;
+  if (on) list[chatId] = Date.now();
+  else delete list[chatId];
+  try {
+    fsx.write(WAKE_FILE, JSON.stringify(list, null, 2));
+  } catch {}
+}
+
+export function wokenChats(fsx) {
+  const map = readJson(fsx, WAKE_FILE, {});
+  return isObj(map) ? Object.keys(map).filter((id) => SAFE_ID.test(id)) : [];
+}
+
+/** The worker's last sign of life across all chats: it does one chat per tick, the others wait. */
+function beat(fsx, chatId, now) {
+  try {
+    fsx.write(BEAT_FILE, JSON.stringify({ at: now, chatId }));
+  } catch {}
+}
+
+/**
+ * The worker line's state for one generation (M4a+): working (a request in flight), retry
+ * (failed, waits for retryAt), idle (nothing left), queued (work left, the worker is busy with
+ * another chat or the next tick is due), stalled (work left and nothing moved for 3 ticks).
+ */
+export function workerState(gen, next, beatAt, now) {
+  const w = isObj(gen && gen.worker) ? gen.worker : {};
+  const flight = isObj(gen && gen.inFlight) ? gen.inFlight : null;
+  if (flight && now - (Number(flight.since) || 0) < STALL_MS) return { state: "working" };
+  if (w.ok === false && Number(w.retryAt) > now) return { state: "retry" };
+  if (!flight && !(next > 0)) return { state: "idle" };
+  const moved = Math.max(Number(w.lastProgressAt) || 0, Number(w.lastRunAt) || 0, flight ? Number(flight.since) || 0 : 0, Number(w.retryAt) || 0, Number(gen && gen.startedAt) || 0);
+  if (now - moved < STALL_MS) return { state: "queued" };
+  // the worker moved elsewhere lately: this chat waits its turn
+  if (!flight && now - (Number(beatAt) || 0) < STALL_MS) return { state: "queued" };
+  return { state: "stalled", stalledFor: now - moved };
+}
+
+// ---------- M4a: the user edits the record ----------
+const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan"];
+const FACT_WEIGHTS = ["everyday", "important", "key"];
+const bad = (error) => ({ status: 400, json: { error } });
+const quote = (s) => '"' + cut(str(s), 120) + '"';
+const sameName = (a, b) => str(a).toLowerCase() === str(b).toLowerCase();
+
+/** "all", or up to 16 names; null when the value is neither. */
+function knownByOf(v) {
+  if (v === "all") return "all";
+  if (!Array.isArray(v)) return null;
+  const names = [];
+  for (const x of v) {
+    const n = cut(str(x), 80);
+    if (n && !names.some((m) => sameName(m, n))) names.push(n);
+  }
+  return names.length ? names.slice(0, 16) : null;
+}
+
+/**
+ * Load, change, save, answer the chat view. fn(st, line) returns nothing (save), an error
+ * { status, json } (nothing saved) or one with save: true (saved, then the error is answered).
+ * A save that lost a race to another writer is redone on a fresh read.
+ */
+export function mutateChat(fsx, chatId, fn) {
+  if (!SAFE_ID.test(chatId)) return bad("bad chatId");
+  const rc = readChat(fsx, chatId);
+  if (!rc) return { status: 404, json: { error: "chat not found" } };
+  const line = activeLine(rc.msgs);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const st = loadChatFile(fsx, chatId);
+    if (!st) return { status: 404, json: { error: "no record for this chat yet" } };
+    const res = fn(st, line);
+    if (res && !res.save) return res;
+    if (!saveChatFile(fsx, st)) continue;
+    if (res) return { status: res.status, json: res.json };
+    return { status: 200, json: chatView(fsx, chatId) };
+  }
+  return { status: 409, json: { error: "busy, try again" } };
+}
+
+function pinnedOf(st, subject) {
+  return st.facts.filter((f) => f.status === "active" && f.pinned === true && sameName(f.subject, subject));
+}
+
+/** Pin within the per-subject limit; replace = a pinned fact of the same subject to unpin in the same write. */
+function pinFact(st, fact, replaceId, limit, now) {
+  if (fact.pinned === true) return null;
+  if (replaceId) {
+    const other = pinnedOf(st, fact.subject).find((f) => f.id === replaceId);
+    if (other) {
+      other.pinned = false;
+      other.updatedAt = now;
+    }
+  }
+  const pinned = pinnedOf(st, fact.subject);
+  if (pinned.length >= limit) return { status: 409, json: { error: "pin limit", limit, subject: str(fact.subject), pinned } };
+  fact.pinned = true;
+  fact.updatedAt = now;
+  delete fact.pinProposed;
+  // the worker's pending proposal to pin it is settled by the user's own pin
+  for (const p of st.proposals) {
+    if (p.status === "pending" && p.op === "pin" && arr(p.targets).includes(fact.id)) settle(p, "accepted", now);
+  }
+  return null;
+}
+
+function settle(p, status, now) {
+  p.status = status;
+  p.settledAt = now;
+}
+
+/** Pending proposals about a fact that is gone can no longer be accepted. */
+function expireProposals(st, factId, now) {
+  for (const p of st.proposals) {
+    if (p.status === "pending" && arr(p.targets).includes(factId)) settle(p, "expired", now);
+  }
+}
+
+/** POST /litopys/facts { chatId, op, id?, ... } */
+export function factRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  const cfg = loadConfig(fsx);
+  return mutateChat(fsx, str(b.chatId), (st) => {
+    const now = Date.now();
+    if (op === "add") {
+      const text = cut(str(b.text), 300);
+      if (!text) return bad("text is empty");
+      const knownBy = b.knownBy === undefined ? "all" : knownByOf(b.knownBy);
+      if (!knownBy) return bad("knownBy must be \"all\" or a list of names");
+      const type = b.type === undefined ? "event" : str(b.type);
+      if (!FACT_TYPES.includes(type)) return bad("unknown type");
+      const weight = b.weight === undefined ? "everyday" : str(b.weight);
+      if (!FACT_WEIGHTS.includes(weight)) return bad("unknown weight");
+      const fact = {
+        id: "f" + ++st.counters.fact,
+        text,
+        subject: cut(str(b.subject), 80) || "world",
+        knownBy,
+        type,
+        weight,
+        pinned: false,
+        status: "active",
+        src: { from: null, to: null },
+        origin: "user",
+        at: now,
+        updatedAt: now,
+      };
+      st.facts.push(fact);
+      addActivity(st, "user", "fact.add", "Added a fact: " + quote(text), [fact.id], now);
+      return;
+    }
+    const fact = st.facts.find((f) => f.id === str(b.id));
+    if (!fact) return { status: 404, json: { error: "no such fact" } };
+    if (op === "edit") {
+      if (fact.status === "superseded") return { status: 409, json: { error: "superseded" } };
+      const next = {};
+      if (b.text !== undefined) {
+        next.text = cut(str(b.text), 300);
+        if (!next.text) return bad("text is empty");
+      }
+      if (b.subject !== undefined) {
+        next.subject = cut(str(b.subject), 80);
+        if (!next.subject) return bad("subject is empty");
+      }
+      if (b.knownBy !== undefined) {
+        next.knownBy = knownByOf(b.knownBy);
+        if (!next.knownBy) return bad("knownBy must be \"all\" or a list of names");
+      }
+      if (b.type !== undefined) {
+        next.type = str(b.type);
+        if (!FACT_TYPES.includes(next.type)) return bad("unknown type");
+      }
+      if (b.weight !== undefined) {
+        next.weight = str(b.weight);
+        if (!FACT_WEIGHTS.includes(next.weight)) return bad("unknown weight");
+      }
+      if (!Object.keys(next).length) return bad("nothing to change");
+      // a pinned fact moved to another subject must fit that subject's pins
+      if (next.subject && fact.pinned === true && fact.status === "active" && !sameName(next.subject, fact.subject)) {
+        if (pinnedOf(st, next.subject).length >= cfg.pinLimit) {
+          return { status: 409, json: { error: "pin limit", limit: cfg.pinLimit, subject: next.subject, pinned: pinnedOf(st, next.subject) } };
+        }
+      }
+      Object.assign(fact, next);
+      fact.edited = true;
+      fact.updatedAt = now;
+      addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now);
+      return;
+    }
+    if (op === "pin") {
+      if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
+      const err = pinFact(st, fact, str(b.replace), cfg.pinLimit, now);
+      if (err) return err;
+      addActivity(st, "user", "fact.pin", "Pinned: " + quote(fact.text), b.replace ? [fact.id, str(b.replace)] : [fact.id], now);
+      return;
+    }
+    if (op === "unpin") {
+      if (fact.pinned !== true) return;
+      fact.pinned = false;
+      fact.updatedAt = now;
+      addActivity(st, "user", "fact.unpin", "Unpinned: " + quote(fact.text), [fact.id], now);
+      return;
+    }
+    if (op === "retire") {
+      if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
+      fact.status = "retired";
+      fact.pinned = false;
+      fact.updatedAt = now;
+      expireProposals(st, fact.id, now);
+      addActivity(st, "user", "fact.retire", "Retired: " + quote(fact.text), [fact.id], now);
+      return;
+    }
+    if (op === "restore") {
+      if (fact.status !== "retired") return { status: 409, json: { error: "not retired" } };
+      fact.status = "active";
+      fact.updatedAt = now;
+      addActivity(st, "user", "fact.restore", "Restored: " + quote(fact.text), [fact.id], now);
+      return;
+    }
+    if (op === "delete") {
+      st.facts = st.facts.filter((f) => f !== fact);
+      expireProposals(st, fact.id, now);
+      addActivity(st, "user", "fact.delete", "Deleted: " + quote(fact.text), [fact.id], now);
+      return;
+    }
+    return bad("unknown op");
+  });
+}
+
+/** POST /litopys/chapters { chatId, op, id, ... } */
+export function chapterRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st, line) => {
+    const now = Date.now();
+    // the record in use is swapped out when a rebuild finishes: its chapters wait till then
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    const ch = st.chapters.find((c) => c.id === str(b.id));
+    if (!ch) return { status: 404, json: { error: "no such chapter" } };
+    const name = quote(ch.label || ch.id);
+    if (op === "edit") {
+      const next = {};
+      if (b.label !== undefined) next.label = cut(str(b.label), 80);
+      if (b.text !== undefined) {
+        next.text = cut(str(b.text), 1500);
+        if (!next.text) return bad("text is empty");
+      }
+      if (!Object.keys(next).length) return bad("nothing to change");
+      Object.assign(ch, next);
+      ch.edited = true;
+      ch.editedAt = now;
+      // the user wrote it for the messages as they are now
+      const r = rangeOf(ch, line);
+      if (!r.orphan && !r.partial) {
+        ch.sig = chapterSig(line.slice(r.fromIdx, r.toIdx + 1));
+        delete ch.stale;
+      }
+      addActivity(st, "user", "chapter.edit", "Edited the chapter " + quote(ch.label || ch.id), [ch.id], now);
+      return;
+    }
+    if (op === "rewrite") {
+      if (ch.kind === "merged") return bad("the old summary cannot be rewritten; delete it and its scenes get chapters of their own");
+      ch.stale = true;
+      ch.edited = false;
+      woke = true;
+      addActivity(st, "user", "chapter.rewrite", "Asked to rewrite the chapter " + name, [ch.id], now);
+      return;
+    }
+    if (op === "delete") {
+      st.chapters = st.chapters.filter((c) => c !== ch);
+      const keepGone = b.keepGone === true;
+      if (keepGone) {
+        const r = rangeOf(ch, line);
+        if (!r.orphan) st.skipScenes.push({ from: line[r.fromIdx].id, to: line[r.toIdx].id, at: now });
+      } else woke = true;
+      addActivity(st, "user", "chapter.delete", "Deleted the chapter " + name + (keepGone ? " and kept its scene out of the record" : ""), [ch.id], now);
+      return;
+    }
+    return bad("unknown op");
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
+/** POST /litopys/proposals { chatId, id, op: "accept"|"reject", replace? } */
+export function proposalRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  const cfg = loadConfig(fsx);
+  return mutateChat(fsx, str(b.chatId), (st) => {
+    const now = Date.now();
+    const p = st.proposals.find((x) => x.id === str(b.id));
+    if (!p) return { status: 404, json: { error: "no such proposal" } };
+    if (p.status !== "pending") return { status: 409, json: { error: "not pending" } };
+    const what = str(p.op) + (p.text ? " " + quote(p.text) : "");
+    if (op === "reject") {
+      settle(p, "rejected", now);
+      addActivity(st, "user", "proposal.reject", "Rejected a proposal: " + what, [p.id, ...arr(p.targets)], now);
+      return;
+    }
+    if (op !== "accept") return bad("unknown op");
+    const targets = arr(p.targets).map((id) => st.facts.find((f) => f.id === id && f.status === "active"));
+    if (!targets.length || targets.some((f) => !f)) {
+      settle(p, "expired", now);
+      return { status: 409, json: { error: "target gone" }, save: true };
+    }
+    const ids = [p.id, ...targets.map((f) => f.id)];
+    if (p.op === "rewrite") {
+      const text = cut(str(p.text), 300);
+      if (!text) return bad("the proposal has no text");
+      targets[0].text = text;
+      targets[0].updatedAt = now;
+    } else if (p.op === "retire") {
+      for (const f of targets) {
+        f.status = "retired";
+        f.pinned = false;
+        f.updatedAt = now;
+      }
+    } else if (p.op === "merge") {
+      const text = cut(str(p.text), 300);
+      if (!text || targets.length < 2) return bad("a merge needs a text and two facts");
+      const first = targets[0];
+      const knownBy = targets.some((f) => f.knownBy === "all") ? "all" : knownByOf(targets.flatMap((f) => arr(f.knownBy))) || "all";
+      const weight = FACT_WEIGHTS[Math.max(...targets.map((f) => Math.max(0, FACT_WEIGHTS.indexOf(f.weight))))];
+      const merged = {
+        id: "f" + ++st.counters.fact,
+        text,
+        subject: first.subject,
+        knownBy,
+        type: first.type,
+        weight,
+        // the merged fact keeps a pin its parts had: the pin count does not grow
+        pinned: targets.some((f) => f.pinned === true),
+        status: "active",
+        src: isObj(first.src) ? { ...first.src } : { from: null, to: null },
+        origin: "merge",
+        merges: targets.map((f) => f.id),
+        at: now,
+        updatedAt: now,
+      };
+      for (const f of targets) {
+        f.status = "retired";
+        f.pinned = false;
+        f.mergedInto = merged.id;
+        f.updatedAt = now;
+      }
+      st.facts.push(merged);
+      ids.push(merged.id);
+    } else if (p.op === "pin") {
+      const err = pinFact(st, targets[0], str(b.replace), cfg.pinLimit, now);
+      if (err) return err;
+    } else {
+      return bad("unknown proposal");
+    }
+    settle(p, "accepted", now);
+    addActivity(st, "user", "proposal.accept", "Accepted a proposal: " + what, ids, now);
+  });
 }
 
 // ---------- read-only view (the Litopys section) ----------
@@ -1926,10 +2436,17 @@ function chatSubject(fsx, meta) {
   return "";
 }
 
-function workerView(st, line) {
-  const w = st && isObj(st.worker) ? st.worker : null;
-  if (!w) return null;
-  const out = { lastRunAt: Number(w.lastRunAt) || 0, ok: w.ok === true };
+/**
+ * The worker line of a chat (M4a+): the generation in progress (the rebuild one while
+ * rebuilding), the request in flight, the last chapter written, the scenes left and a state.
+ * next: closed scenes left (counted fresh by the chat view, as of the last tick in the list).
+ */
+function workerView(st, line, next, beatAt, now) {
+  if (!st) return null;
+  const gen = isObj(st.rebuild) ? st.rebuild : st;
+  const w = isObj(gen.worker) ? gen.worker : {};
+  const left = Number.isFinite(next) ? next : isObj(gen.queue) ? Number(gen.queue.next) || 0 : 0;
+  const out = { lastRunAt: Number(w.lastRunAt) || 0, ok: w.ok !== false, next: left, ...workerState(gen, left, beatAt, now) };
   if (isObj(w.lastScene)) {
     out.lastScene = { from: str(w.lastScene.from), to: str(w.lastScene.to) };
     if (line) {
@@ -1938,11 +2455,28 @@ function workerView(st, line) {
       out.lastScene.toNo = line.findIndex((m) => m.id === out.lastScene.to) + 1;
     }
   }
+  if (w.lastProgressAt) out.lastProgressAt = Number(w.lastProgressAt) || 0;
+  if (isObj(gen.inFlight)) {
+    const f = gen.inFlight;
+    out.inFlight = { from: str(f.from), to: str(f.to), since: Number(f.since) || 0, fromNo: Number(f.fromNo) || 0, toNo: Number(f.toNo) || 0 };
+    if (line) {
+      const i = line.findIndex((m) => m.id === f.from);
+      const j = line.findIndex((m) => m.id === f.to);
+      if (i >= 0) out.inFlight.fromNo = i + 1;
+      if (j >= 0) out.inFlight.toNo = j + 1;
+    }
+  }
+  if (gen !== st) out.rebuild = true;
   if (w.error) out.error = str(w.error);
   if (Number.isFinite(w.ms)) out.ms = w.ms;
   if (isObj(w.facts)) out.facts = { got: Number(w.facts.got) || 0, added: Number(w.facts.added) || 0, skipped: Number(w.facts.skipped) || 0 };
   if (w.retryAt) out.retryAt = Number(w.retryAt) || 0;
   return out;
+}
+
+function beatAt(fsx) {
+  const b = readJson(fsx, BEAT_FILE, null);
+  return isObj(b) ? Number(b.at) || 0 : 0;
 }
 
 /** GET /litopys/chats: every chat with its Litopys counts. Reads only. */
@@ -1952,6 +2486,8 @@ export function listChatsView(fsx) {
     files = fsx.list("chats") || [];
   } catch {}
   const items = [];
+  const beatTime = beatAt(fsx);
+  const now = Date.now();
   for (const f of files) {
     if (!f.endsWith(".meta.json")) continue;
     const id = f.slice(0, -10);
@@ -1968,7 +2504,7 @@ export function listChatsView(fsx) {
       chapters: st ? st.chapters.length : 0,
       facts: st ? st.facts.filter((x) => x.status === "active").length : 0,
       proposals: st ? st.proposals.filter((x) => x.status === "pending").length : 0,
-      worker: workerView(st),
+      worker: workerView(st, null, undefined, beatTime, now),
     });
   }
   items.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -1982,6 +2518,9 @@ export function chatView(fsx, chatId) {
   if (!rc) return null;
   const line = activeLine(rc.msgs);
   const st = loadChatFile(fsx, chatId);
+  const cfg = loadConfig(fsx);
+  const gen = st ? (isObj(st.rebuild) ? st.rebuild : st) : null;
+  const next = gen ? countWork(gen, line, readDash(fsx, chatId), cfg) : 0;
   const chapters = [];
   for (const ch of st ? st.chapters : []) {
     const r = rangeOf(ch, line);
@@ -2011,7 +2550,12 @@ export function chatView(fsx, chatId) {
     proposals: st ? st.proposals : [],
     scene: st ? st.scene : { openFrom: null },
     sceneFromNo: st && st.scene && st.scene.openFrom ? line.findIndex((m) => m.id === st.scene.openFrom) + 1 : 0,
-    worker: workerView(st, line),
+    worker: workerView(st, line, next, beatAt(fsx), Date.now()),
+    activity: st ? st.activity : [],
+    // M4a: scenes the user deleted and kept out of the record, as message numbers
+    skipped: st ? skipRanges(st, line).map((x) => ({ fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
+    pinLimit: cfg.pinLimit,
+    rev: st ? st.rev : 0,
     ...chatViewExtras(fsx, chatId, st, line),
   };
 }
@@ -2053,8 +2597,12 @@ export function handleRoute(req, host) {
     const body = isObj(req.body) ? req.body : {};
     const res = rebuildChat(fsx, str(body.chatId), loadConfig(fsx));
     if (!res) return { status: 404, json: { error: "chat not found" } };
+    if (res.busy) return { status: 409, json: { error: "busy, try again" } };
     return { status: 200, json: res };
   }
+  if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
+  if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
+  if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
     const cfg = resetPrompts(fsx);
     return { status: 200, json: cfg };
@@ -2090,7 +2638,7 @@ export function uiPanel(_ctx, host) {
           { key: "budget", label: "Insert budget, tokens", hint: "The most the Litopys block may take. 200 to 4000, default 800.", kind: "number", value: cfg.budget },
           { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
           { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
-          { key: "pinLimit", label: "Pin limit", hint: "Not used by this shadow-mode version yet.", kind: "number", value: cfg.pinLimit },
+          { key: "pinLimit", label: "Pin limit", hint: "The most pinned facts per character (and for the world). Only you pin; Litopys may propose a pin.", kind: "number", value: cfg.pinLimit },
           { key: "chapter", label: "Chapter prompt", hint: custom.includes("chapter") ? "Changed from the default." : "This is the default.", kind: "textarea", rows: 10, advanced: true, value: cfg.chapter },
         ],
       },

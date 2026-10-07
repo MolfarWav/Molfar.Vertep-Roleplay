@@ -63,7 +63,7 @@ describe("Litopys read-only view", () => {
     expect(j.proposals).toHaveLength(2);
     expect(j.scene).toEqual({ openFrom: "m7", label: "Cellar" });
     expect(j.sceneFromNo).toBe(7);
-    expect(j.worker).toEqual({ lastRunAt: 99, ok: false, lastScene: { from: "m1", to: "m6", fromNo: 1, toNo: 6 }, error: "model timeout", ms: 12, retryAt: 1000 });
+    expect(j.worker).toEqual({ lastRunAt: 99, ok: false, lastScene: { from: "m1", to: "m6", fromNo: 1, toNo: 6 }, error: "model timeout", ms: 12, retryAt: 1000, next: 0, state: "idle" });
   });
 
   it("a chapter whose messages are gone has no message numbers", () => {
