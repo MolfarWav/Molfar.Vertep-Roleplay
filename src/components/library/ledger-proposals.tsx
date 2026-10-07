@@ -94,7 +94,7 @@ function ProposalRow({ chat, proposal, onChat, onRefresh, pin, busy, setBusy }: 
       data-testid="proposal-row"
       className={cn('rounded-md border border-border bg-card p-3', proposal.status !== 'pending' && 'opacity-70')}
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-2 @md:flex-row @md:items-start @md:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="text-[10px]">{t(opKeys[proposal.op] ?? 'lit.op.merge')}</Badge>
@@ -173,7 +173,7 @@ export function ProposalsTab({ chat, onChat, onRefresh }: TabProps) {
   )
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="@container flex flex-col gap-2">
       {dialog}
       {pending.length === 0 && settled.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t('lit.noProposals')}</p>

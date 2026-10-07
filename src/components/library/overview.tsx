@@ -20,12 +20,12 @@ export function OverviewBody({ chat, onChat, onRefresh }: TabProps) {
   return (
     <div className="@container" data-testid="overview">
       {ctl.dialogs}
-      <div className="grid gap-5 @4xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-        <section className="flex min-w-0 flex-col gap-3 @4xl:order-1">
+      <div className="grid gap-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+        <section className="flex min-w-0 flex-col gap-3 @2xl:order-1">
           <Heading>{t('lit.ov.timeline')}</Heading>
           <Timeline chat={chat} onChat={onChat} onRefresh={onRefresh} ctl={ctl} />
         </section>
-        <aside className="flex min-w-0 flex-col gap-5 @4xl:order-2">
+        <aside className="flex min-w-0 flex-col gap-5 @2xl:order-2">
           {pending > 0 && (
             <section className="flex flex-col gap-3">
               <Heading>{t('lit.ov.proposals', { n: pending })}</Heading>

@@ -558,7 +558,8 @@ export function FactItem({ fact, ctl, compact = false }: { fact: LitFact; ctl: F
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <div className="hidden items-center gap-0.5 md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+          {/* compact rows have no room to spare: the hover buttons would keep ~110px free all the time, the menu has everything */}
+          <div className={cn("hidden items-center gap-0.5", !compact && "md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100")}>
             {actions.map((x) => (
               <Tooltip key={x.key}>
                 <TooltipTrigger
