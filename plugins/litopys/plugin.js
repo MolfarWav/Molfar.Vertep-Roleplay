@@ -983,6 +983,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   const { now, model, usage, ms, line } = ctx;
   const chapterId = replaces || "c" + ++st.counters.chapter;
   const factAdds = [];
+  let skipped = 0;
 
   const newChapter = {
     id: chapterId,
@@ -1027,6 +1028,11 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         (f) => f.status === "active" && str(f.subject).toLowerCase() === subject.toLowerCase() && diceSimilarity(text, f.text) >= DICE_LIMIT,
       );
       if (dup) continue;
+      // only repeats the card or the lorebook: the model sees those anyway
+      if (ctx.sources && repeatsSource(text, ctx.sources)) {
+        skipped++;
+        continue;
+      }
       if (factAdds.length >= 8) break;
       const fact = {
         id: "f" + ++st.counters.fact,
@@ -1128,7 +1134,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     ok: true,
     ms,
     usage,
-    facts: { got: arr(parsed.facts).length, added: factAdds.length },
+    facts: { got: arr(parsed.facts).length, added: factAdds.length, ...(skipped ? { skipped } : {}) },
   };
   if (ctx.reply) st.worker.reply = cut(ctx.reply, 4000);
   delete st.worker.error;
@@ -1218,7 +1224,7 @@ export function migrateChat(fsx, chatId, meta, line, now) {
       subject: "world",
       knownBy: "all",
       type: "event",
-      weight: "important",
+      weight: "everyday",
       pinned: false,
       status: "active",
       origin: "migrated",
@@ -1242,7 +1248,7 @@ export function migrateChat(fsx, chatId, meta, line, now) {
         status,
         at: old.at || now,
         updatedAt: old.updatedAt || now,
-        weight: "important",
+        weight: "everyday",
         origin: "migrated",
       });
     }
@@ -1457,7 +1463,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/"]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -1529,6 +1535,219 @@ export function pickChats(fsx, now) {
   return out;
 }
 
+// ---------- M3b: the sweep, migrated weights, card repeats, dashboard notes, rebuild ----------
+const INSERT_DIR = "litopys/insert/";
+
+/** Facts from an old Memory vault (`.memories.json`), skipping ones Litopys already holds. */
+export function importMemories(st, list, now) {
+  let n = 0;
+  for (const m of arr(list)) {
+    const text = cut(str(m && m.text), 300);
+    if (!text) continue;
+    if (st.facts.some((f) => f.status === "active" && diceSimilarity(text, f.text) >= DICE_LIMIT)) continue;
+    const pinned = m.pinned === true;
+    st.counters.fact += 1;
+    st.facts.push({
+      id: "f" + st.counters.fact,
+      text,
+      subject: "world",
+      knownBy: "all",
+      type: "event",
+      weight: pinned ? "important" : "everyday",
+      pinned,
+      status: "active",
+      origin: "migrated",
+      at: now,
+      updatedAt: now,
+    });
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Every chat gets a Litopys file (not only the recent ones), and an old Memory vault is taken in
+ * and then deleted (user, 2026-10-07). At most `limit` chats per call. The chat meta's old keys
+ * are stripped by the engine plugin, never here: it owns that file.
+ */
+export function sweepMigrate(fsx, now, limit = 20) {
+  let files = [];
+  try {
+    files = fsx.list("chats") || [];
+  } catch {
+    return 0;
+  }
+  const has = new Set(files);
+  let touched = 0;
+  for (const f of files) {
+    if (touched >= limit) break;
+    if (!f.endsWith(".meta.json")) continue;
+    const chatId = f.slice(0, -10);
+    if (!SAFE_ID.test(chatId) || !has.has(chatId + ".jsonl")) continue;
+    const vault = "chats/" + chatId + ".memories.json";
+    const hasVault = has.has(chatId + ".memories.json");
+    let st = loadChatFile(fsx, chatId);
+    if (st && st.migrated === true && !hasVault) continue;
+    const rc = readChat(fsx, chatId);
+    if (!rc || rc.meta.temporary) continue;
+    if (!st || st.migrated !== true) st = ensureChat(fsx, chatId, rc.meta, activeLine(rc.msgs), 0).st;
+    if (hasVault) {
+      importMemories(st, readJson(fsx, vault, []), now);
+      saveChatFile(fsx, st);
+      try {
+        fsx.remove(vault);
+      } catch {}
+    }
+    touched++;
+  }
+  return touched;
+}
+
+/** Facts migrated before M3 all read "important": once per chat they become everyday, unless edited. */
+export function fixMigratedWeights(st) {
+  if (st.v2fix) return false;
+  for (const f of st.facts) {
+    if (f.origin === "migrated" && f.weight === "important" && f.pinned !== true && f.updatedAt === f.at) f.weight = "everyday";
+  }
+  st.v2fix = true;
+  return true;
+}
+
+const SENTENCE_SPLIT = /(?<=[.!?…])\s+|\n+/;
+/** The sentences of the chat's cards (every member of a group) and of its lorebooks' enabled entries. */
+export function sourceSentences(fsx, meta) {
+  const texts = [];
+  const ids = [];
+  if (meta && meta.groupId) {
+    const g = readJson(fsx, "groups/" + meta.groupId + ".json", null);
+    for (const id of arr(g && g.memberIds)) ids.push(str(id));
+  } else if (meta && meta.characterId) ids.push(str(meta.characterId));
+  for (const id of ids) {
+    if (!SAFE_ID.test(id)) continue;
+    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+    if (isObj(card)) for (const k of ["description", "personality", "scenario", "first_mes"]) texts.push(str(card[k]));
+  }
+  const bound = new Set(arr(meta && meta.lorebookIds).map(str));
+  if (bound.size) {
+    let books = [];
+    try {
+      books = (fsx.list("lorebooks") || []).filter((f) => f.endsWith(".json"));
+    } catch {}
+    for (const f of books) {
+      const book = readJson(fsx, "lorebooks/" + f, null);
+      if (!isObj(book) || !bound.has(str(book.id || book.name))) continue;
+      for (const e of arr(book.entries)) if (isObj(e) && e.enabled !== false) texts.push(str(e.content));
+    }
+  }
+  const out = [];
+  for (const t of texts) for (const s of t.split(SENTENCE_SPLIT)) if (s.trim().length >= 12) out.push(s.trim());
+  return out;
+}
+
+/** A fact that only repeats the card or the lorebook. */
+export function repeatsSource(text, sentences) {
+  return arr(sentences).some((s) => diceSimilarity(text, s) >= 0.7);
+}
+
+/** Notebook notes as they count (ported from relations activeNotebook + effectiveNotebook, reading only). */
+function liveNotes(dash, line, overlay) {
+  const keys = new Set(line.map((m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)));
+  const edits = isObj(overlay && overlay.edits) ? overlay.edits : {};
+  const out = [];
+  for (const [holder, notes] of Object.entries(isObj(dash && dash.notebook) ? dash.notebook : {})) {
+    for (const n of arr(notes)) {
+      if (!isObj(n) || !keys.has(n.src) || (n.retiredBy && keys.has(n.retiredBy))) continue;
+      const e = isObj(edits[n.id]) ? edits[n.id] : null;
+      if (e && e.retired === true) continue;
+      out.push({ holder, id: str(n.id), text: e && str(e.text) ? str(e.text) : str(n.text), turn: Number(n.turn), weight: n.weight, tag: e && e.tag !== undefined ? e.tag : n.tag });
+    }
+  }
+  for (const [holder, list] of Object.entries(isObj(overlay && overlay.added) ? overlay.added : {})) {
+    for (const a of arr(list)) {
+      if (!isObj(a) || typeof a.id !== "string" || !str(a.text)) continue;
+      const e = isObj(edits[a.id]) ? edits[a.id] : null;
+      if (e && e.retired === true) continue;
+      out.push({ holder, id: a.id, text: e && str(e.text) ? str(e.text) : str(a.text), turn: Number(a.turn), weight: null, tag: e && e.tag !== undefined ? e.tag : a.tag });
+    }
+  }
+  return out;
+}
+
+/** Dashboard notes that have aged out of the dashboard insert and matter: they become facts (user, 2026-10-07). */
+export function notesToMove(fsx, chatId, st, dash, line, userName) {
+  const dcfg = readJson(fsx, "dashboard/config.json", {});
+  const age = clamp(isObj(dcfg) && dcfg.noteAgeTurns !== undefined ? dcfg.noteAgeTurns : 30, 5, 500);
+  let now = 0;
+  for (let i = line.length - 1; i >= 0; i--) {
+    const snap = snapOf(dash, line[i]);
+    if (snap && Number.isFinite(Number(snap.turn))) {
+      now = Number(snap.turn);
+      break;
+    }
+  }
+  if (!now) return [];
+  const moved = new Set(arr(st.fromNotes));
+  const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
+  const out = [];
+  for (const n of liveNotes(dash, line, overlay)) {
+    if (moved.has(n.id) || !n.text || !Number.isFinite(n.turn) || now - n.turn < age) continue;
+    const pinned = n.tag === "pinned";
+    const weight = pinned ? "important" : n.tag === "important" || n.weight === "important" ? "important" : n.weight === "key" ? "key" : null;
+    if (!weight) continue; // everyday notes fade
+    out.push({ noteId: n.id, text: cut(n.text, 300), subject: userName, knownBy: [n.holder], weight, pinned });
+  }
+  return out;
+}
+
+export function moveNotes(fsx, chatId, st, dash, line, userName, now) {
+  const list = notesToMove(fsx, chatId, st, dash, line, userName);
+  if (!list.length) return 0;
+  st.fromNotes = arr(st.fromNotes);
+  let n = 0;
+  for (const x of list) {
+    st.fromNotes.push(x.noteId);
+    if (st.facts.some((f) => f.status === "active" && diceSimilarity(x.text, f.text) >= DICE_LIMIT)) continue;
+    st.counters.fact += 1;
+    st.facts.push({
+      id: "f" + st.counters.fact,
+      text: x.text,
+      subject: x.subject,
+      knownBy: x.knownBy,
+      type: "relation",
+      weight: x.weight,
+      pinned: x.pinned,
+      status: "active",
+      src: { from: null, to: null },
+      origin: "dashboard",
+      at: now,
+      updatedAt: now,
+    });
+    n++;
+  }
+  return n;
+}
+
+/** Start over from the messages: chapters and the facts written from them go, the user's and the dashboard's stay. */
+export function rebuildChat(fsx, chatId, cfg) {
+  if (!SAFE_ID.test(chatId)) return null;
+  const rc = readChat(fsx, chatId);
+  const st = loadChatFile(fsx, chatId);
+  if (!rc || !st) return null;
+  st.chapters = [];
+  st.facts = st.facts.filter((f) => f.origin === "user" || f.origin === "dashboard");
+  st.proposals = [];
+  delete st.worker;
+  delete st.cut;
+  st.counters.chapter = 0;
+  saveChatFile(fsx, st);
+  try {
+    fsx.remove(INSERT_DIR + chatId + ".json");
+  } catch {}
+  const line = activeLine(rc.msgs);
+  return { scenes: findScenes(line, readDash(fsx, chatId), cfg).filter((s) => s.closed).length };
+}
+
+
 export function onTick(_ctx, host) {
   try {
     const fsx = host && host.fs ? host.fs : null;
@@ -1561,6 +1780,11 @@ export function onTick(_ctx, host) {
     }
 
     const now = Date.now();
+    try {
+      sweepMigrate(fsx, now, 20);
+    } catch (e) {
+      host.log("litopys sweep: " + (e && e.message ? e.message : String(e)));
+    }
     let chats = [];
     try {
       chats = pickChats(fsx, now);
@@ -1580,7 +1804,12 @@ export function onTick(_ctx, host) {
         const ensured = ensureChat(fsx, chatId, meta, line, 0);
         let st = ensured.st;
         let changed = ensured.changed;
-        if (st.worker && st.worker.retryAt && st.worker.retryAt > now) continue;
+        if (fixMigratedWeights(st)) changed = true;
+        if (moveNotes(fsx, chatId, st, dash, line, str(meta.userName) || "You", now) > 0) changed = true;
+        if (st.worker && st.worker.retryAt && st.worker.retryAt > now) {
+          if (changed) saveChatFile(fsx, st);
+          continue;
+        }
         if (markStale(st, line)) changed = true;
         const scenes = findScenes(line, dash, cfg);
         const lastScene = scenes[scenes.length - 1];
@@ -1608,7 +1837,7 @@ export function onTick(_ctx, host) {
           if (reply && !reply.error && reply.text) {
             const parsed = parseWorkerReply(reply.text);
             if (parsed) {
-              const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text });
+              const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text, sources: sourceSentences(fsx, meta) });
               saveChatFile(fsx, st);
               if (chapter && embedAllowed(fsx) && typeof host.llm.embed === "function") {
                 const needed = needVectors(fsx, st);
@@ -1670,6 +1899,7 @@ function workerView(st, line) {
   }
   if (w.error) out.error = str(w.error);
   if (Number.isFinite(w.ms)) out.ms = w.ms;
+  if (isObj(w.facts)) out.facts = { got: Number(w.facts.got) || 0, added: Number(w.facts.added) || 0, skipped: Number(w.facts.skipped) || 0 };
   if (w.retryAt) out.retryAt = Number(w.retryAt) || 0;
   return out;
 }
@@ -1741,6 +1971,19 @@ export function chatView(fsx, chatId) {
     scene: st ? st.scene : { openFrom: null },
     sceneFromNo: st && st.scene && st.scene.openFrom ? line.findIndex((m) => m.id === st.scene.openFrom) + 1 : 0,
     worker: workerView(st, line),
+    ...chatViewExtras(fsx, chatId, st, line),
+  };
+}
+
+/** M3 additions to one chat's view: the cut, the last insert and how many scenes a rebuild would take. */
+function chatViewExtras(fsx, chatId, st, line) {
+  const cfg = loadConfig(fsx);
+  const count = st ? cutCount(st, line, cfg) : 0;
+  const lastInsert = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  return {
+    cut: { count, upTo: count > 0 ? line[count - 1].id : null },
+    lastInsert: isObj(lastInsert) ? lastInsert : null,
+    rebuildScenes: findScenes(line, readDash(fsx, chatId), cfg).filter((x) => x.closed).length,
   };
 }
 
@@ -1762,6 +2005,12 @@ export function handleRoute(req, host) {
   if (path === "/litopys/config" && req.method === "PUT") {
     const cfg = patchConfig(fsx, req.body || {});
     return { status: 200, json: cfg };
+  }
+  if (path === "/litopys/rebuild" && req.method === "POST") {
+    const body = isObj(req.body) ? req.body : {};
+    const res = rebuildChat(fsx, str(body.chatId), loadConfig(fsx));
+    if (!res) return { status: 404, json: { error: "chat not found" } };
+    return { status: 200, json: res };
   }
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
     const cfg = resetPrompts(fsx);

@@ -84,7 +84,7 @@ describe("Litopys 2.0 state", () => {
     for (const f of worldFacts) {
       expect(f.subject).toBe("world");
       expect(f.knownBy).toBe("all");
-      expect(f.weight).toBe("important");
+      expect(f.weight).toBe("everyday");
       expect(f.origin).toBe("migrated");
       expect(typeof f.at).toBe("number");
       expect(typeof f.updatedAt).toBe("number");
@@ -130,7 +130,9 @@ describe("Litopys 2.0 state", () => {
     expect(r3).toHaveLength(0);
 
     expect(readText(`chats/${chatId}.meta.json`)).toBe(metaBefore);
-    expect(readText(`chats/${chatId}.memories.json`)).toBe(memBefore);
+    // M3: the old vault is taken in, then deleted (user, 2026-10-07); Litopys never writes chat meta
+    expect(exists(`chats/${chatId}.memories.json`)).toBe(false);
+    expect(memBefore.length).toBeGreaterThan(0);
     expect(readText("litopys/store.json")).toBe(storeBefore);
   });
 
@@ -158,7 +160,7 @@ describe("Litopys 2.0 state", () => {
       status: "active",
       subject: "world",
       knownBy: "all",
-      weight: "important",
+      weight: "everyday",
       origin: "migrated",
     });
   });

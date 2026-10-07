@@ -324,7 +324,8 @@ describe("M1.3 a deleted chat leaves no memory behind", () => {
     const write = m.host.fs.write;
     m.host.fs.write = (rel: string, c: string) => { writes.push(rel); write(rel, c); };
     await litopysTick(m);
-    expect(writes.filter((w) => w.startsWith("litopys/"))).toEqual([]);
+    // the M3 sweep gives the chat its own Litopys file; the shared store stays untouched
+    expect(writes.filter((w) => w === "litopys/store.json" || w === "litopys/proposals.json")).toEqual([]);
     expect(fs.statSync(path.join(root, "litopys", "store.json")).mtimeMs).toBe(before);
   });
 });
