@@ -2108,6 +2108,37 @@ export function workerState(gen, next, beatAt, now) {
   return { state: "stalled", stalledFor: now - moved };
 }
 
+// ---------- M4c: portraits the user sets for names (narrator cards, lorebook characters) ----------
+const PORTRAITS_FILE = "litopys/portraits.json";
+const PORTRAIT_MAX = 400000; // characters of a data URL: a 256 px image is far below this
+const PORTRAIT_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+/** { "<lower-cased name>": { name, url } }: one portrait per name, for every chat. */
+export function loadPortraits(fsx) {
+  const raw = readJson(fsx, PORTRAITS_FILE, {});
+  const out = {};
+  if (!isObj(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (isObj(v) && typeof v.url === "string" && PORTRAIT_URL.test(v.url)) out[k] = { name: str(v.name) || k, url: v.url };
+  }
+  return out;
+}
+
+/** POST /litopys/portraits { name, url }: url a small data:image, or null/"" to remove. Answers the whole map. */
+export function portraitRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const name = cut(str(b.name), 80);
+  if (!name) return { status: 400, json: { error: "name is empty" } };
+  const url = typeof b.url === "string" ? b.url.trim() : "";
+  if (url && (url.length > PORTRAIT_MAX || !PORTRAIT_URL.test(url))) return { status: 400, json: { error: "the image must be a small png, jpeg or webp" } };
+  const map = loadPortraits(fsx);
+  const key = name.toLowerCase();
+  if (url) map[key] = { name, url };
+  else delete map[key];
+  fsx.write(PORTRAITS_FILE, JSON.stringify(map));
+  return { status: 200, json: map };
+}
+
 // ---------- M4a: the user edits the record ----------
 const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan"];
 const FACT_WEIGHTS = ["everyday", "important", "key"];
@@ -2622,6 +2653,8 @@ export function handleRoute(req, host) {
     if (res.busy) return { status: 409, json: { error: "busy, try again" } };
     return { status: 200, json: res };
   }
+  if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
+  if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);

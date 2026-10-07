@@ -542,3 +542,22 @@ describe("review fixes", () => {
     expect(route(m.host, "GET", "/litopys/chat", undefined, { chatId: "c1" }).json.worker.state).toBe("idle");
   });
 });
+
+describe("portraits", () => {
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  it("stores a small image per lower-cased name and removes it", () => {
+    const { host } = mockHost();
+    const set = route(host, "POST", "/litopys/portraits", { name: "Aria", url: png });
+    expect(set.status).toBe(200);
+    expect(set.json).toEqual({ aria: { name: "Aria", url: png } });
+    expect(route(host, "GET", "/litopys/portraits").json.aria.url).toBe(png);
+    expect(route(host, "POST", "/litopys/portraits", { name: "ARIA", url: null }).json).toEqual({});
+  });
+  it("refuses anything but a small png, jpeg or webp data URL", () => {
+    const { host } = mockHost();
+    expect(route(host, "POST", "/litopys/portraits", { name: "Aria", url: "https://example.com/a.png" }).status).toBe(400);
+    expect(route(host, "POST", "/litopys/portraits", { name: "Aria", url: "data:image/svg+xml;base64,PHN2Zz4=" }).status).toBe(400);
+    expect(route(host, "POST", "/litopys/portraits", { name: "Aria", url: "data:image/png;base64," + "A".repeat(400001) }).status).toBe(400);
+    expect(route(host, "POST", "/litopys/portraits", { name: "", url: png }).status).toBe(400);
+  });
+});

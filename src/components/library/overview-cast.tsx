@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AvatarImg } from '@/components/dashboard/dash-common'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { LitChat, LitFact } from './litopys-api'
+import { fetchLitPortraits, type LitChat, type LitFact, type LitPortraits } from './litopys-api'
+import { PortraitDialog } from './portrait-dialog'
 import { type FactControls, FactItem } from './ledger-facts'
 
 export interface CastProps {
@@ -31,20 +32,35 @@ function sortFacts(facts: LitFact[]): LitFact[] {
 }
 
 /** name → portrait: character cards and personas, matched by lower-cased name (the record keeps the story's spelling). */
-function usePortraits(): Map<string, string> {
+function usePortraits(own: LitPortraits): Map<string, string> {
   const characters = useApp((s) => s.characters)
   const personas = useApp((s) => s.personas)
   return useMemo(() => {
     const map = new Map<string, string>()
     for (const p of personas) if (p.avatar) map.set(p.name.toLowerCase(), p.avatar)
     for (const c of characters) if (c.avatar) map.set(c.name.toLowerCase(), c.avatar)
+    for (const [k, v] of Object.entries(own)) map.set(k, v.url)
     return map
-  }, [characters, personas])
+  }, [characters, personas, own])
 }
 
 export function CastCards({ chat, onChat, ctl }: CastProps) {
   const t = useT()
-  const portraits = usePortraits()
+  const [own, setOwn] = useState<LitPortraits>({})
+  useEffect(() => {
+    let live = true
+    fetchLitPortraits()
+      .then((m) => {
+        if (live) setOwn(m)
+      })
+      .catch(() => {
+        // no portraits of its own: cards and initials still show
+      })
+    return () => {
+      live = false
+    }
+  }, [])
+  const portraits = usePortraits(own)
   
   const activeFacts = useMemo(
     () => chat.facts.filter((f) => f.status === 'active'),
@@ -109,6 +125,8 @@ export function CastCards({ chat, onChat, ctl }: CastProps) {
             ctl={ctl}
             isWorld={group.name.toLowerCase() === 'world'}
             portrait={portraits.get(group.name.toLowerCase())}
+            ownPortrait={!!own[group.name.toLowerCase()]}
+            onPortraits={setOwn}
           />
         ))}
       </div>
@@ -122,7 +140,11 @@ function CastCard({
   ctl,
   isWorld,
   portrait,
+  ownPortrait,
+  onPortraits,
 }: {
+  ownPortrait: boolean
+  onPortraits: (m: LitPortraits) => void
   group: SubjectGroup
   chat: LitChat
   ctl: FactControls
@@ -130,6 +152,7 @@ function CastCard({
   portrait?: string
 }) {
   const t = useT()
+  const [portraitOpen, setPortraitOpen] = useState(false)
   const pinned = group.facts.filter((f) => f.pinned)
   const traits = group.facts.filter((f) => f.type === 'trait' && !f.pinned)
   const changes = group.facts.filter((f) => f.type === 'change' && !f.pinned)
@@ -147,7 +170,21 @@ function CastCard({
       )}
     >
       <div className="mb-2 flex items-center gap-2.5">
-        {!isWorld && <AvatarImg name={group.name} url={portrait} className="size-9 rounded-md after:rounded-md" />}
+        {!isWorld && (
+          <button
+            type="button"
+            onClick={() => setPortraitOpen(true)}
+            title={t('lit.portrait.change')}
+            aria-label={t('lit.portrait.change')}
+            data-testid="cast-portrait"
+            className="shrink-0 rounded-md outline-none hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <AvatarImg name={group.name} url={portrait} className="size-9 rounded-md after:rounded-md" />
+          </button>
+        )}
+        {portraitOpen && (
+          <PortraitDialog name={group.name} current={portrait} own={ownPortrait} open={portraitOpen} onOpenChange={setPortraitOpen} onSaved={onPortraits} />
+        )}
         <div className="min-w-0">
         <h3 className="font-heading text-base">{isWorld ? t('lit.ov.world') : group.name}</h3>
         <p

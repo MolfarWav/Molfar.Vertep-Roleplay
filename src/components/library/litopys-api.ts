@@ -208,6 +208,12 @@ export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) 
 export const acceptLitProposal = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'accept', ...(replace ? { replace } : {}) })
 export const rejectLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'reject' })
 
+/** Portraits the user set, by lower-cased name (M4c): they win over a card or persona of the same name. */
+export type LitPortraits = Record<string, { name: string; url: string }>
+export const fetchLitPortraits = () => j<LitPortraits>('/litopys/portraits')
+/** url: a data:image (png/jpeg/webp, small); null removes the user's portrait for that name. */
+export const setLitPortrait = (name: string, url: string | null) => post<LitPortraits>('/litopys/portraits', { name, url })
+
 /** The plugin answered 409 "pin limit": the UI opens the pin limit dialog (pinned facts of that subject are in the chat view). */
 export const isPinLimit = (e: unknown) => e instanceof ApiError && e.status === 409 && e.message === 'pin limit'
 /** 409 "rebuilding": chapters cannot change until the rebuild is done. */
