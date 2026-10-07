@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useId, useMemo, useState, type ComponentType } from 'react'
+import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ComponentType } from 'react'
 import {
   Plus,
   MagnifyingGlass,
@@ -13,6 +13,7 @@ import {
   X,
   CircleNotch,
   Eye,
+  ChatText,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useT } from '@/hooks/use-t'
@@ -54,6 +55,8 @@ import {
   type LitFactWeight,
   type LitFactStatus,
   addLitFact,
+  searchLitMessages,
+  type LitSearchHit,
   editLitFact,
   pinLitFact,
   unpinLitFact,
@@ -65,6 +68,7 @@ import {
   isPinLimit,
 } from './litopys-api'
 import { TONE, TYPE_TONE, WEIGHT_TONE } from './tones'
+import { MessagesDialog, type MessagesRange } from './messages-dialog'
 
 export interface TabProps {
   chat: LitChat
@@ -452,6 +456,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const names = useMemo(() => namesOf(chat.facts), [chat.facts])
   const factById = useMemo(() => new Map(chat.facts.map((f) => [f.id, f])), [chat.facts])
+  const [msgRange, setMsgRange] = useState<MessagesRange | null>(null)
 
   const run = async (id: string, fn: () => Promise<LitChat>) => {
     setBusyId(id)
@@ -493,6 +498,10 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
       )
     }
     if (fact.status === 'retired') out.push({ key: 'restore', label: t('lit.restore'), icon: ArrowCounterClockwise, run: () => run(fact.id, () => restoreLitFact(chat.chatId, fact.id)) })
+    if (fact.src?.from) {
+      const src = fact.src
+      out.push({ key: 'messages', label: t('lit.msgs.open'), icon: ChatText, run: () => setMsgRange({ from: src.from!, to: src.to ?? undefined, title: fact.text }) })
+    }
     if (fact.status !== 'superseded') out.push({ key: 'edit', label: t('lit.edit'), icon: PencilSimple, run: () => setEditingId(slot + fact.id) })
     out.push({ key: 'delete', label: t('lit.delete'), icon: Trash, run: () => handleDelete(fact), destructive: true })
     return out
@@ -502,9 +511,10 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
     <>
       {confirmDialog}
       {pinFlow.dialog}
+      <MessagesDialog chatId={chat.chatId} range={msgRange} onClose={() => setMsgRange(null)} />
     </>
   )
-  return { names, factById, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs }
+  return { names, factById, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs, openMessages: setMsgRange }
 }
 
 export type FactControls = ReturnType<typeof useFactControls>
@@ -615,6 +625,35 @@ export function FactsTab({ chat, onChat }: TabProps) {
   const [whoFilter, setWhoFilter] = useState<'all' | string>('all')
   const [stateFilter, setStateFilter] = useState<StateFilter>('active')
   const names = ctl.names
+  // M4d: the search box can look in the original messages instead of the facts
+  const [inMessages, setInMessages] = useState(false)
+  const [hits, setHits] = useState<LitSearchHit[] | null>(null)
+  const [hitError, setHitError] = useState('')
+  const q2 = query.trim()
+  useEffect(() => {
+    if (!inMessages || q2.length < 2) {
+      setHits(null)
+      setHitError('')
+      return
+    }
+    let live = true
+    const id = setTimeout(() => {
+      searchLitMessages(chat.chatId, q2)
+        .then((r) => {
+          if (live) {
+            setHits(r.hits)
+            setHitError('')
+          }
+        })
+        .catch((e: unknown) => {
+          if (live) setHitError(errText(e))
+        })
+    }, 350)
+    return () => {
+      live = false
+      clearTimeout(id)
+    }
+  }, [inMessages, q2, chat.chatId])
 
   const isFiltered =
     query.trim().length > 0 ||
@@ -688,10 +727,14 @@ export function FactsTab({ chat, onChat }: TabProps) {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('lit.searchFacts')}
+            placeholder={inMessages ? t('lit.msgs.searchPlaceholder') : t('lit.searchFacts')}
             className="pl-9 text-sm"
           />
         </div>
+        <label className="col-span-2 flex items-center gap-2 text-xs md:col-span-1">
+          <Checkbox checked={inMessages} onCheckedChange={(v) => setInMessages(v === true)} data-testid="search-originals" />
+          {t('lit.msgs.searchToggle')}
+        </label>
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | LitFactType)}>
           <SelectTrigger className="w-full min-w-0 text-sm md:w-auto md:min-w-[120px]" aria-label={t('lit.f.type')}>
             <SelectValue placeholder={t('lit.type.event')} />
@@ -750,6 +793,28 @@ export function FactsTab({ chat, onChat }: TabProps) {
         )}
       </div>
 
+      {inMessages ? (
+        <div className="flex flex-col gap-2" data-testid="search-hits">
+          {q2.length < 2 && <p className="text-xs text-muted-foreground">{t('lit.msgs.searchHint')}</p>}
+          {hitError && <p className="text-xs text-destructive">{hitError}</p>}
+          {hits && hits.length === 0 && <p className="py-4 text-sm text-muted-foreground">{t('lit.msgs.noHits')}</p>}
+          {hits?.map((h) => (
+            <button
+              key={h.id}
+              type="button"
+              onClick={() => ctl.openMessages({ from: h.chapter?.from ?? h.id, to: h.chapter?.to ?? h.id, title: h.chapter?.label || h.snippet })}
+              className="rounded-md border border-border bg-card px-3 py-2 text-left hover:bg-accent/50"
+            >
+              <p className="mb-1 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{h.name}</span> · {t('lit.msgs.no', { n: h.no })}
+                {h.chapter && <> · {t('lit.msgs.inChapter', { label: h.chapter.label || h.chapter.id })}</>}
+              </p>
+              <p className="break-words text-sm">{h.snippet}</p>
+            </button>
+          ))}
+        </div>
+      ) : (
+      <>
       <p className="text-xs text-muted-foreground">
         {t('lit.factsShown', { n: visible.length, total: chat.facts.length })}
       </p>
@@ -766,6 +831,8 @@ export function FactsTab({ chat, onChat }: TabProps) {
             </li>
           ))}
         </ul>
+      )}
+      </>
       )}
     </div>
   )

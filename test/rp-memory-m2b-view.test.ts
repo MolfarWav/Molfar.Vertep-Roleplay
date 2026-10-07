@@ -56,7 +56,7 @@ describe("Litopys read-only view", () => {
     const j = r.json;
     expect(j).toMatchObject({ chatId: "one", title: "The mill", name: "Aria", messages: 12, hasData: true, migrated: true });
     expect(j.chapters).toEqual([
-      { id: "c1", label: "Arrival", text: "Aria let You in.", kind: "scene", count: 6, fromNo: 1, toNo: 6, place: undefined, at: 5, stale: true, edited: false },
+      { id: "c1", from: "m1", to: "m6", label: "Arrival", text: "Aria let You in.", kind: "scene", count: 6, fromNo: 1, toNo: 6, place: undefined, at: 5, stale: true, edited: false },
     ]);
     expect(j.facts.map((f: any) => f.id)).toEqual(["f1", "f2"]);
     expect(j.facts[1].pinProposed).toBe(true);

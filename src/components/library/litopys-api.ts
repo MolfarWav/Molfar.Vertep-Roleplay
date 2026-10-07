@@ -50,6 +50,9 @@ export interface LitChatItem {
 
 export interface LitChapter {
   id: string
+  /** message ids of its range (M4d: "Open the messages") */
+  from: string
+  to: string
   label: string
   text: string
   kind: 'scene' | 'part' | 'merged'
@@ -207,6 +210,32 @@ export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) 
 
 export const acceptLitProposal = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'accept', ...(replace ? { replace } : {}) })
 export const rejectLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'reject' })
+
+// ---------- M4d: the original messages ----------
+export interface LitMessage {
+  id: string
+  /** 1-based number on the chat's active line */
+  no: number
+  role: 'user' | 'char'
+  name: string
+  text: string
+}
+export interface LitSearchHit {
+  id: string
+  no: number
+  name: string
+  at: number
+  /** the text around the match, with … where it was cut */
+  snippet: string
+  /** the chapter that holds this message, if any */
+  chapter: { id: string; label: string; from: string; to: string } | null
+}
+/** The messages from..to (message ids, as in a chapter or a fact's src). more = the range was longer than shown. */
+export const fetchLitMessages = (chatId: string, from: string, to?: string) =>
+  j<{ items: LitMessage[]; more: boolean }>(`/litopys/messages?chatId=${encodeURIComponent(chatId)}&from=${encodeURIComponent(from)}${to ? `&to=${encodeURIComponent(to)}` : ''}`)
+/** Plain search over the original messages (never the summaries), newest first, 20 hits. */
+export const searchLitMessages = (chatId: string, q: string) =>
+  j<{ hits: LitSearchHit[] }>(`/litopys/search?chatId=${encodeURIComponent(chatId)}&q=${encodeURIComponent(q)}`)
 
 /** Portraits the user set, by lower-cased name (M4c): they win over a card or persona of the same name. */
 export type LitPortraits = Record<string, { name: string; url: string }>

@@ -604,3 +604,35 @@ describe("chapter size check (M4d)", () => {
     expect(L.sizeLimit(line(story(2)), { fromIdx: 0, toIdx: 1 })).toBe(20);
   });
 });
+
+describe("originals (M4d)", () => {
+  it("GET /litopys/messages gives the range read-only, with numbers and names", () => {
+    writeChat("c1", story(10));
+    const { host } = mockHost();
+    const r = route(host, "GET", "/litopys/messages", undefined, { chatId: "c1", from: "m3", to: "m5" });
+    expect(r.status).toBe(200);
+    expect(r.json.items.map((m: any) => [m.id, m.no, m.name])).toEqual([["m3", 3, "You"], ["m4", 4, "Aria"], ["m5", 5, "You"]]);
+    expect(r.json.more).toBe(false);
+    expect(route(host, "GET", "/litopys/messages", undefined, { chatId: "c1", from: "gone" }).status).toBe(404);
+    expect(route(host, "GET", "/litopys/messages", undefined, { chatId: "../x", from: "m1" }).status).toBe(400);
+  });
+
+  it("GET /litopys/search looks in the original messages, newest first, with the chapter that holds a hit", () => {
+    const msgs = story(10);
+    writeChat("c1", msgs);
+    writeJson("litopys/chats/c1.json", {
+      ...L.emptyChat("c1"),
+      migrated: true,
+      chapters: [{ id: "c1", from: "m1", to: "m6", count: 6, kind: "scene", label: "Harvest", text: "x", sig: L.chapterSig(line(msgs).slice(0, 6)) }],
+    });
+    const { host } = mockHost();
+    const r = route(host, "GET", "/litopys/search", undefined, { chatId: "c1", q: "LINE 4 " });
+    expect(r.status).toBe(200);
+    expect(r.json.hits.map((h: any) => h.no)).toEqual([4]);
+    expect(r.json.hits[0].chapter).toMatchObject({ id: "c1", label: "Harvest" });
+    const all = route(host, "GET", "/litopys/search", undefined, { chatId: "c1", q: "harvest" }).json.hits;
+    expect(all.map((h: any) => h.no)).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(all[0].chapter).toBeNull();
+    expect(route(host, "GET", "/litopys/search", undefined, { chatId: "c1", q: "a" }).status).toBe(400);
+  });
+});

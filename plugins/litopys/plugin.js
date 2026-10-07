@@ -2144,6 +2144,63 @@ export function workerState(gen, next, beatAt, now) {
   return { state: "stalled", stalledFor: now - moved };
 }
 
+// ---------- M4d: the original messages behind a chapter or a fact, and a search over them ----------
+const MESSAGES_MAX = 80;
+const SEARCH_HITS = 20;
+
+/** GET /litopys/messages?chatId&from&to: the messages from..to (ids on the active line), read-only. */
+export function messagesView(fsx, q) {
+  const chatId = str(q.chatId);
+  if (!SAFE_ID.test(chatId)) return { status: 400, json: { error: "bad chatId" } };
+  const rc = readChat(fsx, chatId);
+  if (!rc) return { status: 404, json: { error: "chat not found" } };
+  const line = activeLine(rc.msgs);
+  const fromIdx = line.findIndex((m) => m.id === str(q.from));
+  if (fromIdx < 0) return { status: 404, json: { error: "those messages are no longer in the chat" } };
+  let toIdx = q.to ? line.findIndex((m) => m.id === str(q.to)) : fromIdx;
+  if (toIdx < fromIdx) toIdx = fromIdx;
+  const end = Math.min(toIdx, fromIdx + MESSAGES_MAX - 1);
+  const items = [];
+  for (let i = fromIdx; i <= end; i++) {
+    const m = line[i];
+    items.push({ id: m.id, no: i + 1, role: m.role === "user" ? "user" : "char", name: m.role === "user" ? str(rc.meta.userName) || str(m.name) : str(m.name), text: cut(str(m.text), 6000) });
+  }
+  return { status: 200, json: { items, more: toIdx > end } };
+}
+
+/** GET /litopys/search?chatId&q&before: plain case-insensitive search over the ORIGINAL messages, newest first. */
+export function searchView(fsx, q) {
+  const chatId = str(q.chatId);
+  if (!SAFE_ID.test(chatId)) return { status: 400, json: { error: "bad chatId" } };
+  const needle = str(q.q).toLowerCase();
+  if (needle.length < 2) return { status: 400, json: { error: "search for at least 2 letters" } };
+  const rc = readChat(fsx, chatId);
+  if (!rc) return { status: 404, json: { error: "chat not found" } };
+  const line = activeLine(rc.msgs);
+  const st = loadChatFile(fsx, chatId);
+  const ranges = st ? st.chapters.map((ch) => ({ ch, r: rangeOf(ch, line) })).filter((x) => !x.r.orphan) : [];
+  const before = Number(q.before) > 0 ? Math.min(line.length, Number(q.before) - 1) : line.length;
+  const hits = [];
+  for (let i = before - 1; i >= 0 && hits.length < SEARCH_HITS; i--) {
+    const m = line[i];
+    const text = str(m.text);
+    const at = text.toLowerCase().indexOf(needle);
+    if (at < 0) continue;
+    const start = Math.max(0, at - 80);
+    const snippet = (start > 0 ? "…" : "") + text.slice(start, at + needle.length + 80) + (at + needle.length + 80 < text.length ? "…" : "");
+    const holder = ranges.find((x) => x.r.fromIdx <= i && x.r.toIdx >= i);
+    hits.push({
+      id: m.id,
+      no: i + 1,
+      name: m.role === "user" ? str(rc.meta.userName) || str(m.name) : str(m.name),
+      at: Number(m.at) || 0,
+      snippet,
+      chapter: holder ? { id: holder.ch.id, label: str(holder.ch.label), from: holder.ch.from, to: holder.ch.to } : null,
+    });
+  }
+  return { status: 200, json: { hits } };
+}
+
 // ---------- M4c: portraits the user sets for names (narrator cards, lorebook characters) ----------
 const PORTRAITS_FILE = "litopys/portraits.json";
 const PORTRAIT_MAX = 400000; // characters of a data URL: a 256 px image is far below this
@@ -2615,6 +2672,8 @@ export function chatView(fsx, chatId) {
     const r = rangeOf(ch, line);
     chapters.push({
       id: ch.id,
+      from: str(ch.from),
+      to: str(ch.to),
       label: str(ch.label),
       text: str(ch.text),
       kind: ch.kind || "scene",
@@ -2689,6 +2748,8 @@ export function handleRoute(req, host) {
     if (res.busy) return { status: 409, json: { error: "busy, try again" } };
     return { status: 200, json: res };
   }
+  if (path === "/litopys/messages" && req.method === "GET") return messagesView(fsx, req.query || {});
+  if (path === "/litopys/search" && req.method === "GET") return searchView(fsx, req.query || {});
   if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);

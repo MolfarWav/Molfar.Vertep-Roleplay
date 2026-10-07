@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { DotsThree, PencilSimple, ArrowCounterClockwise, Trash, WarningCircle } from '@phosphor-icons/react'
+import { ChatText, DotsThree, PencilSimple, ArrowCounterClockwise, Trash, WarningCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,7 @@ import type { LitChapter, LitChat, LitSkipped } from './litopys-api'
 import { editLitChapter, rewriteLitChapter, deleteLitChapter, isRebuilding } from './litopys-api'
 import type { TabProps } from './ledger-facts'
 import { TONE } from './tones'
+import { MessagesDialog, type MessagesRange } from './messages-dialog'
 
 interface ChapterEditorProps {
   chapter: LitChapter
@@ -95,6 +96,7 @@ export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps)
   const [busy, setBusy] = useState<'edit' | 'rewrite' | 'delete' | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [keepGone, setKeepGone] = useState(false)
+  const [msgRange, setMsgRange] = useState<MessagesRange | null>(null)
 
   const factsCount = useMemo(
     () => chat.facts.filter((f) => f.status === 'active' && f.src?.chapter === chapter.id).length,
@@ -162,6 +164,7 @@ export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps)
       className={cn('group rounded-md border border-border bg-card p-3', disabled && 'opacity-60')}
     >
       {confirmDialog}
+      <MessagesDialog chatId={chat.chatId} range={msgRange} onClose={() => setMsgRange(null)} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -205,6 +208,12 @@ export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps)
             }
           />
           <DropdownMenuContent align="end" className="min-w-44">
+            {chapter.fromNo > 0 && (
+              <DropdownMenuItem onClick={() => setMsgRange({ from: chapter.from, to: chapter.to, title: chapter.label || chapter.text })}>
+                <ChatText className="size-3.5" aria-hidden="true" />
+                {t('lit.msgs.open')}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem disabled={busy !== null} onClick={() => setEditing(true)}>
               <PencilSimple className="size-3.5" aria-hidden="true" />
               {t('lit.edit')}
