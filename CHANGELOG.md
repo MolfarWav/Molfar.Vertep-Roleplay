@@ -4,6 +4,22 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.25.0
+
+Memory v2: one story memory per chat, Litopys, which you can see and edit in the Library.
+
+- **Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling) and the facts that came out of it: who they are about, who knows them, their kind (event, trait, lasting change, relation, world, plan) and weight. A scene gets its chapter once the next scene begins. The memory model is set in Litopys's settings (empty = the chat's own model).
+- **Long chats stay in the model's window.** Messages Litopys already holds leave the prompt, except the newest ones (Recent messages, 20 by default), which always go word for word; in their place each reply carries one Litopys block within a token budget (800 by default): pinned facts first, then traits and lasting changes of the characters present, the last chapter that left the prompt, then other facts and chapters by relevance. A character only gets facts they know. Messages that left the prompt are dimmed in the chat, with a divider.
+- **Arcs**: when the older chapters outgrow a threshold (twice the budget by default), neighbouring chapters can merge into one short arc that rides the prompt in their place; the chapters stay in the record. By default the Library asks first (Merge, Not now, Always merge automatically). Every number is a setting.
+- **The Library** (the rail section that was Litopys) shows every chat's record two ways. **Overview**: the chapters as a timeline with their facts, arcs as bands over their chapters, the waiting proposals, and a card per character (pinned facts, traits, changes, relations, what they know about others) with a portrait you can set for names without a card. **Ledger**: tabs for chapters, facts, proposals and activity, with filters and search. In both you edit, pin (up to 5 per character), retire, restore and delete facts, edit, rewrite or delete chapters (and keep a scene out of the record), and accept or reject what Litopys proposes. A line says what the worker is doing (writing, waiting, failed and retrying, stalled). A map shows chats and the chats forked from them.
+- **Back to the source**: "Open the messages" on a chapter or a fact shows the messages it came from, and the Ledger searches the original messages, never the summaries.
+- **The chat's Memory item** opens its record: how many messages left the prompt, what the last reply carried, and **Rebuild from scratch**, which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay).
+- **The built-in Memory is gone**: its summary and facts move into Litopys by themselves (the old memory file is removed after the move), as do Litopys 1.x facts. Roleplay Settings has a Litopys section instead: model, recent messages, insert and budget, scene sizes, pin limit, arcs and the prompts.
+- **Records are written in English** by Litopys, the dashboard's sensor and fast mode, whatever the story's language, so they hold up across models; names stay as the story spells them.
+- **The history fits the context window by tokens**, keeping room for the reply and for the dashboard's and Litopys's inserts; Next, swipe, Continue and Impersonate use the same matching as Send.
+- **Dashboard**: notes follow the scene, near-duplicates are not written, the sensor gets the newest and the most relevant notes, and important or key notes older than 30 turns move into Litopys facts.
+- A chapter that comes out longer than its messages is asked for again, shorter. Replies some models return in a flat shape are read. Deleting a chat deletes its memory too. A language stored before 4.20 ("English") is read again instead of the browser's.
+
 ## 4.24.0
 
 - **"Story, move"**: one press makes the next reply move the story on its own, pulling on the dashboard's open threads (all of them, or the one you pick). The nudge rides that one request only: it is never saved in the chat or shown as a message. Its wording is a setting.
