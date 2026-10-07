@@ -144,6 +144,8 @@ describe("M1.1 history budget in tokens, with reserves", () => {
   it("an English history of the same size does not trim, so the estimate is by script", async () => {
     const m = mockHost();
     writePreset({ openai_max_context: 4000, openai_max_tokens: 256 });
+    // M3: the Litopys insert reserves its budget by default; this test is about the estimate only
+    writeJson("litopys/config.json", { insert: false });
     const id = await newChat(m);
     seedPairs(id, 22, "The traveler walked into the little cafe at the edge of the world and ordered tea. ".repeat(4));
     const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again" } }, m);
@@ -163,16 +165,19 @@ describe("M1.1 history budget in tokens, with reserves", () => {
     expect(unset).toBe(explicit);
   });
 
-  it("a disabled dashboard injection lowers the reserve, an enabled Litopys insert raises it", async () => {
+  it("the dashboard insert and the Litopys insert (on by default, its budget) each reserve room", async () => {
     const preset = { openai_max_context: 4000, openai_max_tokens: 256 };
     const normal = (await trimmedFor(preset)).trimmed;
     writeJson("dashboard/config.json", { injection: { enabled: false } });
     const noDash = (await trimmedFor(preset)).trimmed;
     expect(noDash).toBeLessThan(normal);
-    writeJson("litopys/config.json", { inject: true });
-    expect((await trimmedFor(preset)).trimmed).toBeGreaterThan(noDash);
+    writeJson("dashboard/config.json", {});
+    writeJson("litopys/config.json", { insert: false });
+    expect((await trimmedFor(preset)).trimmed).toBeLessThan(normal);
+    writeJson("litopys/config.json", { budget: 2000 });
+    expect((await trimmedFor(preset)).trimmed).toBeGreaterThan(normal);
     // a bigger dashboard insert reserves more
-    writeJson("litopys/config.json", { inject: false });
+    writeJson("litopys/config.json", {});
     writeJson("dashboard/config.json", { injection: { enabled: true, maxTokens: 1000 } });
     expect((await trimmedFor(preset)).trimmed).toBeGreaterThan(normal);
     // unreadable configs fall back to the defaults instead of failing the send

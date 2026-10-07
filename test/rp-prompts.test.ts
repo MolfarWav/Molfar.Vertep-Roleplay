@@ -143,30 +143,7 @@ describe("plugin prompts: English, with a language line where the model writes f
     expect(text).toContain("Always give cardType.");
   });
 
-  it("the summary default", async () => {
-    const r = await drive(engineUrl, { method: "GET", path: "/settings/summary-prompt" }, mockHost());
-    const text = r.json.prompt as string;
-    expect(CYRILLIC.test(text)).toBe(false);
-    expect(LANGUAGE_LINE.test(text)).toBe(true);
-    expect(text).toContain("in the language the story is written in");
-    for (const past of r.json.past as string[]) expect(CYRILLIC.test(past)).toBe(false);
-    expect(r.json.past).toContain(
-      "You keep the running summary of a roleplay between {{user}} and {{char}}. Rewrite it so it covers everything so far: the summary you are given plus the new messages. Keep names, relationships, promises, places, possessions, injuries, and unresolved threads; drop small talk and repetition. Past tense, third person, plain prose, at most {{words}} words. Reply with only the summary.",
-    );
-  });
 
-  it("the memory-extract prompt", async () => {
-    const m = mockHost("[]");
-    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories/extract` }, m);
-    const asked = m.requests.filter((x) => x.key === "memory").at(-1)!.req.messages[0]!.content;
-    const prompt = asked.slice(0, asked.indexOf("Transcript:"));
-    expect(prompt.length).toBeGreaterThan(100);
-    expect(CYRILLIC.test(prompt)).toBe(false);
-    expect(LANGUAGE_LINE.test(prompt)).toBe(true);
-    expect(prompt).toContain("Write each memory in the language the conversation is written in.");
-  });
 
   it("the image-prompt writer stays English on purpose", async () => {
     const m = mockHost("A barista at night.");
@@ -181,73 +158,6 @@ describe("plugin prompts: English, with a language line where the model writes f
   });
 });
 
-describe("summary prompt: the plugin owns the default, settings keep only a changed one", () => {
-  const defaultPrompt = async () => (await drive(engineUrl, { method: "GET", path: "/settings/summary-prompt" }, mockHost())).json as { prompt: string; past: string[] };
-  const withSummaryPrompt = (prompt: unknown) =>
-    writeSettings({ model: null, personaId: "you", ui: { summary: { mode: "auto", interval: 40, keepRecent: 6, targetLength: 300, ...(prompt === undefined ? {} : { prompt }) } } });
-  const expand = (t: string) => t.split("{{words}}").join("300").split("{{user}}").join("You").split("{{char}}").join("Aria").split("{{summary}}").join("");
-
-  it("a missing, empty or whitespace-only stored prompt uses the current default", async () => {
-    const { prompt } = await defaultPrompt();
-    for (const stored of [undefined, "", "  \n "]) {
-      withSummaryPrompt(stored);
-      const m = mockHost("SUMMARY");
-      const id = await chatWithTurns(m);
-      expect(await summaryInstructions(m, id), JSON.stringify(stored)).toBe(expand(prompt));
-    }
-  });
-
-  it("a stored copy of a past default (even with CRLF or extra spacing) uses the current default", async () => {
-    const { prompt, past } = await defaultPrompt();
-    expect(past.length).toBeGreaterThan(0);
-    for (const old of past) {
-      for (const stored of [old, old.replace(/ /g, "  ") + "\n", old.replace(/\. /g, ".\r\n")]) {
-        withSummaryPrompt(stored);
-        const m = mockHost("SUMMARY");
-        const id = await chatWithTurns(m);
-        expect(await summaryInstructions(m, id)).toBe(expand(prompt));
-      }
-    }
-  });
-
-  it("a custom prompt is used as written", async () => {
-    withSummaryPrompt("Summarize {{char}} and {{user}} in {{words}} words.");
-    const m = mockHost("SUMMARY");
-    const id = await chatWithTurns(m);
-    expect(await summaryInstructions(m, id)).toBe("Summarize Aria and You in 300 words.");
-  });
-
-  it("saving the default (or a past one) stores nothing; saving a custom prompt stores it", async () => {
-    const { prompt, past } = await defaultPrompt();
-    const save = async (p: string) => {
-      const r = await drive(engineUrl, { method: "PUT", path: "/settings", body: { ui: { themeMode: "dark", summary: { keepRecent: 6, prompt: p } } } }, mockHost());
-      expect(r.status).toBe(200);
-      return readSettings().ui!.summary!.prompt;
-    };
-    expect(await save(prompt)).toBe("");
-    expect(await save(past[0]!)).toBe("");
-    expect(await save(prompt.replace(/ /g, "  "))).toBe("");
-    expect(await save("My own summary prompt.")).toBe("My own summary prompt.");
-    // the rest of ui rides through untouched
-    expect((readSettings().ui as Record<string, unknown>).themeMode).toBe("dark");
-  });
-
-  it("the update step clears a stored past default and keeps a custom prompt", async () => {
-    const { past } = await defaultPrompt();
-    const mod = (await import(engineUrl)) as { onAppUpdate: Function };
-    withSummaryPrompt(past[0]);
-    const r1 = mod.onAppUpdate({ from: "4.19.1", to: "4.19.2" }, mockHost().host) as { upgraded: string[] };
-    expect(readSettings().ui!.summary!.prompt).toBe("");
-    expect(r1.upgraded).toContain("settings.json summary prompt");
-    withSummaryPrompt("Custom.");
-    mod.onAppUpdate({ from: "4.19.1", to: "4.19.2" }, mockHost().host);
-    expect(readSettings().ui!.summary!.prompt).toBe("Custom.");
-    // already up to date: nothing is touched
-    withSummaryPrompt(past[0]);
-    mod.onAppUpdate({ from: "4.19.2", to: "4.19.2" }, mockHost().host);
-    expect(readSettings().ui!.summary!.prompt).toBe(past[0]);
-  });
-});
 
 describe("memory prompts write English (user, 2026-10-07)", () => {
   it("sensor, fast mode and the Litopys chapter ask for English and keep names as spelled; the old defaults are past defaults", async () => {

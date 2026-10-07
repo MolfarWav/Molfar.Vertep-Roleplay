@@ -240,7 +240,8 @@ function expandMacros(text, mc) {
   out = ci(out, "lastUserMessage", mc.lastUserMessage || "");
   out = ci(out, "lastCharMessage", mc.lastCharMessage || "");
   out = ci(out, "idle_duration", mc.idleText || "just now");
-  out = ci(out, "summary", mc.summary || "");
+  // the old Memory summary is gone (Litopys holds the story); presets that still use the macro get nothing
+  out = ci(out, "summary", "");
   if (mc.words != null) {
     out = ci(out, "words", String(mc.words));
     out = ci(out, "limit", String(mc.words));
@@ -408,7 +409,6 @@ function saveMacros(fsx, meta, msgs, speaker) {
       scenario: card.scenario ? String(card.scenario) : "",
     } : {},
     vars: meta.chatVars || {},
-    summary: String(meta.summary || ""),
   });
 }
 
@@ -505,7 +505,6 @@ const LANG_CODES = {
 const TRANSLATE_CHUNKS = { google: 4000, lingva: 1500, deepl: 4000 };
 // split on natural boundaries (paragraph, line, sentence, word) so chunks
 // translate cleanly and concatenate back to the original
-// ---------- long-term memories (per-chat vault) ----------
 /** Cosine similarity of two equal-length vectors; null on shape mismatch. */
 function cosine(a, b) {
   if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || !a.length) return null;
@@ -570,9 +569,8 @@ function semanticEmbedWork(fsx, meta, extraBookIds) {
       if (text.trim()) needed.push({ key, hash, text });
     });
   }
-  const memVec = loadMemories(fsx, meta.id).some((e) => Array.isArray(e.vector));
-  if (!needed.length && !memVec) return null;
-  return { needed, memVec };
+  if (!needed.length) return null;
+  return { needed };
 }
 /** Store freshly embedded entry vectors into the sidecar cache. */
 function cacheWiVectorBatch(fsx, entries, vectors) {
@@ -620,15 +618,6 @@ function semanticPrep(host, fsx, meta, staged, text, req) {
   return { scanVec: Array.isArray(scan) && scan[0] ? scan[0] : null };
 }
 
-function loadMemories(fsx, chatId) {
-  try {
-    const arr = JSON.parse(fsx.read("chats/" + chatId + ".memories.json"));
-    return Array.isArray(arr) ? arr.filter((e) => e && typeof e.text === "string" && e.text.trim()) : [];
-  } catch { return []; }
-}
-function saveMemories(fsx, chatId, list) {
-  fsx.write("chats/" + chatId + ".memories.json", JSON.stringify(list, null, 2) + "\n");
-}
 // ---------- cyrillic-safe text matching (skill: cyrillic-text-matching) ----------
 // norm/tokens/stem/sameWord/matches replace the old toLowerCase+includes
 // matching: apostrophe variants + ё/NFC folded, stop words dropped,
@@ -670,104 +659,6 @@ function matches(key, text) {
   const k = tokens(key), t = tokens(text);
   return k.length > 0 && k.every((kw) => t.some((tw) => sameWord(kw, tw)));
 }
-/** Which memories ride the prompt: pinned entries always, the rest by term
- *  density against the recent window (the same retrieval family as the data
- *  bank) with importance breaking ties, inside a character budget. */
-function recallMemories(list, scanText, budgetChars, maxEntries, scanVec) {
-  const picked = list.filter((e) => e.pinned === true);
-  let used = picked.reduce((a, e) => a + e.text.length, 0);
-  const scanToks = tokens(scanText || "");
-  // rarity over the vault: a word seen in few memories (a name) outranks
-  // one seen everywhere. df counts memories containing the stem.
-  const df = new Map();
-  const entryKeys = new Map();
-  for (const e of list) {
-    if (e.pinned === true) continue;
-    const keys = [...new Set(tokens(String(e.text || "")))];
-    entryKeys.set(e, keys);
-    for (const w of new Set(keys.map(stem))) df.set(w, (df.get(w) || 0) + 1);
-  }
-  const n = Math.max(1, entryKeys.size);
-  const scored = [];
-  for (const e of list) {
-    if (e.pinned === true) continue;
-    const imp = typeof e.importance === "number" ? e.importance : 3;
-    // hybrid: lexical stem match and (when vectors exist on both sides)
-    // cosine similarity — either can qualify a memory, the best score wins
-    let score = null;
-    const keys = entryKeys.get(e) || [];
-    let lex = 0, matched = 0;
-    for (const kw of keys) {
-      if (scanToks.some((tw) => sameWord(kw, tw))) {
-        matched++;
-        lex += 10 * Math.log(1 + n / (df.get(stem(kw)) || 1));
-      }
-    }
-    if (matched > 0) score = lex + imp;
-    if (scanVec && Array.isArray(e.vector)) {
-      const c = cosine(e.vector, scanVec);
-      if (c != null) {
-        const sem = c * 12 + imp; // a strong semantic match (~0.8) outranks one keyword hit
-        if (c >= 0.3) score = score == null ? sem : Math.max(score, sem);
-      }
-    }
-    if (score != null) scored.push({ e, score });
-  }
-  scored.sort((a, b) => b.score - a.score);
-  for (const { e } of scored) {
-    if (picked.length >= maxEntries || used + e.text.length > budgetChars) break;
-    picked.push(e);
-    used += e.text.length;
-  }
-  return picked;
-}
-/** Extraction prompt for the vault: durable facts only, JSON array reply. */
-function memoryExtractPrompt(transcript) {
-  return [
-    "You maintain the long-term memory of a roleplay chat. From the transcript below, extract durable facts worth recalling in later scenes: character traits, relationships, promises, obligations, injuries, possessions, places, world facts, ongoing plans.",
-    "Only facts the transcript states or plainly shows; never guess at motives or what comes next. Skip fleeting dialogue, mood, style, and anything a one-paragraph summary would already cover.",
-    "Each fact is one short sentence that makes sense on its own: third person, characters by name (never I, you or he without a name).",
-    "Write each memory in the language the conversation is written in.",
-    'Reply with ONLY a JSON array, at most 8 entries, like:',
-    '[{"text": "Ember promised to guard the traveler map.", "importance": 4}]',
-    "importance runs 1 (trivia) to 5 (plot-critical). If nothing qualifies, reply [].",
-    "",
-    "Transcript:",
-    transcript,
-  ].join("\n");
-}
-function parseMemoriesReply(text) {
-  const s = String(text || "");
-  const start = s.indexOf("[");
-  const end = s.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  try {
-    const arr = JSON.parse(s.slice(start, end + 1));
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map((e) => e && typeof e === "object" ? {
-        text: String(e.text || "").trim().slice(0, 500),
-        importance: Math.min(5, Math.max(1, Math.floor(Number(e.importance)) || 3)),
-      } : null)
-      .filter((e) => e && e.text);
-  } catch { return []; }
-}
-/** Append extracted facts, dropping near-duplicates of what the vault holds. */
-function mergeMemories(existing, incoming) {
-  const norm = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-  const out = [...existing];
-  const added = [];
-  for (const inc of incoming) {
-    const n = norm(inc.text);
-    if (!n) continue;
-    const dup = out.some((e) => { const m = norm(e.text); return m === n || m.includes(n) || n.includes(m); });
-    if (dup) continue;
-    const entry = { id: uid("mem"), text: inc.text, importance: inc.importance, pinned: false, at: Date.now() };
-    out.push(entry);
-    added.push(entry);
-  }
-  return { list: out, added };
-}
 // ---------- image prompts (the chat model describes what to draw) ----------
 const IMAGE_PROMPT_MODES = {
   scene: "Describe the scene as it stands at the end of this chat: the place, who is there and what they look like, what they are doing, the lighting and the mood.",
@@ -784,7 +675,8 @@ const IMAGE_PROMPT_RULES = [
   "Reply with only the description.",
 ].join(" ");
 
-function memoryTranscript(msgs, window) {
+/** The newest turns as "Name: text" lines (the image prompt reads them). */
+function recentTranscript(msgs, window) {
   return msgs.slice(-window)
     .filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true)
     .map((m) => (m.role === "user" ? "User" : (m.name || "Character")) + ": " + String(m.text || "").slice(0, 2000))
@@ -938,9 +830,56 @@ function hookInsertReserve(fsx) {
     const c = JSON.parse(fsx.read("litopys/config.json"));
     if (c && typeof c === "object") lit = c;
   } catch {}
-  if (lit.inject === true) reserve += 1200;
+  if (lit.enabled !== false && lit.insert !== false) {
+    const b = Number(lit.budget);
+    reserve += (Number.isFinite(b) ? Math.min(4000, Math.max(200, Math.round(b))) : 800) + 100;
+  }
   return reserve;
 }
+// ---------- the Litopys cut: a copy of litopys/plugin.js coveredCount/cutCount (plugins cannot import each other) ----------
+/** The messages Litopys counts: user and character turns with an id, not hidden (its activeLine). */
+function litopysLine(msgs) {
+  return msgs.filter((m) => (m.role === "user" || m.role === "char") && m.id !== undefined && m.id !== null && m.id !== "" && m.hidden !== true);
+}
+function litRangeOf(ch, line) {
+  const at = (id) => line.findIndex((m) => m.id === id);
+  const fromIdx = ch && ch.from ? at(ch.from) : -1;
+  if (fromIdx < 0) return { fromIdx: -1, toIdx: -1, orphan: true, partial: false };
+  const toAt = at(ch.to);
+  if (toAt >= fromIdx) return { fromIdx, toIdx: toAt, orphan: false, partial: false };
+  return { fromIdx, toIdx: Math.min(line.length - 1, fromIdx + Math.max(1, Number(ch.count) || 1) - 1), orphan: false, partial: true };
+}
+function litCoveredCount(st, line) {
+  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return 0;
+  const ranges = st.chapters
+    .filter((ch) => ch && typeof ch === "object" && ch.stale !== true)
+    .map((ch) => litRangeOf(ch, line))
+    .filter((r) => !r.orphan && !r.partial)
+    .sort((a, b) => a.fromIdx - b.fromIdx);
+  let covered = 0;
+  for (const r of ranges) {
+    if (r.fromIdx > covered) break;
+    if (r.toIdx + 1 > covered) covered = r.toIdx + 1;
+  }
+  return Math.min(covered, line.length);
+}
+/** How many of the line's first messages Litopys holds as chapters and the prompt may drop; 0 when Litopys is off. */
+function litopysCut(fsx, chatId, line) {
+  let cfg = {};
+  try { const c = JSON.parse(fsx.read("litopys/config.json")); if (c && typeof c === "object") cfg = c; } catch {}
+  if (cfg.enabled === false || cfg.insert === false) return 0;
+  let st = null;
+  try { st = JSON.parse(fsx.read("litopys/chats/" + chatId + ".json")); } catch {}
+  if (!st) return 0;
+  const n = Number(cfg.recentMessages);
+  const recent = Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 20;
+  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - recent));
+}
+/** Whether Litopys holds this chat (then the old Memory keys of its meta can go). */
+function litopysHolds(fsx, chatId) {
+  try { const st = JSON.parse(fsx.read("litopys/chats/" + chatId + ".json")); return !!(st && st.migrated === true); } catch { return false; }
+}
+
 /** World info budget: 25% of
  *  the USABLE context (context minus the reserved response length), chars/4
  *  estimate. Entries claim it in order-DESCENDING priority; entries that
@@ -1180,8 +1119,11 @@ function loadChat(fsx, id) {
   } catch { /* new chat */ }
   return { meta, msgs };
 }
+// the old Memory's keys; they go once Litopys holds the chat (its sweep took the vault in)
+const OLD_MEMORY_KEYS = ["summary", "memoryCutoffMessageId", "compactions", "memoryExtractedAt"];
 function saveChat(fsx, id, meta, msgs) {
   meta.updatedAt = Date.now();
+  if (OLD_MEMORY_KEYS.some((k) => k in meta) && litopysHolds(fsx, id)) for (const k of OLD_MEMORY_KEYS) delete meta[k];
   fsx.write("chats/" + id + ".jsonl", msgs.map((m) => JSON.stringify(m)).join("\n") + (msgs.length ? "\n" : ""));
   fsx.write("chats/" + id + ".meta.json", JSON.stringify(meta, null, 2) + "\n");
 }
@@ -1369,7 +1311,6 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       scenario: speakerCard && speakerCard.scenario ? String(speakerCard.scenario) : "",
     },
     vars: meta.chatVars || (meta.chatVars = {}),
-    summary: String(meta.summary || ""),
   });
 
   // marker → text (pre-macro). `main` carries no engine default — the preset's
@@ -1515,36 +1456,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // (term-scored retrieval over enabled files — basic RAG)
   const dbScan = (pendingUserText ? pendingUserText + "\n" : "") + msgs.slice(-4).map((m) => m.text || "").join("\n");
   const extras = [];
-  // long-term memories: pinned always + density-recalled against the recent
-  // window (Memory & Summary settings); a block the model can rely on across
-  // cutoffs and summaries
-  const memCfg = (() => { try { return (JSON.parse(fsx.read("settings.json")).ui || {}).memory || {}; } catch { return {}; } })();
-  if (memCfg.enabled !== false) {
-    const mems = recallMemories(loadMemories(fsx, meta.id), dbScan, 1500, 8, opts && opts.scanVec ? opts.scanVec : null);
-    if (mems.length) {
-      extras.push({ role: "system", content: "[Long-term memories — durable facts from this chat]\n" + mems.map((e) => "- " + e.text).join("\n") });
-    }
-  }
   const dbHits = searchDatabank(fsx, dbScan, 3);
   if (dbHits.length) {
     extras.push({ role: "system", content: "[Data bank — retrieved reference material]\n" + dbHits.map((h) => h.text).join("\n---") });
-  }
-
-  // running chat summary, injected per the Memory & Summary settings
-  // (after the system block, or in-chat at a depth — never when off)
-  if (String(meta.summary || "").trim()) {
-    const uiCfg = (() => { try { return JSON.parse(fsx.read("settings.json")).ui || {}; } catch { return {}; } })();
-    const sum = uiCfg.summary || {};
-    if (sum.position !== "off") {
-      const txt = sub(String(sum.template || "[Summary: {{summary}}]"));
-      if (txt.trim()) {
-        if (sum.position === "in-chat") {
-          depthInj.push({ depth: injDepth(sum.depth, 2), role: sum.role === "user" || sum.role === "assistant" ? sum.role : "system", content: txt });
-        } else {
-          extras.push({ role: "system", content: txt });
-        }
-      }
-    }
   }
 
   // author's note: the object form carries position/depth/role
@@ -1574,13 +1488,14 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     return ["none", "default", "content", "completion"].includes(v) ? v : "default";
   })();
   const prefixNames = namesBehavior === "content" || namesBehavior === "completion" || (namesBehavior === "default" && isGroup);
-  // messages ABOVE the memory cutoff leave the prompt — the running summary
-  // covers them (freeing context is the cutoff's whole point; the cutoff
-  // message itself stays). Unknown cutoff ids drop nothing.
+  // the oldest messages leave the prompt once Litopys holds them as chapters and they are older
+  // than its recent window; its insert (the Litopys plugin's llmRequest hook) carries them
   let histMsgs = msgs;
-  if (meta.memoryCutoffMessageId) {
-    const cut = msgs.findIndex((m) => m.id === meta.memoryCutoffMessageId);
-    if (cut > 0) histMsgs = msgs.slice(cut);
+  const litLine = litopysLine(msgs);
+  const litCut = litopysCut(fsx, meta.id, litLine);
+  if (litCut > 0) {
+    const gone = new Set(litLine.slice(0, litCut).map((m) => m.id));
+    histMsgs = msgs.filter((m) => !gone.has(m.id));
   }
   const visibleHist = histMsgs.filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true);
   const history = visibleHist
@@ -2032,39 +1947,6 @@ function llmFailReason(reply) {
   return cause || "model failed — check the connection in Settings";
 }
 
-// ---------- summarization default ----------
-// The summary prompt ships with this plugin. settings.json (ui.summary.prompt)
-// keeps one only when the user changed it, so a better default reaches everyone
-// who did not, and Reset in Settings just clears the stored copy.
-const DEFAULT_SUMMARY_PROMPT = [
-  "You keep the running summary of a roleplay between {{user}} and {{char}}. You get the summary so far and the new messages; write one updated summary of the whole story.",
-  "Keep: who each character is, how their relationships changed, promises and debts, injuries, possessions, places, and every thread still open. Drop small talk, repetition and description that changes nothing.",
-  "Tell it in story order, past tense, third person, plain prose. End with where things stand now: where the characters are, what they are doing, what is about to happen.",
-  "Use only what the summary and the messages say. Never invent or guess.",
-  "At most {{words}} words. Write the summary in the language the story is written in. Reply with only the summary.",
-].join("\n");
-
-// Every default an earlier version put in settings.json in full. A stored
-// prompt equal to one of these was never chosen, so it follows the current
-// default. Add the outgoing default here whenever DEFAULT_SUMMARY_PROMPT changes.
-const PAST_DEFAULT_SUMMARY_PROMPTS = [
-  "You keep the running summary of a roleplay between {{user}} and {{char}}. Rewrite it so it covers everything so far: the summary you are given plus the new messages. Keep names, relationships, promises, places, possessions, injuries, and unresolved threads; drop small talk and repetition. Past tense, third person, plain prose, at most {{words}} words. Reply with only the summary.",
-];
-
-/** A prompt as the user would see it changed: line endings and spacing do not count. */
-const promptKey = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
-const isDefaultSummaryPrompt = (text) =>
-  !promptKey(text) || [DEFAULT_SUMMARY_PROMPT, ...PAST_DEFAULT_SUMMARY_PROMPTS].some((d) => promptKey(d) === promptKey(text));
-/** The summary prompt in effect: the user's own, or the current default. */
-const summaryPromptOf = (stored) => (isDefaultSummaryPrompt(stored) ? DEFAULT_SUMMARY_PROMPT : String(stored));
-/** ui from the client with a default summary prompt stored as nothing. */
-function withoutDefaultSummaryPrompt(ui) {
-  if (!ui || typeof ui !== "object" || !ui.summary || typeof ui.summary !== "object") return ui;
-  const p = ui.summary.prompt;
-  if (typeof p !== "string" || p === "" || !isDefaultSummaryPrompt(p)) return ui;
-  return { ...ui, summary: { ...ui.summary, prompt: "" } };
-}
-
 // ---------- route handler ----------
 // A sprite the caller did not send back keeps the image already on disk. The
 // image only ever travels with the card, so any client that lists characters
@@ -2210,16 +2092,6 @@ export function onAppUpdate(ctx, host) {
       if (!out) continue;
       writeJsonFile(fsx, "presets/" + f, out);
       done.push("presets/" + f + " generation types");
-    }
-  }
-  if (olderThan(from, "4.19.2")) {
-    // a summary prompt stored word for word as an earlier default now follows the current one
-    const settings = readJsonFile(fsx, "settings.json");
-    const ui = settings && settings.ui;
-    const next = withoutDefaultSummaryPrompt(ui);
-    if (next !== ui) {
-      writeJsonFile(fsx, "settings.json", { ...settings, ui: next });
-      done.push("settings.json summary prompt");
     }
   }
   if (!olderThan(from, "4.0.0")) return { upgraded: done };
@@ -2417,12 +2289,6 @@ export function handleRoute(req, host) {
     }
   }
 
-  // the shipped summary prompt, for Settings to show and Reset to; "past" lets
-  // the client tell a stored copy of an earlier default from the user's own
-  if (head === "settings" && id === "summary-prompt" && !op && req.method === "GET") {
-    return ok({ prompt: DEFAULT_SUMMARY_PROMPT, past: PAST_DEFAULT_SUMMARY_PROMPTS });
-  }
-
   if (head === "settings" && !id) {
     if (req.method === "GET") return ok(readJson("settings.json", { model: null, personaId: null }));
     if (req.method === "PUT") {
@@ -2433,7 +2299,7 @@ export function handleRoute(req, host) {
       // `ui` carries the ENTIRE studio UI settings object — agents edit it
       // on disk (data/settings.json) and every open client picks it up live
       // via the data-watcher look_changed → hydrate.
-      if ("ui" in b && b.ui && typeof b.ui === "object") cur.ui = withoutDefaultSummaryPrompt(b.ui);
+      if ("ui" in b && b.ui && typeof b.ui === "object") cur.ui = b.ui;
       writeJson("settings.json", cur);
       return ok(cur);
     }
@@ -2766,8 +2632,6 @@ export function handleRoute(req, host) {
             _lorebookNames: namesOf(m.lorebookIds, bookNames),
           }, null, 2),
         });
-        const memories = loadMemories(fsx, m.id);
-        if (memories.length) files.push({ name: base + ".memories.json", text: JSON.stringify(memories, null, 2) });
       }
     } catch {}
     // the data bank rides along: its chunks are the retrieval index, and
@@ -3019,12 +2883,6 @@ export function handleRoute(req, host) {
     const members = chatMembers(fsx, meta);
     const group = meta.groupId ? readJson("groups/" + meta.groupId + ".json", null) : null;
     const modelOf = () => (body().model != null ? body().model : meta.model);
-    // summaries and facts can run on a model of their own (Settings, Memory),
-    // usually a cheaper one than the storyteller
-    const memoryModelOf = () => {
-      const chosen = String(((readJson("settings.json", {}).ui || {}).memory || {}).model || "").trim();
-      return chosen || modelOf();
-    };
     // stored-text regex for a message about to be saved in this chat
     const onSave = (text, placement, speaker) => regexOnSave(fsx, meta, members, text, placement, saveMacros(fsx, meta, chat.msgs, speaker));
     // PASS A of a generation writes no transcript — but a page reload inside
@@ -3106,7 +2964,13 @@ const toolX = (r) => ({
       ...(Array.isArray(r.parts) && r.parts.length ? { parts: r.parts } : {}),
     });
 
-    if (!op && req.method === "GET") return ok({ meta, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
+    if (!op && req.method === "GET") {
+      // litopysCut: how many of the first messages the prompt leaves to Litopys now (the UI marks them)
+      const line = litopysLine(chat.msgs);
+      const count = litopysCut(fsx, meta.id, line);
+      const litCut = { count, upTo: count > 0 ? line[count - 1].id : null };
+      return ok({ meta: { ...meta, litopysCut: litCut }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
+    }
 
     if (!op && req.method === "PATCH") {
       const b = body();
@@ -3116,8 +2980,8 @@ const toolX = (r) => ({
       // bubble mid-generation. Nothing changed → no write, no event.
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
-        "authorNoteObject", "folderId", "chatTags", "backgroundId", "temporary", "summary",
-        "memoryCutoffMessageId", "fieldVariantSelection", "parentChatId", "parentMessageId"];
+        "authorNoteObject", "folderId", "chatTags", "backgroundId", "temporary",
+        "fieldVariantSelection", "parentChatId", "parentMessageId"];
       if (keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
       const prevPersonaId = meta.personaId;
       for (const k of keys) {
@@ -3144,6 +3008,7 @@ const toolX = (r) => ({
         // branch parentage — the UI's branch tree walks these
         parentChatId: id, parentMessageId: b.messageId || null };
       delete nmeta.tainted;
+      for (const k of OLD_MEMORY_KEYS) delete nmeta[k];
       const msgs = chat.msgs.slice(0, idx + 1).map((m) => ({ ...m }));
       saveChat(fsx, nid, nmeta, msgs);
       return ok({ meta: nmeta, messages: msgs }, 201);
@@ -3215,19 +3080,6 @@ const toolX = (r) => ({
           // who speaks and what kind of turn, for llmRequest hooks (never sent to the model)
           turn: { op: "send", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: speaker ? speaker.name : "" },
         });
-        // auto memory extraction: every N messages a second pass pulls durable
-        // facts into the vault (auto-in only — manual runs the extract route)
-        const memCfgA = (() => { try { return (JSON.parse(fsx.read("settings.json")).ui || {}).memory || {}; } catch { return {}; } })();
-        const interval = Math.max(2, Math.floor(Number(memCfgA.interval)) || 20);
-        if (memCfgA.enabled !== false && memCfgA.auto === true && staged.length - (Number(meta.memoryExtractedAt) || 0) >= interval) {
-          const transcript = memoryTranscript(staged, 24);
-          if (transcript) {
-            host.llm.request("memory", {
-              messages: [{ role: "user", content: memoryExtractPrompt(transcript) }],
-              ...(memoryModelOf() ? { model: memoryModelOf() } : {}),
-            });
-          }
-        }
         markGenerating();
         return pendingOut(meta, a.trimmed || plan ? { ...(a.trimmed ? { trimmed: a.trimmed } : {}), ...(plan ? { plan } : {}) } : undefined);
       }
@@ -3268,24 +3120,10 @@ const toolX = (r) => ({
       };
       chat.msgs.push(charMsg);
       applyStashVars(req, meta);
-      // the auto-extraction pass (armed in pass A) lands here; it never
-      // fails the send — a bad extraction just extracts nothing
-      let memoriesAdded = 0;
-      const memReply = host.llm.results.memory;
-      if (memReply && memReply.model !== "error") {
-        const incoming = parseMemoriesReply(memReply.text);
-        if (incoming.length) {
-          const { list, added } = mergeMemories(loadMemories(fsx, id), incoming);
-          if (added.length) { saveMemories(fsx, id, list); memoriesAdded = added.length; }
-        }
-      }
-      // the interval counter advances only when extraction ran this turn
-      const memoryRan = memReply !== undefined;
-      saveChat(fsx, id, touch({ ...meta, tainted: true, ...(memoryRan ? { memoryExtractedAt: chat.msgs.length } : {}) }), chat.msgs);
+      saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
       saveFastState(fsx, id, charMsg.id + "#0", stateTag, reply.model);
       return ok({
         user: userMsg, reply: charMsg,
-        ...(memoriesAdded ? { memoriesAdded } : {}),
         // history the context could not hold this turn (auto-compaction's cue)
         ...(req.stash && req.stash.trimmed ? { trimmed: req.stash.trimmed } : {}),
         // the rest of this group turn: members the client runs next, in order
@@ -3358,14 +3196,14 @@ const toolX = (r) => ({
       // navigate existing swipes (greeting rotation wraps on pristine chats)
       const pristineGreeting = !meta.tainted && chat.msgs.length === 1 && msg.greeting === true;
       if (next >= 0 && next < swipes.length) {
-        const text = expandMacros(String(swipes[next]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}), summary: String(meta.summary || "") }));
+        const text = expandMacros(String(swipes[next]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
         chat.msgs[idx] = { ...msg, text, swipe: next, swipes, translation: undefined };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: next, count: swipes.length });
       }
       if (pristineGreeting && (next < 0 || next >= swipes.length)) {
         const wrapped = ((next % swipes.length) + swipes.length) % swipes.length;
-        const text = expandMacros(String(swipes[wrapped]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}), summary: String(meta.summary || "") }));
+        const text = expandMacros(String(swipes[wrapped]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
         chat.msgs[idx] = { ...msg, text, swipe: wrapped, swipes, translation: undefined };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: wrapped, count: swipes.length });
@@ -3546,7 +3384,7 @@ const toolX = (r) => ({
         const { persona, userName } = chatPersona(fsx, meta);
         const charName = who ? who.name : "the character";
         const about = (name, text) => (String(text || "").trim() ? "About " + name + ":\n" + String(text).trim().slice(0, 3000) : "");
-        const transcript = memoryTranscript(chat.msgs, 12);
+        const transcript = recentTranscript(chat.msgs, 12);
         const subject = typeof b.subject === "string" ? b.subject.trim().slice(0, 500) : "";
         const content = [
           IMAGE_PROMPT_MODES[mode].split("{{char}}").join(charName).split("{{user}}").join(userName),
@@ -3594,176 +3432,6 @@ const toolX = (r) => ({
       chat.msgs.push(msg);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
       return ok({ message: msg }, 201);
-    }
-
-    // ---------- long-term memories (per-chat vault) ----------
-    if (op === "memories" && seg.length === 3) {
-      if (req.method === "GET") return ok({ memories: loadMemories(fsx, id) });
-      if (req.method === "POST") {
-        const b = body();
-        const text = String(b.text || "").trim().slice(0, 500);
-        if (!text) return err(400, "text required");
-        const list = loadMemories(fsx, id);
-        const entry = {
-          id: uid("mem"), text,
-          importance: Math.min(5, Math.max(1, Math.floor(Number(b.importance)) || 3)),
-          pinned: b.pinned === true, at: Date.now(),
-        };
-        saveMemories(fsx, id, [...list, entry]);
-        return ok({ memory: entry });
-      }
-    }
-    if (op === "memories" && seg.length === 4) {
-      const mid = seg[3];
-      if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(mid)) return err(400, "invalid memory id");
-      const list = loadMemories(fsx, id);
-      const idx = list.findIndex((e) => e.id === mid);
-      if (req.method === "PATCH") {
-        if (idx < 0) return err(404, "memory not found");
-        const b = body();
-        const e = { ...list[idx] };
-        if (typeof b.text === "string" && b.text.trim()) e.text = b.text.trim().slice(0, 500);
-        if (b.importance != null) e.importance = Math.min(5, Math.max(1, Math.floor(Number(b.importance)) || 3));
-        if (b.pinned !== undefined) e.pinned = b.pinned === true;
-        const next = list.slice();
-        next[idx] = e;
-        saveMemories(fsx, id, next);
-        return ok({ memory: e });
-      }
-      if (req.method === "DELETE") {
-        if (idx < 0) return err(404, "memory not found");
-        saveMemories(fsx, id, list.filter((e) => e.id !== mid));
-        return ok({ ok: true });
-      }
-    }
-    // manual extraction: an LLM pass over the recent transcript appends
-    // durable facts to the vault (deduped)
-    if (op === "memories" && seg[3] === "extract" && req.method === "POST") {
-      const reply = host.llm.results.memory;
-      if (!reply) {
-        const transcript = memoryTranscript(chat.msgs, 24);
-        if (!transcript) return err(400, "nothing to extract from yet");
-        host.llm.request("memory", {
-          messages: [{ role: "user", content: memoryExtractPrompt(transcript) }],
-          ...(memoryModelOf() ? { model: memoryModelOf() } : {}),
-        });
-        return pendingOut(meta);
-      }
-      // pass C: the embedding of the new facts resolved (or the provider
-      // can't embed) — store with whatever vectors arrived
-      if (req.stash && req.stash.memExtract) {
-        const { list, added } = req.stash.memExtract;
-        const vecs = host.llm.embedResults ? host.llm.embedResults.mem : null;
-        if (Array.isArray(vecs)) {
-          added.forEach((e, i) => { if (vecs[i] && Array.isArray(vecs[i])) e.vector = vecs[i]; });
-          setEmbedCap(fsx, true);
-        } else {
-          setEmbedCap(fsx, false);
-        }
-        saveMemories(fsx, id, list);
-        return ok({ added, total: list.length });
-      }
-      if (reply.model === "error") return err(503, llmFailReason(reply));
-      const incoming = parseMemoriesReply(reply.text);
-      if (!incoming.length) return err(422, "the model returned no extractable facts");
-      const { list, added } = mergeMemories(loadMemories(fsx, id), incoming);
-      // embed the new facts so recall can match by meaning, not just words
-      if (added.length && host.llm.embed && embedCap(fsx)) {
-        host.llm.embed("mem", { texts: added.map((e) => e.text) });
-        return pendingOut(meta, { memExtract: { list, added } });
-      }
-      saveMemories(fsx, id, list);
-      return ok({ added, total: list.length });
-    }
-
-    // ---------- compaction: the running summary + the cutoff ----------
-    // Messages above the cutoff stay in the chat but leave the prompt; the
-    // summary stands in for them. Compacting folds the next stretch into the
-    // summary and moves the cutoff down, keeping the newest turns verbatim.
-    // Each compaction remembers the state before it, so undo restores it
-    // exactly and redo rewrites the latest summary from the same start.
-    //   POST /chats/:id/compact       { keepRecent?, upTo?, redo? }
-    //   POST /chats/:id/compact/undo
-    if (op === "compact" && seg[3] === "undo" && !seg[4] && req.method === "POST") {
-      const history = Array.isArray(meta.compactions) ? meta.compactions.slice() : [];
-      const prev = history.pop();
-      if (!prev) return err(400, "nothing to undo");
-      meta.summary = String(prev.summary || "");
-      meta.memoryCutoffMessageId = prev.cutoffMessageId || null;
-      meta.compactions = history;
-      saveChat(fsx, id, touch(meta), chat.msgs);
-      return ok({ summary: meta.summary, cutoffMessageId: meta.memoryCutoffMessageId, compactions: history.length });
-    }
-    if (op === "compact" && !seg[3] && req.method === "POST") {
-      const b = body();
-      const scfg = (readJson("settings.json", {}).ui || {}).summary || {};
-      const history = Array.isArray(meta.compactions) ? meta.compactions : [];
-      const indexOf = (mid) => (mid ? Math.max(0, chat.msgs.findIndex((m) => m.id === mid)) : 0);
-      const turnsIn = (from, to) => chat.msgs.slice(from, to).filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true);
-      const redo = b.redo === true;
-      let fromIdx, toIdx, base;
-      if (redo) {
-        const prev = history[history.length - 1];
-        if (!prev) return err(400, "nothing to redo");
-        fromIdx = indexOf(prev.cutoffMessageId);
-        toIdx = indexOf(meta.memoryCutoffMessageId);
-        base = String(prev.summary || "");
-      } else if (req.stash && req.stash.compact) {
-        // pass B folds exactly the stretch pass A chose, even if a message
-        // landed in between
-        fromIdx = indexOf(req.stash.compact.from);
-        toIdx = chat.msgs.findIndex((m) => m.id === req.stash.compact.to);
-        if (toIdx < 0) return err(409, "the chat changed while summarizing; try again");
-        base = String(meta.summary || "");
-      } else {
-        fromIdx = indexOf(meta.memoryCutoffMessageId);
-        base = String(meta.summary || "");
-        if (typeof b.upTo === "string" && b.upTo) {
-          toIdx = chat.msgs.findIndex((m) => m.id === b.upTo);
-          if (toIdx < 0) return err(404, "message not found");
-        } else {
-          // the newest `keep` turns stay verbatim; the cutoff lands on the
-          // first of them
-          const keep = Math.min(50, Math.max(1, Math.floor(Number(b.keepRecent ?? scfg.keepRecent)) || 4));
-          toIdx = -1;
-          for (let i = chat.msgs.length - 1, seen = 0; i >= 0; i--) {
-            const m = chat.msgs[i];
-            if ((m.role === "user" || m.role === "char") && m.hidden !== true && ++seen === keep) { toIdx = i; break; }
-          }
-        }
-      }
-      const covered = toIdx > fromIdx ? turnsIn(fromIdx, toIdx) : [];
-      if (!covered.length) return err(400, redo ? "the latest summary covers no messages" : "nothing new to summarize yet");
-      const reply = host.llm.results.summary;
-      if (!reply) {
-        const { userName } = chatPersona(fsx, meta);
-        const charName = (members[0] && members[0].name) || "";
-        const words = Math.max(25, Math.floor(Number(scfg.targetLength) || 300));
-        const instructions = summaryPromptOf(scfg.prompt)
-          .split("{{words}}").join(String(words)).split("{{limit}}").join(String(words))
-          .split("{{user}}").join(userName).split("{{char}}").join(charName)
-          .split("{{summary}}").join(base);
-        const transcript = covered.map((m) => (m.role === "user" ? m.name || userName : m.name || charName) + ": " + String(m.text || "")).join("\n\n");
-        host.llm.request("summary", {
-          messages: [
-            { role: "system", content: instructions },
-            { role: "user", content: (base.trim() ? "Summary so far:\n" + base.trim() + "\n\n" : "") + "Messages to fold in:\n\n" + transcript },
-          ],
-          ...(memoryModelOf() ? { model: memoryModelOf() } : {}),
-        });
-        return pendingOut(meta, redo ? undefined : { compact: { from: (chat.msgs[fromIdx] || {}).id || null, to: chat.msgs[toIdx].id } });
-      }
-      if (reply.model === "error") return err(503, llmFailReason(reply));
-      const text = String(reply.text || "").trim();
-      if (!text) return err(502, "the model returned an empty summary");
-      if (!redo) {
-        meta.compactions = [...history, { summary: String(meta.summary || ""), cutoffMessageId: meta.memoryCutoffMessageId || null, at: Date.now() }].slice(-20);
-        meta.memoryCutoffMessageId = chat.msgs[toIdx].id;
-      }
-      meta.summary = text;
-      applyStashVars(req, meta);
-      saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
-      return ok({ summary: text, cutoffMessageId: meta.memoryCutoffMessageId, covered: covered.length, compactions: meta.compactions.length, genMs: reply.genTimeMs ?? 0 });
     }
 
     // impersonate: draft the user's next message — NEVER written
@@ -3878,7 +3546,7 @@ const toolX = (r) => ({
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes : [msg.text];
       const want = Math.floor(Number(body().index));
       if (!(want >= 0 && want < swipes.length)) return err(400, "swipe index out of range");
-      const text = expandMacros(String(swipes[want]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}), summary: String(meta.summary || "") }));
+      const text = expandMacros(String(swipes[want]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
       chat.msgs[idx] = { ...msg, text, swipe: want, swipes, translation: undefined };
       saveChat(fsx, id, touch(meta), chat.msgs);
       return ok({ message: chat.msgs[idx], swipe: want, count: swipes.length });
@@ -3925,7 +3593,7 @@ const toolX = (r) => ({
         if (card) {
           const greetings = cardGreetings(fsx, meta, meta.characterId, card);
           if (greetings.length) {
-            const g = expandMacros(greetings[0], transcriptMacros([], { userName: chatUserName(fsx, meta), charName: card.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}), summary: String(meta.summary || "") }));
+            const g = expandMacros(greetings[0], transcriptMacros([], { userName: chatUserName(fsx, meta), charName: card.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
             msgs = [{ id: uid(), name: card.name, charId: meta.characterId, role: "char", text: g, at: Date.now(), swipes: greetings, swipe: 0, greeting: true }];
           }
         }

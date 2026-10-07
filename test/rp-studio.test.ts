@@ -1202,91 +1202,6 @@ describe("rp studio engine: example separator + echoed name strip", () => {
   }, 30_000);
 });
 
-describe("rp studio engine: memory cutoff + summary", () => {
-  const chatIdOf = () => (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
-
-  it("the cutoff drops everything above it from the prompt; the cutoff message stays", async () => {
-    const m = mockHost();
-    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = chatIdOf();
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "the early secret phrase" } }, m);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "the recent topic" } }, m);
-    const chat = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
-    const msgs = chat.json.messages as { id: string; role: string; text: string }[];
-    // cut at the SECOND char reply: the greeting + first exchange leave, the
-    // second exchange onward stays
-    const cutTarget = msgs.filter((x) => x.role === "char")[1]!.id;
-    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { memoryCutoffMessageId: cutTarget } }, m);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "after cutoff" } }, m);
-    const req = m.requests.at(-1)!.req as { messages: { content: string }[] };
-    expect(req.messages.some((x) => x.content.includes("the early secret phrase"))).toBe(false);
-    expect(req.messages.some((x) => x.content.includes("the recent topic"))).toBe(true);
-    expect(req.messages.some((x) => x.content.includes("after cutoff"))).toBe(true);
-  }, 30_000);
-
-  it("compact folds older turns into the summary, keeps the newest verbatim, and the summary rides the prompt", async () => {
-    const m = mockHost({ text: "SUMMARY: the traveler met the barista." });
-    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = chatIdOf();
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello" } }, m);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "more talk" } }, m);
-    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact`, body: { keepRecent: 2 } }, m);
-    expect(r.json.summary).toContain("the traveler met the barista");
-    expect(r.json.covered).toBe(3); // greeting, "hello", its reply
-    const summaryReq = m.requests.at(-1)!.req as { messages: { role: string; content: string }[] };
-    expect(summaryReq.messages[1]!.content).toContain("hello");
-    expect(summaryReq.messages[1]!.content).not.toContain("more talk");
-    const chat = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
-    const meta = chat.json.meta as { summary?: string; memoryCutoffMessageId?: string };
-    const msgs = chat.json.messages as { id: string; text: string }[];
-    expect(meta.summary).toContain("the traveler met the barista");
-    expect(meta.memoryCutoffMessageId).toBe(msgs.find((x) => x.text === "more talk")!.id);
-    // the next generation carries the summary INSTEAD of the covered turns
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "fresh turn" } }, m);
-    const req = m.requests.at(-1)!.req as { messages: { content: string }[] };
-    expect(req.messages.some((x) => x.content.includes("the traveler met the barista"))).toBe(true);
-    expect(req.messages.some((x) => x.content.includes("hello"))).toBe(false);
-    expect(req.messages.some((x) => x.content.includes("more talk"))).toBe(true);
-  }, 30_000);
-
-  it("undo restores the summary and cutoff from before; redo rewrites from the same start", async () => {
-    const m = mockHost({ text: "FIRST SUMMARY" });
-    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = chatIdOf();
-    for (const t of ["one", "two", "three"]) await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: t } }, m);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact`, body: { keepRecent: 4 } }, m);
-    const m2 = mockHost({ text: "SECOND SUMMARY" });
-    const second = await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact`, body: { keepRecent: 2 } }, m2);
-    expect(second.json.compactions).toBe(2);
-    // the second pass starts from the first summary
-    expect((m2.requests.at(-1)!.req as { messages: { content: string }[] }).messages[1]!.content).toContain("FIRST SUMMARY");
-    const m3 = mockHost({ text: "REWRITTEN SECOND" });
-    const redo = await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact`, body: { redo: true } }, m3);
-    expect(redo.json.summary).toBe("REWRITTEN SECOND");
-    expect(redo.json.compactions).toBe(2); // a rewrite, not another step
-    const redoReq = (m3.requests.at(-1)!.req as { messages: { content: string }[] }).messages[1]!.content;
-    expect(redoReq).toContain("FIRST SUMMARY");
-    expect(redoReq).not.toContain("SECOND SUMMARY");
-    const undo = await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact/undo` }, m3);
-    expect(undo.json.summary).toBe("FIRST SUMMARY");
-    expect(undo.json.compactions).toBe(1);
-    const undo2 = await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact/undo` }, m3);
-    expect(undo2.json.summary).toBe("");
-    expect(undo2.json.cutoffMessageId).toBeNull();
-    const none = await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact/undo` }, m3);
-    expect(none.status).toBe(400);
-  }, 30_000);
-
-  it("a send reports history the context could not hold", async () => {
-    fs.writeFileSync(path.join(root, "presets", "default.json"), JSON.stringify({ id: "default", name: "Default", prompts: [], prompt_order: [], openai_max_context: 60 }));
-    const m = mockHost({ text: "x".repeat(400) });
-    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = chatIdOf();
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "first" } }, m);
-    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "second" } }, m);
-    expect(r.json.trimmed).toBeGreaterThan(0);
-  }, 30_000);
-});
 
 describe("rp studio engine: world info scope", () => {
   // a library book that is NOT global and NOT linked to any character —
@@ -1637,79 +1552,9 @@ describe("rp studio import", () => {
     expect((peek.json.messages as { content: string }[]).map((x) => x.content).join("\n")).toContain("every other"); // 2: even
   }, 30_000);
 
-  it("memory vault CRUD: add, pin, update, delete", async () => {
-    const m = mockHost();
-    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (chat.json.meta as { id: string }).id;
-    const add = await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories`, body: { text: "Ember keeps a lantern that never goes out.", importance: 5 } }, m);
-    expect((add.json.memory as { pinned: boolean }).pinned).toBe(false);
-    const mid = (add.json.memory as { id: string }).id;
-    const patch = await drive(engineUrl, { method: "PATCH", path: `/chats/${id}/memories/${mid}`, body: { pinned: true } }, m);
-    expect((patch.json.memory as { pinned: boolean }).pinned).toBe(true);
-    const list = await drive(engineUrl, { method: "GET", path: `/chats/${id}/memories` }, m);
-    expect(list.json.memories).toHaveLength(1);
-    const del = await drive(engineUrl, { method: "DELETE", path: `/chats/${id}/memories/${mid}` }, m);
-    expect(del.status).toBe(200);
-    const list2 = await drive(engineUrl, { method: "GET", path: `/chats/${id}/memories` }, m);
-    expect(list2.json.memories).toHaveLength(0);
-  }, 30_000);
 
-  it("extract stores model facts, dedupes repeats, and refuses empty results honestly", async () => {
-    const m = mockHost({ text: '[{"text": "The traveler carries a brass compass.", "importance": 3}, {"text": "Ember promised to trade a story.", "importance": 4}]' });
-    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (chat.json.meta as { id: string }).id;
-    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories/extract` }, m);
-    expect(r.status).toBe(200);
-    expect((r.json.added as unknown[])).toHaveLength(2);
-    // the same reply again: near-duplicates drop out
-    const r2 = await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories/extract` }, m);
-    expect((r2.json.added as unknown[])).toHaveLength(0);
-    expect(r2.json.total).toBe(2);
-    // a model reply with no facts is an honest 422, not a silent store
-    const m2 = mockHost({ text: "I see nothing worth keeping." });
-    const r3 = await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories/extract` }, m2);
-    expect(r3.status).toBe(422);
-  }, 30_000);
 
-  it("memories ride the prompt: pinned always, others by relevance", async () => {
-    const m = mockHost();
-    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (chat.json.meta as { id: string }).id;
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories`, body: { text: "The traveler carries a brass compass.", importance: 3 } }, m);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories`, body: { text: "Ember hates getting wet.", importance: 3, pinned: true } }, m);
-    // irrelevant keyword: only the pinned entry rides
-    const peek = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, userText: "tell me about the weather" } }, m);
-    const sys = (peek.json.messages as { content: string }[]).map((x) => x.content).join("\n");
-    expect(sys).toContain("[Long-term memories");
-    expect(sys).toContain("Ember hates getting wet.");
-    expect(sys).not.toContain("brass compass");
-    // relevant keyword: both ride
-    const peek2 = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, userText: "which way does the compass point" } }, m);
-    const sys2 = (peek2.json.messages as { content: string }[]).map((x) => x.content).join("\n");
-    expect(sys2).toContain("brass compass");
-  }, 30_000);
 
-  it("semantic memory: extraction embeds facts, recall matches by meaning not words", async () => {
-    // deterministic embeddings: lantern/flame texts land at [1,0], else [0,1]
-    // — the scan shares NO keyword with the stored fact, only the direction
-    const m = mockHost(
-      { text: '[{"text": "Ember guards a lantern that never goes out.", "importance": 4}]' },
-      undefined,
-      (texts) => texts.map((t) => (/lantern|flame/i.test(t) ? [1, 0] : [0, 1])),
-    );
-    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (chat.json.meta as { id: string }).id;
-    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories/extract` }, m);
-    expect((r.json.added as unknown[])).toHaveLength(1);
-    const mems = await drive(engineUrl, { method: "GET", path: `/chats/${id}/memories` }, m);
-    expect(((mems.json.memories as { vector: number[] }[])[0]!.vector)).toEqual([1, 0]); // fact embedded
-    // a scan about "flame and its light" shares NO keyword with the stored
-    // fact — only the embedding direction matches. Lexical alone would miss;
-    // cosine 1.0 recalls it.
-    const peek = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, userText: "the flame and its light" } }, m);
-    const sys = (peek.json.messages as { content: string }[]).map((x) => x.content).join("\n");
-    expect(sys).toContain("guards a lantern");
-  }, 30_000);
 
   it("vectorized lorebook entries activate on similarity, with a cached sidecar", async () => {
     fs.writeFileSync(path.join(root, "lorebooks", "vecbook.json"), JSON.stringify({
@@ -1736,42 +1581,7 @@ describe("rp studio import", () => {
     expect(sys).toContain("harbor district floods");
   }, 30_000);
 
-  it("auto-extract rides a send every N messages, and skips turns in between", async () => {
-    fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ model: null, personaId: "you", ui: { memory: { enabled: true, auto: true, interval: 2 } } }));
-    const m = mockHost({ text: '[{"text": "The traveler carries a brass compass.", "importance": 3}]' });
-    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (chat.json.meta as { id: string }).id;
-    // first send: staged length 2 >= interval 2 → memory extraction armed
-    const sent = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello" } }, m);
-    expect(sent.json.memoriesAdded).toBe(1);
-    const mems = await drive(engineUrl, { method: "GET", path: `/chats/${id}/memories` }, m);
-    expect((mems.json.memories as { text: string }[])[0]!.text).toContain("compass");
-    // second send: below the interval again → no memory request armed
-    const keysBefore = m.requests.map((r) => r.key);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again" } }, m);
-    const newKeys = m.requests.slice(keysBefore.length).map((r) => r.key);
-    expect(newKeys).not.toContain("memory");
-  }, 30_000);
 
-  it("summaries and facts use the memory model when one is set, the chat's model otherwise", async () => {
-    const settingsWith = (memory: Record<string, unknown>) =>
-      fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ model: null, personaId: "you", ui: { memory } }));
-    settingsWith({ enabled: true, auto: true, interval: 2, model: "cheap/summarizer" });
-    const m = mockHost({ text: '[{"text": "The traveler carries a brass compass.", "importance": 3}]' });
-    const chat = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
-    const id = (chat.json.meta as { id: string }).id;
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello", model: "big/storyteller" } }, m);
-    const byKey = (key: string) => m.requests.filter((r) => r.key === key).at(-1)!.req as { model?: string };
-    expect(byKey("reply").model).toBe("big/storyteller");
-    expect(byKey("memory").model).toBe("cheap/summarizer");
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "more", model: "big/storyteller" } }, m);
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/compact`, body: { keepRecent: 2, model: "big/storyteller" } }, m);
-    expect(byKey("summary").model).toBe("cheap/summarizer");
-
-    settingsWith({ enabled: true, auto: false, interval: 20, model: "" });
-    await drive(engineUrl, { method: "POST", path: `/chats/${id}/memories/extract`, body: { model: "big/storyteller" } }, m);
-    expect(byKey("memory").model).toBe("big/storyteller");
-  }, 30_000);
 
   it("normalizes legacy world positions and skips empty entries", async () => {
     const m = mockHost();
@@ -2573,7 +2383,7 @@ describe("rp studio: backup zips survive the trip", () => {
     await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hi", model: "mock/model" } }, m);
     await drive(engineUrl, {
       method: "PATCH", path: `/chats/${id}`,
-      body: { presetId: "mine", personaId: "robin", title: "Crossroads at Dusk", summary: "they met", chatTags: ["noir"] },
+      body: { presetId: "mine", personaId: "robin", title: "Crossroads at Dusk", chatTags: ["noir"] },
     }, m);
 
     const entries = await exportEntries(m);
@@ -2586,7 +2396,6 @@ describe("rp studio: backup zips survive the trip", () => {
     const meta = JSON.parse(fs.readFileSync(path.join(root, "chats", `${chatId}.meta.json`), "utf8")) as Record<string, unknown>;
     // the title is the real one, not the filename slug title-cased back
     expect(meta.title).toBe("Crossroads at Dusk");
-    expect(meta.summary).toBe("they met");
     expect(meta.chatTags).toEqual(["noir"]);
     // and it still rides the preset and persona it was pinned to
     const preset = JSON.parse(fs.readFileSync(path.join(root, "presets", `${meta.presetId}.json`), "utf8")) as { name: string };
