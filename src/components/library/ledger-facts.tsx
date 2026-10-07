@@ -12,6 +12,7 @@ import {
   Check,
   X,
   CircleNotch,
+  Eye,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useT } from '@/hooks/use-t'
@@ -63,6 +64,7 @@ import {
   pinnedOf,
   isPinLimit,
 } from './litopys-api'
+import { TONE, TYPE_TONE, WEIGHT_TONE } from './tones'
 
 export interface TabProps {
   chat: LitChat
@@ -449,6 +451,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const names = useMemo(() => namesOf(chat.facts), [chat.facts])
+  const factById = useMemo(() => new Map(chat.facts.map((f) => [f.id, f])), [chat.facts])
 
   const run = async (id: string, fn: () => Promise<LitChat>) => {
     setBusyId(id)
@@ -479,7 +482,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
   }
 
   /** One list of row actions for both the inline buttons (md+) and the ⋯ menu. */
-  const actionsFor = (fact: LitFact): RowAction[] => {
+  const actionsFor = (fact: LitFact, slot = ''): RowAction[] => {
     const out: RowAction[] = []
     if (fact.status === 'active') {
       out.push(
@@ -490,7 +493,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
       )
     }
     if (fact.status === 'retired') out.push({ key: 'restore', label: t('lit.restore'), icon: ArrowCounterClockwise, run: () => run(fact.id, () => restoreLitFact(chat.chatId, fact.id)) })
-    if (fact.status !== 'superseded') out.push({ key: 'edit', label: t('lit.edit'), icon: PencilSimple, run: () => setEditingId(fact.id) })
+    if (fact.status !== 'superseded') out.push({ key: 'edit', label: t('lit.edit'), icon: PencilSimple, run: () => setEditingId(slot + fact.id) })
     out.push({ key: 'delete', label: t('lit.delete'), icon: Trash, run: () => handleDelete(fact), destructive: true })
     return out
   }
@@ -501,7 +504,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
       {pinFlow.dialog}
     </>
   )
-  return { names, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs }
+  return { names, factById, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs }
 }
 
 export type FactControls = ReturnType<typeof useFactControls>
@@ -510,51 +513,53 @@ export type FactControls = ReturnType<typeof useFactControls>
  * One fact: its text, badges and actions, or its editor while it is being edited. compact (the
  * Overview) drops the subject badge, which the card or chapter around it already says.
  */
-export function FactItem({ fact, ctl, compact = false }: { fact: LitFact; ctl: FactControls; compact?: boolean }) {
+export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitFact; ctl: FactControls; compact?: boolean; slot?: string }) {
   const t = useT()
-  if (ctl.editingId === fact.id) {
+  if (ctl.editingId === slot + fact.id) {
     return <FactEditor fact={fact} names={ctl.names} busy={ctl.busyId === fact.id} onSave={(patch) => ctl.handleEdit(fact, patch)} onCancel={() => ctl.setEditingId(null)} />
   }
   const disabled = ctl.busyId === fact.id
-  const actions = ctl.actionsFor(fact)
+  const actions = ctl.actionsFor(fact, slot)
+  const textOf = (id: string) => {
+    const f = ctl.factById.get(id)
+    return f ? (f.text.length > 60 ? f.text.slice(0, 59) + '…' : f.text) : id
+  }
   return (
     <div data-testid="fact-row" className={cn('group rounded-md border border-border bg-card', compact ? 'px-2.5 py-1.5' : 'px-3 py-2')}>
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <p className={cn('break-words', compact ? 'text-[13px] leading-snug' : 'text-sm')}>{fact.text}</p>
+          <p className={cn('break-words', compact ? 'text-sm leading-snug' : 'text-sm')}>{fact.text}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {!compact && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className={cn('text-[10px]', fact.subject === 'world' ? TYPE_TONE.world : TONE.subject)}>
                 {fact.subject === 'world' ? t('lit.type.world') : t('lit.subject', { name: fact.subject })}
               </Badge>
             )}
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className={cn('gap-1 text-[10px]', TONE.knownBy)}>
+              <Eye className="size-3" aria-hidden="true" />
               {fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: fact.knownBy.join(', ') })}
             </Badge>
-            <Badge variant="outline" className="text-[10px]">{t(typeKey(fact.type))}</Badge>
-            <Badge
-              variant={fact.weight === 'key' ? 'outline' : fact.weight === 'important' ? 'secondary' : 'ghost'}
-              className={cn('text-[10px]', fact.weight === 'key' && 'text-primary')}
-            >
+            <Badge variant="outline" className={cn('text-[10px]', TYPE_TONE[fact.type])}>{t(typeKey(fact.type))}</Badge>
+            <Badge variant="outline" className={cn('text-[10px]', WEIGHT_TONE[fact.weight])}>
               {t(weightKey(fact.weight))}
             </Badge>
             {fact.pinned && (
-              <Badge variant="secondary" className="gap-1 text-[10px]">
+              <Badge variant="outline" className={cn('gap-1 text-[10px]', TONE.pinned)}>
                 <PushPin weight="fill" className="size-3" aria-hidden="true" />
                 {t('lit.pinned')}
               </Badge>
             )}
             {!fact.pinned && fact.pinProposed && (
-              <Badge variant="outline" className="gap-1 text-[10px]">
+              <Badge variant="outline" className={cn('gap-1 text-[10px]', TONE.pinProposed)}>
                 <PushPin className="size-3" aria-hidden="true" />
                 {t('lit.pinProposed')}
               </Badge>
             )}
-            {fact.edited && <Badge variant="outline" className="text-[10px]">{t('lit.edited')}</Badge>}
-            {originKey(fact.origin) && <Badge variant="outline" className="text-[10px]">{t(originKey(fact.origin)!)}</Badge>}
-            {fact.status !== 'active' && <Badge variant="outline" className="text-[10px]">{t(statusKey(fact.status))}</Badge>}
-            {fact.mergedInto && <Badge variant="outline" className="text-[10px]">{t('lit.mergedInto', { id: fact.mergedInto })}</Badge>}
-            {fact.supersedes && <Badge variant="outline" className="text-[10px]">{t('lit.supersedes', { id: fact.supersedes })}</Badge>}
+            {fact.edited && <Badge variant="outline" className={cn('text-[10px]', TONE.edited)}>{t('lit.edited')}</Badge>}
+            {originKey(fact.origin) && <Badge variant="outline" className={cn('text-[10px]', fact.origin === 'merge' ? TONE.merged : TONE.yours)}>{t(originKey(fact.origin)!)}</Badge>}
+            {fact.status !== 'active' && <Badge variant="outline" className={cn('text-[10px]', TONE.gone)}>{t(statusKey(fact.status))}</Badge>}
+            {fact.mergedInto && <Badge variant="outline" className={cn('text-[10px]', TONE.merged)}>{t('lit.mergedInto', { id: textOf(fact.mergedInto) })}</Badge>}
+            {fact.supersedes && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.supersedes', { id: textOf(fact.supersedes) })}</Badge>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">

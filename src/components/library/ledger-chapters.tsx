@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import type { LitChapter, LitChat, LitSkipped } from './litopys-api'
 import { editLitChapter, rewriteLitChapter, deleteLitChapter, isRebuilding } from './litopys-api'
 import type { TabProps } from './ledger-facts'
+import { TONE } from './tones'
 
 interface ChapterEditorProps {
   chapter: LitChapter
@@ -174,14 +175,14 @@ export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps)
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {chapter.stale && (
               <Tooltip>
-                <TooltipTrigger render={<Badge variant="outline" className="text-[10px]">{t('lit.stale')}</Badge>} />
+                <TooltipTrigger render={<Badge variant="outline" className={cn('text-[10px]', TONE.stale)}>{t('lit.stale')}</Badge>} />
                 <TooltipContent>{t('lit.staleHint')}</TooltipContent>
               </Tooltip>
             )}
-            {chapter.edited && <Badge variant="secondary" className="text-[10px]">{t('lit.edited')}</Badge>}
-            {chapter.kind === 'part' && <Badge variant="outline" className="text-[10px]">{t('lit.kind.part')}</Badge>}
-            {chapter.kind === 'merged' && <Badge variant="outline" className="text-[10px]">{t('lit.kind.merged')}</Badge>}
-            {chapter.place && <Badge variant="outline" className="text-[10px]">{chapter.place}</Badge>}
+            {chapter.edited && <Badge variant="outline" className={cn('text-[10px]', TONE.edited)}>{t('lit.edited')}</Badge>}
+            {chapter.kind === 'part' && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.kind.part')}</Badge>}
+            {chapter.kind === 'merged' && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.kind.merged')}</Badge>}
+            {chapter.place && <Badge variant="outline" className={cn('max-w-full truncate text-[10px]', TONE.place)}>{chapter.place}</Badge>}
             <span className="text-[11px] text-muted-foreground">{t('lit.chapterFacts', { n: factsCount })}</span>
           </div>
           {!editing && chapter.text && (

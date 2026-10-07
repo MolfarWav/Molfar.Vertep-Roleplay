@@ -4,6 +4,7 @@ import { CaretLeft } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useBackClose } from '@/hooks/use-back-close'
 import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-t'
 
 /**
  * Two-pane master/detail layout.
@@ -36,6 +37,7 @@ export function MasterDetail({
   detail: ReactNode
 }) {
   const isMobile = useIsMobile()
+  const t = useT()
   useBackClose(detailOpen, onBack)
 
   if (isMobile) {
@@ -55,7 +57,7 @@ export function MasterDetail({
               className="-ml-1 flex min-h-9 items-center gap-0.5 rounded-md pr-2 pl-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <CaretLeft className="size-5" aria-hidden="true" />
-              Back
+              {t('dash.set.back')}
             </button>
             {detailTitle && (
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">{detailTitle}</span>

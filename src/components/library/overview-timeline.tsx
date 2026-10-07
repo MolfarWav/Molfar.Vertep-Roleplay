@@ -9,7 +9,7 @@ import { FactItem, type FactControls, type TabProps } from './ledger-facts'
 const SHOWN = 4
 
 /** Up to SHOWN facts, the rest behind "Show all". */
-function FactStack({ facts, ctl }: { facts: LitFact[]; ctl: FactControls }) {
+function FactStack({ facts, ctl, slot }: { facts: LitFact[]; ctl: FactControls; slot: string }) {
   const t = useT()
   const [all, setAll] = useState(false)
   if (!facts.length) return null
@@ -17,7 +17,7 @@ function FactStack({ facts, ctl }: { facts: LitFact[]; ctl: FactControls }) {
   return (
     <div className="flex flex-col gap-1.5">
       {shown.map((f) => (
-        <FactItem key={f.id} fact={f} ctl={ctl} compact />
+        <FactItem key={f.id} fact={f} ctl={ctl} compact slot={slot} />
       ))}
       {facts.length > SHOWN && !all && (
         <Button variant="ghost" size="xs" className="self-start" onClick={() => setAll(true)}>
@@ -78,7 +78,7 @@ export function Timeline({ chat, onChat, ctl }: TabProps & { ctl: FactControls }
           <Node key={it.chapter.id} tone={it.chapter.stale ? 'stale' : it.chapter.edited ? 'edited' : 'ok'}>
             <div className="flex flex-col gap-2">
               <ChapterRow chat={chat} chapter={it.chapter} onChat={onChat} disabled={!!chat.rebuilding} />
-              <FactStack facts={byChapter.get(it.chapter.id) ?? []} ctl={ctl} />
+              <FactStack facts={byChapter.get(it.chapter.id) ?? []} ctl={ctl} slot="tl:" />
             </div>
           </Node>
         ) : (
@@ -100,7 +100,7 @@ export function Timeline({ chat, onChat, ctl }: TabProps & { ctl: FactControls }
         <Node tone="gap">
           <div className="flex flex-col gap-2">
             <p className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('lit.ov.loose')}</p>
-            <FactStack facts={loose} ctl={ctl} />
+            <FactStack facts={loose} ctl={ctl} slot="tl:" />
           </div>
         </Node>
       )}

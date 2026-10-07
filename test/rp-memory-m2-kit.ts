@@ -3,6 +3,9 @@
  * app data dir, chat and dashboard fixtures, a mock host, and `tick`, which
  * runs onTick the way the engine does (at most 3 passes; the answers to the
  * requests of one pass are visible only in the next).
+ *
+ * Seeding a record by hand: a chapter counts as fresh only when its `sig` equals
+ * `L.chapterSig(line(msgs).slice(fromIdx, toIdx + 1))`, else the tick marks it stale.
  */
 import { afterEach, beforeEach } from "bun:test";
 import fs from "node:fs";

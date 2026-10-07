@@ -10,7 +10,7 @@ const STITCH_VARS = {
 export function StitchHeading({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5" style={STITCH_VARS}>
-      <h3 className="shrink-0 font-heading text-base">{children}</h3>
+      <h3 className="shrink-0 font-heading text-lg">{children}</h3>
       <span aria-hidden="true" className="lib-band" />
     </div>
   )
