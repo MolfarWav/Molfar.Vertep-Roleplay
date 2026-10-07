@@ -3034,7 +3034,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(6);
+    expect(past.length).toBe(7);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limit given in the input");
     expect(text).not.toContain("three open threads");
@@ -4480,7 +4480,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-1)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-2)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });

@@ -142,7 +142,7 @@ export const DEFAULT_PROMPTS = {
     "- To change a known fact: {op:\"update\", id, text} or {op:\"retire\", id, reason}. New facts {op:\"add\", ...}. Never repeat a known fact.",
     "- Use only what the messages say; never invent and never add knowledge from outside the story.",
     "",
-    "Language: write the chapter and the facts in the language the story is written in (the language most messages use). Keep every name exactly as the story spells it.",
+    "Language: write the chapter, its label and the facts in English, whatever language the story is written in. Keep every name exactly as the story spells it, in its own script: never translate or transliterate a name.",
     "",
     "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
   ].join("\n"),
@@ -153,7 +153,13 @@ export const WORKER_SHAPE =
 
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 const PAST_DEFAULT_PROMPTS = {
-  chapter: [],
+  // before 2026-10-07 the chapter followed the story's language
+  chapter: [
+    DEFAULT_PROMPTS.chapter.replace(
+      "Language: write the chapter, its label and the facts in English, whatever language the story is written in. Keep every name exactly as the story spells it, in its own script: never translate or transliterate a name.",
+      "Language: write the chapter and the facts in the language the story is written in (the language most messages use). Keep every name exactly as the story spells it.",
+    ),
+  ],
 };
 
 const promptKey = (s) => String(s || "").replace(/\s+/g, " ").trim();

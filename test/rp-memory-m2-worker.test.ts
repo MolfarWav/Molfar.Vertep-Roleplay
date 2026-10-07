@@ -212,7 +212,7 @@ describe("worker through tick", () => {
     expect(req.reasoning).toBeUndefined();
     expect(req.presetParams.max_tokens).toBe(2000);
     expect(req.model).toBe("chat/model");
-    expect(req.systemPrompt).toContain("in the language the story is written in");
+    expect(req.systemPrompt).toContain("in English, whatever language the story is written in");
     expect(req.systemPrompt).toContain("Output shape");
     expect(req.messages[0].content).toContain("Scene messages");
     expect(req.messages[0].content).toContain("[Aria]");

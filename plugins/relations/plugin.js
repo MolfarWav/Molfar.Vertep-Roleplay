@@ -509,7 +509,7 @@ export const DEFAULT_PROMPTS = {
     "",
     "Reply with one JSON object in the shape under \"Output shape\". Name events only from \"Event vocabulary\". No prose, no code fences. Write every letter as itself, never as a \\u escape.",
     "",
-    "Language: Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.",
+    "Language: Write every text value in English, whatever language the story is written in. Keep every name exactly as the story spells it, in its own script: never translate or transliterate a name. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given.",
     "",
     "Truth:",
     "- Use only what the New messages say or show. Never invent.",
@@ -528,7 +528,7 @@ export const DEFAULT_PROMPTS = {
     "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
     "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
-    "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words naming the new scene, in the language of the story; only when new is true.",
+    "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
     "",
     "Knowledge:",
@@ -569,8 +569,13 @@ export const DEFAULT_PROMPTS = {
   // fast mode: what the story model is told about the state tag; the sensor's rules, the event list, the output shape and
   // the previous state are added in code (see fastInstructions)
   fast:
-    "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in the language the story is written in. Keep ids, keys and enum values exactly as given, and every name as the story spells it. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
+    "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The defaults before every text value went English (2026-10-07): the story's language.
+const SENSOR_PROMPT_7 = DEFAULT_PROMPTS.sensor
+  .replace("Write every text value in English, whatever language the story is written in. Keep every name exactly as the story spells it, in its own script: never translate or transliterate a name. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given.", "Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.")
+  .replace("label: 2 to 5 words in English naming the new scene; only when new is true.", "label: 2 to 5 words naming the new scene, in the language of the story; only when new is true.");
+const FAST_PROMPT_1 = DEFAULT_PROMPTS.fast.replace("Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script.", "Write every text value in the language the story is written in. Keep ids, keys and enum values exactly as given, and every name as the story spells it.");
 // The sensor prompt in blocks the user can edit one by one: the default is cut at its headings
 // (blank-line paragraphs), and the blocks joined with a blank line give the default back exactly.
 export const SENSOR_PARTS = [
@@ -602,7 +607,7 @@ const sensorFromParts = (stored) =>
   SENSOR_PARTS.map((part) => (isObj(stored) && typeof stored[part.key] === "string" && stored[part.key].trim() ? stored[part.key] : DEFAULT_SENSOR_PARTS[part.key])).join("\n\n");
 
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [], fast: [] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [], fast: [FAST_PROMPT_1] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [

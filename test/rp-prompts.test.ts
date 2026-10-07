@@ -124,7 +124,7 @@ describe("plugin prompts: English, with a language line where the model writes f
     expect(text.length).toBeGreaterThan(500);
     expect(CYRILLIC.test(text), "sensor has Cyrillic").toBe(false);
     expect(LANGUAGE_LINE.test(text), "sensor has no language line").toBe(true);
-    expect(text).toContain("in the language the story is written in");
+    expect(text).toContain("in English, whatever language the story is written in");
   });
 
   it("the dashboard soul rating default", async () => {
@@ -246,5 +246,19 @@ describe("summary prompt: the plugin owns the default, settings keep only a chan
     withSummaryPrompt(past[0]);
     mod.onAppUpdate({ from: "4.19.2", to: "4.19.2" }, mockHost().host);
     expect(readSettings().ui!.summary!.prompt).toBe(past[0]);
+  });
+});
+
+describe("memory prompts write English (user, 2026-10-07)", () => {
+  it("sensor, fast mode and the Litopys chapter ask for English and keep names as spelled; the old defaults are past defaults", async () => {
+    const R = await import("../plugins/relations/plugin.js");
+    const L = await import("../plugins/litopys/plugin.js");
+    for (const text of [R.DEFAULT_PROMPTS.sensor, R.DEFAULT_PROMPTS.fast, L.DEFAULT_PROMPTS.chapter]) {
+      expect(text).toContain("in English, whatever language the story is written in");
+      expect(text).toContain("in its own script");
+    }
+    expect(R.DEFAULT_PROMPTS.sensor).toContain("label: 2 to 5 words in English");
+    expect(R.PAST_DEFAULT_PROMPTS.sensor.at(-1)).toContain("in the language the story is written in");
+    expect(R.PAST_DEFAULT_PROMPTS.fast[0]).toContain("in the language the story is written in");
   });
 });
