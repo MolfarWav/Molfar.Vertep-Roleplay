@@ -311,6 +311,15 @@ const JUMP_MINUTES = 360;
 /** The place a snapshot's clock carries ("" when none). */
 const placeOf = (snap) => (snap && isObj(snap.clock) ? str(snap.clock.place) : "");
 
+/** The sensor rewords places ("east road" / "the road east"): same when one holds the other or they read alike. */
+export function samePlace(a, b) {
+  const x = normText(a).replace(/\s+/g, " ").trim();
+  const y = normText(b).replace(/\s+/g, " ").trim();
+  if (!x || !y) return true;
+  if (x.includes(y) || y.includes(x)) return true;
+  return diceSimilarity(x, y) >= 0.6;
+}
+
 export function snapOf(dash, msg) {
   if (!dash || !isObj(dash.snapshots)) return null;
   const key = msg.id + "#" + (Number.isFinite(msg.swipe) ? msg.swipe : 0);
@@ -349,7 +358,7 @@ export function findScenes(line, dash, cfg) {
     sawSnap = true;
     const place = placeOf(snap);
     const minutes = clockMinutes(snap.clock);
-    const placeChanged = !!(place && prevPlace && place.toLowerCase() !== prevPlace.toLowerCase());
+    const placeChanged = !!(place && prevPlace && !samePlace(place, prevPlace));
     const timeJump = minutes !== null && prevClock !== null && Math.abs(minutes - prevClock) > JUMP_MINUTES;
     if (i > 0 && ((snap.scene && snap.scene.new === true) || placeChanged || timeJump)) bounds.add(i);
     if (place) prevPlace = place;
@@ -372,7 +381,7 @@ export function findScenes(line, dash, cfg) {
   }
   if (!raw.length) raw.push({ fromIdx: 0, toIdx: line.length - 1 });
 
-  // Merge short scenes into previous
+  // Merge short scenes into previous; a short first scene (a greeting) joins the next one
   const merged = [];
   for (const r of raw) {
     const len = r.toIdx - r.fromIdx + 1;
@@ -381,6 +390,10 @@ export function findScenes(line, dash, cfg) {
     } else {
       merged.push({ ...r });
     }
+  }
+  if (merged.length > 1 && merged[0].toIdx - merged[0].fromIdx + 1 < minMessages) {
+    merged[1].fromIdx = merged[0].fromIdx;
+    merged.shift();
   }
 
   // Split long scenes into parts
@@ -404,29 +417,30 @@ export function findScenes(line, dash, cfg) {
   }
 
   // Finalize scenes
-  const recent = clamp(cfg.recentMessages, 6, 200);
   const result = [];
   for (let i = 0; i < scenes.length; i++) {
     const s = scenes[i];
     const from = line[s.fromIdx].id;
     const to = line[s.toIdx].id;
     const count = s.toIdx - s.fromIdx + 1;
-    // label: the sensor's label of the first message, else the place; place: of the last snapshot in the scene
+    // label: the first sensor label in the scene (a greeting has no snapshot), else the place;
+    // place: of the last snapshot in the scene
     let label = "";
     let firstPlace = "";
     let lastPlace = null;
-    const first = snapOf(dash, line[s.fromIdx]);
-    if (first && first.scene && str(first.scene.label)) label = cut(first.scene.label, 80);
     for (let j = s.fromIdx; j <= s.toIdx; j++) {
       const snap = snapOf(dash, line[j]);
+      if (!label && snap && snap.scene && str(snap.scene.label)) label = cut(snap.scene.label, 80);
       const p = snap ? placeOf(snap) : "";
       if (!p) continue;
       if (!firstPlace) firstPlace = p;
       lastPlace = p;
     }
     if (!label) label = firstPlace;
-    // closed: a later scene exists AND its last message index < line.length - recentMessages
-    const closed = i < scenes.length - 1 && s.toIdx < line.length - recent;
+    // closed: a later scene exists. A later scene shorter than minMessages would have merged
+    // into this one, so the boundary is settled. recentMessages only decides what the prompt
+    // keeps word for word; a chapter may be written while its messages are still recent.
+    const closed = i < scenes.length - 1;
     result.push({
       from,
       to,
@@ -486,16 +500,16 @@ export function pickWork(st, line, dash, cfg) {
     const hit = ranges.filter((x) => x.r.fromIdx <= scene.toIdx && x.r.toIdx >= scene.fromIdx);
     if (!hit.length) return { scene, replaces: null };
     const own = hit.filter((x) => x.ch.kind !== "merged");
-    if (!own.length) {
-      // only the old summary overlaps: cover what comes after it
-      const after = Math.max(...hit.map((x) => x.r.toIdx)) + 1;
-      if (after <= scene.toIdx && scene.toIdx - after + 1 >= minMessages) {
-        return { scene: { ...scene, from: line[after].id, fromIdx: after, count: scene.toIdx - after + 1, label: scene.label }, replaces: null };
-      }
-      continue;
+    if (own.length) {
+      const target = own.find((x) => x.ch.from === scene.from && x.ch.to === scene.to) || own[0];
+      if (target.ch.stale && !target.ch.edited) return { scene, replaces: target.ch.id };
     }
-    const target = own.find((x) => x.ch.from === scene.from && x.ch.to === scene.to) || own[0];
-    if (target.ch.stale && !target.ch.edited) return { scene, replaces: target.ch.id };
+    // the old summary, or a chapter written before the scene grew (a greeting that later
+    // joined it), ends mid-scene: cover what comes after it
+    const after = Math.max(...hit.map((x) => x.r.toIdx)) + 1;
+    if (after <= scene.toIdx && scene.toIdx - after + 1 >= minMessages) {
+      return { scene: { ...scene, from: line[after].id, fromIdx: after, count: scene.toIdx - after + 1, label: scene.label }, replaces: null };
+    }
   }
   return null;
 }
@@ -1444,7 +1458,7 @@ export function uiPanel(_ctx, host) {
         ...(custom.length ? { deleteUrl: "/litopys/config/prompts", deleteLabel: "Restore default prompts" } : {}),
         fields: [
           { key: "model", label: "Model", hint: "Empty = the chat's own model.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
-          { key: "recentMessages", label: "Recent messages", hint: "A scene is closed when it is older than this many newest messages.", kind: "number", value: cfg.recentMessages },
+          { key: "recentMessages", label: "Recent messages", hint: "Newest messages the prompt keeps word for word. A scene gets its chapter as soon as the next scene has begun.", kind: "number", value: cfg.recentMessages },
           { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
           { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
           { key: "pinLimit", label: "Pin limit", hint: "Not used by this shadow-mode version yet.", kind: "number", value: cfg.pinLimit },

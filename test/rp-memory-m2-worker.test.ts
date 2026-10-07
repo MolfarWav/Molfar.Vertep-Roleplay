@@ -47,7 +47,7 @@ describe("findScenes", () => {
     });
     const scenes = L.findScenes(line(msgs), dash, cfg);
     expect(scenes).toHaveLength(2);
-    expect(scenes[0]).toMatchObject({ from: "m1", to: "m9", count: 9, label: "Hall", place: "Hall", closed: false });
+    expect(scenes[0]).toMatchObject({ from: "m1", to: "m9", count: 9, label: "Hall", place: "Hall", closed: true });
     expect(scenes[1]).toMatchObject({ from: "m10", to: "m20", count: 11, label: "GARDEN", place: "GARDEN", closed: false, open: true });
   });
 
@@ -117,16 +117,53 @@ describe("findScenes", () => {
     expect(idx).toBe(70);
   });
 
-  it("closed is true only for scenes that end before the newest recentMessages", () => {
-    const msgs = story(70);
+  it("a scene is closed once a later scene has begun, even inside the recent messages", () => {
+    // 11 messages, recentMessages 20: the first scene is still closed (a live chat of the user's)
+    const msgs = story(11);
     const dash = dashWith({
-      m1: { place: "Hall", day: 1, time: "10:00" },
-      m40: { place: "Garden", day: 1, time: "12:00" },
+      m1: { place: "Glade", day: 1, time: "20:15" },
+      m7: { place: "Cottage", day: 1, time: "20:50" },
+    });
+    const scenes = L.findScenes(line(msgs), { ...dash }, { ...cfg, scene: { minMessages: 4, maxMessages: 40 } });
+    expect(scenes).toHaveLength(2);
+    expect(scenes[0]).toMatchObject({ from: "m1", to: "m6", closed: true, open: false });
+    expect(scenes[1]).toMatchObject({ from: "m7", to: "m11", closed: false, open: true });
+  });
+
+  it("a later scene still shorter than minMessages keeps the earlier one open", () => {
+    const msgs = story(12);
+    const dash = dashWith({
+      m1: { place: "Glade", day: 1, time: "20:15" },
+      m10: { place: "Cottage", day: 1, time: "20:50" },
+    });
+    const scenes = L.findScenes(line(msgs), dash, { ...cfg, scene: { minMessages: 4, maxMessages: 40 } });
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0]).toMatchObject({ from: "m1", to: "m12", closed: false, open: true });
+  });
+
+  it("a short first scene (a greeting) joins the next one", () => {
+    const msgs = story(20);
+    const dash = dashWith({
+      m1: { place: "Florin", day: 1, time: "10:00" },
+      m3: { place: "Council hall", day: 1, time: "10:05" },
+      m12: { place: "Garden", day: 1, time: "12:00" },
     });
     const scenes = L.findScenes(line(msgs), dash, cfg);
-    expect(scenes).toHaveLength(2);
-    expect(scenes[0]).toMatchObject({ from: "m1", to: "m39", closed: true, open: false });
-    expect(scenes[1]).toMatchObject({ from: "m40", to: "m70", closed: false, open: true });
+    expect(scenes.map((s) => [s.from, s.to])).toEqual([["m1", "m11"], ["m12", "m20"]]);
+  });
+
+  it("a reworded place is not a new scene; a different place is", () => {
+    expect(L.samePlace("тракт на восток от ворот замка", "Восточный тракт от ворот замка")).toBe(true);
+    expect(L.samePlace("Kitchen", "Kitchen, Alvrey's cottage")).toBe(true);
+    expect(L.samePlace("the tavern", "THE TAVERN")).toBe(true);
+    expect(L.samePlace("Alvrey's Secret Glade, Lumina Vale", "Alvrey's cottage")).toBe(false);
+    expect(L.samePlace("двор", "покои")).toBe(false);
+    const msgs = story(30);
+    const dash = dashWith({
+      m1: { place: "тракт на восток от ворот замка", day: 1, time: "10:00" },
+      m15: { place: "Восточный тракт от ворот замка", day: 1, time: "10:30" },
+    });
+    expect(L.findScenes(line(msgs), dash, cfg)).toHaveLength(1);
   });
 
   it("hidden messages are not in the line", () => {
@@ -135,6 +172,31 @@ describe("findScenes", () => {
     const scenes = L.findScenes(line(msgs), { snapshots: {} }, cfg);
     expect(line(msgs)).toHaveLength(19);
     expect(scenes[0]).toMatchObject({ count: 19 });
+  });
+});
+
+describe("pickWork", () => {
+  it("a chapter written before its scene grew is followed by one for the rest", () => {
+    const msgs = story(20);
+    const ln = line(msgs);
+    const dash = dashWith({
+      m1: { place: "Florin", day: 1, time: "10:00" },
+      m3: { place: "Council hall", day: 1, time: "10:05" },
+      m12: { place: "Garden", day: 1, time: "12:00" },
+    });
+    const st = L.emptyChat("c1");
+    st.chapters.push({ id: "c1", from: "m1", to: "m2", count: 2, sig: L.chapterSig(ln.slice(0, 2)), label: "Florin", text: "x", kind: "scene", at: 1 });
+    const work = L.pickWork(st, ln, dash, cfg);
+    expect(work).toMatchObject({ replaces: null, scene: { from: "m3", to: "m11", fromIdx: 2, count: 9 } });
+  });
+
+  it("a scene its own chapter covers needs no work", () => {
+    const msgs = story(20);
+    const ln = line(msgs);
+    const dash = dashWith({ m1: { place: "Hall", day: 1, time: "10:00" }, m12: { place: "Garden", day: 1, time: "12:00" } });
+    const st = L.emptyChat("c1");
+    st.chapters.push({ id: "c1", from: "m1", to: "m11", count: 11, sig: L.chapterSig(ln.slice(0, 11)), label: "Hall", text: "x", kind: "scene", at: 1 });
+    expect(L.pickWork(st, ln, dash, cfg)).toBeNull();
   });
 });
 

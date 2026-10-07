@@ -355,9 +355,9 @@ describe("Litopys 2.0 state", () => {
     it("creates the parent's file first if missing", () => {
       const plainId = "plain";
       const childId = "plainChild";
-      writeChat(plainId, story(50));
-      const childMsgs = story(50).slice(0, 40).concat(story(10, "n"));
-      writeChat(childId, childMsgs, { parentChatId: plainId, parentMessageId: "m40" });
+      writeChat(plainId, story(30));
+      const childMsgs = story(30).slice(0, 20).concat(story(10, "n"));
+      writeChat(childId, childMsgs, { parentChatId: plainId, parentMessageId: "m20" });
 
       const m = mockHost();
       const { requests } = tick(m, []);
