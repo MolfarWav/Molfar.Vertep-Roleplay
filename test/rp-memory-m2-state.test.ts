@@ -66,7 +66,7 @@ describe("Litopys 2.0 state", () => {
 
     const st = readJson(`litopys/chats/${chatId}.json`);
     expect(st.migrated).toBe(true);
-    expect(st.counters).toEqual({ chapter: 1, fact: 12, proposal: 0 });
+    expect(st.counters).toEqual({ chapter: 1, fact: 12, proposal: 0, arc: 0 });
 
     const facts = st.facts;
     expect(facts).toHaveLength(12);
@@ -328,7 +328,7 @@ describe("Litopys 2.0 state", () => {
       expect(child.facts.map((f: any) => f.id).sort()).toEqual(["f1", "f2", "f4"]);
       expect(child.facts.find((f: any) => f.id === "f2").status).toBe("active");
       expect(child.proposals).toHaveLength(0);
-      expect(child.counters).toEqual({ chapter: 3, fact: 5, proposal: 1 });
+      expect(child.counters).toEqual({ chapter: 3, fact: 5, proposal: 1, arc: 0 });
       expect(child.chapters.every((c: any) => !c.stale)).toBe(true);
 
       const childVectors = readJson(`litopys/vectors/${childId}.json`);

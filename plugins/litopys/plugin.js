@@ -140,7 +140,17 @@ export const DEFAULT_CONFIG = {
   pinLimit: 5,
   insert: true,
   budget: 800,
+  // M4d arcs: older chapters merged into one summary when they outgrow the budget
+  arcMode: "ask",
+  arcKeep: 4,
+  arcThreshold: 0,
+  arcSizeMin: 5,
+  arcSizeMax: 8,
+  arcWords: 150,
 };
+
+/** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
+export const ARC_MODES = ["ask", "auto", "off"];
 
 export const DEFAULT_PROMPTS = {
   chapter: [
@@ -164,7 +174,22 @@ export const DEFAULT_PROMPTS = {
     "",
     "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
   ].join("\n"),
+  arc: [
+    "You keep the story record of an ongoing roleplay. The Chapters below follow each other in the story. Merge them into one arc: what this stretch of the story changed, for a reader who will never see the chapters.",
+    "",
+    "- Past tense, third person, names not pronouns.",
+    "- State consequences, not a retelling: who won or lost, who is hurt, what was gained or lost, how people's feelings toward each other changed, what was decided or promised, who learned what, what is still open.",
+    "- When a later chapter undoes or settles something from an earlier one, keep only how it ended.",
+    "- Never invent; use only what the chapters say.",
+    "- label: 2-6 words naming this stretch of the story.",
+    "",
+    "Language: write the arc and its label in English, whatever language the chapters are in. Keep every name exactly as the chapters spell it, in its own script: never translate or transliterate a name.",
+    "",
+    "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
+  ].join("\n"),
 };
+
+export const ARC_SHAPE = '{"arc":{"label":"2-6 words","text":"the arc"}}';
 
 export const WORKER_SHAPE =
   '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
@@ -256,11 +281,30 @@ export function loadConfig(fsx) {
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, 4000);
+  cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
+  cfg.arcKeep = clamp(intOf(cfg.arcKeep, 4), 1, 50);
+  cfg.arcThreshold = arcThresholdValue(cfg.arcThreshold);
+  cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
+  cfg.arcSizeMax = Math.max(cfg.arcSizeMin, clamp(intOf(cfg.arcSizeMax, 8), 2, 30));
+  cfg.arcWords = clamp(intOf(cfg.arcWords, 150), 40, 400);
   return cfg;
 }
 
 /** A whole number from a value, or the fallback when it is not a number. */
-const intOf = (v, dflt) => (v !== "" && v !== null && Number.isFinite(Number(v)) ? Math.round(Number(v)) : dflt);
+function intOf(v, dflt) {
+  return v !== "" && v !== null && v !== undefined && Number.isFinite(Number(v)) ? Math.round(Number(v)) : dflt;
+}
+
+/** 0 = follow the budget (twice the insert budget), else 200..40000 tokens. */
+function arcThresholdValue(v) {
+  const n = intOf(v, 0);
+  return n <= 0 ? 0 : clamp(n, 200, 40000);
+}
+
+/** The tokens the older chapters may take before an arc is offered. */
+export function arcThresholdOf(cfg) {
+  return (cfg && cfg.arcThreshold) || 2 * clamp(cfg && cfg.budget, 200, 4000);
+}
 
 /** The PUT logic described in item 13. Writes the file, returns loadConfig(fsx). */
 export function patchConfig(fsx, body) {
@@ -274,6 +318,14 @@ export function patchConfig(fsx, body) {
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, 4000);
+  if (b.arcMode !== undefined) next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
+  if (b.arcKeep !== undefined) next.arcKeep = clamp(intOf(b.arcKeep, 4), 1, 50);
+  if (b.arcThreshold !== undefined) next.arcThreshold = arcThresholdValue(b.arcThreshold);
+  if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);
+  if (b.arcSizeMax !== undefined) next.arcSizeMax = clamp(intOf(b.arcSizeMax, 8), 2, 30);
+  if (b.arcWords !== undefined) next.arcWords = clamp(intOf(b.arcWords, 150), 40, 400);
+  // a max below the min follows the min
+  if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
   const sc = { ...(isObj(b.scene) ? b.scene : {}), ...(b.scene_minMessages !== undefined ? { minMessages: b.scene_minMessages } : {}), ...(b.scene_maxMessages !== undefined ? { maxMessages: b.scene_maxMessages } : {}) };
   if (sc.minMessages !== undefined) next.scene.minMessages = clamp(intOf(sc.minMessages, 6), 1, 40);
@@ -831,11 +883,14 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }
   const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
   const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
-  const beforeCut = arr(st.chapters).filter((ch) => {
-    const r = ranges.get(ch.id);
-    return isObj(ch) && !ch.stale && r && !r.orphan && r.toIdx < cut && str(ch.text);
-  });
-  if (!active.length && !beforeCut.length) return null;
+  const allBefore = chaptersBeforeCut(st, line, cut);
+  if (!active.length && !allBefore.length) return null;
+  // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
+  const beforeIds = new Set(allBefore.map((ch) => ch.id));
+  const arcs = freshArcs(st).filter((a) => a.chapterIds.every((id) => beforeIds.has(id)));
+  const held = new Set(arcs.flatMap((a) => a.chapterIds));
+  for (const a of arcs) ranges.set(a.id, { fromIdx: Math.min(...a.chapterIds.map((id) => ranges.get(id).fromIdx)), toIdx: Math.max(...a.chapterIds.map((id) => ranges.get(id).toIdx)) });
+  const beforeCut = allBefore.filter((ch) => !held.has(ch.id));
 
   // fill order: a) pinned facts of present characters or the world, b) change/trait of present
   // characters, c) the last chapter before the cut, d) other facts by relevance, e) other chapters
@@ -848,7 +903,7 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }
     return !!(r && !r.orphan && r.fromIdx >= cut);
   };
   const d = rankFacts(active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f)), scanText);
-  const e = rankChapters(beforeCut.filter((ch) => ch !== bridge), scanText).slice(0, 6);
+  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText).slice(0, 6);
 
   const header =
     "[Story record (Litopys): what happened before the messages below and what stays true. Background for the next reply: do not retell it, do not contradict it.]";
@@ -880,7 +935,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }
   for (const ch of e) if (!tryAdd(chapters, ch)) break;
   if (!facts.length && !chapters.length) return null;
   const text = render();
-  return { text, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length, cut };
+  const arcCount = chapters.filter((x) => arcs.includes(x)).length;
+  return { text, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcCount, arcs: arcCount, cut };
 }
 
 /** Insert one system message after the leading system block (ported from relations withInsert). */
@@ -919,7 +975,7 @@ export function llmRequest(ctx, host) {
     try {
       fsx.write(
         "litopys/insert/" + chatId + ".json",
-        JSON.stringify({ at: Date.now(), tokens: insert.tokens, facts: insert.facts, chapters: insert.chapters, cut: insert.cut }),
+        JSON.stringify({ at: Date.now(), tokens: insert.tokens, facts: insert.facts, chapters: insert.chapters, arcs: insert.arcs, cut: insert.cut }),
       );
     } catch {}
     return { messages: withInsert(req.messages, insert.text) };
@@ -1235,7 +1291,8 @@ export function emptyChat(chatId) {
     facts: [],
     proposals: [],
     scene: { openFrom: null },
-    counters: { chapter: 0, fact: 0, proposal: 0 },
+    arcs: [],
+    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0 },
   };
 }
 
@@ -1254,8 +1311,10 @@ export function loadChatFile(fsx, chatId) {
         chapter: Number(st.counters.chapter) || 0,
         fact: Number(st.counters.fact) || 0,
         proposal: Number(st.counters.proposal) || 0,
+        arc: Number(st.counters.arc) || 0,
       }
-    : { chapter: 0, fact: 0, proposal: 0 };
+    : { chapter: 0, fact: 0, proposal: 0, arc: 0 };
+  st.arcs = arr(st.arcs).filter(isObj);
   st.rev = Number(st.rev) || 0;
   st.activity = arr(st.activity);
   st.skipScenes = arr(st.skipScenes);
@@ -1865,6 +1924,12 @@ export function finishRebuild(st, now) {
   st.rebuiltAt = now;
   delete st.rebuild;
   delete st.cut;
+  // arcs were made of the old chapters: the new ones get offered afresh
+  st.arcs = [];
+  delete st.arcAsk;
+  delete st.arcFlight;
+  delete st.arcFail;
+  delete st.arcSnooze;
   const chapters = st.chapters.length;
   const kept = st.facts.filter((f) => f.status === "active").length;
   addActivity(st, "rebuild", "rebuild.finish", "Rebuilt: " + chapters + " chapters, " + kept + " facts", [], now, { chapters, facts: kept });
@@ -1976,6 +2041,7 @@ export function onTick(_ctx, host) {
         }
         if (markStale(st, line)) changed = true;
         if (gen !== st && markStale(gen, line)) changed = true;
+        if (tidyArcs(st, now)) changed = true;
         const scenes = findScenes(line, dash, cfg);
         const lastScene = scenes[scenes.length - 1];
         if (lastScene) {
@@ -2008,6 +2074,12 @@ export function onTick(_ctx, host) {
           finishRebuild(st, now);
           if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
           continue;
+        }
+        // M4d: with every scene chaptered, the worker merges arcs (one call per tick)
+        if (!work && arcStep(fsx, host, chatId, st, line, cfg, meta, now)) return;
+        if (!work && st.arcFlight) {
+          delete st.arcFlight;
+          changed = true;
         }
         if (!work) {
           if (changed) saveChatFile(fsx, st);
@@ -2094,6 +2166,400 @@ export function onTick(_ctx, host) {
       host.log("litopys onTick: " + (e && e.message ? e.message : String(e)));
     } catch {}
   }
+}
+
+// ---------- M4d: arcs, older chapters merged into one summary ----------
+// st.arcs: [{ id, chapterIds, from, to, label, text, sig, at, model?, stale? }], chapterIds in story
+// order. The insert takes an arc in place of its chapters while the arc is fresh: every member is
+// there, not stale and unchanged since the merge (arcSig). A changed member makes the arc stale,
+// and the worker merges it again once every member is fresh. st.arcAsk = the merge the user
+// asked for, st.arcFlight = the request out, st.arcFail = the last failure (waits RETRY_MS),
+// st.arcSnooze = "Not now" (the offer comes back when the older part grows by another threshold).
+
+/** An arc's signature: its member chapters as they are now (id, messages, text). */
+export function arcSig(chapters) {
+  return fnv1a(arr(chapters).map((ch) => ch.id + ":" + str(ch.sig) + ":" + str(ch.text)).join(String.fromCharCode(1)));
+}
+
+const usable = (ch) => isObj(ch) && (ch.stale !== true || ch.edited === true);
+
+/** The arc's member chapters that still exist, in story order. */
+function arcMembers(st, arc) {
+  const byId = new Map(st.chapters.map((ch) => [ch.id, ch]));
+  return arr(arc.chapterIds).map((id) => byId.get(id)).filter(Boolean);
+}
+
+/** Arcs the insert may use: all members there, fresh and unchanged since the merge. */
+export function freshArcs(st) {
+  return arr(st && st.arcs).filter((a) => {
+    if (!isObj(a) || a.stale === true || !str(a.text)) return false;
+    const members = arcMembers(st, a);
+    return members.length >= 2 && members.length === arr(a.chapterIds).length && members.every(usable) && arcSig(members) === a.sig;
+  });
+}
+
+/**
+ * Arcs whose chapters changed become stale; arcs left with fewer than two chapters, and a merge
+ * the user asked for whose chapters are gone, are dropped. True when anything changed.
+ */
+export function tidyArcs(st, now) {
+  let changed = false;
+  const fresh = new Set(freshArcs(st));
+  const kept = [];
+  for (const a of arr(st.arcs)) {
+    if (arcMembers(st, a).length < 2) {
+      addActivity(st, "worker", "arc.drop", "Dropped the arc " + quote(a.label || a.id) + ": its chapters are gone", [a.id], now, { label: str(a.label) });
+      changed = true;
+      continue;
+    }
+    if (!fresh.has(a) && a.stale !== true) {
+      a.stale = true;
+      changed = true;
+    }
+    kept.push(a);
+  }
+  st.arcs = kept;
+  if (isObj(st.arcAsk)) {
+    const ids = new Set(st.chapters.map((ch) => ch.id));
+    if (arr(st.arcAsk.chapterIds).filter((id) => ids.has(id)).length < 2) {
+      delete st.arcAsk;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/** The chapters before the cut the insert may draw from, in story order. */
+export function chaptersBeforeCut(st, line, cut) {
+  return arr(st.chapters)
+    .map((ch) => ({ ch, r: rangeOf(ch, line) }))
+    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && r.toIdx < cut && str(ch.text))
+    .sort((a, b) => a.r.fromIdx - b.r.fromIdx)
+    .map((x) => x.ch);
+}
+
+const itemLine = (x) => "- " + (str(x.label) ? str(x.label) + ": " : "") + str(x.text);
+
+/**
+ * Where the record stands on arcs: the older chapters (all before the cut but the newest arcKeep)
+ * and the tokens they take as the insert would carry them (a fresh arc once, in place of its
+ * chapters), the threshold, and the oldest run of arcSizeMin..arcSizeMax neighbouring older
+ * chapters no arc holds (run: chapters, or null). over: the older part is past the threshold.
+ */
+export function arcPlan(st, line, cfg) {
+  const cut = cutCount(st, line, cfg);
+  const before = chaptersBeforeCut(st, line, cut);
+  const older = before.slice(0, Math.max(0, before.length - cfg.arcKeep));
+  const fresh = freshArcs(st);
+  const freshOf = new Map();
+  for (const a of fresh) for (const id of a.chapterIds) freshOf.set(id, a);
+  const heldBy = new Set(arr(st.arcs).flatMap((a) => arr(a.chapterIds)));
+  let tokens = 0;
+  const counted = new Set();
+  for (const ch of older) {
+    const a = freshOf.get(ch.id);
+    if (!a) tokens += estimateTokens(itemLine(ch));
+    else if (!counted.has(a.id)) {
+      counted.add(a.id);
+      tokens += estimateTokens(itemLine(a));
+    }
+  }
+  // neighbours = next to each other in the record (a stale chapter between them breaks the run)
+  const order = new Map(st.chapters.map((ch, i) => [ch.id, i]));
+  let run = null;
+  let cur = [];
+  const close = () => {
+    if (!run && cur.length >= cfg.arcSizeMin) run = cur.slice(0, cfg.arcSizeMax);
+    cur = [];
+  };
+  for (const ch of older) {
+    if (heldBy.has(ch.id)) {
+      close();
+      continue;
+    }
+    const prev = cur[cur.length - 1];
+    if (prev && order.get(ch.id) !== order.get(prev.id) + 1) close();
+    cur.push(ch);
+  }
+  close();
+  const threshold = arcThresholdOf(cfg);
+  return { cut, older: older.length, tokens, threshold, over: tokens > threshold, run };
+}
+
+/** The tokens a run of chapters takes in the insert. */
+function runTokens(chapters) {
+  return chapters.reduce((n, ch) => n + estimateTokens(itemLine(ch)), 0);
+}
+
+/** "Not now" holds while the older part has grown by less than another threshold. */
+function snoozed(st, plan) {
+  return isObj(st.arcSnooze) && plan.tokens < (Number(st.arcSnooze.tokens) || 0) + plan.threshold;
+}
+
+/**
+ * The next arc for the worker, or null: a stale arc whose chapters are all fresh again first, then
+ * the merge the user asked for, then (auto) the plan's run. { replaces, chapters }. Nothing during
+ * a rebuild or while a failure waits.
+ */
+export function arcWork(st, line, cfg, now) {
+  if (isObj(st.rebuild)) return null;
+  if (isObj(st.arcFail) && Number(st.arcFail.retryAt) > now) return null;
+  const fresh = new Set(freshArcs(st));
+  for (const a of arr(st.arcs)) {
+    if (fresh.has(a)) continue;
+    const members = arcMembers(st, a);
+    if (members.length < 2 || !members.every(usable)) continue;
+    return { replaces: a.id, chapters: members };
+  }
+  if (cfg.arcMode === "off") return null;
+  if (isObj(st.arcAsk)) {
+    const ids = new Set(arr(st.arcAsk.chapterIds));
+    const chapters = st.chapters.filter((ch) => ids.has(ch.id));
+    // waits while one of its chapters is being rewritten
+    if (chapters.length >= 2 && chapters.every(usable)) return { replaces: null, chapters };
+    return null;
+  }
+  if (cfg.arcMode !== "auto") return null;
+  const plan = arcPlan(st, line, cfg);
+  return plan.over && plan.run ? { replaces: null, chapters: plan.run } : null;
+}
+
+/** The result key of an arc request: the same job gives the same key on every pass. */
+export function arcKey(chatId, job) {
+  return "lita_" + chatId + "_" + (job.replaces || "new") + "_" + fnv1a(job.chapters.map((ch) => ch.id).join(",") + "|" + arcSig(job.chapters));
+}
+
+export function buildArcRequest(job, cfg, meta) {
+  const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const parts = job.chapters.map((ch, i) => "Chapter " + (i + 1) + (str(ch.label) ? ": " + str(ch.label) : "") + "\n" + str(ch.text));
+  const systemPrompt =
+    (cfg.arc || DEFAULT_PROMPTS.arc) + "\n\nSize: the arc text must be at most " + cfg.arcWords + " words.\n\nOutput shape\n" + ARC_SHAPE;
+  const req = {
+    systemPrompt,
+    messages: [{ role: "user", content: "Chapters\n\n" + parts.join("\n\n") }],
+    presetParams: { temperature: 0.3, max_tokens: 1500 },
+  };
+  if (model) req.model = model;
+  // NEVER set a reasoning field (reasoning stays off)
+  return req;
+}
+
+/** The arc as asked ({arc:{label,text}}), or flat ({label,text}), or under "chapter". */
+function arcShape(v) {
+  if (!v) return null;
+  const o = isObj(v.arc) ? v.arc : isObj(v.chapter) ? v.chapter : v;
+  const text = str(o.text || o.summary || (typeof v.arc === "string" ? v.arc : ""));
+  if (!text) return null;
+  return { label: cut(str(o.label || o.title), 80), text: cut(text, 3000) };
+}
+
+export function parseArcReply(text) {
+  if (!text) return null;
+  let s = String(text).trim();
+  const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(s);
+  if (fence) s = fence[1].trim();
+  const fo = firstObject(s);
+  if (fo.body) {
+    const got = arcShape(parseObj(fo.body));
+    if (got) return got;
+  }
+  for (const cutStr of fo.cuts) {
+    const got = arcShape(parseObj(cutStr));
+    if (got) return got;
+  }
+  return null;
+}
+
+/** Saves the arc (in place of the one it replaces), or answers why not: an arc longer than its chapters saves nothing. */
+export function applyArc(st, job, parsed, ctx) {
+  const { now, model, line } = ctx;
+  const source = job.chapters.reduce((n, ch) => n + wordCount(ch.text), 0);
+  if (wordCount(parsed.text) > source) return "the arc came out longer than its chapters";
+  const first = job.chapters[0];
+  const last = job.chapters[job.chapters.length - 1];
+  const arc = {
+    id: job.replaces || "a" + ++st.counters.arc,
+    chapterIds: job.chapters.map((ch) => ch.id),
+    from: first.from,
+    to: last.to,
+    label: parsed.label || str(first.label),
+    text: parsed.text,
+    sig: arcSig(job.chapters),
+    at: now,
+  };
+  if (model) arc.model = model;
+  const at = job.replaces ? st.arcs.findIndex((a) => a.id === job.replaces) : -1;
+  if (at >= 0) st.arcs[at] = arc;
+  else st.arcs.push(arc);
+  const order = new Map(st.chapters.map((ch, i) => [ch.id, i]));
+  st.arcs.sort((a, b) => (order.get(a.chapterIds[0]) ?? Infinity) - (order.get(b.chapterIds[0]) ?? Infinity));
+  if (isObj(st.arcAsk) && !job.replaces) delete st.arcAsk;
+  delete st.arcSnooze;
+  delete st.arcFlight;
+  delete st.arcFail;
+  const r1 = rangeOf(first, line);
+  const r2 = rangeOf(last, line);
+  const data = { label: arc.label, chapters: arc.chapterIds.length, from: r1.orphan ? 0 : r1.fromIdx + 1, to: r2.orphan ? 0 : r2.toIdx + 1, rewrite: !!job.replaces };
+  const verb = job.replaces ? "Merged again" : "Merged";
+  addActivity(st, "worker", "arc.write", verb + " " + data.chapters + " chapters into the arc " + quote(arc.label || arc.id), [arc.id, ...arc.chapterIds], now, data);
+  return null;
+}
+
+export function failArc(st, message, now) {
+  const first = !isObj(st.arcFail);
+  st.arcFail = { error: cut(message, 200) || "arc failed", at: now, retryAt: now + RETRY_MS };
+  delete st.arcFlight;
+  if (first) addActivity(st, "worker", "arc.fail", "Merging an arc failed: " + str(message), [], now, { error: str(message) });
+}
+
+/**
+ * One tick's arc step for a chat with no chapter work (the chapters come first): apply an answer
+ * that came back, else send the next request. true = the tick is done (one call per tick).
+ */
+function arcStep(fsx, host, chatId, st, line, cfg, meta, now) {
+  const job = arcWork(st, line, cfg, now);
+  if (!job) return false;
+  const key = arcKey(chatId, job);
+  const results = host.llm && host.llm.results ? host.llm.results : {};
+  const reply = results[key];
+  if (reply) {
+    const parsed = reply && !reply.error && reply.text ? parseArcReply(reply.text) : null;
+    let cur = st;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let j = job;
+      if (attempt) {
+        cur = loadChatFile(fsx, chatId);
+        if (!cur) break;
+        j = arcWork(cur, line, cfg, now);
+        if (!j || arcKey(chatId, j) !== key) break;
+      }
+      const why = parsed ? applyArc(cur, j, parsed, { now, model: reply.model, line }) : reply && reply.error ? reply.error : "empty or invalid reply";
+      if (why) failArc(cur, why, now);
+      if (!saveChatFile(fsx, cur)) continue;
+      break;
+    }
+    beat(fsx, chatId, now);
+    return true;
+  }
+  const r1 = rangeOf(job.chapters[0], line);
+  const r2 = rangeOf(job.chapters[job.chapters.length - 1], line);
+  st.arcFlight = { key, chapters: job.chapters.length, fromNo: r1.orphan ? 0 : r1.fromIdx + 1, toNo: r2.orphan ? 0 : r2.toIdx + 1, since: now, rewrite: !!job.replaces };
+  if (!saveChatFile(fsx, st)) return true;
+  beat(fsx, chatId, now);
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildArcRequest(job, cfg, meta));
+  return true;
+}
+
+/** The view's arcs: each with its message numbers and whether the insert uses it. */
+function arcsView(st, line) {
+  if (!st) return [];
+  const fresh = new Set(freshArcs(st));
+  return arr(st.arcs).map((a) => {
+    const members = arcMembers(st, a);
+    const r1 = members.length ? rangeOf(members[0], line) : { orphan: true };
+    const r2 = members.length ? rangeOf(members[members.length - 1], line) : { orphan: true };
+    return {
+      id: str(a.id),
+      chapterIds: arr(a.chapterIds).map(str),
+      label: str(a.label),
+      text: str(a.text),
+      fromNo: r1.orphan ? 0 : r1.fromIdx + 1,
+      toNo: r2.orphan ? 0 : r2.toIdx + 1,
+      at: Number(a.at) || 0,
+      stale: !fresh.has(a),
+      ...(a.model ? { model: str(a.model) } : {}),
+    };
+  });
+}
+
+/** The Library's arc notice and the worker's arc line. */
+function arcStateView(st, line, cfg, now) {
+  const out = { mode: cfg.arcMode, keep: cfg.arcKeep, threshold: arcThresholdOf(cfg), tokens: 0, older: 0, suggested: null, queued: null, working: null, error: null, snoozed: false };
+  if (!st) return out;
+  const plan = arcPlan(st, line, cfg);
+  out.tokens = plan.tokens;
+  out.older = plan.older;
+  out.snoozed = snoozed(st, plan);
+  const numbers = (chapters) => {
+    const r1 = rangeOf(chapters[0], line);
+    const r2 = rangeOf(chapters[chapters.length - 1], line);
+    return { fromNo: r1.orphan ? 0 : r1.fromIdx + 1, toNo: r2.orphan ? 0 : r2.toIdx + 1 };
+  };
+  if (isObj(st.arcAsk)) {
+    const ids = new Set(arr(st.arcAsk.chapterIds));
+    const chapters = st.chapters.filter((ch) => ids.has(ch.id));
+    if (chapters.length) out.queued = { chapterIds: chapters.map((ch) => ch.id), chapters: chapters.length, ...numbers(chapters) };
+  }
+  if (isObj(st.arcFlight)) {
+    const f = st.arcFlight;
+    out.working = { chapters: Number(f.chapters) || 0, fromNo: Number(f.fromNo) || 0, toNo: Number(f.toNo) || 0, since: Number(f.since) || 0, rewrite: f.rewrite === true };
+  }
+  if (isObj(st.arcFail) && Number(st.arcFail.retryAt) > now) out.error = { error: str(st.arcFail.error), retryAt: Number(st.arcFail.retryAt) };
+  if (cfg.arcMode === "ask" && plan.over && plan.run && !out.snoozed && !out.queued && !out.working && !isObj(st.rebuild)) {
+    const run = plan.run;
+    out.suggested = { fromChapter: run[0].id, toChapter: run[run.length - 1].id, chapterIds: run.map((ch) => ch.id), chapters: run.length, tokens: runTokens(run), ...numbers(run) };
+  }
+  return out;
+}
+
+/** POST /litopys/arcs { chatId, op: merge (from, to: chapter ids) | cancel | snooze | rewrite (id) | delete (id) } */
+export function arcRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (!["merge", "cancel", "snooze", "rewrite", "delete"].includes(op)) return bad("unknown op");
+  const cfg = loadConfig(fsx);
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st, line) => {
+    const now = Date.now();
+    // a rebuild swaps in new chapters, and the arcs over the old ones go with them
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    if (op === "merge") {
+      if (cfg.arcMode === "off") return { status: 409, json: { error: "arcs are off" } };
+      if (isObj(st.arcAsk)) return { status: 409, json: { error: "a merge is already waiting" } };
+      const i = st.chapters.findIndex((ch) => ch.id === str(b.from));
+      const j = st.chapters.findIndex((ch) => ch.id === str(b.to));
+      if (i < 0 || j < 0) return { status: 404, json: { error: "no such chapter" } };
+      const chapters = st.chapters.slice(i, j + 1);
+      if (chapters.length < 2 || chapters.length > 30) return bad("an arc takes 2 to 30 chapters");
+      const cut = cutCount(st, line, cfg);
+      const before = new Set(chaptersBeforeCut(st, line, cut).map((ch) => ch.id));
+      if (!chapters.every((ch) => before.has(ch.id))) return { status: 409, json: { error: "only chapters before the cut merge" } };
+      const held = new Set(arr(st.arcs).flatMap((a) => arr(a.chapterIds)));
+      if (chapters.some((ch) => held.has(ch.id))) return { status: 409, json: { error: "a chapter is in an arc already" } };
+      st.arcAsk = { chapterIds: chapters.map((ch) => ch.id), at: now };
+      delete st.arcSnooze;
+      delete st.arcFail;
+      woke = true;
+      addActivity(st, "user", "arc.ask", "Asked to merge " + chapters.length + " chapters into an arc", st.arcAsk.chapterIds, now, { chapters: chapters.length });
+      return;
+    }
+    if (op === "cancel") {
+      if (!isObj(st.arcAsk)) return;
+      delete st.arcAsk;
+      st.arcSnooze = { tokens: arcPlan(st, line, cfg).tokens, at: now };
+      return;
+    }
+    if (op === "snooze") {
+      st.arcSnooze = { tokens: arcPlan(st, line, cfg).tokens, at: now };
+      return;
+    }
+    const arc = arr(st.arcs).find((a) => a.id === str(b.id));
+    if (!arc) return { status: 404, json: { error: "no such arc" } };
+    if (op === "rewrite") {
+      arc.stale = true;
+      delete st.arcFail;
+      woke = true;
+      addActivity(st, "user", "arc.rewrite", "Asked to merge the arc " + quote(arc.label || arc.id) + " again", [arc.id], now, { label: str(arc.label) });
+      return;
+    }
+    st.arcs = st.arcs.filter((a) => a !== arc);
+    // the same chapters would be offered again at once: wait for the older part to grow
+    st.arcSnooze = { tokens: arcPlan(st, line, cfg).tokens, at: now };
+    addActivity(st, "user", "arc.delete", "Deleted the arc " + quote(arc.label || arc.id) + "; its chapters stay", [arc.id], now, { label: str(arc.label) });
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
 }
 
 // ---------- M4a+: is the worker alive ----------
@@ -2704,6 +3170,9 @@ export function chatView(fsx, chatId) {
     skipped: st ? skipRanges(st, line).map((x) => ({ fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
     pinLimit: cfg.pinLimit,
     rev: st ? st.rev : 0,
+    // M4d: arcs over older chapters, and the merge offer / the merge in progress
+    arcs: arcsView(st, line),
+    arcState: arcStateView(st, line, cfg, Date.now()),
     ...chatViewExtras(fsx, chatId, st, line),
   };
 }
@@ -2754,6 +3223,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
+  if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
     const cfg = resetPrompts(fsx);
@@ -2791,7 +3261,14 @@ export function uiPanel(_ctx, host) {
           { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
           { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
           { key: "pinLimit", label: "Pin limit", hint: "The most pinned facts per character (and for the world). Only you pin; Litopys may propose a pin.", kind: "number", value: cfg.pinLimit },
+          { key: "arcMode", label: "Arcs", hint: "When the older chapters outgrow the threshold, neighbouring chapters can merge into one arc. ask = the Library offers it, auto = Litopys merges by itself, off = no new arcs.", kind: "select", list: ARC_MODES, value: cfg.arcMode },
+          { key: "arcKeep", label: "Newest chapters kept whole", hint: "Chapters before the cut that never merge into an arc. Default 4.", kind: "number", value: cfg.arcKeep },
+          { key: "arcThreshold", label: "Arc threshold, tokens", hint: "How much the older chapters may take before a merge is offered. 0 = twice the insert budget (now " + arcThresholdOf(cfg) + ").", kind: "number", value: cfg.arcThreshold },
+          { key: "arcSizeMin", label: "Chapters per arc, at least", hint: "Default 5.", kind: "number", value: cfg.arcSizeMin },
+          { key: "arcSizeMax", label: "Chapters per arc, at most", hint: "Default 8.", kind: "number", value: cfg.arcSizeMax },
+          { key: "arcWords", label: "Arc length, words", hint: "At most this many words per arc. Default 150.", kind: "number", value: cfg.arcWords },
           { key: "chapter", label: "Chapter prompt", hint: custom.includes("chapter") ? "Changed from the default." : "This is the default.", kind: "textarea", rows: 10, advanced: true, value: cfg.chapter },
+          { key: "arc", label: "Arc prompt", hint: custom.includes("arc") ? "Changed from the default." : "This is the default.", kind: "textarea", rows: 10, advanced: true, value: cfg.arc },
         ],
       },
     ],
