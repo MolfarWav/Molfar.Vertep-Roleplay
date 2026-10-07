@@ -948,7 +948,7 @@ describe("config", () => {
     expect(item.deleteUrl).toBeUndefined();
     const field = (it: any, key: string) => it.fields.find((f: any) => f.key === key);
     const partKeys = P.SENSOR_PARTS.map((x: any) => "sensorPart_" + x.key);
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul", "nudge", "fast"]);
+    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "noteAgeTurns", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul", "nudge", "fast"]);
     expect(item.fields[0].kind).toBe("model");
     expect(field(item, "autoSoul")).toMatchObject({ kind: "select", list: ["on", "off"], value: "on" });
     expect(field(item, "sensorPart_role")).toMatchObject({ kind: "textarea", advanced: true, value: P.DEFAULT_SENSOR_PARTS.role });
@@ -4483,5 +4483,18 @@ describe("scene boundary and note weight (memory M2)", () => {
     const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-2)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
+  });
+});
+
+describe("notes age out of the insert (memory M3)", () => {
+  it("freshNotes keeps young and pinned notes, drops old ones; noteAgeTurns is a clamped setting", () => {
+    const nb = { Aria: [
+      { id: "n1", text: "old", turn: 1 },
+      { id: "n2", text: "old but pinned", turn: 1, tag: "pinned" },
+      { id: "n3", text: "young", turn: 35 },
+      { id: "u1", text: "user note without a turn", turn: null },
+    ] };
+    expect(P.freshNotes(nb, 40, 30).Aria.map((n: any) => n.id)).toEqual(["n2", "n3", "u1"]);
+    expect(P.freshNotes(nb, 40, 50).Aria.map((n: any) => n.id)).toEqual(["n1", "n2", "n3", "u1"]);
   });
 });

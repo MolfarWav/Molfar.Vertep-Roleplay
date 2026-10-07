@@ -1668,6 +1668,8 @@ const DEFAULT_CONFIG = {
   // open threads at most (the user's own count too); and: every N turns the sensor is asked about old threads (0 = never)
   maxThreads: 3,
   threadCheckEvery: 5,
+  // notes older than this many turns leave the insert (pinned ones stay); Litopys keeps the important ones as facts
+  noteAgeTurns: 30,
   // only the parts of the sensor prompt the user changed: { key: text }
   sensorParts: {},
   mode: "sensor",
@@ -1726,6 +1728,10 @@ export const promptOf = (key, cfg) => {
   return cfg && typeof cfg[key] === "string" && !isDefaultPrompt(key, cfg[key]) ? cfg[key] : DEFAULT_PROMPTS[key];
 };
 
+const noteAgeOf = (cfg) => {
+  const n = num(cfg && cfg.noteAgeTurns);
+  return Number.isFinite(n) ? clamp(Math.round(n), 5, 500) : DEFAULT_CONFIG.noteAgeTurns;
+};
 const maxThreadsOf = (cfg) => {
   const n = num(cfg && cfg.maxThreads);
   return Number.isFinite(n) ? clamp(Math.round(n), 1, 6) : DEFAULT_CONFIG.maxThreads;
@@ -1753,6 +1759,7 @@ function nextConfig(stored, b) {
   if (b.sensorModel !== undefined) put("sensorModel", typeof b.sensorModel === "string" ? b.sensorModel.trim().slice(0, 160) : "", DEFAULT_CONFIG.sensorModel);
   if (Number.isFinite(num(b.sensorMaxTokens))) put("sensorMaxTokens", maxTokensOf(b), DEFAULT_CONFIG.sensorMaxTokens);
   if (Number.isFinite(num(b.maxThreads))) put("maxThreads", maxThreadsOf(b), DEFAULT_CONFIG.maxThreads);
+  if (Number.isFinite(num(b.noteAgeTurns))) put("noteAgeTurns", noteAgeOf(b), DEFAULT_CONFIG.noteAgeTurns);
   if (Number.isFinite(num(b.threadCheckEvery))) put("threadCheckEvery", threadCheckOf(b), DEFAULT_CONFIG.threadCheckEvery);
   if (isObj(b.sensorParts)) {
     const sp = { ...(isObj(next.sensorParts) ? next.sensorParts : {}) };
@@ -2926,6 +2933,17 @@ function sceneLine(snap, user) {
   return "[Background, the scene: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...arr(snap.present)].join(", ") + ".]";
 }
 
+/** Notes young enough for the insert: older ones are Litopys's now (pinned ones always stay). */
+export function freshNotes(notebook, turn, age) {
+  const now = Number(turn);
+  if (!Number.isFinite(now)) return notebook;
+  const out = {};
+  for (const [name, list] of Object.entries(notebook || {})) {
+    out[name] = arr(list).filter((n) => n.tag === "pinned" || !Number.isFinite(Number(n.turn)) || n.turn === null || now - Number(n.turn) < age);
+  }
+  return out;
+}
+
 /** The full block of one character. withNotes = false when it would leak. */
 /** A character's notes for this scene: pinned always, then the ones the scene is about, then the important and recent ones. */
 function pickNotes(list, limit, sceneText) {
@@ -3006,7 +3024,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     snap,
     souls,
     user: userNameOf(fsx, chat.meta),
-    notebook: effectiveNotebook(state, at.keys, overlay).live,
+    notebook: freshNotes(effectiveNotebook(state, at.keys, overlay).live, snap.turn, noteAgeOf(cfg)),
     names: activeNames(state, at.keys),
     // the notes follow the scene: the user's message, the newest messages, who is here
     sceneText: [str(turn.userText), typeof turn.recent === "string" ? turn.recent : line.slice(-3).map((m) => str(m.text)).join("\n"), ...present].join("\n"),
@@ -3614,6 +3632,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     insert,
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
     maxThreads: maxThreadsOf(cfg),
+    noteAgeTurns: noteAgeOf(cfg),
     mode: cfg.mode,
     // reading only: an expired file is removed by the hook, not here
     nudge: readNudge(fsx, chatId),
@@ -3930,6 +3949,7 @@ export function uiPanel(_ctx, host) {
           { key: "sensorModel", label: "Sensor model", hint: "Empty = the chat's own model. A cheap, fast model is enough: it only reports what happened, as JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.sensorModel || "" },
           { key: "sensorMaxTokens", label: "Sensor reply limit, tokens", hint: "The most the sensor (and the soul rating) may write per call. A higher limit allows longer replies, which are slower and cost more; if replies are cut off, raise it. 1000 to 8000, default 3000.", kind: "number", value: cfg.sensorMaxTokens },
           { key: "maxThreads", label: "Open threads at most", hint: "How many open threads the story may carry, yours included. 1 to 6, default 3.", kind: "number", value: cfg.maxThreads },
+          { key: "noteAgeTurns", label: "Notes leave the insert after, turns", hint: "Older notes stay in the notebook but leave the dashboard insert; Litopys keeps the important and key ones as facts. Pinned notes always stay. 5 to 500, default 30.", kind: "number", value: noteAgeOf(cfg) },
           { key: "threadCheckEvery", label: "Check old threads every N turns", hint: "Every N turns the sensor is asked whether threads open that long are settled, dropped or still open. 0 = never. Default 5.", kind: "number", value: cfg.threadCheckEvery },
           { key: "mode", label: "Mode", hint: "sensor: a separate call reads each reply. fast: for strong models, the story reply itself ends with the report, so there is no separate call (adds about " + fastTokens(cfg, fsx ? loadVocab(fsx) : DEFAULT_VOCAB) + " tokens to every reply); when the reply leaves it out, the sensor runs. manual: no automatic updates.", kind: "select", list: ["sensor", "fast", "manual"], value: cfg.mode },
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
