@@ -324,7 +324,7 @@ it("moveNotes turns aged important dashboard notes into facts", () => {
   expect(st3.facts[0].text).toBe("Aria distrusts Bram.");
 });
 
-it("rebuild drops chapters and chapter/migrated facts, keeps user and dashboard facts", () => {
+it("rebuild builds a new generation beside the record in use and swaps it in when done", () => {
   writeChat("c1", story(70), { updatedAt: Date.now() });
   writeJson("litopys/chats/c1.json", {
     v: 2,
@@ -352,15 +352,26 @@ it("rebuild drops chapters and chapter/migrated facts, keeps user and dashboard 
   expect(res.status).toBe(200);
   expect(res.json).toEqual({ scenes: 1 });
 
-  const st = readJson("litopys/chats/c1.json");
-  expect(st.chapters).toHaveLength(0);
+  // the record in use is untouched while the new generation is built
+  let st = readJson("litopys/chats/c1.json");
+  expect(st.chapters).toHaveLength(1);
+  expect(st.facts).toHaveLength(4);
+  expect(st.rebuild.chapters).toHaveLength(0);
+  expect(st.rebuild.facts.map((f: any) => f.text).sort()).toEqual(["Dashboard fact.", "User fact."]);
+  expect(L.chatView(mockHost().host.fs, "c1").rebuilding).toMatchObject({ chapters: 0 });
+
+  // the worker writes into the new generation (key litr_) and swaps when every closed scene is covered
+  const m = mockHost();
+  const { requests } = tick(m, [chapterReply("Mill", "Aria found tracks by the mill.", [{ op: "add", text: "Bram fears the river.", subject: "Bram", knownBy: "all", type: "trait", weight: "important" }])]);
+  expect(requests[0].key.startsWith("litr_c1_")).toBe(true);
+  tick(m, []);
+  st = readJson("litopys/chats/c1.json");
+  expect(st.rebuild).toBeUndefined();
+  expect(st.chapters.map((c: any) => c.text)).toEqual(["Aria found tracks by the mill."]);
+  expect(st.facts.map((f: any) => f.text).sort()).toEqual(["Bram fears the river.", "Dashboard fact.", "User fact."]);
+  expect(new Set(st.facts.map((f: any) => f.id)).size).toBe(3);
   expect(st.proposals).toHaveLength(0);
-  expect(st.facts).toHaveLength(2);
-  expect(st.facts.map((f: any) => f.text).sort()).toEqual(["Dashboard fact.", "User fact."]);
   expect(st.fromNotes).toEqual(["n1"]);
-  expect(st.worker).toBeUndefined();
-  expect(st.cut).toBeUndefined();
-  expect(exists("litopys/insert/c1.json")).toBe(false);
 });
 
 it("chatView includes cut, lastInsert, rebuildScenes and worker.facts", () => {

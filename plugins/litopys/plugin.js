@@ -1731,22 +1731,51 @@ export function moveNotes(fsx, chatId, st, dash, line, userName, now) {
   return n;
 }
 
-/** Start over from the messages: chapters and the facts written from them go, the user's and the dashboard's stay. */
+/** The new generation replaces the record: its chapters and facts, plus user and dashboard facts added meanwhile. */
+export function finishRebuild(st, now) {
+  const g = st.rebuild;
+  if (!isObj(g)) return false;
+  const facts = arr(g.facts);
+  const ids = new Set(facts.map((f) => f.id));
+  for (const f of arr(st.facts)) {
+    if (f.origin !== "user" && f.origin !== "dashboard") continue;
+    if (facts.some((x) => x.text === f.text && x.subject === f.subject)) continue;
+    const copy = { ...f };
+    if (ids.has(copy.id)) {
+      g.counters.fact += 1;
+      copy.id = "f" + g.counters.fact;
+    }
+    ids.add(copy.id);
+    facts.push(copy);
+  }
+  st.chapters = arr(g.chapters);
+  st.facts = facts;
+  st.proposals = arr(g.proposals);
+  st.counters = { ...st.counters, chapter: g.counters.chapter, fact: Math.max(g.counters.fact, st.counters.fact), proposal: Math.max(g.counters.proposal, st.counters.proposal) };
+  st.worker = isObj(g.worker) ? g.worker : st.worker;
+  st.rebuiltAt = now;
+  delete st.rebuild;
+  delete st.cut;
+  return true;
+}
+
+/** Start over from the messages, as a new generation beside the record in use: chapters and the facts written
+ *  from them are rewritten, the user's and the dashboard's facts stay. The old record rides the prompt until
+ *  the new one is done (finishRebuild), so the insert never goes empty. */
 export function rebuildChat(fsx, chatId, cfg) {
   if (!SAFE_ID.test(chatId)) return null;
   const rc = readChat(fsx, chatId);
   const st = loadChatFile(fsx, chatId);
   if (!rc || !st) return null;
-  st.chapters = [];
-  st.facts = st.facts.filter((f) => f.origin === "user" || f.origin === "dashboard");
-  st.proposals = [];
-  delete st.worker;
-  delete st.cut;
-  st.counters.chapter = 0;
+  // the record in use keeps riding the prompt until the new one covers every closed scene
+  st.rebuild = {
+    startedAt: Date.now(),
+    chapters: [],
+    facts: st.facts.filter((f) => f.status === "active" && (f.origin === "user" || f.origin === "dashboard")).map((f) => ({ ...f })),
+    proposals: [],
+    counters: { chapter: 0, fact: st.counters.fact, proposal: st.counters.proposal },
+  };
   saveChatFile(fsx, st);
-  try {
-    fsx.remove(INSERT_DIR + chatId + ".json");
-  } catch {}
   const line = activeLine(rc.msgs);
   return { scenes: findScenes(line, readDash(fsx, chatId), cfg).filter((s) => s.closed).length };
 }
@@ -1810,11 +1839,14 @@ export function onTick(_ctx, host) {
         let changed = ensured.changed;
         if (fixMigratedWeights(st)) changed = true;
         if (moveNotes(fsx, chatId, st, dash, line, str(meta.userName) || "You", now) > 0) changed = true;
-        if (st.worker && st.worker.retryAt && st.worker.retryAt > now) {
+        // a rebuild writes a new generation beside the record in use and swaps it in when done
+        const gen = isObj(st.rebuild) ? st.rebuild : st;
+        if (gen.worker && gen.worker.retryAt && gen.worker.retryAt > now) {
           if (changed) saveChatFile(fsx, st);
           continue;
         }
         if (markStale(st, line)) changed = true;
+        if (gen !== st && markStale(gen, line)) changed = true;
         const scenes = findScenes(line, dash, cfg);
         const lastScene = scenes[scenes.length - 1];
         if (lastScene) {
@@ -1832,16 +1864,21 @@ export function onTick(_ctx, host) {
           st.cut = { upTo, count: cut, at: now };
           changed = true;
         }
+        const work = pickWork(gen, line, dash, cfg);
+        if (!work && gen !== st) {
+          finishRebuild(st, now);
+          saveChatFile(fsx, st);
+          continue;
+        }
         if (changed) saveChatFile(fsx, st);
-        const work = pickWork(st, line, dash, cfg);
         if (!work) continue;
-        const key = "lit_" + chatId + "_" + work.scene.from + "_" + work.scene.to;
+        const key = (gen !== st ? "litr_" : "lit_") + chatId + "_" + work.scene.from + "_" + work.scene.to;
         if (host.llm && host.llm.results && host.llm.results[key]) {
           const reply = host.llm.results[key];
           if (reply && !reply.error && reply.text) {
             const parsed = parseWorkerReply(reply.text);
             if (parsed) {
-              const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text, sources: sourceSentences(fsx, meta) });
+              const chapter = applyWorkerResult(gen, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text, sources: sourceSentences(fsx, meta) });
               saveChatFile(fsx, st);
               if (chapter && embedAllowed(fsx) && typeof host.llm.embed === "function") {
                 const needed = needVectors(fsx, st);
@@ -1850,11 +1887,11 @@ export function onTick(_ctx, host) {
               return;
             }
           }
-          failWorker(st, work, reply && reply.error ? reply.error : "empty or invalid reply", { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs, reply: reply && reply.text });
+          failWorker(gen, work, reply && reply.error ? reply.error : "empty or invalid reply", { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs, reply: reply && reply.text });
           saveChatFile(fsx, st);
           return;
         }
-        const req = buildWorkerRequest(st, work, line, dash, cfg, meta);
+        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta);
         if (host.llm && typeof host.llm.request === "function") host.llm.request(key, req);
         return;
       } catch (e) {
@@ -1988,6 +2025,8 @@ function chatViewExtras(fsx, chatId, st, line) {
     cut: { count, upTo: count > 0 ? line[count - 1].id : null },
     lastInsert: isObj(lastInsert) ? lastInsert : null,
     rebuildScenes: findScenes(line, readDash(fsx, chatId), cfg).filter((x) => x.closed).length,
+    // a rebuild in progress: chapters the new generation has so far, and when it began
+    rebuilding: st && isObj(st.rebuild) ? { chapters: arr(st.rebuild.chapters).length, startedAt: Number(st.rebuild.startedAt) || 0 } : null,
   };
 }
 
