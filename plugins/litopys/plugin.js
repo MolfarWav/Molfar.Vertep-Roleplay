@@ -2177,6 +2177,7 @@ function expireProposals(st, factId, now) {
 export function factRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
+  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete"].includes(op)) return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
@@ -2289,6 +2290,7 @@ export function factRoute(fsx, body) {
 export function chapterRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
+  if (!["edit", "rewrite", "delete"].includes(op)) return bad("unknown op");
   const chatId = str(b.chatId);
   let woke = false;
   const res = mutateChat(fsx, chatId, (st, line) => {
@@ -2346,6 +2348,7 @@ export function chapterRoute(fsx, body) {
 export function proposalRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
+  if (op !== "accept" && op !== "reject") return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
