@@ -691,3 +691,36 @@ h1 {
     transition: none;
   }
 }
+
+/* the Library's headings: the same cross-stitch band as the chat's scene headings (two theme-coloured
+   masks), set beside the heading; the URLs come from --stitch-a-url / --stitch-b-url on an ancestor */
+.lib-band {
+  position: relative;
+  flex: 1;
+  min-width: 24px;
+  height: 10px;
+  opacity: 0.75;
+}
+.lib-band::before,
+.lib-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: auto 100%;
+  mask-size: auto 100%;
+  -webkit-mask-position: left center;
+  mask-position: left center;
+}
+.lib-band::before {
+  background: var(--cta);
+  -webkit-mask-image: var(--stitch-a-url);
+  mask-image: var(--stitch-a-url);
+}
+.lib-band::after {
+  background: var(--foreground);
+  opacity: 0.45;
+  -webkit-mask-image: var(--stitch-b-url);
+  mask-image: var(--stitch-b-url);
+}

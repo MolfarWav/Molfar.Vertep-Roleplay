@@ -2519,6 +2519,8 @@ export function listChatsView(fsx) {
       id,
       title: str(meta.title) || id,
       name: chatSubject(fsx, meta),
+      // M4c: the map of chats draws forks as lines
+      parentChatId: SAFE_ID.test(str(meta.parentChatId)) ? str(meta.parentChatId) : null,
       updatedAt: Number(meta.updatedAt) || 0,
       hasData: !!st,
       chapters: st ? st.chapters.length : 0,

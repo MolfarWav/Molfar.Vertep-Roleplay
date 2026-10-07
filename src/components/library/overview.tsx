@@ -3,10 +3,9 @@ import { type TabProps, useFactControls } from './ledger-facts'
 import { ProposalsTab } from './ledger-proposals'
 import { CastCards } from './overview-cast'
 import { Timeline } from './overview-timeline'
+import { StitchHeading } from './stitch'
 
-function Heading({ children }: { children: React.ReactNode }) {
-  return <h3 className="font-heading text-base">{children}</h3>
-}
+const Heading = StitchHeading
 
 /**
  * The Overview of one chat (M4c): the chapter timeline on the left, the proposals and the

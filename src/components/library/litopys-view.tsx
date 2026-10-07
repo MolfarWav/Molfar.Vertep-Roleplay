@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowsClockwise, Scroll } from '@phosphor-icons/react'
+import { ArrowsClockwise, Graph, Scroll } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MasterDetail } from '@/components/shell/master-detail'
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
 import { LedgerChat } from './ledger'
 import { WorkerDot } from './worker-dot'
+import { ChatsMap } from './chats-map'
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -25,6 +26,8 @@ export function LitopysView() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [tick, setTick] = useState(0)
   const [mode, setModeState] = useState<Mode>(readMode)
+  // the map of chats takes the detail pane until a chat is picked on it
+  const [showMap, setShowMap] = useState(false)
   const setMode = (m: Mode) => {
     setModeState(m)
     try {
@@ -61,6 +64,11 @@ export function LitopysView() {
   const refresh = useCallback(() => setTick((n) => n + 1), [])
   const select = (id: string) => {
     setSelectedId(id)
+    setShowMap(false)
+    setDetailOpen(true)
+  }
+  const openMap = () => {
+    setShowMap(true)
     setDetailOpen(true)
   }
   // an edit in the Ledger shows in the chat list at once, not at the next poll
@@ -85,13 +93,17 @@ export function LitopysView() {
   return (
     <SectionPage section="litopys" count={withData} hideOnPhone={detailOpen && !!selectedId}>
       <MasterDetail
-        detailOpen={detailOpen && !!selectedId}
+        detailOpen={detailOpen && (!!selectedId || showMap)}
         onBack={() => setDetailOpen(false)}
-        detailTitle={current?.title}
+        detailTitle={showMap ? t('lit.map.title') : current?.title}
         masterWidth="w-72"
-        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} mode={mode} onMode={setMode} />}
+        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={openMap} mapOpen={showMap} />}
         detail={
-          selectedId ? (
+          showMap ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+              <ChatsMap items={items ?? []} selectedId={selectedId} onSelect={select} />
+            </div>
+          ) : selectedId ? (
             <LedgerChat chatId={selectedId} refreshKey={tick} onLoaded={syncItem} mode={mode} />
           ) : (
             <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
@@ -144,9 +156,13 @@ function ChatPicker({
   onRefresh,
   mode,
   onMode,
+  onMap,
+  mapOpen,
 }: {
   mode: Mode
   onMode: (m: Mode) => void
+  onMap: () => void
+  mapOpen: boolean
   items: LitChatItem[] | null
   error: string
   selectedId: string | null
@@ -159,7 +175,10 @@ function ChatPicker({
     <aside className="flex h-full min-h-0 flex-col" aria-label={t('lit.chat')}>
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <PaneTitle section="litopys" icon={<Scroll className="size-4 text-primary" aria-hidden="true" />} />
-        <Button variant="ghost" size="sm" className="ml-auto size-9 p-0 md:size-7" onClick={onRefresh} aria-label={t('lit.refresh')}>
+        <Button variant="ghost" size="sm" className={cn('ml-auto size-9 p-0 md:size-7', mapOpen && 'bg-accent')} onClick={onMap} aria-label={t('lit.map.open')} title={t('lit.map.open')} aria-pressed={mapOpen} data-testid="map-open">
+          <Graph className="size-4" aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" size="sm" className="size-9 p-0 md:size-7" onClick={onRefresh} aria-label={t('lit.refresh')}>
           <ArrowsClockwise className="size-4" aria-hidden="true" />
         </Button>
       </div>

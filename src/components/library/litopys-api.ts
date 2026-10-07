@@ -36,6 +36,8 @@ export interface LitChatItem {
   title: string
   /** The character's or the group's name; '' when unknown. */
   name: string
+  /** The chat this one was forked from (M4c map), null when it is not a fork. */
+  parentChatId: string | null
   updatedAt: number
   hasData: boolean
   chapters: number

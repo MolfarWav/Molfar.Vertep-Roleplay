@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { AvatarImg } from '@/components/dashboard/dash-common'
+import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -28,8 +30,21 @@ function sortFacts(facts: LitFact[]): LitFact[] {
   })
 }
 
+/** name → portrait: character cards and personas, matched by lower-cased name (the record keeps the story's spelling). */
+function usePortraits(): Map<string, string> {
+  const characters = useApp((s) => s.characters)
+  const personas = useApp((s) => s.personas)
+  return useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of personas) if (p.avatar) map.set(p.name.toLowerCase(), p.avatar)
+    for (const c of characters) if (c.avatar) map.set(c.name.toLowerCase(), c.avatar)
+    return map
+  }, [characters, personas])
+}
+
 export function CastCards({ chat, onChat, ctl }: CastProps) {
   const t = useT()
+  const portraits = usePortraits()
   
   const activeFacts = useMemo(
     () => chat.facts.filter((f) => f.status === 'active'),
@@ -93,6 +108,7 @@ export function CastCards({ chat, onChat, ctl }: CastProps) {
             chat={chat}
             ctl={ctl}
             isWorld={group.name.toLowerCase() === 'world'}
+            portrait={portraits.get(group.name.toLowerCase())}
           />
         ))}
       </div>
@@ -105,11 +121,13 @@ function CastCard({
   chat,
   ctl,
   isWorld,
+  portrait,
 }: {
   group: SubjectGroup
   chat: LitChat
   ctl: FactControls
   isWorld: boolean
+  portrait?: string
 }) {
   const t = useT()
   const pinned = group.facts.filter((f) => f.pinned)
@@ -128,7 +146,9 @@ function CastCard({
         isWorld && '@xl:col-span-2'
       )}
     >
-      <div className="mb-2">
+      <div className="mb-2 flex items-center gap-2.5">
+        {!isWorld && <AvatarImg name={group.name} url={portrait} className="size-9 rounded-md after:rounded-md" />}
+        <div className="min-w-0">
         <h3 className="font-heading text-base">{isWorld ? t('lit.ov.world') : group.name}</h3>
         <p
           className={cn(
@@ -144,6 +164,7 @@ function CastCard({
             limit: chat.pinLimit,
           })}
         </p>
+        </div>
       </div>
 
       <CastSection title={t('lit.ov.pinned')} facts={pinned} ctl={ctl} />
