@@ -628,7 +628,24 @@ export function sceneNames(scene, line, dash, meta) {
 }
 
 /** item 6: returns the request object for host.llm.request. */
-export function buildWorkerRequest(st, work, line, dash, cfg, meta) {
+/** M4d: words in a text (letters and digits between spaces), for the chapter size check. */
+export function wordCount(text) {
+  return String(text || "").split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+}
+
+/** The words of the messages a scene covers. */
+export function sceneWords(line, scene) {
+  let n = 0;
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) n += wordCount(line[i] && line[i].text);
+  return n;
+}
+
+/** M4d: a chapter longer than the messages it replaces saves nothing; retried once at a third of their words. */
+export function sizeLimit(line, scene) {
+  return Math.max(20, Math.ceil(sceneWords(line, scene) / 3));
+}
+
+export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
   const parts = [];
@@ -669,7 +686,9 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta) {
   parts.push("Scene messages\n" + msgLines.join("\n"));
 
   const userText = parts.join("\n\n");
-  const systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + "\n\nOutput shape\n" + WORKER_SHAPE;
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + "\n\nOutput shape\n" + WORKER_SHAPE;
+  // the first answer retold the scene at full length: ask again, shorter
+  if (opts.maxWords) systemPrompt += "\n\nSize: the chapter text must be at most " + opts.maxWords + " words, far shorter than the messages. Keep only the consequences.";
 
   const req = {
     systemPrompt,
@@ -1997,9 +2016,22 @@ export function onTick(_ctx, host) {
         }
         const keyOf = (s, g, w) => (g !== s ? "litr_" : "lit_") + chatId + "_" + w.scene.from + "_" + w.scene.to;
         const key = keyOf(st, gen, work);
-        if (host.llm && host.llm.results && host.llm.results[key]) {
-          const reply = host.llm.results[key];
+        const shortKey = key + "_short";
+        const results = host.llm && host.llm.results ? host.llm.results : {};
+        const replyKey = results[shortKey] ? shortKey : results[key] ? key : null;
+        if (replyKey) {
+          const reply = results[replyKey];
           const parsed = reply && !reply.error && reply.text ? parseWorkerReply(reply.text) : null;
+          // M4d size check: the first answer longer than its messages is asked again, once, shorter
+          if (parsed && replyKey === key && wordCount(parsed.chapter.text) > sceneWords(line, work.scene)) {
+            const maxWords = sizeLimit(line, work.scene);
+            gen.sizeRetry = { key, maxWords, words: wordCount(parsed.chapter.text) };
+            gen.inFlight = { key: shortKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
+            if (!saveChatFile(fsx, st)) return;
+            beat(fsx, chatId, now);
+            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords }));
+            return;
+          }
           // applied to the record as it is on disk; a save that lost a race is redone once
           let cur = st;
           for (let attempt = 0; attempt < 2; attempt++) {
@@ -2013,6 +2045,7 @@ export function onTick(_ctx, host) {
               if (!w || keyOf(cur, g, w) !== key) break;
             }
             delete g.inFlight;
+            delete g.sizeRetry;
             const by = g !== cur ? "rebuild" : "worker";
             if (parsed) {
               const before = new Set(g.facts.map((f) => f.id));
@@ -2040,12 +2073,15 @@ export function onTick(_ctx, host) {
           beat(fsx, chatId, now);
           return;
         }
+        // a size retry still owed for this scene (the engine stopped between the two calls) goes out as the short one
+        const retry = isObj(gen.sizeRetry) && gen.sizeRetry.key === key ? gen.sizeRetry : null;
+        const sendKey = retry ? shortKey : key;
         // M4a+: the request in flight, so the view can show the worker alive
-        gen.inFlight = { key, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
+        gen.inFlight = { key: sendKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
         if (!saveChatFile(fsx, st)) return;
         beat(fsx, chatId, now);
-        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta);
-        if (host.llm && typeof host.llm.request === "function") host.llm.request(key, req);
+        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, retry ? { maxWords: retry.maxWords } : {});
+        if (host.llm && typeof host.llm.request === "function") host.llm.request(sendKey, req);
         return;
       } catch (e) {
         try {

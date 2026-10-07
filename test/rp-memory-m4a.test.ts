@@ -561,3 +561,46 @@ describe("portraits", () => {
     expect(route(host, "POST", "/litopys/portraits", { name: "", url: png }).status).toBe(400);
   });
 });
+
+describe("chapter size check (M4d)", () => {
+  // m1..m8 closed (min 6 messages), m9.. open; story() lines are about 7 words each
+  const seed = () => {
+    writeChat("c1", story(16));
+    writeDash("c1", { m9: { scene: { new: true } } });
+    writeJson("litopys/chats/c1.json", { ...L.emptyChat("c1"), migrated: true });
+  };
+  const long = Array.from({ length: 30 }, (_, i) => `Aria walked the long road number ${i} and thought about the harvest.`).join(" ");
+
+  it("a chapter longer than its messages is asked again, once, shorter; the second answer is kept", () => {
+    seed();
+    const m = mockHost();
+    const ln = line(story(16));
+    const limit = L.sizeLimit(ln, { fromIdx: 0, toIdx: 7 });
+    const sent = tick(m, [chapterReply("Road", long), chapterReply("Road", "Aria and You talked about the harvest.")]).requests;
+    expect(sent.map((x: any) => x.key)).toEqual(["lit_c1_m1_m8", "lit_c1_m1_m8_short"]);
+    expect(sent[1].req.systemPrompt).toContain(`at most ${limit} words`);
+    const st = readJson("litopys/chats/c1.json");
+    expect(st.chapters).toHaveLength(1);
+    expect(st.chapters[0].text).toBe("Aria and You talked about the harvest.");
+    expect(st.sizeRetry).toBeUndefined();
+    expect(st.inFlight).toBeUndefined();
+  });
+
+  it("a short chapter is kept at once", () => {
+    seed();
+    const sent = tick(mockHost(), [chapterReply("Talk", "Aria and You talked.")]).requests;
+    expect(sent).toHaveLength(1);
+    expect(readJson("litopys/chats/c1.json").chapters).toHaveLength(1);
+  });
+
+  it("the retry is kept even when still long", () => {
+    seed();
+    tick(mockHost(), [chapterReply("Road", long), chapterReply("Road", long)]);
+    expect(readJson("litopys/chats/c1.json").chapters).toHaveLength(1);
+  });
+
+  it("counts words, not spaces or punctuation", () => {
+    expect(L.wordCount("  Aria — went   home.  ")).toBe(3);
+    expect(L.sizeLimit(line(story(2)), { fromIdx: 0, toIdx: 1 })).toBe(20);
+  });
+});
