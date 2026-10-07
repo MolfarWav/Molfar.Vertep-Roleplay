@@ -1257,10 +1257,15 @@ export function saveChatFile(fsx, st) {
 }
 
 const ACTIVITY_KEEP = 100;
-/** M4a: one line of the Activity tab, newest last. by: user|worker|sweep|notes|rebuild. */
-export function addActivity(st, by, kind, text, ids, now) {
+/**
+ * M4a: one line of the Activity tab, newest last. by: user|worker|sweep|notes|rebuild. text is an
+ * English sentence (logs, Molfar); data holds the values the UI puts into its own words.
+ */
+export function addActivity(st, by, kind, text, ids, now, data) {
   st.activity = arr(st.activity);
-  st.activity.push({ at: now || Date.now(), by, kind, text: cut(text, 200), ids: arr(ids).map(str).filter(Boolean) });
+  const row = { at: now || Date.now(), by, kind, text: cut(text, 200), ids: arr(ids).map(str).filter(Boolean) };
+  if (isObj(data)) row.data = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, typeof v === "string" ? cut(v, 160) : v]));
+  st.activity.push(row);
   if (st.activity.length > ACTIVITY_KEEP) st.activity.splice(0, st.activity.length - ACTIVITY_KEEP);
 }
 
@@ -1671,7 +1676,7 @@ export function sweepMigrate(fsx, now, limit = 20) {
     if (!st || st.migrated !== true) st = ensureChat(fsx, chatId, rc.meta, activeLine(rc.msgs), 0).st;
     if (hasVault) {
       const n = importMemories(st, readJson(fsx, vault, []), now);
-      if (n) addActivity(st, "sweep", "import", n + " facts taken from the old Memory", [], now);
+      if (n) addActivity(st, "sweep", "import", n + " facts taken from the old Memory", [], now, { n });
       // the old vault goes only once its facts are safely in the record
       if (saveChatFile(fsx, st)) {
         try {
@@ -1805,7 +1810,7 @@ export function moveNotes(fsx, chatId, st, dash, line, userName, now) {
     });
     n++;
   }
-  if (n) addActivity(st, "notes", "notes.move", n + " dashboard notes became facts", st.facts.slice(-n).map((f) => f.id), now);
+  if (n) addActivity(st, "notes", "notes.move", n + " dashboard notes became facts", st.facts.slice(-n).map((f) => f.id), now, { n });
   return n;
 }
 
@@ -1841,7 +1846,9 @@ export function finishRebuild(st, now) {
   st.rebuiltAt = now;
   delete st.rebuild;
   delete st.cut;
-  addActivity(st, "rebuild", "rebuild.finish", "Rebuilt: " + st.chapters.length + " chapters, " + st.facts.filter((f) => f.status === "active").length + " facts", [], now);
+  const chapters = st.chapters.length;
+  const kept = st.facts.filter((f) => f.status === "active").length;
+  addActivity(st, "rebuild", "rebuild.finish", "Rebuilt: " + chapters + " chapters, " + kept + " facts", [], now, { chapters, facts: kept });
   return true;
 }
 
@@ -2015,7 +2022,7 @@ export function onTick(_ctx, host) {
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
               const span = "messages " + (w.scene.fromIdx + 1) + "-" + (w.scene.toIdx + 1);
               const verb = w.replaces ? "Rewrote" : "Wrote";
-              addActivity(cur, by, "chapter.write", verb + ' the chapter "' + (chapter.label || chapter.id) + '" (' + span + "): " + added.length + " facts, " + proposed + " proposals", [chapter.id, ...added], now);
+              addActivity(cur, by, "chapter.write", verb + ' the chapter "' + (chapter.label || chapter.id) + '" (' + span + "): " + added.length + " facts, " + proposed + " proposals", [chapter.id, ...added], now, { label: chapter.label || "", from: w.scene.fromIdx + 1, to: w.scene.toIdx + 1, facts: added.length, proposals: proposed, rewrite: !!w.replaces });
               if (!saveChatFile(fsx, cur)) continue;
               if (embedAllowed(fsx) && typeof host.llm.embed === "function") {
                 const needed = needVectors(fsx, cur);
@@ -2025,7 +2032,7 @@ export function onTick(_ctx, host) {
               const wasOk = !isObj(g.worker) || g.worker.ok !== false;
               const message = reply && reply.error ? reply.error : "empty or invalid reply";
               failWorker(g, w, message, { now, model: reply && reply.model, usage: reply && reply.usage, ms: reply && reply.genTimeMs, reply: reply && reply.text });
-              if (wasOk) addActivity(cur, by, "worker.fail", "The worker failed: " + str(message), [], now);
+              if (wasOk) addActivity(cur, by, "worker.fail", "The worker failed: " + str(message), [], now, { error: str(message) });
               if (!saveChatFile(fsx, cur)) continue;
             }
             break;
@@ -2212,7 +2219,7 @@ export function factRoute(fsx, body) {
         updatedAt: now,
       };
       st.facts.push(fact);
-      addActivity(st, "user", "fact.add", "Added a fact: " + quote(text), [fact.id], now);
+      addActivity(st, "user", "fact.add", "Added a fact: " + quote(text), [fact.id], now, { text });
       return;
     }
     const fact = st.facts.find((f) => f.id === str(b.id));
@@ -2250,21 +2257,21 @@ export function factRoute(fsx, body) {
       Object.assign(fact, next);
       fact.edited = true;
       fact.updatedAt = now;
-      addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now);
+      addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "pin") {
       if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
       const err = pinFact(st, fact, str(b.replace), cfg.pinLimit, now);
       if (err) return err;
-      addActivity(st, "user", "fact.pin", "Pinned: " + quote(fact.text), b.replace ? [fact.id, str(b.replace)] : [fact.id], now);
+      addActivity(st, "user", "fact.pin", "Pinned: " + quote(fact.text), b.replace ? [fact.id, str(b.replace)] : [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "unpin") {
       if (fact.pinned !== true) return;
       fact.pinned = false;
       fact.updatedAt = now;
-      addActivity(st, "user", "fact.unpin", "Unpinned: " + quote(fact.text), [fact.id], now);
+      addActivity(st, "user", "fact.unpin", "Unpinned: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "retire") {
@@ -2273,20 +2280,20 @@ export function factRoute(fsx, body) {
       fact.pinned = false;
       fact.updatedAt = now;
       expireProposals(st, fact.id, now);
-      addActivity(st, "user", "fact.retire", "Retired: " + quote(fact.text), [fact.id], now);
+      addActivity(st, "user", "fact.retire", "Retired: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "restore") {
       if (fact.status !== "retired") return { status: 409, json: { error: "not retired" } };
       fact.status = "active";
       fact.updatedAt = now;
-      addActivity(st, "user", "fact.restore", "Restored: " + quote(fact.text), [fact.id], now);
+      addActivity(st, "user", "fact.restore", "Restored: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "delete") {
       st.facts = st.facts.filter((f) => f !== fact);
       expireProposals(st, fact.id, now);
-      addActivity(st, "user", "fact.delete", "Deleted: " + quote(fact.text), [fact.id], now);
+      addActivity(st, "user", "fact.delete", "Deleted: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     return bad("unknown op");
@@ -2322,7 +2329,7 @@ export function chapterRoute(fsx, body) {
       const r = rangeOf(ch, line);
       if (!r.orphan && !r.partial) ch.sig = chapterSig(line.slice(r.fromIdx, r.toIdx + 1));
       delete ch.stale;
-      addActivity(st, "user", "chapter.edit", "Edited the chapter " + quote(ch.label || ch.id), [ch.id], now);
+      addActivity(st, "user", "chapter.edit", "Edited the chapter " + quote(ch.label || ch.id), [ch.id], now, { label: ch.label || "" });
       return;
     }
     if (op === "rewrite") {
@@ -2330,7 +2337,7 @@ export function chapterRoute(fsx, body) {
       ch.stale = true;
       ch.edited = false;
       woke = true;
-      addActivity(st, "user", "chapter.rewrite", "Asked to rewrite the chapter " + name, [ch.id], now);
+      addActivity(st, "user", "chapter.rewrite", "Asked to rewrite the chapter " + name, [ch.id], now, { label: ch.label || "" });
       return;
     }
     if (op === "delete") {
@@ -2340,7 +2347,7 @@ export function chapterRoute(fsx, body) {
         const r = rangeOf(ch, line);
         if (!r.orphan) st.skipScenes.push({ from: line[r.fromIdx].id, to: line[r.toIdx].id, count: r.toIdx - r.fromIdx + 1, at: now });
       } else woke = true;
-      addActivity(st, "user", "chapter.delete", "Deleted the chapter " + name + (keepGone ? " and kept its scene out of the record" : ""), [ch.id], now);
+      addActivity(st, "user", "chapter.delete", "Deleted the chapter " + name + (keepGone ? " and kept its scene out of the record" : ""), [ch.id], now, { label: ch.label || "", keepGone });
       return;
     }
     return bad("unknown op");
@@ -2363,7 +2370,7 @@ export function proposalRoute(fsx, body) {
     const what = str(p.op) + (p.text ? " " + quote(p.text) : "");
     if (op === "reject") {
       settle(p, "rejected", now);
-      addActivity(st, "user", "proposal.reject", "Rejected a proposal: " + what, [p.id, ...arr(p.targets)], now);
+      addActivity(st, "user", "proposal.reject", "Rejected a proposal: " + what, [p.id, ...arr(p.targets)], now, { op: str(p.op), text: str(p.text) });
       return;
     }
     if (op !== "accept") return bad("unknown op");
@@ -2423,7 +2430,7 @@ export function proposalRoute(fsx, body) {
       return bad("unknown proposal");
     }
     settle(p, "accepted", now);
-    addActivity(st, "user", "proposal.accept", "Accepted a proposal: " + what, ids, now);
+    addActivity(st, "user", "proposal.accept", "Accepted a proposal: " + what, ids, now, { op: str(p.op), text: str(p.text) });
   });
 }
 
