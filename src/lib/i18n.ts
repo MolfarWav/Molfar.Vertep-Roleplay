@@ -1357,9 +1357,14 @@ export function detectLanguage(nav: string | undefined = typeof navigator === 'u
   return (nav ?? '').toLowerCase().startsWith('uk') ? 'uk' : 'en'
 }
 
-/** The effective language for a stored setting value. */
+/** The effective language for a stored setting value. Settings from before 4.20 hold a
+ *  language name ("English", the old seed default): read it, do not fall back to the browser. */
 export function resolveLanguage(setting: unknown): Lang {
-  return setting === 'uk' || setting === 'en' ? setting : detectLanguage()
+  if (setting === 'uk' || setting === 'en') return setting
+  const name = typeof setting === 'string' ? setting.trim().toLowerCase() : ''
+  if (name.startsWith('english')) return 'en'
+  if (name.startsWith('ukrain') || name.startsWith('україн')) return 'uk'
+  return detectLanguage()
 }
 
 let current: Lang = detectLanguage()

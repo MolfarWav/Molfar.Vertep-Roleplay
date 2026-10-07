@@ -20,7 +20,9 @@ describe("i18n", () => {
   it("a stored setting wins; an unknown one (older builds wrote 'English') follows the browser", () => {
     expect(resolveLanguage("uk")).toBe("uk");
     expect(resolveLanguage("en")).toBe("en");
-    expect(["en", "uk"]).toContain(resolveLanguage("English"));
+    expect(resolveLanguage("English")).toBe("en");
+    expect(resolveLanguage("Ukrainian")).toBe("uk");
+    expect(resolveLanguage("Українська")).toBe("uk");
     expect(["en", "uk"]).toContain(resolveLanguage(undefined));
   });
 
