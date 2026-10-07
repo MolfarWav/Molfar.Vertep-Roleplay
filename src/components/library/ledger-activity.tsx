@@ -58,6 +58,15 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'notes.move': return t('lit.act.notesMove', { n })
     case 'rebuild.start': return t('lit.act.rebuildStart')
     case 'rebuild.finish': return t('lit.act.rebuildFinish', { chapters: num(d.chapters), facts })
+    case 'arc.ask': return t('lit.act.arcAsk', { n: num(d.chapters) })
+    case 'arc.write':
+      return d.rewrite === true
+        ? t('lit.act.arcWriteRewrite', { label })
+        : t('lit.act.arcWrite', { n: num(d.chapters), label, from, to })
+    case 'arc.rewrite': return t('lit.act.arcRewrite', { label })
+    case 'arc.delete': return t('lit.act.arcDelete', { label })
+    case 'arc.drop': return t('lit.act.arcDrop', { label })
+    case 'arc.fail': return t('lit.act.arcFail', { error })
     default: return a.text
   }
 }

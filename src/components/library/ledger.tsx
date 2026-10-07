@@ -4,6 +4,7 @@ import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { fetchLitChat, type LitChat } from './litopys-api'
 import { WorkerLine } from './worker-line'
+import { ArcNotice } from './arcs'
 import { FactsTab } from './ledger-facts'
 import { ChaptersTab } from './ledger-chapters'
 import { ProposalsTab } from './ledger-proposals'
@@ -134,6 +135,7 @@ export function LedgerChat({
         </div>
 
         <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />
+        <ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />
 
         {chat.cut.count > 0 && (
           <div className="text-xs text-muted-foreground">
@@ -147,6 +149,9 @@ export function LedgerChat({
               facts: chat.lastInsert.facts,
               chapters: chat.lastInsert.chapters,
             })}
+            {(chat.lastInsert.arcs ?? 0) > 0 && (
+              <span>{t('lit.arc.inInsert', { n: chat.lastInsert.arcs ?? 0 })}</span>
+            )}
           </div>
         )}
 

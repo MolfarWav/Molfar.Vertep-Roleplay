@@ -67,6 +67,55 @@ export interface LitChapter {
   edited: boolean
 }
 
+/** M4d: neighbouring older chapters merged into one summary. The insert takes a fresh arc in place of its chapters. */
+export interface LitArc {
+  id: string
+  /** member chapter ids, in story order */
+  chapterIds: string[]
+  label: string
+  text: string
+  /** 1-based message numbers from the first member's start to the last member's end; 0 = gone */
+  fromNo: number
+  toNo: number
+  at: number
+  /** a member changed since the merge: the insert uses the chapters until the worker merges it again */
+  stale: boolean
+  model?: string
+}
+
+/** 'ask': the Library offers a merge; 'auto': Litopys merges by itself; 'off': no new arcs. */
+export type LitArcMode = 'ask' | 'auto' | 'off'
+
+/** A run of chapters: ids and the 1-based message numbers it spans. */
+export interface LitArcRun {
+  chapterIds: string[]
+  chapters: number
+  fromNo: number
+  toNo: number
+}
+
+export interface LitArcState {
+  mode: LitArcMode
+  /** newest chapters before the cut kept whole */
+  keep: number
+  /** tokens the older chapters may take before a merge is offered */
+  threshold: number
+  /** tokens the older chapters take now (an arc counted once, in place of its chapters) */
+  tokens: number
+  /** how many chapters before the cut are "older" (all but the newest keep) */
+  older: number
+  /** mode ask, over the threshold, not snoozed, nothing queued: the notice offers this run */
+  suggested: (LitArcRun & { fromChapter: string; toChapter: string; tokens: number }) | null
+  /** the merge the user asked for, waiting for the worker */
+  queued: LitArcRun | null
+  /** the arc request in flight */
+  working: { chapters: number; fromNo: number; toNo: number; since: number; rewrite: boolean } | null
+  /** the last arc request failed; the worker tries again after retryAt */
+  error: { error: string; retryAt: number } | null
+  /** "Not now" holds until the older part grows by another threshold */
+  snoozed: boolean
+}
+
 /** A scene the user deleted and kept out of the record (1-based message numbers). */
 export interface LitSkipped {
   fromNo: number
@@ -122,13 +171,16 @@ export type LitActivityKind =
   | 'chapter.edit' | 'chapter.rewrite' | 'chapter.delete' | 'chapter.write'
   | 'proposal.accept' | 'proposal.reject'
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
+  | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
 
 /**
  * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
  * data holds the values for the UI's own words, by kind:
  * fact.*: { text } · chapter.edit / chapter.rewrite: { label } · chapter.delete: { label, keepGone } ·
  * chapter.write: { label, from, to, facts, proposals, rewrite } · proposal.*: { op, text } ·
- * worker.fail: { error } · import / notes.move: { n } · rebuild.finish: { chapters, facts } · rebuild.start: none.
+ * worker.fail: { error } · import / notes.move: { n } · rebuild.finish: { chapters, facts } · rebuild.start: none ·
+ * arc.ask: { chapters } · arc.write: { label, chapters, from, to, rewrite } · arc.rewrite / arc.delete / arc.drop: { label } ·
+ * arc.fail: { error }.
  */
 export interface LitActivity {
   at: number
@@ -155,7 +207,8 @@ export interface LitChat {
   sceneFromNo: number
   worker: LitWorker & { facts?: { got: number; added: number; skipped: number } } | null
   cut: { count: number; upTo: string | null }
-  lastInsert: { at: number; tokens: number; facts: number; chapters: number; cut: number } | null
+  /** arcs: M4d, missing in inserts made before arcs */
+  lastInsert: { at: number; tokens: number; facts: number; chapters: number; arcs?: number; cut: number } | null
   rebuildScenes: number
   rebuilding: { chapters: number; startedAt: number } | null
   /** M4a */
@@ -163,6 +216,9 @@ export interface LitChat {
   skipped: LitSkipped[]
   pinLimit: number
   rev: number
+  /** M4d */
+  arcs: LitArc[]
+  arcState: LitArcState
 }
 
 export interface LitConfig {
@@ -174,6 +230,14 @@ export interface LitConfig {
   insert: boolean
   budget: number
   chapter: string
+  /** M4d arcs; arcThreshold 0 = twice the budget */
+  arcMode: LitArcMode
+  arcKeep: number
+  arcThreshold: number
+  arcSizeMin: number
+  arcSizeMax: number
+  arcWords: number
+  arc: string
 }
 
 export const fetchLitChats = () => j<{ items: LitChatItem[]; total: number }>('/litopys/chats')
@@ -207,6 +271,16 @@ export const editLitChapter = (chatId: string, id: string, fields: { label?: str
 export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('/litopys/chapters', { chatId, op: 'rewrite', id })
 /** keepGone: the worker never writes a chapter for these messages again; they still leave the prompt. */
 export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) => post<LitChat>('/litopys/chapters', { chatId, op: 'delete', id, keepGone })
+
+/** M4d arcs. merge: from/to = the first and last chapter ids of the run (a suggestion's fromChapter/toChapter). */
+export const mergeLitArc = (chatId: string, from: string, to: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'merge', from, to })
+/** Cancels a queued merge (also holds the offer like Not now). */
+export const cancelLitArc = (chatId: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'cancel' })
+/** "Not now": the offer comes back when the older chapters grow by another threshold. */
+export const snoozeLitArc = (chatId: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'snooze' })
+export const rewriteLitArc = (chatId: string, id: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'rewrite', id })
+/** The arc goes; its chapters stay and ride the insert again. */
+export const deleteLitArc = (chatId: string, id: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'delete', id })
 
 export const acceptLitProposal = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'accept', ...(replace ? { replace } : {}) })
 export const rejectLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'reject' })

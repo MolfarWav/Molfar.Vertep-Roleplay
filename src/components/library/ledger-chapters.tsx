@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { ChatText, DotsThree, PencilSimple, ArrowCounterClockwise, Trash, WarningCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +12,8 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { LitChapter, LitChat, LitSkipped } from './litopys-api'
+import type { LitArc, LitChapter, LitChat, LitSkipped } from './litopys-api'
+import { ArcCard, arcOfChapter } from './arcs'
 import { editLitChapter, rewriteLitChapter, deleteLitChapter, isRebuilding } from './litopys-api'
 import type { TabProps } from './ledger-facts'
 import { TONE } from './tones'
@@ -89,7 +90,7 @@ interface ChapterRowProps {
   disabled: boolean
 }
 
-export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps) {
+export function ChapterRow({ chat, chapter, onChat, disabled, arc }: ChapterRowProps & { arc?: LitArc }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const [editing, setEditing] = useState(false)
@@ -185,6 +186,7 @@ export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps)
             {chapter.edited && <Badge variant="outline" className={cn('text-[10px]', TONE.edited)}>{t('lit.edited')}</Badge>}
             {chapter.kind === 'part' && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.kind.part')}</Badge>}
             {chapter.kind === 'merged' && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.kind.merged')}</Badge>}
+            {arc && <Badge variant="outline" className={cn('text-[10px]', TONE.arc)}>{t('lit.arc.inArc', { label: arc.label || t('lit.arc.label') })}</Badge>}
             {chapter.place && <Badge variant="outline" className={cn('max-w-full truncate text-[10px]', TONE.place)}>{chapter.place}</Badge>}
             <span className="text-[11px] text-muted-foreground">{t('lit.chapterFacts', { n: factsCount })}</span>
           </div>
@@ -286,6 +288,10 @@ export function ChaptersTab({ chat, onChat }: TabProps) {
     ...chat.skipped.map((skip) => ({ at: skip.fromNo, skip })),
   ].sort((x, y) => x.at - y.at)
 
+  // M4d: an arc's card stands before its first chapter; its chapters follow, indented
+  const arcMap = arcOfChapter(chat)
+  const firstOfArc = new Set(chat.arcs.map((arc) => items.find((it) => it.chapter && arc.chapterIds.includes(it.chapter.id))?.chapter?.id))
+
   return (
     <div className="flex flex-col gap-2">
       {chat.scene.openFrom && (
@@ -305,9 +311,16 @@ export function ChaptersTab({ chat, onChat }: TabProps) {
         <ul className="flex flex-col gap-2">
           {items.map((it) =>
             it.chapter ? (
-              <li key={it.chapter.id}>
-                <ChapterRow chat={chat} chapter={it.chapter} onChat={onChat} disabled={disabled} />
-              </li>
+              <Fragment key={it.chapter.id}>
+                {firstOfArc.has(it.chapter.id) && arcMap.get(it.chapter.id) && (
+                  <li>
+                    <ArcCard chat={chat} arc={arcMap.get(it.chapter.id)!} onChat={onChat} disabled={disabled} />
+                  </li>
+                )}
+                <li className={cn(arcMap.has(it.chapter.id) && 'ml-4 border-l-2 border-l-violet-500/50 pl-3 md:ml-6 md:pl-4')}>
+                  <ChapterRow chat={chat} chapter={it.chapter} onChat={onChat} disabled={disabled} arc={arcMap.get(it.chapter.id)} />
+                </li>
+              </Fragment>
             ) : (
               <li
                 key={`skip-${it.skip!.fromNo}-${it.skip!.toNo}`}

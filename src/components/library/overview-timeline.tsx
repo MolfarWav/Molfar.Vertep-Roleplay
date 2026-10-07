@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import type { LitChapter, LitFact, LitSkipped } from './litopys-api'
+import type { LitArc, LitChapter, LitFact, LitSkipped } from './litopys-api'
 import { ChapterRow } from './ledger-chapters'
+import { ArcCard, arcOfChapter } from './arcs'
 import { FactItem, type FactControls, type TabProps } from './ledger-facts'
 
 const SHOWN = 4
@@ -64,8 +65,19 @@ export function Timeline({ chat, onChat, ctl }: TabProps & { ctl: FactControls }
     if (id && ids.has(id)) byChapter.set(id, [...(byChapter.get(id) ?? []), f])
     else loose.push(f)
   }
-  const items: { at: number; chapter?: LitChapter; skip?: LitSkipped }[] = [
-    ...chat.chapters.map((chapter) => ({ at: chapter.fromNo || Number.MAX_SAFE_INTEGER, chapter })),
+  const arcMap = arcOfChapter(chat)
+  const arcGroups = new Map<string, { arc: LitArc; firstAt: number; chapters: LitChapter[] }>()
+  for (const chapter of chat.chapters) {
+    const arc = arcMap.get(chapter.id)
+    if (!arc) continue
+    const group = arcGroups.get(arc.id) ?? { arc, firstAt: chapter.fromNo || Number.MAX_SAFE_INTEGER, chapters: [] }
+    group.chapters.push(chapter)
+    arcGroups.set(arc.id, group)
+  }
+  const arcChapterIds = new Set([...arcGroups.values()].flatMap((g) => g.chapters.map((c) => c.id)))
+  const items: { at: number; chapter?: LitChapter; arcGroup?: { arc: LitArc; chapters: LitChapter[] }; skip?: LitSkipped }[] = [
+    ...[...arcGroups.values()].map((group) => ({ at: group.firstAt, arcGroup: group })),
+    ...chat.chapters.filter((chapter) => !arcChapterIds.has(chapter.id)).map((chapter) => ({ at: chapter.fromNo || Number.MAX_SAFE_INTEGER, chapter })),
     ...chat.skipped.map((skip) => ({ at: skip.fromNo, skip })),
   ].sort((x, y) => x.at - y.at)
 
@@ -74,7 +86,18 @@ export function Timeline({ chat, onChat, ctl }: TabProps & { ctl: FactControls }
   return (
     <ol className="relative flex flex-col gap-4 before:absolute before:top-2 before:bottom-2 before:left-[7px] before:w-px before:bg-border" data-testid="timeline">
       {items.map((it) =>
-        it.chapter ? (
+        it.arcGroup ? (
+          <Node key={it.arcGroup.arc.id} tone={it.arcGroup.arc.stale ? 'stale' : 'ok'}>
+            <ArcCard chat={chat} arc={it.arcGroup.arc} onChat={onChat} disabled={!!chat.rebuilding}>
+              {it.arcGroup.chapters.map((chapter) => (
+                <div key={chapter.id} className="flex flex-col gap-2">
+                  <ChapterRow chat={chat} chapter={chapter} onChat={onChat} disabled={!!chat.rebuilding} arc={it.arcGroup!.arc} />
+                  <FactStack facts={byChapter.get(chapter.id) ?? []} ctl={ctl} slot="tl:" />
+                </div>
+              ))}
+            </ArcCard>
+          </Node>
+        ) : it.chapter ? (
           <Node key={it.chapter.id} tone={it.chapter.stale ? 'stale' : it.chapter.edited ? 'edited' : 'ok'}>
             <div className="flex flex-col gap-2">
               <ChapterRow chat={chat} chapter={it.chapter} onChat={onChat} disabled={!!chat.rebuilding} />

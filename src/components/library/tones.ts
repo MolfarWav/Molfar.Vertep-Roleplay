@@ -20,6 +20,7 @@ export const WEIGHT_TONE: Record<LitFactWeight, string> = {
 }
 
 export const TONE = {
+  arc: 'border-violet-500/35 bg-violet-500/12 text-violet-700 dark:text-violet-300',
   subject: 'border-border bg-muted text-foreground',
   knownBy: 'border-teal-500/35 bg-teal-500/10 text-teal-700 dark:text-teal-300',
   pinned: 'border-primary bg-primary text-primary-foreground',
