@@ -651,7 +651,8 @@ describe("staleness", () => {
     const r2 = tick(m);
     expect(r2.requests).toHaveLength(0);
     const st2 = readJson("litopys/chats/c1.json");
-    expect(st2.chapters[0].stale).toBe(true);
+    // M4a: an edited chapter belongs to the user and never goes stale
+    expect(st2.chapters[0].stale).toBeUndefined();
   });
 
   it("a stale merged chapter is never rebuilt", () => {
@@ -684,7 +685,7 @@ describe("staleness", () => {
     expect(st.chapters[0].stale).toBeUndefined();
   });
 
-  it("an edited chapter whose last message is gone stays as it is, stale, and is not duplicated", () => {
+  it("an edited chapter whose last message is gone stays as it is and is not duplicated", () => {
     const msgs = story(70);
     writeChat("c1", msgs, { updatedAt: Date.now() });
     const m = mockHost();
@@ -696,7 +697,8 @@ describe("staleness", () => {
     expect(tick(m).requests).toHaveLength(0);
     const st = readJson("litopys/chats/c1.json");
     expect(st.chapters).toHaveLength(1);
-    expect(st.chapters[0]).toMatchObject({ text: "My own text.", stale: true, edited: true });
+    expect(st.chapters[0]).toMatchObject({ text: "My own text.", edited: true });
+    expect(st.chapters[0].stale).toBeUndefined(); // M4a: never stale once edited
   });
 
   it("a chapter whose scene has not changed is never stale", () => {
