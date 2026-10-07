@@ -1,10 +1,10 @@
 /**
- * Litopys 2.0: chapters and facts per chat, in shadow mode.
+ * Litopys 2.0: chapters and facts per chat, and the story record each reply carries.
  *
  * One chapter per closed scene, built by one model call per tick (the oldest
  * closed scene that has none), plus fact operations that come back with it.
- * Nothing is injected into the prompt yet: the old Memory keeps working and the
- * user compares the two (see PLAN.md, M2). The module is evaluated afresh on
+ * Before each reply (llmRequest) it inserts one block: chapters of what left the
+ * prompt and facts, within the user's token budget (see M3-SPEC.md). The module is evaluated afresh on
  * every pass of a hook, so all state lives in files.
  *
  * Files (under data/litopys/):
@@ -112,6 +112,22 @@ export function diceSimilarity(a, b) {
   return (2 * hit) / (x.size + y.size);
 }
 
+/** Token estimate by script (ported from engine): ASCII ~3.5 chars a token,
+ *  other letters ~2, CJK and the rest 1. */
+export function estimateTokens(text) {
+  const s = String(text == null ? "" : text);
+  let ascii = 0;
+  let alpha = 0;
+  let other = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) ascii++;
+    else if (c < 0x2e80) alpha++;
+    else other++;
+  }
+  return Math.ceil(ascii / 3.5 + alpha / 2 + other);
+}
+
 // ---------- config ----------
 export const DEFAULT_CONFIG = {
   enabled: true,
@@ -122,6 +138,8 @@ export const DEFAULT_CONFIG = {
     maxMessages: 40,
   },
   pinLimit: 5,
+  insert: true,
+  budget: 800,
 };
 
 export const DEFAULT_PROMPTS = {
@@ -236,6 +254,8 @@ export function loadConfig(fsx) {
   if (cfg.scene.maxMessages < cfg.scene.minMessages) cfg.scene.maxMessages = cfg.scene.minMessages;
   cfg.recentMessages = clamp(cfg.recentMessages, 6, 200);
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
+  cfg.insert = cfg.insert !== false;
+  cfg.budget = clamp(cfg.budget, 200, 4000);
   return cfg;
 }
 
@@ -252,8 +272,9 @@ export function patchConfig(fsx, body) {
   if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
   if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 20), 6, 200);
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
+  if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
+  if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, 4000);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
-  // the panel sends flat keys (scene_minMessages), direct callers a nested scene
   const sc = { ...(isObj(b.scene) ? b.scene : {}), ...(b.scene_minMessages !== undefined ? { minMessages: b.scene_minMessages } : {}), ...(b.scene_maxMessages !== undefined ? { maxMessages: b.scene_maxMessages } : {}) };
   if (sc.minMessages !== undefined) next.scene.minMessages = clamp(intOf(sc.minMessages, 6), 1, 40);
   if (sc.maxMessages !== undefined) next.scene.maxMessages = clamp(intOf(sc.maxMessages, 40), 10, 200);
@@ -494,6 +515,35 @@ export function markStale(st, line) {
 }
 
 /**
+ * M3b item 2: the covered count of a chat line. A chapter counts from index 0
+ * while it is not stale and not orphan; a merged chapter counts. A gap or a
+ * stale/orphan chapter stops the coverage. Chapters past a gap do not count.
+ */
+export function coveredCount(st, line) {
+  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return 0;
+  const ranges = st.chapters
+    .filter((ch) => isObj(ch) && ch.stale !== true)
+    .map((ch) => rangeOf(ch, line))
+    .filter((r) => !r.orphan && !r.partial)
+    .sort((a, b) => a.fromIdx - b.fromIdx);
+  let covered = 0;
+  for (const r of ranges) {
+    if (r.fromIdx > covered) break;
+    if (r.toIdx + 1 > covered) covered = r.toIdx + 1;
+  }
+  return Math.min(covered, line.length);
+}
+
+/** M3b item 2: the cut count = covered, at most line.length - recentMessages. */
+export function cutCount(st, line, cfg) {
+  const covered = coveredCount(st, line);
+  const recent = (cfg && cfg.recentMessages) || DEFAULT_CONFIG.recentMessages;
+  const limit = Math.max(0, line.length - recent);
+  return Math.max(0, Math.min(covered, limit));
+}
+
+
+/**
  * The oldest closed scene that needs a chapter: { scene, replaces } or null.
  * A scene has a chapter when one overlaps it. A stale chapter of kind scene or part (not
  * merged, not edited) is rebuilt in place. A merged chapter (the old summary) ends
@@ -590,6 +640,239 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta) {
   // NEVER set a reasoning field (reasoning stays off)
   return req;
 }
+
+// ---------- M3b insert: the Litopys block before each reply ----------
+// The lexical ranking below is ported from relations rankNotes (plugins/relations/plugin.js):
+// rare-word matches weighted by ln(1 + N / df), stems by the relations stemmer,
+// with weight bonus: key +6, important +3, everyday 0. Chapters score on label + text.
+const WORD_APOS_M3B = /['\u2019\u02BC\u2018`\u00B4\u02B9\u2032]/g;
+const WORD_STOP_M3B = new Set(
+  (
+    "the and for are but not you all any can had her was his that this with have " +
+    "from they them then than there here what when where which while who whom will your into upon over under " +
+    "again once only very just also been being because both each more most other some such too own same about " +
+    "after before between during through above below off out up down further she him hers its our ours " +
+    "their theirs myself yourself himself herself itself ourselves themselves " +
+    "\u0456 \u0439 \u0442\u0430 \u0430 \u0430\u043B\u0435 \u0430\u0431\u043E \u0449\u043E \u0446\u0435 \u044F\u043A \u0442\u0430\u043A \u043D\u0435 \u043D\u0456 \u0436 \u0436\u0435 \u0431\u0438 \u0431 \u0431\u043E \u0432 \u0443 \u043D\u0430 \u0434\u043E \u0437 \u0456\u0437 \u0437\u0456 \u0437\u0430 \u0432\u0456\u0434 \u0434\u043B\u044F \u043F\u043E \u043F\u0440\u043E \u043F\u0440\u0438 \u043F\u0456\u0434 \u043D\u0430\u0434 \u043C\u0456\u0436 \u0447\u0435\u0440\u0435\u0437 \u0449\u043E\u0431 " +
+    "\u043A\u043E\u043B\u0438 \u0434\u0435 \u0442\u0430\u043C \u0442\u0443\u0442 \u0432\u0436\u0435 \u0449\u0435 \u0442\u0435\u0436 \u0442\u0430\u043A\u043E\u0436 \u043B\u0438\u0448\u0435 \u0442\u0456\u043B\u044C\u043A\u0438 \u0434\u0443\u0436\u0435 \u0439\u043E\u0433\u043E \u0457\u0457 \u0457\u0445 \u0457\u0439 \u0439\u043E\u043C\u0443 \u0432\u0456\u043D \u0432\u043E\u043D\u0430 \u0432\u043E\u043D\u043E \u0432\u043E\u043D\u0438 \u043C\u0438 \u0432\u0438 \u044F \u0442\u0438 \u043C\u0435\u043D\u0435 \u0442\u0435\u0431\u0435 \u0441\u0435\u0431\u0435 " +
+    "\u043C\u0456\u0439 \u043C\u043E\u044F \u043C\u043E\u0454 \u043C\u043E\u0457 \u0442\u0432\u0456\u0439 \u0442\u0432\u043E\u044F \u0441\u0432\u0456\u0439 \u0441\u0432\u043E\u044F \u0446\u0435\u0439 \u0446\u044F \u0446\u0456 \u0442\u043E\u0439 \u0442\u0435 \u0431\u0443\u0432 \u0431\u0443\u043B\u0430 \u0431\u0443\u043B\u043E \u0431\u0443\u043B\u0438 \u0454 \u0431\u0443\u0434\u0435 \u0431\u0443\u0442\u0438 \u043C\u043E\u0436\u0435 \u0442\u0440\u0435\u0431\u0430 " +
+    "\u0438 \u0432\u043E \u0447\u0442\u043E \u043E\u043D \u043E\u043D\u0430 \u043E\u043D\u043E \u043E\u043D\u0438 \u0441 \u0441\u043E \u043A\u0430\u043A \u0442\u043E \u0432\u0441\u0435 \u0442\u0430\u043A \u0435\u0433\u043E \u0435\u0435 \u043D\u043E \u0434\u0430 \u043A \u0432\u044B \u0431\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u043C\u043D\u0435 \u0432\u043E\u0442 \u043E\u0442 \u043C\u0435\u043D\u044F \u0435\u0449\u0435 \u043D\u0435\u0442 \u043E \u0438\u0437 \u0435\u043C\u0443 \u043A\u043E\u0433\u0434\u0430 \u0434\u0430\u0436\u0435 " +
+    "\u043D\u0443 \u043B\u0438 \u0435\u0441\u043B\u0438 \u0443\u0436\u0435 \u0438\u043B\u0438 \u043D\u0438 \u0431\u044B\u0442\u044C \u0431\u044B\u043B \u043D\u0435\u0433\u043E \u0432\u0430\u0441 \u0432\u0435\u0434\u044C \u043F\u043E\u0442\u043E\u043C \u0441\u0435\u0431\u044F \u043D\u0438\u0447\u0435\u0433\u043E \u0435\u0439 \u0442\u0443\u0442 \u0433\u0434\u0435 \u0435\u0441\u0442\u044C \u043D\u0430\u0434\u043E \u043D\u0435\u0439 \u043C\u044B \u0442\u0435\u0431\u044F \u0447\u0435\u043C \u0441\u0430\u043C \u0431\u0435\u0437 " +
+    "\u0447\u0435\u0433\u043E \u0440\u0430\u0437 \u0442\u043E\u0436\u0435 \u043F\u043E\u0434 \u043A\u0442\u043E \u044D\u0442\u043E\u0442 \u0442\u043E\u0433\u043E \u043F\u043E\u0442\u043E\u043C\u0443 \u044D\u0442\u043E\u0433\u043E \u043A\u0430\u043A\u043E\u0439 \u0437\u0434\u0435\u0441\u044C \u044D\u0442\u043E\u043C \u043C\u043E\u0439 \u0442\u0435\u043C \u0447\u0442\u043E\u0431\u044B \u0441\u0435\u0439\u0447\u0430\u0441"
+  ).split(" "),
+);
+function normTextM3b(s) {
+  return String(s).normalize("NFD").replace(/\u0301/g, "").normalize("NFC").toLowerCase().replace(WORD_APOS_M3B, "'").replace(/\u0451/g, "\u0435");
+}
+function wordTokensM3b(s) {
+  return normTextM3b(s)
+    .split(/[^\p{L}\p{N}']+/u)
+    .map((t) => t.replace(/^'+|'+$/g, ""))
+    .filter((t) => t && !WORD_STOP_M3B.has(t));
+}
+const WORD_SUFFIX_M3B = /(\u0430\u043C\u0438|\u044F\u043C\u0438|\u043E\u0432\u0456|\u0435\u0432\u0456|\u043E\u0433\u043E|\u043E\u043C\u0443|\u0438\u043C\u0438|\u0435\u043C\u0443|\u0456\u0439|\u043E\u0457|\u043E\u044E|\u0435\u044E|\u044F\u0445|\u0430\u0445|\u0456\u0432|\u044F\u043C|\u0430\u043C|\u043E\u043C|\u0435\u043C|\u0438\u043C|\u0438\u0445|\u0438\u0439|\u044B\u0439|\u0430\u044F|\u044F\u044F|\u043E\u0435|\u0435\u0435|\u0443\u044E|\u044E\u044E|\u043E\u0432|\u0435\u0432|\u0435\u0439|\u044B|\u0438|\u0456|\u0430|\u044F|\u0443|\u044E|\u043E|\u0435|\u044C|\u0439)$/;
+function wordStemM3b(t) {
+  if (t.length <= 3) return t;
+  const r = t.replace(WORD_SUFFIX_M3B, "");
+  return r.length >= 3 ? r : t;
+}
+/** Two words are the same: short ones exactly, longer ones by stem (ported from relations). */
+function sameWordM3b(a, b) {
+  if (a.length <= 3 || b.length <= 3) return a === b;
+  const x = wordStemM3b(a);
+  const y = wordStemM3b(b);
+  if (x === y) return true;
+  const [sh, lg] = x.length <= y.length ? [x, y] : [y, x];
+  return sh.length >= 4 && lg.startsWith(sh) && lg.length - sh.length <= 2;
+}
+const weightBonus = (f) => (f && f.weight === "key" ? 6 : f && f.weight === "important" ? 3 : 0);
+/** A fact's lexical score against the scan text (ported from relations rankNotes plus weight bonus). */
+function factScore(f, scanText, df, n) {
+  const keys = wordTokensM3b(str(f.text));
+  let score = weightBonus(f);
+  const scan = wordTokensM3b(scanText || "");
+  if (scan.length) {
+    for (const k of keys) {
+      if (scan.some((w) => sameWordM3b(k, w))) {
+        score += 10 * Math.log(1 + n / (df.get(wordStemM3b(k)) || 1));
+      }
+    }
+  }
+  return score;
+}
+/** Rank facts for group d: relevant facts, newest first on ties. */
+export function rankFacts(facts, scanText) {
+  const list = arr(facts).filter(isObj);
+  const df = new Map();
+  const keysMap = new Map();
+  for (const f of list) {
+    const ks = [...new Set(wordTokensM3b(str(f.text)))];
+    keysMap.set(f, ks);
+    for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
+  }
+  const n = Math.max(1, list.length);
+  return list
+    .map((f) => ({ f, score: factScore(f, scanText, df, n) }))
+    .sort((a, b) => b.score - a.score || (b.f.updatedAt || 0) - (a.f.updatedAt || 0))
+    .map((x) => x.f);
+}
+/** Rank chapters before the cut: score on label + text; the bridge chapter stays first when it qualifies. */
+export function rankChapters(chapters, scanText) {
+  const list = arr(chapters).filter(isObj);
+  const df = new Map();
+  const keysMap = new Map();
+  for (const ch of list) {
+    const ks = [...new Set(wordTokensM3b(str(ch.label) + " " + str(ch.text)))];
+    keysMap.set(ch, ks);
+    for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
+  }
+  const n = Math.max(1, list.length);
+  const scan = wordTokensM3b(scanText || "");
+  const score = (ch) => {
+    let s = 0;
+    if (scan.length) {
+      for (const k of keysMap.get(ch)) {
+        if (scan.some((w) => sameWordM3b(k, w))) {
+          s += 10 * Math.log(1 + n / (df.get(wordStemM3b(k)) || 1));
+        }
+      }
+    }
+    return s;
+  };
+  return list
+    .map((ch) => ({ ch, score: score(ch) }))
+    .sort((a, b) => b.score - a.score || (b.ch.at || 0) - (a.ch.at || 0))
+    .map((x) => x.ch);
+}
+
+/** The fill order and text of the Litopys insert; null when nothing can be inserted. */
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }) {
+  if (!st || !Array.isArray(line) || !line.length) return null;
+  const cut = cutCount(st, line, cfg);
+  // who is present: the newest snapshot of the line, else the names in the recent window
+  const present = new Set();
+  let snapFound = false;
+  for (let i = line.length - 1; i >= 0 && !snapFound; i--) {
+    const snap = snapOf(dash, line[i]);
+    if (snap && Array.isArray(snap.present)) {
+      snapFound = true;
+      for (const p of snap.present) if (str(p)) present.add(str(p));
+    }
+  }
+  if (!snapFound) {
+    const recent = Math.max(6, Number(cfg && cfg.recentMessages) || 6);
+    for (const m of line.slice(-recent)) if (str(m.name)) present.add(str(m.name));
+  }
+  if (str(speakerName)) present.add(str(speakerName));
+  const userName = str(meta && meta.userName) || "You";
+  present.add(userName);
+  const here = new Set([...present].map((n) => n.toLowerCase()));
+  const subj = (f) => str(f.subject).toLowerCase();
+
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
+  const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
+  const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
+  const beforeCut = arr(st.chapters).filter((ch) => {
+    const r = ranges.get(ch.id);
+    return isObj(ch) && !ch.stale && r && !r.orphan && r.toIdx < cut && str(ch.text);
+  });
+  if (!active.length && !beforeCut.length) return null;
+
+  // fill order: a) pinned facts of present characters or the world, b) change/trait of present
+  // characters, c) the last chapter before the cut, d) other facts by relevance, e) other chapters
+  const a = active.filter((f) => f.pinned === true && (subj(f) === "world" || here.has(subj(f))));
+  const b = active.filter((f) => !a.includes(f) && (f.type === "change" || f.type === "trait") && here.has(subj(f)));
+  const bridge = beforeCut.slice().sort((x, y) => ranges.get(y.id).toIdx - ranges.get(x.id).toIdx)[0] || null;
+  const stillSeen = (f) => {
+    // a fact whose chapter lies wholly after the cut: its messages are still in the prompt
+    const r = f.src && f.src.chapter ? ranges.get(f.src.chapter) : null;
+    return !!(r && !r.orphan && r.fromIdx >= cut);
+  };
+  const d = rankFacts(active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f)), scanText);
+  const e = rankChapters(beforeCut.filter((ch) => ch !== bridge), scanText).slice(0, 6);
+
+  const header =
+    "[Story record (Litopys): what happened before the messages below and what stays true. Background for the next reply: do not retell it, do not contradict it.]";
+  const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
+  const facts = [];
+  const chapters = [];
+  const render = () => {
+    const out = [header];
+    if (chapters.length) {
+      const ordered = chapters.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
+      out.push("Earlier chapters:", ...ordered.map(chapterLine));
+    }
+    if (facts.length) out.push("Facts:", ...facts.map(factLine));
+    return out.join("\n");
+  };
+  const budget = clamp(cfg && cfg.budget, 200, 4000);
+  // each item goes in whole or not at all; a group stops at its first item that does not fit
+  const tryAdd = (list, item) => {
+    list.push(item);
+    if (estimateTokens(render()) <= budget) return true;
+    list.pop();
+    return false;
+  };
+  for (const f of a) if (!tryAdd(facts, f)) break;
+  for (const f of b) if (!tryAdd(facts, f)) break;
+  if (bridge) tryAdd(chapters, bridge);
+  for (const f of d) if (!tryAdd(facts, f)) break;
+  for (const ch of e) if (!tryAdd(chapters, ch)) break;
+  if (!facts.length && !chapters.length) return null;
+  const text = render();
+  return { text, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length, cut };
+}
+
+/** Insert one system message after the leading system block (ported from relations withInsert). */
+function withInsert(messages, text) {
+  let lead = 0;
+  while (lead < messages.length && messages[lead] && messages[lead].role === "system") lead++;
+  return [...messages.slice(0, lead), { role: "system", content: text }, ...messages.slice(lead)];
+}
+
+/** M3b item 3: read files, build the insert, insert the block, write st.lastInsert. */
+export function llmRequest(ctx, host) {
+  if (!ctx || ctx.key !== "reply" || !ctx.turn) return null;
+  if (ctx.turn.op === "impersonate") return null;
+  const chatId = str(ctx.turn.chatId);
+  if (!SAFE_CHAT_ID.test(chatId)) return null;
+  const req = ctx.request || {};
+  if (!Array.isArray(req.messages)) return null;
+  const fsx = host && host.fs ? host.fs : null;
+  if (!fsx) return null;
+  try {
+    const cfg = loadConfig(fsx);
+    if (cfg.enabled === false || cfg.insert === false) return null;
+    const rc = readChat(fsx, chatId);
+    if (!rc) return null;
+    const line = activeLine(rc.msgs);
+    const st = loadChatFile(fsx, chatId);
+    if (!st || !line.length) return null;
+    const scanText = req.messages
+      .filter((m) => m && m.role !== "system" && typeof m.content === "string")
+      .slice(-6)
+      .map((m) => m.content)
+      .join("\n");
+    const insert = buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName: str(ctx.turn.speakerName) });
+    if (!insert) return null;
+    // never write the chat file here: the worker may be saving a chapter at the same time
+    try {
+      fsx.write(
+        "litopys/insert/" + chatId + ".json",
+        JSON.stringify({ at: Date.now(), tokens: insert.tokens, facts: insert.facts, chapters: insert.chapters, cut: insert.cut }),
+      );
+    } catch {}
+    return { messages: withInsert(req.messages, insert.text) };
+  } catch (e) {
+    try {
+      host.log("litopys insert: " + (e && e.message ? e.message : String(e)));
+    } catch {}
+    return null;
+  }
+}
+const SAFE_CHAT_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
 
 // ---------- reply parsing ----------
 function firstObject(s) {
@@ -1309,6 +1592,13 @@ export function onTick(_ctx, host) {
             changed = true;
           }
         }
+        // M3b item 2: store the cut record after a tick that touched this chat
+        const cut = cutCount(st, line, cfg);
+        const upTo = cut > 0 ? line[cut - 1] ? line[cut - 1].id : null : null;
+        if (!st.cut || st.cut.count !== cut || st.cut.upTo !== upTo) {
+          st.cut = { upTo, count: cut, at: now };
+          changed = true;
+        }
         if (changed) saveChatFile(fsx, st);
         const work = pickWork(st, line, dash, cfg);
         if (!work) continue;
@@ -1320,7 +1610,6 @@ export function onTick(_ctx, host) {
             if (parsed) {
               const chapter = applyWorkerResult(st, work, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text });
               saveChatFile(fsx, st);
-              // the new chapter and facts get their vectors in the next pass
               if (chapter && embedAllowed(fsx) && typeof host.llm.embed === "function") {
                 const needed = needVectors(fsx, st);
                 if (needed.length) host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text) });
@@ -1505,6 +1794,8 @@ export function uiPanel(_ctx, host) {
         fields: [
           { key: "model", label: "Model", hint: "Empty = the chat's own model.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
           { key: "recentMessages", label: "Recent messages", hint: "Newest messages the prompt keeps word for word. A scene gets its chapter as soon as the next scene has begun.", kind: "number", value: cfg.recentMessages },
+          { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add the Litopys record for this chat: chapters before the cut and facts.", kind: "select", list: ["on", "off"], value: cfg.insert === false ? "off" : "on" },
+          { key: "budget", label: "Insert budget, tokens", hint: "The most the Litopys block may take. 200 to 4000, default 800.", kind: "number", value: cfg.budget },
           { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
           { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
           { key: "pinLimit", label: "Pin limit", hint: "Not used by this shadow-mode version yet.", kind: "number", value: cfg.pinLimit },

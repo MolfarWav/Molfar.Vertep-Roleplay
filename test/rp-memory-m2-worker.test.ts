@@ -729,8 +729,8 @@ describe("switches", () => {
     expect(r.requests).toHaveLength(0);
   });
 
-  it("has no llmRequest export", () => {
-    expect(L.llmRequest).toBeUndefined();
+  it("has an llmRequest export (M3: Litopys inserts its record)", () => {
+    expect(typeof L.llmRequest).toBe("function");
   });
 });
 
