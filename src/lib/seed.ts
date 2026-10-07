@@ -183,10 +183,5 @@ export function defaultSettings(): AppSettings {
     charSubheader: 'creator',
     tts: { provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true, charVoices: {}, model: 'tts-1', engineProvider: 'edge' },
     translation: { provider: 'llm', targetLanguage: 'Spanish', internalLanguage: 'English', autoMode: 'none' },
-    summary: {
-      mode: 'auto', interval: 40, keepRecent: 6, targetLength: 300, prompt: '', // '' = the engine's shipped summary prompt (see fetchSummaryPromptDefault)
-      template: '[Story so far: {{summary}}]', position: 'after-system', depth: 2, role: 'system',
-    },
-    memory: { enabled: true, auto: false, interval: 20, model: '' },
   }
 }

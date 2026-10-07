@@ -173,10 +173,7 @@ export interface Chat {
     frequency: number
     includeInWIScan: boolean
   }
-  memoryCutoffMessageId: ID | null
-  summary: string
-  /** compactions that can be undone, newest last (engine keeps up to 20) */
-  compactions: number
+  litopysCut?: { count: number; upTo: string | null }
   temporary: boolean
   folderId: ID | null
   chatTags: string[]
@@ -364,17 +361,6 @@ export interface Preset {
 export type EntryStatus = 'constant' | 'normal' | 'vectorized'
 export type EntryLogic = 'AND_ANY' | 'AND_ALL' | 'NOT_ANY' | 'NOT_ALL'
 export type EntryPosition = 'before_char' | 'after_char' | 'before_em' | 'after_em' | 'before_an' | 'after_an' | 'at_depth' | 'before_examples' | 'after_examples'
-
-/** One durable fact in a chat's long-term memory vault. */
-export interface MemoryEntry {
-  id: string
-  text: string
-  /** 1 (trivia) to 5 (plot-critical) */
-  importance: number
-  /** pinned entries ride every prompt, no keyword match needed */
-  pinned: boolean
-  at: number
-}
 
 export interface LoreEntry {
   id: ID
@@ -682,34 +668,6 @@ export interface AppSettings {
   translation: { provider: 'llm' | 'google' | 'lingva' | 'deepl'; targetLanguage: string; /** the language the model receives when auto-translating inputs */ internalLanguage: string; autoMode: 'none' | 'responses' | 'inputs' | 'both'; deeplKey?: string }
   /** Image generation via the engine's pi-ai images bridge (POST /v1/images). */
   imageGen?: { enabled: boolean; model: string; promptPrefix: string; negativePrompt: string; interactive: boolean; saveToGallery?: boolean }
-  /** Chat summarization. The engine builds the summarize request from
-   *  `prompts` (ordered list — one chatHistory marker + editable instruction
-   *  prompts with {{summary}} / {{words}} / {{limit}} macros), stores the
-   *  result on the chat meta and injects it per `position`. */
-  /** Compaction: the running summary stands in for messages above the chat's
-   *  cutoff. The engine builds the summarize request from `prompt`
-   *  ({{summary}} / {{words}} / {{user}} / {{char}}). */
-  summary: {
-    /** auto compacts when history no longer fits the context, or every
-     *  `interval` turns past the cutoff */
-    mode: 'manual' | 'auto'
-    interval: number
-    /** newest turns that always stay verbatim when compacting */
-    keepRecent: number
-    /** {{words}} budget fed to the summary prompt */
-    targetLength: number
-    /** The user's own summary prompt. '' means the engine's shipped default,
-     *  so a better default reaches everyone who never changed it. */
-    prompt: string
-    /** injection template — must contain {{summary}} */
-    template: string
-    position: 'after-system' | 'in-chat' | 'off'
-    depth: number
-    role: 'system' | 'user' | 'assistant'
-  }
-  /** long-term memory vault: per-chat durable facts, recalled into the prompt.
-   *  `model` makes summaries and facts (blank = the chat's own model). */
-  memory: { enabled: boolean; auto: boolean; interval: number; model?: string }
 }
 
 

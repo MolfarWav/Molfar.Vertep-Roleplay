@@ -3,7 +3,13 @@ import { Badge } from '@/components/ui/badge'
 import { CheckCircle, Gear, WarningCircle } from '@phosphor-icons/react'
 import type { LitWorker } from './litopys-api'
 
-export function WorkerLine({ worker }: { worker: LitWorker | null }) {
+interface WorkerFacts {
+  got: number
+  added: number
+  skipped: number
+}
+
+export function WorkerLine({ worker, facts }: { worker: LitWorker | null; facts?: WorkerFacts }) {
   const t = useT()
   const rel = useRelativeTime()
 
@@ -72,6 +78,13 @@ export function WorkerLine({ worker }: { worker: LitWorker | null }) {
         {typeof worker.ms === 'number' && (
           <span className="text-muted-foreground">
             {t('lit.worker.ms', { n: worker.ms })}
+          </span>
+        )}
+
+        {facts && (
+          <span className="text-muted-foreground">
+            {t('lit.worker.facts', { got: facts.got, added: facts.added })}
+            {facts.skipped > 0 && t('lit.worker.factsSkipped', { skipped: facts.skipped })}
           </span>
         )}
 

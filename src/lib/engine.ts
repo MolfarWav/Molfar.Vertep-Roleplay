@@ -86,9 +86,7 @@ export interface EngineChatMeta {
   chatTags?: string[]
   backgroundId?: string | 'none' | null
   temporary?: boolean
-  summary?: string
-  memoryCutoffMessageId?: string | null
-  compactions?: unknown[]
+  litopysCut?: { count: number; upTo: string | null }
   fieldVariantSelection?: Chat['fieldVariantSelection']
   parentChatId?: string | null
   parentMessageId?: string | null
@@ -187,12 +185,6 @@ export interface EngineModel {
 // ─────────────────────────────────────────────────────────────────────────────
 // Fetch
 // ─────────────────────────────────────────────────────────────────────────────
-/** The summary prompt the engine ships, and the earlier defaults it ships
- *  with it (a stored copy of one of those was never the user's choice). */
-export function fetchSummaryPromptDefault(): Promise<{ prompt: string; past: string[] }> {
-  return j<{ prompt: string; past: string[] }>('/settings/summary-prompt')
-}
-
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) { super(message); this.status = status }
@@ -774,9 +766,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     personaId: meta.personaId ?? null,
     presetId: meta.presetId ?? null,
     authorNote: meta.authorNoteObject ?? { ...DEFAULT_AUTHOR_NOTE, text: meta.authorNote ?? '' },
-    memoryCutoffMessageId: meta.memoryCutoffMessageId ?? null,
-    summary: meta.summary ?? '',
-    compactions: Array.isArray(meta.compactions) ? meta.compactions.length : 0,
+    litopysCut: meta.litopysCut,
     temporary: meta.temporary === true,
     folderId: meta.folderId ?? null,
     chatTags: meta.chatTags ?? [],
@@ -797,8 +787,6 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('personaId' in p) out.personaId = p.personaId
   if ('presetId' in p) out.presetId = p.presetId
   if ('authorNote' in p && p.authorNote) { out.authorNote = p.authorNote.text; out.authorNoteObject = p.authorNote }
-  if ('memoryCutoffMessageId' in p) out.memoryCutoffMessageId = p.memoryCutoffMessageId
-  if ('summary' in p) out.summary = p.summary
   if ('temporary' in p) out.temporary = p.temporary
   if ('folderId' in p) out.folderId = p.folderId
   if ('chatTags' in p) out.chatTags = p.chatTags
@@ -873,24 +861,6 @@ export async function embedStatus(force = false): Promise<{ ok: boolean; via: st
   } catch {
     return { ok: false, via: null };
   }
-}
-
-/** Long-term memory vault: per-chat durable facts, recalled into prompts. */
-export function fetchMemories(chatId: string): Promise<{ memories: import('./types').MemoryEntry[] }> {
-  return j(`/chats/${chatId}/memories`)
-}
-export function addMemory(chatId: string, text: string, opts?: { importance?: number; pinned?: boolean }): Promise<{ memory: import('./types').MemoryEntry }> {
-  return j(`/chats/${chatId}/memories`, { method: 'POST', body: JSON.stringify({ text, ...opts }) })
-}
-export function updateMemory(chatId: string, memId: string, patch: { text?: string; importance?: number; pinned?: boolean }): Promise<{ memory: import('./types').MemoryEntry }> {
-  return j(`/chats/${chatId}/memories/${memId}`, { method: 'PATCH', body: JSON.stringify(patch) })
-}
-export function deleteMemory(chatId: string, memId: string): Promise<{ ok: boolean }> {
-  return j(`/chats/${chatId}/memories/${memId}`, { method: 'DELETE' })
-}
-/** LLM pass over the recent transcript: durable facts land in the vault. */
-export function extractMemories(chatId: string): Promise<{ added: import('./types').MemoryEntry[]; total: number }> {
-  return j(`/chats/${chatId}/memories/extract`, { method: 'POST' })
 }
 
 export function fetchWIStatus(chatId: string): Promise<WIStatus> {

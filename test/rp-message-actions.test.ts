@@ -9,8 +9,6 @@ function baseCtx(overrides: Partial<MessageActionCtx> = {}): MessageActionCtx {
     isUser: false,
     index: 1,
     count: 3,
-    isCutoff: false,
-    compactions: 0,
     hidden: false,
     bookmarked: false,
     translated: false,
@@ -56,11 +54,6 @@ describe('messageActions', () => {
     expect(itemIds('delete', ctx)).not.toContain('deleteBelow')
   })
 
-  test('cutoff row with compactions shows undoSummary and no summarize', () => {
-    const ctx = baseCtx({ isCutoff: true, compactions: 2 })
-    expect(itemIds('story', ctx)).toContain('undoSummary')
-    expect(itemIds('story', ctx)).not.toContain('summarize')
-  })
 
   test('cutoff row without compactions hides summary actions', () => {
     const ctx = baseCtx({ isCutoff: true, compactions: 0 })

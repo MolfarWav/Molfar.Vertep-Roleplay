@@ -9,8 +9,6 @@ export type MessageActionId =
   | 'genData'
   | 'peek'
   | 'hide'
-  | 'summarize'
-  | 'undoSummary'
   | 'moveUp'
   | 'moveDown'
   | 'delete'
@@ -22,8 +20,6 @@ export interface MessageActionCtx {
   isUser: boolean
   index: number
   count: number
-  isCutoff: boolean
-  compactions: number
   hidden: boolean
   bookmarked: boolean
   translated: boolean
@@ -72,12 +68,6 @@ export function messageActions(ctx: MessageActionCtx): MessageActionGroup[] {
       ? { id: 'hide', labelKey: 'msg.act.unhide' }
       : { id: 'hide', labelKey: 'msg.act.hide' },
   ]
-
-  if (ctx.isCutoff && ctx.compactions > 0) {
-    storyItems.push({ id: 'undoSummary', labelKey: 'msg.act.undoSummary' })
-  } else if (!ctx.isCutoff && ctx.index > 0) {
-    storyItems.push({ id: 'summarize', labelKey: 'msg.act.summarize' })
-  }
 
   if (ctx.index > 0) {
     storyItems.push({ id: 'moveUp', labelKey: 'msg.act.moveUp' })

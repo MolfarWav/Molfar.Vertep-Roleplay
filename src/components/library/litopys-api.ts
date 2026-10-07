@@ -1,5 +1,5 @@
-// Types and fetchers for the read-only Litopys view (plugin routes
-// GET /litopys/chats and GET /litopys/chat?chatId=). Nothing here writes.
+// Types and fetchers for the Litopys view (plugin routes
+// GET /litopys/chats and GET /litopys/chat?chatId=, plus config and rebuild).
 import { j } from '@/lib/engine'
 
 export interface LitWorker {
@@ -88,8 +88,27 @@ export interface LitChat {
   /** The scene in progress (never compressed); sceneFromNo is 1-based, 0 = unknown. */
   scene: { openFrom: string | null; label?: string }
   sceneFromNo: number
-  worker: LitWorker | null
+  worker: LitWorker & { facts?: { got: number; added: number; skipped: number } } | null
+  cut: { count: number; upTo: string | null }
+  lastInsert: { at: number; tokens: number; facts: number; chapters: number; cut: number } | null
+  rebuildScenes: number
+  rebuilding: { chapters: number; startedAt: number } | null
+}
+
+export interface LitConfig {
+  enabled: boolean
+  model: string
+  recentMessages: number
+  scene: { minMessages: number; maxMessages: number }
+  pinLimit: number
+  insert: boolean
+  budget: number
+  chapter: string
 }
 
 export const fetchLitChats = () => j<{ items: LitChatItem[]; total: number }>('/litopys/chats')
 export const fetchLitChat = (chatId: string) => j<LitChat>(`/litopys/chat?chatId=${encodeURIComponent(chatId)}`)
+export const fetchLitConfig = () => j<LitConfig>('/litopys/config')
+export const putLitConfig = (patch: Record<string, unknown>) => j<LitConfig>('/litopys/config', { method: 'PUT', body: JSON.stringify(patch) })
+export const deleteLitPrompts = () => j<{ ok: boolean }>('/litopys/config/prompts', { method: 'DELETE' })
+export const rebuildLitChat = (chatId: string) => j<{ scenes: number }>('/litopys/rebuild', { method: 'POST', body: JSON.stringify({ chatId }) })

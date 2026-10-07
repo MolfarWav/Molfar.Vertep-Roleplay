@@ -34,7 +34,7 @@ import { toast } from 'sonner'
 import { MessageRow } from './message-row'
 import { Composer } from './composer'
 import { GroupMemberBar } from './group-member-bar'
-import { MemoryPanel } from './memory-panel'
+import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { HelpDialog } from './help-dialog'
 import { ExpressionPanel } from './expression-panel'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
@@ -506,11 +506,10 @@ export function ChatView() {
     const preset = presets.find((p) => p.id === chat.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
     const budget = (preset?.samplers.contextSize ?? 8192) - (preset?.samplers.maxTokens ?? 512) - 800 // reserve for system/response
     let used = 0
-    // messages above the summary cutoff already left the prompt; the summary
-    // covers them, so only the stretch below can fall out of context
-    const summaryCut = chat.memoryCutoffMessageId ? chat.messages.findIndex((m) => m.id === chat.memoryCutoffMessageId) : -1
-    used += estimateTokens(chat.summary)
-    for (let i = chat.messages.length - 1; i >= Math.max(0, summaryCut); i--) {
+    // messages covered by Litopys leave the prompt; the record stands in for
+    // them, so only the stretch below can fall out of context
+    const litCut = chat.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
+    for (let i = chat.messages.length - 1; i >= Math.max(0, litCut); i--) {
       const m = chat.messages[i]
       if (!m || m.hidden) continue
       used += estimateTokens(m.swipes[m.activeSwipe]?.content) + 8
@@ -550,7 +549,7 @@ export function ChatView() {
   // the newest real turn owns the swipe controls; a picture posted after a
   // reply does not take them over
   const lastReplyIndex = chat ? chat.messages.reduce((at, m, i) => (m.picture ? at : i), -1) : -1
-  const summaryCutIndex = chat?.memoryCutoffMessageId ? chat.messages.findIndex((m) => m.id === chat.memoryCutoffMessageId) : -1
+  const summaryCutIndex = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
 
   // A dead 'chat' state (stale persisted id, the chat deleted from another
   // client mid-view) used to dead-end on "No chat selected" — fall back to
@@ -583,7 +582,7 @@ export function ChatView() {
         <BookOpenText className="size-4" aria-hidden="true" /> Lorebook activity{wiStatus ? ` (${wiStatus.fired.length})` : ''}
       </DropdownMenuItem>
       <DropdownMenuItem onClick={() => setSummaryOpen(true)}>
-        <Brain className="size-4" aria-hidden="true" /> Memory
+        <Brain className="size-4" aria-hidden="true" /> {t('lit.recordTitle')}
       </DropdownMenuItem>
       {!character.isGroup && (
         <DropdownMenuItem onClick={() => setConvertOpen(true)}>
@@ -858,6 +857,15 @@ export function ChatView() {
                       Out of context, messages above are forgotten
                     </span>
                     <div className="h-px flex-1 bg-destructive/40" />
+                  </div>
+                )}
+                {i === summaryCutIndex + 1 && i > 0 && (
+                  <div className="my-3 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="rounded-full border border-border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      {t('lit.olderInRecord')}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
                   </div>
                 )}
                 {deleteMode ? (
@@ -1296,8 +1304,8 @@ export function ChatView() {
         </SheetContent>
       </Sheet>
 
-      {/* Memory & summary */}
-      <MemoryPanel chat={chat} open={summaryOpen} onOpenChange={setSummaryOpen} />
+      {/* Litopys record */}
+      <ChatRecordSheet chat={chat} open={summaryOpen} onOpenChange={setSummaryOpen} />
 
       {/* /help — commands + macros reference (UI only) */}
       <HelpDialog />

@@ -89,7 +89,7 @@ export function LitopysView() {
         detailTitle={current?.title}
         masterWidth="w-72"
         master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} />}
-        detail={<ChatDetail chat={chat} loading={loading} error={chatError} hasChats={!!items?.length} />}
+        detail={<ChatDetail chat={chat} loading={loading} error={chatError} hasChats={!!items?.length} refreshKey={tick} />}
       />
     </SectionPage>
   )
@@ -153,7 +153,7 @@ function ChatPicker({
   )
 }
 
-function ChatDetail({ chat, loading, error, hasChats }: { chat: LitChat | null; loading: boolean; error: string; hasChats: boolean }) {
+function ChatDetail({ chat, loading, error, hasChats, refreshKey }: { chat: LitChat | null; loading: boolean; error: string; hasChats: boolean; refreshKey: number }) {
   const t = useT()
   if (error) return <p className="p-4 text-sm text-destructive">{t('lit.loadError', { error })}</p>
   if (!chat) {
@@ -163,6 +163,37 @@ function ChatDetail({ chat, loading, error, hasChats }: { chat: LitChat | null; 
       </div>
     )
   }
+  return <LitopysChatDetail chatId={chat.chatId} refreshKey={refreshKey} />
+}
+
+/**
+ * The detail part of the Litopys view: worker line, chapters, facts and
+ * proposals. Shared with the chat's record sheet.
+ */
+export function LitopysChatDetail({ chatId, refreshKey = 0, onLoaded }: { chatId: string; refreshKey?: number; onLoaded?: (chat: LitChat) => void }) {
+  const t = useT()
+  const [chat, setChat] = useState<LitChat | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let live = true
+    fetchLitChat(chatId)
+      .then((r) => {
+        if (!live) return
+        setChat(r)
+        setError('')
+        onLoaded?.(r)
+      })
+      .catch((e: unknown) => {
+        if (live) setError(errorText(e))
+      })
+    return () => {
+      live = false
+    }
+    // onLoaded is a callback from the parent; refetching on its identity would loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, refreshKey])
+  if (error) return <p className="p-4 text-sm text-destructive">{t('lit.loadError', { error })}</p>
+  if (!chat) return <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">…</div>
   const active = chat.facts.filter((f) => f.status === 'active').length
   const pending = chat.proposals.filter((p) => p.status === 'pending').length
   return (
@@ -175,7 +206,16 @@ function ChatDetail({ chat, loading, error, hasChats }: { chat: LitChat | null; 
             {t('lit.counts', { chapters: chat.chapters.length, facts: active, proposals: pending })}
           </p>
         </header>
-        <WorkerLine worker={chat.worker} />
+        <WorkerLine worker={chat.worker} facts={chat.worker?.facts} />
+        {(chat.cut?.count ?? 0) > 0 || chat.lastInsert || chat.rebuilding ? (
+          <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+            {(chat.cut?.count ?? 0) > 0 && <li>{t('lit.cutLine', { n: chat.cut!.count })}</li>}
+            {chat.lastInsert && (
+              <li>{t('lit.lastInsert', { tokens: chat.lastInsert.tokens, facts: chat.lastInsert.facts, chapters: chat.lastInsert.chapters })}</li>
+            )}
+            {chat.rebuilding && <li className="text-primary">{t('lit.rebuilding', { n: chat.rebuilding.chapters })}</li>}
+          </ul>
+        ) : null}
         {!chat.hasData ? (
           <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">{t('lit.noData')}</p>
         ) : (

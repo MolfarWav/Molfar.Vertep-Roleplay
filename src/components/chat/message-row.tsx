@@ -1,7 +1,7 @@
 
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cleanPreview } from '@/lib/preview'
-import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, Eye, GitBranch, BookmarkSimple, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, Wrench, ArrowUp, ArrowDown, ArrowLineDown, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, Eye, GitBranch, BookmarkSimple, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, Wrench, ArrowUp, ArrowDown, ArrowLineDown } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -36,7 +36,7 @@ import { toast } from 'sonner'
 
 const ACTION_ICONS: Record<MessageActionId, typeof Copy> = {
   copy: Copy, translate: Translate, speak: SpeakerHigh, bookmark: BookmarkSimple, fork: GitBranch, genData: Info, peek: Scan,
-  hide: Ghost, summarize: Brain, undoSummary: ArrowCounterClockwise, moveUp: ArrowUp, moveDown: ArrowDown, delete: Trash, deleteBelow: ArrowLineDown,
+  hide: Ghost, moveUp: ArrowUp, moveDown: ArrowDown, delete: Trash, deleteBelow: ArrowLineDown,
 }
 
 // claim the wheel ALWAYS while the cursor is over the box: scrolling inside
@@ -230,8 +230,6 @@ export const MessageRow = memo(function MessageRow({
   const toggleBookmark = useApp((s) => s.toggleBookmark)
   const moveMessage = useApp((s) => s.moveMessage)
   const forkAndOpen = useApp((s) => s.forkAndOpen)
-  const compactChat = useApp((s) => s.compactChat)
-  const undoCompaction = useApp((s) => s.undoCompaction)
   const personas = useApp((s) => s.personas)
 
   const [editing, setEditing] = useState(false)
@@ -331,6 +329,7 @@ export const MessageRow = memo(function MessageRow({
   const rowRef = useRef<HTMLDivElement>(null)
   const swipeFxSkip = useApp((s) => s.swipeFxSkip)
   const consumeSwipeFxSkip = useApp((s) => s.consumeSwipeFxSkip)
+  const inRecord = summarized
   useEffect(() => {
     if (prevTarget.current === message.activeSwipe) return
     const target = message.activeSwipe
@@ -537,7 +536,6 @@ export const MessageRow = memo(function MessageRow({
   // messages generated before usage tracking simply have no cost to show.
   const realUsage = !isUser ? swipe?.usage : undefined
   const msgCost = knownCost(realUsage)
-  const isCutoff = chat.memoryCutoffMessageId === message.id
 
   const startEdit = () => {
     setDraft(swipe?.content ?? '')
@@ -578,18 +576,6 @@ export const MessageRow = memo(function MessageRow({
       case 'genData': setGenOpen(true); break
       case 'peek': setPeekOpen(true); break
       case 'hide': toggleHidden(chat.id, message.id); break
-      case 'summarize': {
-        const tid = toast.loading(t('msg.summarizing'))
-        void compactChat(chat.id, { upTo: message.id })
-          .then((r) => toast.success(t('msg.summarized', { n: r.covered }), { id: tid }))
-          .catch((e) => toast.error(String((e as Error).message ?? e), { id: tid }))
-        break
-      }
-      case 'undoSummary':
-        void undoCompaction(chat.id)
-          .then(() => toast.success(t('msg.summaryRestored')))
-          .catch((e) => toast.error(String((e as Error).message ?? e)))
-        break
       case 'moveUp': moveMessage(chat.id, message.id, -1); break
       case 'moveDown': moveMessage(chat.id, message.id, 1); break
       case 'delete': deleteMessage(chat.id, message.id, 'this'); break
@@ -597,7 +583,7 @@ export const MessageRow = memo(function MessageRow({
     }
   }
   const actionGroups = messageActions({
-    isUser, index, count: chat.messages.length, isCutoff, compactions: chat.compactions,
+    isUser, index, count: chat.messages.length,
     hidden: !!message.hidden, bookmarked: !!message.bookmarked,
     translated: !!message.translation, translating: translateBusy, speaking: isSpeaking,
   })
@@ -652,17 +638,11 @@ export const MessageRow = memo(function MessageRow({
 
   return (
     <div className="group/msg" id={`msg-${message.id}`}>
-      {isCutoff && (
-        <div className="my-2 flex items-center gap-2 text-xs text-muted-foreground" role="separator" aria-label="Summary cutoff">
-          <div className="h-px flex-1 bg-border" />
-          Summarized above. The model reads the summary instead.
-          <div className="h-px flex-1 bg-border" />
-        </div>
-      )}
       <div
         ref={rowRef}
         data-message-id={message.id}
         data-char-id={!isUser ? (message.characterId ?? chat.characterId) : undefined}
+        title={inRecord ? t('lit.inRecord') : undefined}
         style={slidePhase === 'out' && lockH > 0 ? { height: lockH } : undefined}
         className={cn(
           'ls-row',

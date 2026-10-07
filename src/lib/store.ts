@@ -192,12 +192,6 @@ interface AppState {
   pushInputHistory: (s: string) => void
   /** Fire quick replies whose auto-execute flag matches the event (real hooks). */
   runAutoExecutes: (event: 'onStartup' | 'onUser' | 'onAi' | 'onChatChange', chatId?: ID | null) => void
-  /** Fold the next stretch of the chat into its summary and move the cutoff
-   *  (keeps the newest turns, or everything from `upTo` on). `redo` rewrites
-   *  the latest summary over the same messages. */
-  compactChat: (chatId: ID, opts?: { redo?: boolean; upTo?: ID }) => Promise<{ summary: string; covered: number }>
-  /** Restore the summary and cutoff from before the latest compaction. */
-  undoCompaction: (chatId: ID) => Promise<void>
   /** Import a portable preset file; regex scripts it carries become scripts
    *  bound to the new preset. `base` fills whatever the file leaves out. */
   importPreset: (json: unknown, name: string, base?: Preset) => Promise<{ preset: Preset; scripts: number }>
@@ -638,34 +632,6 @@ export const useApp = create<AppState>()(
               return { settings: merged as unknown as typeof s.settings }
             })
           }
-          // memory vault config: older builds shipped a chunking stub that
-          // never ran — replace it wholesale with the vault defaults
-          if (typeof get().settings.memory?.enabled !== 'boolean') {
-            set({ settings: { ...get().settings, memory: { enabled: true, auto: false, interval: 20, model: '' } } })
-          }
-          // summary config normalization. Older builds kept an ordered prompt
-          // list; its instruction text carries over as the single prompt when
-          // the user had rewritten it, and the retired keys drop off.
-          set((s) => {
-            const d = defaultSettings().summary
-            const legacy = s.settings.summary as Partial<AppSettings['summary']> & {
-              prompts?: { marker?: string | null; role?: string; content?: string }[]
-              paused?: boolean
-              notify?: boolean
-            }
-            const cur = { ...d, ...legacy }
-            if ((cur.mode as string) === 'interval') cur.mode = 'auto'
-            if (legacy.paused === true) cur.mode = 'manual'
-            if (!cur.template.includes('{{summary}}')) cur.template = d.template
-            if (typeof legacy.prompt !== 'string' || !legacy.prompt.trim()) {
-              const own = legacy.prompts?.find((x) => !x.marker && x.role === 'system')?.content?.trim()
-              cur.prompt = own && !own.startsWith('Summarize the most important facts and events in the story so far.') ? own : d.prompt
-            }
-            delete (cur as typeof legacy).prompts
-            delete (cur as typeof legacy).paused
-            delete (cur as typeof legacy).notify
-            return { settings: { ...s.settings, summary: cur } }
-          })
           // chat look: the old prose defaults move to the stage look once. The
           // engine copy's own version decides (its `ui` was merged over the local
           // values above, so the local version alone could claim a move it never had)
@@ -674,7 +640,7 @@ export const useApp = create<AppState>()(
           if (look.changed) set({ settings: look.settings })
           // the normalized shape must reach the ENGINE too — assemble() reads
           // settings.json directly (write-back only when it actually changed)
-          if (look.changed || JSON.stringify((settings.ui ?? {}).summary ?? null) !== JSON.stringify(get().settings.summary)) {
+          if (look.changed) {
             void j('/settings', { method: 'PUT', body: JSON.stringify({ ui: get().settings }) }).catch(() => undefined)
           }
           // library.json — the local collections, agent-editable in ONE file
@@ -1430,23 +1396,6 @@ export const useApp = create<AppState>()(
           }
         }
       },
-      compactChat: async (chatId, opts) => {
-        const r = await j<{ summary: string; covered: number }>(`/chats/${encodeURIComponent(chatId)}/compact`, {
-          method: 'POST',
-          body: JSON.stringify({
-            keepRecent: get().settings.summary.keepRecent,
-            ...(opts?.redo ? { redo: true } : {}),
-            ...(opts?.upTo ? { upTo: opts.upTo } : {}),
-            ...(get().model ? { model: get().model } : {}),
-          }),
-        })
-        await refreshChat(set, get, chatId)
-        return r
-      },
-      undoCompaction: async (chatId) => {
-        await j(`/chats/${encodeURIComponent(chatId)}/compact/undo`, { method: 'POST' })
-        await refreshChat(set, get, chatId)
-      },
       importPreset: async (json, name, base) => {
         const fill = base ?? get().presets.find((p) => !p.readOnly) ?? get().presets[0]
         const preset = fill ? presetImport(json, name, fill) : null
@@ -1901,8 +1850,6 @@ export const useApp = create<AppState>()(
 )
 
 // ── generation driver ────────────────────────────────────────────────────────
-/** Chats with an automatic compaction in flight (one at a time per chat). */
-const compacting = new Set<ID>()
 type SetFn = (partial: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void
 type GetFn = () => AppState
 
@@ -2164,29 +2111,6 @@ async function runStream(
               get().setMessageTranslation(chatId, last.id, r.text)
             } catch { /* silent — auto features never nag */ }
           })()
-        }
-      }
-      // automatic compaction: when this turn's prompt could not hold the
-      // whole history, or enough turns sit past the cutoff, fold the older
-      // stretch into the summary (undo is one tap away on the toast)
-      const scfg = get().settings.summary
-      const trimmed = typeof committedRes?.trimmed === 'number' ? committedRes.trimmed : 0
-      // (a group turn compacts after its last member has answered)
-      if ((op === 'send' || op === 'next') && scfg.mode === 'auto' && !queue.length && !compacting.has(chatId)) {
-        const chat = get().chats.find((c) => c.id === chatId)
-        if (chat) {
-          const cutIdx = chat.memoryCutoffMessageId ? chat.messages.findIndex((m) => m.id === chat.memoryCutoffMessageId) : -1
-          const since = chat.messages.slice(Math.max(0, cutIdx)).filter((m) => !m.hidden && m.role !== 'system').length
-          if (trimmed > 0 || (scfg.interval > 0 && since >= scfg.interval + scfg.keepRecent)) {
-            compacting.add(chatId)
-            void get().compactChat(chatId)
-              .then((r) => toast.success('Chat compacted', {
-                description: `${r.covered} messages folded into the summary`,
-                action: { label: 'Undo', onClick: () => { void get().undoCompaction(chatId).catch((e) => toast.error(String((e as Error).message ?? e))) } },
-              }))
-              .catch((e) => toast.error('Automatic compaction failed', { description: String((e as Error).message ?? e) }))
-              .finally(() => compacting.delete(chatId))
-          }
         }
       }
     }
