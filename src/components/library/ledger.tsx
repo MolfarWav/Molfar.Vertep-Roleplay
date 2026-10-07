@@ -8,6 +8,7 @@ import { FactsTab } from './ledger-facts'
 import { ChaptersTab } from './ledger-chapters'
 import { ProposalsTab } from './ledger-proposals'
 import { ActivityTab } from './ledger-activity'
+import { OverviewBody } from './overview'
 
 const TAB_IDS = ['chapters', 'facts', 'proposals', 'activity'] as const
 type TabId = (typeof TAB_IDS)[number]
@@ -34,10 +35,13 @@ export function LedgerChat({
   chatId,
   refreshKey = 0,
   onLoaded,
+  mode = 'ledger',
 }: {
   chatId: string
   refreshKey?: number
   onLoaded?: (c: LitChat) => void
+  /** overview: the timeline and character cards (M4c) instead of the tabs */
+  mode?: 'ledger' | 'overview'
 }) {
   const t = useT()
   const [chat, setChat] = useState<LitChat | null>(null)
@@ -150,6 +154,8 @@ export function LedgerChat({
           <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
             {t('lit.noData')}
           </div>
+        ) : mode === 'overview' ? (
+          <OverviewBody chat={chat} onChat={onChat} onRefresh={refresh} />
         ) : (
           <>
             <div className="flex flex-wrap gap-1">

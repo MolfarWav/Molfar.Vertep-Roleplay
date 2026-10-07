@@ -428,33 +428,187 @@ function FactEditor({
   )
 }
 
-export function FactsTab({ chat, onChat }: TabProps) {
+/** Every name the record knows (subjects and knownBy), for editors and the who-filter. */
+function namesOf(facts: LitFact[]) {
+  const map = new Map<string, string>()
+  for (const f of facts) {
+    if (f.subject) map.set(f.subject.toLowerCase(), f.subject)
+    if (Array.isArray(f.knownBy)) for (const n of f.knownBy) map.set(n.toLowerCase(), n)
+  }
+  return Array.from(map.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
+/**
+ * The fact actions shared by the Ledger and the Overview: one busy row at a time, one editor,
+ * the pin flow and the delete confirmation. Render `dialogs` once where the hook is used.
+ */
+export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const pinFlow = usePinFlow(chat, onChat)
-
-  const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const names = useMemo(() => namesOf(chat.facts), [chat.facts])
+
+  const run = async (id: string, fn: () => Promise<LitChat>) => {
+    setBusyId(id)
+    try {
+      onChat(await fn())
+      return true
+    } catch (e) {
+      toast.error(errText(e))
+      return false
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleEdit = async (fact: LitFact, patch: LitFactFields) => {
+    if (await run(fact.id, () => editLitFact(chat.chatId, fact.id, patch))) setEditingId(null)
+  }
+
+  const handleDelete = async (fact: LitFact) => {
+    const ok = await confirm({ title: t('lit.deleteFactTitle'), description: t('lit.deleteFactBody'), actionLabel: t('lit.delete'), destructive: true })
+    if (ok) await run(fact.id, () => deleteLitFact(chat.chatId, fact.id))
+  }
+
+  const withToast = (text: string, fn: () => Promise<LitChat>) => async () => {
+    const answer = await fn()
+    toast.info(text)
+    return answer
+  }
+
+  /** One list of row actions for both the inline buttons (md+) and the ⋯ menu. */
+  const actionsFor = (fact: LitFact): RowAction[] => {
+    const out: RowAction[] = []
+    if (fact.status === 'active') {
+      out.push(
+        fact.pinned
+          ? { key: 'unpin', label: t('lit.unpin'), icon: PushPinSlash, run: () => run(fact.id, withToast(t('lit.unpinnedToast'), () => unpinLitFact(chat.chatId, fact.id))) }
+          : { key: 'pin', label: t('lit.pin'), icon: PushPin, run: () => pinFlow.pin(fact) },
+        { key: 'retire', label: t('lit.retire'), icon: Archive, run: () => run(fact.id, withToast(t('lit.retiredToast'), () => retireLitFact(chat.chatId, fact.id))) },
+      )
+    }
+    if (fact.status === 'retired') out.push({ key: 'restore', label: t('lit.restore'), icon: ArrowCounterClockwise, run: () => run(fact.id, () => restoreLitFact(chat.chatId, fact.id)) })
+    if (fact.status !== 'superseded') out.push({ key: 'edit', label: t('lit.edit'), icon: PencilSimple, run: () => setEditingId(fact.id) })
+    out.push({ key: 'delete', label: t('lit.delete'), icon: Trash, run: () => handleDelete(fact), destructive: true })
+    return out
+  }
+
+  const dialogs = (
+    <>
+      {confirmDialog}
+      {pinFlow.dialog}
+    </>
+  )
+  return { names, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs }
+}
+
+export type FactControls = ReturnType<typeof useFactControls>
+
+/**
+ * One fact: its text, badges and actions, or its editor while it is being edited. compact (the
+ * Overview) drops the subject badge, which the card or chapter around it already says.
+ */
+export function FactItem({ fact, ctl, compact = false }: { fact: LitFact; ctl: FactControls; compact?: boolean }) {
+  const t = useT()
+  if (ctl.editingId === fact.id) {
+    return <FactEditor fact={fact} names={ctl.names} busy={ctl.busyId === fact.id} onSave={(patch) => ctl.handleEdit(fact, patch)} onCancel={() => ctl.setEditingId(null)} />
+  }
+  const disabled = ctl.busyId === fact.id
+  const actions = ctl.actionsFor(fact)
+  return (
+    <div data-testid="fact-row" className={cn('group rounded-md border border-border bg-card', compact ? 'px-2.5 py-1.5' : 'px-3 py-2')}>
+      <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <p className={cn('break-words', compact ? 'text-[13px] leading-snug' : 'text-sm')}>{fact.text}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {!compact && (
+              <Badge variant="outline" className="text-[10px]">
+                {fact.subject === 'world' ? t('lit.type.world') : t('lit.subject', { name: fact.subject })}
+              </Badge>
+            )}
+            <Badge variant="outline" className="text-[10px]">
+              {fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: fact.knownBy.join(', ') })}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">{t(typeKey(fact.type))}</Badge>
+            <Badge
+              variant={fact.weight === 'key' ? 'outline' : fact.weight === 'important' ? 'secondary' : 'ghost'}
+              className={cn('text-[10px]', fact.weight === 'key' && 'text-primary')}
+            >
+              {t(weightKey(fact.weight))}
+            </Badge>
+            {fact.pinned && (
+              <Badge variant="secondary" className="gap-1 text-[10px]">
+                <PushPin weight="fill" className="size-3" aria-hidden="true" />
+                {t('lit.pinned')}
+              </Badge>
+            )}
+            {!fact.pinned && fact.pinProposed && (
+              <Badge variant="outline" className="gap-1 text-[10px]">
+                <PushPin className="size-3" aria-hidden="true" />
+                {t('lit.pinProposed')}
+              </Badge>
+            )}
+            {fact.edited && <Badge variant="outline" className="text-[10px]">{t('lit.edited')}</Badge>}
+            {originKey(fact.origin) && <Badge variant="outline" className="text-[10px]">{t(originKey(fact.origin)!)}</Badge>}
+            {fact.status !== 'active' && <Badge variant="outline" className="text-[10px]">{t(statusKey(fact.status))}</Badge>}
+            {fact.mergedInto && <Badge variant="outline" className="text-[10px]">{t('lit.mergedInto', { id: fact.mergedInto })}</Badge>}
+            {fact.supersedes && <Badge variant="outline" className="text-[10px]">{t('lit.supersedes', { id: fact.supersedes })}</Badge>}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <div className="hidden items-center gap-0.5 md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+            {actions.map((x) => (
+              <Tooltip key={x.key}>
+                <TooltipTrigger
+                  render={
+                    <Button variant="ghost" size="icon-sm" className={cn('size-9 md:size-7', x.destructive && 'text-destructive')} disabled={disabled} onClick={() => void x.run()} aria-label={x.label}>
+                      <x.icon className="size-4" aria-hidden="true" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{x.label}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" className="size-9 md:size-7" data-testid="fact-menu" disabled={disabled} aria-label={t('lit.actions')}>
+                  <DotsThree className="size-5 md:size-4" weight="bold" aria-hidden="true" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              {actions.map((x) => (
+                <Fragment key={x.key}>
+                  {x.destructive && <DropdownMenuSeparator />}
+                  <DropdownMenuItem variant={x.destructive ? 'destructive' : 'default'} onClick={() => void x.run()}>
+                    <x.icon className="size-4" aria-hidden="true" />
+                    {x.label}
+                  </DropdownMenuItem>
+                </Fragment>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function FactsTab({ chat, onChat }: TabProps) {
+  const t = useT()
+  const ctl = useFactControls(chat, onChat)
+  const [adding, setAdding] = useState(false)
 
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | LitFactType>('all')
   const [weightFilter, setWeightFilter] = useState<'all' | LitFactWeight>('all')
   const [whoFilter, setWhoFilter] = useState<'all' | string>('all')
   const [stateFilter, setStateFilter] = useState<StateFilter>('active')
-
-  const names = useMemo(() => {
-    const map = new Map<string, string>()
-    chat.facts.forEach((f) => {
-      if (f.subject) map.set(f.subject.toLowerCase(), f.subject)
-      if (Array.isArray(f.knownBy)) {
-        f.knownBy.forEach((n) => map.set(n.toLowerCase(), n))
-      }
-    })
-    return Array.from(map.values()).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    )
-  }, [chat.facts])
+  const names = ctl.names
 
   const isFiltered =
     query.trim().length > 0 ||
@@ -497,75 +651,8 @@ export function FactsTab({ chat, onChat }: TabProps) {
       })
   }, [chat.facts, query, typeFilter, weightFilter, whoFilter, stateFilter])
 
-  const run = async (id: string, fn: () => Promise<LitChat>) => {
-    setBusyId(id)
-    try {
-      onChat(await fn())
-      return true
-    } catch (e) {
-      toast.error(errText(e))
-      return false
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   const handleAdd = async (fields: LitFactFields) => {
-    if (await run('add', () => addLitFact(chat.chatId, { ...fields, text: fields.text ?? '' }))) setAdding(false)
-  }
-
-  const handleEdit = async (fact: LitFact, patch: LitFactFields) => {
-    if (await run(fact.id, () => editLitFact(chat.chatId, fact.id, patch))) setEditingId(null)
-  }
-
-  /** One list of row actions for both the inline buttons (md+) and the ⋯ menu. */
-  const actionsFor = (fact: LitFact): RowAction[] => {
-    const out: RowAction[] = []
-    if (fact.status === 'active') {
-      out.push(
-        fact.pinned
-          ? { key: 'unpin', label: t('lit.unpin'), icon: PushPinSlash, run: () => handleUnpin(fact) }
-          : { key: 'pin', label: t('lit.pin'), icon: PushPin, run: () => pinFlow.pin(fact) },
-        { key: 'retire', label: t('lit.retire'), icon: Archive, run: () => handleRetire(fact) },
-      )
-    }
-    if (fact.status === 'retired') out.push({ key: 'restore', label: t('lit.restore'), icon: ArrowCounterClockwise, run: () => handleRestore(fact) })
-    if (fact.status !== 'superseded') out.push({ key: 'edit', label: t('lit.edit'), icon: PencilSimple, run: () => setEditingId(fact.id) })
-    out.push({ key: 'delete', label: t('lit.delete'), icon: Trash, run: () => handleDelete(fact), destructive: true })
-    return out
-  }
-
-  const handleDelete = async (fact: LitFact) => {
-    if (
-      await confirm({
-        title: t('lit.deleteFactTitle'),
-        description: t('lit.deleteFactBody'),
-        actionLabel: t('lit.delete'),
-        destructive: true,
-      })
-    ) {
-      await run(fact.id, () => deleteLitFact(chat.chatId, fact.id))
-    }
-  }
-
-  const handleRetire = async (fact: LitFact) => {
-    await run(fact.id, async () => {
-      const answer = await retireLitFact(chat.chatId, fact.id)
-      toast.info(t('lit.retiredToast'))
-      return answer
-    })
-  }
-
-  const handleRestore = async (fact: LitFact) => {
-    await run(fact.id, () => restoreLitFact(chat.chatId, fact.id))
-  }
-
-  const handleUnpin = async (fact: LitFact) => {
-    await run(fact.id, async () => {
-      const answer = await unpinLitFact(chat.chatId, fact.id)
-      toast.info(t('lit.unpinnedToast'))
-      return answer
-    })
+    if (await ctl.run('add', () => addLitFact(chat.chatId, { ...fields, text: fields.text ?? '' }))) setAdding(false)
   }
 
   const clearFilters = () => {
@@ -576,33 +663,18 @@ export function FactsTab({ chat, onChat }: TabProps) {
     setStateFilter('active')
   }
 
-  const rowDisabled = (id: string) => busyId === id
-
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {confirmDialog}
-      {pinFlow.dialog}
+      {ctl.dialogs}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setAdding((v) => !v)}
-          disabled={busyId === 'add'}
-        >
+        <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)} disabled={ctl.busyId === 'add'}>
           <Plus className="size-4" aria-hidden="true" />
           {t('lit.addFact')}
         </Button>
       </div>
 
-      {adding && (
-        <FactEditor
-          names={names}
-          busy={busyId === 'add'}
-          onSave={handleAdd}
-          onCancel={() => setAdding(false)}
-        />
-      )}
+      {adding && <FactEditor names={names} busy={ctl.busyId === 'add'} onSave={handleAdd} onCancel={() => setAdding(false)} />}
 
       <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
         <div className="relative col-span-2 md:col-span-1 md:min-w-[180px] md:flex-1">
@@ -682,135 +754,11 @@ export function FactsTab({ chat, onChat }: TabProps) {
         <p className="py-6 text-sm text-muted-foreground">{t('lit.noFacts')}</p>
       ) : (
         <ul className="flex min-w-0 flex-col gap-2">
-          {visible.map((fact) =>
-            editingId === fact.id ? (
-              <li key={fact.id}>
-                <FactEditor
-                  fact={fact}
-                  names={names}
-                  busy={busyId === fact.id}
-                  onSave={(patch) => handleEdit(fact, patch)}
-                  onCancel={() => setEditingId(null)}
-                />
-              </li>
-            ) : (
-              <li
-                key={fact.id}
-                data-testid="fact-row"
-                className="group rounded-md border border-border bg-card px-3 py-2"
-              >
-                <div className="flex flex-col gap-2">
-                  <p className="break-words text-sm">{fact.text}</p>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {fact.subject && fact.subject !== 'world' && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t('lit.subject', { name: fact.subject })}
-                      </Badge>
-                    )}
-                    {fact.subject === 'world' && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t('lit.type.world')}
-                      </Badge>
-                    )}
-                    <Badge variant="outline" className="text-[10px]">
-                      {fact.knownBy === 'all'
-                        ? t('lit.knownByAll')
-                        : t('lit.knownBy', { names: fact.knownBy.join(', ') })}
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px]">
-                      {t(typeKey(fact.type))}
-                    </Badge>
-                    <Badge
-                      variant={
-                        fact.weight === 'key'
-                          ? 'outline'
-                          : fact.weight === 'important'
-                            ? 'secondary'
-                            : 'ghost'
-                      }
-                      className={cn('text-[10px]', fact.weight === 'key' && 'text-primary')}
-                    >
-                      {t(weightKey(fact.weight))}
-                    </Badge>
-                    {fact.pinned && (
-                      <Badge variant="secondary" className="gap-1 text-[10px]">
-                        <PushPin weight="fill" className="size-3" aria-hidden="true" />
-                        {t('lit.pinned')}
-                      </Badge>
-                    )}
-                    {!fact.pinned && fact.pinProposed && (
-                      <Badge variant="outline" className="gap-1 text-[10px]">
-                        <PushPin className="size-3" aria-hidden="true" />
-                        {t('lit.pinProposed')}
-                      </Badge>
-                    )}
-                    {fact.edited && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t('lit.edited')}
-                      </Badge>
-                    )}
-                    {originKey(fact.origin) && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t(originKey(fact.origin)!)}
-                      </Badge>
-                    )}
-                    {fact.status !== 'active' && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t(statusKey(fact.status))}
-                      </Badge>
-                    )}
-                    {fact.mergedInto && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t('lit.mergedInto', { id: fact.mergedInto })}
-                      </Badge>
-                    )}
-                    {fact.supersedes && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t('lit.supersedes', { id: fact.supersedes })}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-2 flex items-center justify-end gap-1">
-                  <div className="hidden items-center gap-1 md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
-                    {actionsFor(fact).map((x) => (
-                      <Tooltip key={x.key}>
-                        <TooltipTrigger
-                          render={
-                            <Button variant="ghost" size="icon-sm" className={cn('size-9 md:size-7', x.destructive && 'text-destructive')} disabled={rowDisabled(fact.id)} onClick={() => void x.run()} aria-label={x.label}>
-                              <x.icon className="size-4" aria-hidden="true" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>{x.label}</TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button variant="ghost" size="icon-sm" className="size-9 md:size-7" data-testid="fact-menu" disabled={rowDisabled(fact.id)} aria-label={t('lit.actions')}>
-                          <DotsThree className="size-5 md:size-4" weight="bold" aria-hidden="true" />
-                        </Button>
-                      }
-                    />
-                    <DropdownMenuContent align="end">
-                      {actionsFor(fact).map((x) => (
-                        <Fragment key={x.key}>
-                          {x.destructive && <DropdownMenuSeparator />}
-                          <DropdownMenuItem variant={x.destructive ? 'destructive' : 'default'} onClick={() => void x.run()}>
-                            <x.icon className="size-4" aria-hidden="true" />
-                            {x.label}
-                          </DropdownMenuItem>
-                        </Fragment>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </li>
-            )
-          )}
+          {visible.map((fact) => (
+            <li key={fact.id}>
+              <FactItem fact={fact} ctl={ctl} />
+            </li>
+          ))}
         </ul>
       )}
     </div>

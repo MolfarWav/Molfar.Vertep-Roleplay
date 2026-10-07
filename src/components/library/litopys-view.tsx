@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowsClockwise, Scroll } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
@@ -16,7 +15,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 /**
  * The Library section (section id `litopys`, so the rail position stays): what Litopys keeps per
  * chat. Left, the chats with the worker's state; right, the chosen chat's Ledger, where chapters,
- * facts and proposals are edited. Overview (M4c) comes next.
+ * facts and proposals are edited. Overview shows the same record as a story.
  */
 export function LitopysView() {
   const t = useT()
@@ -25,6 +24,15 @@ export function LitopysView() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [tick, setTick] = useState(0)
+  const [mode, setModeState] = useState<Mode>(readMode)
+  const setMode = (m: Mode) => {
+    setModeState(m)
+    try {
+      localStorage.setItem(MODE_KEY, m)
+    } catch {
+      // the choice is only a convenience
+    }
+  }
 
   useEffect(() => {
     let live = true
@@ -81,10 +89,10 @@ export function LitopysView() {
         onBack={() => setDetailOpen(false)}
         detailTitle={current?.title}
         masterWidth="w-72"
-        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} />}
+        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} mode={mode} onMode={setMode} />}
         detail={
           selectedId ? (
-            <LedgerChat chatId={selectedId} refreshKey={tick} onLoaded={syncItem} />
+            <LedgerChat chatId={selectedId} refreshKey={tick} onLoaded={syncItem} mode={mode} />
           ) : (
             <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
               {items === null ? '…' : items.length ? t('lit.pick') : t('lit.noChats')}
@@ -96,24 +104,34 @@ export function LitopysView() {
   )
 }
 
-/** Overview | Ledger. Overview is the next step (M4c): shown, not yet usable. */
-function ModeSwitch() {
+type Mode = 'overview' | 'ledger'
+const MODE_KEY = 'rp.libraryMode'
+function readMode(): Mode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'ledger' ? 'ledger' : 'overview'
+  } catch {
+    return 'overview'
+  }
+}
+
+/** Overview (the story: timeline and characters) | Ledger (the tables). Both edit the same record. */
+function ModeSwitch({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
   const t = useT()
+  const item = (m: Mode, label: string) => (
+    <button
+      type="button"
+      aria-pressed={mode === m}
+      data-testid={`mode-${m}`}
+      onClick={() => onMode(m)}
+      className={cn('min-h-8 flex-1 rounded px-2', mode === m ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+    >
+      {label}
+    </button>
+  )
   return (
     <div className="flex gap-1 rounded-md bg-muted p-0.5 text-xs" role="group" aria-label={t('lit.mode')}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button type="button" disabled aria-pressed={false} className="min-h-8 flex-1 cursor-not-allowed rounded px-2 text-muted-foreground opacity-60">
-              {t('lit.mode.overview')}
-            </button>
-          }
-        />
-        <TooltipContent>{t('lit.mode.overviewSoon')}</TooltipContent>
-      </Tooltip>
-      <button type="button" aria-pressed className="min-h-8 flex-1 rounded bg-background px-2 font-medium shadow-sm" data-testid="mode-ledger">
-        {t('lit.mode.ledger')}
-      </button>
+      {item('overview', t('lit.mode.overview'))}
+      {item('ledger', t('lit.mode.ledger'))}
     </div>
   )
 }
@@ -124,7 +142,11 @@ function ChatPicker({
   selectedId,
   onSelect,
   onRefresh,
+  mode,
+  onMode,
 }: {
+  mode: Mode
+  onMode: (m: Mode) => void
   items: LitChatItem[] | null
   error: string
   selectedId: string | null
@@ -142,7 +164,7 @@ function ChatPicker({
         </Button>
       </div>
       <div className="flex flex-col gap-2 border-b border-border px-3 py-2">
-        <ModeSwitch />
+        <ModeSwitch mode={mode} onMode={onMode} />
         <p className="text-[11px] text-muted-foreground">{t('lit.hint')}</p>
       </div>
       <ScrollArea className="min-h-0 flex-1">

@@ -201,7 +201,9 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
           'gap-0',
           isDesktop
             ? cn(
-                'data-[side=left]:w-[min(720px,75vw)] data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
+                // the Library holds a timeline, character cards and a ledger side by side: it gets more room
+                drawer === 'litopys' ? 'data-[side=left]:w-[min(1200px,88vw)]' : 'data-[side=left]:w-[min(720px,75vw)]',
+                'data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
                 wide ? 'data-[side=left]:left-[206px]' : 'data-[side=left]:left-12',
               )
             : 'data-[side=top]:top-11 data-[side=top]:bottom-0 data-[side=top]:max-h-none',

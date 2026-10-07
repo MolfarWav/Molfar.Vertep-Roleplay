@@ -87,7 +87,7 @@ interface ChapterRowProps {
   disabled: boolean
 }
 
-function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps) {
+export function ChapterRow({ chat, chapter, onChat, disabled }: ChapterRowProps) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const [editing, setEditing] = useState(false)
