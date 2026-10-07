@@ -484,3 +484,61 @@ describe("rebuild", () => {
     expect(st.activity.at(-1).kind).toBe("rebuild.finish");
   });
 });
+
+describe("review fixes", () => {
+  const fact = (id: string, subject: string, pinned: boolean) => ({ id, text: "fact " + id, subject, knownBy: "all", type: "event", weight: "everyday", pinned, status: "active", src: { from: null, to: null }, origin: "user", at: 1, updatedAt: 1 });
+
+  it("an edited chapter never goes stale and keeps the cut moving when its messages change", () => {
+    const msgs = story(16);
+    writeChat("c1", msgs);
+    const sig = L.chapterSig(line(msgs).slice(0, 8));
+    writeJson("litopys/chats/c1.json", { ...L.emptyChat("c1"), migrated: true, counters: { chapter: 1, fact: 0, proposal: 0 }, chapters: [{ id: "c1", from: "m1", to: "m8", count: 8, kind: "scene", label: "Mine", text: "My words.", sig, at: 1, edited: true }] });
+    const changed = line(msgs.map((m) => (m.id === "m3" ? { ...m, text: "A swipe changed this." } : m)));
+    const st = L.loadChatFile(mockHost().host.fs, "c1");
+    expect(L.markStale(st, changed)).toBe(false);
+    expect(st.chapters[0].stale).toBeUndefined();
+    expect(L.coveredCount(st, changed)).toBe(8);
+    // its last message gone: still held, by its count
+    expect(L.coveredCount(st, changed.filter((m: any) => m.id !== "m8"))).toBe(8);
+  });
+
+  it("a kept-gone scene whose last message is gone is still skipped by its count", () => {
+    const msgs = story(16);
+    const st = { ...L.emptyChat("c1"), skipScenes: [{ from: "m1", to: "m8", count: 8 }] };
+    const ln = line(msgs.filter((m) => m.id !== "m8"));
+    expect(L.skipRanges(st, ln)).toEqual([{ fromIdx: 0, toIdx: 7, orphan: false, partial: false }]);
+  });
+
+  it("an accepted rewrite becomes the user's wording", () => {
+    writeChat("c1", story(2));
+    seedRecord("c1", { counters: { chapter: 0, fact: 1, proposal: 1 }, facts: [fact("f1", "Aria", false)], proposals: [{ id: "p1", op: "rewrite", targets: ["f1"], text: "Aria owns the mill.", status: "pending", at: 1 }] });
+    const r = route(mockHost().host, "POST", "/litopys/proposals", { chatId: "c1", id: "p1", op: "accept" });
+    expect(r.status).toBe(200);
+    expect(r.json.facts[0]).toMatchObject({ text: "Aria owns the mill.", edited: true });
+  });
+
+  it("a merge keeps only a pin of its own subject", () => {
+    writeChat("c1", story(2));
+    writeJson("litopys/config.json", { pinLimit: 1 });
+    seedRecord("c1", {
+      counters: { chapter: 0, fact: 3, proposal: 1 },
+      facts: [fact("f1", "Aria", false), fact("f2", "Bran", true), fact("f3", "Aria", true)],
+      proposals: [{ id: "p1", op: "merge", targets: ["f1", "f2"], text: "Aria and Bran share the mill.", status: "pending", at: 1 }],
+    });
+    const r = route(mockHost().host, "POST", "/litopys/proposals", { chatId: "c1", id: "p1", op: "accept" });
+    expect(r.status).toBe(200);
+    const merged = r.json.facts.find((f: any) => f.origin === "merge");
+    expect(merged.subject).toBe("Aria");
+    expect(merged.pinned).toBe(false);
+    expect(r.json.facts.filter((f: any) => f.pinned && f.subject === "Aria" && f.status === "active")).toHaveLength(1);
+  });
+
+  it("a stale inFlight is dropped once no work is left", () => {
+    writeChat("c1", story(4));
+    seedRecord("c1", { migrated: true, inFlight: { key: "lit_c1_m1_m4", from: "m1", to: "m4", fromNo: 1, toNo: 4, since: 1 } });
+    const m = mockHost();
+    tick(m);
+    expect(readJson("litopys/chats/c1.json").inFlight).toBeUndefined();
+    expect(route(m.host, "GET", "/litopys/chat", undefined, { chatId: "c1" }).json.worker.state).toBe("idle");
+  });
+});

@@ -504,6 +504,8 @@ export function rangeOf(ch, line) {
 export function markStale(st, line) {
   let changed = false;
   for (const ch of st.chapters) {
+    // the user wrote it: it stays until the user rewrites or deletes it (else the cut would stop there)
+    if (ch.edited === true) continue;
     const r = rangeOf(ch, line);
     const stale = r.orphan || r.partial || chapterSig(line.slice(r.fromIdx, r.toIdx + 1)) !== ch.sig;
     if (stale && !ch.stale) {
@@ -522,10 +524,10 @@ export function markStale(st, line) {
 export function coveredCount(st, line) {
   if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return 0;
   const ranges = st.chapters
-    .filter((ch) => isObj(ch) && ch.stale !== true)
-    .map((ch) => rangeOf(ch, line))
+    .filter((ch) => isObj(ch) && (ch.stale !== true || ch.edited === true))
+    .map((ch) => ({ ...rangeOf(ch, line), edited: ch.edited === true }))
     .concat(skipRanges(st, line))
-    .filter((r) => !r.orphan && !r.partial)
+    .filter((r) => !r.orphan && (!r.partial || r.edited))
     .sort((a, b) => a.fromIdx - b.fromIdx);
   let covered = 0;
   for (const r of ranges) {
@@ -569,8 +571,9 @@ export function skipRanges(st, line) {
   for (const s of arr(st && st.skipScenes)) {
     if (!isObj(s)) continue;
     const fromIdx = line.findIndex((m) => m.id === s.from);
-    const toIdx = line.findIndex((m) => m.id === s.to);
-    if (fromIdx < 0 || toIdx < fromIdx) continue;
+    if (fromIdx < 0) continue;
+    let toIdx = line.findIndex((m) => m.id === s.to);
+    if (toIdx < fromIdx) toIdx = Math.min(line.length - 1, fromIdx + Math.max(1, Number(s.count) || 1) - 1);
     out.push({ fromIdx, toIdx, orphan: false, partial: false });
   }
   return out;
@@ -1971,6 +1974,10 @@ export function onTick(_ctx, host) {
           gen.queue = { next: works.length };
           changed = true;
         }
+        if (!work && gen.inFlight) {
+          delete gen.inFlight;
+          changed = true;
+        }
         if (!work && gen !== st) {
           finishRebuild(st, now);
           if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
@@ -2313,10 +2320,8 @@ export function chapterRoute(fsx, body) {
       ch.editedAt = now;
       // the user wrote it for the messages as they are now
       const r = rangeOf(ch, line);
-      if (!r.orphan && !r.partial) {
-        ch.sig = chapterSig(line.slice(r.fromIdx, r.toIdx + 1));
-        delete ch.stale;
-      }
+      if (!r.orphan && !r.partial) ch.sig = chapterSig(line.slice(r.fromIdx, r.toIdx + 1));
+      delete ch.stale;
       addActivity(st, "user", "chapter.edit", "Edited the chapter " + quote(ch.label || ch.id), [ch.id], now);
       return;
     }
@@ -2333,7 +2338,7 @@ export function chapterRoute(fsx, body) {
       const keepGone = b.keepGone === true;
       if (keepGone) {
         const r = rangeOf(ch, line);
-        if (!r.orphan) st.skipScenes.push({ from: line[r.fromIdx].id, to: line[r.toIdx].id, at: now });
+        if (!r.orphan) st.skipScenes.push({ from: line[r.fromIdx].id, to: line[r.toIdx].id, count: r.toIdx - r.fromIdx + 1, at: now });
       } else woke = true;
       addActivity(st, "user", "chapter.delete", "Deleted the chapter " + name + (keepGone ? " and kept its scene out of the record" : ""), [ch.id], now);
       return;
@@ -2371,7 +2376,9 @@ export function proposalRoute(fsx, body) {
     if (p.op === "rewrite") {
       const text = cut(str(p.text), 300);
       if (!text) return bad("the proposal has no text");
+      // the user chose this wording: the worker may only propose changes to it from now on
       targets[0].text = text;
+      targets[0].edited = true;
       targets[0].updatedAt = now;
     } else if (p.op === "retire") {
       for (const f of targets) {
@@ -2392,8 +2399,8 @@ export function proposalRoute(fsx, body) {
         knownBy,
         type: first.type,
         weight,
-        // the merged fact keeps a pin its parts had: the pin count does not grow
-        pinned: targets.some((f) => f.pinned === true),
+        // the merged fact keeps a pin its parts of the same subject had: that subject's pin count does not grow
+        pinned: targets.some((f) => f.pinned === true && sameName(f.subject, first.subject)),
         status: "active",
         src: isObj(first.src) ? { ...first.src } : { from: null, to: null },
         origin: "merge",
