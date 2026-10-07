@@ -1,77 +1,54 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowsClockwise, Scroll, WarningCircle } from '@phosphor-icons/react'
+import { ArrowsClockwise, Scroll } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { fetchLitChat, fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
-import { ChapterList } from './chapters-list'
-import { FactList } from './facts-list'
-import { ProposalList } from './proposals-list'
-import { WorkerLine } from './worker-line'
+import { fetchLitChats, type LitChatItem } from './litopys-api'
+import { LedgerChat } from './ledger'
+import { WorkerDot } from './worker-dot'
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /**
- * The Litopys section: a read-only look at what the memory worker has built per
- * chat. Left, the chats; right, the chosen chat's chapters, facts, proposals
- * and the worker's last run. Nothing here edits anything.
+ * The Library section (section id `litopys`, so the rail position stays): what Litopys keeps per
+ * chat. Left, the chats with the worker's state; right, the chosen chat's Ledger, where chapters,
+ * facts and proposals are edited. Overview (M4c) comes next.
  */
 export function LitopysView() {
+  const t = useT()
   const [items, setItems] = useState<LitChatItem[] | null>(null)
   const [listError, setListError] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
-  const [chat, setChat] = useState<LitChat | null>(null)
-  const [chatError, setChatError] = useState('')
-  const [loading, setLoading] = useState(false)
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
     let live = true
-    fetchLitChats()
-      .then((r) => {
-        if (!live) return
-        setItems(r.items)
-        setListError('')
-        setSelectedId((cur) => cur ?? r.items.find((x) => x.hasData)?.id ?? r.items[0]?.id ?? null)
-      })
-      .catch((e: unknown) => {
-        if (live) setListError(errorText(e))
-      })
+    const load = () =>
+      fetchLitChats()
+        .then((r) => {
+          if (!live) return
+          setItems(r.items)
+          setListError('')
+          setSelectedId((cur) => cur ?? r.items.find((x) => x.hasData)?.id ?? r.items[0]?.id ?? null)
+        })
+        .catch((e: unknown) => {
+          if (live) setListError(errorText(e))
+        })
+    void load()
+    // the dots follow the worker
+    const id = setInterval(() => {
+      if (!document.hidden) void load()
+    }, 15_000)
     return () => {
       live = false
+      clearInterval(id)
     }
   }, [tick])
-
-  useEffect(() => {
-    if (!selectedId) {
-      setChat(null)
-      return
-    }
-    let live = true
-    setLoading(true)
-    fetchLitChat(selectedId)
-      .then((r) => {
-        if (!live) return
-        setChat(r)
-        setChatError('')
-      })
-      .catch((e: unknown) => {
-        if (!live) return
-        setChat(null)
-        setChatError(errorText(e))
-      })
-      .finally(() => {
-        if (live) setLoading(false)
-      })
-    return () => {
-      live = false
-    }
-  }, [selectedId, tick])
 
   const refresh = useCallback(() => setTick((n) => n + 1), [])
   const select = (id: string) => {
@@ -89,9 +66,39 @@ export function LitopysView() {
         detailTitle={current?.title}
         masterWidth="w-72"
         master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} />}
-        detail={<ChatDetail chat={chat} loading={loading} error={chatError} hasChats={!!items?.length} refreshKey={tick} />}
+        detail={
+          selectedId ? (
+            <LedgerChat chatId={selectedId} refreshKey={tick} />
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+              {items === null ? '…' : items.length ? t('lit.pick') : t('lit.noChats')}
+            </div>
+          )
+        }
       />
     </SectionPage>
+  )
+}
+
+/** Overview | Ledger. Overview is the next step (M4c): shown, not yet usable. */
+function ModeSwitch() {
+  const t = useT()
+  return (
+    <div className="flex gap-1 rounded-md bg-muted p-0.5 text-xs" role="group" aria-label={t('lit.mode')}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button type="button" disabled aria-pressed={false} className="min-h-8 flex-1 cursor-not-allowed rounded px-2 text-muted-foreground opacity-60">
+              {t('lit.mode.overview')}
+            </button>
+          }
+        />
+        <TooltipContent>{t('lit.mode.overviewSoon')}</TooltipContent>
+      </Tooltip>
+      <button type="button" aria-pressed className="min-h-8 flex-1 rounded bg-background px-2 font-medium shadow-sm" data-testid="mode-ledger">
+        {t('lit.mode.ledger')}
+      </button>
+    </div>
   )
 }
 
@@ -118,7 +125,10 @@ function ChatPicker({
           <ArrowsClockwise className="size-4" aria-hidden="true" />
         </Button>
       </div>
-      <p className="border-b border-border px-3 py-2 text-[11px] text-muted-foreground">{t('lit.hint')}</p>
+      <div className="flex flex-col gap-2 border-b border-border px-3 py-2">
+        <ModeSwitch />
+        <p className="text-[11px] text-muted-foreground">{t('lit.hint')}</p>
+      </div>
       <ScrollArea className="min-h-0 flex-1">
         {error && <p className="p-3 text-xs text-destructive">{t('lit.loadError', { error })}</p>}
         {items && items.length === 0 && !error && <p className="p-3 text-xs text-muted-foreground">{t('lit.noChats')}</p>}
@@ -129,6 +139,7 @@ function ChatPicker({
                 type="button"
                 onClick={() => onSelect(c.id)}
                 aria-current={c.id === selectedId ? 'true' : undefined}
+                data-testid="ledger-chat"
                 className={cn(
                   'flex min-h-11 w-full flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm',
                   c.id === selectedId ? 'bg-accent' : 'hover:bg-accent/50',
@@ -136,8 +147,8 @@ function ChatPicker({
                 )}
               >
                 <span className="flex min-w-0 items-center gap-1.5 font-medium">
+                  {c.hasData && <WorkerDot worker={c.worker} className="shrink-0" />}
                   <span className="min-w-0 truncate">{c.title}</span>
-                  {c.worker && !c.worker.ok && <WarningCircle className="size-3.5 shrink-0 text-destructive" aria-label={t('lit.worker.failed')} />}
                 </span>
                 <span className="truncate text-[11px] text-muted-foreground">
                   {c.name ? `${c.name} · ` : ''}
@@ -150,99 +161,5 @@ function ChatPicker({
         </ul>
       </ScrollArea>
     </aside>
-  )
-}
-
-function ChatDetail({ chat, loading, error, hasChats, refreshKey }: { chat: LitChat | null; loading: boolean; error: string; hasChats: boolean; refreshKey: number }) {
-  const t = useT()
-  if (error) return <p className="p-4 text-sm text-destructive">{t('lit.loadError', { error })}</p>
-  if (!chat) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
-        {loading ? '…' : hasChats ? t('lit.pick') : t('lit.noChats')}
-      </div>
-    )
-  }
-  return <LitopysChatDetail chatId={chat.chatId} refreshKey={refreshKey} />
-}
-
-/**
- * The detail part of the Litopys view: worker line, chapters, facts and
- * proposals. Shared with the chat's record sheet.
- */
-export function LitopysChatDetail({ chatId, refreshKey = 0, onLoaded }: { chatId: string; refreshKey?: number; onLoaded?: (chat: LitChat) => void }) {
-  const t = useT()
-  const [chat, setChat] = useState<LitChat | null>(null)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    let live = true
-    fetchLitChat(chatId)
-      .then((r) => {
-        if (!live) return
-        setChat(r)
-        setError('')
-        onLoaded?.(r)
-      })
-      .catch((e: unknown) => {
-        if (live) setError(errorText(e))
-      })
-    return () => {
-      live = false
-    }
-    // onLoaded is a callback from the parent; refetching on its identity would loop
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, refreshKey])
-  if (error) return <p className="p-4 text-sm text-destructive">{t('lit.loadError', { error })}</p>
-  if (!chat) return <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">…</div>
-  const active = chat.facts.filter((f) => f.status === 'active').length
-  const pending = chat.proposals.filter((p) => p.status === 'pending').length
-  return (
-    <ScrollArea className="min-h-0 flex-1">
-      <div className="flex min-w-0 flex-col gap-3 p-3 md:p-5">
-        <header className="min-w-0">
-          <h2 className="truncate font-heading text-lg leading-tight">{chat.title}</h2>
-          <p className="text-xs text-muted-foreground">
-            {chat.name ? `${chat.name} · ` : ''}
-            {t('lit.counts', { chapters: chat.chapters.length, facts: active, proposals: pending })}
-          </p>
-        </header>
-        <WorkerLine worker={chat.worker} facts={chat.worker?.facts} />
-        {(chat.cut?.count ?? 0) > 0 || chat.lastInsert || chat.rebuilding ? (
-          <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-            {(chat.cut?.count ?? 0) > 0 && <li>{t('lit.cutLine', { n: chat.cut!.count })}</li>}
-            {chat.lastInsert && (
-              <li>{t('lit.lastInsert', { tokens: chat.lastInsert.tokens, facts: chat.lastInsert.facts, chapters: chat.lastInsert.chapters })}</li>
-            )}
-            {chat.rebuilding && <li className="text-primary">{t('lit.rebuilding', { n: chat.rebuilding.chapters })}</li>}
-          </ul>
-        ) : null}
-        {!chat.hasData ? (
-          <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">{t('lit.noData')}</p>
-        ) : (
-          <Tabs defaultValue="chapters" className="min-w-0">
-            <TabsList className="h-9 w-max max-w-full">
-              <TabsTrigger value="chapters" className="px-3 text-xs">
-                {t('lit.chapters')} ({chat.chapters.length})
-              </TabsTrigger>
-              <TabsTrigger value="facts" className="px-3 text-xs">
-                {t('lit.facts')} ({chat.facts.length})
-              </TabsTrigger>
-              <TabsTrigger value="proposals" className="px-3 text-xs">
-                {t('lit.proposals')} ({chat.proposals.length})
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="chapters" className="mt-1">
-              <ChapterList chapters={chat.chapters} scene={chat.scene} sceneFromNo={chat.sceneFromNo} />
-            </TabsContent>
-            <TabsContent value="facts" className="mt-1">
-              <FactList facts={chat.facts} />
-            </TabsContent>
-            <TabsContent value="proposals" className="mt-1">
-              <ProposalList proposals={chat.proposals} facts={chat.facts} />
-            </TabsContent>
-          </Tabs>
-        )}
-      </div>
-    </ScrollArea>
   )
 }

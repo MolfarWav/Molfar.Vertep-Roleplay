@@ -1,109 +1,116 @@
+import { useEffect, useState } from 'react'
 import { useRelativeTime, useT } from '@/hooks/use-t'
-import { Badge } from '@/components/ui/badge'
-import { CheckCircle, Gear, WarningCircle } from '@phosphor-icons/react'
-import type { LitWorker } from './litopys-api'
+import { cn } from '@/lib/utils'
+import { WorkerDot } from './worker-dot'
+import type { LitChat } from './litopys-api'
 
-interface WorkerFacts {
-  got: number
-  added: number
-  skipped: number
-}
-
-export function WorkerLine({ worker, facts }: { worker: LitWorker | null; facts?: WorkerFacts }) {
+export function WorkerLine({
+  worker,
+  rebuilding,
+  rebuildScenes,
+}: {
+  worker: LitChat['worker']
+  rebuilding: LitChat['rebuilding']
+  rebuildScenes: number
+}) {
   const t = useT()
   const rel = useRelativeTime()
+  const [, setTick] = useState(0)
 
-  if (worker === null) {
-    return (
-      <div className="rounded-md border border-border bg-card px-3 py-2 text-xs">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex items-center gap-1.5 font-medium">
-            <Gear className="size-3.5 text-muted-foreground" aria-hidden="true" />
-            {t('lit.worker')}
-          </span>
-          <span className="text-muted-foreground">{t('lit.worker.never')}</span>
-        </div>
-      </div>
+  useEffect(() => {
+    if (worker?.state !== 'working') return
+    const timer = setInterval(() => setTick((v) => v + 1), 1000)
+    return () => clearInterval(timer)
+  }, [worker?.state])
+
+  const state = worker?.state ?? 'never'
+  const secondary = worker?.error
+
+  const main = (() => {
+    if (!worker) return t('lit.worker.never')
+    switch (worker.state) {
+      case 'working': {
+        const s = worker.inFlight ? Math.max(0, Math.floor((Date.now() - worker.inFlight.since) / 1000)) : 0
+        return worker.inFlight
+          ? t('lit.w.working', { from: worker.inFlight.fromNo, to: worker.inFlight.toNo, s })
+          : t('lit.w.workingNa')
+      }
+      case 'idle':
+        return t('lit.w.idle')
+      case 'queued':
+        return (worker.next ?? 0) > 0
+          ? t('lit.w.queued', { n: worker.next! })
+          : t('lit.w.queuedTurn')
+      case 'retry': {
+        const time =
+          typeof worker.retryAt === 'number'
+            ? new Date(worker.retryAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : ''
+        return t('lit.w.retry', { time })
+      }
+      case 'stalled': {
+        const n = Math.max(1, Math.round((worker.stalledFor ?? 0) / 60000))
+        return t('lit.w.stalled', { n, left: worker.next ?? 0 })
+      }
+      default:
+        return t('lit.worker.never')
+    }
+  })()
+
+  const buildN = rebuilding ? rebuilding.chapters + (worker?.state === 'working' ? 1 : 0) : 0
+  const buildTotal = Math.max(rebuildScenes, buildN, 1)
+  const buildPct = Math.min(100, Math.round((buildN / buildTotal) * 100))
+
+  const detailParts: string[] = []
+  if (worker && worker.lastRunAt > 0) detailParts.push(t('lit.worker.last', { when: rel(worker.lastRunAt) }))
+  if (worker?.lastProgressAt) detailParts.push(t('lit.w.progress', { when: rel(worker.lastProgressAt) }))
+  if (worker?.facts) {
+    detailParts.push(
+      t('lit.worker.facts', { got: worker.facts.got, added: worker.facts.added }) +
+        (worker.facts.skipped > 0 ? t('lit.worker.factsSkipped', { skipped: worker.facts.skipped }) : '')
     )
   }
-
-  const ok = worker.ok
-  const lastScene = worker.lastScene
-  const hasScene =
-    lastScene != null &&
-    typeof lastScene.fromNo === 'number' &&
-    typeof lastScene.toNo === 'number' &&
-    lastScene.fromNo > 0 &&
-    lastScene.toNo > 0
+  if (typeof worker?.ms === 'number') detailParts.push(t('lit.worker.ms', { n: worker.ms }))
 
   return (
-    <div className="rounded-md border border-border bg-card px-3 py-2 text-xs">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-1.5 font-medium">
-          <Gear className="size-3.5 text-muted-foreground" aria-hidden="true" />
-          {t('lit.worker')}
-        </span>
-
-        {ok ? (
-          <Badge variant="secondary" className="text-[10px]">
-            <CheckCircle
-              className="mr-1 size-3 text-primary"
-              weight="fill"
-              aria-hidden="true"
-            />
-            {t('lit.worker.ok')}
-          </Badge>
-        ) : (
-          <Badge variant="destructive" className="text-[10px]">
-            <WarningCircle className="mr-1 size-3" aria-hidden="true" />
-            {t('lit.worker.failed')}
-          </Badge>
-        )}
-
-        {worker.lastRunAt > 0 && (
-          <span className="text-muted-foreground">
-            {t('lit.worker.last', { when: rel(worker.lastRunAt) })}
-          </span>
-        )}
-
-        {hasScene && (
-          <span className="text-muted-foreground">
-            {t('lit.worker.scene', {
-              from: lastScene!.fromNo!,
-              to: lastScene!.toNo!,
-            })}
-          </span>
-        )}
-
-        {typeof worker.ms === 'number' && (
-          <span className="text-muted-foreground">
-            {t('lit.worker.ms', { n: worker.ms })}
-          </span>
-        )}
-
-        {facts && (
-          <span className="text-muted-foreground">
-            {t('lit.worker.facts', { got: facts.got, added: facts.added })}
-            {facts.skipped > 0 && t('lit.worker.factsSkipped', { skipped: facts.skipped })}
-          </span>
-        )}
-
-        {!ok &&
-          typeof worker.retryAt === 'number' &&
-          worker.retryAt > Date.now() && (
-            <span className="text-muted-foreground">
-              {t('lit.worker.retry', {
-                time: new Date(worker.retryAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-              })}
-            </span>
+    <div
+      data-testid="worker-line"
+      data-state={state}
+      className="flex min-w-0 flex-col gap-2 rounded-md border border-border bg-card px-3 py-2.5"
+    >
+      <div className="flex min-w-0 items-start gap-2.5">
+        <WorkerDot worker={worker} className="mt-0.5 size-3" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div
+            className={cn(
+              'text-xs leading-snug',
+              state === 'retry' && 'text-amber-600 dark:text-amber-400',
+              state === 'stalled' && 'text-destructive',
+              state !== 'retry' && state !== 'stalled' && 'text-foreground'
+            )}
+          >
+            {main}
+          </div>
+          {state === 'retry' && secondary && (
+            <div className="text-xs break-words text-muted-foreground">{secondary}</div>
           )}
+          {detailParts.length > 0 && (
+            <div className="text-[11px] leading-snug break-words text-muted-foreground">
+              {detailParts.join(' · ')}
+            </div>
+          )}
+        </div>
       </div>
 
-      {!ok && worker.error && (
-        <div className="mt-1 w-full text-destructive break-words">{worker.error}</div>
+      {(rebuilding || worker?.rebuild) && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs text-primary">
+            {t('lit.w.rebuild', { n: buildN, total: buildTotal })}
+          </div>
+          <div className="h-1 overflow-hidden rounded bg-muted">
+            <div className="h-full bg-primary transition-all" style={{ width: `${buildPct}%` }} />
+          </div>
+        </div>
       )}
     </div>
   )

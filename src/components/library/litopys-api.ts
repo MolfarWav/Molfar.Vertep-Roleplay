@@ -1,6 +1,6 @@
-// Types and fetchers for the Litopys view (plugin routes
-// GET /litopys/chats and GET /litopys/chat?chatId=, plus config and rebuild).
-import { j } from '@/lib/engine'
+// Types and fetchers for the Library (Litopys plugin routes: GET /litopys/chats,
+// GET /litopys/chat?chatId=, config, rebuild, and the M4a editing routes).
+import { ApiError, j } from '@/lib/engine'
 
 export interface LitWorker {
   lastRunAt: number
@@ -11,7 +11,25 @@ export interface LitWorker {
   ms?: number
   /** After a failure: epoch ms before which the worker does not try this chat again. */
   retryAt?: number
+  /** M4a+: closed scenes still waiting for a chapter (in the chat list: as of the last tick). */
+  next?: number
+  /**
+   * working: a request is out (inFlight); retry: failed, waits for retryAt; idle: nothing left;
+   * queued: work left, the worker is on another chat or the next tick is due; stalled: work left
+   * and nothing moved for 3 minutes or more (the model or the engine may be down).
+   */
+  state?: LitWorkerState
+  /** stalled only: ms since anything moved. */
+  stalledFor?: number
+  /** When the last chapter was written. */
+  lastProgressAt?: number
+  /** The request in flight: the scene's message ids and 1-based numbers, and since when (epoch ms). */
+  inFlight?: { from: string; to: string; fromNo: number; toNo: number; since: number }
+  /** true while this is the worker of a rebuild in progress. */
+  rebuild?: boolean
 }
+
+export type LitWorkerState = 'working' | 'retry' | 'idle' | 'queued' | 'stalled'
 
 export interface LitChatItem {
   id: string
@@ -44,6 +62,12 @@ export interface LitChapter {
   edited: boolean
 }
 
+/** A scene the user deleted and kept out of the record (1-based message numbers). */
+export interface LitSkipped {
+  fromNo: number
+  toNo: number
+}
+
 export type LitFactType = 'event' | 'trait' | 'change' | 'relation' | 'world' | 'plan'
 export type LitFactWeight = 'everyday' | 'important' | 'key'
 export type LitFactStatus = 'active' | 'retired' | 'superseded'
@@ -59,7 +83,16 @@ export interface LitFact {
   pinProposed?: boolean
   status: LitFactStatus
   supersedes?: string
+  /** chapter | user | dashboard | migrated | merge */
   origin?: string
+  /** The user changed it: the worker only proposes changes to it. */
+  edited?: boolean
+  /** Retired by a merge into this fact. */
+  mergedInto?: string
+  /** A merged fact: the facts it replaced. */
+  merges?: string[]
+  /** Where it came from: message ids and the chapter id (null for user facts). */
+  src?: { from: string | null; to: string | null; chapter?: string }
   at: number
   updatedAt: number
 }
@@ -70,8 +103,35 @@ export interface LitProposal {
   targets: string[]
   text?: string
   reason?: string
-  status: string
+  status: LitProposalStatus
+  /** The chapter whose writing produced it. */
+  chapter?: string
   at?: number
+  settledAt?: number
+}
+
+export type LitProposalStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
+
+export type LitActivityKind =
+  | 'fact.add' | 'fact.edit' | 'fact.pin' | 'fact.unpin' | 'fact.retire' | 'fact.restore' | 'fact.delete'
+  | 'chapter.edit' | 'chapter.rewrite' | 'chapter.delete' | 'chapter.write'
+  | 'proposal.accept' | 'proposal.reject'
+  | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
+
+/**
+ * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
+ * data holds the values for the UI's own words, by kind:
+ * fact.*: { text } · chapter.edit / chapter.rewrite: { label } · chapter.delete: { label, keepGone } ·
+ * chapter.write: { label, from, to, facts, proposals, rewrite } · proposal.*: { op, text } ·
+ * worker.fail: { error } · import / notes.move: { n } · rebuild.finish: { chapters, facts } · rebuild.start: none.
+ */
+export interface LitActivity {
+  at: number
+  by: 'user' | 'worker' | 'rebuild' | 'sweep' | 'notes'
+  kind: LitActivityKind | string
+  text: string
+  ids: string[]
+  data?: Record<string, string | number | boolean>
 }
 
 export interface LitChat {
@@ -93,6 +153,11 @@ export interface LitChat {
   lastInsert: { at: number; tokens: number; facts: number; chapters: number; cut: number } | null
   rebuildScenes: number
   rebuilding: { chapters: number; startedAt: number } | null
+  /** M4a */
+  activity: LitActivity[]
+  skipped: LitSkipped[]
+  pinLimit: number
+  rev: number
 }
 
 export interface LitConfig {
@@ -112,3 +177,39 @@ export const fetchLitConfig = () => j<LitConfig>('/litopys/config')
 export const putLitConfig = (patch: Record<string, unknown>) => j<LitConfig>('/litopys/config', { method: 'PUT', body: JSON.stringify(patch) })
 export const deleteLitPrompts = () => j<{ ok: boolean }>('/litopys/config/prompts', { method: 'DELETE' })
 export const rebuildLitChat = (chatId: string) => j<{ scenes: number }>('/litopys/rebuild', { method: 'POST', body: JSON.stringify({ chatId }) })
+
+// ---------- M4a editing: every call answers the whole chat view ----------
+const post = <T>(path: string, body: Record<string, unknown>) => j<T>(path, { method: 'POST', body: JSON.stringify(body) })
+
+export interface LitFactFields {
+  text?: string
+  subject?: string
+  knownBy?: string[] | 'all'
+  type?: LitFactType
+  weight?: LitFactWeight
+}
+
+export const addLitFact = (chatId: string, fields: LitFactFields & { text: string }) => post<LitChat>('/litopys/facts', { chatId, op: 'add', ...fields })
+export const editLitFact = (chatId: string, id: string, fields: LitFactFields) => post<LitChat>('/litopys/facts', { chatId, op: 'edit', id, ...fields })
+/** replace: a pinned fact of the same subject to unpin in the same write (after the pin limit dialog). */
+export const pinLitFact = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/facts', { chatId, op: 'pin', id, ...(replace ? { replace } : {}) })
+export const unpinLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'unpin', id })
+export const retireLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'retire', id })
+export const restoreLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'restore', id })
+export const deleteLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'delete', id })
+
+export const editLitChapter = (chatId: string, id: string, fields: { label?: string; text?: string }) => post<LitChat>('/litopys/chapters', { chatId, op: 'edit', id, ...fields })
+export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('/litopys/chapters', { chatId, op: 'rewrite', id })
+/** keepGone: the worker never writes a chapter for these messages again; they still leave the prompt. */
+export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) => post<LitChat>('/litopys/chapters', { chatId, op: 'delete', id, keepGone })
+
+export const acceptLitProposal = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'accept', ...(replace ? { replace } : {}) })
+export const rejectLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'reject' })
+
+/** The plugin answered 409 "pin limit": the UI opens the pin limit dialog (pinned facts of that subject are in the chat view). */
+export const isPinLimit = (e: unknown) => e instanceof ApiError && e.status === 409 && e.message === 'pin limit'
+/** 409 "rebuilding": chapters cannot change until the rebuild is done. */
+export const isRebuilding = (e: unknown) => e instanceof ApiError && e.status === 409 && e.message === 'rebuilding'
+/** Active pinned facts of a subject (case-insensitive), as the plugin counts them for the limit. */
+export const pinnedOf = (facts: LitFact[], subject: string) =>
+  facts.filter((f) => f.status === 'active' && f.pinned && f.subject.toLowerCase() === subject.toLowerCase())

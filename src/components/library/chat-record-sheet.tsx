@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowsClockwise, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -6,14 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useT } from '@/hooks/use-t'
 import { rebuildLitChat } from './litopys-api'
-import { LitopysChatDetail } from './litopys-view'
+import { LedgerChat } from './ledger'
 import type { Chat } from '@/lib/types'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /**
- * The chat's story record: a right-side sheet showing what Litopys has built
- * for THIS chat, with a rebuild-from-scratch action.
+ * The chat's story record: the Ledger of THIS chat in a right-side sheet (edit chapters,
+ * facts, proposals), with a rebuild-from-scratch action.
  */
 export function ChatRecordSheet({ chat, open, onOpenChange }: { chat: Chat; open: boolean; onOpenChange: (o: boolean) => void }) {
   const t = useT()
@@ -22,12 +22,6 @@ export function ChatRecordSheet({ chat, open, onOpenChange }: { chat: Chat; open
   const [tick, setTick] = useState(0)
   const [scenes, setScenes] = useState(0)
   const refresh = useCallback(() => setTick((n) => n + 1), [])
-
-  useEffect(() => {
-    if (!open) return
-    const id = setInterval(refresh, 15_000)
-    return () => clearInterval(id)
-  }, [open, refresh])
 
   const runRebuild = async () => {
     setBuilding(true)
@@ -45,12 +39,12 @@ export function ChatRecordSheet({ chat, open, onOpenChange }: { chat: Chat; open
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md">
+      <SheetContent side="right" className="w-full sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>{t('lit.recordTitle')}</SheetTitle>
         </SheetHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
-          <LitopysChatDetail chatId={chat.id} refreshKey={tick} onLoaded={(c) => setScenes(c.rebuildScenes ?? 0)} />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <LedgerChat chatId={chat.id} refreshKey={tick} onLoaded={(c) => setScenes(c.rebuildScenes ?? 0)} />
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
           <Button variant="ghost" size="icon-sm" onClick={refresh} aria-label={t('lit.refresh')}>

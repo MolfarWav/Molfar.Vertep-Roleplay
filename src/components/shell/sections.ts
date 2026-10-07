@@ -22,7 +22,7 @@ export const SECTIONS: SectionItem[] = [
   { key: 'marketplace', label: 'Marketplace', labelKey: 'nav.marketplace', icon: Storefront, group: 1 },
   { key: 'personas', label: 'Personas', labelKey: 'nav.personas', icon: UserCircle, group: 1 },
   { key: 'lorebooks', label: 'Lorebooks', labelKey: 'nav.lorebooks', icon: BookOpenText, group: 1 },
-  { key: 'litopys', label: 'Litopys', labelKey: 'nav.litopys', icon: Scroll, group: 1 },
+  { key: 'litopys', label: 'Library', labelKey: 'nav.litopys', icon: Scroll, group: 1 },
   { key: 'presets', label: 'Presets', labelKey: 'nav.presets', icon: SlidersHorizontal, group: 2 },
   { key: 'connections', label: 'Connections', labelKey: 'nav.connections', icon: Plug, group: 2 },
   { key: 'quickreplies', label: 'Shortcuts', labelKey: 'nav.quickreplies', icon: Lightning, group: 3 },
