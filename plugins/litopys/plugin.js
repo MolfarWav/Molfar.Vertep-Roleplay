@@ -1262,11 +1262,7 @@ export function migrateChat(fsx, chatId, meta, line, now) {
       if (!isObj(m)) continue;
       const t = str(m.text);
       if (!t) continue;
-      let weight = "everyday";
-      if (typeof m.importance === "number") {
-        if (m.importance >= 5) weight = "key";
-        else if (m.importance >= 3) weight = "important";
-      }
+      const weight = vaultWeight(m);
       const id = addFact(t, {
         weight,
         pinned: !!m.pinned,
@@ -1538,6 +1534,14 @@ export function pickChats(fsx, now) {
 // ---------- M3b: the sweep, migrated weights, card repeats, dashboard notes, rebuild ----------
 const INSERT_DIR = "litopys/insert/";
 
+/** The weight of an old vault entry: by its importance (1-5), a pinned one at least important. */
+function vaultWeight(m) {
+  const imp = typeof m.importance === "number" ? m.importance : 0;
+  if (imp >= 5) return "key";
+  if (imp >= 3 || m.pinned === true) return "important";
+  return "everyday";
+}
+
 /** Facts from an old Memory vault (`.memories.json`), skipping ones Litopys already holds. */
 export function importMemories(st, list, now) {
   let n = 0;
@@ -1553,7 +1557,7 @@ export function importMemories(st, list, now) {
       subject: "world",
       knownBy: "all",
       type: "event",
-      weight: pinned ? "important" : "everyday",
+      weight: vaultWeight(m),
       pinned,
       status: "active",
       origin: "migrated",

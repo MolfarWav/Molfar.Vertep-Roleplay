@@ -93,7 +93,7 @@ describe("Litopys 2.0 state", () => {
     const memFacts = facts.slice(7);
     expect(memFacts.map((f: any) => ({ text: f.text, weight: f.weight, pinned: f.pinned }))).toEqual([
       { text: "You remember the smell of rain.", weight: "everyday", pinned: false },
-      { text: "Aria smiled when she saw the map.", weight: "everyday", pinned: true },
+      { text: "Aria smiled when she saw the map.", weight: "important", pinned: true },
       { text: "The cart lost a wheel on the hill.", weight: "important", pinned: false },
       { text: "A secret door lies behind the tapestry.", weight: "important", pinned: false },
       { text: "The hidden key was under the board.", weight: "key", pinned: true },
