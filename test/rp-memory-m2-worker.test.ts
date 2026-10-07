@@ -767,3 +767,18 @@ describe("flat worker replies", () => {
     expect(L.parseWorkerReply('{"label":"Glade","text":"Jude found Kael.","facts":[]}')).toMatchObject({ chapter: { label: "Glade", text: "Jude found Kael." } });
   });
 });
+
+describe("knownBy", () => {
+  it("the subject of a fact always knows it", () => {
+    const ln = line(story(10));
+    const st = L.emptyChat("c1");
+    const work = { scene: { from: "m1", to: "m6", fromIdx: 0, toIdx: 5, count: 6, kind: "scene", label: "" }, replaces: null };
+    const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "x", text: "y" }, facts: [
+      { op: "add", text: "Bram came through a rift.", subject: "Bram", knownBy: ["Aria"] },
+      { op: "add", text: "The rift closed.", subject: "world", knownBy: ["Aria"] },
+    ] }));
+    L.applyWorkerResult(st, work, parsed, { now: 1, line: ln });
+    expect(st.facts[0].knownBy).toEqual(["Bram", "Aria"]);
+    expect(st.facts[1].knownBy).toEqual(["Aria"]);
+  });
+});

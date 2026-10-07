@@ -726,7 +726,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       const text = cut(op.text, 300);
       if (!text) continue;
       const subject = str(op.subject) || "world";
-      const knownBy = op.knownBy === "all" ? "all" : Array.isArray(op.knownBy) && op.knownBy.length ? op.knownBy.map((x) => str(x)).filter(Boolean) : "all";
+      let knownBy = op.knownBy === "all" ? "all" : Array.isArray(op.knownBy) && op.knownBy.length ? op.knownBy.map((x) => str(x)).filter(Boolean) : "all";
+      // a character knows what is about them; models often list only the others
+      if (Array.isArray(knownBy) && subject.toLowerCase() !== "world" && !knownBy.some((k) => k.toLowerCase() === subject.toLowerCase())) knownBy = [subject, ...knownBy];
       const typeMap = ["event", "trait", "change", "relation", "world", "plan"];
       const type = typeMap.includes(op.type) ? op.type : "event";
       const weightMap = ["everyday", "important", "key"];
