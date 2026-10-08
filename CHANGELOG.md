@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.26.0
+
+Molfar learns the craft of cards, lorebooks and presets. The skills use the json_get and json_set tools of Molfar Vertep 0.9.1: update the engine too.
+
+- **Four skills for Molfar**, loaded when a task needs them: `card-craft` (a new character, or a deeper one: description and personality, first message, example dialogue, what makes a character flat or speak for you), `card-import` (a card or lorebook from JanitorAI, RisuAI, Wyvern or pasted text, adapted to this app), `lorebook-craft` (a world that holds together, entries that fire) and `preset-craft` (writing, auditing and porting presets). Each is a short procedure of a few tool calls; `edit-large-card` is cut down the same way.
+- **One reference for the data files**, `docs/DATA-FORMATS.md`: every field of cards, lorebooks and presets, the macros (`{{roll}}`, `{{random}}`, `{{pick}}`, `{{setvar}}`…) and regex scripts. The skills point to it instead of copying it, and a test fails when the code writes a field the page does not name, so it stays current.
+- **The card's id in the character editor**, copied with one click: give it to Molfar so it edits exactly that card.
+
 ## 4.25.1
 
 A new example character for new installs.
