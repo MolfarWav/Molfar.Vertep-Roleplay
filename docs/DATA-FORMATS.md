@@ -109,7 +109,9 @@ character's `/studio/linkedLorebookIds`.
 ## Presets: `data/presets/<id>.json`
 
 A preset is the prompt the model gets around the chat, plus sampler settings. The file uses the
-SillyTavern prompt-list shape; `default` is the read-only stock preset (copy it to make a new one).
+SillyTavern prompt-list shape. Every preset is editable, `default` included, unless its
+`studio.readOnly` is `true`; the user's default is the one with `studio.isDefault: true`. To try
+something risky, copy the preset to a new id first.
 
 ### Fields
 | Field | What it is |
@@ -138,3 +140,19 @@ SillyTavern prompt-list shape; `default` is the read-only stock preset (copy it 
 - The text of a section is `prompts[].content`; its place and on/off state are in `prompt_order`.
   A new section needs both: a `prompts` item and an `order` item. Section groups and conditions
   live only in `studio.sections` / `studio.groups`: change them in the editor.
+
+## Macros and regex scripts
+
+Card fields, lorebook entries and preset sections may use macros; the engine expands them when it
+builds the prompt. Names are case-insensitive.
+- `{{char}}`, `{{user}}`: the character's and the persona's names. `{{newline}}`, `{{trim}}`.
+- `{{roll:1d20}}` (also `2d6+1`, or a bare `20`): a dice roll by the engine. `{{random::a::b::c}}`
+  picks one each time; `{{pick::a::b::c}}` picks once and keeps it for that chat. Use these instead
+  of asking the model to invent random results.
+- `{{setvar::name::value}}`, `{{getvar::name}}`, `{{addvar::name::n}}`, `{{incvar::name}}`,
+  `{{decvar::name}}`: variables kept per chat.
+
+Regex scripts are `data/regex/<id>.json` (copy `data/regex/_example.json`): `findRegex`,
+`replaceString`, `placement` (`user_input`, `ai_output`, `prompt`, `display`), `scope` (`global`,
+`character`, `chat`, `preset`) with `scopeTargetId`, `minDepth` / `maxDepth`. A script with
+placement `display` hides or restyles text on screen only; `prompt` changes what the model gets.

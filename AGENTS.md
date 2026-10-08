@@ -270,6 +270,12 @@ data/
 
 Card souls for the relationship dashboard: docs/SOUL.md
 
+Every field of cards, lorebooks and presets: `docs/DATA-FORMATS.md`. The skills
+in `.skills/` (`edit-large-card`, `card-craft`, `card-import`, `lorebook-craft`,
+`preset-craft`) point there instead of copying it. A change to one of these
+formats updates DATA-FORMATS.md (`test/rp-data-formats.test.ts` fails otherwise)
+AND every skill that names the changed field, in the same commit.
+
 Characters: alternates, versions, per-chat choice — exact shapes:
 - `card.studio.descVariants` / `personalityVariants` / `scenarioVariants`:
   `[{ id: "var_…", label, content }]`. The card's base `description` /
