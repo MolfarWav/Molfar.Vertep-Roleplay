@@ -28,8 +28,10 @@ export function LitopysView() {
   const [mode, setModeState] = useState<Mode>(readMode)
   // the map of chats takes the detail pane until a chat is picked on it
   const [showMap, setShowMap] = useState(false)
+  // picking Overview or Ledger shows that view of the chat: the map gives way
   const setMode = (m: Mode) => {
     setModeState(m)
+    setShowMap(false)
     try {
       localStorage.setItem(MODE_KEY, m)
     } catch {
@@ -67,7 +69,12 @@ export function LitopysView() {
     setShowMap(false)
     setDetailOpen(true)
   }
-  const openMap = () => {
+  // the map button toggles; closed, the pane goes back to the selected chat
+  const toggleMap = () => {
+    if (showMap) {
+      setShowMap(false)
+      return
+    }
     setShowMap(true)
     setDetailOpen(true)
   }
@@ -97,7 +104,7 @@ export function LitopysView() {
         onBack={() => setDetailOpen(false)}
         detailTitle={showMap ? t('lit.map.title') : current?.title}
         masterWidth="w-72"
-        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={openMap} mapOpen={showMap} />}
+        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={toggleMap} mapOpen={showMap} />}
         detail={
           showMap ? (
             <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
