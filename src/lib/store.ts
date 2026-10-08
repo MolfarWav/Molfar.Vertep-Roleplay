@@ -157,7 +157,9 @@ interface AppState {
   setSettingsSection: (s: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   // chat actions
-  sendMessage: (chatId: ID, content: string, opts?: { attachments?: Message['attachments'] }) => void
+  /** noEmptySend: an empty send stays empty (the preset's send_if_empty text is not used), for
+   *  "Story, move", which wants the character to continue with no user turn at all */
+  sendMessage: (chatId: ID, content: string, opts?: { attachments?: Message['attachments']; noEmptySend?: boolean }) => void
   stopStreaming: () => void
   tickStream: () => void
   regenerate: (chatId: ID, messageId?: ID) => void
@@ -912,7 +914,7 @@ export const useApp = create<AppState>()(
         // `send_if_empty`: an empty box is replaced by this
         // text; when the replacement is also blank, NO user turn is added and
         // the model just continues (engine: allowEmpty send).
-        const effective = content.trim() || activePreset?.utilityPrompts.emptySend.trim() || ''
+        const effective = content.trim() || (opts?.noEmptySend ? '' : activePreset?.utilityPrompts.emptySend.trim() || '')
         get().runAutoExecutes('onUser', chatId)
         // auto-translate inputs: the outgoing turn is translated into the
         // model's language BEFORE it is sent — the model reads the

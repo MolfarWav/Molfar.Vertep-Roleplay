@@ -564,8 +564,9 @@ export const DEFAULT_PROMPTS = {
     "Write cue, coping and note in the language of the story; ids, keys and class words stay English. Write letters as they are, never as \\u escapes.",
   ].join("\n"),
   // the "Story, move" note added to the end of one reply request; {threads} is filled in code (see nudgeText)
+  // what happens grows out of the scene: with nothing to stand on, a model invented a messenger out of nowhere
   nudge:
-    "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]",
+    "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Build it from what is already present or under way: a character's intent, a danger, promise or plan already set up, the place itself. Bring in nothing from nowhere. Stay in character and in the scene, and keep to what each character can know; never mention this note.]",
   // fast mode: what the story model is told about the state tag; the sensor's rules, the event list, the output shape and
   // the previous state are added in code (see fastInstructions)
   fast:
@@ -607,7 +608,10 @@ const sensorFromParts = (stored) =>
   SENSOR_PARTS.map((part) => (isObj(stored) && typeof stored[part.key] === "string" && stored[part.key].trim() ? stored[part.key] : DEFAULT_SENSOR_PARTS[part.key])).join("\n\n");
 
 // Earlier defaults, so a stored copy of one follows the current default.
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [], fast: [FAST_PROMPT_1] };
+// "Story, move" before 4.26.1: no anchor in the scene
+const NUDGE_PROMPT_1 =
+  "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [

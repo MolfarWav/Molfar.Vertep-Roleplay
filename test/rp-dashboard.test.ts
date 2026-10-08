@@ -3650,7 +3650,7 @@ describe("story, move (nudge)", () => {
     const last = out.messages[3];
     expect(last.role).toBe("user");
     expect(last.content.startsWith("Z\n\n" + NOTE)).toBe(true);
-    expect(last.content).toContain("pulling on one of these open threads: Who has the key?; Find the missing letter. Stay in character");
+    expect(last.content).toContain("pulling on one of these open threads: Who has the key?; Find the missing letter. Build it from what is already present");
     expect(last.content.endsWith("never mention this note.]")).toBe(true);
     expect(last.content).not.toContain("{threads}");
     // the request's own array and objects are as they were
@@ -3666,14 +3666,14 @@ describe("story, move (nudge)", () => {
     const mock = started();
     nudge(mock, { threadId: "ut1" });
     const note = noteOf(ask(mock, "c1", [SYS("card"), { role: "user", content: "go" }]));
-    expect(note).toContain("moves the story forward, pulling on this open thread: Find the missing letter. Stay in character");
+    expect(note).toContain("moves the story forward, pulling on this open thread: Find the missing letter. Build it from what is already present");
     expect(note).not.toContain("Who has the key?");
     expect(note).not.toContain("one of these");
     // a thread resolved after arming: the note falls back to all open threads
     nudge(mock, { threadId: "ut1" });
     drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", op: "thread-edit", id: "ut1", status: "resolved" } });
     const later = noteOf(ask(mock, "c1", [SYS("card"), { role: "user", content: "go" }]));
-    expect(later).toContain("pulling on one of these open threads: Who has the key?. Stay");
+    expect(later).toContain("pulling on one of these open threads: Who has the key?. Build it");
     expect(later).not.toContain("Find the missing letter");
   });
 
@@ -3755,7 +3755,7 @@ describe("story, move (nudge)", () => {
     const out = ask(mock, "fresh")!;
     expect(out.messages.length).toBe(2);
     const note = out.messages[1].content as string;
-    expect(note).toContain("moves the story forward. Stay in character and in the scene; never mention this note.]");
+    expect(note).toContain("moves the story forward. Build it from what is already present or under way: a character's intent, a danger, promise or plan already set up, the place itself. Bring in nothing from nowhere. Stay in character and in the scene, and keep to what each character can know; never mention this note.]");
     expect(note).not.toContain("pulling");
     expect(fs.existsSync(nudgeFile("fresh"))).toBe(false);
   });

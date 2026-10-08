@@ -339,6 +339,15 @@ export function Composer({ chatId }: { chatId: ID }) {
     if (!touchUi) textareaRef.current?.focus()
   }
 
+  // "Story, move" with an empty box: the character carries on, with no user turn at all, even
+  // when the preset turns an empty send into text (a send_if_empty of "..." left a "..." turn
+  // the nudge then had nothing to stand on)
+  const handleNudgeSend = () => {
+    if (isStreaming) return
+    sendMessage(chatId, '', { attachments, noEmptySend: true })
+    setAttachments([])
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     // Shift+Tab opens the full-height writing surface.
@@ -571,7 +580,7 @@ export function Composer({ chatId }: { chatId: ID }) {
           onChange={(e) => { handleFiles(e.target.files); e.target.value = "" }}
         />
 
-        <StoryNudgeButton chatId={chatId} isEmpty={!value.trim()} isStreaming={isStreaming} onSendEmpty={handleSend} />
+        <StoryNudgeButton chatId={chatId} isEmpty={!value.trim()} isStreaming={isStreaming} onSendEmpty={handleNudgeSend} />
 
         {isStreaming ? (
           <Button variant="destructive" size="icon" className="size-9 shrink-0" onClick={stopStreaming} aria-label="Stop generating">

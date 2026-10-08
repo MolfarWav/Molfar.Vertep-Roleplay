@@ -171,4 +171,12 @@ describe("memory prompts write English (user, 2026-10-07)", () => {
     expect(R.PAST_DEFAULT_PROMPTS.sensor.at(-1)).toContain("in the language the story is written in");
     expect(R.PAST_DEFAULT_PROMPTS.fast[0]).toContain("in the language the story is written in");
   });
+
+  it("\"Story, move\" builds from the scene; the old note is a past default, so a copy of it follows the update", async () => {
+    const R = await import("../plugins/relations/plugin.js");
+    expect(R.DEFAULT_PROMPTS.nudge).toContain("Build it from what is already present or under way");
+    expect(R.DEFAULT_PROMPTS.nudge).toContain("{threads}");
+    expect(R.PAST_DEFAULT_PROMPTS.nudge).toHaveLength(1);
+    expect(R.PAST_DEFAULT_PROMPTS.nudge[0]).toContain("moves the story forward{threads}. Stay in character and in the scene; never mention this note.]");
+  });
 });
