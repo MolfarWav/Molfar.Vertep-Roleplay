@@ -1,6 +1,6 @@
 ---
 name: card-import
-description: Use when bringing a character card or lorebook from another platform or pasted text into this Roleplay app. Triggers: "імпортуй картку", "перенеси карту", "адаптуй картку", "import this card", "port this character", "convert this lorebook".
+description: Use only when the card or lorebook comes from another platform or as pasted card text into Roleplay (a new card from an idea is card-craft). Triggers: "імпортуй картку", "перенеси карту", "адаптуй картку", "import this card", "port this character", "convert this lorebook".
 ---
 # Card Import
 
