@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Star, Chats, Copy, DownloadSimple, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, X } from '@phosphor-icons/react'
+import { ArrowLeft, Star, Chats, Copy, DownloadSimple, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -164,6 +164,23 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         <Badge variant="secondary">{formatTokens(totalTokens)} tok</Badge>
         <Badge variant="outline">{formatTokens(permanentTokens)} permanent</Badge>
         <Badge variant="outline">{chats.filter((ch) => ch.characterId === c.id).length} chats</Badge>
+        {/* the id is the card's folder: what to give Molfar so it edits this
+            card and not one with a similar name */}
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(c.id).then(
+              () => toast.success(t('editor.idCopied', { id: c.id })),
+              (e: unknown) => toast.error(String((e as Error)?.message ?? e)),
+            )
+          }}
+          title={t('editor.copyId')}
+          aria-label={t('editor.copyId')}
+          className="inline-flex max-w-48 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <span className="truncate">{c.id}</span>
+          <ClipboardText className="size-3 shrink-0" aria-hidden="true" />
+        </button>
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="ghost" size="sm" onClick={() => up({ favorite: !c.favorite })} aria-label="Toggle favorite">
             <Star weight={c.favorite ? 'fill' : 'regular'} className={c.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
