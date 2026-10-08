@@ -1,0 +1,167 @@
+{
+  "id": "dzvinka-beech-spring",
+  "name": "Dzvinka — The Beech Spring",
+  "globalActive": false,
+  "linkedCharacterIds": [
+    "dzvinka"
+  ],
+  "entries": [
+    {
+      "uid": 1,
+      "title": "Setting",
+      "memo": "",
+      "keys": [],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "constant",
+      "content": "An old beech forest in the Carpathian mountains, below a high and windy pass. A cold spring rises among mossy stones in a clearing at its heart. A village of shepherds and woodcutters lies in the valley below.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    },
+    {
+      "uid": 2,
+      "title": "The spring",
+      "memo": "",
+      "keys": [
+        "spring",
+        "the water",
+        "drink"
+      ],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "normal",
+      "content": "The spring rises under mossy stones and stays cold even in August. Dzvinka keeps it clean. Water taken with her leave tastes sweet and takes the tiredness out of the legs; water taken without it tastes of iron and leaves the drinker lost on paths they know.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    },
+    {
+      "uid": 3,
+      "title": "The high pass",
+      "memo": "",
+      "keys": [
+        "pass",
+        "ridge",
+        "the trail"
+      ],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "normal",
+      "content": "The pass crosses bare rock above the tree line. Storms build there in an hour, and the wind throws loose stones onto the trail. Travelers who cross it come down into the beeches at dusk, thirsty and wind-dry.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    },
+    {
+      "uid": 4,
+      "title": "Mavky",
+      "memo": "",
+      "keys": [
+        "mavka",
+        "mavky",
+        "mavkas",
+        "hollow back"
+      ],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "normal",
+      "content": "Mavky are forest spirits who sing, laugh and braid their hair by water. From behind they have no back, only a hollow like an old tree. They lead the rude astray and can tickle a person breathless, but they keep faith with those who are honest with them, and they never forget a kindness.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    },
+    {
+      "uid": 5,
+      "title": "Wormwood",
+      "memo": "",
+      "keys": [
+        "wormwood",
+        "polyn"
+      ],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "normal",
+      "content": "Wormwood (polyn) grows grey and bitter along the field edges below the forest. Mavky cannot stand its smell, and its smoke drives them off. Villagers hang it over doors and carry a sprig when they walk late, which Dzvinka takes as an insult.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    },
+    {
+      "uid": 6,
+      "title": "The village and its molfar",
+      "memo": "",
+      "keys": [
+        "village",
+        "molfar",
+        "sorcerer"
+      ],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "normal",
+      "content": "The village sits where the valley widens: wooden houses, sheep on the slopes, a church with a shingled dome. At its edge lives the old molfar, a sorcerer who reads the weather and talks to bees. He and Dzvinka have known each other for fifty years and argue like neighbours.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    },
+    {
+      "uid": 7,
+      "title": "Kupala night",
+      "memo": "",
+      "keys": [
+        "kupala",
+        "fern flower",
+        "fern"
+      ],
+      "keysRegex": false,
+      "secondaryKeys": [],
+      "selectiveLogic": "AND_ANY",
+      "status": "normal",
+      "content": "On the shortest night of summer the village youth go into the forest after the fern flower, which is said to bloom for one moment and grant a wish. Wreaths float on the water, fires burn on the slopes, and mavky are at their boldest.",
+      "position": "before_char",
+      "depth": 4,
+      "role": "system",
+      "order": 100,
+      "probability": 100,
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "scanDepth": 4,
+    "contextPercent": 25,
+    "budgetCap": 0,
+    "minActivations": 0,
+    "maxRecursion": 2,
+    "insertionStrategy": "character_first",
+    "caseSensitive": false,
+    "wholeWords": true,
+    "groupScoring": false,
+    "recursiveScan": true,
+    "includeNames": true,
+    "overflowAlert": true
+  }
+}
