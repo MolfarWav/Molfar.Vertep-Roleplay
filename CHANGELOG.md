@@ -4,6 +4,13 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.26.1
+
+Two fixes.
+
+- **The map of chats in the Library closes.** Before, once opened it stayed on screen whatever you pressed; now the map button opens and closes it, and Overview or Ledger brings back that view of the chat.
+- **"Story, move" with an empty box no longer leaves a "..." turn.** It lets the character carry on with no turn of yours, even when your preset turns an empty send into text (presets imported from SillyTavern often send "..."). The event it brings in now grows from what is already in the scene (someone's intent, a danger or promise already set up, the place itself) instead of out of nowhere.
+
 ## 4.26.0
 
 Molfar learns the craft of cards, lorebooks and presets. The skills use the json_get and json_set tools of Molfar Vertep 0.9.1: update the engine too.
