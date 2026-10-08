@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.25.1
+
+A new example character for new installs.
+
+- **Dzvinka replaces Ember.** The example card that came from the upstream project is gone; new installs get Dzvinka, a mavka who keeps a spring below a mountain pass, with her Soul already filled in (the relationship dashboard works from her first message) and her own lorebook, *Dzvinka — The Beech Spring* (seven entries: the spring, the pass, mavky, wormwood, the village and its molfar, Kupala night). Her card says who made it: Molfar Vertep. Existing installs keep their characters and chats: app updates never touch `data/`.
+
 ## 4.25.0
 
 Memory v2: one story memory per chat, Litopys, which you can see and edit in the Library.
