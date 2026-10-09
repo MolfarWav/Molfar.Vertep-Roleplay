@@ -140,6 +140,8 @@ export const DEFAULT_CONFIG = {
   pinLimit: 5,
   insert: true,
   budget: 800,
+  // 0.9.2: the most the backstory of a linked earlier chat may take (0 = none)
+  linkBudget: 800,
   // M4d arcs: older chapters merged into one summary when they outgrow the budget
   arcMode: "ask",
   arcKeep: 4,
@@ -281,6 +283,7 @@ export function loadConfig(fsx) {
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, 4000);
+  cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
   cfg.arcKeep = clamp(intOf(cfg.arcKeep, 4), 1, 50);
   cfg.arcThreshold = arcThresholdValue(cfg.arcThreshold);
@@ -318,6 +321,7 @@ export function patchConfig(fsx, body) {
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, 4000);
+  if (b.linkBudget !== undefined) next.linkBudget = clamp(intOf(b.linkBudget, 800), 0, 3000);
   if (b.arcMode !== undefined) next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
   if (b.arcKeep !== undefined) next.arcKeep = clamp(intOf(b.arcKeep, 4), 1, 50);
   if (b.arcThreshold !== undefined) next.arcThreshold = arcThresholdValue(b.arcThreshold);
@@ -962,23 +966,37 @@ export function llmRequest(ctx, host) {
     const rc = readChat(fsx, chatId);
     if (!rc) return null;
     const line = activeLine(rc.msgs);
+    const speakerName = str(ctx.turn.speakerName);
+    // a chat that continues an earlier one gets its story from the first reply on, with or without a record of its own
+    const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
     const st = loadChatFile(fsx, chatId);
-    if (!st || !line.length) return null;
     const scanText = req.messages
       .filter((m) => m && m.role !== "system" && typeof m.content === "string")
       .slice(-6)
       .map((m) => m.content)
       .join("\n");
-    const insert = buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName: str(ctx.turn.speakerName) });
-    if (!insert) return null;
+    const insert = st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName }) : null;
+    if (!insert && !back) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
         "litopys/insert/" + chatId + ".json",
-        JSON.stringify({ at: Date.now(), tokens: insert.tokens, facts: insert.facts, chapters: insert.chapters, arcs: insert.arcs, cut: insert.cut }),
+        JSON.stringify({
+          at: Date.now(),
+          tokens: insert ? insert.tokens : 0,
+          facts: insert ? insert.facts : 0,
+          chapters: insert ? insert.chapters : 0,
+          arcs: insert ? insert.arcs : 0,
+          cut: insert ? insert.cut : 0,
+          ...(back ? { backstory: { from: back.from, tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
+        }),
       );
     } catch {}
-    return { messages: withInsert(req.messages, insert.text) };
+    // the backstory first (it is the older story), then the chat's own record
+    let messages = req.messages;
+    if (back) messages = withInsert(messages, back.text);
+    if (insert) messages = withInsert(messages, insert.text);
+    return { messages };
   } catch (e) {
     try {
       host.log("litopys insert: " + (e && e.message ? e.message : String(e)));
@@ -2698,6 +2716,118 @@ export function portraitRoute(fsx, body) {
   return { status: 200, json: map };
 }
 
+// ---------- 0.9.2: chat links: a later chat continues an earlier one (its backstory) ----------
+const LINKS_FILE = "litopys/links.json";
+
+function chatExists(fsx, id) {
+  if (!SAFE_ID.test(id)) return false;
+  const meta = readJson(fsx, "chats/" + id + ".meta.json", null);
+  return isObj(meta) && !meta.temporary;
+}
+
+/** { "<later chatId>": { from, at } }: one predecessor per chat; links to chats that are gone are left out. */
+export function loadLinks(fsx) {
+  const raw = readJson(fsx, LINKS_FILE, null);
+  const links = isObj(raw) && isObj(raw.links) ? raw.links : {};
+  const out = {};
+  for (const [k, v] of Object.entries(links)) {
+    if (!isObj(v) || str(v.from) === k || !chatExists(fsx, k) || !chatExists(fsx, str(v.from))) continue;
+    out[k] = { from: str(v.from), at: Number(v.at) || 0 };
+  }
+  return out;
+}
+
+/** POST /litopys/links { chatId, from }: from = the chat this one continues, null removes the link. Answers { links }. */
+export function linkRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const chatId = str(b.chatId);
+  if (!chatExists(fsx, chatId)) return { status: 400, json: { error: "no such chat" } };
+  const links = loadLinks(fsx);
+  const from = b.from === null || b.from === undefined || b.from === "" ? null : str(b.from);
+  if (from === null) delete links[chatId];
+  else {
+    if (from === chatId) return { status: 400, json: { error: "a chat cannot continue itself" } };
+    if (!chatExists(fsx, from)) return { status: 400, json: { error: "no such chat to continue" } };
+    // the chain back from the earlier chat must not reach this one
+    const seen = new Set();
+    for (let cur = from; cur && !seen.has(cur); cur = links[cur] ? links[cur].from : null) {
+      if (cur === chatId) return { status: 400, json: { error: "that would make a loop" } };
+      seen.add(cur);
+    }
+    links[chatId] = { from, at: Date.now() };
+  }
+  fsx.write(LINKS_FILE, JSON.stringify({ v: 1, links }));
+  return { status: 200, json: { links } };
+}
+
+/**
+ * The earlier story a linked chat continues, as one block; null when there is no link, no record
+ * there, or nothing fits. Read from the earlier chat's record as it is now, never copied. Fill
+ * order (whole items; a group stops at its first item that does not fit): pinned facts of the world
+ * or of a name present now, the earlier chat's last chapter, key facts (newest first), then arcs
+ * and the chapters no fresh arc holds, walking back from the end. Rendered in story order.
+ */
+export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
+  const budget = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
+  if (!budget) return null;
+  const link = loadLinks(fsx)[chatId];
+  if (!link) return null;
+  const prc = readChat(fsx, link.from);
+  const pst = loadChatFile(fsx, link.from);
+  if (!prc || !pst) return null;
+  const pline = activeLine(prc.msgs);
+
+  // present: the names of the new chat's recent messages, the speaker and the user
+  const here = new Set();
+  const recent = Math.max(6, Number(cfg && cfg.recentMessages) || 6);
+  for (const m of arr(line).slice(-recent)) if (str(m && m.name)) here.add(str(m.name).toLowerCase());
+  if (str(speakerName)) here.add(str(speakerName).toLowerCase());
+  here.add((str(meta && meta.userName) || "You").toLowerCase());
+  const subj = (f) => str(f.subject).toLowerCase();
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
+  const active = arr(pst.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
+
+  const ranges = new Map();
+  const chapters = arr(pst.chapters)
+    .map((ch) => ({ ch, r: rangeOf(ch, pline) }))
+    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text))
+    .sort((x, y) => x.r.fromIdx - y.r.fromIdx);
+  for (const { ch, r } of chapters) ranges.set(ch.id, r);
+  const last = chapters.length ? chapters[chapters.length - 1].ch : null;
+  const arcs = freshArcs(pst).filter((a) => a.chapterIds.every((id) => ranges.has(id) && (!last || id !== last.id)));
+  const held = new Set(arcs.flatMap((a) => a.chapterIds));
+  for (const a of arcs) ranges.set(a.id, { fromIdx: Math.min(...a.chapterIds.map((id) => ranges.get(id).fromIdx)), toIdx: Math.max(...a.chapterIds.map((id) => ranges.get(id).toIdx)) });
+  const older = [...arcs, ...chapters.map((x) => x.ch).filter((ch) => ch !== last && !held.has(ch.id))].sort((x, y) => ranges.get(y.id).toIdx - ranges.get(x.id).toIdx);
+
+  const a = active.filter((f) => f.pinned === true && (subj(f) === "world" || here.has(subj(f))));
+  const c = active.filter((f) => !a.includes(f) && f.weight === "key").sort((x, y) => (Number(y.updatedAt) || 0) - (Number(x.updatedAt) || 0));
+
+  const title = str(prc.meta && prc.meta.title) || link.from;
+  const header = "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". Background for the next reply: do not retell it, do not contradict it.]";
+  const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  const facts = [];
+  const story = [];
+  const render = () => {
+    const out = [header];
+    if (story.length) out.push("The story so far:", ...story.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx).map(itemLine));
+    if (facts.length) out.push("Facts:", ...facts.map(factLine));
+    return out.join("\n");
+  };
+  const tryAdd = (list, item) => {
+    list.push(item);
+    if (estimateTokens(render()) <= budget) return true;
+    list.pop();
+    return false;
+  };
+  for (const f of a) if (!tryAdd(facts, f)) break;
+  if (last) tryAdd(story, last);
+  for (const f of c) if (!tryAdd(facts, f)) break;
+  for (const x of older) if (!tryAdd(story, x)) break;
+  if (!facts.length && !story.length) return null;
+  const text = render();
+  return { text, tokens: estimateTokens(text), from: link.from, facts: facts.length, chapters: story.length };
+}
+
 // ---------- M4a: the user edits the record ----------
 const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan"];
 const FACT_WEIGHTS = ["everyday", "important", "key"];
@@ -3098,6 +3228,7 @@ export function listChatsView(fsx) {
   const items = [];
   const beatTime = beatAt(fsx);
   const now = Date.now();
+  const links = loadLinks(fsx);
   for (const f of files) {
     if (!f.endsWith(".meta.json")) continue;
     const id = f.slice(0, -10);
@@ -3111,6 +3242,8 @@ export function listChatsView(fsx) {
       name: chatSubject(fsx, meta),
       // M4c: the map of chats draws forks as lines
       parentChatId: SAFE_ID.test(str(meta.parentChatId)) ? str(meta.parentChatId) : null,
+      // 0.9.2: the earlier chat this one continues (a link the user drew), drawn solid on the map
+      continues: links[id] ? links[id].from : null,
       updatedAt: Number(meta.updatedAt) || 0,
       hasData: !!st,
       chapters: st ? st.chapters.length : 0,
@@ -3221,6 +3354,8 @@ export function handleRoute(req, host) {
   if (path === "/litopys/search" && req.method === "GET") return searchView(fsx, req.query || {});
   if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
+  if (path === "/litopys/links" && req.method === "GET") return { status: 200, json: { links: loadLinks(fsx) } };
+  if (path === "/litopys/links" && req.method === "POST") return linkRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
@@ -3258,6 +3393,7 @@ export function uiPanel(_ctx, host) {
           { key: "recentMessages", label: "Recent messages", hint: "Newest messages the prompt keeps word for word. A scene gets its chapter as soon as the next scene has begun.", kind: "number", value: cfg.recentMessages },
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add the Litopys record for this chat: chapters before the cut and facts.", kind: "select", list: ["on", "off"], value: cfg.insert === false ? "off" : "on" },
           { key: "budget", label: "Insert budget, tokens", hint: "The most the Litopys block may take. 200 to 4000, default 800.", kind: "number", value: cfg.budget },
+          { key: "linkBudget", label: "Backstory budget, tokens", hint: "A chat that continues an earlier one (linked on the map of chats) gets that chat's story as background, up to this many tokens. 0 to 3000, default 800; 0 = none.", kind: "number", value: cfg.linkBudget },
           { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
           { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
           { key: "pinLimit", label: "Pin limit", hint: "The most pinned facts per character (and for the world). Only you pin; Litopys may propose a pin.", kind: "number", value: cfg.pinLimit },
