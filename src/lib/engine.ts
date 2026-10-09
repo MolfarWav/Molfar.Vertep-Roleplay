@@ -940,7 +940,8 @@ export function presetToEngine(p: Preset): EnginePreset {
     // extended sampler sweep (dry/xtc/dynatemp/mirostat/…): lifted to the
     // top level where the engine's forwarded-key list picks them up
     ...(p.extendedSamplers && typeof p.extendedSamplers === 'object'
-      ? Object.fromEntries(Object.entries(p.extendedSamplers).filter(([, v]) => typeof v === 'number' || typeof v === 'boolean' || (typeof v === 'string' && v.trim())))
+      // samplers_override_model is the preset's own switch, never an extra sampler (an older build harvested it here)
+      ? Object.fromEntries(Object.entries(p.extendedSamplers).filter(([k]) => k !== 'samplers_override_model').filter(([, v]) => typeof v === 'number' || typeof v === 'boolean' || (typeof v === 'string' && v.trim())))
       : {}),
     // the full studio preset rides along — the engine stores presets verbatim, so the
     // section editor loses nothing the kernel doesn't understand. Fields the
@@ -1031,6 +1032,8 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     variables: bag?.variables ?? [],
     utilityPrompts: bag?.utilityPrompts ?? (ep.utilityPrompts as Preset['utilityPrompts'] | undefined) ?? { impersonation: '', continueNudge: '', newChat: '', groupNudge: '', emptySend: '' },
     samplers,
+    // the editor bag first; a preset written before the bag knew the field carries it only at the top level
+    samplersOverrideModel: bag?.samplersOverrideModel ?? ep.samplers_override_model === true,
     namesBehavior: bag?.namesBehavior ?? 'default',
     verbosity: bag?.verbosity ?? 'auto',
     continuePrefill: bag?.continuePrefill ?? true,
@@ -1041,7 +1044,7 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     // extended sampler sweep: the editor bag wins; presets that arrived by
     // the server import path carry it only at the top level, so harvest there
     extendedSamplers: bag?.extendedSamplers ?? (() => {
-      const KNOWN = new Set(['name', 'prompts', 'prompt_order', 'studio', 'utilityPrompts', 'temperature', 'top_p', 'top_k', 'min_p', 'repetition_penalty', 'rep_pen', 'frequency_penalty', 'presence_penalty', 'openai_max_tokens', 'openai_max_context', 'seed', 'stop', 'reasoning', 'reasoningTags', 'thinkingBudget', 'id'])
+      const KNOWN = new Set(['name', 'prompts', 'prompt_order', 'studio', 'utilityPrompts', 'temperature', 'top_p', 'top_k', 'min_p', 'repetition_penalty', 'rep_pen', 'frequency_penalty', 'presence_penalty', 'openai_max_tokens', 'openai_max_context', 'seed', 'stop', 'reasoning', 'reasoningTags', 'thinkingBudget', 'id', 'samplers_override_model'])
       const out: Record<string, number | string | boolean> = {}
       for (const [k, v] of Object.entries(ep)) {
         if (KNOWN.has(k)) continue

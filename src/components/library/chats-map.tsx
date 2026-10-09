@@ -80,6 +80,7 @@ export function ChatsMap(props: {
       try {
         await setLitLink(chat.id, null)
         onLinked()
+        setQuery('')
         toast.success(t('lit.map.unlinked'))
       } catch (e) {
         toast.error(e instanceof Error ? e.message : String(e))
@@ -196,7 +197,8 @@ export function ChatsMap(props: {
                   node.children.map((child) => (
                     <path
                       key={`${node.item.id}-${child.item.id}`}
-                      d={buildLinePath(node.x, node.y, child.x, child.y)}
+                      // from under the parent's two label lines to the top of the child's circle
+                      d={buildLinePath(node.x, node.y + nodeRadius(node.item.facts) + 34, child.x, child.y - nodeRadius(child.item.facts) - 2)}
                       className={child.kind === 'link' ? 'stroke-primary' : 'stroke-muted-foreground'}
                       strokeWidth={child.kind === 'link' ? 2 : 1.5}
                       strokeDasharray={child.kind === 'fork' ? '5 4' : undefined}

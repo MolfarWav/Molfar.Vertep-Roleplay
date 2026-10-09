@@ -58,3 +58,24 @@ describe("the client side", () => {
     expect(block.params).toEqual({ dry_multiplier: 0.8 });
   });
 });
+
+describe("the preset switch survives a save and a re-read", () => {
+  it("round-trips samplersOverrideModel and never turns it into an extra sampler", async () => {
+    // engine.ts reads the frame URL at import time; give it one outside a browser
+    (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
+    const { presetToEngine, enginePresetToUI } = await import("../src/lib/engine");
+    const { buildDefaultPreset } = await import("../src/lib/seed");
+    const p = { ...buildDefaultPreset(), samplersOverrideModel: true, extendedSamplers: { dry_multiplier: 0.8, samplers_override_model: true } } as unknown as Preset;
+    const ep = presetToEngine(p) as unknown as Record<string, unknown>;
+    expect(ep.samplers_override_model).toBe(true);
+    expect(ep.dry_multiplier).toBe(0.8);
+    const back = enginePresetToUI(ep as never, "x");
+    expect(back.samplersOverrideModel).toBe(true);
+    const off = presetToEngine({ ...back, samplersOverrideModel: false, extendedSamplers: { dry_multiplier: 0.8, samplers_override_model: true } }) as unknown as Record<string, unknown>;
+    expect(off.samplers_override_model).toBeUndefined();
+    // a preset file from before the bag knew the field: the top-level flag is read, not harvested
+    const legacy = enginePresetToUI({ ...ep, studio: undefined } as never, "y");
+    expect(legacy.samplersOverrideModel).toBe(true);
+    expect(legacy.extendedSamplers?.samplers_override_model).toBeUndefined();
+  });
+});

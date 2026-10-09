@@ -104,7 +104,7 @@ export function LitopysView() {
         onBack={() => setDetailOpen(false)}
         detailTitle={showMap ? t('lit.map.title') : current?.title}
         masterWidth="w-72"
-        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={toggleMap} mapOpen={showMap} />}
+        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={showMap ? setSelectedId : select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={toggleMap} mapOpen={showMap} />}
         detail={
           showMap ? (
             <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">

@@ -1298,7 +1298,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // silently degrading to the bare fallback layout
     try { preset = JSON.parse(fsx.read("presets/" + defaultPresetId(fsx) + ".json")); } catch {}
   }
-  preset = withModelLimits(preset, opts && opts.limits);
+  // a preset whose samplers override the model keeps its own max output; the window is still the model's
+  preset = withModelLimits(preset, opts && opts.limits && preset && preset.samplers_override_model === true ? { ...opts.limits, maxOutput: 0 } : opts && opts.limits);
   // studio bag: the full app preset rides the engine preset file
   const S = preset && preset.studio && typeof preset.studio.samplers === "object" ? preset.studio.samplers : null;
   // world info scans chat text (+ pending user text); lorebooks BOUND to the

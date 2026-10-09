@@ -17,7 +17,7 @@ export interface MapLayout {
 }
 
 const SLOT_W = 132
-const ROW_H = 96
+const ROW_H = 110
 const TOP = 40
 
 export function predecessorOf(item: LitChatItem, items: LitChatItem[]): LitChatItem | null {
