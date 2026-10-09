@@ -85,7 +85,7 @@ function OptionsField({ f, value, onChange }: { f: PanelField; value: string; on
             if (!custom) onChange(value)
           } else {
             setCustom(false)
-            onChange(v === DEFAULT_SENTINEL ? '' : v)
+            onChange(v === DEFAULT_SENTINEL || v === null ? '' : v)
           }
         }}
       >
