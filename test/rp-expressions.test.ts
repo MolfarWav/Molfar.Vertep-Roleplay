@@ -68,3 +68,26 @@ describe("sprite file naming", () => {
     }
   });
 });
+
+describe("expression detection in Ukrainian and Russian", () => {
+  const first = (text: string) => detectExpressionLabels(text)[0];
+  it("finds the emotion in Cyrillic prose", () => {
+    expect(first("Він стиснув кулаки, злий як ніколи.")).toBe("anger");
+    expect(first("Вона тихо плаче, витираючи сльози.")).toBe("sadness");
+    expect(first("Она вытирает слёзы и тихо всхлипывает.")).toBe("sadness");
+    expect(first("Вона червоніє і відводить погляд.")).toBe("embarrassment");
+    expect(first("Он испуганно отступил, дрожа от ужаса.")).toBe("fear");
+    expect(first("Вона ніжно обіймає його.")).toBe("love");
+    expect(first("Он задумался, глядя в огонь.")).toBe("thinking");
+    expect(first("*Вона усміхається* Привіт!")).toBe("joy");
+  });
+  it("everyday words that only start like an emotion stem do not fire", () => {
+    for (const s of ["Злива не вщухала, і вона сховалась під дахом.", "Рано вранці він узяв сумку і пішов.", "Будь ласка, сідай.", "Он вернулся ради неё.", "Она налила чай и села у окна."]) {
+      expect(detectExpressionLabels(s)).toEqual([]);
+    }
+  });
+  it("a RisuAI pack named after the emotions resolves from a Ukrainian reply", () => {
+    const sprites = ["angry", "blushing shyly", "crying", "smiling"].map((name) => ({ name, url: `data:${name}` }));
+    expect(resolveExpressionSprite(detectExpressionLabels("Вона ридає, не в змозі зупинитись."), sprites)?.name).toBe("crying");
+  });
+});
