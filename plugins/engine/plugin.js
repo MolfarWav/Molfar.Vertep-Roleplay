@@ -790,6 +790,26 @@ function wiFilterInclusionGroups(list, stickyActive) {
   }
   return list;
 }
+/**
+ * The model's own limits, sent by the client (0.9.2): its context window (the engine's number, the
+ * user's override first) and its max output from the model's Chat block. They replace the preset's
+ * openai_max_context / openai_max_tokens for budgeting, so the context lives in one place.
+ */
+export function limitsOf(b) {
+  const pos = (v) => (typeof v === "number" && Number.isInteger(v) && v > 0 && v <= 100000000 ? v : 0);
+  return { contextWindow: pos(b && b.contextWindow), maxOutput: pos(b && b.maxOutput) };
+}
+
+/** A copy of the preset with the model's limits in place of its own (the preset file is not touched). */
+export function withModelLimits(preset, limits) {
+  if (!preset || !limits || (!limits.contextWindow && !limits.maxOutput)) return preset;
+  return {
+    ...preset,
+    ...(limits.contextWindow ? { openai_max_context: limits.contextWindow } : {}),
+    ...(limits.maxOutput ? { openai_max_tokens: limits.maxOutput } : {}),
+  };
+}
+
 /** Context window (tokens) the preset asks for — the preset's openai_max_context. */
 function presetMaxCtx(preset) {
   return (preset && typeof preset.openai_max_context === "number" && preset.openai_max_context > 0)
@@ -1278,6 +1298,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // silently degrading to the bare fallback layout
     try { preset = JSON.parse(fsx.read("presets/" + defaultPresetId(fsx) + ".json")); } catch {}
   }
+  preset = withModelLimits(preset, opts && opts.limits);
   // studio bag: the full app preset rides the engine preset file
   const S = preset && preset.studio && typeof preset.studio.samplers === "object" ? preset.studio.samplers : null;
   // world info scans chat text (+ pending user text); lorebooks BOUND to the
@@ -1727,6 +1748,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     ...(preset && typeof preset.thinkingBudget === "number" && preset.thinkingBudget > 0 ? { thinkingBudget: preset.thinkingBudget } : {}),
     ...promptFormatOf(preset),
     presetName: preset && preset.name ? preset.name : "default",
+    // 0.9.2: by default the model's parameters win in the engine; this preset switch lets its own win
+    ...(preset && preset.samplers_override_model === true ? { paramsSource: "request" } : {}),
     trimmed,
   };
 }
@@ -2355,7 +2378,7 @@ export function handleRoute(req, host) {
     const peekSpeaker = (peeked && peeked.role === "char" && members.find((m) => m.id === peeked.charId))
       || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null)[0] : null)
       || members[0] || null;
-    const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { dryRun: true, scanVec: scanVecPeek, gen: "preview" });
+    const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { limits: limitsOf(body()), dryRun: true, scanVec: scanVecPeek, gen: "preview" });
     // tool defs ride the peek exactly as a send would (the wantsTools sibling
     // set) when the caller asks for them — host.siblingTools is absent on
     // engine builds without that contract
@@ -3063,7 +3086,7 @@ const toolX = (r) => ({
         // embed the scan window (+ uncached entries) first — one extra pass
         const sp = semanticPrep(host, fsx, meta, staged, text, req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, staged, speaker, text, { scanVec: sp.scanVec, gen: "send" });
+        const a = assemble(fsx, meta, staged, speaker, text, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "send" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -3074,6 +3097,7 @@ const toolX = (r) => ({
           ...(a.reasoningTags ? { reasoningTags: a.reasoningTags } : {}),
           ...(a.thinkingBudget ? { thinkingBudget: a.thinkingBudget } : {}),
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
+          ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker ? speaker.name : "" },
@@ -3141,7 +3165,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { scanVec: sp.scanVec });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -3152,6 +3176,7 @@ const toolX = (r) => ({
           ...(a.reasoningTags ? { reasoningTags: a.reasoningTags } : {}),
           ...(a.thinkingBudget ? { thinkingBudget: a.thinkingBudget } : {}),
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
+          ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker.name },
@@ -3217,7 +3242,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, before, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, before, speaker, null, { scanVec: sp.scanVec, gen: "swipe" });
+        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "swipe" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -3228,6 +3253,7 @@ const toolX = (r) => ({
           ...(a.reasoningTags ? { reasoningTags: a.reasoningTags } : {}),
           ...(a.thinkingBudget ? { thinkingBudget: a.thinkingBudget } : {}),
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
+          ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
@@ -3320,7 +3346,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { scanVec: sp.scanVec, gen: "continue" });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "continue" });
         // continue nudge: preset utility prompt (blank = plain continue, no
         // nudge appended — no hidden default text)
         const preset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
@@ -3344,6 +3370,7 @@ const toolX = (r) => ({
           ...(a.reasoningTags ? { reasoningTags: a.reasoningTags } : {}),
           ...(a.thinkingBudget ? { thinkingBudget: a.thinkingBudget } : {}),
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
+          ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
@@ -3441,7 +3468,7 @@ const toolX = (r) => ({
         // not marked generating: an impersonation never writes the transcript
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) return sp.pending;
-        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { scanVec: sp.scanVec, gen: "impersonate" });
+        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "impersonate" });
         const un = chatUserName(fsx, meta);
         // impersonation prompt: preset utility prompt, macros expanded
         // (blank = impersonate from history alone — no hidden default text)
@@ -3465,6 +3492,7 @@ const toolX = (r) => ({
           ...(a.reasoningTags ? { reasoningTags: a.reasoningTags } : {}),
           ...(a.thinkingBudget ? { thinkingBudget: a.thinkingBudget } : {}),
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
+          ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
         });
         return pendingOut(meta);

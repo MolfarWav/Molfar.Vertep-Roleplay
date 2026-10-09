@@ -119,8 +119,9 @@ something risky, copy the preset to a new id first.
 | `id`, `name` | Id (= file name) and display name. |
 | `prompts` | The sections: `[{ identifier, name, role, marker, content, injection_position?, injection_depth? }]`. |
 | `prompt_order` | `[{ character_id, order: [{ identifier, enabled }] }]`: the order and on/off state. The app reads the list with `character_id` 100001 first, then any non-empty one; it writes 100000. |
-| `temperature`, `top_p`, `top_k`, `min_p`, `repetition_penalty`, `frequency_penalty`, `presence_penalty`, `seed`, `stop` | Samplers the engine sends. Change them HERE. |
-| `openai_max_tokens`, `openai_max_context` | Reply length limit and context size, in tokens. |
+| `temperature`, `top_p`, `top_k`, `min_p`, `repetition_penalty`, `frequency_penalty`, `presence_penalty`, `seed`, `stop` | Samplers this preset asks for. On an engine with model parameters (0.9.2+) the MODEL's values win: they live in the workspace `model-params.json`, set in Settings under the model (Molfar asks the user before changing that file); the preset fills only what the model leaves unset. Change the preset's values HERE. |
+| `samplers_override_model` | `true`: this preset's samplers win over the model's parameters (the editor's switch, `studio.samplersOverrideModel`). |
+| `openai_max_tokens`, `openai_max_context` | Reply length limit and context size, in tokens. When the model's context window and its max output are known (0.9.2+), those are used instead. |
 | `reasoning`, `reasoningTags`, `thinkingBudget` | Reasoning effort (`low`, `medium`, `high`), the tags of inline thinking, its token budget. |
 | `utilityPrompts` | Prompts of app features (summary, impersonate, empty send…), lifted from `studio` for the engine. |
 | `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`), `groups`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |

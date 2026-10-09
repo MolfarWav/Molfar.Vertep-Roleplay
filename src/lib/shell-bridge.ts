@@ -60,3 +60,14 @@ export async function openShellApp(id: string): Promise<void> {
   if (typeof fn !== 'function') throw new Error('Apps are not reachable from this engine')
   await fn(id)
 }
+
+/** The shell can open its Settings on one model (engine 0.9.2). */
+export const canOpenModelSettings = (): boolean =>
+  typeof window !== 'undefined' && typeof (window.chrysalisShell as { openSettings?: unknown } | undefined)?.openSettings === 'function'
+
+/** Open the shell's Settings > connections, on this model's settings when a "<provider>/<model>" ref is given. */
+export async function openModelSettings(ref?: string | null): Promise<void> {
+  const fn = (window.chrysalisShell as { openSettings?: (model?: string) => Promise<null> } | undefined)?.openSettings
+  if (typeof fn !== 'function') throw new Error('This engine has no model settings yet')
+  await fn(ref ?? undefined)
+}

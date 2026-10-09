@@ -946,6 +946,8 @@ export function presetToEngine(p: Preset): EnginePreset {
     // section editor loses nothing the kernel doesn't understand. Fields the
     // ENGINE actually consumes at runtime (utility prompts) are ALSO lifted to
     // the top level where the plugin reads them.
+    // the engine plugin reads it at the top level: the preset's samplers win over the model's
+    ...(p.samplersOverrideModel ? { samplers_override_model: true } : {}),
     studio: p as unknown as Record<string, unknown>,
     ...(p.utilityPrompts ? { utilityPrompts: p.utilityPrompts } : {}),
   }

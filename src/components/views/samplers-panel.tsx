@@ -11,6 +11,8 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApp } from '@/lib/store'
+import { useT } from '@/hooks/use-t'
+import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import { defaultSamplers } from '@/lib/seed'
 import { cn } from '@/lib/utils'
 import type { Preset, SamplerSettings } from '@/lib/types'
@@ -34,6 +36,8 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
   const ro = preset.readOnly
   const sp = preset.samplers
   const up = (patch: Partial<SamplerSettings>) => updatePreset(preset.id, { samplers: { ...sp, ...patch } })
+  const t = useT()
+  const model = useApp((s) => s.model)
 
   return (
     // @container: this panel lives anywhere from a phone page to a narrow
@@ -41,6 +45,26 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
     // not the viewport, or a flex-1 slider collapses to zero and its thumb
     // never mounts (a zero-width control has no position to show)
     <div className="mx-auto flex max-w-3xl flex-col gap-4 @container">
+      {/* 0.9.2: the engine sends the model's parameters; this preset fills only what the model leaves unset */}
+      <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs" data-testid="model-first">
+        <p className="text-muted-foreground">{t(preset.samplersOverrideModel ? 'model.presetWins' : 'model.modelWins')}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={preset.samplersOverrideModel === true}
+              disabled={ro}
+              onCheckedChange={(v) => updatePreset(preset.id, { samplersOverrideModel: v })}
+              aria-label={t('model.overrideSwitch')}
+            />
+            {t('model.overrideSwitch')}
+          </label>
+          {canOpenModelSettings() && model && (
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void openModelSettings(model).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
+              {t('model.setUp')}
+            </Button>
+          )}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="ml-auto flex items-center gap-2 text-xs">
           <Switch checked={sp.streaming} disabled={ro} onCheckedChange={(v) => up({ streaming: v })} aria-label="Streaming" />
@@ -97,6 +121,7 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
                 <Input type="number" value={sp.contextSize} disabled={ro} onChange={(e) => up({ contextSize: Number(e.target.value) })} className="h-7 text-xs" aria-label="Context size" />
                 <Switch checked={sp.contextUnlocked} disabled={ro} onCheckedChange={(v) => up({ contextUnlocked: v })} aria-label="Unlock context" />
               </div>
+              <p className="text-[11px] text-muted-foreground">{t('model.ctxFromModel')}</p>
             </div>
             <Num label="Seed (-1 random)" value={sp.seed} onChange={(v) => up({ seed: v })} disabled={ro} wide />
           </div>

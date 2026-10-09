@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { Plug, SealCheck, Brain, CircleNotch, ArrowsClockwise, PencilSimple, Plus, MagnifyingGlass, X } from '@phosphor-icons/react'
+import { Plug, SealCheck, Brain, CircleNotch, ArrowsClockwise, PencilSimple, Plus, MagnifyingGlass, SlidersHorizontal, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,22 @@ import { ProfilesSheet } from '@/components/connections/profiles-sheet'
 import { ModelMark } from '@/components/model-mark'
 import type { ModelInfo, ModelPricing } from '@/lib/types'
 import { cn, shortModel } from '@/lib/utils'
+import { useT } from '@/hooks/use-t'
+import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
+import type { ParamBlock } from '@/lib/model-params'
+
+/** The model's Chat block in one line ("temp 0.95 · max 4096 · reasoning high"); '' when it has none. */
+function chatSummary(b: ParamBlock | undefined): string {
+  if (!b) return ''
+  const parts: string[] = []
+  if (b.temperature !== undefined) parts.push(`temp ${b.temperature}`)
+  if (b.top_p !== undefined) parts.push(`top_p ${b.top_p}`)
+  if (b.min_p !== undefined) parts.push(`min_p ${b.min_p}`)
+  if (b.repetition_penalty !== undefined) parts.push(`rep ${b.repetition_penalty}`)
+  if (b.max_tokens !== undefined) parts.push(`max ${b.max_tokens}`)
+  if (b.reasoning !== undefined) parts.push(`reasoning ${b.reasoning}`)
+  return parts.join(' · ')
+}
 
 /**
  * Connections — the app is a CONSUMER of the engine's provider setup:
@@ -108,6 +124,11 @@ export function ConnectionsView() {
   }, [models])
 
   const current = findByRef(models, model)
+  const t = useT()
+  const modelParams = useApp((s) => s.modelParams)
+  // 0.9.2: an engine with model settings keeps context, prices and parameters in its Settings
+  const viaShell = canOpenModelSettings()
+  const setUp = (ref: string) => void openModelSettings(ref).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))
   const shown = browse ?? current?.provider ?? connections[0]?.name ?? null
   const shownConnection = connections.find((c) => c.name === shown) ?? null
 
@@ -209,7 +230,7 @@ export function ConnectionsView() {
                       variant="outline"
                       size="sm"
                       className="h-5 rounded-full px-2 text-[10px]"
-                      onClick={openCtx}
+                      onClick={viaShell ? () => setUp(current.ref) : openCtx}
                       aria-label="Context window"
                     >
                       {current.context > 0 ? `${ctxLabel(current.context)} ctx` : 'set ctx'}
@@ -218,12 +239,21 @@ export function ConnectionsView() {
                       variant="outline"
                       size="sm"
                       className="h-5 rounded-full px-2 text-[10px]"
-                      onClick={openPrice}
+                      onClick={viaShell ? () => setUp(current.ref) : openPrice}
                       aria-label="Token prices"
                     >
                       {current.pricing ? `$${priceText(current.pricing.input)}/$${priceText(current.pricing.output)} per Mtok` : 'set prices'}
                     </Button>
                     {current.reasoning && <Badge variant="secondary" className="text-[10px]">reasoning</Badge>}
+                    {viaShell && (
+                      <Button variant="outline" size="sm" className="h-5 rounded-full px-2 text-[10px]" onClick={() => setUp(current.ref)} data-testid="model-setup">
+                        <SlidersHorizontal className="size-3" aria-hidden="true" />
+                        {t('model.setUp')}
+                      </Button>
+                    )}
+                  </span>
+                  <span className="w-full text-[11px] text-muted-foreground" data-testid="model-chat-params">
+                    {chatSummary(modelParams[current.ref]?.chat) || t('model.noParams')}
                   </span>
                 </>
               ) : (

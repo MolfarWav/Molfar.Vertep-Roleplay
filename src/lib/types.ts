@@ -296,6 +296,9 @@ export interface Preset {
   variables: PromptVariable[]
   utilityPrompts: { impersonation: string; continueNudge: string; newChat: string; groupNudge: string; emptySend: string }
   samplers: SamplerSettings
+  /** 0.9.2: the engine sends the MODEL's parameters (Settings > connections) and this preset's
+   *  samplers only fill what the model leaves unset; on, this preset's samplers win instead. */
+  samplersOverrideModel?: boolean
   /**
    * How character names are injected into the prompt (the
    * "Character Names Behavior"):
@@ -589,6 +592,8 @@ export interface ConnectionProfile {
 
 // ── Settings ──
 export interface AppSettings {
+  /** 0.9.2: the active preset's samplers were moved into the current model once (model-params.ts). */
+  modelParamsMigrated?: boolean
   themeMode: 'dark' | 'light'
   activeThemeId: ID
   /** Kept for old saves: every value renders the same look now (see lookVersion). */

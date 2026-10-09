@@ -13,6 +13,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { toast } from 'sonner'
 import { resolveLanguage, t, type Lang } from './i18n'
+import { fetchModelParams, modelLimits, moveSamplersToModel, type ModelParams } from './model-params'
 import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
@@ -83,6 +84,10 @@ interface AppState {
   lorebooks: Lorebook[]
   regexScripts: RegexScript[]
   models: ModelInfo[]
+  /** The engine's parameters per model (model-params.ts); {} on an engine without them. */
+  modelParams: ModelParams
+  /** Re-read them (after Settings changed a model); also runs the one-time move of the preset's samplers. */
+  refreshModelParams: () => Promise<void>
   /** engine API connections (models "auto" discovery lives engine-side) */
   engineConnections: EngineConnectionInfo[]
   /** engine settings.model — the default generation model */
@@ -394,6 +399,7 @@ export const useApp = create<AppState>()(
       lorebooks: [],
       regexScripts: [],
       models: [],
+      modelParams: {},
       engineConnections: [],
       model: null,
       ...localSeed(),
@@ -810,6 +816,7 @@ export const useApp = create<AppState>()(
             void get().hydrate()
           })
           get().runAutoExecutes('onStartup')
+          void get().refreshModelParams()
         } catch (e) {
           const msg = e instanceof ApiError && e.status === 401
             ? 'Session expired, log in again from the Chrysalis client.'
@@ -832,6 +839,27 @@ export const useApp = create<AppState>()(
           if (mutateSeq !== seqAtStart) return
           set({ lorebooks: res.items.map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))) })
         } catch { /* offline — keep the current list */ }
+      },
+
+      refreshModelParams: async () => {
+        const params = await fetchModelParams()
+        if (!params) return
+        set({ modelParams: params })
+        const st = get()
+        if (st.settings.modelParamsMigrated || !st.model) return
+        // once: the default preset's samplers become the current model's Chat block (what the
+        // model already has stays); the flag is set even when there was nothing to move
+        const preset = st.presets.find((p) => p.isDefault) ?? st.presets[0]
+        try {
+          const moved = preset ? await moveSamplersToModel(st.model, preset, params) : null
+          if (moved) {
+            set({ modelParams: moved })
+            toast.info(t('model.samplersMoved', resolveLanguage(get().settings.language), { preset: preset!.name }))
+          }
+          get().updateSettings({ modelParamsMigrated: true })
+        } catch {
+          // the engine refused (an untrusted install, a bad value): try again on the next start
+        }
       },
 
       setModel: async (model) => {
@@ -2042,7 +2070,8 @@ async function runStream(
     const model = get().model
     const res = await j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
       method: 'POST',
-      body: JSON.stringify({ ...body, ...(model ? { model } : {}) }),
+      // the model's context window and max output budget the prompt (engine plugin limitsOf)
+      body: JSON.stringify({ ...body, ...(model ? { model } : {}), ...modelLimits(model, get().models, get().modelParams) }),
       signal: ctrl.signal,
     })
     // Fast local models can beat the fetch: if the runtime answered with the
