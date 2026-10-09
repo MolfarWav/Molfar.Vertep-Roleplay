@@ -917,6 +917,9 @@ function risuItem(c) {
     maxRes: null,
     createdAt: Number.isFinite(minutes) && minutes > 0 ? new Date(minutes * 60000).toISOString() : null,
     hasLore: c.haslore === true,
+    // RisuRealm flags emotion images and other assets separately; for cards
+    // both are emotion images in practice
+    hasEmotions: c.hasEmotion === true || c.hasAsset === true,
     pageUrl: "https://realm.risuai.net/character/" + id,
   };
 }

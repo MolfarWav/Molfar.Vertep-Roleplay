@@ -220,7 +220,7 @@ describe("rp card sources: search and detail", () => {
     const data = [
       { cards: 1, page: 9, nsfw: 10, search: 11 },
       [2],
-      { name: 3, desc: 4, download: 5, id: 6, img: 7, tags: 8, haslore: 12, authorname: 13, date: 14 },
+      { name: 3, desc: 4, download: 5, id: 6, img: 7, tags: 8, haslore: 12, hasEmotion: 10, hasAsset: 12, authorname: 13, date: 14 },
       "Knight", "A brave knight\nmore", "17.2k", "fad65b7c-d924-4086-80ce-352a91779e1f",
       "cc0dd42a87df7cc798287771fe21c426a07804b7f1e569e5d333d0d2cf72079f", [], 1, false, "knight", true, "someone", 29832809,
     ];
@@ -232,7 +232,7 @@ describe("rp card sources: search and detail", () => {
     expect(r.json.hasMore).toBe(false);
     expect((r.json.results as unknown[])[0]).toMatchObject({
       id: "fad65b7c-d924-4086-80ce-352a91779e1f", source: "risurealm", name: "Knight", creator: "someone",
-      tagline: "A brave knight", downloads: 17200, hasLore: true,
+      tagline: "A brave knight", downloads: 17200, hasLore: true, hasEmotions: true,
       avatar: "https://sv.risuai.xyz/resource/cc0dd42a87df7cc798287771fe21c426a07804b7f1e569e5d333d0d2cf72079f",
       pageUrl: "https://realm.risuai.net/character/fad65b7c-d924-4086-80ce-352a91779e1f",
     });
