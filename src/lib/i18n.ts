@@ -11,6 +11,8 @@ export type Lang = 'en' | 'uk'
 const en = {
   'nav.home': 'Home',
   'nav.chats': 'Chats',
+  'nav.drawerFull': 'Full screen',
+  'nav.drawerRestore': 'Back to the side panel',
   'nav.characters': 'Characters',
   'nav.marketplace': 'Marketplace',
   'nav.personas': 'Personas',
@@ -903,6 +905,8 @@ export type MsgKey = keyof typeof en
 const uk: Record<MsgKey, string> = {
   'nav.home': 'Головна',
   'nav.chats': 'Чати',
+  'nav.drawerFull': 'На весь екран',
+  'nav.drawerRestore': 'Назад до бічної панелі',
   'nav.characters': 'Персонажі',
   'nav.marketplace': 'Маркет',
   'nav.personas': 'Персони',

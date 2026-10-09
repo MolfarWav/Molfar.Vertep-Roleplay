@@ -1,6 +1,6 @@
 
 import { Fragment, useEffect, useState } from 'react'
-import { CircleNotch, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { ArrowsIn, ArrowsOut, CircleNotch, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -178,6 +178,8 @@ function renderView(v: ViewKey) {
 function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
   const drawer = useApp((s) => s.drawer)
   const closeDrawer = useApp((s) => s.closeDrawer)
+  const full = useApp((s) => s.drawerFull)
+  const setFull = useApp((s) => s.setDrawerFull)
   const wide = useRailWide()
   const t = useT()
   const item = SECTIONS.find((i) => i.key === drawer)
@@ -203,7 +205,9 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
             ? cn(
                 // the Library holds a timeline, character cards and a ledger side by side: it gets more room
                 // 88vw ran past the screen: the drawer starts after the rail, so its room is the screen minus the rail and a gap
-                drawer === 'litopys' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : 'data-[side=left]:w-[min(720px,75vw)]',
+                // full screen: everything right of the rail
+                full ? (wide ? 'data-[side=left]:w-[calc(100vw-206px)]' : 'data-[side=left]:w-[calc(100vw-48px)]')
+                : drawer === 'litopys' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : 'data-[side=left]:w-[min(720px,75vw)]',
                 'data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
                 wide ? 'data-[side=left]:left-[206px]' : 'data-[side=left]:left-12',
               )
@@ -213,8 +217,18 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
         showCloseButton={isDesktop}
       >
         {isDesktop && (
-          <div className="flex h-11 shrink-0 items-center border-b border-border pr-12 pl-4 font-heading text-[17px]">
-            {label}
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border pr-12 pl-4 font-heading text-[17px]">
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setFull(!full)}
+              aria-label={t(full ? 'nav.drawerRestore' : 'nav.drawerFull')}
+              title={t(full ? 'nav.drawerRestore' : 'nav.drawerFull')}
+              aria-pressed={full}
+            >
+              {full ? <ArrowsIn /> : <ArrowsOut />}
+            </Button>
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-hidden">

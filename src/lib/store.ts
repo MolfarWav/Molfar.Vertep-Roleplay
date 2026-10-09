@@ -131,6 +131,9 @@ interface AppState {
    *  windows only); persisted between sessions */
   railCollapsed: boolean
   setRailCollapsed: (v: boolean) => void
+  /** the desktop section drawer fills the screen beside the rail; persisted */
+  drawerFull: boolean
+  setDrawerFull: (v: boolean) => void
   // lifecycle
   hydrate: () => Promise<void>
   /** Refresh ONLY the lorebooks list — the light path imports and single-book
@@ -422,6 +425,8 @@ export const useApp = create<AppState>()(
       helpOpen: false,
       railCollapsed: false,
       setRailCollapsed: (v) => set({ railCollapsed: v }),
+      drawerFull: false,
+      setDrawerFull: (v) => set({ drawerFull: v }),
 
       // ─────────────────────────────────────────────────────────── lifecycle ──
       hydrate: async () => {
@@ -1846,6 +1851,7 @@ export const useApp = create<AppState>()(
         selectedSettingsSection: s.selectedSettingsSection,
         inputHistory: s.inputHistory,
         railCollapsed: s.railCollapsed,
+        drawerFull: s.drawerFull,
       }) as never,
     },
   ),
