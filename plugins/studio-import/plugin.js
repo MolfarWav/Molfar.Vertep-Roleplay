@@ -714,7 +714,17 @@ const risuCount = (s) => {
   return m ? Math.round(Number(m[1]) * (m[2].toLowerCase() === "k" ? 1e3 : m[2].toLowerCase() === "m" ? 1e6 : 1)) || 0 : 0;
 };
 const RISU_PAGE = 30; // the site's own page size
-const CV_SORTS = { downloads: "most_downloaded" };
+// Store sort key -> the site's own. RisuRealm, checked 2026-10-09: no
+// parameter = recommended; "download" only orders a search with a query
+// (without one it lists the newest); "like" changes nothing, so it is absent.
+const RISU_SORTS = { trending: "trending", newest: "date", downloads: "download", random: "random" };
+const CV_SORTS = {
+  downloads: "most_downloaded", rating: "top_rated", newest: "newest", oldest: "oldest",
+  name: "name_asc", name_desc: "name_desc", creator: "creator_asc",
+  tokens: "token_count_desc", tokens_asc: "token_count_asc", comments: "most_commented",
+};
+// where an archived card came from; the site lists these in its own filter
+const CV_ORIGINS = ["chub", "sakura", "crushx", "easygirl", "risuai", "nyai", "nsfwaichat", "janny", "Character Archive", "CharaVault"];
 
 function risuItem(c) {
   const desc = typeof c.desc === "string" ? c.desc : "";
@@ -751,7 +761,9 @@ function cvItem(c) {
     tokens: Number(c.token_count) || 0,
     rating: Number(c.avg_rating) || 0, ratingCount: Number(c.rating_count) || 0, chats: 0, messages: 0,
     nsfw: c.nsfw === true,
-    avatar: null, maxRes: null,
+    // the site's own grid thumbnail (small webp, no card data inside)
+    avatar: folder && file ? "https://charavault.net/cards/thumb/" + encodeURIComponent(folder) + "/" + encodeURIComponent(file) : null,
+    maxRes: null,
     createdAt: typeof c.indexed_at === "string" ? c.indexed_at : null,
     hasLore: c.has_lorebook === true,
     pageUrl: "https://charavault.net/cards/" + encodeURIComponent(folder) + "/" + encodeURIComponent(file),
@@ -771,16 +783,35 @@ function otherSourceSearch(source, b, host) {
     // search page loads (SvelteKit __data.json). It is not a promised
     // interface and may break when the site changes.
     const qs = new URLSearchParams({ q: search, page: String(page), nsfw: b.nsfw === true ? "true" : "false" });
-    if (b.sort === "downloads") qs.set("sort", "download");
+    // no sort parameter = the site's "recommended" list
+    const sort = RISU_SORTS[String(b.sort)];
+    if (sort) qs.set("sort", sort);
     url = "https://realm.risuai.net/__data.json?" + qs.toString();
   } else {
-    // CharaVault: a public archive; its robots.txt disallows /api/, so this
-    // stays at one request per user action and never prefetches downloads.
+    // CharaVault: a public archive with a documented, keyless API (see the
+    // API section on charavault.net). Its robots.txt disallows /api/ for
+    // crawlers, so this stays at one request per user action and never
+    // prefetches downloads.
     const first = Math.max(1, Math.min(50, Math.floor(Number(b.first) || 24)));
     const qs = new URLSearchParams({
       q: search, limit: String(first), offset: String((page - 1) * first),
       sort: CV_SORTS[String(b.sort)] ?? "most_downloaded", nsfw: b.nsfw === true ? "true" : "false",
     });
+    // same body keys as the chub filters, so the Store reuses its controls;
+    // the archive's origin filter ("chub", "risuai", "janny"...) is a tag there
+    const tagList = (v) => (Array.isArray(v) ? v : [])
+      .filter((t) => typeof t === "string" && t.trim() && t.length <= 60)
+      .slice(0, 12).map((t) => t.replace(/,/g, " ").trim()).filter(Boolean);
+    const tags = tagList(b.tags);
+    if (typeof b.origin === "string" && CV_ORIGINS.includes(b.origin)) tags.push(b.origin);
+    if (tags.length) qs.set("tags", tags.join(","));
+    const excludeTags = tagList(b.excludeTags);
+    if (excludeTags.length) qs.set("exclude_tags", excludeTags.join(","));
+    if (/^[\w .-]{1,80}$/.test(String(b.creator || ""))) qs.set("creator", String(b.creator));
+    if (b.requireLore === true) qs.set("has_book", "true");
+    const num = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 1 && n <= 1000000 ? n : null; };
+    if (num(b.minTokens) !== null) qs.set("token_min", String(num(b.minTokens)));
+    if (num(b.maxTokens) !== null) qs.set("token_max", String(num(b.maxTokens)));
     url = "https://charavault.net/api/cards?" + qs.toString();
   }
   if (!Object.keys(host.net.results).length) {

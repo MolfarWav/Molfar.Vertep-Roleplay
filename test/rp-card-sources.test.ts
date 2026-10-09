@@ -154,6 +154,12 @@ describe("rp card sources: search and detail", () => {
       avatar: "https://sv.risuai.xyz/resource/cc0dd42a87df7cc798287771fe21c426a07804b7f1e569e5d333d0d2cf72079f",
       pageUrl: "https://realm.risuai.net/character/fad65b7c-d924-4086-80ce-352a91779e1f",
     });
+    for (const [sort, sent] of [["trending", "trending"], ["newest", "date"], ["random", "random"], ["recommended", null], ["rating", null]] as const) {
+      await drive("/marketplace/search", { source: "risurealm", sort }, (_k, req) => {
+        expect(new URL(String(req.url)).searchParams.get("sort")).toBe(sent);
+        return { ok: true, status: 200, json: { nodes: [null, { type: "data", data: [{ cards: 1 }, []] }] } };
+      });
+    }
     const broken = await drive("/marketplace/search", { source: "risurealm" }, () => ({ ok: true, status: 200, json: { nodes: [] } }));
     expect(String(broken.json.error)).toContain("changed its search page");
   });
@@ -174,6 +180,29 @@ describe("rp card sources: search and detail", () => {
       return { ok: true, status: 200, json: { total: 0, results: [] } };
     });
     expect(adult.status).toBe(200);
+
+    const filtered = await drive("/marketplace/search", {
+      source: "charavault", sort: "rating", tags: ["elf", "a,b"], excludeTags: ["gore"], origin: "risuai",
+      creator: "Some One", requireLore: true, minTokens: 500, maxTokens: "x",
+    }, (_k, req) => {
+      const q = new URL(String(req.url)).searchParams;
+      expect(q.get("sort")).toBe("top_rated");
+      expect(q.get("tags")).toBe("elf,a b,risuai");
+      expect(q.get("exclude_tags")).toBe("gore");
+      expect(q.get("creator")).toBe("Some One");
+      expect(q.get("has_book")).toBe("true");
+      expect(q.get("token_min")).toBe("500");
+      expect(q.has("token_max")).toBe(false);
+      return { ok: true, status: 200, json: { total: 1, results: [{ file: "E F.png", folder: "E F", name: "Elf" }] } };
+    });
+    expect((filtered.json.results as { avatar: string }[])[0]!.avatar).toBe("https://charavault.net/cards/thumb/E%20F/E%20F.png");
+    const rogue = await drive("/marketplace/search", { source: "charavault", origin: "evil", sort: "DROP" }, (_k, req) => {
+      const q = new URL(String(req.url)).searchParams;
+      expect(q.has("tags")).toBe(false);
+      expect(q.get("sort")).toBe("most_downloaded");
+      return { ok: true, status: 200, json: { total: 0, results: [] } };
+    });
+    expect(rogue.status).toBe(200);
 
     const d = await drive("/marketplace/detail", { source: "charavault", id: "E/E.card.png" }, (_k, req) => {
       expect(String(req.url)).toBe("https://charavault.net/api/cards/E/E.card.png");
