@@ -1576,7 +1576,7 @@ export function handleRoute(req, host) {
    *  the card's studio bag so the app scopes it to that character. charx
    *  packages also carry assets: the icon/main avatar and emotion sprites
    *  resolve from the package bytes (assetDict) or inline data: URIs. */
-  function writeCardWithBook(card, raw, assetDict, sourceAvatar) {
+  function writeCardWithBook(card, raw, assetDict, sourceAvatar, fallbackAvatar) {
     if (!card) return;
     const src = raw && raw.data && typeof raw.data === "object" && raw.data.character_book ? raw.data : raw;
     const book = src && src.character_book && typeof src.character_book === "object" ? src.character_book : null;
@@ -1604,6 +1604,9 @@ export function handleRoute(req, host) {
         card.studio = { ...card.studio, expressions: resolved.expressions };
       }
     }
+    // a package whose main icon is missing or too large for the avatar
+    // field: the browser sends a downscaled one (see the /import/zip charx path)
+    if (!card.avatar && fallbackAvatar) card.avatar = fallbackAvatar;
     writeCard(card);
   }
   // Ids are re-minted on the way in, so anything that pointed at an id in the
@@ -1831,7 +1834,10 @@ export function handleRoute(req, host) {
         }
         const parsed = JSON.parse(entries["card.json"]);
         const card = normalizeCard(parsed);
-        if (card) { writeCardWithBook(card, parsed, assetDict); return { status: 200, json: { ...summary, name: card.name } }; }
+        // optional downscaled portrait from the browser (it can unzip and resize)
+        const body = req.body && typeof req.body === "object" ? req.body : {};
+        const fallback = typeof body.avatar === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(body.avatar) && body.avatar.length < 900 * 1024 ? body.avatar : null;
+        if (card) { writeCardWithBook(card, parsed, assetDict, null, fallback); return { status: 200, json: { ...summary, name: card.name } }; }
       } catch {}
       return { status: 400, json: { error: "charx package has no readable card.json" } };
     }

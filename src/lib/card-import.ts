@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 import { j, fileToDataUrl, fileToRawBase64, downscaleRemoteImage } from '@/lib/engine'
 import { extractCharaFromPng } from '@/lib/interop'
+import { unzipSync } from 'fflate'
 
 /** Ask the dashboard plugin to rate each imported card, one after another and
  *  without waiting: the plugin decides whether to (its setting, an existing soul),
@@ -31,6 +32,32 @@ export function zipStartOf(b: Uint8Array): number {
     }
   }
   return -1
+}
+
+/** A charx package's portrait, downscaled to 512 px: the asset card.json marks
+ *  as the main icon, else its first icon, else the first image in assets/.
+ *  The plugin keeps the package's own icon when it fits the avatar field and
+ *  uses this one otherwise (a large main.png, or icons with other names).
+ *  Undefined when there is none; never throws. */
+async function charxPortrait(zipBytes: Uint8Array): Promise<string | undefined> {
+  try {
+    const IMG = /\.(png|jpe?g|webp)$/i
+    const files = unzipSync(zipBytes, { filter: (f) => f.name === 'card.json' || (f.name.startsWith('assets/') && IMG.test(f.name)) })
+    let path: string | undefined
+    try {
+      const card = JSON.parse(new TextDecoder().decode(files['card.json'])) as { data?: { assets?: unknown }; assets?: unknown }
+      const assets = (Array.isArray(card.data?.assets) ? card.data.assets : Array.isArray(card.assets) ? card.assets : []) as { type?: unknown; name?: unknown; uri?: unknown }[]
+      const icons = assets.filter((a) => a && a.type === 'icon' && typeof a.uri === 'string')
+      const pick = icons.find((a) => a.name === 'main') ?? icons[0]
+      if (pick) path = String(pick.uri).replace(/^(?:embeded|embedded):\/\//, '')
+    } catch { /* no readable card.json: fall back to the first image */ }
+    if (!path || !files[path]) path = Object.keys(files).filter((n) => n !== 'card.json').sort()[0]
+    if (!path || !files[path]) return undefined
+    const type = /\.png$/i.test(path) ? 'image/png' : /\.webp$/i.test(path) ? 'image/webp' : 'image/jpeg'
+    return await fileToDataUrl(new Blob([files[path]!], { type }), 512)
+  } catch {
+    return undefined
+  }
 }
 
 /** What one import call brought in: the new character ids and their names,
@@ -73,9 +100,11 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
         const bytes = new Uint8Array(await f.arrayBuffer())
         const start = zipStartOf(bytes)
         if (start < 0) { errors.push(`${f.name}: not a charx package (no zip inside)`); continue }
-        const zip = start === 0 ? f : new Blob([bytes.subarray(start)])
+        const zipBytes = start === 0 ? bytes : bytes.subarray(start)
+        const zip = start === 0 ? f : new Blob([zipBytes])
+        const avatar = await charxPortrait(zipBytes)
         const r = await j<{ characters?: string[]; name?: string }>('/import/zip', {
-          method: 'POST', body: JSON.stringify({ zipBase64: await fileToRawBase64(zip) }),
+          method: 'POST', body: JSON.stringify({ zipBase64: await fileToRawBase64(zip), ...(avatar ? { avatar } : {}) }),
         })
         const got = r.characters ?? []
         if (!got.length) { errors.push(`${f.name}: no card.json in the package`); continue }
