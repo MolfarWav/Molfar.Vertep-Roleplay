@@ -422,6 +422,11 @@ export function MarketplaceView() {
   const [downloading, setDownloading] = useState<Record<string, boolean>>({})
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set())
   const reqId = useRef(0)
+  /** Guards the detail request like reqId guards the search: a slow answer for
+   *  card A must not land on card B. */
+  const detailReqId = useRef(0)
+  /** The last search's parameters, to scroll back to the top when they change. */
+  const lastQuery = useRef<string | null>(null)
   // the paste-a-link row in the header
   const [linkValue, setLinkValue] = useState('')
   const [linkBusy, setLinkBusy] = useState(false)
@@ -431,9 +436,18 @@ export function MarketplaceView() {
   /** Ids only mean something inside their source. */
   const keyOf = (item: MarketplaceItem) => `${item.source ?? source}:${item.id}`
 
+  const closeDetail = () => {
+    detailReqId.current++
+    setDetail(null)
+    setDetailData(null)
+    setDetailError(null)
+    setDetailLoading(false)
+  }
+
   const setSource = (v: SourceId) => {
     if (v === source) return
     reqId.current++
+    closeDetail()
     setItems([])
     setError(null)
     setLoading(true)
@@ -489,6 +503,7 @@ export function MarketplaceView() {
     const id = ++reqId.current
     setLoading(true)
     setError(null)
+    setHasMore(false)
     const body = source === 'chub'
       ? { source, search: applied, sort, trending, page, first: PAGE_SIZE, tags, tagsMode, ...filterBody(filters), ...(creator ? { creator } : {}) }
       : source === 'charavault'
@@ -501,6 +516,14 @@ export function MarketplaceView() {
               ? { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, tags, ...(sort !== 'default' ? { sort } : {}), ...filterBody(filters, 'janny') }
               : { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, ...(sort !== 'recommended' ? { sort } : {}) }
     const cacheKey = JSON.stringify(body)
+    // new source, page, sort or filters: the results start at the top. The
+    // first search of a visit keeps the restored scroll position.
+    if (lastQuery.current !== null && lastQuery.current !== cacheKey) {
+      const el = viewportOf(scrollRootRef.current)
+      if (el) el.scrollTop = 0
+      scrollTopRef.current = 0
+    }
+    lastQuery.current = cacheKey
     const apply = (r: SearchResponse) => {
       setItems(r.results)
       setCount(r.count)
@@ -541,6 +564,7 @@ export function MarketplaceView() {
 
   // full card definition loads when a listing is opened for preview
   useEffect(() => {
+    const id = ++detailReqId.current
     if (!detail) return
     // JannyAI: the listing is all there is (its site is not reachable from the app)
     if ((detail.source ?? source) === 'janny') { setDetailData(null); setDetailError(null); setDetailLoading(false); return }
@@ -552,9 +576,9 @@ export function MarketplaceView() {
       method: 'POST',
       body: JSON.stringify({ source: detail.source ?? source, id: detail.id }),
     })
-      .then(setDetailData)
-      .catch((e) => setDetailError(String((e as Error).message ?? e)))
-      .finally(() => setDetailLoading(false))
+      .then((d) => { if (id === detailReqId.current) setDetailData(d) })
+      .catch((e) => { if (id === detailReqId.current) setDetailError(String((e as Error).message ?? e)) })
+      .finally(() => { if (id === detailReqId.current) setDetailLoading(false) })
   }, [detail, source])
 
   // chub and CharaVault tell the total; RisuRealm only whether a next page exists
@@ -578,7 +602,7 @@ export function MarketplaceView() {
   /** One success path for every source: the toast offers to open the card. */
   const openNew = (id: string | undefined) => {
     if (id) openCharacter(id)
-    setDetail(null)
+    closeDetail()
     setView('characters')
   }
   const added = (name: string, id: string | undefined, skippedBooks = 0) =>
@@ -699,11 +723,12 @@ export function MarketplaceView() {
             {source === 'charavault' && (
               <>
                 <Select value={origin || 'all'} onValueChange={(v) => patch({ origin: v == null || v === 'all' ? '' : String(v), page: 1 })}>
-                  <SelectTrigger className="h-8 w-36 text-xs" aria-label="Where the archived card came from">
+                  <SelectTrigger className="h-8 w-40 gap-1 text-xs" aria-label="Where the archived card came from">
+                    <span className="text-muted-foreground">From:</span>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Origin: all</SelectItem>
+                    <SelectItem value="all">any site</SelectItem>
                     {CV_ORIGINS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -959,7 +984,7 @@ export function MarketplaceView() {
               <EmptyTitle>No characters found</EmptyTitle>
               <EmptyDescription>
                 {!isChub
-                  ? applied || tags.length || origin || countFilters(filters, 'charavault')
+                  ? applied || tags.length || origin || (isFilterSource(source) ? countFilters(filters, source) : 0)
                     ? `Nothing matches. Try another word, loosen a filter${showAdult ? '' : ' or show adult cards'}.`
                     : 'The catalog came back empty, try again.'
                   : trending
@@ -1012,7 +1037,7 @@ export function MarketplaceView() {
                   </span>
                   <span className="flex flex-col gap-1 p-2.5">
                     <span className="line-clamp-1 text-sm font-semibold">{item.name}</span>
-                    <span className="line-clamp-1 text-[11px] text-muted-foreground">by {item.creator || 'unknown'}</span>
+                    {item.creator && <span className="line-clamp-1 text-[11px] text-muted-foreground">by {item.creator}</span>}
                     <span className="line-clamp-2 text-xs text-muted-foreground">{item.tagline || item.description}</span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       {item.hasLore && (
@@ -1020,10 +1045,12 @@ export function MarketplaceView() {
                       )}
                       {item.topics.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                     </span>
-                    <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <span className="flex items-center gap-0.5" title="Downloads"><DownloadSimple className="size-3" aria-hidden="true" />{fmtCount(item.downloads)}</span>
-                      {isChub && <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(item.favorites)}</span>}
-                    </span>
+                    {(item.downloads > 0 || item.favorites > 0) && (
+                      <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                        {item.downloads > 0 && <span className="flex items-center gap-0.5" title="Downloads"><DownloadSimple className="size-3" aria-hidden="true" />{fmtCount(item.downloads)}</span>}
+                        {item.favorites > 0 && <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(item.favorites)}</span>}
+                      </span>
+                    )}
                   </span>
                 </button>
               ))}
@@ -1039,7 +1066,7 @@ export function MarketplaceView() {
         )}
       </ScrollArea>
 
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+      <Dialog open={!!detail} onOpenChange={(o) => !o && closeDetail()}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           {detail && (
             <>
@@ -1057,20 +1084,20 @@ export function MarketplaceView() {
                       {detailSource === 'chub' || detailSource === 'charavault' ? (
                         <button
                           type="button"
-                          onClick={() => { if (detail.creator) { patch({ creator: detail.creator, page: 1 }); setDetail(null) } }}
+                          onClick={() => { if (detail.creator) { patch({ creator: detail.creator, page: 1 }); closeDetail() } }}
                           title={`Browse everything by ${detail.creator}`}
                           className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
                         >
                           <User className="size-3" aria-hidden="true" />by {detail.creator || 'unknown'}
                         </button>
-                      ) : (
-                        <span className="inline-flex items-center gap-1"><User className="size-3" aria-hidden="true" />by {detail.creator || 'unknown'}</span>
-                      )}
+                      ) : detail.creator ? (
+                        <span className="inline-flex items-center gap-1"><User className="size-3" aria-hidden="true" />by {detail.creator}</span>
+                      ) : null}
                       {detail.createdAt && <span>{new Date(detail.createdAt).toLocaleDateString()}</span>}
                     </DialogDescription>
                     <span className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-0.5" title="Downloads"><DownloadSimple className="size-3" aria-hidden="true" />{fmtCount(detail.downloads)}</span>
-                      {detailSource === 'chub' && <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(detail.favorites)}</span>}
+                      {detail.downloads > 0 && <span className="flex items-center gap-0.5" title="Downloads"><DownloadSimple className="size-3" aria-hidden="true" />{fmtCount(detail.downloads)}</span>}
+                      {detail.favorites > 0 && <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(detail.favorites)}</span>}
                       {detail.tokens > 0 && <span title="Token estimate for the card">{fmtCount(detail.tokens)} tok</span>}
                       {detail.ratingCount > 0 && (
                         <span>{detail.rating.toFixed(1)} ★ ({fmtCount(detail.ratingCount)})</span>
@@ -1093,7 +1120,7 @@ export function MarketplaceView() {
                         <button
                           key={t}
                           type="button"
-                          onClick={() => { toggleTag(t); setDetail(null) }}
+                          onClick={() => { toggleTag(t); closeDetail() }}
                           title={`Filter the catalog by ${t}`}
                           className="rounded-full border border-transparent bg-accent px-2 py-0.5 text-[10px] text-accent-foreground transition-colors hover:border-primary/50"
                         >
@@ -1188,7 +1215,7 @@ export function MarketplaceView() {
                     <ArrowSquareOut className="size-3.5" aria-hidden="true" />Get on {sourceName(detailSource)}
                   </a>
                 ) : downloaded.has(keyOf(detail)) ? (
-                  <Button size="sm" onClick={() => { setDetail(null); setView('characters') }}>
+                  <Button size="sm" onClick={() => { closeDetail(); setView('characters') }}>
                     <Check className="size-4" aria-hidden="true" />Open Characters
                   </Button>
                 ) : (
