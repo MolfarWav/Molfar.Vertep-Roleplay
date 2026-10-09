@@ -58,16 +58,13 @@ export function StoryNudgeChip({ chatId }: { chatId: string }) {
 }
 
 /**
- * The split button. A click on the main part, or on one menu item, arms the nudge; with an empty
- * composer it also sends right away (the same empty send as the send button), with text it waits
- * for the user's own send.
+ * The split button. A click on the main part, or on one menu item, only arms the nudge: the
+ * user's own send carries it, with text or with an empty box (user, 2026-10-09: sending at once
+ * from an empty box read as an empty message going into the chat).
  */
-export function StoryNudgeButton({ chatId, isEmpty, isStreaming, onSendEmpty }: {
+export function StoryNudgeButton({ chatId, isStreaming }: {
   chatId: string
-  /** the composer has no text */
-  isEmpty: boolean
   isStreaming: boolean
-  onSendEmpty: () => void
 }) {
   const t = useT()
   const { dash, usable, nudge, open } = useNudgeState()
@@ -83,7 +80,6 @@ export function StoryNudgeButton({ chatId, isEmpty, isStreaming, onSendEmpty }: 
       return
     }
     void dash.reload()
-    if (isEmpty) onSendEmpty()
   }
 
   const variant = nudge ? 'default' : 'ghost'

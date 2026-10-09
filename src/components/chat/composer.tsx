@@ -10,6 +10,7 @@ import {
 import { ManageChatsDialog } from "@/components/chat/manage-chats-dialog"
 import { QuickReplyBar } from "@/components/chat/qr-bar"
 import { StoryNudgeButton, StoryNudgeChip } from "@/components/chat/story-nudge"
+import { useDashMaybe } from "@/components/dashboard/dash-context"
 import { ExpandedEditor } from "@/components/chat/expanded-editor"
 import { ImageGenDialog, type ImageGenStart } from "@/components/chat/image-gen-dialog"
 import { GalleryDialog } from "@/components/chat/gallery-dialog"
@@ -111,6 +112,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   // An empty box sends too (it becomes a bare continue turn), so
   // the send button stays live even with nothing typed.
   const canSend = !isStreaming
+  const nudgeArmed = !!useDashMaybe()?.view?.nudge
 
   /**
    * Auto-fit: collapse to 1px so `scrollHeight`
@@ -326,7 +328,10 @@ export function Composer({ chatId }: { chatId: ID }) {
       }
       return
     }
-    sendMessage(chatId, text, { attachments })
+    // an armed "Story, move" with an empty box: the character carries on with no user turn at
+    // all, even when the preset turns an empty send into text (a send_if_empty of "..." left a
+    // "..." turn the nudge then had nothing to stand on)
+    sendMessage(chatId, text, { attachments, ...(!text && nudgeArmed ? { noEmptySend: true } : {}) })
     if (text) pushInputHistory(text)
     setValue("")
     dropDraft()
@@ -337,15 +342,6 @@ export function Composer({ chatId }: { chatId: ID }) {
     // on-screen keyboard on touch — leave focus where it is on touch, keep
     // the desktop flow (cursor back in the box) as-is.
     if (!touchUi) textareaRef.current?.focus()
-  }
-
-  // "Story, move" with an empty box: the character carries on, with no user turn at all, even
-  // when the preset turns an empty send into text (a send_if_empty of "..." left a "..." turn
-  // the nudge then had nothing to stand on)
-  const handleNudgeSend = () => {
-    if (isStreaming) return
-    sendMessage(chatId, '', { attachments, noEmptySend: true })
-    setAttachments([])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -580,7 +576,7 @@ export function Composer({ chatId }: { chatId: ID }) {
           onChange={(e) => { handleFiles(e.target.files); e.target.value = "" }}
         />
 
-        <StoryNudgeButton chatId={chatId} isEmpty={!value.trim()} isStreaming={isStreaming} onSendEmpty={handleNudgeSend} />
+        <StoryNudgeButton chatId={chatId} isStreaming={isStreaming} />
 
         {isStreaming ? (
           <Button variant="destructive" size="icon" className="size-9 shrink-0" onClick={stopStreaming} aria-label="Stop generating">
