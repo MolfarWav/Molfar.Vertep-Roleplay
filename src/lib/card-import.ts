@@ -263,7 +263,10 @@ export function cardFileKind(b: Uint8Array): { ext: 'png' | 'charx' | 'json' } |
 async function fileRouteError(res: Response, label: string): Promise<string> {
   const said = ((await res.json().catch(() => ({}))) as { error?: string }).error ?? ''
   if (res.status === 413) return `The card on ${label} is larger than 200 MB, the most the app downloads.`
-  if (res.status === 404) return `${label} has no card at this link.`
+  // the route answers "upstream 404" for a missing card; any other 404 means
+  // the engine has no file route yet (older than 0.9.3)
+  if (res.status === 404 && /^upstream/.test(said)) return `${label} has no card at this link.`
+  if (res.status === 404) return 'The engine is older than this version of the app needs (0.9.3 or newer): update or restart the engine, then try again.'
   if (res.status === 429) return `${label} asks to slow down. Wait a minute, then try again.`
   if (res.status === 403) return `${said || 'The link leads to a site the app may not contact'}. Download the file in your browser and drop it into the Store.`
   return `Download from ${label} failed (${said || res.status}).`
