@@ -104,11 +104,21 @@ const entryBase64 = (e) =>
  *  "ccv3" JSON) — mirrors what the browser-side importer does with .png
  *  cards, so backup zips with PNG characters import fully plugin-side. */
 function cardFromPngBase64(b64) {
+  // ccv3 (V3) wins over chara (V2) when both parse. The V3 spec stores ccv3
+  // as base64 like chara; a bare-JSON ccv3 is accepted too. A chunk that does
+  // not parse is skipped instead of ending the scan (a V3 PNG whose ccv3 came
+  // first used to read as "no card").
+  let v2 = null;
   try {
     const bin = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
     if (bin.length < 8 || bin[0] !== 0x89 || bin[1] !== 0x50) return null;
     let off = 8;
     const td = new TextDecoder();
+    const parse = (text, keyword) => {
+      try { return JSON.parse(atob(text.trim())); } catch { /* not base64 JSON */ }
+      if (keyword === "ccv3") { try { return JSON.parse(text); } catch { /* not JSON */ } }
+      return null;
+    };
     while (off + 12 <= bin.length) {
       const len = (bin[off] << 24) | (bin[off + 1] << 16) | (bin[off + 2] << 8) | bin[off + 3];
       const type = String.fromCharCode(bin[off + 4], bin[off + 5], bin[off + 6], bin[off + 7]);
@@ -126,9 +136,9 @@ function cardFromPngBase64(b64) {
             payload = body.subarray(q);
           }
           if (keyword === "chara" || keyword === "ccv3") {
-            const text = td.decode(payload);
-            const json = JSON.parse(keyword === "chara" ? atob(text) : text);
-            return json;
+            const json = parse(td.decode(payload), keyword);
+            if (json && keyword === "ccv3") return json;
+            if (json && !v2) v2 = json;
           }
         }
       }
@@ -136,7 +146,7 @@ function cardFromPngBase64(b64) {
       off += 12 + len;
     }
   } catch {}
-  return null;
+  return v2;
 }
 
 /** Fields the normalizer owns; everything else on the card's data object is
@@ -534,9 +544,352 @@ function normalizeChatLines(raw) {
 // "not available in your country" page — present as a browser
 const BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
+// ---------- More card sources (RisuRealm, CharaVault, direct links) ----------
+// chub keeps its own paths below untouched. Every other source only FETCHES
+// the card file here (allowlisted host, size cap, timeout, no host change on
+// redirect, magic bytes checked) and hands the bytes back; the Store imports
+// them exactly like a dropped file, so there is one importer for all of them.
+const HONEST_UA = "Molfar-Vertep studio-import/1.13.0 (+https://github.com/MolfarWav/Molfar.Vertep)";
+const CARD_MAX_BYTES = 16 * 1024 * 1024; // the chub card PNG cap
+const CARD_TIMEOUT_MS = 30000;
+const SOURCE_LABELS = { chub: "Chub", risurealm: "RisuRealm", charavault: "CharaVault", url: "a direct link" };
+// A direct link may only be downloaded from these services, and a redirect
+// may only stay inside the same service (Hugging Face serves files from its
+// CDN, github.com/raw lands on raw.githubusercontent.com). The engine checks
+// every hop against networkHosts as well.
+const DIRECT_SERVICES = [
+  { name: "GitHub", hosts: ["raw.githubusercontent.com"] },
+  { name: "Hugging Face", hosts: ["huggingface.co", "cdn-lfs.huggingface.co", "*.hf.co"] },
+  { name: "Catbox", hosts: ["files.catbox.moe"] },
+  { name: "Discord", hosts: ["cdn.discordapp.com"] },
+];
+const DIRECT_NAMES = "GitHub (raw), Hugging Face, Catbox, Discord";
+const hostIn = (hostname, patterns) =>
+  patterns.some((p) => hostname === p || (p.startsWith("*.") && hostname.endsWith(p.slice(1))));
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const fileNameOf = (s) => String(s).replace(/[^\w.() -]+/g, "_").slice(-120) || "card";
+const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+
+/** Where a pasted link is downloaded from. Never fetches; returns
+ *  { error, status?, openInBrowser? } when the link cannot be used. */
+function classifyCardLink(raw) {
+  let u;
+  try { u = new URL(String(raw || "").trim()); } catch { return { error: "That is not a link." }; }
+  if (u.protocol !== "https:") return { error: "Only https:// links can be downloaded." };
+  const host = u.hostname.toLowerCase();
+  const parts = u.pathname.split("/").filter(Boolean);
+  // JannyAI / JanitorAI sit behind a browser check that apps must not get
+  // around: the user downloads the card in the browser and drops it here.
+  if (/(^|\.)(jannyai\.com|janitorai\.com)$/.test(host)) {
+    return { status: 422, error: "JannyAI cards cannot be downloaded by the app. Open the page in your browser, download the card, then drop the file into the Store.", openInBrowser: u.href };
+  }
+  if (/(^|\.)(chub\.ai|characterhub\.(ai|org))$/.test(host)) return { status: 400, error: "Chub links go through the chub import." };
+  if (host === "realm.risuai.net") {
+    const id = parts[0] === "character" ? parts[1] : parts[0] === "api" ? parts[parts.length - 1] : "";
+    if (!id || !UUID_RE.test(id)) return { error: "Not a RisuRealm character link. Use https://realm.risuai.net/character/<id>." };
+    return {
+      source: "risurealm", hosts: ["realm.risuai.net"], fileBase: id.toLowerCase(),
+      pageUrl: "https://realm.risuai.net/character/" + id.toLowerCase(),
+      url: "https://realm.risuai.net/api/v1/download/dynamic/" + id.toLowerCase() + "?cors=true",
+      headers: { "x-risu-api-version": "4", accept: "image/png, application/zip, application/charx, application/json" },
+    };
+  }
+  if (host === "charavault.net" || host === "www.charavault.net") {
+    // page /cards/<folder>/<file> or the API's /api/cards/download/<folder>/<file>
+    const at = parts[0] === "cards" ? 1 : parts[0] === "api" && parts[2] === "download" ? 3 : -1;
+    if (at < 0 || parts.length !== at + 2) return { error: "Not a CharaVault card link. Use https://charavault.net/cards/<folder>/<file>." };
+    const folder = safeDecode(parts[at]);
+    const file = safeDecode(parts[at + 1]);
+    const tail = encodeURIComponent(folder) + "/" + encodeURIComponent(file);
+    return {
+      source: "charavault", hosts: ["charavault.net"], fileBase: file,
+      pageUrl: "https://charavault.net/cards/" + tail,
+      url: "https://charavault.net/api/cards/download/" + tail,
+      headers: { accept: "image/png" },
+    };
+  }
+  // GitHub and Hugging Face "view" links point at a web page; rewrite them to
+  // the file itself (a pure URL rewrite, no extra host is contacted).
+  let direct = u;
+  if (host === "github.com" && (parts[2] === "blob" || parts[2] === "raw") && parts.length > 4) {
+    direct = new URL("https://raw.githubusercontent.com/" + [parts[0], parts[1], ...parts.slice(3)].join("/"));
+  } else if (host === "huggingface.co" && parts.includes("blob")) {
+    direct = new URL(u.href.replace("/blob/", "/resolve/"));
+  }
+  const service = DIRECT_SERVICES.find((s) => hostIn(direct.hostname.toLowerCase(), s.hosts));
+  if (!service) {
+    return { status: 422, error: "The app can only download cards from " + DIRECT_NAMES + ", RisuRealm and CharaVault. For any other site, download the file and drop it into the Store." };
+  }
+  return {
+    source: "url", hosts: service.hosts, service: service.name, pageUrl: u.href,
+    fileBase: safeDecode(direct.pathname.split("/").filter(Boolean).pop() || "card"),
+    url: direct.href, headers: { accept: "image/png, application/json, application/zip, */*" },
+  };
+}
+
+/** What a fetched card file is, from its first bytes. JSON must parse and look
+ *  like a card; a PNG must carry a card. Returns { kind } or { error }. */
+function sniffCardFile(base64) {
+  const head = Uint8Array.from(atob(String(base64).slice(0, 16)), (c) => c.charCodeAt(0));
+  if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) {
+    return cardFromPngBase64(base64) ? { kind: "png" } : { error: "This PNG is a plain image with no character card inside." };
+  }
+  if (head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04) return { kind: "charx", zipOffset: 0 };
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) {
+    // RisuRealm also serves charx as a JPEG cover with the zip appended. The
+    // zip's end record says where the zip starts: end - directory size -
+    // directory offset. The Store cuts the cover off before /import/zip.
+    const s = String(base64);
+    const pad = s.endsWith("==") ? 2 : s.endsWith("=") ? 1 : 0;
+    const total = (s.length / 4) * 3 - pad;
+    const tailChars = Math.min(s.length, 1024);
+    const tail = Uint8Array.from(atob(s.slice(s.length - tailChars)), (c) => c.charCodeAt(0));
+    const tailStart = total - tail.length;
+    for (let i = tail.length - 22; i >= 0; i--) {
+      if (tail[i] === 0x50 && tail[i + 1] === 0x4b && tail[i + 2] === 0x05 && tail[i + 3] === 0x06) {
+        const u32 = (o) => (tail[o] | (tail[o + 1] << 8) | (tail[o + 2] << 16) | (tail[o + 3] << 24)) >>> 0;
+        const zipStart = tailStart + i - u32(i + 12) - u32(i + 16);
+        if (zipStart > 0 && zipStart < tailStart + i) return { kind: "charx", zipOffset: zipStart };
+        break;
+      }
+    }
+    return { error: "This JPEG is a plain image with no character card inside." };
+  }
+  let text = "";
+  try { text = new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))).replace(/^﻿/, "").trim(); } catch { /* not text */ }
+  if (text.startsWith("<")) return { error: "The link opens a web page, not a card file. Use the link of the file itself (on GitHub: Raw; on Hugging Face: download)." };
+  if (text.startsWith("{")) {
+    try {
+      const j = JSON.parse(text);
+      const name = j && (j.name || (j.data && j.data.name) || (j.char_name));
+      if (typeof name === "string" && name.trim()) return { kind: "json" };
+      return { error: "This JSON file is not a character card (it has no name)." };
+    } catch { return { error: "This file looks like JSON but does not parse." }; }
+  }
+  return { error: "This file is not a character card (PNG, JSON or charx)." };
+}
+
+/** Plain words for a failed host.net download. */
+function downloadError(r, label) {
+  const status = r && r.status;
+  const err = String((r && r.error) || "");
+  const outside = /networkHosts allowlist: (\S+)/.exec(err);
+  if (outside) return { status: 422, error: "The link redirected to " + outside[1] + ", which the app may not contact. Download the file in your browser and drop it into the Store." };
+  if (/too large/.test(err)) return { status: 413, error: "The file is larger than 16 MB, the most the app downloads." };
+  if (/timed? ?out|abort/i.test(err)) return { status: 504, error: label + " did not answer in time. Try again later." };
+  if (status === 429) return { status: 429, error: label + " asks to slow down. Wait a minute, then try again." };
+  if (status === 404 || status === 410) return { status: 404, error: label + " has no card at this link (" + status + ")." };
+  if (status === 401 || status === 403) return { status: 502, error: label + " refused the download (" + status + "). The card may be private, or the site does not let apps download it: open it in your browser, download it, and drop the file into the Store." };
+  return { status: 502, error: "Download from " + label + " failed (" + (status || err || "no response") + ")." };
+}
+
+/** SvelteKit page data (devalue): a flat array where object and array members
+ *  are indexes into the same array. Turns it back into plain values. */
+function devalueRoot(data) {
+  if (!Array.isArray(data)) return null;
+  const memo = new Map();
+  const at = (i) => {
+    if (typeof i !== "number" || i < 0 || i >= data.length) return undefined;
+    if (memo.has(i)) return memo.get(i);
+    const v = data[i];
+    let out = v;
+    if (Array.isArray(v)) { out = []; memo.set(i, out); for (const x of v) out.push(at(x)); }
+    else if (v && typeof v === "object") { out = {}; memo.set(i, out); for (const k of Object.keys(v)) out[k] = at(v[k]); }
+    memo.set(i, out);
+    return out;
+  };
+  return at(0);
+}
+const risuNodeRoot = (json, key) => {
+  const nodes = json && Array.isArray(json.nodes) ? json.nodes : [];
+  for (const n of nodes) {
+    const root = n && n.type === "data" ? devalueRoot(n.data) : null;
+    if (root && typeof root === "object" && key in root) return root;
+  }
+  return null;
+};
+// "17.2k" / "1.1m" / "950" -> number
+const risuCount = (s) => {
+  const m = /^([\d.]+)\s*([km]?)$/i.exec(String(s || "").trim());
+  return m ? Math.round(Number(m[1]) * (m[2].toLowerCase() === "k" ? 1e3 : m[2].toLowerCase() === "m" ? 1e6 : 1)) || 0 : 0;
+};
+const RISU_PAGE = 30; // the site's own page size
+const CV_SORTS = { downloads: "most_downloaded" };
+
+function risuItem(c) {
+  const desc = typeof c.desc === "string" ? c.desc : "";
+  const id = String(c.id || "").toLowerCase();
+  const minutes = Number(c.date);
+  return {
+    id, source: "risurealm",
+    name: String(c.name || "Untitled").slice(0, 200),
+    creator: typeof c.authorname === "string" ? c.authorname : "",
+    tagline: desc.split("\n").find((l) => l.trim())?.slice(0, 500) ?? "",
+    description: desc.slice(0, 12000),
+    topics: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 30) : [],
+    downloads: risuCount(c.download), favorites: 0, tokens: 0, rating: 0, ratingCount: 0, chats: 0, messages: 0,
+    nsfw: false,
+    avatar: typeof c.img === "string" && /^[0-9a-f]{16,128}$/i.test(c.img) ? "https://sv.risuai.xyz/resource/" + c.img : null,
+    maxRes: null,
+    createdAt: Number.isFinite(minutes) && minutes > 0 ? new Date(minutes * 60000).toISOString() : null,
+    hasLore: c.haslore === true,
+    pageUrl: "https://realm.risuai.net/character/" + id,
+  };
+}
+
+function cvItem(c) {
+  const folder = String(c.folder || "");
+  const file = String(c.file || "");
+  return {
+    id: folder + "/" + file, source: "charavault",
+    name: String(c.name || file || "Untitled").slice(0, 200),
+    creator: typeof c.creator === "string" ? c.creator : "",
+    tagline: typeof c.description_preview === "string" ? c.description_preview.split("\n").find((l) => l.trim())?.slice(0, 500) ?? "" : "",
+    description: typeof c.description_preview === "string" ? c.description_preview.slice(0, 12000) : "",
+    topics: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 30) : [],
+    downloads: Number(c.download_count) || 0, favorites: 0,
+    tokens: Number(c.token_count) || 0,
+    rating: Number(c.avg_rating) || 0, ratingCount: Number(c.rating_count) || 0, chats: 0, messages: 0,
+    nsfw: c.nsfw === true,
+    avatar: null, maxRes: null,
+    createdAt: typeof c.indexed_at === "string" ? c.indexed_at : null,
+    hasLore: c.has_lorebook === true,
+    pageUrl: "https://charavault.net/cards/" + encodeURIComponent(folder) + "/" + encodeURIComponent(file),
+  };
+}
+
+/** /marketplace/search and /marketplace/detail for the sources other than
+ *  chub. Two-phase like chub: pass A asks host.net, pass B maps the answer. */
+function otherSourceSearch(source, b, host) {
+  if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
+  const search = String(b.search || "").slice(0, 120).trim();
+  const page = Math.max(1, Math.min(1000, Math.floor(Number(b.page) || 1)));
+  const label = SOURCE_LABELS[source];
+  let url;
+  if (source === "risurealm") {
+    // UNOFFICIAL: RisuRealm has no search API. This reads the data its own
+    // search page loads (SvelteKit __data.json). It is not a promised
+    // interface and may break when the site changes.
+    const qs = new URLSearchParams({ q: search, page: String(page), nsfw: b.nsfw === true ? "true" : "false" });
+    if (b.sort === "downloads") qs.set("sort", "download");
+    url = "https://realm.risuai.net/__data.json?" + qs.toString();
+  } else {
+    // CharaVault: a public archive; its robots.txt disallows /api/, so this
+    // stays at one request per user action and never prefetches downloads.
+    const first = Math.max(1, Math.min(50, Math.floor(Number(b.first) || 24)));
+    const qs = new URLSearchParams({
+      q: search, limit: String(first), offset: String((page - 1) * first),
+      sort: CV_SORTS[String(b.sort)] ?? "most_downloaded", nsfw: b.nsfw === true ? "true" : "false",
+    });
+    url = "https://charavault.net/api/cards?" + qs.toString();
+  }
+  if (!Object.keys(host.net.results).length) {
+    host.net.request("search", { url, json: true, maxBytes: 4 * 1024 * 1024, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, accept: "application/json" } });
+    return { __llmPending: true };
+  }
+  const r = host.net.results.search;
+  if (!r || !r.ok || !r.json) {
+    const e = downloadError(r, label);
+    return { status: e.status, json: { error: e.status === 429 || e.status === 504 ? e.error : "Search on " + label + " failed (" + ((r && (r.status || r.error)) || "no response") + ")." } };
+  }
+  if (source === "risurealm") {
+    const root = risuNodeRoot(r.json, "cards");
+    if (!root || !Array.isArray(root.cards)) return { status: 502, json: { error: "RisuRealm changed its search page; the app cannot read it any more." } };
+    const results = root.cards.filter((c) => c && typeof c === "object" && UUID_RE.test(String(c.id || ""))).map(risuItem);
+    // the site gives no total: one more page exists while a page comes back full
+    const hasMore = root.cards.length >= RISU_PAGE;
+    return { status: 200, json: { source, count: (page - 1) * RISU_PAGE + results.length + (hasMore ? 1 : 0), page, first: RISU_PAGE, hasMore, results } };
+  }
+  const list = Array.isArray(r.json.results) ? r.json.results : null;
+  if (!list) return { status: 502, json: { error: "CharaVault answered in an unknown shape." } };
+  const results = list.filter((c) => c && typeof c === "object" && c.folder && c.file).map(cvItem);
+  const first = Number(r.json.limit) || results.length || 24;
+  const total = Number(r.json.total) || results.length;
+  return { status: 200, json: { source, count: total, page, first, hasMore: page * first < total, results } };
+}
+
+function otherSourceDetail(source, b, host) {
+  if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
+  const id = String(b.id || "");
+  const label = SOURCE_LABELS[source];
+  let url;
+  if (source === "risurealm") {
+    if (!UUID_RE.test(id)) return { status: 400, json: { error: "bad listing id" } };
+    url = "https://realm.risuai.net/character/" + id.toLowerCase() + "/__data.json"; // unofficial, see search
+  } else {
+    const slash = id.indexOf("/");
+    if (slash <= 0 || slash === id.length - 1 || id.length > 600) return { status: 400, json: { error: "bad listing id" } };
+    url = "https://charavault.net/api/cards/" + encodeURIComponent(id.slice(0, slash)) + "/" + encodeURIComponent(id.slice(slash + 1));
+  }
+  if (!Object.keys(host.net.results).length) {
+    host.net.request("detail", { url, json: true, maxBytes: 5 * 1024 * 1024, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, accept: "application/json" } });
+    return { __llmPending: true };
+  }
+  const r = host.net.results.detail;
+  if (!r || !r.ok || !r.json) { const e = downloadError(r, label); return { status: e.status, json: { error: e.error } }; }
+  const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+  if (source === "risurealm") {
+    const root = risuNodeRoot(r.json, "card");
+    const c = root && root.card && typeof root.card === "object" ? root.card : null;
+    if (!c) return { status: 502, json: { error: "RisuRealm changed its card page; the app cannot read it any more." } };
+    // the page shows the author's description only; the card itself comes
+    // with the download
+    return { status: 200, json: { source, id, partial: true, greeting: "", alternateGreetings: [], personality: "", scenario: "", exampleDialogs: "", creatorNotes: clip(c.desc, 8000), systemPrompt: "", postHistoryInstructions: "", lorebookEntries: c.haslore === true ? -1 : 0 } };
+  }
+  const meta = r.json.full_metadata && typeof r.json.full_metadata === "object" ? r.json.full_metadata : null;
+  const d = meta && meta.data && typeof meta.data === "object" ? meta.data : meta || {};
+  const book = d.character_book && typeof d.character_book === "object" ? d.character_book : null;
+  return {
+    status: 200,
+    json: {
+      source, id,
+      greeting: clip(d.first_mes, 16000),
+      alternateGreetings: Array.isArray(d.alternate_greetings) ? d.alternate_greetings.map((g) => String(g).slice(0, 16000)).slice(0, 40) : [],
+      personality: clip(d.description, 24000),
+      scenario: clip(d.scenario, 8000),
+      exampleDialogs: clip(d.mes_example, 16000),
+      creatorNotes: clip(d.creator_notes, 8000),
+      systemPrompt: clip(d.system_prompt, 8000),
+      postHistoryInstructions: clip(d.post_history_instructions, 8000),
+      lorebookEntries: book ? (Array.isArray(book.entries) ? book.entries.length : Object.keys(book.entries || {}).length) : 0,
+    },
+  };
+}
+
+/** POST /fetch/card { url } -> { source, sourceLabel, kind, fileName, base64, pageUrl }.
+ *  Downloads only; the Store imports the bytes like a dropped file. */
+function fetchCardFile(b, host) {
+  const link = classifyCardLink(b && b.url);
+  if (link.error) return { status: link.status || 400, json: { error: link.error, ...(link.openInBrowser ? { openInBrowser: link.openInBrowser } : {}) } };
+  if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
+  const label = link.source === "url" ? link.service : SOURCE_LABELS[link.source];
+  if (!Object.keys(host.net.results).length) {
+    host.net.request("card", { url: link.url, binary: true, maxBytes: CARD_MAX_BYTES, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, ...link.headers } });
+    return { __llmPending: true };
+  }
+  const r = host.net.results.card;
+  if (!r || !r.ok || !r.base64) { const e = downloadError(r, label); return { status: e.status, json: { error: e.error } }; }
+  // the engine already refused hosts outside networkHosts; this keeps a
+  // redirect inside the service the link belongs to
+  let finalHost = "";
+  try { finalHost = new URL(String(r.url || link.url)).hostname.toLowerCase(); } catch { /* keep empty */ }
+  if (!hostIn(finalHost, link.hosts)) {
+    return { status: 422, json: { error: "The link redirected away from " + label + " (to " + (finalHost || "an unknown host") + "). Download the file in your browser and drop it into the Store." } };
+  }
+  const sniff = sniffCardFile(r.base64);
+  if (sniff.error) return { status: 422, json: { error: sniff.error } };
+  const ext = "." + sniff.kind;
+  const base = fileNameOf(String(link.fileBase).replace(/\.(png|json|charx|card\.png)$/i, ""));
+  return {
+    status: 200,
+    json: { source: link.source, sourceLabel: label, kind: sniff.kind, fileName: base + ext, base64: r.base64, pageUrl: link.pageUrl, ...(sniff.kind === "charx" ? { zipOffset: sniff.zipOffset } : {}) },
+  };
+}
+
 export function handleRoute(req, host) {
   if (req.method !== "POST") return null;
-  if (req.path !== "/import/batch" && req.path !== "/import/zip" && req.path !== "/import/url" && req.path !== "/marketplace/search" && req.path !== "/marketplace/detail") return null;
+  if (req.path !== "/import/batch" && req.path !== "/import/zip" && req.path !== "/import/url" && req.path !== "/marketplace/search" && req.path !== "/marketplace/detail" && req.path !== "/fetch/card") return null;
+  if (req.path === "/fetch/card") return fetchCardFile(req.body && typeof req.body === "object" ? req.body : {}, host);
   // ---------- Marketplace search (chub.ai today; source id keeps the
   // client shape ready for more storefronts) ----------
   // gateway.chub.ai/search is the catalog the chub frontend itself queries —
@@ -545,6 +898,7 @@ export function handleRoute(req, host) {
   if (req.path === "/marketplace/search") {
     const b = req.body && typeof req.body === "object" ? req.body : {};
     const source = String(b.source || "chub");
+    if (source === "risurealm" || source === "charavault") return otherSourceSearch(source, b, host);
     if (source !== "chub") return { status: 400, json: { error: "unknown marketplace source: " + source } };
     if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
     // Orderings the catalog actually accepts — an unknown key is a 400, not a
@@ -671,6 +1025,7 @@ export function handleRoute(req, host) {
   if (req.path === "/marketplace/detail") {
     const b = req.body && typeof req.body === "object" ? req.body : {};
     const source = String(b.source || "chub");
+    if (source === "risurealm" || source === "charavault") return otherSourceDetail(source, b, host);
     if (source !== "chub") return { status: 400, json: { error: "unknown marketplace source: " + source } };
     if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
     const id = String(b.id || "");
