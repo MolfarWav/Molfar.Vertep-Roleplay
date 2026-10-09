@@ -112,7 +112,8 @@ export function Composer({ chatId }: { chatId: ID }) {
   // An empty box sends too (it becomes a bare continue turn), so
   // the send button stays live even with nothing typed.
   const canSend = !isStreaming
-  const nudgeArmed = !!useDashMaybe()?.view?.nudge
+  const dashCtx = useDashMaybe()
+  const nudgeArmed = !!(dashCtx?.view?.nudge ?? dashCtx?.data?.nudge)
 
   /**
    * Auto-fit: collapse to 1px so `scrollHeight`

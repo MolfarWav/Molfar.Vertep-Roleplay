@@ -518,7 +518,7 @@ describe("update route", () => {
   it("the UI view is settled for the active line: previous stats, live notes, series, stale", () => {
     const view = (id: string) => drive(mockHostShared, { method: "GET", path: "/dashboard/state", query: { chatId: id, view: "1" } }).json;
     const mockHostShared = mockHost([keptPromise]);
-    expect(view("c1")).toEqual({ exists: false, chat: false, messages: 0, view: null, lastError: null });
+    expect(view("c1")).toEqual({ exists: false, chat: false, messages: 0, view: null, lastError: null, nudge: null });
     writeChat("c1", three());
     update(mockHostShared, "c1");
     writeChat("c1", [...three(), A("m4", "Thank you.")]);

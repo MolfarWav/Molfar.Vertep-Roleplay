@@ -3658,6 +3658,8 @@ function readState(req, fsx) {
       messages: keys.length,
       view: existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null,
       lastError: existed ? state.lastError : null,
+      // a chat with no state yet can still have "Story, move" armed: the composer shows it from here
+      nudge: readNudge(fsx, chatId),
     });
   }
   return ok({ state: existed ? state : null, activeKeys: keys, current });

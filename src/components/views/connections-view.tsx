@@ -221,7 +221,7 @@ export function ConnectionsView() {
                       onClick={openPrice}
                       aria-label="Token prices"
                     >
-                      {current.pricing ? `${priceText(current.pricing.input)}/${priceText(current.pricing.output)} per Mtok` : 'set prices'}
+                      {current.pricing ? `$${priceText(current.pricing.input)}/$${priceText(current.pricing.output)} per Mtok` : 'set prices'}
                     </Button>
                     {current.reasoning && <Badge variant="secondary" className="text-[10px]">reasoning</Badge>}
                   </span>
