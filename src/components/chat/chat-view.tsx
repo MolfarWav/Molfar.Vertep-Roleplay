@@ -52,7 +52,7 @@ const look: 'stage' | 'vn' = 'stage'
  *  place here: presets, personas and connections are each one tap away, and
  *  using one from its drawer applies it to the open chat. Shortcuts and
  *  Marketplace ride in the chat menu to keep the icons at a thumb's width. */
-const CHAT_BAR_SECTIONS = sectionsFor(['characters', 'personas', 'lorebooks', 'presets', 'connections', 'extensions', 'settings'])
+const CHAT_BAR_SECTIONS = sectionsFor(['characters', 'personas', 'lorebooks', 'presets', 'extensions', 'settings'])
 
 /** Where the reader is: the topmost message still in view and how far its top
  *  sits above the fold. The log is measured from the top and opts out of the
@@ -522,7 +522,7 @@ export function ChatView() {
   // each swipe. No pricing table is guessed client-side — messages generated
   // before usage tracking simply don't contribute, and if nothing reported
   // cost the badge stays hidden rather than claiming "free".
-  const defaultModel = useApp((s) => s.model)
+  const defaultModel = useApp((s) => s.modelFor(chat?.id))
   const { chatCost, costMsgs, chatModel, tokensIn, tokensOut, lastInput } = useMemo(() => {
     if (!chat) return { chatCost: null as number | null, costMsgs: 0, chatModel: '', tokensIn: null as number | null, tokensOut: null as number | null, lastInput: null as number | null }
     // the ACTIVE swipe of the last reply — swipes can come from different

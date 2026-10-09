@@ -77,6 +77,7 @@ export interface EngineChatMeta {
   groupId: string | null
   presetId?: string | null
   personaId?: string | null
+  /** this chat's model, when it has one of its own */
   model?: string | null
   userName?: string
   authorNote?: string | null
@@ -237,12 +238,16 @@ export function fetchBootstrap(chatId?: string | null): Promise<EngineBootstrap>
   return j<EngineBootstrap>(chatId ? `/bootstrap?chat=${encodeURIComponent(chatId)}` : '/bootstrap')
 }
 
-export async function fetchModels(): Promise<ModelInfo[]> {
+/** A starred model of the engine's quick switch (set in the shell's Settings), with an optional name. */
+export interface ModelFavorite { ref: string; name?: string }
+
+/** The models the pickers show, and the quick switch the engine keeps (0.9.2; [] on older engines). */
+export async function fetchModels(): Promise<{ models: ModelInfo[]; favorites: ModelFavorite[] }> {
   try {
     const r = await fetch('/v1/models')
-    if (!r.ok) return []
-    const { models } = (await r.json()) as { models?: EngineModel[] }
-    return (models ?? []).map((m) => ({
+    if (!r.ok) return { models: [], favorites: [] }
+    const { models, favorites } = (await r.json()) as { models?: EngineModel[]; favorites?: ModelFavorite[] }
+    return { favorites: Array.isArray(favorites) ? favorites.filter((f) => f && typeof f.ref === 'string') : [], models: (models ?? []).map((m) => ({
       id: m.modelId,
       // display grouping wants the human connection name; SELECTION must use
       // the qualified ref — model names repeat across providers and the
@@ -254,8 +259,8 @@ export async function fetchModels(): Promise<ModelInfo[]> {
       maxOut: 0,
       reasoning: m.reasoning,
       pricing: m.pricing ?? null,
-    }))
-  } catch { return [] }
+    })) }
+  } catch { return { models: [], favorites: [] } }
 }
 
 /** The instruct formats the engine can write a text completion prompt in. */
@@ -765,6 +770,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     parentMessageId: meta.parentMessageId ?? null,
     personaId: meta.personaId ?? null,
     presetId: meta.presetId ?? null,
+    model: typeof meta.model === 'string' && meta.model ? meta.model : null,
     authorNote: meta.authorNoteObject ?? { ...DEFAULT_AUTHOR_NOTE, text: meta.authorNote ?? '' },
     litopysCut: meta.litopysCut,
     temporary: meta.temporary === true,
@@ -786,6 +792,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('title' in p) out.title = p.title
   if ('personaId' in p) out.personaId = p.personaId
   if ('presetId' in p) out.presetId = p.presetId
+  if ('model' in p) out.model = p.model ?? null
   if ('authorNote' in p && p.authorNote) { out.authorNote = p.authorNote.text; out.authorNoteObject = p.authorNote }
   if ('temporary' in p) out.temporary = p.temporary
   if ('folderId' in p) out.folderId = p.folderId

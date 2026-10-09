@@ -219,7 +219,8 @@ export const MessageRow = memo(function MessageRow({
 }) {
   const t = useT()
   const settings = useApp((s) => s.settings)
-  const activeModel = useApp((s) => s.model)
+  // the model this chat runs on (its own, else the one chosen last)
+  const activeModel = useApp((s) => chat.model || s.model)
   const characters = useApp((s) => s.characters)
   const setSwipe = useApp((s) => s.setSwipe)
   const sendMessage = useApp((s) => s.sendMessage)

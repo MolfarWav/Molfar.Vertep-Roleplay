@@ -77,7 +77,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   const setHelpOpen = useApp((s) => s.setHelpOpen)
   const imageGen = useApp((s) => s.settings.imageGen)
   const postPicture = useApp((s) => s.postPicture)
-  const chatModel = useApp((s) => s.model)
+  const chatModel = useApp((s) => s.modelFor(chatId))
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
   const characterId = chat?.characterId ?? null
   const activePersonaId = chat?.personaId ?? personas.find((p) => p.isDefault)?.id ?? null

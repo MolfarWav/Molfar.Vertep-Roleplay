@@ -8,9 +8,9 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
 } from '@/components/ui/command'
 import { ModelMark } from '@/components/model-mark'
-import { ProfilesSheet } from '@/components/connections/profiles-sheet'
+import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import {
-  BookmarkSimple, CaretDown, Check, Cpu, GearSix, PencilSimple, SlidersHorizontal, User,
+  CaretDown, Check, Cpu, GearSix, PencilSimple, SlidersHorizontal, User,
 } from '@phosphor-icons/react'
 
 /**
@@ -70,41 +70,44 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
   const presets = useApp((s) => s.presets)
   const personas = useApp((s) => s.personas)
-  const profiles = useApp((s) => s.connectionProfiles)
+  const favorites = useApp((s) => s.favorites)
   const models = useApp((s) => s.models)
-  const model = useApp((s) => s.model)
-  const setModel = useApp((s) => s.setModel)
-  const addProfile = useApp((s) => s.addConnectionProfile)
+  const lastModel = useApp((s) => s.model)
+  const setChatModel = useApp((s) => s.setChatModel)
   const updateChat = useApp((s) => s.updateChat)
   const focusPreset = useApp((s) => s.focusPreset)
   const focusPersona = useApp((s) => s.focusPersona)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('preset')
-  const [manageOpen, setManageOpen] = useState(false)
   if (!chat) return null
+  // 0.9.2: a chat runs on its own model, else the one chosen last
+  const model = chat.model || lastModel
 
   const preset = presets.find((p) => p.id === chat.presetId) ?? presets.find((p) => p.isDefault)
   const persona = personas.find((p) => p.id === chat.personaId) ?? personas.find((p) => p.isDefault)
   // resolve through the catalog so qualified refs AND legacy bare names agree
   const current = model ? (models.find((m) => m.ref === model) ?? models.find((m) => m.id === model) ?? null) : null
-  const activeProfile = current
-    ? profiles.find((p) => {
-        const t = models.find((m) => m.ref === p.modelId || m.id === p.modelId)
-        return t != null && t.ref === current.ref
-      })
-    : undefined
-  const modelLabel = activeProfile?.name ?? (current ? shortModel(current.id) : null) ?? 'no model'
-
-  // create flow: snapshot the live connection under an auto-name
-  const saveCurrentAsProfile = () => {
-    if (!current) return
-    const base = `${current.provider} ${shortModel(current.id)}`
-    let name = base
-    let n = 2
-    while (profiles.some((p) => p.name === name)) name = `${base} ${n++}`
-    addProfile({ name, provider: current.provider, modelId: current.ref })
-    toast.success(`Profile saved: ${name}`, { description: 'Rename it in Manage profiles.' })
+  const starred = current ? favorites.find((f) => f.ref === current.ref) : undefined
+  const modelLabel = starred?.name ?? (current ? shortModel(current.id) : null) ?? 'no model'
+  // which models are offered and starred is chosen in the shell's Settings only
+  const setUp = (ref?: string | null) => {
+    if (!canOpenModelSettings()) {
+      toast.info('Models are set up in Settings › Connections and models')
+      return
+    }
+    void openModelSettings(ref).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))
   }
+  const quick = favorites.flatMap((f) => {
+    const m = models.find((x) => x.ref === f.ref)
+    return m ? [{ m, name: f.name || shortModel(m.id) }] : []
+  })
+  const quickRefs = new Set(quick.map((q) => q.m.ref))
+  const others = models.filter((m) => !quickRefs.has(m.ref))
+  const choose = (ref: string, label: string, provider: string) =>
+    pick(() => {
+      void setChatModel(chatId, ref)
+      toast.success(`Model: ${label}`, { description: provider })
+    })
 
   const pick = (fn: () => void) => {
     fn()
@@ -112,7 +115,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
   }
 
   const searchPlaceholder =
-    tab === 'preset' ? 'Search presets…' : tab === 'persona' ? 'Search personas…' : 'Search models & profiles…'
+    tab === 'preset' ? 'Search presets…' : tab === 'persona' ? 'Search personas…' : 'Search models…'
 
   return (
     <>
@@ -232,10 +235,11 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
               </span>
               <button
                 type="button"
-                onClick={() => pick(() => { setManageOpen(true) })}
+                onClick={() => pick(() => setUp(current?.ref ?? model))}
                 className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                title="Context, prices and parameters of this model, in Settings"
               >
-                <GearSix className="size-3" aria-hidden="true" /> Manage
+                <GearSix className="size-3" aria-hidden="true" /> Set up
               </button>
             </div>
           )}
@@ -308,61 +312,56 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
               )}
 
               {tab === 'profile' && (
-                <CommandGroup heading={profiles.length > 0 ? `Profiles · ${profiles.length}` : 'Profiles'} className="flex flex-col gap-0.5">
-                  {profiles.length === 0 && !current && (
-                    <div className="px-2 py-1.5 text-[11px] text-muted-foreground">No model selected</div>
-                  )}
-                  {profiles.slice(0, GROUP_CAP).map((p) => {
-                    const target = models.find((m) => m.ref === p.modelId || m.id === p.modelId)
-                    const active = p.id === activeProfile?.id
-                    return (
-                      <CommandItem
-                        key={p.id}
-                        value={`profile ${p.name} ${p.modelId}`}
-                        className={cn(itemCls, active && activeItemCls)}
-                        onSelect={() => {
-                          if (!target) return
-                          pick(() => {
-                            void setModel(target.ref)
-                            toast.success(`Model: ${shortModel(target.id)}`, { description: target.provider })
-                          })
-                        }}
-                      >
-                        <ModelMark model={target?.ref ?? p.modelId} className={cn('size-4 shrink-0', active ? 'text-emerald-500' : 'text-muted-foreground')} />
-                        <span className="min-w-0 flex-1">
-                          <span className={cn('flex items-center gap-1 truncate text-xs', active && 'font-semibold')}>
-                            <span className="truncate">{p.name}</span>
-                            {active && <Check className="size-3 shrink-0 text-emerald-500" aria-hidden="true" />}
-                          </span>
-                          {target && (
-                            <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                              {target.provider} · {target.id}
+                <>
+                  <CommandGroup heading={`★ Quick switch · ${quick.length}`} className="flex flex-col gap-0.5">
+                    {quick.length === 0 && (
+                      <div className="px-2 py-1.5 text-[11px] text-muted-foreground">Star models in Settings › Connections and models to switch between them here.</div>
+                    )}
+                    {quick.map(({ m, name }) => {
+                      const active = m.ref === current?.ref
+                      return (
+                        <CommandItem key={m.ref} value={`quick ${name} ${m.ref}`} className={cn(itemCls, active && activeItemCls)} onSelect={() => choose(m.ref, name, m.provider)}>
+                          <ModelMark model={m.ref} className={cn('size-4 shrink-0', active ? 'text-emerald-500' : 'text-muted-foreground')} />
+                          <span className="min-w-0 flex-1">
+                            <span className={cn('flex items-center gap-1 truncate text-xs', active && 'font-semibold')}>
+                              <span className="truncate">{name}</span>
+                              {active && <Check className="size-3 shrink-0 text-emerald-500" aria-hidden="true" />}
                             </span>
-                          )}
-                        </span>
-                      </CommandItem>
-                    )
-                  })}
-                  {profiles.length > GROUP_CAP && <GroupCapHint hidden={profiles.length - GROUP_CAP} />}
+                            <span className="block truncate font-mono text-[10px] text-muted-foreground">{m.provider} · {m.id}</span>
+                          </span>
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                  {others.length > 0 && (
+                    <CommandGroup heading={`Models · ${others.length}`} className="flex flex-col gap-0.5">
+                      {others.slice(0, GROUP_CAP).map((m) => {
+                        const active = m.ref === current?.ref
+                        return (
+                          <CommandItem key={m.ref} value={`model ${m.id} ${m.ref} ${m.provider}`} className={cn(itemCls, active && activeItemCls)} onSelect={() => choose(m.ref, shortModel(m.id), m.provider)}>
+                            <ModelMark model={m.ref} className={cn('size-4 shrink-0', active ? 'text-emerald-500' : 'text-muted-foreground')} />
+                            <span className="min-w-0 flex-1">
+                              <span className={cn('block truncate text-xs', active && 'font-semibold')}>{shortModel(m.id)}</span>
+                              <span className="block truncate font-mono text-[10px] text-muted-foreground">{m.provider}</span>
+                            </span>
+                          </CommandItem>
+                        )
+                      })}
+                      {others.length > GROUP_CAP && <GroupCapHint hidden={others.length - GROUP_CAP} />}
+                    </CommandGroup>
+                  )}
                   <CommandSeparator className="my-1.5" />
-                  <CommandItem value="save current profile" disabled={!current} onSelect={() => saveCurrentAsProfile()}
-                    className={actionCls}>
-                    <BookmarkSimple className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="flex-1 text-xs">Save current as profile…</span>
-                  </CommandItem>
-                  <CommandItem value="manage profiles" onSelect={() => pick(() => setManageOpen(true))}
-                    className={actionCls}>
+                  <CommandItem value="choose models in settings" onSelect={() => pick(() => setUp(null))} className={actionCls}>
                     <GearSix className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="flex-1 text-xs">Manage profiles…</span>
+                    <span className="flex-1 text-xs">Choose models and the quick switch in Settings…</span>
                   </CommandItem>
-                </CommandGroup>
+                </>
               )}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
 
-      <ProfilesSheet open={manageOpen} onOpenChange={setManageOpen} />
     </>
   )
 }

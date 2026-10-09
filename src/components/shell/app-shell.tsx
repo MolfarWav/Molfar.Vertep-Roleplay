@@ -24,7 +24,6 @@ import { LorebooksView } from '@/components/views/lorebooks-view'
 import { LitopysView } from '@/components/library/litopys-view'
 import { QuickRepliesView } from '@/components/views/quickreplies-view'
 import { ExtensionsView } from '@/components/views/extensions-view'
-import { ConnectionsView } from '@/components/views/connections-view'
 import { SettingsView } from '@/components/views/settings-view'
 import { ThemeApplier } from '@/components/theme-applier'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
@@ -164,7 +163,8 @@ function renderView(v: ViewKey) {
     case 'litopys': return <LitopysView />
     case 'quickreplies': return <QuickRepliesView />
     case 'extensions': return <ExtensionsView />
-    case 'connections': return <ConnectionsView />
+    // 0.9.2: models are chosen and set up in the shell's Settings; a view saved before lands on Home
+    case 'connections': return <HomeView />
     case 'settings': return <SettingsView />
   }
 }

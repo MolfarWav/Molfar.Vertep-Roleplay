@@ -26,7 +26,7 @@ import {
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
 import {
-  j, fetchModels, fetchEngineConnections, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
+  j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, characterToCard, groupToCharacter,
   engineChatToUI, chatPatchOf,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
@@ -84,6 +84,12 @@ interface AppState {
   lorebooks: Lorebook[]
   regexScripts: RegexScript[]
   models: ModelInfo[]
+  /** The engine's quick switch (starred models, set in the shell's Settings); every picker offers it first. */
+  favorites: ModelFavorite[]
+  /** The model a chat runs on: its own, else the one chosen last. */
+  modelFor: (chatId: ID | null | undefined) => string | null
+  /** Pick a chat's model; it also becomes the one new chats start with. */
+  setChatModel: (chatId: ID, ref: string) => Promise<void>
   /** The engine's parameters per model (model-params.ts); {} on an engine without them. */
   modelParams: ModelParams
   /** Re-read them (after Settings changed a model); also runs the one-time move of the preset's samplers. */
@@ -399,6 +405,7 @@ export const useApp = create<AppState>()(
       lorebooks: [],
       regexScripts: [],
       models: [],
+      favorites: [],
       modelParams: {},
       engineConnections: [],
       model: null,
@@ -450,7 +457,7 @@ export const useApp = create<AppState>()(
           // calls, then one transcript call per chat) paid that cost ~25
           // times and took seconds. The engine's own model/connection lists
           // are separate routes and stay parallel to it.
-          const [boot, models, engineConnections] = await Promise.all([
+          const [boot, modelList, engineConnections] = await Promise.all([
             // the chat about to be shown rides along, so the first paint needs
             // no follow-up fetch
             fetchBootstrap(get().activeChatId),
@@ -458,6 +465,7 @@ export const useApp = create<AppState>()(
             fetchEngineConnections(),
           ])
           const settings = boot.settings
+          const models = modelList.models
           const library = boot.library
           const databankRes = boot.databank
           const chatMetas = { chats: boot.chats }
@@ -622,7 +630,7 @@ export const useApp = create<AppState>()(
           }
           set({
             characters, chats: chatsOut, personas, presets, lorebooks, regexScripts,
-            models, engineConnections, model: settings.model, dataBank: databankRes.files ?? [],
+            models, favorites: modelList.favorites, engineConnections, model: settings.model, dataBank: databankRes.files ?? [],
             boot: 'ready', hydrated: true, bootError: null,
             // engine-side UI settings (agent-editable, data/settings.json `ui`)
           })
@@ -841,7 +849,18 @@ export const useApp = create<AppState>()(
         } catch { /* offline — keep the current list */ }
       },
 
+      modelFor: (chatId) => {
+        const own = chatId ? get().chats.find((c) => c.id === chatId)?.model : null
+        return own || get().model
+      },
+
+      setChatModel: async (chatId, ref) => {
+        get().updateChat(chatId, { model: ref })
+        await get().setModel(ref)
+      },
+
       refreshModelParams: async () => {
+        void moveProfilesToFavorites(get, set)
         const params = await fetchModelParams()
         if (!params) return
         set({ modelParams: params })
@@ -1006,7 +1025,7 @@ export const useApp = create<AppState>()(
               body: JSON.stringify({
                 text: frozen.text,
                 genMs: frozen.genMs,
-                ...(get().model ? { model: get().model } : {}),
+                ...(get().modelFor(st.chatId) ? { model: get().modelFor(st.chatId) } : {}),
                 ...(frozen.parts.length ? { parts: frozen.parts } : {}),
                 ...(frozen.isStaged
                   ? {
@@ -1242,7 +1261,7 @@ export const useApp = create<AppState>()(
         void (async () => {
           try {
             const r = await j<{ text: string }>(`/chats/${encodeURIComponent(chatId)}/impersonate`, {
-              method: 'POST', body: JSON.stringify(get().model ? { model: get().model } : {}),
+              method: 'POST', body: JSON.stringify(get().modelFor(chatId) ? { model: get().modelFor(chatId) } : {}),
             })
             set({ composerDraft: r.text, streaming: null })
           } catch (e) {
@@ -2067,7 +2086,7 @@ async function runStream(
     if (bookIds.length || (chat.messages.length === 0 && op === 'send')) {
       await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ lorebookIds: bookIds }), signal: ctrl.signal })
     }
-    const model = get().model
+    const model = get().modelFor(chatId)
     const res = await j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
       method: 'POST',
       // the model's context window and max output budget the prompt (engine plugin limitsOf)
@@ -2232,3 +2251,37 @@ useApp.subscribe((s, prev) => {
     writeThrough('your collections', j('/library', { method: 'PUT', body: next }))
   }, 500)
 })
+
+/**
+ * Once per workspace (0.9.2): the old connection profiles (library.json) become the engine's quick
+ * switch, appended after what is already starred, under their names. Needs an engine with favourites
+ * and an official install (the route is for trusted apps); otherwise it tries again next start.
+ */
+async function moveProfilesToFavorites(get: () => AppState, set: (p: Partial<AppState>) => void): Promise<void> {
+  const st = get()
+  if (st.settings.profilesMovedToFavorites || !st.connectionProfiles.length) return
+  const have = new Set(st.favorites.map((f) => f.ref))
+  const add: ModelFavorite[] = []
+  for (const p of st.connectionProfiles) {
+    const m = st.models.find((x) => x.ref === p.modelId || x.id === p.modelId)
+    const ref = m?.ref ?? (p.modelId.includes('/') ? p.modelId : null)
+    if (!ref || have.has(ref)) continue
+    have.add(ref)
+    add.push({ ref, ...(p.name ? { name: p.name } : {}) })
+  }
+  try {
+    if (add.length) {
+      const r = await fetch('/v1/models/favorites', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ items: [...st.favorites, ...add] }),
+      })
+      if (!r.ok) return
+      const body = (await r.json()) as { favorites?: ModelFavorite[] }
+      set({ favorites: body.favorites ?? [...st.favorites, ...add] })
+    }
+    get().updateSettings({ profilesMovedToFavorites: true })
+  } catch {
+    // an older engine: the profiles stay where they are
+  }
+}

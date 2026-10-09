@@ -165,6 +165,8 @@ export interface Chat {
   parentMessageId: ID | null
   personaId: ID | null
   presetId: ID | null
+  /** 0.9.2: this chat's model ("<provider>/<model>"); null = the one chosen last in the app. */
+  model?: string | null
   authorNote: {
     text: string
     position: 'before-system' | 'after-system' | 'in-chat'
@@ -592,6 +594,8 @@ export interface ConnectionProfile {
 
 // ── Settings ──
 export interface AppSettings {
+  /** 0.9.2: the old connection profiles were moved into the engine's quick switch once. */
+  profilesMovedToFavorites?: boolean
   /** 0.9.2: the active preset's samplers were moved into the current model once (model-params.ts). */
   modelParamsMigrated?: boolean
   themeMode: 'dark' | 'light'

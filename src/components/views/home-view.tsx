@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { shortModel } from '@/lib/utils'
-import { canAskMolfar } from '@/lib/shell-bridge'
+import { canAskMolfar, canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import { SectionPage } from '@/components/shell/section-page'
 import { HomeHero } from '@/components/home/home-hero'
 import { AchievementsBlock, AskMolfarBlock, CreateBlock, MyApps } from '@/components/home/home-blocks'
@@ -21,7 +21,8 @@ export function HomeView() {
     <>
       <button
         type="button"
-        onClick={() => setView('connections')}
+        // 0.9.2: models are chosen and set up in the shell's Settings
+        onClick={() => { if (canOpenModelSettings()) void openModelSettings(model).catch(() => undefined) }}
         className="hidden max-w-[16rem] truncate rounded-[3px] border border-border bg-secondary px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-foreground sm:block"
         aria-label={t('nav.connections')}
       >
