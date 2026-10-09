@@ -48,8 +48,10 @@ function nameOfCard(card: unknown): string {
  *  packages, single or bulk, through the studio-import plugin routes. Shared by
  *  the Characters page, Home and the Store (dropped files and downloaded
  *  cards alike). `hydrate` refreshes the store once the cards are in. Errors
- *  are shown as toasts and never thrown. */
-export async function importCardFiles(files: FileList | File[] | null, hydrate: () => Promise<void>, opts?: { quiet?: boolean }): Promise<ImportResult> {
+ *  are shown as toasts and never thrown. `quiet` leaves the toasts to the
+ *  caller (the problems stay in the result); `avatars` maps a file name to a
+ *  data URL, for JSON cards (they have no picture of their own). */
+export async function importCardFiles(files: FileList | File[] | null, hydrate: () => Promise<void>, opts?: { quiet?: boolean; avatars?: Record<string, string> }): Promise<ImportResult> {
   const out: ImportResult = { characters: [], names: [], errors: [] }
   const quiet = opts?.quiet === true
   if (!files?.length) return out
@@ -82,7 +84,9 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
         if (!quiet) toast.success(`Imported ${r.name ?? f.name}`)
       } else {
         const parsed: unknown = JSON.parse(await f.text())
-        cards.push(parsed)
+        // a JSON card has no picture of its own: the caller may bring one
+        const avatar = opts?.avatars?.[f.name]
+        cards.push(avatar ? { card: parsed, avatar } : parsed)
         cardNames.push(nameOfCard(parsed) || f.name.replace(/\.json$/i, ''))
       }
     } catch (e) {
@@ -131,17 +135,23 @@ export const isChubLink = (url: string): boolean =>
  *  (POST /fetch/card); the bytes go through importCardFiles like a dropped
  *  file. Chub links keep their own route (POST /import/url) and are not
  *  handled here. Throws with the plugin's plain-words error. */
-export async function importCardFromLink(url: string, hydrate: () => Promise<void>): Promise<ImportResult & { sourceLabel: string }> {
-  const r = await j<{ sourceLabel: string; kind: 'png' | 'json' | 'charx'; fileName: string; base64: string }>('/fetch/card', {
+export async function importCardFromLink(url: string, hydrate: () => Promise<void>): Promise<ImportResult & { sourceLabel: string; skippedBooks?: number }> {
+  const r = await j<{ sourceLabel: string; kind: 'png' | 'json' | 'charx'; fileName: string; base64: string; avatarUrl?: string; skippedBooks?: number }>('/fetch/card', {
     method: 'POST', body: JSON.stringify({ url: url.trim() }),
   })
+  // Wyvern and Pygmalion give the card as JSON plus the portrait's address;
+  // a portrait that cannot be fetched never fails the import
+  let avatars: Record<string, string> | undefined
+  if (r.avatarUrl) {
+    try { avatars = { [r.fileName]: await downscaleRemoteImage(r.avatarUrl, 512) } } catch { /* import without a portrait */ }
+  }
   const bin = atob(r.base64)
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   // quiet: the caller shows one result (success or the thrown message)
-  const res = await importCardFiles([new File([bytes], r.fileName)], hydrate, { quiet: true })
+  const res = await importCardFiles([new File([bytes], r.fileName)], hydrate, { quiet: true, ...(avatars ? { avatars } : {}) })
   if (!res.characters.length) throw new Error(res.errors[0] ?? `The card from ${r.sourceLabel} could not be imported.`)
-  return { ...res, sourceLabel: r.sourceLabel }
+  return { ...res, sourceLabel: r.sourceLabel, ...(r.skippedBooks ? { skippedBooks: r.skippedBooks } : {}) }
 }
 
 /** The inline/toast text for a JannyAI or JanitorAI link. */
@@ -167,7 +177,7 @@ export async function fullSizeAvatar(pageUrl: string): Promise<string | undefine
 
 export type LinkImport =
   | { status: 'browser-only'; openUrl: string }
-  | { status: 'imported'; characters: string[]; names: string[]; sourceLabel: string }
+  | { status: 'imported'; characters: string[]; names: string[]; sourceLabel: string; skippedBooks?: number }
 
 /** One entry for every card link, used by the Store and the Characters page:
  *  JannyAI/JanitorAI pages are never fetched ('browser-only', with the page to

@@ -58,7 +58,7 @@ builds it into your copy while you watch.
 
 ## Card sources
 
-The Store has four sources, picked in the switcher at the top. The last choice
+The Store has six sources, picked in the switcher at the top. The last choice
 and each source's own search and page are remembered.
 
 | Source | What it needs | How it works |
@@ -66,28 +66,36 @@ and each source's own search and page are remembered.
 | Chub | nothing | Search, filters and install, all inside the app. |
 | RisuRealm | nothing | Search, sort (recommended, trending, newest, random, most downloaded) and install inside the app. The listing shows the author's description; the card itself is read after install. |
 | CharaVault (archive) | nothing | Search with tags, excluded tags, creator, token range, lorebook, origin (where the archived card came from) and ten sort orders, with thumbnails; install inside the app. |
-| JannyAI | your own browser download | JannyAI blocks apps, so the Store cannot search or fetch there. Open JannyAI, download a card as PNG, then drop the file into the JannyAI tab. |
+| Wyvern | nothing | Search (relevance when you type, else Popular, Recommended, Newest, Most liked, Most chats), tags and install inside the app. |
+| Pygmalion | nothing | Search, five sort orders and install inside the app. |
+| JannyAI | your own browser download | Search with tags, excluded tags, token range, adult and low-quality switches and four sort orders inside the app, but JannyAI blocks apps from downloading: press "Get on JannyAI", download the PNG there and drop it on the bar above the results. |
 
-RisuRealm and CharaVault have a "Show adult cards" switch (off by default,
+RisuRealm, CharaVault and JannyAI have a "Show adult cards" switch (off by default,
 remembered per source). Filters and tags are kept per source too. On RisuRealm,
 "Most downloaded" only orders a search, so it needs a search word.
 
 **Paste a card link.** The link box in the Store header (and "Import from a
 link" on the Characters page) installs a card from a link:
 
-- chub, RisuRealm and CharaVault card pages;
+- chub, RisuRealm, CharaVault, Wyvern and Pygmalion card pages;
 - a direct file link on GitHub (a `github.com/.../blob/...` page works too),
   Hugging Face, Catbox or Discord's CDN;
 - JannyAI and JanitorAI pages are never fetched. The app says so and offers to
-  open the page; download the card there and drop it in the JannyAI tab.
+  open the page; download the card there and drop it on the JannyAI bar.
 
-For any other host, download the file in your browser and drop it into the
-JannyAI tab (it accepts any PNG, JSON or charx card, whatever its origin).
+For any other host, download the file in your browser and drop it on the bar in
+the JannyAI source (it accepts any PNG, JSON or charx card, whatever its origin).
 
 **Caveats.**
 
 - CharaVault is an archive of cards collected from other sites (chub, JannyAI,
   RisuAI and more). Check the original author before you share a card.
+- Wyvern shows SFW cards only without an account. Lorebooks linked on Wyvern
+  are not readable without one, so they do not come with the import (the
+  listing says how many are linked, and the install says so).
+- Pygmalion shows SFW cards only without an account.
+- JannyAI's search uses the public search key its own site uses; if that key
+  changes the Store says so, and the drop bar still works.
 - RisuRealm has no public search API; the app reads its search page, which may
   change. If it does, the Store says so instead of showing wrong results.
 

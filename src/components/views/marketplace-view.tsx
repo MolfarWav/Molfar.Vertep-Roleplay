@@ -43,6 +43,10 @@ type MarketplaceItem = {
   source?: string
   hasLore?: boolean
   pageUrl?: string
+  /** Wyvern: lorebooks the card links on the site (they do not come with the import) */
+  linkedBooks?: number
+  /** JannyAI: the card can only be downloaded in the browser */
+  browserOnly?: boolean
 }
 type SearchResponse = { source: string; count: number; page: number; first: number; hasMore?: boolean; results: MarketplaceItem[] }
 /** Full card definition, fetched when a listing is opened for preview. */
@@ -75,18 +79,41 @@ const SOURCES = [
   { value: 'chub', label: 'Chub', name: 'Chub' },
   { value: 'risurealm', label: 'RisuRealm', name: 'RisuRealm' },
   { value: 'charavault', label: 'CharaVault (archive)', name: 'CharaVault' },
-  { value: 'jannyai', label: 'JannyAI', name: 'JannyAI' },
+  { value: 'wyvern', label: 'Wyvern', name: 'Wyvern' },
+  { value: 'pygmalion', label: 'Pygmalion', name: 'Pygmalion' },
+  { value: 'janny', label: 'JannyAI', name: 'JannyAI' },
 ] as const
 type SourceId = (typeof SOURCES)[number]['value']
 const sourceName = (id: string | undefined): string => SOURCES.find((s) => s.value === id)?.name ?? ''
 /** Sources with their own adult switch (chub uses its Filters panel). */
-type AdultSource = 'risurealm' | 'charavault'
-const isAdultSource = (s: SourceId): s is AdultSource => s === 'risurealm' || s === 'charavault'
+type AdultSource = 'risurealm' | 'charavault' | 'janny'
+const isAdultSource = (s: SourceId): s is AdultSource => s === 'risurealm' || s === 'charavault' || s === 'janny'
+/** Sources with the tag picker. */
+const hasTags = (s: SourceId): boolean => s === 'chub' || s === 'charavault' || s === 'wyvern' || s === 'janny'
 const NOTES: Partial<Record<SourceId, string>> = {
   charavault: 'CharaVault is an archive of cards collected from other sites (chub, JannyAI, RisuAI and more). Check the original author before you share a card.',
   risurealm: 'RisuRealm has no public search API; the app reads its search page, which may change.',
+  wyvern: 'Wyvern shows SFW cards only without an account. Lorebooks linked on Wyvern do not come with the import.',
+  pygmalion: 'Pygmalion shows SFW cards only without an account.',
+  janny: 'JannyAI cards can only be downloaded in the browser: press "Get on JannyAI", download the PNG there, then drop it on the bar below.',
 }
-const JANNY_SEARCH_URL = 'https://jannyai.com/characters/search'
+const WYVERN_SORT_OPTIONS = [
+  { value: 'popular', label: 'Popular' }, { value: 'recommended', label: 'Recommended' }, { value: 'newest', label: 'Newest' },
+  { value: 'rating', label: 'Most liked' }, { value: 'chats', label: 'Most chats' },
+] as const
+const PYG_SORT_OPTIONS = [
+  { value: 'downloads', label: 'Most downloaded' }, { value: 'rating', label: 'Most stars' }, { value: 'views', label: 'Most viewed' },
+  { value: 'newest', label: 'Newest' }, { value: 'name', label: 'Name' },
+] as const
+const JANNY_SORT_OPTIONS = [
+  { value: 'default', label: 'Relevance / newest' }, { value: 'oldest', label: 'Oldest' },
+  { value: 'tokens', label: 'Most tokens' }, { value: 'tokens_asc', label: 'Fewest tokens' },
+] as const
+/** JannyAI's tag names; the index stores ids, so the picker offers this list. */
+const JANNY_TAGS = ['Male', 'Female', 'Non-binary', 'Celebrity', 'OC', 'Fictional', 'Real', 'Game', 'Anime', 'Historical', 'Royalty', 'Detective', 'Hero', 'Villain', 'Magical', 'Non-human', 'Monster', 'Monster Girl', 'Alien', 'Robot', 'Politics', 'Vampire', 'Giant', 'OpenAI', 'Elf', 'Multiple', 'VTuber', 'Dominant', 'Submissive', 'Scenario', 'Pokemon', 'Assistant', 'Non-English', 'Philosophy', 'RPG', 'Religion', 'Books', 'AnyPOV', 'Angst', 'Demi-Human', 'Enemies to Lovers', 'Smut', 'MLM', 'WLW', 'Action', 'Romance', 'Horror', 'Slice of Life', 'Fantasy', 'Drama', 'Comedy', 'Mystery', 'Sci-Fi', 'Yandere', 'Furry', 'Movies/TV']
+const JANNY_VOCAB = JANNY_TAGS.map((tag) => ({ tag, n: 0 }))
+/** The "download it in the browser" hint is shown once per session. */
+let jannyHintShown = false
 /** RisuRealm and CharaVault orderings (the plugin maps them to the site's own). */
 const RISU_SORT_OPTIONS = [
   { value: 'recommended', label: 'Recommended' }, { value: 'trending', label: 'Trending' },
@@ -106,8 +133,8 @@ const CV_ORIGINS = [
   { value: 'Character Archive', label: 'Character Archive' }, { value: 'CharaVault', label: 'CharaVault' },
 ] as const
 /** Sources with their own tags, creator and Filters panel. */
-type FilterSource = 'chub' | 'charavault'
-const isFilterSource = (s: SourceId): s is FilterSource => s === 'chub' || s === 'charavault'
+type FilterSource = 'chub' | 'charavault' | 'janny'
+const isFilterSource = (s: SourceId): s is FilterSource => s === 'chub' || s === 'charavault' || s === 'janny'
 /** A search answer is reused this long within the session. */
 const CACHE_MS = 5 * 60_000
 const searchCache = new Map<string, { at: number; r: SearchResponse }>()
@@ -128,6 +155,8 @@ type Filters = {
   minAiRating: string
   minTags: string
   excludeTags: string[]
+  /** JannyAI: also list cards its own quality check hides */
+  lowQuality: boolean
   requireExamples: boolean
   requireLore: boolean
   requireLoreEmbedded: boolean
@@ -142,7 +171,7 @@ type Filters = {
 const NO_FILTERS: Filters = {
   maturity: 'safe', nsfl: false, includeForks: true,
   minTokens: '', maxTokens: '', maxDaysAgo: '', minAiRating: '', minTags: '',
-  excludeTags: [],
+  excludeTags: [], lowQuality: false,
   requireExamples: false, requireLore: false, requireLoreEmbedded: false, requireLoreLinked: false,
   requireGreetings: false, requireCustomPrompt: false, requireImages: false, requireExpressions: false,
 }
@@ -150,7 +179,7 @@ const NO_FILTERS: Filters = {
 /** Marketplace filters persist per-browser so a tuned search survives a
  *  reload. The first visit starts on the defaults (adult cards hidden); the
  *  user's own choices win from then on. */
-const FILTERS_KEYS: Record<FilterSource, string> = { chub: 'chrysalis.marketplace.filters', charavault: 'chrysalis.marketplace.filters.charavault' }
+const FILTERS_KEYS: Record<FilterSource, string> = { chub: 'chrysalis.marketplace.filters', charavault: 'chrysalis.marketplace.filters.charavault', janny: 'chrysalis.marketplace.filters.janny' }
 
 function loadFilters(src: FilterSource): Filters {
   try {
@@ -204,17 +233,20 @@ const NO_SOURCE: SourceState = {
   query: '', applied: '', sort: 'downloads', trending: false,
   tags: [], tagsMode: 'all', creator: null, origin: '', page: 1,
 }
-const initialSourceState = (id: SourceId): SourceState => ({ ...NO_SOURCE, sort: id === 'risurealm' ? 'recommended' : 'downloads' })
+const DEFAULT_SORT: Record<SourceId, string> = { chub: 'downloads', risurealm: 'recommended', charavault: 'downloads', wyvern: 'popular', pygmalion: 'downloads', janny: 'default' }
+const initialSourceState = (id: SourceId): SourceState => ({ ...NO_SOURCE, sort: DEFAULT_SORT[id] })
 const NO_BROWSE: Browse = {
   source: 'chub', scrollTop: 0,
-  per: { chub: initialSourceState('chub'), risurealm: initialSourceState('risurealm'), charavault: initialSourceState('charavault'), jannyai: initialSourceState('jannyai') },
+  per: Object.fromEntries(SOURCES.map((x) => [x.value, initialSourceState(x.value)])) as Record<SourceId, SourceState>,
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
 function loadSourceState(id: SourceId, raw: unknown): SourceState {
   const p = (raw && typeof raw === 'object' ? raw : {}) as Partial<SourceState>
-  const sorts: readonly string[] = id === 'risurealm' ? RISU_SORT_OPTIONS.map((o) => o.value) : id === 'charavault' ? CV_SORT_OPTIONS.map((o) => o.value) : id === 'chub' ? SORTS : []
+  const sorts: readonly string[] = id === 'risurealm' ? RISU_SORT_OPTIONS.map((o) => o.value) : id === 'charavault' ? CV_SORT_OPTIONS.map((o) => o.value)
+    : id === 'wyvern' ? WYVERN_SORT_OPTIONS.map((o) => o.value) : id === 'pygmalion' ? PYG_SORT_OPTIONS.map((o) => o.value)
+    : id === 'janny' ? JANNY_SORT_OPTIONS.map((o) => o.value) : SORTS
   return {
     query: str(p.query),
     applied: str(p.applied),
@@ -236,7 +268,7 @@ function loadBrowse(): Browse {
     const stored = p.per && typeof p.per === 'object' ? (p.per as Record<string, unknown>) : { chub: p } // flat record: chub
     const per = Object.fromEntries(SOURCES.map((s) => [s.value, loadSourceState(s.value, stored[s.value])])) as Record<SourceId, SourceState>
     return {
-      source: SOURCES.some((s) => s.value === p.source) ? (p.source as SourceId) : NO_BROWSE.source,
+      source: SOURCES.some((s) => s.value === p.source) ? (p.source as SourceId) : p.source === 'jannyai' ? 'janny' : NO_BROWSE.source,
       per,
       scrollTop: typeof p.scrollTop === 'number' && p.scrollTop >= 0 ? p.scrollTop : 0,
     }
@@ -251,9 +283,9 @@ const ADULT_KEY = 'chrysalis.marketplace.adult'
 function loadAdult(): Record<AdultSource, boolean> {
   try {
     const p = JSON.parse(localStorage.getItem(ADULT_KEY) ?? '{}') as Partial<Record<AdultSource, unknown>>
-    return { risurealm: p.risurealm === true, charavault: p.charavault === true }
+    return { risurealm: p.risurealm === true, charavault: p.charavault === true, janny: p.janny === true }
   } catch {
-    return { risurealm: false, charavault: false }
+    return { risurealm: false, charavault: false, janny: false }
   }
 }
 
@@ -273,7 +305,7 @@ const REQUIREMENTS: { key: keyof Filters; label: string }[] = [
 const CV_FILTER_KEYS = ['minTokens', 'maxTokens'] as const
 
 const countFilters = (f: Filters, src: FilterSource = 'chub'): number =>
-  src === 'charavault'
+  src !== 'chub'
     ? CV_FILTER_KEYS.filter((k) => f[k].trim()).length + (f.excludeTags.length ? 1 : 0) + (f.requireLore ? 1 : 0)
     : (f.maturity === 'include' ? 0 : 1) + (f.nsfl ? 1 : 0) + (f.includeForks ? 0 : 1)
   + [f.minTokens, f.maxTokens, f.maxDaysAgo, f.minAiRating, f.minTags].filter((v) => v.trim()).length
@@ -284,11 +316,12 @@ const countFilters = (f: Filters, src: FilterSource = 'chub'): number =>
  *  the catalog never sees a zero bound. */
 function filterBody(f: Filters, src: FilterSource = 'chub'): Record<string, unknown> {
   const n = (v: string) => { const x = Number(v.trim()); return v.trim() && Number.isFinite(x) && x > 0 ? Math.floor(x) : undefined }
-  if (src === 'charavault') {
+  if (src !== 'chub') {
     const cv: Record<string, unknown> = {}
     for (const k of CV_FILTER_KEYS) { const x = n(f[k]); if (x !== undefined) cv[k] = x }
     if (f.excludeTags.length) cv.excludeTags = f.excludeTags
-    if (f.requireLore) cv.requireLore = true
+    if (src === 'charavault' && f.requireLore) cv.requireLore = true
+    if (src === 'janny') cv.lowQuality = f.lowQuality
     return cv
   }
   const body: Record<string, unknown> = {
@@ -356,17 +389,17 @@ export function MarketplaceView() {
   const [tagQuery, setTagQuery] = useState('')
   /** Tag vocabulary bootstrapped from the results the user has actually seen
    *  (chub has no tag-list endpoint) — ranked by how often they appeared. */
-  const [vocabs, setVocabs] = useState<Record<FilterSource, { tag: string; n: number }[]>>({ chub: [], charavault: [] })
+  const [vocabs, setVocabs] = useState<Record<SourceId, { tag: string; n: number }[]>>({ chub: [], risurealm: [], charavault: [], wyvern: [], pygmalion: [], janny: JANNY_VOCAB })
   /** Filters are kept per source: chub's never leak into CharaVault. */
-  const [allFilters, setAllFilters] = useState<Record<FilterSource, Filters>>(() => ({ chub: loadFilters('chub'), charavault: loadFilters('charavault') }))
-  const filterSrc: FilterSource = source === 'charavault' ? 'charavault' : 'chub'
+  const [allFilters, setAllFilters] = useState<Record<FilterSource, Filters>>(() => ({ chub: loadFilters('chub'), charavault: loadFilters('charavault'), janny: loadFilters('janny') }))
+  const filterSrc: FilterSource = isFilterSource(source) ? source : 'chub'
   const filters = allFilters[filterSrc]
-  const tagVocab = vocabs[filterSrc]
+  const tagVocab = vocabs[source]
   const setFilters = (f: Filters) => setAllFilters((a) => ({ ...a, [filterSrc]: f }))
   const [filtersOpen, setFiltersOpen] = useState(false)
   // committed filters (Apply) stick around for the next visit
   useEffect(() => {
-    for (const src of ['chub', 'charavault'] as const) {
+    for (const src of ['chub', 'charavault', 'janny'] as const) {
       try { localStorage.setItem(FILTERS_KEYS[src], JSON.stringify(allFilters[src])) } catch { /* storage unavailable */ }
     }
   }, [allFilters])
@@ -379,7 +412,7 @@ export function MarketplaceView() {
   const [count, setCount] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [pageSize, setPageSize] = useState(PAGE_SIZE)
-  const [loading, setLoading] = useState(source !== 'jannyai')
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [detail, setDetail] = useState<MarketplaceItem | null>(null)
   const [detailData, setDetailData] = useState<MarketplaceDetail | null>(null)
@@ -403,7 +436,7 @@ export function MarketplaceView() {
     reqId.current++
     setItems([])
     setError(null)
-    setLoading(v !== 'jannyai')
+    setLoading(true)
     setSourceRaw(v)
   }
 
@@ -453,7 +486,6 @@ export function MarketplaceView() {
   // server-side search — the engine plugin fetches the source (no CORS,
   // browser UA, allowlisted hosts). JannyAI has no search: it is a drop zone.
   useEffect(() => {
-    if (source === 'jannyai') return
     const id = ++reqId.current
     setLoading(true)
     setError(null)
@@ -461,14 +493,20 @@ export function MarketplaceView() {
       ? { source, search: applied, sort, trending, page, first: PAGE_SIZE, tags, tagsMode, ...filterBody(filters), ...(creator ? { creator } : {}) }
       : source === 'charavault'
         ? { source, search: applied, sort, page, first: PAGE_SIZE, nsfw: showAdult, tags, ...(origin ? { origin } : {}), ...filterBody(filters, 'charavault'), ...(creator ? { creator } : {}) }
-        : { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, ...(sort !== 'recommended' ? { sort } : {}) }
+        : source === 'wyvern'
+          ? { source, search: applied, sort, page, first: PAGE_SIZE, tags }
+          : source === 'pygmalion'
+            ? { source, search: applied, sort, page, first: PAGE_SIZE }
+            : source === 'janny'
+              ? { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, tags, ...(sort !== 'default' ? { sort } : {}), ...filterBody(filters, 'janny') }
+              : { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, ...(sort !== 'recommended' ? { sort } : {}) }
     const cacheKey = JSON.stringify(body)
     const apply = (r: SearchResponse) => {
       setItems(r.results)
       setCount(r.count)
       setHasMore(r.hasMore ?? page * (r.first || PAGE_SIZE) < r.count)
       setPageSize(r.first || PAGE_SIZE)
-      if (!isFilterSource(source)) return
+      if (source === 'risurealm' || source === 'pygmalion' || source === 'janny') return
       setVocabs((all) => {
         const by = new Map(all[source].map((v) => [v.tag, v.n]))
         for (const it of r.results) for (const t of it.topics) by.set(t, (by.get(t) ?? 0) + 1)
@@ -504,6 +542,8 @@ export function MarketplaceView() {
   // full card definition loads when a listing is opened for preview
   useEffect(() => {
     if (!detail) return
+    // JannyAI: the listing is all there is (its site is not reachable from the app)
+    if ((detail.source ?? source) === 'janny') { setDetailData(null); setDetailError(null); setDetailLoading(false); return }
     setDetailData(null)
     setDetailError(null)
     setGreetingIdx(0)
@@ -518,7 +558,7 @@ export function MarketplaceView() {
   }, [detail, source])
 
   // chub and CharaVault tell the total; RisuRealm only whether a next page exists
-  const hasTotal = source === 'chub' || source === 'charavault'
+  const hasTotal = source !== 'risurealm'
   const pages = Math.max(1, Math.ceil(count / pageSize))
   const canNext = source === 'chub' ? page < pages : hasMore
 
@@ -541,8 +581,18 @@ export function MarketplaceView() {
     setDetail(null)
     setView('characters')
   }
-  const added = (name: string, id: string | undefined) =>
-    toast.success(`${name} added to Characters`, { action: { label: 'Open', onClick: () => openNew(id) } })
+  const added = (name: string, id: string | undefined, skippedBooks = 0) =>
+    toast.success(`${name} added to Characters`, {
+      action: { label: 'Open', onClick: () => openNew(id) },
+      ...(skippedBooks > 0 ? { description: `${skippedBooks} linked lorebook${skippedBooks === 1 ? ' was' : 's were'} not imported.` } : {}),
+    })
+
+  /** JannyAI cards open on the site; the note says what to do next, once. */
+  const getOnJanny = () => {
+    if (jannyHintShown) return
+    jannyHintShown = true
+    toast('Download the card there, then drop the PNG here.')
+  }
 
   /** Install a card. Chub goes through the proven URL-import path — the engine
    *  pulls the card PNG + avatar and writes a local character. The other
@@ -555,6 +605,7 @@ export function MarketplaceView() {
     try {
       let name = item.name
       let id: string | undefined
+      let skipped = 0
       if ((item.source ?? source) === 'chub') {
         // full-res card image, downscaled to a sane avatar size; fall back to
         // the listing thumbnail if the full-res fetch fails
@@ -574,9 +625,10 @@ export function MarketplaceView() {
         const r = await importCardFromLink(item.pageUrl, hydrate)
         name = r.names[0] ?? name
         id = r.characters[0]
+        skipped = r.skippedBooks ?? 0
       }
       setDownloaded((s) => new Set(s).add(key))
-      added(name, id)
+      added(name, id, skipped)
     } catch (e) {
       toast.error(`Couldn't download ${item.name}`, { description: String((e as Error).message ?? e) })
     } finally {
@@ -597,7 +649,7 @@ export function MarketplaceView() {
       if (r.status === 'browser-only') {
         setLinkJanny(r.openUrl)
       } else {
-        added(r.names[0] ?? 'Character', r.characters[0])
+        added(r.names[0] ?? 'Character', r.characters[0], r.skippedBooks ?? 0)
         setLinkValue('')
       }
     } catch (err) {
@@ -665,6 +717,47 @@ export function MarketplaceView() {
                 </Select>
               </>
             )}
+            {source === 'wyvern' && (
+              <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
+                <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort Wyvern results">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WYVERN_SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {source === 'pygmalion' && (
+              <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
+                <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort Pygmalion results">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PYG_SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {source === 'janny' && (
+              <>
+                <label className="flex h-8 items-center gap-1.5 text-xs">
+                  <Switch
+                    size="sm"
+                    checked={filters.lowQuality}
+                    onCheckedChange={(v) => { setFilters({ ...filters, lowQuality: v === true }); setPage(1) }}
+                    aria-label="Show low quality cards"
+                  />
+                  Show low quality
+                </label>
+                <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
+                  <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort JannyAI results">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JANNY_SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
             {isChub && (
               <>
                 <Button
@@ -704,54 +797,53 @@ export function MarketplaceView() {
             </Select>
           </div>
         </div>
-        {source !== 'jannyai' && (
-          <div className="flex items-center gap-2">
-            <form onSubmit={submit} className="relative min-w-0 flex-1">
-              <MagnifyingGlass className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.form?.requestSubmit() }}
-                placeholder="Search characters…"
-                className="h-9 pl-9 pr-9 text-sm"
-                aria-label="Search marketplace"
-              />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 size-7 -translate-y-1/2 p-0 text-muted-foreground"
-                aria-label="Search"
-              >
-                <MagnifyingGlass className="size-4" aria-hidden="true" />
-              </Button>
-            </form>
-            {isFilterSource(source) && (
-              <>
-                <TagsPicker
-                  tags={tags}
-                  tagsMode={tagsMode}
-                  vocab={tagVocab}
-                  query={tagQuery}
-                  onQuery={setTagQuery}
-                  open={tagsOpen}
-                  onOpen={setTagsOpen}
-                  onToggle={toggleTag}
-                  onMode={() => patch({ tagsMode: tagsMode === 'all' ? 'any' : 'all', page: 1 })}
-                  modes={isChub}
-                />
-                <FiltersPanel
-                  src={source}
-                  filters={filters}
-                  open={filtersOpen}
-                  onOpen={setFiltersOpen}
-                  onApply={(f) => { setFilters(f); setPage(1); setFiltersOpen(false) }}
-                />
-              </>
-            )}
-          </div>
-        )}
-        {isFilterSource(source) && (tags.length > 0 || creator) && (
+        <div className="flex items-center gap-2">
+          <form onSubmit={submit} className="relative min-w-0 flex-1">
+            <MagnifyingGlass className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.form?.requestSubmit() }}
+              placeholder="Search characters…"
+              className="h-9 pl-9 pr-9 text-sm"
+              aria-label="Search marketplace"
+            />
+            <Button
+              type="submit"
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1/2 size-7 -translate-y-1/2 p-0 text-muted-foreground"
+              aria-label="Search"
+            >
+              <MagnifyingGlass className="size-4" aria-hidden="true" />
+            </Button>
+          </form>
+          {hasTags(source) && (
+            <TagsPicker
+              tags={tags}
+              tagsMode={tagsMode}
+              vocab={tagVocab}
+              query={tagQuery}
+              onQuery={setTagQuery}
+              open={tagsOpen}
+              onOpen={setTagsOpen}
+              onToggle={toggleTag}
+              onMode={() => patch({ tagsMode: tagsMode === 'all' ? 'any' : 'all', page: 1 })}
+              modes={isChub}
+              fixedVocab={source === 'janny'}
+            />
+          )}
+          {isFilterSource(source) && (
+            <FiltersPanel
+              src={source}
+              filters={filters}
+              open={filtersOpen}
+              onOpen={setFiltersOpen}
+              onApply={(f) => { setFilters(f); setPage(1); setFiltersOpen(false) }}
+            />
+          )}
+        </div>
+        {hasTags(source) && (tags.length > 0 || creator) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {creator && (
               <button
@@ -797,6 +889,9 @@ export function MarketplaceView() {
           </div>
         )}
         {NOTES[source] && <p className="text-[11px] leading-4 text-muted-foreground">{NOTES[source]}</p>}
+        {source === 'wyvern' && applied && (
+          <p className="text-[11px] leading-4 text-muted-foreground">A search term ranks by relevance, so the sort does not apply.</p>
+        )}
         {source === 'risurealm' && sort === 'downloads' && !applied && (
           <p className="text-[11px] leading-4 text-muted-foreground">Most downloaded only orders a search: type a word and press Enter.</p>
         )}
@@ -809,7 +904,7 @@ export function MarketplaceView() {
                 href={linkJanny}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => { setSource('jannyai'); setLinkJanny(null) }}
+                onClick={() => { setSource('janny'); setLinkJanny(null) }}
                 className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent"
               >
                 <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open the page
@@ -835,9 +930,8 @@ export function MarketplaceView() {
         </form>
       </header>
 
-        {source === 'jannyai' ? (
-          <JannyPanel hydrate={hydrate} onOpen={() => setView('characters')} />
-        ) : loading ? (
+        {source === 'janny' && <DropBar hydrate={hydrate} onOpen={() => setView('characters')} />}
+        {loading ? (
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="overflow-hidden rounded-lg border border-border bg-card">
@@ -960,7 +1054,7 @@ export function MarketplaceView() {
                     <DialogTitle className="leading-tight">{detail.name}</DialogTitle>
                     <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                       <span className="rounded-full border border-border bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">{sourceName(detailSource)}</span>
-                      {isFilterSource(detailSource) ? (
+                      {detailSource === 'chub' || detailSource === 'charavault' ? (
                         <button
                           type="button"
                           onClick={() => { if (detail.creator) { patch({ creator: detail.creator, page: 1 }); setDetail(null) } }}
@@ -984,6 +1078,9 @@ export function MarketplaceView() {
                       {detail.hasLore && (
                         <Badge variant="outline" className="gap-0.5 text-[10px]"><BookOpenText className="size-3" aria-hidden="true" />Lorebook</Badge>
                       )}
+                      {(detail.linkedBooks ?? 0) > 0 && (
+                        <span title="Wyvern lorebooks are not readable without an account">{detail.linkedBooks} linked book{detail.linkedBooks === 1 ? '' : 's'} (not imported)</span>
+                      )}
                     </span>
                     {libraryNames.has(detail.name.trim().toLowerCase()) && (
                       <span className="flex items-center gap-1 rounded-full border border-border bg-accent px-2 py-0.5 text-[10px] text-muted-foreground">
@@ -992,7 +1089,7 @@ export function MarketplaceView() {
                       </span>
                     )}
                     <span className="mt-0.5 flex flex-wrap gap-1">
-                      {detail.topics.slice(0, 12).map((t) => isFilterSource(detailSource) ? (
+                      {detail.topics.slice(0, 12).map((t) => hasTags(detailSource) ? (
                         <button
                           key={t}
                           type="button"
@@ -1017,6 +1114,7 @@ export function MarketplaceView() {
                 <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{detail.description}</p>
               )}
 
+              {detailSource !== 'janny' && (
               <div className="flex flex-col gap-3 border-t border-border pt-3">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Card preview</h3>
                 {detailLoading && (
@@ -1066,9 +1164,10 @@ export function MarketplaceView() {
                   </>
                 )}
               </div>
+              )}
 
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {detailOpenUrl && (
+                {detailOpenUrl && !detail.browserOnly && (
                   <a
                     href={detailOpenUrl}
                     target="_blank"
@@ -1078,7 +1177,17 @@ export function MarketplaceView() {
                     <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open on {sourceName(detailSource)}
                   </a>
                 )}
-                {downloaded.has(keyOf(detail)) ? (
+                {detail.browserOnly ? (
+                  <a
+                    href={detail.pageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={getOnJanny}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    <ArrowSquareOut className="size-3.5" aria-hidden="true" />Get on {sourceName(detailSource)}
+                  </a>
+                ) : downloaded.has(keyOf(detail)) ? (
                   <Button size="sm" onClick={() => { setDetail(null); setView('characters') }}>
                     <Check className="size-4" aria-hidden="true" />Open Characters
                   </Button>
@@ -1099,9 +1208,9 @@ export function MarketplaceView() {
   )
 }
 
-/** JannyAI refuses to serve cards to apps, so the Store cannot search or fetch
- *  there. The user downloads a card in the browser and drops the file here. */
-function JannyPanel({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen: () => void }) {
+/** JannyAI cards can only be downloaded in the browser: this bar takes the
+ *  files the user saved there (also any other PNG, JSON or charx card). */
+function DropBar({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -1119,22 +1228,7 @@ function JannyPanel({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen:
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="flex flex-col gap-1 text-sm">
-        <p>JannyAI blocks apps from downloading cards, so this takes two steps.</p>
-        <p className="text-muted-foreground">Open JannyAI, find a character and press its download button (PNG).</p>
-        <p className="text-muted-foreground">Drop the downloaded files here.</p>
-      </div>
-      <div>
-        <a
-          href={JANNY_SEARCH_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
-        >
-          <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open JannyAI
-        </a>
-      </div>
+    <div className="flex flex-col gap-1.5 px-4 pt-3">
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -1142,15 +1236,14 @@ function JannyPanel({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen:
         onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); void take(e.dataTransfer.files) }}
         disabled={busy}
-        aria-label="Drop card files here, or click to choose them"
+        aria-label="Drop downloaded JannyAI cards here, or click to choose them"
         className={cn(
-          'flex min-h-48 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent/40',
+          'flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2 text-center text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent/40',
           over && 'border-primary bg-accent/60',
         )}
       >
-        {busy ? <CircleNotch className="size-8 animate-spin" aria-hidden="true" /> : <UploadSimple className="size-8" aria-hidden="true" />}
-        <span className="font-medium text-foreground">{busy ? 'Importing…' : 'Drop card files here'}</span>
-        <span className="text-xs">or click to choose files (.png, .json, .charx)</span>
+        {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <UploadSimple className="size-4" aria-hidden="true" />}
+        <span>{busy ? 'Importing…' : 'Drop downloaded JannyAI cards here (or click to pick)'}</span>
       </button>
       <input
         ref={inputRef}
@@ -1162,16 +1255,10 @@ function JannyPanel({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen:
         onChange={(e) => { void take(e.target.files); e.target.value = '' }}
       />
       {done && (
-        <div className="flex flex-col gap-2 text-sm" role="status">
-          {done.length > 0 ? (
-            <>
-              <p>Imported: {done.join(', ')}</p>
-              <div><Button variant="outline" size="sm" onClick={onOpen}>Open Characters</Button></div>
-            </>
-          ) : (
-            <p className="text-muted-foreground">Nothing was imported.</p>
-          )}
-        </div>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" role="status">
+          {done.length > 0 ? <>Imported: {done.join(', ')}</> : <span className="text-muted-foreground">Nothing was imported.</span>}
+          {done.length > 0 && <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={onOpen}>Open Characters</Button>}
+        </p>
       )}
     </div>
   )
@@ -1203,8 +1290,10 @@ function TagsPicker(props: {
   onOpen: (o: boolean) => void
   onToggle: (t: string) => void
   onMode: () => void
-  /** all/any matching; CharaVault only takes "all" */
+  /** all/any matching; only chub has it */
   modes: boolean
+  /** JannyAI: the site's own tag list, no free-typed tags */
+  fixedVocab?: boolean
 }) {
   const q = props.query.trim().toLowerCase()
   const activeLower = new Set(props.tags.map((t) => t.toLowerCase()))
@@ -1216,7 +1305,7 @@ function TagsPicker(props: {
     ...matches.filter((v) => !activeLower.has(v.tag.toLowerCase())),
   ]
   const exactActive = props.tags.find((t) => t.toLowerCase() === q)
-  const custom = q && !exactActive && !props.vocab.some((v) => v.tag.toLowerCase() === q)
+  const custom = !props.fixedVocab && q && !exactActive && !props.vocab.some((v) => v.tag.toLowerCase() === q)
 
   const submitTag = () => {
     if (!q) return
@@ -1284,7 +1373,7 @@ function TagsPicker(props: {
               >
                 <Check className={cn('size-3.5 shrink-0', !active && 'invisible')} aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">{v.tag}</span>
-                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{v.n}</span>
+                {v.n > 0 && <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{v.n}</span>}
               </button>
             )
           })}
@@ -1324,12 +1413,12 @@ function FiltersPanel(props: {
 }) {
   const [draft, setDraft] = useState<Filters>(props.filters)
   const [excludeText, setExcludeText] = useState(props.filters.excludeTags.join(', '))
-  const cv = props.src === 'charavault'
+  const cv = props.src !== 'chub'
   const active = countFilters(props.filters, props.src)
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) => setDraft((d) => ({ ...d, [key]: value }))
   const parseTags = (s: string) => s.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 12)
   const apply = () => props.onApply({ ...draft, excludeTags: parseTags(excludeText) })
-  const lorebookOnly = REQUIREMENTS.filter((r) => r.key === 'requireLore')
+  const lorebookOnly = props.src === 'charavault' ? REQUIREMENTS.filter((r) => r.key === 'requireLore') : []
 
   const num = (key: 'minTokens' | 'maxTokens' | 'maxDaysAgo' | 'minTags', label: string, placeholder: string) => (
     <label className="flex min-w-0 flex-1 flex-col gap-1">
@@ -1443,6 +1532,7 @@ function FiltersPanel(props: {
             />
           </label>
 
+          {(!cv || lorebookOnly.length > 0) && (<>
           <Separator />
 
           <span className="block text-[11px] text-muted-foreground">Must have</span>
@@ -1454,6 +1544,7 @@ function FiltersPanel(props: {
               </label>
             ))}
           </div>
+          </>)}
         </div>
         <div className="flex gap-2 border-t border-border p-2">
           <Button

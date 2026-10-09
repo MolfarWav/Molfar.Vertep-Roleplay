@@ -59,7 +59,11 @@ The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and
 downloads via the /import/url path; remote art rides the engine's same-origin
 image proxy (/v1/apps/roleplay/img) because app pages are CSP-locked to
-self-origin images. Catalog gotchas, all verified against the live endpoint:
+self-origin images. The other sources (RisuRealm, CharaVault, Wyvern, Pygmalion,
+JannyAI) use the same two routes with a `source`; their installs go through
+/fetch/card and importCardFromLink (src/lib/card-import.ts), one importer for
+dropped files, pasted links and the Store. State per source (query, page, sort,
+tags, filters) lives in one browse record. Catalog gotchas, all verified against the live endpoint:
 adult listings are hidden unless nsfw/nsfl/nsfw_only are ALL stated (absent
 = ~95% of the catalog missing); "trending" is a POOL of ~1.4k cards, not an
 ordering, so it gets its own switch and takes over the sort; an unknown sort
