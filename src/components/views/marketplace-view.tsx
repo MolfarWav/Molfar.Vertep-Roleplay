@@ -19,9 +19,10 @@ import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { j, proxyUrl, downscaleRemoteImage } from '@/lib/engine'
 import { importCardFiles, importCardFromLink, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 import {
-  TRANSLATE_LANGUAGES, TRANSLATE_CONCURRENCY, runLimited, planPreview, buildPreview, translateInstalled,
-  type Translator, type PreviewOutput,
+  TRANSLATE_LANGUAGES, TRANSLATE_CONCURRENCY, runLimited, planPreview, buildPreview, loadTranslateTo, saveTranslateTo,
+  type PreviewOutput,
 } from '@/lib/card-translate'
+import { makeTranslator, translateCharacter } from '@/lib/card-translate-store'
 
 /** One marketplace listing, normalized by the plugin from whatever the
  *  source returns — `id` is the "user/slug" full path (download URL + dedupe). */
@@ -141,16 +142,6 @@ const CV_ORIGINS = [
 /** Sources with their own tags, creator and Filters panel. */
 type FilterSource = 'chub' | 'charavault' | 'janny'
 const isFilterSource = (s: SourceId): s is FilterSource => s === 'chub' || s === 'charavault' || s === 'janny'
-/** The language the Store translates to, remembered per browser. */
-const TRANSLATE_TO_KEY = 'chrysalis.marketplace.translateTo'
-function loadTranslateTo(): string {
-  try {
-    const v = localStorage.getItem(TRANSLATE_TO_KEY)
-    return v && TRANSLATE_LANGUAGES.includes(v) ? v : 'English'
-  } catch {
-    return 'English'
-  }
-}
 /** Translated previews, per (source, id, language), for the session. */
 const previewCache = new Map<string, PreviewOutput<MarketplaceDetail>>()
 /** A search answer is reused this long within the session. */
@@ -469,9 +460,7 @@ export function MarketplaceView() {
   // translation: the language, the preview's progress, and which view is on
   const translation = useApp((s) => s.settings.translation)
   const [translateTo, setTranslateTo] = useState(loadTranslateTo)
-  useEffect(() => {
-    try { localStorage.setItem(TRANSLATE_TO_KEY, translateTo) } catch { /* storage unavailable */ }
-  }, [translateTo])
+  useEffect(() => { saveTranslateTo(translateTo) }, [translateTo])
   const [tview, setTview] = useState<'original' | 'translated'>('original')
   const [trBusy, setTrBusy] = useState<{ done: number; total: number } | null>(null)
   const [trError, setTrError] = useState<string | null>(null)
@@ -653,39 +642,11 @@ export function MarketplaceView() {
     for (const n of notes) toast.info(n)
   }
 
-  /** One request to the app's translator, with the Store's language. */
-  const makeTranslator = (): Translator => async (text) => {
-    const r = await j<{ text: string }>('/translate', {
-      method: 'POST',
-      body: JSON.stringify({ text, target: translateTo, provider: translation.provider, deeplKey: translation.deeplKey }),
-    })
-    return r.text
-  }
-
   /** After an install in the translated view: the new character's texts and
    *  its embedded lorebook, translated in the library (originals are kept in
    *  the card's extensions). The card stays installed whatever happens. */
-  const translateNew = async (id: string, name: string) => {
-    const tid = toast.loading(`Translating ${name}…`)
-    const st = () => useApp.getState()
-    try {
-      const res = await translateInstalled(id, {
-        translate: makeTranslator(),
-        getCharacter: (cid) => st().characters.find((c) => c.id === cid),
-        updateCharacter: (cid, patch) => st().updateCharacter(cid, patch),
-        getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
-        updateBook: (bid, patch) => st().updateLorebook(bid, patch),
-        progress: (done, total) => { toast.loading(`Translating ${name}: ${done}/${total}`, { id: tid }) },
-      }, { target: translateTo, provider: translation.provider || 'llm', at: new Date().toISOString() })
-      if (res.notTranslated.length) {
-        toast.warning(`${name} is only partly translated`, { id: tid, description: `Not translated: ${res.notTranslated.join(', ')}. The card is installed.` })
-      } else {
-        toast.success(`${name} translated to ${translateTo}`, { id: tid, action: { label: 'Open', onClick: () => openNew(id) } })
-      }
-    } catch (e) {
-      toast.error(`Couldn't translate ${name}`, { id: tid, description: `${String((e as Error).message ?? e)} The card is installed.` })
-    }
-  }
+  const translateNew = (id: string, name: string) =>
+    translateCharacter(id, name, { target: translateTo, translation, onOpen: () => openNew(id) })
 
   /** JannyAI cards open on the site; the note says what to do next, once. */
   const getOnJanny = () => {
@@ -784,7 +745,7 @@ export function MarketplaceView() {
     if (!plan.length) { setTrError('There is no text to translate.'); return }
     const token = ++trToken.current
     const key = trKey
-    const ask = makeTranslator()
+    const ask = makeTranslator(translateTo, translation)
     const answers: Record<string, string> = {}
     let failure: string | null = null
     let done = 0

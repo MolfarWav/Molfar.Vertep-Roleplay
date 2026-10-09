@@ -7,7 +7,7 @@
 import { describe, it, expect } from "bun:test";
 import {
   runLimited, planPreview, buildPreview, planCardJobs, applyCardResults, planBookJobs, applyBookResults,
-  splitKeys, mergeKeys, translateInstalled, TRANSLATE_LANGUAGES,
+  splitKeys, mergeKeys, translateInstalled, TRANSLATE_LANGUAGES, restoreOriginal, hasTranslationRecord,
 } from "../src/lib/card-translate";
 import type { Character, LoreEntry, Lorebook } from "../src/lib/types";
 
@@ -186,4 +186,64 @@ describe("translateInstalled", () => {
 it("offers the languages of the translation tab", () => {
   expect(TRANSLATE_LANGUAGES[0]).toBe("English");
   expect(TRANSLATE_LANGUAGES).toContain("Ukrainian");
+});
+
+describe("restore original", () => {
+  const translated = () => {
+    const c = char({ cardExtras: { extensions: { chub: { id: 1 } }, nickname: "x" } });
+    const jobs = planCardJobs(c);
+    const { patch } = applyCardResults(c, jobs, jobs.map((j) => "EN " + j.text), META);
+    return { ...c, ...patch } as Character;
+  };
+  it("puts the stored originals back and removes only the record", () => {
+    const t = translated();
+    expect(t.description).toBe("EN Опис");
+    expect(hasTranslationRecord(t)).toBe(true);
+    const r = restoreOriginal(t)!;
+    expect(r.target).toBe("English");
+    expect(r.patch.description).toBe("Опис");
+    expect(r.patch.firstMessage).toBe("Привіт!");
+    expect(r.patch.creatorNotes).toBe("Нотатки");
+    expect(r.patch.altGreetings).toEqual(["Добрий день", "", "Вітаю"]);
+    expect(r.restored).toContain("altGreetings");
+    const extras = r.patch.cardExtras as Record<string, any>;
+    expect(extras.extensions).toEqual({ chub: { id: 1 } });
+    expect(extras.nickname).toBe("x");
+    expect(hasTranslationRecord({ ...t, ...r.patch } as Character)).toBe(false);
+  });
+  it("drops an extensions bag that held only the record", () => {
+    const c = char();
+    const jobs = planCardJobs(c);
+    const t = { ...c, ...applyCardResults(c, jobs, jobs.map((j) => "EN " + j.text), META).patch } as Character;
+    const r = restoreOriginal(t)!;
+    expect(r.patch.cardExtras).toBeUndefined();
+    expect("cardExtras" in r.patch).toBe(true);
+  });
+  it("has nothing to restore without a record", () => {
+    expect(restoreOriginal(char())).toBeNull();
+    expect(restoreOriginal(char({ cardExtras: { extensions: { molfar_translation: { target: "x" } } } }))).toBeNull();
+    expect(hasTranslationRecord(char())).toBe(false);
+  });
+});
+
+describe("edits made while a pass runs", () => {
+  it("leaves a field the user changed alone", () => {
+    const c = char();
+    const jobs = planCardJobs(c);
+    const edited = { ...c, description: "Мій новий опис" } as Character;
+    const { patch, changed, skipped } = applyCardResults(edited, jobs, jobs.map((j) => "EN " + j.text), META);
+    expect(patch.description).toBeUndefined();
+    expect(skipped).toEqual(["description"]);
+    expect(changed).toContain("firstMessage");
+    expect((patch.cardExtras as any).extensions.molfar_translation.original.description).toBeUndefined();
+  });
+  it("does the same for a lorebook entry", () => {
+    const b = book([entry()]);
+    const jobs = planBookJobs(b);
+    const edited = book([entry({ content: "Я змінив" })]);
+    const r = applyBookResults(edited, jobs, ["Big city", "City", null, null]);
+    expect(r.entries[0]!.content).toBe("Я змінив");
+    expect(r.entries[0]!.memo).toBe("City");
+    expect(r.skipped).toBe(1);
+  });
 });

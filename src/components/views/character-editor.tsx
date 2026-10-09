@@ -25,6 +25,7 @@ import { useT } from '@/hooks/use-t'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
+import { TranslateMenu } from '@/components/character/translate-menu'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
@@ -179,10 +180,11 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           <span className="truncate">{c.id}</span>
           <ClipboardText className="size-3 shrink-0" aria-hidden="true" />
         </button>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
           <Button variant="ghost" size="sm" onClick={() => up({ favorite: !c.favorite })} aria-label="Toggle favorite">
             <Star weight={c.favorite ? 'fill' : 'regular'} className={c.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
           </Button>
+          {!c.isGroup && <TranslateMenu c={c} />}
           <Button variant="ghost" size="sm" onClick={() => setVersionsOpen(true)} aria-label="Version history">
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
           </Button>

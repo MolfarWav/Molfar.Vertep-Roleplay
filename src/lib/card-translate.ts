@@ -12,6 +12,21 @@ export const TRANSLATE_LANGUAGES = [
   'Arabic', 'Hebrew', 'Dutch', 'Czech', 'Greek', 'Swedish', 'Indonesian', 'Vietnamese',
 ]
 
+/** The language the app translates cards to, one choice for the Store and the
+ *  character editor, remembered per browser. */
+export const TRANSLATE_TO_KEY = 'chrysalis.marketplace.translateTo'
+export function loadTranslateTo(): string {
+  try {
+    const v = localStorage.getItem(TRANSLATE_TO_KEY)
+    return v && TRANSLATE_LANGUAGES.includes(v) ? v : 'English'
+  } catch {
+    return 'English'
+  }
+}
+export function saveTranslateTo(v: string): void {
+  try { localStorage.setItem(TRANSLATE_TO_KEY, v) } catch { /* storage unavailable */ }
+}
+
 export type Translator = (text: string) => Promise<string>
 
 /** Requests in flight at once, and how many failures end a pass. */
@@ -120,8 +135,9 @@ export function applyCardResults(
   jobs: readonly CardJob[],
   answers: readonly (string | null)[],
   meta: TranslationMeta,
-): { patch: Partial<Character>; changed: string[] } {
+): { patch: Partial<Character>; changed: string[]; skipped: string[] } {
   const patch: Partial<Character> = {}
+  const skipped: string[] = []
   const original: Record<string, unknown> = {}
   const changed: string[] = []
   const greetings = [...c.altGreetings]
@@ -129,6 +145,9 @@ export function applyCardResults(
   jobs.forEach((job, i) => {
     const ans = clean(answers[i])
     if (!ans || ans === job.text) return
+    // edited while the pass ran: the translation would overwrite the edit
+    const now = job.kind === 'field' ? c[job.field] : c.altGreetings[job.index]
+    if (now !== job.text) { skipped.push(cardJobLabel(job)); return }
     changed.push(cardJobLabel(job))
     if (job.kind === 'field') {
       ;(patch as Record<string, unknown>)[job.field] = ans
@@ -139,7 +158,7 @@ export function applyCardResults(
     }
   })
   if (greetingsChanged) { patch.altGreetings = greetings; original.altGreetings = [...c.altGreetings] }
-  if (!changed.length) return { patch: {}, changed }
+  if (!changed.length) return { patch: {}, changed, skipped }
   const extras = { ...(c.cardExtras ?? {}) }
   const ext = (extras.extensions && typeof extras.extensions === 'object' ? extras.extensions : {}) as Record<string, unknown>
   const prev = (ext.molfar_translation && typeof ext.molfar_translation === 'object' ? ext.molfar_translation : {}) as { original?: Record<string, unknown> }
@@ -147,8 +166,39 @@ export function applyCardResults(
     ...extras,
     extensions: { ...ext, molfar_translation: { target: meta.target, provider: meta.provider, at: meta.at, original: { ...original, ...(prev.original ?? {}) } } },
   }
-  return { patch, changed }
+  return { patch, changed, skipped }
 }
+
+/** The originals kept by a translation, back in the character: a patch for
+ *  updateCharacter, or null when the card has no record. The keys are the ones
+ *  applyCardResults stored (the writing fields and the whole altGreetings list);
+ *  the record is removed from the extensions. The lorebook is not part of it:
+ *  its originals are not stored (its keys kept them anyway). */
+export function restoreOriginal(c: Pick<Character, 'cardExtras'>): { patch: Partial<Character>; restored: string[]; target: string } | null {
+  const ext = c.cardExtras?.extensions
+  if (!ext || typeof ext !== 'object') return null
+  const rec = (ext as Record<string, unknown>).molfar_translation
+  if (!rec || typeof rec !== 'object') return null
+  const original = (rec as { original?: unknown }).original
+  if (!original || typeof original !== 'object') return null
+  const patch: Partial<Character> = {}
+  const restored: string[] = []
+  for (const field of CARD_FIELDS) {
+    const v = (original as Record<string, unknown>)[field]
+    if (typeof v === 'string') { (patch as Record<string, unknown>)[field] = v; restored.push(field) }
+  }
+  const g = (original as Record<string, unknown>).altGreetings
+  if (Array.isArray(g)) { patch.altGreetings = g.map(String); restored.push('altGreetings') }
+  const { molfar_translation: _gone, ...rest } = ext as Record<string, unknown>
+  const extras = { ...(c.cardExtras ?? {}) }
+  if (Object.keys(rest).length) extras.extensions = rest
+  else delete extras.extensions
+  patch.cardExtras = Object.keys(extras).length ? extras : undefined
+  return { patch, restored, target: String((rec as { target?: unknown }).target ?? '') }
+}
+
+/** Whether a card carries a translation record that can be undone. */
+export const hasTranslationRecord = (c: Pick<Character, 'cardExtras'>): boolean => restoreOriginal(c) !== null
 
 // ── a lorebook ────────────────────────────────────────────────────────────
 
@@ -203,23 +253,27 @@ export function applyBookResults(
   book: Pick<Lorebook, 'entries'>,
   jobs: readonly BookJob[],
   answers: readonly (string | null)[],
-): { entries: LoreEntry[]; changed: number } {
+): { entries: LoreEntry[]; changed: number; skipped: number } {
   const entries = book.entries.map((e) => ({ ...e }))
   let changed = 0
+  let skipped = 0
   jobs.forEach((job, i) => {
     const ans = clean(answers[i])
     const e = entries[job.entry]
     if (!ans || !e) return
-    if (job.part === 'content') { if (ans !== e.content) { e.content = ans; changed++ } }
-    else if (job.part === 'memo') {
-      if (ans !== e.memo) { if (e.title === e.memo) e.title = ans; e.memo = ans; changed++ }
+    if (job.part === 'content') {
+      if (e.content !== job.text) skipped++ // edited while the pass ran
+      else if (ans !== e.content) { e.content = ans; changed++ }
+    } else if (job.part === 'memo') {
+      if (e.memo !== job.text) skipped++
+      else if (ans !== e.memo) { if (e.title === e.memo) e.title = ans; e.memo = ans; changed++ }
     } else {
       const field = job.part
       const merged = mergeKeys(e[field], splitKeys(ans))
       if (merged.length !== e[field].length) { e[field] = merged; changed++ }
     }
   })
-  return { entries, changed }
+  return { entries, changed, skipped }
 }
 
 // ── the whole pass over an installed card ─────────────────────────────────
@@ -275,6 +329,7 @@ export async function translateInstalled(id: string, deps: InstallTranslateDeps,
   if (applied.changed.length) deps.updateCharacter(id, applied.patch)
   const missed = cardJobs.filter((_, i) => !cardAnswers[i]).map(cardJobLabel)
   if (missed.length) notTranslated.push(...missed)
+  if (applied.skipped.length) notTranslated.push(...applied.skipped.map((l) => `${l} (edited meanwhile)`))
 
   if (book && bookJobs.length) {
     const bookAnswers: (string | null)[] = bookJobs.map(() => null)
@@ -288,6 +343,7 @@ export async function translateInstalled(id: string, deps: InstallTranslateDeps,
     const res = applyBookResults(fresh, bookJobs, bookAnswers)
     if (res.changed) deps.updateBook(book.id, { entries: res.entries })
     const missedEntries = new Set(bookJobs.filter((_, i) => !bookAnswers[i]).map((j) => j.entry))
+    if (res.skipped) notTranslated.push(`${res.skipped} lorebook text${res.skipped === 1 ? '' : 's'} (edited meanwhile)`)
     if (missedEntries.size) notTranslated.push(`${missedEntries.size} lorebook entr${missedEntries.size === 1 ? 'y' : 'ies'}`)
   }
   return { total, done, notTranslated }
