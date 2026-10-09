@@ -108,7 +108,7 @@ export function LitopysView() {
         detail={
           showMap ? (
             <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
-              <ChatsMap items={items ?? []} selectedId={selectedId} onSelect={select} />
+              <ChatsMap items={items ?? []} chatId={selectedId} onFocus={setSelectedId} onOpen={select} onLinked={refresh} />
             </div>
           ) : selectedId ? (
             <LedgerChat chatId={selectedId} refreshKey={tick} onLoaded={syncItem} mode={mode} />

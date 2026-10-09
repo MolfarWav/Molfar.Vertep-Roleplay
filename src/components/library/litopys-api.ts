@@ -38,6 +38,8 @@ export interface LitChatItem {
   name: string
   /** The chat this one was forked from (M4c map), null when it is not a fork. */
   parentChatId: string | null
+  /** 0.9.2: the earlier chat this one continues (a link the user set; it gets that story as backstory), null when none. */
+  continues: string | null
   updatedAt: number
   hasData: boolean
   chapters: number
@@ -229,6 +231,8 @@ export interface LitConfig {
   pinLimit: number
   insert: boolean
   budget: number
+  /** 0.9.2: the most a linked earlier chat's story may take as backstory, 0 = none */
+  linkBudget: number
   chapter: string
   /** M4d arcs; arcThreshold 0 = twice the budget */
   arcMode: LitArcMode
@@ -324,3 +328,7 @@ export const isRebuilding = (e: unknown) => e instanceof ApiError && e.status ==
 /** Active pinned facts of a subject (case-insensitive), as the plugin counts them for the limit. */
 export const pinnedOf = (facts: LitFact[], subject: string) =>
   facts.filter((f) => f.status === 'active' && f.pinned && f.subject.toLowerCase() === subject.toLowerCase())
+
+/** 0.9.2: set the chat this one continues (from = null removes the link). Refused (400) for itself, a missing chat or a loop. */
+export const setLitLink = (chatId: string, from: string | null) =>
+  post<{ links: Record<string, { from: string; at: number }> }>('/litopys/links', { chatId, from })

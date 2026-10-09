@@ -97,6 +97,24 @@ export function MemorySummarySection() {
           <p className="text-xs text-muted-foreground">{t('lit.set.budgetHint')}</p>
         </Field>
         <Field>
+          <FieldLabel htmlFor="lit-link-budget">{t('lit.set.linkBudget')}</FieldLabel>
+          <Input
+            id="lit-link-budget"
+            type="number"
+            min={0}
+            max={3000}
+            value={cfg.linkBudget}
+            onChange={(e) => setCfg({ ...cfg, linkBudget: Number(e.target.value) })}
+            onBlur={(e) => {
+              const v = clamp(Number(e.target.value), 0, 3000)
+              setCfg({ ...cfg, linkBudget: v })
+              save({ linkBudget: v })
+            }}
+            className="w-32"
+          />
+          <p className="text-xs text-muted-foreground">{t('lit.set.linkBudgetHint')}</p>
+        </Field>
+        <Field>
           <FieldLabel htmlFor="lit-recent">{t('lit.set.recent')}</FieldLabel>
           <Input
             id="lit-recent"
