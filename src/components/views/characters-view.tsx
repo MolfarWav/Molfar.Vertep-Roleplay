@@ -26,9 +26,9 @@ import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
-import { j, downscaleRemoteImage, characterToCard } from '@/lib/engine'
+import { characterToCard } from '@/lib/engine'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
-import { importCardFiles } from '@/lib/card-import'
+import { importCardFiles, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 import { downloadJson } from '@/lib/interop'
 import { CharacterEditor } from '@/components/views/character-editor'
 import { CardKindBadge } from '@/components/dashboard/card-kind'
@@ -36,24 +36,6 @@ import { cardTypeOf } from '@/lib/soul'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
-
-/** chub card links map to the full-resolution card image; the app's img
- *  route streams it through the engine (the sandboxed frame cannot fetch
- *  other hosts). Returns a downscaled data URL, or undefined when the link
- *  is not a card link or the image cannot be fetched — the importer then
- *  keeps its own 200px listing thumbnail. */
-const CHUB_CARD = /^https:\/\/(?:www\.)?(?:chub\.ai|characterhub\.(?:ai|org))\/characters\/([^/\s?#]+)\/([^/\s?#]+)/i
-const CHUB_API_CARD = /^https:\/\/api\.chub\.ai\/api\/characters\/([^/\s?#]+)\/([^/\s?#]+)/i
-async function fullSizeAvatar(pageUrl: string): Promise<string | undefined> {
-  const m = CHUB_CARD.exec(pageUrl) ?? CHUB_API_CARD.exec(pageUrl)
-  if (!m) return undefined
-  const src = `https://avatars.charhub.io/avatars/${encodeURIComponent(m[1]!)}/${encodeURIComponent(m[2]!)}/chara_card_v2.png`
-  try {
-    return await downscaleRemoteImage(src, 512)
-  } catch {
-    return undefined
-  }
-}
 
 export function CharactersView() {
   const characters = useApp((s) => s.characters)
@@ -84,10 +66,10 @@ export function CharactersView() {
   const [page, setPage] = useState(0)
   const importRef = useRef<HTMLInputElement>(null)
 
-  /** Import a card from a CharacterHub/chub link — the fetch happens
-   *  engine-side (no CORS, no keys in the browser). The importer's own
-   *  avatar is a 200px listing thumbnail; the full card image is fetched
-   *  here first and downscaled, so the stored portrait is a real one. */
+  /** Import cards from links: chub, RisuRealm, CharaVault or a direct file
+   *  link. The fetch happens engine-side (no CORS, no keys in the browser);
+   *  importAnyCardLink picks the route. JannyAI/JanitorAI pages are not
+   *  fetched: the toast offers to open the page. */
   const importFromUrl = async () => {
     const urls = urlValue.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('http'))
     if (!urls.length) return
@@ -95,12 +77,13 @@ export function CharactersView() {
     let okCount = 0
     for (const url of urls) {
       try {
-        const avatar = await fullSizeAvatar(url)
-        const r = await j<{ characters: string[]; name?: string; error?: string }>('/import/url', {
-          method: 'POST', body: JSON.stringify({ url, ...(avatar ? { avatar } : {}) }),
-        })
+        const r = await importAnyCardLink(url, hydrate)
+        if (r.status === 'browser-only') {
+          toast.error(JANNY_MESSAGE, { action: { label: 'Open', onClick: () => window.open(r.openUrl, '_blank', 'noopener,noreferrer') } })
+          continue
+        }
         okCount++
-        toast.success(`Imported ${r.name ?? 'character'}`)
+        toast.success(`Imported ${r.names[0] ?? 'character'}`)
       } catch (e) {
         toast.error(url.split('/').pop() ?? url, { description: String((e as Error).message ?? e) })
       }
@@ -438,13 +421,13 @@ export function CharactersView() {
       <Dialog open={urlOpen} onOpenChange={setUrlOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Import from chub</DialogTitle>
+            <DialogTitle>Import from a link</DialogTitle>
           </DialogHeader>
           <Textarea
             value={urlValue}
             onChange={(e) => setUrlValue(e.target.value)}
-            placeholder={"https://chub.ai/characters/user/name\nhttps://chub.ai/characters/user/another"}
-            aria-label="chub card URLs, one per line"
+            placeholder={"https://chub.ai/characters/user/name\nhttps://realm.risuai.net/character/...\nhttps://charavault.net/cards/..."}
+            aria-label="Card links, one per line"
             rows={5}
             className="font-mono text-xs"
           />

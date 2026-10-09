@@ -1,11 +1,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ImgHTMLAttributes } from 'react'
-import { MagnifyingGlass, Storefront, DownloadSimple, CircleNotch, ArrowSquareOut, Check, Heart, X, CaretLeft, CaretRight, BookOpenText, BookBookmark, User, Tag, Plus, SlidersHorizontal, Fire } from '@phosphor-icons/react'
+import { MagnifyingGlass, Storefront, DownloadSimple, CircleNotch, ArrowSquareOut, Check, Heart, X, CaretLeft, CaretRight, BookOpenText, BookBookmark, User, Tag, Plus, SlidersHorizontal, Fire, UploadSimple, LinkSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,6 +17,7 @@ import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { j, proxyUrl, downscaleRemoteImage } from '@/lib/engine'
+import { importCardFiles, importCardFromLink, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 
 /** One marketplace listing, normalized by the plugin from whatever the
  *  source returns — `id` is the "user/slug" full path (download URL + dedupe). */
@@ -37,8 +39,12 @@ type MarketplaceItem = {
   avatar: string | null
   maxRes: string | null
   createdAt: string | null
+  /** set by the plugin for the non-chub sources */
+  source?: string
+  hasLore?: boolean
+  pageUrl?: string
 }
-type SearchResponse = { source: string; count: number; page: number; first: number; results: MarketplaceItem[] }
+type SearchResponse = { source: string; count: number; page: number; first: number; hasMore?: boolean; results: MarketplaceItem[] }
 /** Full card definition, fetched when a listing is opened for preview. */
 type MarketplaceDetail = {
   id: string
@@ -50,7 +56,10 @@ type MarketplaceDetail = {
   creatorNotes: string
   systemPrompt: string
   postHistoryInstructions: string
+  /** -1: has a lorebook, the count is unknown (RisuRealm) */
   lorebookEntries: number
+  /** RisuRealm: only the author's description; the card comes with the download */
+  partial?: boolean
 }
 
 /** Orderings the catalog accepts. Download order is also its default, and a
@@ -59,9 +68,49 @@ type MarketplaceDetail = {
  *  ordering but a different, much smaller pool, so it gets its own switch. */
 const SORTS = ['downloads', 'rating', 'newest', 'updated', 'tokens', 'name', 'random'] as const
 type SortKey = (typeof SORTS)[number]
-/** Sources the engine plugin knows. Chub only for now — adding one later is
- *  an option here + a branch in plugins/studio-import. */
-const SOURCES = [{ value: 'chub', label: 'Chub' }] as const
+/** Sources of the Store. The first three are catalogs the engine plugin reads;
+ *  JannyAI blocks apps, so it is a drop zone for files the user downloads in
+ *  the browser. `label` is the switcher text, `name` the short name on a card. */
+const SOURCES = [
+  { value: 'chub', label: 'Chub', name: 'Chub' },
+  { value: 'risurealm', label: 'RisuRealm', name: 'RisuRealm' },
+  { value: 'charavault', label: 'CharaVault (archive)', name: 'CharaVault' },
+  { value: 'jannyai', label: 'JannyAI', name: 'JannyAI' },
+] as const
+type SourceId = (typeof SOURCES)[number]['value']
+const sourceName = (id: string | undefined): string => SOURCES.find((s) => s.value === id)?.name ?? ''
+/** Sources with their own adult switch (chub uses its Filters panel). */
+type AdultSource = 'risurealm' | 'charavault'
+const isAdultSource = (s: SourceId): s is AdultSource => s === 'risurealm' || s === 'charavault'
+const NOTES: Partial<Record<SourceId, string>> = {
+  charavault: 'CharaVault is an archive of cards collected from other sites (chub, JannyAI, RisuAI and more). Check the original author before you share a card.',
+  risurealm: 'RisuRealm has no public search API; the app reads its search page, which may change.',
+}
+const JANNY_SEARCH_URL = 'https://jannyai.com/characters/search'
+/** RisuRealm and CharaVault orderings (the plugin maps them to the site's own). */
+const RISU_SORT_OPTIONS = [
+  { value: 'recommended', label: 'Recommended' }, { value: 'trending', label: 'Trending' },
+  { value: 'newest', label: 'Newest' }, { value: 'random', label: 'Random' }, { value: 'downloads', label: 'Most downloaded' },
+] as const
+const CV_SORT_OPTIONS = [
+  { value: 'downloads', label: 'Most downloaded' }, { value: 'rating', label: 'Top rated' },
+  { value: 'newest', label: 'Newest' }, { value: 'oldest', label: 'Oldest' },
+  { value: 'name', label: 'A–Z' }, { value: 'name_desc', label: 'Z–A' }, { value: 'creator', label: 'Creator A–Z' },
+  { value: 'tokens', label: 'Longest cards' }, { value: 'tokens_asc', label: 'Shortest cards' }, { value: 'comments', label: 'Most commented' },
+] as const
+/** Where an archived CharaVault card came from; the value is what the plugin sends. */
+const CV_ORIGINS = [
+  { value: 'chub', label: 'Chub' }, { value: 'risuai', label: 'RisuAI' }, { value: 'janny', label: 'JannyAI' },
+  { value: 'sakura', label: 'Sakura' }, { value: 'crushx', label: 'CrushX' }, { value: 'easygirl', label: 'EasyGirl' },
+  { value: 'nyai', label: 'NyAI' }, { value: 'nsfwaichat', label: 'NSFWAIChat' },
+  { value: 'Character Archive', label: 'Character Archive' }, { value: 'CharaVault', label: 'CharaVault' },
+] as const
+/** Sources with their own tags, creator and Filters panel. */
+type FilterSource = 'chub' | 'charavault'
+const isFilterSource = (s: SourceId): s is FilterSource => s === 'chub' || s === 'charavault'
+/** A search answer is reused this long within the session. */
+const CACHE_MS = 5 * 60_000
+const searchCache = new Map<string, { at: number; r: SearchResponse }>()
 const PAGE_SIZE = 24
 const MAX_TAGS = 6
 
@@ -101,11 +150,11 @@ const NO_FILTERS: Filters = {
 /** Marketplace filters persist per-browser so a tuned search survives a
  *  reload. The first visit starts on the defaults (adult cards hidden); the
  *  user's own choices win from then on. */
-const FILTERS_KEY = 'chrysalis.marketplace.filters'
+const FILTERS_KEYS: Record<FilterSource, string> = { chub: 'chrysalis.marketplace.filters', charavault: 'chrysalis.marketplace.filters.charavault' }
 
-function loadFilters(): Filters {
+function loadFilters(src: FilterSource): Filters {
   try {
-    const raw = localStorage.getItem(FILTERS_KEY)
+    const raw = localStorage.getItem(FILTERS_KEYS[src])
     if (!raw) return NO_FILTERS
     const p = JSON.parse(raw) as Partial<Filters>
     return {
@@ -126,45 +175,85 @@ function loadFilters(): Filters {
  *  because they are a preference, not a position. */
 const BROWSE_KEY = 'chrysalis.marketplace.browse'
 
-interface Browse {
-  source: (typeof SOURCES)[number]['value']
+/** What one source remembers: its query, page and (chub only) the ordering
+ *  and tag controls. `sort` is a chub SortKey, or for RisuRealm
+ *  'recommended' | 'downloads'. */
+interface SourceState {
   query: string
   applied: string
-  sort: SortKey
+  sort: string
   trending: boolean
   tags: string[]
   tagsMode: 'all' | 'any'
   creator: string | null
+  /** CharaVault: where the archived card came from, '' = anywhere */
+  origin: string
   page: number
+}
+
+/** The record keeps one SourceState per source, so switching away and back
+ *  returns to where that source was. Records written before sources existed
+ *  were flat (chub only): they load as the chub state. */
+interface Browse {
+  source: SourceId
+  per: Record<SourceId, SourceState>
   scrollTop: number
 }
 
+const NO_SOURCE: SourceState = {
+  query: '', applied: '', sort: 'downloads', trending: false,
+  tags: [], tagsMode: 'all', creator: null, origin: '', page: 1,
+}
+const initialSourceState = (id: SourceId): SourceState => ({ ...NO_SOURCE, sort: id === 'risurealm' ? 'recommended' : 'downloads' })
 const NO_BROWSE: Browse = {
-  source: 'chub', query: '', applied: '', sort: 'downloads', trending: false,
-  tags: [], tagsMode: 'all', creator: null, page: 1, scrollTop: 0,
+  source: 'chub', scrollTop: 0,
+  per: { chub: initialSourceState('chub'), risurealm: initialSourceState('risurealm'), charavault: initialSourceState('charavault'), jannyai: initialSourceState('jannyai') },
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+function loadSourceState(id: SourceId, raw: unknown): SourceState {
+  const p = (raw && typeof raw === 'object' ? raw : {}) as Partial<SourceState>
+  const sorts: readonly string[] = id === 'risurealm' ? RISU_SORT_OPTIONS.map((o) => o.value) : id === 'charavault' ? CV_SORT_OPTIONS.map((o) => o.value) : id === 'chub' ? SORTS : []
+  return {
+    query: str(p.query),
+    applied: str(p.applied),
+    sort: typeof p.sort === 'string' && sorts.includes(p.sort) ? p.sort : initialSourceState(id).sort,
+    trending: id === 'chub' && p.trending === true,
+    tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string').slice(0, MAX_TAGS) : [],
+    tagsMode: p.tagsMode === 'any' ? 'any' : 'all',
+    creator: typeof p.creator === 'string' ? p.creator : null,
+    origin: id === 'charavault' && CV_ORIGINS.some((o) => o.value === p.origin) ? String(p.origin) : '',
+    page: typeof p.page === 'number' && p.page >= 1 ? Math.floor(p.page) : 1,
+  }
+}
 
 function loadBrowse(): Browse {
   try {
     const raw = sessionStorage.getItem(BROWSE_KEY)
     if (!raw) return NO_BROWSE
-    const p = JSON.parse(raw) as Partial<Browse>
+    const p = JSON.parse(raw) as Record<string, unknown>
+    const stored = p.per && typeof p.per === 'object' ? (p.per as Record<string, unknown>) : { chub: p } // flat record: chub
+    const per = Object.fromEntries(SOURCES.map((s) => [s.value, loadSourceState(s.value, stored[s.value])])) as Record<SourceId, SourceState>
     return {
-      source: SOURCES.some((s) => s.value === p.source) ? (p.source as Browse['source']) : NO_BROWSE.source,
-      query: str(p.query),
-      applied: str(p.applied),
-      sort: SORTS.includes(p.sort as SortKey) ? (p.sort as SortKey) : NO_BROWSE.sort,
-      trending: p.trending === true,
-      tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string').slice(0, MAX_TAGS) : [],
-      tagsMode: p.tagsMode === 'any' ? 'any' : 'all',
-      creator: typeof p.creator === 'string' ? p.creator : null,
-      page: typeof p.page === 'number' && p.page >= 1 ? Math.floor(p.page) : 1,
+      source: SOURCES.some((s) => s.value === p.source) ? (p.source as SourceId) : NO_BROWSE.source,
+      per,
       scrollTop: typeof p.scrollTop === 'number' && p.scrollTop >= 0 ? p.scrollTop : 0,
     }
   } catch {
     return NO_BROWSE
+  }
+}
+
+/** "Show adult cards" for RisuRealm and CharaVault, remembered per source.
+ *  Off by default. Chub keeps its own maturity filter. */
+const ADULT_KEY = 'chrysalis.marketplace.adult'
+function loadAdult(): Record<AdultSource, boolean> {
+  try {
+    const p = JSON.parse(localStorage.getItem(ADULT_KEY) ?? '{}') as Partial<Record<AdultSource, unknown>>
+    return { risurealm: p.risurealm === true, charavault: p.charavault === true }
+  } catch {
+    return { risurealm: false, charavault: false }
   }
 }
 
@@ -180,16 +269,28 @@ const REQUIREMENTS: { key: keyof Filters; label: string }[] = [
   { key: 'requireExpressions', label: 'Expression sprites' },
 ]
 
-const countFilters = (f: Filters): number =>
-  (f.maturity === 'include' ? 0 : 1) + (f.nsfl ? 1 : 0) + (f.includeForks ? 0 : 1)
+/** CharaVault takes only these from the panel (adult has its own switch). */
+const CV_FILTER_KEYS = ['minTokens', 'maxTokens'] as const
+
+const countFilters = (f: Filters, src: FilterSource = 'chub'): number =>
+  src === 'charavault'
+    ? CV_FILTER_KEYS.filter((k) => f[k].trim()).length + (f.excludeTags.length ? 1 : 0) + (f.requireLore ? 1 : 0)
+    : (f.maturity === 'include' ? 0 : 1) + (f.nsfl ? 1 : 0) + (f.includeForks ? 0 : 1)
   + [f.minTokens, f.maxTokens, f.maxDaysAgo, f.minAiRating, f.minTags].filter((v) => v.trim()).length
   + (f.excludeTags.length ? 1 : 0)
   + REQUIREMENTS.filter((r) => f[r.key] === true).length
 
 /** Filters → the plugin's search body. Blank numbers are left out entirely so
  *  the catalog never sees a zero bound. */
-function filterBody(f: Filters): Record<string, unknown> {
+function filterBody(f: Filters, src: FilterSource = 'chub'): Record<string, unknown> {
   const n = (v: string) => { const x = Number(v.trim()); return v.trim() && Number.isFinite(x) && x > 0 ? Math.floor(x) : undefined }
+  if (src === 'charavault') {
+    const cv: Record<string, unknown> = {}
+    for (const k of CV_FILTER_KEYS) { const x = n(f[k]); if (x !== undefined) cv[k] = x }
+    if (f.excludeTags.length) cv.excludeTags = f.excludeTags
+    if (f.requireLore) cv.requireLore = true
+    return cv
+  }
   const body: Record<string, unknown> = {
     nsfw: f.maturity !== 'safe',
     nsfwOnly: f.maturity === 'only',
@@ -232,6 +333,7 @@ function ProxyImage({ url, ...rest }: { url: string | null } & ImgHTMLAttributes
 export function MarketplaceView() {
   const hydrate = useApp((s) => s.hydrate)
   const setView = useApp((s) => s.setView)
+  const openCharacter = useApp((s) => s.openCharacter)
   const characters = useApp((s) => s.characters)
   // name-keyed local library lookup for the "you may already have this" hint
   const libraryNames = useMemo(() => new Set(characters.map((c) => c.name.trim().toLowerCase())), [characters])
@@ -239,31 +341,45 @@ export function MarketplaceView() {
   // The tab comes back where it left off — see BROWSE_KEY. Read once, on
   // mount: re-reading it per render would fight the live state.
   const [restored] = useState(loadBrowse)
-  const [source, setSource] = useState<(typeof SOURCES)[number]['value']>(restored.source)
-  const [query, setQuery] = useState(restored.query)
-  const [applied, setApplied] = useState(restored.applied)
-  const [sort, setSort] = useState<SortKey>(restored.sort)
-  /** The catalog's hot list: ~1.4k cards, NOT the whole catalog. Every other
-   *  filter applies inside it, so a tag search in here returns very little. */
-  const [trending, setTrending] = useState(restored.trending)
-  const [tags, setTags] = useState<string[]>(restored.tags)
-  const [tagsMode, setTagsMode] = useState<'all' | 'any'>(restored.tagsMode)
+  const [source, setSourceRaw] = useState<SourceId>(restored.source)
+  /** One record per source; `cur` is the active one. */
+  const [per, setPer] = useState(restored.per)
+  const cur = per[source]
+  const { query, applied, sort, trending, tags, tagsMode, creator, origin, page } = cur
+  const patch = useCallback((p: Partial<SourceState>) => setPer((all) => ({ ...all, [source]: { ...all[source], ...p } })), [source])
+  const setQuery = (q: string) => patch({ query: q })
+  const setPage = (n: number) => patch({ page: n })
+  const setTags = (t: string[]) => patch({ tags: t })
+  const setTagsMode = (m: 'all' | 'any') => patch({ tagsMode: m })
+  const setCreator = (c: string | null) => patch({ creator: c })
   const [tagsOpen, setTagsOpen] = useState(false)
   const [tagQuery, setTagQuery] = useState('')
   /** Tag vocabulary bootstrapped from the results the user has actually seen
    *  (chub has no tag-list endpoint) — ranked by how often they appeared. */
-  const [tagVocab, setTagVocab] = useState<{ tag: string; n: number }[]>([])
-  const [creator, setCreator] = useState<string | null>(restored.creator)
-  const [filters, setFilters] = useState<Filters>(() => loadFilters())
+  const [vocabs, setVocabs] = useState<Record<FilterSource, { tag: string; n: number }[]>>({ chub: [], charavault: [] })
+  /** Filters are kept per source: chub's never leak into CharaVault. */
+  const [allFilters, setAllFilters] = useState<Record<FilterSource, Filters>>(() => ({ chub: loadFilters('chub'), charavault: loadFilters('charavault') }))
+  const filterSrc: FilterSource = source === 'charavault' ? 'charavault' : 'chub'
+  const filters = allFilters[filterSrc]
+  const tagVocab = vocabs[filterSrc]
+  const setFilters = (f: Filters) => setAllFilters((a) => ({ ...a, [filterSrc]: f }))
   const [filtersOpen, setFiltersOpen] = useState(false)
   // committed filters (Apply) stick around for the next visit
   useEffect(() => {
-    try { localStorage.setItem(FILTERS_KEY, JSON.stringify(filters)) } catch { /* storage unavailable */ }
-  }, [filters])
-  const [page, setPage] = useState(restored.page)
+    for (const src of ['chub', 'charavault'] as const) {
+      try { localStorage.setItem(FILTERS_KEYS[src], JSON.stringify(allFilters[src])) } catch { /* storage unavailable */ }
+    }
+  }, [allFilters])
+  const [adult, setAdult] = useState(loadAdult)
+  useEffect(() => {
+    try { localStorage.setItem(ADULT_KEY, JSON.stringify(adult)) } catch { /* storage unavailable */ }
+  }, [adult])
+  const showAdult = isAdultSource(source) ? adult[source] : false
   const [items, setItems] = useState<MarketplaceItem[]>([])
   const [count, setCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [hasMore, setHasMore] = useState(false)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
+  const [loading, setLoading] = useState(source !== 'jannyai')
   const [error, setError] = useState<string | null>(null)
   const [detail, setDetail] = useState<MarketplaceItem | null>(null)
   const [detailData, setDetailData] = useState<MarketplaceDetail | null>(null)
@@ -273,6 +389,23 @@ export function MarketplaceView() {
   const [downloading, setDownloading] = useState<Record<string, boolean>>({})
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set())
   const reqId = useRef(0)
+  // the paste-a-link row in the header
+  const [linkValue, setLinkValue] = useState('')
+  const [linkBusy, setLinkBusy] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [linkJanny, setLinkJanny] = useState<string | null>(null)
+
+  /** Ids only mean something inside their source. */
+  const keyOf = (item: MarketplaceItem) => `${item.source ?? source}:${item.id}`
+
+  const setSource = (v: SourceId) => {
+    if (v === source) return
+    reqId.current++
+    setItems([])
+    setError(null)
+    setLoading(v !== 'jannyai')
+    setSourceRaw(v)
+  }
 
   // ── browse position ──
   // Scrolling does not re-render, so the offset rides its own ref and the
@@ -282,13 +415,13 @@ export function MarketplaceView() {
   const scrollRootRef = useRef<HTMLDivElement>(null)
   const scrollTopRef = useRef(restored.scrollTop)
   const browseRef = useRef<Omit<Browse, 'scrollTop'>>(restored)
-  browseRef.current = { source, query, applied, sort, trending, tags, tagsMode, creator, page }
+  browseRef.current = { source, per }
   const saveBrowse = useCallback(() => {
     try {
       sessionStorage.setItem(BROWSE_KEY, JSON.stringify({ ...browseRef.current, scrollTop: scrollTopRef.current }))
     } catch { /* storage unavailable */ }
   }, [])
-  useEffect(saveBrowse, [saveBrowse, source, query, applied, sort, trending, tags, tagsMode, creator, page])
+  useEffect(saveBrowse, [saveBrowse, source, per])
   useEffect(() => {
     const el = viewportOf(scrollRootRef.current)
     if (!el) return
@@ -317,37 +450,56 @@ export function MarketplaceView() {
     if (el && restored.scrollTop > 0) el.scrollTop = restored.scrollTop
   }, [loading, items, restored.scrollTop])
 
-  // server-side search — the engine plugin fetches gateway.chub.ai (no CORS,
-  // browser UA, allowlisted host)
+  // server-side search — the engine plugin fetches the source (no CORS,
+  // browser UA, allowlisted hosts). JannyAI has no search: it is a drop zone.
   useEffect(() => {
+    if (source === 'jannyai') return
     const id = ++reqId.current
     setLoading(true)
     setError(null)
-    j<SearchResponse>('/marketplace/search', {
-      method: 'POST',
-      body: JSON.stringify({ source, search: applied, sort, trending, page, first: PAGE_SIZE, tags, tagsMode, ...filterBody(filters), ...(creator ? { creator } : {}) }),
-    })
+    const body = source === 'chub'
+      ? { source, search: applied, sort, trending, page, first: PAGE_SIZE, tags, tagsMode, ...filterBody(filters), ...(creator ? { creator } : {}) }
+      : source === 'charavault'
+        ? { source, search: applied, sort, page, first: PAGE_SIZE, nsfw: showAdult, tags, ...(origin ? { origin } : {}), ...filterBody(filters, 'charavault'), ...(creator ? { creator } : {}) }
+        : { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, ...(sort !== 'recommended' ? { sort } : {}) }
+    const cacheKey = JSON.stringify(body)
+    const apply = (r: SearchResponse) => {
+      setItems(r.results)
+      setCount(r.count)
+      setHasMore(r.hasMore ?? page * (r.first || PAGE_SIZE) < r.count)
+      setPageSize(r.first || PAGE_SIZE)
+      if (!isFilterSource(source)) return
+      setVocabs((all) => {
+        const by = new Map(all[source].map((v) => [v.tag, v.n]))
+        for (const it of r.results) for (const t of it.topics) by.set(t, (by.get(t) ?? 0) + 1)
+        const next = [...by.entries()]
+          .map(([tag, n]) => ({ tag, n }))
+          .sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag))
+          .slice(0, 400)
+        return { ...all, [source]: next }
+      })
+    }
+    const hit = searchCache.get(cacheKey)
+    if (hit && Date.now() - hit.at < CACHE_MS) {
+      apply(hit.r)
+      setLoading(false)
+      return
+    }
+    j<SearchResponse>('/marketplace/search', { method: 'POST', body: JSON.stringify(body) })
       .then((r) => {
         if (id !== reqId.current) return // stale response (params changed mid-flight)
-        setItems(r.results)
-        setCount(r.count)
-        setTagVocab((prev) => {
-          const by = new Map(prev.map((v) => [v.tag, v.n]))
-          for (const it of r.results) for (const t of it.topics) by.set(t, (by.get(t) ?? 0) + 1)
-          return [...by.entries()]
-            .map(([tag, n]) => ({ tag, n }))
-            .sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag))
-            .slice(0, 400)
-        })
+        searchCache.set(cacheKey, { at: Date.now(), r })
+        apply(r)
       })
       .catch((e) => {
         if (id !== reqId.current) return
         setItems([])
         setCount(0)
+        setHasMore(false)
         setError(String((e as Error).message ?? e))
       })
       .finally(() => { if (id === reqId.current) setLoading(false) })
-  }, [source, applied, sort, trending, page, tags, tagsMode, creator, filters])
+  }, [source, applied, sort, trending, page, tags, tagsMode, creator, origin, filters, showAdult])
 
   // full card definition loads when a listing is opened for preview
   useEffect(() => {
@@ -358,19 +510,21 @@ export function MarketplaceView() {
     setDetailLoading(true)
     j<MarketplaceDetail>('/marketplace/detail', {
       method: 'POST',
-      body: JSON.stringify({ source, id: detail.id }),
+      body: JSON.stringify({ source: detail.source ?? source, id: detail.id }),
     })
       .then(setDetailData)
       .catch((e) => setDetailError(String((e as Error).message ?? e)))
       .finally(() => setDetailLoading(false))
   }, [detail, source])
 
-  const pages = Math.max(1, Math.ceil(count / PAGE_SIZE))
+  // chub and CharaVault tell the total; RisuRealm only whether a next page exists
+  const hasTotal = source === 'chub' || source === 'charavault'
+  const pages = Math.max(1, Math.ceil(count / pageSize))
+  const canNext = source === 'chub' ? page < pages : hasMore
 
   const submit = (e?: FormEvent) => {
     e?.preventDefault()
-    setPage(1)
-    setApplied(query.trim())
+    patch({ page: 1, applied: query.trim() })
   }
 
   /** Toggle a tag filter — from the picker, a topic chip, or a typed custom
@@ -378,127 +532,231 @@ export function MarketplaceView() {
   const toggleTag = (t: string) => {
     const clean = t.trim().slice(0, 60)
     if (!clean) return
-    setTags((ts) => (ts.includes(clean) ? ts.filter((x) => x !== clean) : ts.length >= MAX_TAGS ? ts : [...ts, clean]))
-    setPage(1)
+    patch({ tags: tags.includes(clean) ? tags.filter((x) => x !== clean) : tags.length >= MAX_TAGS ? tags : [...tags, clean], page: 1 })
   }
 
-  /** Download a card through the proven chub URL-import path — the engine
-   *  pulls the card PNG + avatar and writes a local character. */
+  /** One success path for every source: the toast offers to open the card. */
+  const openNew = (id: string | undefined) => {
+    if (id) openCharacter(id)
+    setDetail(null)
+    setView('characters')
+  }
+  const added = (name: string, id: string | undefined) =>
+    toast.success(`${name} added to Characters`, { action: { label: 'Open', onClick: () => openNew(id) } })
+
+  /** Install a card. Chub goes through the proven URL-import path — the engine
+   *  pulls the card PNG + avatar and writes a local character. The other
+   *  sources download the file through the plugin and import it like a
+   *  dropped file. */
   const download = async (item: MarketplaceItem) => {
-    if (downloading[item.id] || downloaded.has(item.id)) return
-    setDownloading((d) => ({ ...d, [item.id]: true }))
+    const key = keyOf(item)
+    if (downloading[key] || downloaded.has(key)) return
+    setDownloading((d) => ({ ...d, [key]: true }))
     try {
-      // full-res card image, downscaled to a sane avatar size; fall back to
-      // the listing thumbnail if the full-res fetch fails
-      let avatar: string | undefined
-      if (item.maxRes) {
-        try { avatar = await downscaleRemoteImage(item.maxRes) } catch { /* keep the thumbnail */ }
+      let name = item.name
+      let id: string | undefined
+      if ((item.source ?? source) === 'chub') {
+        // full-res card image, downscaled to a sane avatar size; fall back to
+        // the listing thumbnail if the full-res fetch fails
+        let avatar: string | undefined
+        if (item.maxRes) {
+          try { avatar = await downscaleRemoteImage(item.maxRes) } catch { /* keep the thumbnail */ }
+        }
+        const r = await j<{ characters: string[]; name?: string }>('/import/url', {
+          method: 'POST',
+          body: JSON.stringify({ url: `https://chub.ai/characters/${item.id}`, ...(avatar ? { avatar } : {}) }),
+        })
+        name = r.name ?? name
+        id = r.characters?.[0]
+        await hydrate()
+      } else {
+        if (!item.pageUrl) throw new Error('This listing has no download link.')
+        const r = await importCardFromLink(item.pageUrl, hydrate)
+        name = r.names[0] ?? name
+        id = r.characters[0]
       }
-      const r = await j<{ characters: string[]; name?: string }>('/import/url', {
-        method: 'POST',
-        body: JSON.stringify({ url: `https://chub.ai/characters/${item.id}`, ...(avatar ? { avatar } : {}) }),
-      })
-      setDownloaded((s) => new Set(s).add(item.id))
-      toast.success(`${r.name ?? item.name} added to Characters`)
-      await hydrate()
+      setDownloaded((s) => new Set(s).add(key))
+      added(name, id)
     } catch (e) {
       toast.error(`Couldn't download ${item.name}`, { description: String((e as Error).message ?? e) })
     } finally {
-      setDownloading((d) => { const n = { ...d }; delete n[item.id]; return n })
+      setDownloading((d) => { const n = { ...d }; delete n[key]; return n })
+    }
+  }
+
+  /** The paste-a-link row: JannyAI/JanitorAI pages are never fetched. */
+  const importLink = async (e?: FormEvent) => {
+    e?.preventDefault()
+    const url = linkValue.trim()
+    if (!url || linkBusy) return
+    setLinkError(null)
+    setLinkJanny(null)
+    setLinkBusy(true)
+    try {
+      const r = await importAnyCardLink(url, hydrate)
+      if (r.status === 'browser-only') {
+        setLinkJanny(r.openUrl)
+      } else {
+        added(r.names[0] ?? 'Character', r.characters[0])
+        setLinkValue('')
+      }
+    } catch (err) {
+      setLinkError(String((err as Error).message ?? err))
+    } finally {
+      setLinkBusy(false)
     }
   }
 
   const greetings = detailData ? [detailData.greeting, ...detailData.alternateGreetings].filter((g) => g.trim()) : []
+  const detailSource = (detail?.source ?? source) as SourceId
+
+  const isChub = source === 'chub'
+  const countLabel = !loading && !error && hasTotal ? fmtCount(count) : undefined
+  const detailOpenUrl = detail ? (detailSource === 'chub' ? `https://chub.ai/characters/${detail.id}` : detail.pageUrl) : undefined
 
   return (
-    <SectionPage section="marketplace" count={!loading && !error ? fmtCount(count) : undefined}>
+    <SectionPage section="marketplace" count={countLabel}>
     <div className="flex h-full min-h-0 flex-col overflow-x-clip">
       {/* header (search + filters) scrolls WITH the results (mobile keyboard room) */}
       <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">
       <header className="flex flex-col gap-2 border-b border-border px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <PaneTitle section="marketplace" count={!loading && !error ? fmtCount(count) : undefined} />
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            <Select value={source} onValueChange={(v) => { setSource(v as typeof source); setPage(1) }}>
-              <SelectTrigger className="h-8 w-24 text-xs" aria-label="Marketplace source">
+          <PaneTitle section="marketplace" count={countLabel} />
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+            {isAdultSource(source) && (
+              <label className="flex h-8 items-center gap-1.5 text-xs">
+                <Switch
+                  size="sm"
+                  checked={showAdult}
+                  onCheckedChange={(v) => { setAdult((a) => ({ ...a, [source]: v === true })); setPage(1) }}
+                  aria-label="Show adult cards"
+                />
+                Show adult cards
+              </label>
+            )}
+            {source === 'risurealm' && (
+              <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
+                <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort RisuRealm results">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RISU_SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {source === 'charavault' && (
+              <>
+                <Select value={origin || 'all'} onValueChange={(v) => patch({ origin: v == null || v === 'all' ? '' : String(v), page: 1 })}>
+                  <SelectTrigger className="h-8 w-36 text-xs" aria-label="Where the archived card came from">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Origin: all</SelectItem>
+                    {CV_ORIGINS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
+                  <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort CharaVault results">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CV_SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            {isChub && (
+              <>
+                <Button
+                  variant={trending ? 'secondary' : 'outline'}
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  aria-pressed={trending}
+                  title="The catalog's hot list, a few thousand cards rather than all of them"
+                  onClick={() => patch({ trending: !trending, page: 1 })}
+                >
+                  <Fire className="size-3.5" aria-hidden="true" />
+                  Trending
+                </Button>
+                <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })} disabled={trending}>
+                  <SelectTrigger className="h-8 w-32 text-xs" aria-label="Sort marketplace results">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="downloads">Most downloaded</SelectItem>
+                    <SelectItem value="rating">Top rated</SelectItem>
+                    <SelectItem value="newest">Newest</SelectItem>
+                    <SelectItem value="updated">Recently updated</SelectItem>
+                    <SelectItem value="tokens">Longest cards</SelectItem>
+                    <SelectItem value="name">A–Z</SelectItem>
+                    <SelectItem value="random">Random</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <Select value={source} onValueChange={(v) => setSource(v as SourceId)}>
+              <SelectTrigger className="h-8 w-44 text-xs" aria-label="Marketplace source">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {SOURCES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button
-              variant={trending ? 'secondary' : 'outline'}
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              aria-pressed={trending}
-              title="The catalog's hot list, a few thousand cards rather than all of them"
-              onClick={() => { setTrending((t) => !t); setPage(1) }}
-            >
-              <Fire className="size-3.5" aria-hidden="true" />
-              Trending
-            </Button>
-            <Select value={sort} onValueChange={(v) => { setSort(v as SortKey); setPage(1) }} disabled={trending}>
-              <SelectTrigger className="h-8 w-32 text-xs" aria-label="Sort marketplace results">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="downloads">Most downloaded</SelectItem>
-                <SelectItem value="rating">Top rated</SelectItem>
-                <SelectItem value="newest">Newest</SelectItem>
-                <SelectItem value="updated">Recently updated</SelectItem>
-                <SelectItem value="tokens">Longest cards</SelectItem>
-                <SelectItem value="name">A–Z</SelectItem>
-                <SelectItem value="random">Random</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <form onSubmit={submit} className="relative min-w-0 flex-1">
-            <MagnifyingGlass className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.form?.requestSubmit() }}
-              placeholder="Search characters…"
-              className="h-9 pl-9 pr-9 text-sm"
-              aria-label="Search marketplace"
-            />
-            <Button
-              type="submit"
-              variant="ghost"
-              size="sm"
-              className="absolute right-1 top-1/2 size-7 -translate-y-1/2 p-0 text-muted-foreground"
-              aria-label="Search"
-            >
-              <MagnifyingGlass className="size-4" aria-hidden="true" />
-            </Button>
-          </form>
-          <TagsPicker
-            tags={tags}
-            tagsMode={tagsMode}
-            vocab={tagVocab}
-            query={tagQuery}
-            onQuery={setTagQuery}
-            open={tagsOpen}
-            onOpen={setTagsOpen}
-            onToggle={toggleTag}
-            onMode={() => { setTagsMode((m) => (m === 'all' ? 'any' : 'all')); setPage(1) }}
-          />
-          <FiltersPanel
-            filters={filters}
-            open={filtersOpen}
-            onOpen={setFiltersOpen}
-            onApply={(f) => { setFilters(f); setPage(1); setFiltersOpen(false) }}
-          />
-        </div>
-        {(tags.length > 0 || creator) && (
+        {source !== 'jannyai' && (
+          <div className="flex items-center gap-2">
+            <form onSubmit={submit} className="relative min-w-0 flex-1">
+              <MagnifyingGlass className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.form?.requestSubmit() }}
+                placeholder="Search characters…"
+                className="h-9 pl-9 pr-9 text-sm"
+                aria-label="Search marketplace"
+              />
+              <Button
+                type="submit"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 size-7 -translate-y-1/2 p-0 text-muted-foreground"
+                aria-label="Search"
+              >
+                <MagnifyingGlass className="size-4" aria-hidden="true" />
+              </Button>
+            </form>
+            {isFilterSource(source) && (
+              <>
+                <TagsPicker
+                  tags={tags}
+                  tagsMode={tagsMode}
+                  vocab={tagVocab}
+                  query={tagQuery}
+                  onQuery={setTagQuery}
+                  open={tagsOpen}
+                  onOpen={setTagsOpen}
+                  onToggle={toggleTag}
+                  onMode={() => patch({ tagsMode: tagsMode === 'all' ? 'any' : 'all', page: 1 })}
+                  modes={isChub}
+                />
+                <FiltersPanel
+                  src={source}
+                  filters={filters}
+                  open={filtersOpen}
+                  onOpen={setFiltersOpen}
+                  onApply={(f) => { setFilters(f); setPage(1); setFiltersOpen(false) }}
+                />
+              </>
+            )}
+          </div>
+        )}
+        {isFilterSource(source) && (tags.length > 0 || creator) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {creator && (
               <button
                 type="button"
-                onClick={() => { setCreator(null); setPage(1) }}
+                onClick={() => patch({ creator: null, page: 1 })}
                 className="flex items-center gap-1 rounded-full border border-primary/40 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground transition-colors hover:border-primary"
                 aria-label={`Stop browsing ${creator}`}
               >
@@ -511,7 +769,7 @@ export function MarketplaceView() {
               <button
                 key={t}
                 type="button"
-                onClick={() => { setTags((ts) => ts.filter((x) => x !== t)); setPage(1) }}
+                onClick={() => patch({ tags: tags.filter((x) => x !== t), page: 1 })}
                 className="flex items-center gap-1 rounded-full border border-primary/40 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground transition-colors hover:border-primary"
                 aria-label={`Remove tag filter ${t}`}
               >
@@ -519,10 +777,10 @@ export function MarketplaceView() {
                 <X className="size-3" aria-hidden="true" />
               </button>
             ))}
-            {tags.length > 1 && (
+            {isChub && tags.length > 1 && (
               <button
                 type="button"
-                onClick={() => { setTagsMode((m) => (m === 'all' ? 'any' : 'all')); setPage(1) }}
+                onClick={() => patch({ tagsMode: tagsMode === 'all' ? 'any' : 'all', page: 1 })}
                 className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
                 aria-label={`Match ${tagsMode === 'all' ? 'any' : 'all'} tags instead`}
               >
@@ -531,16 +789,55 @@ export function MarketplaceView() {
             )}
             <button
               type="button"
-              onClick={() => { setTags([]); setCreator(null); setPage(1) }}
+              onClick={() => patch({ tags: [], creator: null, page: 1 })}
               className="rounded-full px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
             >
               clear
             </button>
           </div>
         )}
+        {NOTES[source] && <p className="text-[11px] leading-4 text-muted-foreground">{NOTES[source]}</p>}
+        {source === 'risurealm' && sort === 'downloads' && !applied && (
+          <p className="text-[11px] leading-4 text-muted-foreground">Most downloaded only orders a search: type a word and press Enter.</p>
+        )}
+        <form onSubmit={(e) => void importLink(e)} className="flex flex-col gap-1.5" aria-label="Import a card from a link">
+          {linkError && <p role="alert" className="text-xs text-destructive">{linkError}</p>}
+          {linkJanny && (
+            <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+              <span className="min-w-0 flex-1 basis-60">{JANNY_MESSAGE}</span>
+              <a
+                href={linkJanny}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => { setSource('jannyai'); setLinkJanny(null) }}
+                className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent"
+              >
+                <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open the page
+              </a>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <LinkSimple className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                value={linkValue}
+                onChange={(e) => { setLinkValue(e.target.value); setLinkError(null); setLinkJanny(null) }}
+                placeholder="Paste a card link…"
+                className="h-9 pl-9 text-sm"
+                aria-label="Paste a card link"
+                inputMode="url"
+              />
+            </div>
+            <Button type="submit" size="sm" className="h-9 shrink-0" disabled={linkBusy || !linkValue.trim()}>
+              {linkBusy ? <><CircleNotch className="size-4 animate-spin" aria-hidden="true" />Importing…</> : 'Import'}
+            </Button>
+          </div>
+        </form>
       </header>
 
-        {loading ? (
+        {source === 'jannyai' ? (
+          <JannyPanel hydrate={hydrate} onOpen={() => setView('characters')} />
+        ) : loading ? (
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="overflow-hidden rounded-lg border border-border bg-card">
@@ -557,7 +854,7 @@ export function MarketplaceView() {
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon"><Storefront aria-hidden="true" /></EmptyMedia>
-              <EmptyTitle>Couldn&apos;t reach {SOURCES.find((s) => s.value === source)?.label}</EmptyTitle>
+              <EmptyTitle>Couldn&apos;t reach {sourceName(source)}</EmptyTitle>
               <EmptyDescription>{error}</EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -567,11 +864,15 @@ export function MarketplaceView() {
               <EmptyMedia variant="icon"><Storefront aria-hidden="true" /></EmptyMedia>
               <EmptyTitle>No characters found</EmptyTitle>
               <EmptyDescription>
-                {trending
-                  ? 'Trending is a small slice of the catalog. Turn it off to search everything.'
-                  : applied || tags.length || countFilters(filters)
-                    ? 'Nothing matches. Drop a tag or loosen a filter.'
-                    : 'The catalog came back empty, try again.'}
+                {!isChub
+                  ? applied || tags.length || origin || countFilters(filters, 'charavault')
+                    ? `Nothing matches. Try another word, loosen a filter${showAdult ? '' : ' or show adult cards'}.`
+                    : 'The catalog came back empty, try again.'
+                  : trending
+                    ? 'Trending is a small slice of the catalog. Turn it off to search everything.'
+                    : applied || tags.length || countFilters(filters)
+                      ? 'Nothing matches. Drop a tag or loosen a filter.'
+                      : 'The catalog came back empty, try again.'}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -580,7 +881,7 @@ export function MarketplaceView() {
             <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {items.map((item) => (
                 <button
-                  key={item.id}
+                  key={keyOf(item)}
                   type="button"
                   onClick={() => setDetail(item)}
                   className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-primary/50"
@@ -603,7 +904,13 @@ export function MarketplaceView() {
                         <BookBookmark className="size-3" aria-hidden="true" />library
                       </span>
                     )}
-                    {downloaded.has(item.id) && (
+                    <span
+                      title={`From ${sourceName(item.source ?? source)}`}
+                      className="absolute bottom-1.5 right-1.5 rounded-full bg-background/85 px-1.5 py-0.5 text-[10px] font-medium text-foreground backdrop-blur"
+                    >
+                      {sourceName(item.source ?? source)}
+                    </span>
+                    {downloaded.has(keyOf(item)) && (
                       <span className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                         <Check className="size-3" aria-hidden="true" />
                       </span>
@@ -614,21 +921,24 @@ export function MarketplaceView() {
                     <span className="line-clamp-1 text-[11px] text-muted-foreground">by {item.creator || 'unknown'}</span>
                     <span className="line-clamp-2 text-xs text-muted-foreground">{item.tagline || item.description}</span>
                     <span className="mt-1 flex flex-wrap gap-1">
+                      {item.hasLore && (
+                        <Badge variant="outline" className="gap-0.5 text-[10px]"><BookOpenText className="size-3" aria-hidden="true" />Lorebook</Badge>
+                      )}
                       {item.topics.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                     </span>
                     <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-0.5" title="Downloads"><DownloadSimple className="size-3" aria-hidden="true" />{fmtCount(item.downloads)}</span>
-                      <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(item.favorites)}</span>
+                      {isChub && <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(item.favorites)}</span>}
                     </span>
                   </span>
                 </button>
               ))}
             </div>
-            {pages > 1 && (
+            {(page > 1 || canNext) && (
               <div className="flex items-center justify-center gap-3 py-3 text-xs text-muted-foreground">
-                <Button variant="outline" size="sm" className="h-7" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-                <span>page {page} of {pages}</span>
-                <Button variant="outline" size="sm" className="h-7" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                <Button variant="outline" size="sm" className="h-7" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+                <span>{hasTotal ? `page ${page} of ${pages}` : `page ${page}`}</span>
+                <Button variant="outline" size="sm" className="h-7" disabled={!canNext} onClick={() => setPage(page + 1)}>Next</Button>
               </div>
             )}
           </>
@@ -649,22 +959,30 @@ export function MarketplaceView() {
                   <div className="flex min-w-0 flex-col items-start gap-1.5">
                     <DialogTitle className="leading-tight">{detail.name}</DialogTitle>
                     <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => { if (detail.creator) { setCreator(detail.creator); setPage(1); setDetail(null) } }}
-                        title={`Browse everything by ${detail.creator}`}
-                        className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
-                      >
-                        <User className="size-3" aria-hidden="true" />by {detail.creator || 'unknown'}
-                      </button>
+                      <span className="rounded-full border border-border bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">{sourceName(detailSource)}</span>
+                      {isFilterSource(detailSource) ? (
+                        <button
+                          type="button"
+                          onClick={() => { if (detail.creator) { patch({ creator: detail.creator, page: 1 }); setDetail(null) } }}
+                          title={`Browse everything by ${detail.creator}`}
+                          className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                        >
+                          <User className="size-3" aria-hidden="true" />by {detail.creator || 'unknown'}
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1"><User className="size-3" aria-hidden="true" />by {detail.creator || 'unknown'}</span>
+                      )}
                       {detail.createdAt && <span>{new Date(detail.createdAt).toLocaleDateString()}</span>}
                     </DialogDescription>
                     <span className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-0.5" title="Downloads"><DownloadSimple className="size-3" aria-hidden="true" />{fmtCount(detail.downloads)}</span>
-                      <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(detail.favorites)}</span>
-                      {detail.tokens > 0 && <span title="Chub's token estimate for the card">{fmtCount(detail.tokens)} tok</span>}
+                      {detailSource === 'chub' && <span className="flex items-center gap-0.5" title="Favorites"><Heart className="size-3" aria-hidden="true" />{fmtCount(detail.favorites)}</span>}
+                      {detail.tokens > 0 && <span title="Token estimate for the card">{fmtCount(detail.tokens)} tok</span>}
                       {detail.ratingCount > 0 && (
                         <span>{detail.rating.toFixed(1)} ★ ({fmtCount(detail.ratingCount)})</span>
+                      )}
+                      {detail.hasLore && (
+                        <Badge variant="outline" className="gap-0.5 text-[10px]"><BookOpenText className="size-3" aria-hidden="true" />Lorebook</Badge>
                       )}
                     </span>
                     {libraryNames.has(detail.name.trim().toLowerCase()) && (
@@ -674,7 +992,7 @@ export function MarketplaceView() {
                       </span>
                     )}
                     <span className="mt-0.5 flex flex-wrap gap-1">
-                      {detail.topics.slice(0, 12).map((t) => (
+                      {detail.topics.slice(0, 12).map((t) => isFilterSource(detailSource) ? (
                         <button
                           key={t}
                           type="button"
@@ -684,16 +1002,18 @@ export function MarketplaceView() {
                         >
                           {t}
                         </button>
+                      ) : (
+                        <span key={t} className="rounded-full bg-accent px-2 py-0.5 text-[10px] text-accent-foreground">{t}</span>
                       ))}
                       {detail.topics.length > 12 && <Badge variant="outline" className="text-[10px]">+{detail.topics.length - 12}</Badge>}
                     </span>
                   </div>
                 </div>
               </DialogHeader>
-              {detail.tagline && detail.tagline.trim() && (
+              {detail.tagline && detail.tagline.trim() && !detailData?.partial && (
                 <p className="text-xs italic text-muted-foreground">{detail.tagline}</p>
               )}
-              {detail.description && (
+              {detail.description && !detailData?.partial && (
                 <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{detail.description}</p>
               )}
 
@@ -709,6 +1029,9 @@ export function MarketplaceView() {
                 )}
                 {detailData && (
                   <>
+                    {detailData.partial && (
+                      <p className="text-xs text-muted-foreground">{sourceName(detailSource)} shows the card itself only after download.</p>
+                    )}
                     {greetings.length > 0 && (
                       <section className="flex flex-col gap-1.5">
                         <span className="flex items-center justify-between">
@@ -729,13 +1052,15 @@ export function MarketplaceView() {
                     <CardSection title="Description" text={detailData.personality} />
                     <CardSection title="Scenario" text={detailData.scenario} />
                     <CardSection title="Example dialogue" text={detailData.exampleDialogs} />
-                    <CardSection title="Creator notes" text={detailData.creatorNotes} />
+                    <CardSection title={detailData.partial ? 'Description by the author' : 'Creator notes'} text={detailData.creatorNotes} />
                     <CardSection title="System prompt" text={detailData.systemPrompt} />
                     <CardSection title="Post-history instructions" text={detailData.postHistoryInstructions} />
-                    {detailData.lorebookEntries > 0 && (
+                    {detailData.lorebookEntries !== 0 && (
                       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <BookOpenText className="size-3.5" aria-hidden="true" />
-                        Includes an embedded lorebook ({detailData.lorebookEntries} entries), imported on download.
+                        {detailData.lorebookEntries < 0
+                          ? 'Has a lorebook, imported on download.'
+                          : `Includes an embedded lorebook (${detailData.lorebookEntries} entries), imported on download.`}
                       </p>
                     )}
                   </>
@@ -743,21 +1068,23 @@ export function MarketplaceView() {
               </div>
 
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <a
-                  href={`https://chub.ai/characters/${detail.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
-                >
-                  <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open on Chub
-                </a>
-                {downloaded.has(detail.id) ? (
+                {detailOpenUrl && (
+                  <a
+                    href={detailOpenUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
+                  >
+                    <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open on {sourceName(detailSource)}
+                  </a>
+                )}
+                {downloaded.has(keyOf(detail)) ? (
                   <Button size="sm" onClick={() => { setDetail(null); setView('characters') }}>
                     <Check className="size-4" aria-hidden="true" />Open Characters
                   </Button>
                 ) : (
-                  <Button size="sm" disabled={downloading[detail.id]} onClick={() => void download(detail)}>
-                    {downloading[detail.id]
+                  <Button size="sm" disabled={downloading[keyOf(detail)]} onClick={() => void download(detail)}>
+                    {downloading[keyOf(detail)]
                       ? <><CircleNotch className="size-4 animate-spin" aria-hidden="true" />Downloading…</>
                       : <><DownloadSimple className="size-4" aria-hidden="true" />Download</>}
                   </Button>
@@ -769,6 +1096,84 @@ export function MarketplaceView() {
       </Dialog>
     </div>
     </SectionPage>
+  )
+}
+
+/** JannyAI refuses to serve cards to apps, so the Store cannot search or fetch
+ *  there. The user downloads a card in the browser and drops the file here. */
+function JannyPanel({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [over, setOver] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<string[] | null>(null)
+
+  const take = async (files: FileList | File[] | null) => {
+    if (!files?.length || busy) return
+    setBusy(true)
+    try {
+      const r = await importCardFiles(files, hydrate)
+      setDone(r.names)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-1 text-sm">
+        <p>JannyAI blocks apps from downloading cards, so this takes two steps.</p>
+        <p className="text-muted-foreground">Open JannyAI, find a character and press its download button (PNG).</p>
+        <p className="text-muted-foreground">Drop the downloaded files here.</p>
+      </div>
+      <div>
+        <a
+          href={JANNY_SEARCH_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
+        >
+          <ArrowSquareOut className="size-3.5" aria-hidden="true" />Open JannyAI
+        </a>
+      </div>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setOver(true) }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => { e.preventDefault(); setOver(false); void take(e.dataTransfer.files) }}
+        disabled={busy}
+        aria-label="Drop card files here, or click to choose them"
+        className={cn(
+          'flex min-h-48 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent/40',
+          over && 'border-primary bg-accent/60',
+        )}
+      >
+        {busy ? <CircleNotch className="size-8 animate-spin" aria-hidden="true" /> : <UploadSimple className="size-8" aria-hidden="true" />}
+        <span className="font-medium text-foreground">{busy ? 'Importing…' : 'Drop card files here'}</span>
+        <span className="text-xs">or click to choose files (.png, .json, .charx)</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".png,.json,.charx"
+        multiple
+        className="hidden"
+        aria-label="Choose card files"
+        onChange={(e) => { void take(e.target.files); e.target.value = '' }}
+      />
+      {done && (
+        <div className="flex flex-col gap-2 text-sm" role="status">
+          {done.length > 0 ? (
+            <>
+              <p>Imported: {done.join(', ')}</p>
+              <div><Button variant="outline" size="sm" onClick={onOpen}>Open Characters</Button></div>
+            </>
+          ) : (
+            <p className="text-muted-foreground">Nothing was imported.</p>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -798,6 +1203,8 @@ function TagsPicker(props: {
   onOpen: (o: boolean) => void
   onToggle: (t: string) => void
   onMode: () => void
+  /** all/any matching; CharaVault only takes "all" */
+  modes: boolean
 }) {
   const q = props.query.trim().toLowerCase()
   const activeLower = new Set(props.tags.map((t) => t.toLowerCase()))
@@ -894,7 +1301,7 @@ function TagsPicker(props: {
             </button>
           )}
         </div>
-        {props.tags.length > 1 && (
+        {props.modes && props.tags.length > 1 && (
           <div className="border-t border-border p-2">
             <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={props.onMode}>
               match: {props.tagsMode === 'all' ? 'all tags' : 'any tag'}, tap to switch
@@ -909,6 +1316,7 @@ function TagsPicker(props: {
 /** The catalog's narrowing controls. Edits collect in a draft so a
  *  half-typed number never fires a search; Apply commits the whole set. */
 function FiltersPanel(props: {
+  src: FilterSource
   filters: Filters
   open: boolean
   onOpen: (open: boolean) => void
@@ -916,10 +1324,12 @@ function FiltersPanel(props: {
 }) {
   const [draft, setDraft] = useState<Filters>(props.filters)
   const [excludeText, setExcludeText] = useState(props.filters.excludeTags.join(', '))
-  const active = countFilters(props.filters)
+  const cv = props.src === 'charavault'
+  const active = countFilters(props.filters, props.src)
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) => setDraft((d) => ({ ...d, [key]: value }))
   const parseTags = (s: string) => s.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 12)
   const apply = () => props.onApply({ ...draft, excludeTags: parseTags(excludeText) })
+  const lorebookOnly = REQUIREMENTS.filter((r) => r.key === 'requireLore')
 
   const num = (key: 'minTokens' | 'maxTokens' | 'maxDaysAgo' | 'minTags', label: string, placeholder: string) => (
     <label className="flex min-w-0 flex-1 flex-col gap-1">
@@ -966,6 +1376,7 @@ function FiltersPanel(props: {
       />
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-1.5rem)] p-0">
         <div className="max-h-[min(70dvh,32rem)] space-y-3 overflow-y-auto p-3">
+          {!cv && (<>
           <div className="flex flex-col gap-1">
             <span className="text-[11px] text-muted-foreground">Adult cards</span>
             <div className="flex gap-1">
@@ -995,11 +1406,13 @@ function FiltersPanel(props: {
           </label>
 
           <Separator />
+          </>)}
 
           <div className="flex gap-2">
             {num('minTokens', 'Min tokens', 'any')}
             {num('maxTokens', 'Max tokens', 'any')}
           </div>
+          {!cv && (<>
           <div className="flex gap-2">
             {num('maxDaysAgo', 'Created within (days)', 'any')}
             {num('minTags', 'Min tags', 'any')}
@@ -1017,6 +1430,7 @@ function FiltersPanel(props: {
               </SelectContent>
             </Select>
           </label>
+          </>)}
 
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-muted-foreground">Exclude tags</span>
@@ -1033,7 +1447,7 @@ function FiltersPanel(props: {
 
           <span className="block text-[11px] text-muted-foreground">Must have</span>
           <div className="grid gap-2">
-            {REQUIREMENTS.map((r) => (
+            {(cv ? lorebookOnly : REQUIREMENTS).map((r) => (
               <label key={r.key} className="flex items-center gap-2 text-xs">
                 <Checkbox checked={draft[r.key] === true} onCheckedChange={(v) => set(r.key, (v === true) as Filters[typeof r.key])} />
                 {r.label}
