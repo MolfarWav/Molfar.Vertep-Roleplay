@@ -34,7 +34,7 @@ the top level, not under `data`.
 | `character_version` | Version string of the card. |
 | `tags` | Array of strings. |
 | `avatar` | The portrait as a base64 data URL or a stored media URL. Tens of KB: never print or send it. |
-| `extensions` | Free object for other tools. Known keys: `molfar_card_type` (`narrator`, `single`, `group`, `assistant`, `other`), `molfar_soul` (the dashboard's Soul tab, `docs/SOUL.md`: leave it to that tab). Imported cards carry others (`world`, `talkativeness`, `fav`, `chub`…): keep them. |
+| `extensions` | Free object for other tools. Known keys: `molfar_card_type` (`narrator`, `single`, `group`, `assistant`, `other`), `molfar_soul` (the dashboard's Soul tab, `docs/SOUL.md`: leave it to that tab). `molfar_translation` (written by Translate: `{ target, provider, at, original: { <field>: <text before the translation> } }`, used by "Restore original"; leave it alone). Imported cards carry others (`world`, `talkativeness`, `fav`, `chub`…): keep them. |
 | `studio` | The app's own bag, below. |
 
 Unknown top-level fields from an imported card are kept as they are and written back.
@@ -52,7 +52,7 @@ An imported card may have no `studio` yet; json_set creates it when you set a ke
 | `versions` | Saved snapshots: `[{ id, label, savedAt, snapshot }]`. |
 | `stats` | Tracked bars: `[{ id, name, initial, max, color }]`. |
 | `colors` | `{ name, dialogue, bubble }` CSS colors for this character's messages. |
-| `expressions`, `defaultExpression` | Sprite images per emotion: `[{ name, url }]`, and the one shown by default. |
+| `expressions`, `defaultExpression` | Sprite images per emotion: `[{ name, url }]` (`url` is a data URL inside card.json; imports downscale them so the file stays under the 4 MB a plugin may write), and the one shown by default. |
 | `gallery` | `[{ id, url, type: "image" | "video", caption }]`. |
 | `voiceProvider`, `voiceId` | Text-to-speech voice. |
 | `characterRegexIds` | Regex scripts that apply only to this character. |

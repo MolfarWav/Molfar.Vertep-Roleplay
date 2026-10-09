@@ -20,6 +20,10 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - Files starting with `_` are AI-only templates: copy, never edit.
 - Never ask for or print `/avatar` or `/studio/avatar` (base64 images). Leave
   `/extensions/molfar_soul` to the Soul tab.
+- `/extensions/molfar_translation` keeps the texts from before a translation
+  (for "Restore original"): leave it alone. To translate a card, point the user
+  to Translate in the character editor instead of rewriting fields one by one.
+- `/studio/expressions` holds the emotion images (base64): never print it.
 
 ## The calls
 1. Read: ONE `json_get` with every pointer you need, for example

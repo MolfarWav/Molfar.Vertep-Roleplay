@@ -1,6 +1,6 @@
 {
   "name": "Roleplay",
-  "version": "4.27.0",
+  "version": "4.28.0",
   "engine": ">=1.0.0",
   "kind": "app",
   "description": "A power-user roleplay studio wired to the engine: streaming generation over the WS bus, with characters, chats, swipes, forks, groups, presets, lorebooks, regex and personas all server-backed on git-tracked data. Imports the community interchange formats (PNG and JSON cards, chat transcripts, presets, regex scripts), exports and restores full backups, and reads the live model catalog. Icon rail navigation, tabbed character editor, markdown chat with swipes and branches, role-switchable prompt manager.",

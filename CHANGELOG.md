@@ -4,7 +4,18 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
-## 4.27.0
+## 4.28.0
+
+The Marketplace gets five more storefronts, cards of any size install with their emotion images, and cards can be translated. Needs Molfar Vertep 0.9.3 for cards over 16 MB and for RisuRealm thumbnails: update the engine too (on an older engine the rest works, and a big card says the engine is too old).
+
+- **Six storefronts.** Next to Chub: **RisuRealm** (recommended, trending, newest, random, most downloaded; adult switch), **CharaVault** (an archive of cards from other sites: tags in and out, creator, token range, "has a lorebook", where the card came from, ten orderings), **Wyvern** and **Pygmalion** (their public catalogs, SFW without an account), and **JannyAI** (search, tags, token range; the site lets only your browser download, so "Get on JannyAI" opens the card's page and you drop the PNG on the bar above the grid). Every card shows where it is from, a gold **Lorebook** and a rose **Emotions** badge where the site says so, and each source keeps its own search, page and filters. Searches are kept for 5 minutes.
+- **Paste a card link** in the Marketplace or on the Characters page: RisuRealm, CharaVault, Wyvern, Pygmalion, GitHub (also "blob" links), Hugging Face, Catbox and Discord files. JannyAI links open the page instead; other sites ask you to download and drop the file.
+- **Big cards install.** A card is downloaded through the engine (up to 200 MB) and read in the app: a RisuRealm pack with 120 emotion images installs in about a minute. charx files (also RisuRealm's JPEG-covered ones), PNG cards with embedded images and JSON cards all work, and "Open character" goes straight to the new character.
+- **Emotion images come in.** RisuAI's images ("x-risu-asset", also inside PNG cards) become the character's expression sprites, named without the character prefix ("Yrel_angry" -> "angry"). They are stored inside the card, so the app sizes them to what the card can hold: 512-640 px for 20-30 images, smaller for very large packs (a note says when some did not fit). Full-size images as separate files come in a later version.
+- **Translate a card.** In the Marketplace's card window: Translate shows the card in your language (English by default), and "Install translated" installs it translated, its lorebook too (the translated keys are added next to the original ones, so entries fire in both languages). In the character editor: Translate for a card you already have, and "Restore original" to go back. It uses the provider set in Tools → Translation; the original texts are kept in the card.
+- **Sprites follow Ukrainian and Russian replies.** The emotion detector knew English words only, so a chat in another language always showed the default sprite.
+- **The floating sprite folds and resizes.** A × folds it into a small chip (a click brings it back), a corner handle resizes it; size, place and state are remembered.
+- Fixes: PNG cards dropped on the Characters page or Home keep Cyrillic and Korean names intact (they came in garbled); V3 PNG cards that put the "ccv3" chunk first are read (they counted as "no card"); a chub link now imports from the card PNG itself, with all its fields; a charx whose main icon is large still gets a portrait.
 
 Models are set up in one place, chats can continue each other, and portraits show everywhere. Needs Molfar Vertep 0.9.2 for the model settings and the quick switch: update the engine too (on an older engine the app still runs, without them).
 
