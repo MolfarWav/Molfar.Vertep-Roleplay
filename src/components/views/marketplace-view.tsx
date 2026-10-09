@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ImgHTMLAttributes } from 'react'
-import { MagnifyingGlass, Storefront, DownloadSimple, CircleNotch, ArrowSquareOut, Check, Heart, X, CaretLeft, CaretRight, BookOpenText, BookBookmark, User, Tag, Plus, SlidersHorizontal, Fire, UploadSimple, LinkSimple } from '@phosphor-icons/react'
+import { MagnifyingGlass, Storefront, DownloadSimple, CircleNotch, ArrowSquareOut, Check, Heart, X, CaretLeft, CaretRight, BookOpenText, BookBookmark, User, Tag, Plus, SlidersHorizontal, Fire, UploadSimple, LinkSimple, Translate, Smiley } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,10 @@ import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { j, proxyUrl, downscaleRemoteImage } from '@/lib/engine'
 import { importCardFiles, importCardFromLink, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
+import {
+  TRANSLATE_LANGUAGES, TRANSLATE_CONCURRENCY, runLimited, planPreview, buildPreview, translateInstalled,
+  type Translator, type PreviewOutput,
+} from '@/lib/card-translate'
 
 /** One marketplace listing, normalized by the plugin from whatever the
  *  source returns — `id` is the "user/slug" full path (download URL + dedupe). */
@@ -42,6 +46,8 @@ type MarketplaceItem = {
   /** set by the plugin for the non-chub sources */
   source?: string
   hasLore?: boolean
+  /** RisuRealm: the card brings emotion images */
+  hasEmotions?: boolean
   pageUrl?: string
   /** Wyvern: lorebooks the card links on the site (they do not come with the import) */
   linkedBooks?: number
@@ -135,6 +141,18 @@ const CV_ORIGINS = [
 /** Sources with their own tags, creator and Filters panel. */
 type FilterSource = 'chub' | 'charavault' | 'janny'
 const isFilterSource = (s: SourceId): s is FilterSource => s === 'chub' || s === 'charavault' || s === 'janny'
+/** The language the Store translates to, remembered per browser. */
+const TRANSLATE_TO_KEY = 'chrysalis.marketplace.translateTo'
+function loadTranslateTo(): string {
+  try {
+    const v = localStorage.getItem(TRANSLATE_TO_KEY)
+    return v && TRANSLATE_LANGUAGES.includes(v) ? v : 'English'
+  } catch {
+    return 'English'
+  }
+}
+/** Translated previews, per (source, id, language), for the session. */
+const previewCache = new Map<string, PreviewOutput<MarketplaceDetail>>()
 /** A search answer is reused this long within the session. */
 const CACHE_MS = 5 * 60_000
 const searchCache = new Map<string, { at: number; r: SearchResponse }>()
@@ -366,7 +384,7 @@ function ProxyImage({ url, ...rest }: { url: string | null } & ImgHTMLAttributes
 export function MarketplaceView() {
   const hydrate = useApp((s) => s.hydrate)
   const setView = useApp((s) => s.setView)
-  const openCharacter = useApp((s) => s.openCharacter)
+  const openCharacterOnTab = useApp((s) => s.openCharacterOnTab)
   const characters = useApp((s) => s.characters)
   // name-keyed local library lookup for the "you may already have this" hint
   const libraryNames = useMemo(() => new Set(characters.map((c) => c.name.trim().toLowerCase())), [characters])
@@ -437,12 +455,29 @@ export function MarketplaceView() {
   const keyOf = (item: MarketplaceItem) => `${item.source ?? source}:${item.id}`
 
   const closeDetail = () => {
+    trToken.current++
+    setTview('original')
+    setTrBusy(null)
+    setTrError(null)
     detailReqId.current++
     setDetail(null)
     setDetailData(null)
     setDetailError(null)
     setDetailLoading(false)
   }
+
+  // translation: the language, the preview's progress, and which view is on
+  const translation = useApp((s) => s.settings.translation)
+  const [translateTo, setTranslateTo] = useState(loadTranslateTo)
+  useEffect(() => {
+    try { localStorage.setItem(TRANSLATE_TO_KEY, translateTo) } catch { /* storage unavailable */ }
+  }, [translateTo])
+  const [tview, setTview] = useState<'original' | 'translated'>('original')
+  const [trBusy, setTrBusy] = useState<{ done: number; total: number } | null>(null)
+  const [trError, setTrError] = useState<string | null>(null)
+  const trToken = useRef(0)
+  /** Where each installed card landed, for "Open". */
+  const installedIds = useRef(new Map<string, string>())
 
   const setSource = (v: SourceId) => {
     if (v === source) return
@@ -565,6 +600,10 @@ export function MarketplaceView() {
   // full card definition loads when a listing is opened for preview
   useEffect(() => {
     const id = ++detailReqId.current
+    trToken.current++
+    setTview('original')
+    setTrBusy(null)
+    setTrError(null)
     if (!detail) return
     // JannyAI: the listing is all there is (its site is not reachable from the app)
     if ((detail.source ?? source) === 'janny') { setDetailData(null); setDetailError(null); setDetailLoading(false); return }
@@ -601,15 +640,52 @@ export function MarketplaceView() {
 
   /** One success path for every source: the toast offers to open the card. */
   const openNew = (id: string | undefined) => {
-    if (id) openCharacter(id)
     closeDetail()
-    setView('characters')
+    // the character's own page (its editor), not the library
+    if (id) openCharacterOnTab(id, 'core')
+    else setView('characters')
   }
-  const added = (name: string, id: string | undefined, skippedBooks = 0) =>
+  const added = (name: string, id: string | undefined, skippedBooks = 0, notes: readonly string[] = []) => {
     toast.success(`${name} added to Characters`, {
       action: { label: 'Open', onClick: () => openNew(id) },
       ...(skippedBooks > 0 ? { description: `${skippedBooks} linked lorebook${skippedBooks === 1 ? ' was' : 's were'} not imported.` } : {}),
     })
+    for (const n of notes) toast.info(n)
+  }
+
+  /** One request to the app's translator, with the Store's language. */
+  const makeTranslator = (): Translator => async (text) => {
+    const r = await j<{ text: string }>('/translate', {
+      method: 'POST',
+      body: JSON.stringify({ text, target: translateTo, provider: translation.provider, deeplKey: translation.deeplKey }),
+    })
+    return r.text
+  }
+
+  /** After an install in the translated view: the new character's texts and
+   *  its embedded lorebook, translated in the library (originals are kept in
+   *  the card's extensions). The card stays installed whatever happens. */
+  const translateNew = async (id: string, name: string) => {
+    const tid = toast.loading(`Translating ${name}…`)
+    const st = () => useApp.getState()
+    try {
+      const res = await translateInstalled(id, {
+        translate: makeTranslator(),
+        getCharacter: (cid) => st().characters.find((c) => c.id === cid),
+        updateCharacter: (cid, patch) => st().updateCharacter(cid, patch),
+        getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
+        updateBook: (bid, patch) => st().updateLorebook(bid, patch),
+        progress: (done, total) => { toast.loading(`Translating ${name}: ${done}/${total}`, { id: tid }) },
+      }, { target: translateTo, provider: translation.provider || 'llm', at: new Date().toISOString() })
+      if (res.notTranslated.length) {
+        toast.warning(`${name} is only partly translated`, { id: tid, description: `Not translated: ${res.notTranslated.join(', ')}. The card is installed.` })
+      } else {
+        toast.success(`${name} translated to ${translateTo}`, { id: tid, action: { label: 'Open', onClick: () => openNew(id) } })
+      }
+    } catch (e) {
+      toast.error(`Couldn't translate ${name}`, { id: tid, description: `${String((e as Error).message ?? e)} The card is installed.` })
+    }
+  }
 
   /** JannyAI cards open on the site; the note says what to do next, once. */
   const getOnJanny = () => {
@@ -622,7 +698,7 @@ export function MarketplaceView() {
    *  pulls the card PNG + avatar and writes a local character. The other
    *  sources download the file through the plugin and import it like a
    *  dropped file. */
-  const download = async (item: MarketplaceItem) => {
+  const download = async (item: MarketplaceItem, translated = false) => {
     const key = keyOf(item)
     if (downloading[key] || downloaded.has(key)) return
     setDownloading((d) => ({ ...d, [key]: true }))
@@ -630,6 +706,7 @@ export function MarketplaceView() {
       let name = item.name
       let id: string | undefined
       let skipped = 0
+      let notes: readonly string[] = []
       if ((item.source ?? source) === 'chub') {
         // full-res card image, downscaled to a sane avatar size; fall back to
         // the listing thumbnail if the full-res fetch fails
@@ -650,9 +727,12 @@ export function MarketplaceView() {
         name = r.names[0] ?? name
         id = r.characters[0]
         skipped = r.skippedBooks ?? 0
+        notes = r.notes
       }
       setDownloaded((s) => new Set(s).add(key))
-      added(name, id, skipped)
+      if (id) installedIds.current.set(key, id)
+      added(name, id, skipped, notes)
+      if (translated && id) void translateNew(id, name)
     } catch (e) {
       toast.error(`Couldn't download ${item.name}`, { description: String((e as Error).message ?? e) })
     } finally {
@@ -673,7 +753,7 @@ export function MarketplaceView() {
       if (r.status === 'browser-only') {
         setLinkJanny(r.openUrl)
       } else {
-        added(r.names[0] ?? 'Character', r.characters[0], r.skippedBooks ?? 0)
+        added(r.names[0] ?? 'Character', r.characters[0], r.skippedBooks ?? 0, r.notes ?? [])
         setLinkValue('')
       }
     } catch (err) {
@@ -683,8 +763,46 @@ export function MarketplaceView() {
     }
   }
 
-  const greetings = detailData ? [detailData.greeting, ...detailData.alternateGreetings].filter((g) => g.trim()) : []
   const detailSource = (detail?.source ?? source) as SourceId
+  const trKey = detail ? `${detailSource}:${detail.id}:${translateTo}` : ''
+  const trOut = trKey ? previewCache.get(trKey) : undefined
+  const translatedOn = tview === 'translated' && !!trOut
+  /** What the dialog shows: the translation when that view is on. */
+  const shown = {
+    tagline: translatedOn ? trOut.tagline : detail?.tagline ?? '',
+    description: translatedOn ? trOut.description : detail?.description ?? '',
+    data: translatedOn && trOut.detail ? trOut.detail : detailData,
+  }
+  const greetings = shown.data ? [shown.data.greeting, ...shown.data.alternateGreetings].filter((g) => g.trim()) : []
+
+  const translatePreview = async () => {
+    if (!detail) return
+    setTrError(null)
+    if (previewCache.has(trKey)) { setTview('translated'); return }
+    const input = { tagline: detail.tagline, description: detail.description, detail: detailData }
+    const plan = planPreview(input)
+    if (!plan.length) { setTrError('There is no text to translate.'); return }
+    const token = ++trToken.current
+    const key = trKey
+    const ask = makeTranslator()
+    const answers: Record<string, string> = {}
+    let failure: string | null = null
+    let done = 0
+    setTrBusy({ done: 0, total: plan.length })
+    await runLimited(plan, TRANSLATE_CONCURRENCY, async (part) => {
+      try {
+        answers[part.id] = await ask(part.text)
+      } catch (e) {
+        failure = String((e as Error).message ?? e)
+      }
+      if (token === trToken.current) setTrBusy({ done: ++done, total: plan.length })
+    }, () => failure !== null)
+    if (token !== trToken.current) return // another card was opened meanwhile
+    setTrBusy(null)
+    if (failure) { setTrError(`Translation failed: ${failure}`); return }
+    previewCache.set(key, buildPreview(input, answers))
+    setTview('translated')
+  }
 
   const isChub = source === 'chub'
   const countLabel = !loading && !error && hasTotal ? fmtCount(count) : undefined
@@ -955,7 +1073,7 @@ export function MarketplaceView() {
         </form>
       </header>
 
-        {source === 'janny' && <DropBar hydrate={hydrate} onOpen={() => setView('characters')} />}
+        {source === 'janny' && <DropBar hydrate={hydrate} onOpen={openNew} />}
         {loading ? (
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -1040,9 +1158,7 @@ export function MarketplaceView() {
                     {item.creator && <span className="line-clamp-1 text-[11px] text-muted-foreground">by {item.creator}</span>}
                     <span className="line-clamp-2 text-xs text-muted-foreground">{item.tagline || item.description}</span>
                     <span className="mt-1 flex flex-wrap gap-1">
-                      {item.hasLore && (
-                        <Badge variant="outline" className="gap-0.5 text-[10px]"><BookOpenText className="size-3" aria-hidden="true" />Lorebook</Badge>
-                      )}
+                      <FeatureBadges item={item} />
                       {item.topics.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                     </span>
                     {(item.downloads > 0 || item.favorites > 0) && (
@@ -1102,9 +1218,7 @@ export function MarketplaceView() {
                       {detail.ratingCount > 0 && (
                         <span>{detail.rating.toFixed(1)} ★ ({fmtCount(detail.ratingCount)})</span>
                       )}
-                      {detail.hasLore && (
-                        <Badge variant="outline" className="gap-0.5 text-[10px]"><BookOpenText className="size-3" aria-hidden="true" />Lorebook</Badge>
-                      )}
+                      <FeatureBadges item={detail} />
                       {(detail.linkedBooks ?? 0) > 0 && (
                         <span title="Wyvern lorebooks are not readable without an account">{detail.linkedBooks} linked book{detail.linkedBooks === 1 ? '' : 's'} (not imported)</span>
                       )}
@@ -1134,11 +1248,49 @@ export function MarketplaceView() {
                   </div>
                 </div>
               </DialogHeader>
-              {detail.tagline && detail.tagline.trim() && !detailData?.partial && (
-                <p className="text-xs italic text-muted-foreground">{detail.tagline}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={!!trBusy || (detailSource !== 'janny' && detailLoading)}
+                  onClick={() => void translatePreview()}
+                >
+                  {trBusy
+                    ? <><CircleNotch className="size-3.5 animate-spin" aria-hidden="true" />Translating {trBusy.done}/{trBusy.total}</>
+                    : <><Translate className="size-3.5" aria-hidden="true" />Translate</>}
+                </Button>
+                <Select value={translateTo} onValueChange={(v) => { if (v) { setTranslateTo(String(v)); setTview('original'); setTrError(null) } }}>
+                  <SelectTrigger className="h-7 w-44 gap-1 text-xs" aria-label="Translate to">
+                    <span className="text-muted-foreground">To:</span>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSLATE_LANGUAGES.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {trOut && (
+                  <span className="inline-flex overflow-hidden rounded-md border border-input" role="group" aria-label="Which text to show">
+                    {(['original', 'translated'] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        aria-pressed={tview === v}
+                        onClick={() => setTview(v)}
+                        className={cn('h-7 px-2.5 text-xs font-medium transition-colors', tview === v ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50')}
+                      >
+                        {v === 'original' ? 'Original' : 'Translated'}
+                      </button>
+                    ))}
+                  </span>
+                )}
+              </div>
+              {trError && <p role="alert" className="text-xs text-destructive">{trError}</p>}
+              {shown.tagline.trim() && !detailData?.partial && (
+                <p className="text-xs italic text-muted-foreground">{shown.tagline}</p>
               )}
-              {detail.description && !detailData?.partial && (
-                <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{detail.description}</p>
+              {shown.description && !detailData?.partial && (
+                <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{shown.description}</p>
               )}
 
               {detailSource !== 'janny' && (
@@ -1174,12 +1326,12 @@ export function MarketplaceView() {
                         </div>
                       </section>
                     )}
-                    <CardSection title="Description" text={detailData.personality} />
-                    <CardSection title="Scenario" text={detailData.scenario} />
-                    <CardSection title="Example dialogue" text={detailData.exampleDialogs} />
-                    <CardSection title={detailData.partial ? 'Description by the author' : 'Creator notes'} text={detailData.creatorNotes} />
-                    <CardSection title="System prompt" text={detailData.systemPrompt} />
-                    <CardSection title="Post-history instructions" text={detailData.postHistoryInstructions} />
+                    <CardSection title="Description" text={shown.data!.personality} />
+                    <CardSection title="Scenario" text={shown.data!.scenario} />
+                    <CardSection title="Example dialogue" text={shown.data!.exampleDialogs} />
+                    <CardSection title={detailData.partial ? 'Description by the author' : 'Creator notes'} text={shown.data!.creatorNotes} />
+                    <CardSection title="System prompt" text={shown.data!.systemPrompt} />
+                    <CardSection title="Post-history instructions" text={shown.data!.postHistoryInstructions} />
                     {detailData.lorebookEntries !== 0 && (
                       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <BookOpenText className="size-3.5" aria-hidden="true" />
@@ -1215,14 +1367,14 @@ export function MarketplaceView() {
                     <ArrowSquareOut className="size-3.5" aria-hidden="true" />Get on {sourceName(detailSource)}
                   </a>
                 ) : downloaded.has(keyOf(detail)) ? (
-                  <Button size="sm" onClick={() => { closeDetail(); setView('characters') }}>
-                    <Check className="size-4" aria-hidden="true" />Open Characters
+                  <Button size="sm" onClick={() => openNew(installedIds.current.get(keyOf(detail)))}>
+                    <Check className="size-4" aria-hidden="true" />Open character
                   </Button>
                 ) : (
-                  <Button size="sm" disabled={downloading[keyOf(detail)]} onClick={() => void download(detail)}>
+                  <Button size="sm" disabled={downloading[keyOf(detail)]} onClick={() => void download(detail, translatedOn)}>
                     {downloading[keyOf(detail)]
                       ? <><CircleNotch className="size-4 animate-spin" aria-hidden="true" />Downloading…</>
-                      : <><DownloadSimple className="size-4" aria-hidden="true" />Download</>}
+                      : <><DownloadSimple className="size-4" aria-hidden="true" />{translatedOn ? 'Install translated' : 'Download'}</>}
                   </Button>
                 )}
               </div>
@@ -1237,18 +1389,18 @@ export function MarketplaceView() {
 
 /** JannyAI cards can only be downloaded in the browser: this bar takes the
  *  files the user saved there (also any other PNG, JSON or charx card). */
-function DropBar({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen: () => void }) {
+function DropBar({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen: (id?: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState<string[] | null>(null)
+  const [done, setDone] = useState<{ names: string[]; first?: string } | null>(null)
 
   const take = async (files: FileList | File[] | null) => {
     if (!files?.length || busy) return
     setBusy(true)
     try {
       const r = await importCardFiles(files, hydrate)
-      setDone(r.names)
+      setDone({ names: r.names, first: r.characters[0] })
     } finally {
       setBusy(false)
     }
@@ -1283,11 +1435,29 @@ function DropBar({ hydrate, onOpen }: { hydrate: () => Promise<void>; onOpen: ()
       />
       {done && (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" role="status">
-          {done.length > 0 ? <>Imported: {done.join(', ')}</> : <span className="text-muted-foreground">Nothing was imported.</span>}
-          {done.length > 0 && <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={onOpen}>Open Characters</Button>}
+          {done.names.length > 0 ? <>Imported: {done.names.join(', ')}</> : <span className="text-muted-foreground">Nothing was imported.</span>}
+          {done.names.length > 0 && <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => onOpen(done.first)}>{done.names.length > 1 ? 'Open the first' : 'Open character'}</Button>}
         </p>
       )}
     </div>
+  )
+}
+
+/** What a card brings, as badges that stand out in both themes. */
+function FeatureBadges({ item }: { item: Pick<MarketplaceItem, 'hasLore' | 'hasEmotions'> }) {
+  return (
+    <>
+      {item.hasLore && (
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/60 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+          <BookOpenText className="size-3" aria-hidden="true" />Lorebook
+        </span>
+      )}
+      {item.hasEmotions && (
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-rose-500/60 bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">
+          <Smiley className="size-3" aria-hidden="true" />Emotions
+        </span>
+      )}
+    </>
   )
 }
 

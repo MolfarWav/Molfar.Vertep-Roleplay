@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { useApp } from '@/lib/store'
 import { j } from '@/lib/engine'
 import type { AppSettings } from '@/lib/types'
+// the engine plugin's language-code table: a name without a code 400s on the http providers
+import { TRANSLATE_LANGUAGES as LANGUAGES } from '@/lib/card-translate'
 
 const PROVIDERS: { id: AppSettings['translation']['provider']; label: string; note: string }[] = [
   { id: 'llm', label: 'LLM (engine model)', note: 'Any model the engine serves. Works offline with a local model. Accepts any language name.' },
@@ -23,13 +25,6 @@ const AUTO_LABELS: Record<AppSettings['translation']['autoMode'], string> = {
   both: 'Translate both',
 }
 
-// must stay in sync with the engine plugin's language-code table — a name
-// without a code 400s on the http providers
-const LANGUAGES = [
-  'English', 'Spanish', 'French', 'German', 'Portuguese', 'Italian', 'Polish', 'Russian',
-  'Japanese', 'Korean', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Ukrainian', 'Turkish',
-  'Arabic', 'Hebrew', 'Dutch', 'Czech', 'Greek', 'Swedish', 'Indonesian', 'Vietnamese',
-]
 
 export function TranslationTab() {
   const translation = useApp((s) => s.settings.translation)

@@ -291,7 +291,7 @@ export async function fullSizeAvatar(pageUrl: string): Promise<string | undefine
 
 export type LinkImport =
   | { status: 'browser-only'; openUrl: string }
-  | { status: 'imported'; characters: string[]; names: string[]; sourceLabel: string; skippedBooks?: number }
+  | { status: 'imported'; characters: string[]; names: string[]; sourceLabel: string; skippedBooks?: number; notes?: string[] }
 
 /** One entry for every card link, used by the Store and the Characters page:
  *  JannyAI/JanitorAI pages are never fetched ('browser-only', with the page to

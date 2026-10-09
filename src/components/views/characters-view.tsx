@@ -84,6 +84,7 @@ export function CharactersView() {
         }
         okCount++
         toast.success(`Imported ${r.names[0] ?? 'character'}`)
+        for (const n of r.notes ?? []) toast.info(n)
       } catch (e) {
         toast.error(url.split('/').pop() ?? url, { description: String((e as Error).message ?? e) })
       }
