@@ -1382,6 +1382,33 @@ describe("rp studio engine: world info scope", () => {
 });
 
 describe("rp studio import", () => {
+  it("batch: a RisuAI V3 PNG card's emotion images become expressions, named without the character prefix, within the size budget", async () => {
+    const m = mockHost();
+    const small = "data:image/webp;base64," + "A".repeat(1000);
+    const big = "data:image/webp;base64," + "B".repeat(600 * 1024); // under the per-image cap, over the pack budget after five
+    const assets: Record<string, string> = { 0: small, 1: small, 2: small };
+    const list = [
+      { type: "icon", name: "main", uri: "ccdefault:", ext: "png" },
+      { type: "x-risu-asset", name: "Yrel_angry", uri: "__asset:0", ext: "webp" },
+      { type: "emotion", name: "Yrel happy", uri: "__asset:1", ext: "webp" },
+      { type: "x-risu-asset", name: "Yrel_angry", uri: "__asset:2", ext: "webp" }, // duplicate name: kept once
+      { type: "x-risu-asset", name: "background", uri: "__asset:99", ext: "png" }, // not sent: skipped silently
+    ];
+    for (let i = 0; i < 7; i++) { assets[10 + i] = big; list.push({ type: "x-risu-asset", name: `Yrel_mood${i}`, uri: `__asset:${10 + i}`, ext: "webp" }); }
+    const r = await drive(stUrl, {
+      method: "POST", path: "/import/batch",
+      body: { cards: [{ card: { spec: "chara_card_v3", data: { name: "Yrel", description: "d", first_mes: "hi", assets: list } }, avatar: small, assets }] },
+    }, m);
+    const id = (r.json.characters as string[])[0]!;
+    const card = JSON.parse(fs.readFileSync(path.join(root, "characters", id, "card.json"), "utf8"));
+    const names = (card.studio.expressions as { name: string }[]).map((e) => e.name);
+    expect(names.slice(0, 2)).toEqual(["angry", "happy"]);
+    expect(names.filter((n) => n === "angry")).toHaveLength(1);
+    expect(fs.statSync(path.join(root, "characters", id, "card.json")).size).toBeLessThan(4 * 1024 * 1024);
+    expect(names.length).toBeLessThan(2 + 7); // the budget left some big ones out
+    expect(String((r.json.notes as string[])[0])).toContain("emotion image(s) left out");
+  });
+
   it("batch: cards + worlds + presets + regex land in the app data", async () => {
     const m = mockHost();
     const r = await drive(stUrl, {

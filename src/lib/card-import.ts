@@ -34,27 +34,87 @@ export function zipStartOf(b: Uint8Array): number {
   return -1
 }
 
-/** A charx package's portrait, downscaled to 512 px: the asset card.json marks
- *  as the main icon, else its first icon, else the first image in assets/.
- *  The plugin keeps the package's own icon when it fits the avatar field and
- *  uses this one otherwise (a large main.png, or icons with other names).
- *  Undefined when there is none; never throws. */
-async function charxPortrait(zipBytes: Uint8Array): Promise<string | undefined> {
+type CardAsset = { type?: unknown; name?: unknown; uri?: unknown }
+const assetsOf = (card: unknown): CardAsset[] => {
+  const c = (card && typeof card === 'object' ? card : {}) as { data?: { assets?: unknown }; assets?: unknown }
+  return (Array.isArray(c.data?.assets) ? c.data.assets : Array.isArray(c.assets) ? c.assets : []) as CardAsset[]
+}
+/** Emotion images: "emotion" in the V3 spec, "x-risu-asset" in RisuAI packs. */
+const isEmotionAsset = (a: CardAsset) => !!a && (a.type === 'emotion' || a.type === 'x-risu-asset') && typeof a.uri === 'string'
+/** Expressions are stored inside card.json (the plugin writes at most 4 MB a
+ *  file), so each one is downscaled here; 320 px keeps a large pack whole. */
+const EMOTION_PX = 320
+const imageType = (path: string) => (/\.png$/i.test(path) ? 'image/png' : /\.webp$/i.test(path) ? 'image/webp' : /\.gif$/i.test(path) ? 'image/gif' : 'image/jpeg')
+
+/** A charx package's portrait and emotion images, ready for /import/zip:
+ *  `avatar` is the main icon (else the first icon, else the first image in
+ *  assets/) at 512 px; the plugin keeps the package's own icon when it fits
+ *  the avatar field and uses this one otherwise (a large main.png, or icons
+ *  with other names). `assets` maps each emotion's package path to a
+ *  downscaled data URL. Never throws. */
+async function charxExtras(zipBytes: Uint8Array): Promise<{ avatar?: string; assets?: Record<string, string> }> {
+  const out: { avatar?: string; assets?: Record<string, string> } = {}
   try {
-    const IMG = /\.(png|jpe?g|webp)$/i
+    const IMG = /\.(png|jpe?g|webp|gif)$/i
     const files = unzipSync(zipBytes, { filter: (f) => f.name === 'card.json' || (f.name.startsWith('assets/') && IMG.test(f.name)) })
-    let path: string | undefined
-    try {
-      const card = JSON.parse(new TextDecoder().decode(files['card.json'])) as { data?: { assets?: unknown }; assets?: unknown }
-      const assets = (Array.isArray(card.data?.assets) ? card.data.assets : Array.isArray(card.assets) ? card.assets : []) as { type?: unknown; name?: unknown; uri?: unknown }[]
-      const icons = assets.filter((a) => a && a.type === 'icon' && typeof a.uri === 'string')
-      const pick = icons.find((a) => a.name === 'main') ?? icons[0]
-      if (pick) path = String(pick.uri).replace(/^(?:embeded|embedded):\/\//, '')
-    } catch { /* no readable card.json: fall back to the first image */ }
+    let list: CardAsset[] = []
+    try { list = assetsOf(JSON.parse(new TextDecoder().decode(files['card.json']))) } catch { /* no readable card.json */ }
+    const pathOf = (a: CardAsset) => String(a.uri).replace(/^(?:embeded|embedded):\/\//, '')
+    const icons = list.filter((a) => a && a.type === 'icon' && typeof a.uri === 'string')
+    const pick = icons.find((a) => a.name === 'main') ?? icons[0]
+    let path = pick ? pathOf(pick) : undefined
     if (!path || !files[path]) path = Object.keys(files).filter((n) => n !== 'card.json').sort()[0]
-    if (!path || !files[path]) return undefined
-    const type = /\.png$/i.test(path) ? 'image/png' : /\.webp$/i.test(path) ? 'image/webp' : 'image/jpeg'
-    return await fileToDataUrl(new Blob([files[path]!], { type }), 512)
+    if (path && files[path]) {
+      try { out.avatar = await fileToDataUrl(new Blob([files[path]!], { type: imageType(path) }), 512) } catch { /* no portrait */ }
+    }
+    const assets: Record<string, string> = {}
+    for (const a of list.filter(isEmotionAsset)) {
+      const p = pathOf(a)
+      if (!files[p] || assets[p]) continue
+      try { assets[p] = await fileToDataUrl(new Blob([files[p]!], { type: imageType(p) }), EMOTION_PX, { alpha: true }) } catch { /* skip this one */ }
+    }
+    if (Object.keys(assets).length) out.assets = assets
+  } catch { /* not a readable zip: the plugin reports it */ }
+  return out
+}
+
+/** The emotion images a V3 PNG card points at with "__asset:N" uris (RisuAI
+ *  stores them in tEXt chunks named "chara-ext-asset_:N"), downscaled, as
+ *  { N: data URL } for /import/batch; undefined when there are none. */
+async function pngCardAssets(file: File, card: unknown): Promise<Record<string, string> | undefined> {
+  const wanted = new Set(assetsOf(card).filter(isEmotionAsset).map((a) => String(a.uri)).filter((u) => u.startsWith('__asset:')).map((u) => u.slice(8)))
+  if (!wanted.size) return undefined
+  try {
+    const b = new Uint8Array(await file.arrayBuffer())
+    const view = new DataView(b.buffer, b.byteOffset, b.byteLength)
+    const ascii = (from: number, to: number) => {
+      const parts: string[] = []
+      for (let i = from; i < to; i += 8192) parts.push(String.fromCharCode(...b.subarray(i, Math.min(to, i + 8192))))
+      return parts.join('')
+    }
+    const out: Record<string, string> = {}
+    let off = 8
+    while (off + 12 <= b.length) {
+      const len = view.getUint32(off)
+      const type = ascii(off + 4, off + 8)
+      if (type === 'IEND') break
+      if (type === 'tEXt') {
+        const end = off + 8 + len
+        let nul = off + 8
+        while (nul < end && nul < off + 8 + 80 && b[nul] !== 0) nul++
+        const key = /^chara-ext-asset_:?(.+)$/.exec(ascii(off + 8, nul))?.[1]
+        if (key && wanted.has(key) && !out[key]) {
+          try {
+            const bin = atob(ascii(nul + 1, end).replace(/[^A-Za-z0-9+/=]/g, ''))
+            const bytes = new Uint8Array(bin.length)
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+            out[key] = await fileToDataUrl(new Blob([bytes]), EMOTION_PX, { alpha: true })
+          } catch { /* not an image: skip */ }
+        }
+      }
+      off += 12 + len
+    }
+    return Object.keys(out).length ? out : undefined
   } catch {
     return undefined
   }
@@ -62,7 +122,7 @@ async function charxPortrait(zipBytes: Uint8Array): Promise<string | undefined> 
 
 /** What one import call brought in: the new character ids and their names,
  *  and the per-file problems (also shown as toasts unless the call was quiet). */
-export type ImportResult = { characters: string[]; names: string[]; errors: string[] }
+export type ImportResult = { characters: string[]; names: string[]; errors: string[]; notes: string[] }
 
 /** The name inside a card object (V1/V2 flat, V2/V3 under `data`). */
 function nameOfCard(card: unknown): string {
@@ -79,12 +139,13 @@ function nameOfCard(card: unknown): string {
  *  caller (the problems stay in the result); `avatars` maps a file name to a
  *  data URL, for JSON cards (they have no picture of their own). */
 export async function importCardFiles(files: FileList | File[] | null, hydrate: () => Promise<void>, opts?: { quiet?: boolean; avatars?: Record<string, string> }): Promise<ImportResult> {
-  const out: ImportResult = { characters: [], names: [], errors: [] }
+  const out: ImportResult = { characters: [], names: [], errors: [], notes: [] }
   const quiet = opts?.quiet === true
   if (!files?.length) return out
   const cards: unknown[] = []
   const cardNames: string[] = []
   const errors: string[] = []
+  const notes: string[] = []
   for (const f of Array.from(files)) {
     try {
       const lower = f.name.toLowerCase()
@@ -93,7 +154,8 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
         if (!card) { errors.push(`${f.name}: no embedded card data`); continue }
         let avatar: string | undefined
         try { avatar = await fileToDataUrl(f, 512) } catch { /* keep card without avatar */ }
-        cards.push({ card, ...(avatar ? { avatar } : {}) })
+        const assets = await pngCardAssets(f, card)
+        cards.push({ card, ...(avatar ? { avatar } : {}), ...(assets ? { assets } : {}) })
         cardNames.push(nameOfCard(card) || f.name.replace(/\.png$/i, ''))
       } else if (lower.endsWith('.charx')) {
         // a charx package IS a zip with card.json; the plugin unpacks it
@@ -102,10 +164,11 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
         if (start < 0) { errors.push(`${f.name}: not a charx package (no zip inside)`); continue }
         const zipBytes = start === 0 ? bytes : bytes.subarray(start)
         const zip = start === 0 ? f : new Blob([zipBytes])
-        const avatar = await charxPortrait(zipBytes)
-        const r = await j<{ characters?: string[]; name?: string }>('/import/zip', {
-          method: 'POST', body: JSON.stringify({ zipBase64: await fileToRawBase64(zip), ...(avatar ? { avatar } : {}) }),
+        const { avatar, assets } = await charxExtras(zipBytes)
+        const r = await j<{ characters?: string[]; name?: string; notes?: string[] }>('/import/zip', {
+          method: 'POST', body: JSON.stringify({ zipBase64: await fileToRawBase64(zip), ...(avatar ? { avatar } : {}), ...(assets ? { assets } : {}) }),
         })
+        notes.push(...(r.notes ?? []))
         const got = r.characters ?? []
         if (!got.length) { errors.push(`${f.name}: no card.json in the package`); continue }
         out.characters.push(...got)
@@ -124,9 +187,10 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
   }
   if (cards.length) {
     try {
-      const r = await j<{ characters: string[]; name?: string; errors?: string[] }>('/import/batch', {
+      const r = await j<{ characters: string[]; name?: string; errors?: string[]; notes?: string[] }>('/import/batch', {
         method: 'POST', body: JSON.stringify({ cards }),
       })
+      notes.push(...(r.notes ?? []))
       out.characters.push(...r.characters)
       // the plugin names a single card only; the files carry the names
       if (r.characters.length === cardNames.length) out.names.push(...cardNames)
@@ -141,7 +205,9 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
     rateImported(out.characters)
   }
   out.errors = errors
+  out.notes = notes
   if (!quiet) for (const e of errors) toast.error(e)
+  if (!quiet) for (const n of notes) toast.info(n)
   return out
 }
 

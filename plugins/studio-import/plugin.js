@@ -286,17 +286,40 @@ function normalizeCard(raw, avatarDataUrl) {
  *  point into the package (assetDict), ccdefault: is the source PNG, data:
  *  carries the bytes inline. Returns {avatar, expressions} with what could be
  *  resolved within size caps; unresolvable assets are skipped, never faked. */
+// The images ride inside card.json, and the sandbox writes at most 4 MB per
+// file: the expressions of one card stay under this total (the browser
+// downscales them before import, so a whole pack usually fits).
+const EXPRESSIONS_BUDGET = 3 * 1024 * 1024;
+
+/** An expression's name without the "<character>_" prefix RisuAI packs use
+ *  ("Yrel_angry" -> "angry"), so the app's emotion labels match it. */
+function expressionName(name, cardName) {
+  const first = String(cardName || "").trim().split(/[\s_/-]+/)[0];
+  if (!first) return name;
+  const lower = name.toLowerCase();
+  for (const prefix of [String(cardName).trim().toLowerCase(), first.toLowerCase()]) {
+    if (prefix && lower.startsWith(prefix) && /^[_\s-]/.test(name.slice(prefix.length)) && name.length > prefix.length + 1) {
+      return name.slice(prefix.length + 1).trim();
+    }
+  }
+  return name;
+}
+
 function resolveCardAssets(card, assetDict, sourceAvatar) {
-  const out = { avatar: null, expressions: [] };
+  const out = { avatar: null, expressions: [], skipped: 0 };
   const assets = Array.isArray(card && card.assets) ? card.assets : [];
   const MAX_AVATAR = 900 * 1024;
   const MAX_EMOTION = 700 * 1024;
+  let spent = 0;
+  const seen = new Set();
   for (const a of assets) {
     if (!a || typeof a !== "object" || typeof a.uri !== "string") continue;
     let url = null;
     if (a.uri.startsWith("__asset:") || a.uri.startsWith("embeded://")) {
-      const b64 = assetDict[a.uri.replace(/^(?:__asset:|embeded:\/\/)/, "")];
-      if (b64) url = "data:image/" + (a.ext === "webp" ? "webp" : a.ext === "jpeg" || a.ext === "jpg" ? "jpeg" : "png") + ";base64," + b64;
+      const v = assetDict[a.uri.replace(/^(?:__asset:|embeded:\/\/)/, "")];
+      // the browser sends ready data URLs (downscaled); the zip path raw base64
+      if (typeof v === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(v)) url = v;
+      else if (v) url = "data:image/" + (a.ext === "webp" ? "webp" : a.ext === "jpeg" || a.ext === "jpg" ? "jpeg" : "png") + ";base64," + v;
     } else if (a.uri === "ccdefault:") {
       url = sourceAvatar && sourceAvatar.startsWith("data:") ? sourceAvatar : null;
     } else if (a.uri.startsWith("data:")) {
@@ -305,8 +328,14 @@ function resolveCardAssets(card, assetDict, sourceAvatar) {
     if (!url) continue;
     if (a.type === "icon" && a.name === "main") {
       if (url.length < MAX_AVATAR) out.avatar = url;
-    } else if (a.type === "emotion" && typeof a.name === "string" && a.name && url.length < MAX_EMOTION) {
-      out.expressions.push({ name: a.name, url });
+    } else if ((a.type === "emotion" || a.type === "x-risu-asset") && typeof a.name === "string" && a.name) {
+      // RisuAI keeps its emotion images as "x-risu-asset" entries
+      const name = expressionName(a.name, card.name);
+      if (seen.has(name.toLowerCase())) continue;
+      if (url.length >= MAX_EMOTION || spent + url.length > EXPRESSIONS_BUDGET) { out.skipped++; continue; }
+      seen.add(name.toLowerCase());
+      spent += url.length;
+      out.expressions.push({ name, url });
     }
   }
   return out;
@@ -1458,7 +1487,7 @@ export function handleRoute(req, host) {
   const fsx = host.fs;
   const writeJson = (rel, v) => fsx.write(rel, JSON.stringify(v, null, 2) + "\n");
   const readJson = (rel, fb) => { try { return JSON.parse(fsx.read(rel)); } catch { return fb; } };
-  const summary = { characters: [], groups: [], lorebooks: [], presets: [], regex: [], personas: [], themes: [], chats: [], databank: [], errors: [] };
+  const summary = { characters: [], groups: [], lorebooks: [], presets: [], regex: [], personas: [], themes: [], chats: [], databank: [], errors: [], notes: [] };
   const used = new Set();
   // Id collision guard: dedupes within THIS import batch AND against what
   // already exists on disk — re-importing the same card must never silently
@@ -1603,6 +1632,9 @@ export function handleRoute(req, host) {
       if (resolved.expressions.length) {
         card.studio = { ...card.studio, expressions: resolved.expressions };
       }
+      if (resolved.skipped) {
+        summary.notes.push(card.name + ": " + resolved.skipped + " emotion image(s) left out, the card file would grow past its size limit");
+      }
     }
     // a package whose main icon is missing or too large for the avatar
     // field: the browser sends a downscaled one (see the /import/zip charx path)
@@ -1744,16 +1776,26 @@ export function handleRoute(req, host) {
       try {
         let raw = null;
         let avatar = null;
+        let assetDict = null;
         if (typeof c === "string") {
           raw = extractCardFromPng(b64ToBytes(c.replace(/^data:[^,]*,/, "")));
         } else if (c && typeof c === "object") {
-          // three shapes: {card, avatar} from the UI, {pngBase64, avatar}, or a bare card
+          // three shapes: {card, avatar, assets?} from the UI, {pngBase64, avatar}, or a bare card
           raw = c.pngBase64 ? extractCardFromPng(b64ToBytes(String(c.pngBase64).replace(/^data:[^,]*,/, ""))) : (c.card ?? c);
           avatar = typeof c.avatar === "string" ? c.avatar : null;
+          // V3 PNG cards (RisuAI) carry their emotion images in chara-ext-asset_:N
+          // chunks; the UI reads them and sends { "N": base64 } for the
+          // card's "__asset:N" uris (resolveCardAssets caps each one)
+          if (c.card && c.assets && typeof c.assets === "object" && !Array.isArray(c.assets)) {
+            assetDict = {};
+            for (const k of Object.keys(c.assets).slice(0, 300)) {
+              if (/^[\w.-]{1,40}$/.test(k) && typeof c.assets[k] === "string") assetDict[k] = c.assets[k];
+            }
+          }
         }
         const n = normalizeCard(raw, avatar);
         if (!n) { summary.errors.push("card skipped: no name or unparseable"); continue; }
-        writeCardWithBook(n, raw, null, avatar || undefined);
+        writeCardWithBook(n, raw, assetDict, avatar || undefined);
       } catch (err) { summary.errors.push("card failed: " + String((err && err.message) || err).slice(0, 100)); }
     }
     for (const w of b.worldInfo || []) {
@@ -1837,6 +1879,13 @@ export function handleRoute(req, host) {
         // optional downscaled portrait from the browser (it can unzip and resize)
         const body = req.body && typeof req.body === "object" ? req.body : {};
         const fallback = typeof body.avatar === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(body.avatar) && body.avatar.length < 900 * 1024 ? body.avatar : null;
+        // downscaled images from the browser win over the package originals
+        if (body.assets && typeof body.assets === "object" && !Array.isArray(body.assets)) {
+          for (const k of Object.keys(body.assets).slice(0, 300)) {
+            const v = body.assets[k];
+            if (typeof v === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(v) && k.length <= 200) assetDict[k] = v;
+          }
+        }
         if (card) { writeCardWithBook(card, parsed, assetDict, null, fallback); return { status: 200, json: { ...summary, name: card.name } }; }
       } catch {}
       return { status: 400, json: { error: "charx package has no readable card.json" } };
