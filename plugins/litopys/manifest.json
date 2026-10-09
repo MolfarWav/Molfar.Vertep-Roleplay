@@ -1,6 +1,6 @@
 {
   "name": "Litopys",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The story record of each chat, shown in the Library. A worker cuts the story into scenes and, for each closed scene, writes one chapter (what changed, not a retelling) and the durable facts that came with it into data/litopys/chats/<chat>.json; older chapters can merge into arcs. Before each reply it adds one block of chapters and facts within a token budget, and the messages it holds leave the prompt. Old Memory and Litopys 1.x data are carried over once. Formerly Archivarius.",
   "origin": "local",
   "permissions": ["routes", "llm", "fs", "schedule", "hooks"],

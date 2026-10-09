@@ -4,6 +4,19 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.27.0
+
+Models are set up in one place, chats can continue each other, and portraits show everywhere. Needs Molfar Vertep 0.9.2 for the model settings and the quick switch: update the engine too (on an older engine the app still runs, without them).
+
+- **Models in one place.** The Connections section is gone from the rail. Which models the pickers show, the quick switch (starred models, each with a name of your own) and every model's context window, prices and parameters live in the shell's Settings, "Connections and models". The chat's preset · persona · model switch offers the quick switch first, then the other models, and "Set up" opens the model's settings; on phones the switch sits in the bottom bar. Your old connection profiles become the quick switch once, with their names.
+- **A model per chat.** Each chat remembers its own model; a new chat starts with the one you chose last.
+- **The model's parameters come first.** Temperature, max output, reasoning and the rest belong to the model now (set in the shell's Settings), and the app budgets the prompt with the model's own context window. Your preset's samplers fill in only what the model leaves unset; a preset switch, "This preset's samplers override the model", lets them win. The first time, the default preset's samplers become the current model's parameters.
+- **Chats that continue each other.** The Library's map is now the map of one chat: the chats it continues above, the ones that continue it below. Search for an earlier chat to link it, like a backlink, and the new chat gets the earlier story (Litopys chapters and key facts) as backstory in every reply, within the "Backstory budget" of the Library settings.
+- **Portraits everywhere.** A portrait set in the Library shows on the dashboard and in Soul too (narrator-card and lorebook characters stop showing initials); a click on the focused character's avatar on the dashboard, or on the large portrait in Soul, changes it.
+- **Full screen drawers.** Connections, Presets, the Library, Lorebooks, the Marketplace and Characters open full screen with a button in their header.
+- **"Story, move" only arms the note.** With an empty box it no longer sends at once; your Send or Enter carries it.
+- Fixes: the card id copy button works inside the app frame; prices no longer show floating-point noise ("$0.42000000000000004").
+
 ## 4.26.1
 
 Two fixes.
