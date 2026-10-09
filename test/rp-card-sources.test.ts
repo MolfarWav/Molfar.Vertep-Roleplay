@@ -91,6 +91,20 @@ describe("rp card sources: links", () => {
     expect(seen).toHaveLength(4);
   });
 
+  it("resolve: says where the card file is without fetching it (big files come through the engine's file route)", async () => {
+    const id = "fad65b7c-d924-4086-80ce-352a91779e1f";
+    const risu = await drive("/fetch/card", { url: `https://realm.risuai.net/character/${id}`, resolve: true });
+    expect(risu.requests).toHaveLength(0);
+    expect(risu.json).toMatchObject({ source: "risurealm", sourceLabel: "RisuRealm", fileBase: id, downloadUrl: `https://realm.risuai.net/api/v1/download/dynamic/${id}?cors=true` });
+    const gh = await drive("/fetch/card", { url: "https://github.com/u/r/blob/main/cards/x.card.png", resolve: true });
+    expect(gh.json).toMatchObject({ downloadUrl: "https://raw.githubusercontent.com/u/r/main/cards/x.card.png", fileBase: "x" });
+    const wy = await drive("/fetch/card", { url: "https://app.wyvern.chat/characters/_abcDEF123", resolve: true });
+    expect(wy.json).toMatchObject({ source: "wyvern", api: true });
+    expect(wy.json.downloadUrl).toBeUndefined();
+    const janny = await drive("/fetch/card", { url: "https://jannyai.com/characters/x", resolve: true });
+    expect(janny.status).toBe(422);
+  });
+
   it("refuses a redirect that leaves the link's service and maps failures to plain words", async () => {
     const away = await drive("/fetch/card", { url: "https://files.catbox.moe/abc.png" }, () => ({
       ok: true, status: 200, url: "https://cdn.discordapp.com/x.png", base64: b64(png([["chara", cardB64({ name: "A" })]])),

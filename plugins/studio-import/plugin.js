@@ -1264,8 +1264,20 @@ function otherSourceDetail(source, b, host) {
 function fetchCardFile(b, host) {
   const link = classifyCardLink(b && b.url);
   if (link.error) return { status: link.status || 400, json: { error: link.error, ...(link.openInBrowser ? { openInBrowser: link.openInBrowser } : {}) } };
-  if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
   const label = link.source === "url" ? link.service : SOURCE_LABELS[link.source];
+  // resolve: where the card FILE is, without fetching it. The Store pulls big
+  // files itself through the engine's file route (a plugin's net answer is
+  // held in memory, 20 MB at most; image packs make cards of 100 MB+).
+  // Wyvern and Pygmalion give JSON fields, not a file: they answer api: true.
+  if (b && b.resolve === true) {
+    return {
+      status: 200,
+      json: link.api
+        ? { source: link.source, sourceLabel: label, api: true, pageUrl: link.pageUrl }
+        : { source: link.source, sourceLabel: label, downloadUrl: link.url, fileBase: fileNameOf(String(link.fileBase).replace(/\.(png|json|charx|card\.png)$/i, "")), pageUrl: link.pageUrl },
+    };
+  }
+  if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
   if (!Object.keys(host.net.results).length) {
     host.net.request("card", {
       url: link.url, ...(link.api ? { json: true, maxBytes: 8 * 1024 * 1024 } : { binary: true, maxBytes: CARD_MAX_BYTES }),
