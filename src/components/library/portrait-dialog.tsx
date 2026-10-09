@@ -13,8 +13,22 @@ import { type LitPortraits, setLitPortrait } from './litopys-api'
 const SIZE = 256
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+/** A data: URL as a Blob, decoded here: the app's fetch bridge refuses data: URLs, and card avatars are stored as them. */
+function dataUrlBlob(url: string): Blob {
+  const comma = url.indexOf(',')
+  const head = url.slice(5, comma)
+  const body = url.slice(comma + 1)
+  const type = head.split(';')[0] || 'application/octet-stream'
+  if (!head.endsWith(';base64')) return new Blob([decodeURIComponent(body)], { type })
+  const bin = atob(body)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type })
+}
+
 /** Any image the app can show (a data URL or a stored media path) as a small data URL the plugin accepts. */
 async function toPortrait(src: string): Promise<string> {
+  if (src.startsWith('data:')) return fileToDataUrl(dataUrlBlob(src), SIZE)
   const res = await fetch(src)
   if (!res.ok) throw new Error(`image ${res.status}`)
   return fileToDataUrl(await res.blob(), SIZE)

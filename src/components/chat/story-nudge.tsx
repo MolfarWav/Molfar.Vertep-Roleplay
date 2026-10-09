@@ -19,7 +19,7 @@ function useNudgeState() {
   const dash = useDashMaybe()
   const usable = !!dash && (dash.status === 'ready' || dash.status === 'empty')
   const view = dash?.view ?? null
-  const nudge: Nudge | null = view?.nudge ?? null
+  const nudge: Nudge | null = view?.nudge ?? dash?.data?.nudge ?? null
   const open: Thread[] = view ? view.threads.filter((th) => th.status === 'open') : []
   return { dash, usable, view, nudge, open }
 }

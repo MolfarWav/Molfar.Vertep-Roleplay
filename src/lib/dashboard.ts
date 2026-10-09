@@ -148,6 +148,8 @@ export interface DashResponse {
   messages: number
   view: DashView | null
   lastError: { at: number; message: string } | null
+  /** the pending "Story, move" nudge, also before the chat has any state (the view's copy needs one) */
+  nudge?: Nudge | null
 }
 
 export const DISPOSITION: readonly DispositionStat[] = ['trust', 'comfort', 'attraction', 'respect', 'affection']
