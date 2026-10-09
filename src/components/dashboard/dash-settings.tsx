@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { ASK_MOLFAR_MAX, askMolfar, canAskMolfar } from '@/lib/shell-bridge'
-import { cn } from '@/lib/utils'
+import { cn, copyText } from '@/lib/utils'
 import type { DashView } from '@/lib/dashboard'
 import { AgeText, Box, useTx } from './dash-common'
 import { SoulModelPicker } from './soul-model-picker'
@@ -933,23 +933,6 @@ function molfarDraft(form: Form, rows: VocabRow[], userText: string, none: strin
   ].join('\n')
 }
 
-/** The clipboard API needs a permission an app frame may not have: fall back to a hidden textarea. */
-async function copyText(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return
-  } catch { /* try the old way */ }
-  const el = document.createElement('textarea')
-  el.value = text
-  el.style.position = 'fixed'
-  el.style.opacity = '0'
-  document.body.appendChild(el)
-  el.select()
-  const ok = document.execCommand('copy')
-  el.remove()
-  if (!ok) throw new Error('copy failed')
-}
-
 function MolfarSection({ form, rows }: { form: Form; rows: VocabRow[] }) {
   const t = useT()
   const [text, setText] = useState('')
@@ -962,7 +945,7 @@ function MolfarSection({ form, rows }: { form: Form; rows: VocabRow[] }) {
     try {
       // the bridge refuses an app that is not trusted, or one that is not the tab on screen: copy instead
       if (canAskMolfar() && (await askMolfar(draft).then(() => true, () => false))) return
-      await copyText(draft)
+      if (!(await copyText(draft))) throw new Error('copy failed')
       toast.success(t('dash.set.molfar.copied'))
     } catch (e) {
       toast.error(t('dash.set.error', { message: String((e as Error)?.message ?? e) }))

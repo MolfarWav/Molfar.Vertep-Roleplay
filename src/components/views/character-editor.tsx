@@ -32,7 +32,7 @@ import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
 import type { Character } from '@/lib/types'
-import { DEFAULT_AVATAR } from '@/lib/utils'
+import { copyText, DEFAULT_AVATAR } from '@/lib/utils'
 
 function TokenBadge({ text }: { text: string }) {
   return <Badge variant="outline" className="text-[10px] text-muted-foreground">{formatTokens(estimateTokens(text))} tok</Badge>
@@ -169,10 +169,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         <button
           type="button"
           onClick={() => {
-            navigator.clipboard.writeText(c.id).then(
-              () => toast.success(t('editor.idCopied', { id: c.id })),
-              (e: unknown) => toast.error(String((e as Error)?.message ?? e)),
-            )
+            // the app runs in a sandboxed frame where the clipboard API is refused: copyText falls back
+            void copyText(c.id).then((ok) => (ok ? toast.success(t('editor.idCopied', { id: c.id })) : toast.error(t('msg.copyFailed'))))
           }}
           title={t('editor.copyId')}
           aria-label={t('editor.copyId')}
