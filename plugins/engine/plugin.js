@@ -833,7 +833,7 @@ function estimateTokens(text) {
  *  (their inserts are not in the trimmed prompt, so they get a reserve): the
  *  dashboard's notes and focus lines, Litopys's lore block. A config that is
  *  missing or unreadable counts as that plugin's default. */
-function hookInsertReserve(fsx) {
+function hookInsertReserve(fsx, chatId) {
   let reserve = 0;
   let dash = {};
   try {
@@ -853,6 +853,17 @@ function hookInsertReserve(fsx) {
   if (lit.enabled !== false && lit.insert !== false) {
     const b = Number(lit.budget);
     reserve += (Number.isFinite(b) ? Math.min(4000, Math.max(200, Math.round(b))) : 800) + 100;
+    // 0.9.2: a chat that continues an earlier one also gets its backstory block (litopys linkBudget)
+    let linked = false;
+    try {
+      const l = JSON.parse(fsx.read("litopys/links.json"));
+      linked = !!(chatId && l && l.links && l.links[chatId]);
+    } catch {}
+    if (linked) {
+      const lb = Number(lit.linkBudget);
+      const max = Number.isFinite(lb) ? Math.min(3000, Math.max(0, Math.round(lb))) : 800;
+      if (max > 0) reserve += max + 100;
+    }
   }
   return reserve;
 }
@@ -1556,7 +1567,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // context trimming: a token estimate against openai_max_context, minus the
   // room the reply needs and what the sibling plugins' hooks add later
   const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
-  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx) - 64;
+  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id) - 64;
   const msgTokens = (m) => estimateTokens(m.content) + 4;
   const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
   // what fell out is reported: automatic compaction fires on it
