@@ -48,11 +48,12 @@ import { SceneBefore } from './scene-heading'
 /** The chat look. Only 'stage' exists today; a later 'vn' look switches the class and the markup here. */
 const look: 'stage' | 'vn' = 'stage'
 
-/** The mobile chat's section bar. The desktop header's quick switch has no
- *  place here: presets, personas and connections are each one tap away, and
- *  using one from its drawer applies it to the open chat. Shortcuts and
- *  Marketplace ride in the chat menu to keep the icons at a thumb's width. */
-const CHAT_BAR_SECTIONS = sectionsFor(['characters', 'personas', 'lorebooks', 'presets', 'extensions', 'settings'])
+/** The mobile chat's section bar. The header's preset · persona · model switch
+ *  sits in it, icons only, in place of the Presets and Personas icons (its menu
+ *  opens both editors): with no Connections section (0.9.2) it is where a phone
+ *  switches the chat's model. Shortcuts and Marketplace ride in the chat menu
+ *  to keep the icons at a thumb's width. */
+const PHONE_BAR_SECTIONS = sectionsFor(['characters', 'lorebooks', 'extensions', 'settings'])
 
 /** Where the reader is: the topmost message still in view and how far its top
  *  sits above the fold. The log is measured from the top and opts out of the
@@ -701,8 +702,11 @@ export function ChatView() {
             </Avatar>
           </button>
         </AvatarMenu>
+        <div className="shrink-0" data-testid="phone-quick-switch">
+          <ChatQuickSwitch chatId={chat.id} />
+        </div>
         <div className="flex min-w-0 flex-1 items-center justify-around overflow-x-auto">
-          {CHAT_BAR_SECTIONS.map((item) => (
+          {PHONE_BAR_SECTIONS.map((item) => (
             <button
               key={item.key}
               type="button"

@@ -158,7 +158,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
           <CaretDown className="mr-1.5 size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         </PopoverTrigger>
 
-        <PopoverContent align="end" className="w-[340px] overflow-hidden p-0">
+        <PopoverContent align="end" className="w-[min(340px,calc(100vw-16px))] overflow-hidden p-0">
           {/* tab bar */}
           <div className="flex items-center gap-1 border-b border-border bg-muted/40 p-1.5" role="tablist" aria-label="Switch what to change">
             {TABS.map((t) => (
