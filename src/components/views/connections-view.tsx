@@ -51,6 +51,9 @@ function findByRef(models: ModelInfo[], stored: string | null): ModelInfo | null
 /** The builtin provider catalog changes only with engine releases. */
 let providerCache: EngineProviderInfo[] | null = null
 
+/** A price per Mtok as people write it: catalogs compute some (0.42000000000000004), so keep 6 significant digits. */
+const priceText = (n: number) => String(Number(n.toPrecision(6)))
+
 export function ConnectionsView() {
   const models = useApp((s) => s.models)
   const connections = useApp((s) => s.engineConnections)
@@ -147,9 +150,9 @@ export function ConnectionsView() {
   const openPrice = () => {
     if (!current) return
     setPriceDraft({
-      input: current.pricing ? String(current.pricing.input) : '',
-      output: current.pricing ? String(current.pricing.output) : '',
-      cacheRead: current.pricing?.cacheRead ? String(current.pricing.cacheRead) : '',
+      input: current.pricing ? priceText(current.pricing.input) : '',
+      output: current.pricing ? priceText(current.pricing.output) : '',
+      cacheRead: current.pricing?.cacheRead ? priceText(current.pricing.cacheRead) : '',
     })
     setPriceEdit(true)
   }
@@ -218,7 +221,7 @@ export function ConnectionsView() {
                       onClick={openPrice}
                       aria-label="Token prices"
                     >
-                      {current.pricing ? `$${current.pricing.input}/$${current.pricing.output} per Mtok` : 'set prices'}
+                      {current.pricing ? `${priceText(current.pricing.input)}/${priceText(current.pricing.output)} per Mtok` : 'set prices'}
                     </Button>
                     {current.reasoning && <Badge variant="secondary" className="text-[10px]">reasoning</Badge>}
                   </span>
