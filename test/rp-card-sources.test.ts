@@ -4,9 +4,20 @@
  * host.net is mocked; the fetch rules it stands in for (allowlist per hop,
  * size cap) live in the engine.
  */
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 
 const stUrl = new URL("../plugins/studio-import/plugin.js", import.meta.url).href;
+
+// The engine runs plugins in QuickJS, which has none of these: hide them so a
+// plugin that leans on them fails here and not only in the live app.
+const BROWSER_ONLY = ["atob", "btoa", "TextDecoder", "TextEncoder"] as const;
+const saved: Record<string, unknown> = {};
+beforeAll(() => {
+  for (const k of BROWSER_ONLY) { saved[k] = (globalThis as Record<string, unknown>)[k]; delete (globalThis as Record<string, unknown>)[k]; }
+});
+afterAll(() => {
+  for (const k of BROWSER_ONLY) (globalThis as Record<string, unknown>)[k] = saved[k];
+});
 
 type NetReply = (key: string, req: Record<string, unknown>) => Record<string, unknown>;
 

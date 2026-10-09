@@ -100,6 +100,118 @@ function normalizeEntryName(raw) {
 const entryBase64 = (e) =>
   e && typeof e === "object" && (e.__b64__ === true || e.__b64 === true) && typeof e.base64 === "string" ? e.base64 : null;
 
+// ---------- base64 and UTF-8 in plain JS ----------
+// The engine's QuickJS sandbox has no atob, btoa, TextDecoder or TextEncoder,
+// and its 10 s clock does not allow decoding a multi-MB file byte by byte in
+// the interpreter. b64Slice decodes only the bytes asked for.
+const B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const B64_VALUE = (() => {
+  const t = new Uint8Array(128);
+  for (let i = 0; i < 64; i++) t[B64_CHARS.charCodeAt(i)] = i;
+  t[45] = 62; t[95] = 63; // url-safe - and _
+  return t;
+})();
+/** Length in bytes of clean base64 text (no whitespace). */
+function b64Length(b64) {
+  const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return Math.floor(b64.length / 4) * 3 - pad;
+}
+/** Bytes [from, from + len) of base64 text. */
+function b64Slice(b64, from, len) {
+  const end = Math.min(b64Length(b64), from + len);
+  if (from < 0 || from >= end) return new Uint8Array(0);
+  const g0 = Math.floor(from / 3);
+  const g1 = Math.ceil(end / 3);
+  const out = new Uint8Array((g1 - g0) * 3);
+  let o = 0;
+  for (let g = g0; g < g1; g++) {
+    const i = g * 4;
+    const n = (B64_VALUE[b64.charCodeAt(i) & 127] << 18) | (B64_VALUE[b64.charCodeAt(i + 1) & 127] << 12)
+      | (B64_VALUE[b64.charCodeAt(i + 2) & 127] << 6) | B64_VALUE[b64.charCodeAt(i + 3) & 127];
+    out[o++] = (n >> 16) & 255; out[o++] = (n >> 8) & 255; out[o++] = n & 255;
+  }
+  const skip = from - g0 * 3;
+  return out.subarray(skip, skip + (end - from));
+}
+const b64Bytes = (b64) => b64Slice(b64, 0, b64Length(b64));
+function b64Encode(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i], b = bytes[i + 1], c = bytes[i + 2];
+    const n = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    s += B64_CHARS[(n >> 18) & 63] + B64_CHARS[(n >> 12) & 63]
+      + (b === undefined ? "=" : B64_CHARS[(n >> 6) & 63]) + (c === undefined ? "=" : B64_CHARS[n & 63]);
+  }
+  return s;
+}
+function utf8Decode(bytes) {
+  // UTF-16 code units flushed in blocks: string += per character is slow in
+  // the sandbox's interpreter on a large card
+  const parts = [];
+  let units = [];
+  for (let i = 0; i < bytes.length;) {
+    const b = bytes[i++];
+    let cp;
+    if (b < 0x80) cp = b;
+    else if (b >= 0xc0 && b < 0xe0) cp = ((b & 31) << 6) | (bytes[i++] & 63);
+    else if (b >= 0xe0 && b < 0xf0) cp = ((b & 15) << 12) | ((bytes[i++] & 63) << 6) | (bytes[i++] & 63);
+    else if (b >= 0xf0 && b < 0xf8) cp = ((b & 7) << 18) | ((bytes[i++] & 63) << 12) | ((bytes[i++] & 63) << 6) | (bytes[i++] & 63);
+    else cp = 0xfffd;
+    if (cp > 0x10ffff) cp = 0xfffd;
+    if (cp >= 0x10000) { cp -= 0x10000; units.push(0xd800 | (cp >> 10), 0xdc00 | (cp & 1023)); }
+    else units.push(cp);
+    if (units.length >= 8192) { parts.push(String.fromCharCode.apply(null, units)); units = []; }
+  }
+  parts.push(String.fromCharCode.apply(null, units));
+  return parts.join("");
+}
+function utf8Encode(s) {
+  const out = [];
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    if (cp < 0x80) out.push(cp);
+    else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+    else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+  }
+  return out;
+}
+const asciiOf = (bytes) => {
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += 8192) parts.push(String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 8192))));
+  return parts.join("");
+};
+
+/** Walks a base64 PNG's chunk headers (8 bytes each) without decoding the
+ *  image data, and calls visit(keyword, chunkType, dataOffset, dataLength)
+ *  for every tEXt/iTXt chunk. visit returns true to stop. */
+function walkPngText(b64, visit) {
+  const total = b64Length(b64);
+  const sig = b64Slice(b64, 0, 8);
+  if (sig.length < 8 || sig[0] !== 0x89 || sig[1] !== 0x50 || sig[2] !== 0x4e || sig[3] !== 0x47) return false;
+  let off = 8;
+  while (off + 12 <= total) {
+    const h = b64Slice(b64, off, 8);
+    const len = ((h[0] << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) >>> 0;
+    const type = asciiOf(h.subarray(4, 8));
+    if (type === "tEXt" || type === "iTXt") {
+      const head = b64Slice(b64, off + 8, Math.min(len, 80));
+      const nul = head.indexOf(0);
+      if (nul > 0 && visit(asciiOf(head.subarray(0, nul)), type, off + 8, len)) return true;
+    }
+    if (type === "IEND") break;
+    off += 12 + len;
+  }
+  return true;
+}
+
+/** True when a base64 PNG carries a character card chunk; reads headers only. */
+function pngHasCard(b64) {
+  let found = false;
+  walkPngText(b64, (keyword) => (found = keyword === "chara" || keyword === "ccv3"));
+  return found;
+}
+
 /** PNG tEXt chunk reader for embedded cards ("chara" base64 JSON, v2, or
  *  "ccv3" JSON) — mirrors what the browser-side importer does with .png
  *  cards, so backup zips with PNG characters import fully plugin-side. */
@@ -107,46 +219,30 @@ function cardFromPngBase64(b64) {
   // ccv3 (V3) wins over chara (V2) when both parse. The V3 spec stores ccv3
   // as base64 like chara; a bare-JSON ccv3 is accepted too. A chunk that does
   // not parse is skipped instead of ending the scan (a V3 PNG whose ccv3 came
-  // first used to read as "no card").
+  // first used to read as "no card"). Only the card chunks are decoded.
   let v2 = null;
+  let v3 = null;
   try {
-    const bin = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
-    if (bin.length < 8 || bin[0] !== 0x89 || bin[1] !== 0x50) return null;
-    let off = 8;
-    const td = new TextDecoder();
-    const parse = (text, keyword) => {
-      try { return JSON.parse(atob(text.trim())); } catch { /* not base64 JSON */ }
-      if (keyword === "ccv3") { try { return JSON.parse(text); } catch { /* not JSON */ } }
-      return null;
-    };
-    while (off + 12 <= bin.length) {
-      const len = (bin[off] << 24) | (bin[off + 1] << 16) | (bin[off + 2] << 8) | bin[off + 3];
-      const type = String.fromCharCode(bin[off + 4], bin[off + 5], bin[off + 6], bin[off + 7]);
-      if (type === "tEXt" || type === "iTXt") {
-        const body = bin.subarray(off + 8, off + 8 + len);
-        const nul = body.indexOf(0);
-        if (nul > 0) {
-          const keyword = td.decode(body.subarray(0, nul));
-          let payload = body.subarray(nul + 1);
-          if (type === "iTXt") {
-            // skip compression flag(1) + method(1) + lang NUL + translated NUL
-            let q = nul + 1 + 2;
-            q = body.indexOf(0, q) + 1;
-            q = body.indexOf(0, q) + 1;
-            payload = body.subarray(q);
-          }
-          if (keyword === "chara" || keyword === "ccv3") {
-            const json = parse(td.decode(payload), keyword);
-            if (json && keyword === "ccv3") return json;
-            if (json && !v2) v2 = json;
-          }
-        }
+    walkPngText(String(b64), (keyword, type, at, len) => {
+      if (keyword !== "chara" && keyword !== "ccv3") return false;
+      const body = b64Slice(b64, at, len);
+      let q = body.indexOf(0) + 1;
+      if (type === "iTXt") {
+        // skip compression flag(1) + method(1) + lang NUL + translated NUL
+        q += 2;
+        q = body.indexOf(0, q) + 1;
+        q = body.indexOf(0, q) + 1;
       }
-      if (type === "IEND") break;
-      off += 12 + len;
-    }
+      const text = asciiOf(body.subarray(q)).replace(/[^A-Za-z0-9+/=_-]/g, "");
+      let json = null;
+      try { json = JSON.parse(utf8Decode(b64Bytes(text))); } catch { /* not base64 JSON */ }
+      if (!json && keyword === "ccv3") { try { json = JSON.parse(utf8Decode(body.subarray(q))); } catch { /* not JSON */ } }
+      if (json && keyword === "ccv3") { v3 = json; return true; }
+      if (json && !v2) v2 = json;
+      return false;
+    });
   } catch {}
-  return v2;
+  return v3 || v2;
 }
 
 /** Fields the normalizer owns; everything else on the card's data object is
@@ -649,24 +745,24 @@ function classifyCardLink(raw) {
   };
 }
 
-/** What a fetched card file is, from its first bytes. JSON must parse and look
- *  like a card; a PNG must carry a card. Returns { kind } or { error }. */
+/** What a fetched card file is, from its first bytes. A PNG must carry a card
+ *  chunk (headers only are read); a JSON file must parse and have a name
+ *  (files over 2 MB are left to the browser's importer). Returns { kind } or
+ *  { error }. */
 function sniffCardFile(base64) {
-  const head = Uint8Array.from(atob(String(base64).slice(0, 16)), (c) => c.charCodeAt(0));
+  const s = String(base64);
+  const total = b64Length(s);
+  const head = b64Slice(s, 0, 16);
   if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) {
-    return cardFromPngBase64(base64) ? { kind: "png" } : { error: "This PNG is a plain image with no character card inside." };
+    return pngHasCard(s) ? { kind: "png" } : { error: "This PNG is a plain image with no character card inside." };
   }
   if (head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04) return { kind: "charx", zipOffset: 0 };
   if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) {
     // RisuRealm also serves charx as a JPEG cover with the zip appended. The
     // zip's end record says where the zip starts: end - directory size -
     // directory offset. The Store cuts the cover off before /import/zip.
-    const s = String(base64);
-    const pad = s.endsWith("==") ? 2 : s.endsWith("=") ? 1 : 0;
-    const total = (s.length / 4) * 3 - pad;
-    const tailChars = Math.min(s.length, 1024);
-    const tail = Uint8Array.from(atob(s.slice(s.length - tailChars)), (c) => c.charCodeAt(0));
-    const tailStart = total - tail.length;
+    const tailStart = Math.max(0, total - 768);
+    const tail = b64Slice(s, tailStart, total - tailStart);
     for (let i = tail.length - 22; i >= 0; i--) {
       if (tail[i] === 0x50 && tail[i + 1] === 0x4b && tail[i + 2] === 0x05 && tail[i + 3] === 0x06) {
         const u32 = (o) => (tail[o] | (tail[o + 1] << 8) | (tail[o + 2] << 16) | (tail[o + 3] << 24)) >>> 0;
@@ -677,12 +773,12 @@ function sniffCardFile(base64) {
     }
     return { error: "This JPEG is a plain image with no character card inside." };
   }
-  let text = "";
-  try { text = new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))).replace(/^﻿/, "").trim(); } catch { /* not text */ }
-  if (text.startsWith("<")) return { error: "The link opens a web page, not a card file. Use the link of the file itself (on GitHub: Raw; on Hugging Face: download)." };
-  if (text.startsWith("{")) {
+  const lead = utf8Decode(b64Slice(s, 0, 64)).replace(/^﻿/, "").trimStart();
+  if (lead.startsWith("<")) return { error: "The link opens a web page, not a card file. Use the link of the file itself (on GitHub: Raw; on Hugging Face: download)." };
+  if (lead.startsWith("{")) {
+    if (total > 2 * 1024 * 1024) return { kind: "json" };
     try {
-      const j = JSON.parse(text);
+      const j = JSON.parse(utf8Decode(b64Bytes(s)).replace(/^﻿/, ""));
       const name = j && (j.name || (j.data && j.data.name) || (j.char_name));
       if (typeof name === "string" && name.trim()) return { kind: "json" };
       return { error: "This JSON file is not a character card (it has no name)." };
@@ -941,12 +1037,7 @@ function pygCard(ch) {
   };
 }
 
-const utf8Base64 = (s) => {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
-};
+const utf8Base64 = (s) => b64Encode(utf8Encode(s));
 
 /** /marketplace/search and /marketplace/detail for the sources other than
  *  chub. Two-phase like chub: pass A asks host.net, pass B maps the answer. */
