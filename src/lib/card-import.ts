@@ -42,8 +42,26 @@ const assetsOf = (card: unknown): CardAsset[] => {
 /** Emotion images: "emotion" in the V3 spec, "x-risu-asset" in RisuAI packs. */
 const isEmotionAsset = (a: CardAsset) => !!a && (a.type === 'emotion' || a.type === 'x-risu-asset') && typeof a.uri === 'string'
 /** Expressions are stored inside card.json (the plugin writes at most 4 MB a
- *  file), so each one is downscaled here; 320 px keeps a large pack whole. */
-const EMOTION_PX = 320
+ *  file, and keeps a pack under 3 MB), so the browser downscales them: as
+ *  large as the pack allows, from 768 px down (a pack of 20-30 stays around
+ *  512-640 px, 80+ images go near 320). A stopgap until plugins can write
+ *  image files of their own. */
+const EMOTION_BUDGET = 2.8 * 1024 * 1024
+async function fitEmotions(blobs: [string, Blob][]): Promise<Record<string, string>> {
+  let px = 768
+  let out: Record<string, string> = {}
+  for (let pass = 0; pass < 4; pass++) {
+    out = {}
+    let total = 0
+    for (const [key, blob] of blobs) {
+      try { out[key] = await fileToDataUrl(blob, px, { alpha: true }); total += out[key]!.length } catch { /* not an image: skip */ }
+    }
+    if (total <= EMOTION_BUDGET || px <= 192) break
+    // size grows with the area: scale the edge by the square root
+    px = Math.max(192, Math.floor(px * Math.sqrt(EMOTION_BUDGET / total) * 0.95))
+  }
+  return out
+}
 const imageType = (path: string) => (/\.png$/i.test(path) ? 'image/png' : /\.webp$/i.test(path) ? 'image/webp' : /\.gif$/i.test(path) ? 'image/gif' : 'image/jpeg')
 
 /** A charx package's portrait and emotion images, ready for /import/zip:
@@ -67,12 +85,12 @@ async function charxExtras(zipBytes: Uint8Array): Promise<{ avatar?: string; ass
     if (path && files[path]) {
       try { out.avatar = await fileToDataUrl(new Blob([files[path]!], { type: imageType(path) }), 512) } catch { /* no portrait */ }
     }
-    const assets: Record<string, string> = {}
+    const blobs = new Map<string, Blob>()
     for (const a of list.filter(isEmotionAsset)) {
       const p = pathOf(a)
-      if (!files[p] || assets[p]) continue
-      try { assets[p] = await fileToDataUrl(new Blob([files[p]!], { type: imageType(p) }), EMOTION_PX, { alpha: true }) } catch { /* skip this one */ }
+      if (files[p] && !blobs.has(p)) blobs.set(p, new Blob([files[p]!], { type: imageType(p) }))
     }
+    const assets = await fitEmotions([...blobs])
     if (Object.keys(assets).length) out.assets = assets
   } catch { /* not a readable zip: the plugin reports it */ }
   return out
@@ -92,7 +110,7 @@ async function pngCardAssets(file: File, card: unknown): Promise<Record<string, 
       for (let i = from; i < to; i += 8192) parts.push(String.fromCharCode(...b.subarray(i, Math.min(to, i + 8192))))
       return parts.join('')
     }
-    const out: Record<string, string> = {}
+    const blobs = new Map<string, Blob>()
     let off = 8
     while (off + 12 <= b.length) {
       const len = view.getUint32(off)
@@ -103,17 +121,18 @@ async function pngCardAssets(file: File, card: unknown): Promise<Record<string, 
         let nul = off + 8
         while (nul < end && nul < off + 8 + 80 && b[nul] !== 0) nul++
         const key = /^chara-ext-asset_:?(.+)$/.exec(ascii(off + 8, nul))?.[1]
-        if (key && wanted.has(key) && !out[key]) {
+        if (key && wanted.has(key) && !blobs.has(key)) {
           try {
             const bin = atob(ascii(nul + 1, end).replace(/[^A-Za-z0-9+/=]/g, ''))
             const bytes = new Uint8Array(bin.length)
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-            out[key] = await fileToDataUrl(new Blob([bytes]), EMOTION_PX, { alpha: true })
-          } catch { /* not an image: skip */ }
+            blobs.set(key, new Blob([bytes]))
+          } catch { /* not base64: skip */ }
         }
       }
       off += 12 + len
     }
+    const out = await fitEmotions([...blobs])
     return Object.keys(out).length ? out : undefined
   } catch {
     return undefined
