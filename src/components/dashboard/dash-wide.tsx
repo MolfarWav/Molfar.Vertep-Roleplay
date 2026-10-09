@@ -14,7 +14,7 @@ import { useT } from '@/hooks/use-t'
 import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 
-export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, userName }: {
+export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, onPortrait, userName }: {
   chatId: string
   /** changes each time the strip's note chips ask for the notebook: scroll it into view */
   notebookSignal?: number
@@ -27,6 +27,8 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
   onClose: () => void
   now: number
   avatars: Record<string, string | undefined>
+  /** opens the portrait dialog for a name (a click on the focused character's avatar) */
+  onPortrait?: (name: string) => void
   userName: string
 }) {
   const t = useT()
@@ -107,7 +109,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
                 {present.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {present.map((n) => (
-                      <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} />
+                      <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} onPortrait={onPortrait} />
                     ))}
                   </div>
                 )}

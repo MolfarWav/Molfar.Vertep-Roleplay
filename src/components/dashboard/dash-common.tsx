@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { PencilSimple } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { ageSeconds, type Clock, type DashChar, type DashView } from '@/lib/dashboard'
@@ -104,26 +105,36 @@ export function AvatarImg({ name, url, className }: { name: string; url?: string
   )
 }
 
-export function AvatarButton({ name, url, onFocus, focused, className }: {
+/** A click focuses the character; with onPortrait, a click on the focused one opens its portrait dialog. */
+export function AvatarButton({ name, url, onFocus, focused, onPortrait, className }: {
   name: string
   url?: string
   onFocus: (name: string) => void
   focused?: boolean
+  onPortrait?: (name: string) => void
   className?: string
 }) {
+  const t = useT()
+  const portrait = focused && onPortrait
+  const label = portrait ? `${name}: ${t('lit.portrait.change')}` : name
   return (
     <button
       type="button"
-      onClick={() => onFocus(name)}
-      aria-label={name}
-      title={name}
+      onClick={() => (portrait ? onPortrait(name) : onFocus(name))}
+      aria-label={label}
+      title={label}
       className={cn(
-        'shrink-0 rounded-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        'group relative shrink-0 rounded-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         focused ? 'ring-1 ring-cta' : 'opacity-80 hover:opacity-100',
         className,
       )}
     >
       <AvatarImg name={name} url={url} />
+      {portrait && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true">
+          <PencilSimple className="size-3.5" />
+        </span>
+      )}
     </button>
   )
 }

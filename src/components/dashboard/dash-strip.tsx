@@ -11,7 +11,7 @@ import { useT } from '@/hooks/use-t'
 import { AgeText, AvatarButton, FooterLine, Label, LiveDot, NameChip, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 
-export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, onRefresh, refreshing, collapsed, onCollapse, now, avatars }: {
+export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, onRefresh, refreshing, collapsed, onCollapse, now, avatars, onPortrait }: {
   chatId: string
   view: DashView
   focus: string
@@ -25,6 +25,8 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
   onCollapse: () => void
   now: number
   avatars: Record<string, string | undefined>
+  /** opens the portrait dialog for a name (a click on the focused character's avatar) */
+  onPortrait?: (name: string) => void
   userName: string
 }) {
   const t = useT()
@@ -83,7 +85,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
               {present.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {present.map((n) => (
-                    <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} />
+                    <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} onPortrait={onPortrait} />
                   ))}
                 </div>
               )}

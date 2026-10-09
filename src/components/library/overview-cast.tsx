@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AvatarImg } from '@/components/dashboard/dash-common'
-import { useApp } from '@/lib/store'
+import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
 import { useT } from '@/hooks/use-t'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { fetchLitPortraits, type LitChat, type LitFact, type LitPortraits } from './litopys-api'
+import type { LitChat, LitFact, LitPortraits } from './litopys-api'
 import { PortraitDialog } from './portrait-dialog'
 import { SECTION_TITLE_TONE, SECTION_TONE, type SectionKind } from './tones'
 import { Eye } from '@phosphor-icons/react'
@@ -33,36 +33,11 @@ function sortFacts(facts: LitFact[]): LitFact[] {
   })
 }
 
-/** name → portrait: character cards and personas, matched by lower-cased name (the record keeps the story's spelling). */
-function usePortraits(own: LitPortraits): Map<string, string> {
-  const characters = useApp((s) => s.characters)
-  const personas = useApp((s) => s.personas)
-  return useMemo(() => {
-    const map = new Map<string, string>()
-    for (const p of personas) if (p.avatar) map.set(p.name.toLowerCase(), p.avatar)
-    for (const c of characters) if (c.avatar) map.set(c.name.toLowerCase(), c.avatar)
-    for (const [k, v] of Object.entries(own)) map.set(k, v.url)
-    return map
-  }, [characters, personas, own])
-}
-
 export function CastCards({ chat, onChat, ctl }: CastProps) {
   const t = useT()
-  const [own, setOwn] = useState<LitPortraits>({})
-  useEffect(() => {
-    let live = true
-    fetchLitPortraits()
-      .then((m) => {
-        if (live) setOwn(m)
-      })
-      .catch(() => {
-        // no portraits of its own: cards and initials still show
-      })
-    return () => {
-      live = false
-    }
-  }, [])
-  const portraits = usePortraits(own)
+  // the same store as the dashboard and the Soul tab: a portrait set here shows there too
+  const own = useOwnPortraits()
+  const portraits = usePortraitMap()
   
   const activeFacts = useMemo(
     () => chat.facts.filter((f) => f.status === 'active'),
@@ -128,7 +103,7 @@ export function CastCards({ chat, onChat, ctl }: CastProps) {
             isWorld={group.name.toLowerCase() === 'world'}
             portrait={portraits.get(group.name.toLowerCase())}
             ownPortrait={!!own[group.name.toLowerCase()]}
-            onPortraits={setOwn}
+            onPortraits={setOwnPortraits}
           />
         ))}
       </div>

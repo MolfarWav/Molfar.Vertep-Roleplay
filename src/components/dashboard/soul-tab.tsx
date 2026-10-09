@@ -5,7 +5,7 @@
 // unsaved copy survives a tab switch.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CircleNotch, Plus, Trash } from '@phosphor-icons/react'
+import { CircleNotch, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,13 +14,16 @@ import { useT } from '@/hooks/use-t'
 import { ApiError, j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
+import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
+import { PortraitDialog } from '@/components/library/portrait-dialog'
 import {
   MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, finalizeSoul, isCardType, isNarratorSelf, minorOf, molfarCandidates, molfarDraftText, overlaySoul, refreshOverlays,
   soulsOf, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulClass, type SoulDraft, type SoulMap,
 } from '@/lib/soul'
 import type { Character } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { cn, copyText } from '@/lib/utils'
+import { AvatarImg } from './dash-common'
 import { SoulForm, type VocabEvent } from './soul-form'
 import { SoulGuests } from './soul-guests'
 import { SoulModelPicker } from './soul-model-picker'
@@ -58,6 +61,10 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   const lorebooks = useApp((s) => s.lorebooks)
   const chats = useApp((s) => s.chats)
   const [confirm, confirmDialog] = useConfirm()
+  // the Library's portraits by name (narrator cards and lorebook characters have no card of their own)
+  const portraits = usePortraitMap([c.id, ...(c.members ?? [])])
+  const ownPortraits = useOwnPortraits()
+  const [portraitFor, setPortraitFor] = useState<string | null>(null)
 
   const extras = c.cardExtras
   const saved = useMemo(() => soulsOf({ cardExtras: extras }), [extras])
@@ -500,7 +507,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
       if (canAskMolfar()) {
         await askMolfar(text)
       } else {
-        await navigator.clipboard.writeText(text)
+        if (!(await copyText(text))) throw new Error(t('msg.copyFailed'))
         toast.success(t('soul.copied'))
       }
       setAskedUntil(Date.now() + MOLFAR_WINDOW_MS)
@@ -642,7 +649,10 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
                   noSoul && 'text-muted-foreground',
                 )}
               >
-                <span className="size-2 shrink-0 rounded-full" style={{ background: noSoul ? 'transparent' : (CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral), boxShadow: noSoul ? 'inset 0 0 0 1px currentColor' : undefined }} aria-hidden="true" />
+                {/* the class colour rings the portrait; no soul yet = a thin ring of the text colour */}
+                <span className="flex shrink-0" style={{ boxShadow: `0 0 0 1.5px ${noSoul ? 'currentColor' : (CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral)}` }} aria-hidden="true">
+                  <AvatarImg name={name} url={portraits.get(name.toLowerCase())} className="size-5 [&_[data-slot=avatar-fallback]]:text-[8px]" />
+                </span>
                 <span className="max-w-40 truncate">{name}</span>
                 {noSoul && <span className="text-[10px]">{t('soul.noSoul')}</span>}
                 {(proposed || isUpdate) && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t(isUpdate ? 'soul.update' : 'soul.proposed')}</span>}
@@ -656,6 +666,38 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
             </Button>
           )}
         </div>
+      )}
+
+      {selName && !isEmpty && (
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setPortraitFor(selName)}
+            title={t('lit.portrait.change')}
+            aria-label={`${selName}: ${t('lit.portrait.change')}`}
+            data-testid="soul-portrait"
+            className="group relative shrink-0 rounded-md outline-none hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <AvatarImg name={selName} url={portraits.get(selName.toLowerCase())} className="size-16 rounded-md after:rounded-md" />
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true">
+              <PencilSimple className="size-5" />
+            </span>
+          </button>
+          <div className="min-w-0">
+            <div className="truncate font-heading text-lg leading-tight">{selName}</div>
+            <p className="text-xs text-muted-foreground">{t('soul.portraitHint')}</p>
+          </div>
+        </div>
+      )}
+      {portraitFor && (
+        <PortraitDialog
+          name={portraitFor}
+          current={portraits.get(portraitFor.toLowerCase())}
+          own={!!ownPortraits[portraitFor.toLowerCase()]}
+          open
+          onOpenChange={(o) => { if (!o) setPortraitFor(null) }}
+          onSaved={setOwnPortraits}
+        />
       )}
 
       {/* actions */}

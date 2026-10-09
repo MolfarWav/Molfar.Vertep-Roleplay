@@ -46,7 +46,7 @@ export function DashPhoneBar({ view, focus, onOpen }: {
   )
 }
 
-export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, avatars, userName }: {
+export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, avatars, onPortrait, userName }: {
   view: DashView
   focus: string
   onFocus: (name: string) => void
@@ -54,6 +54,8 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
   refreshing: boolean
   now: number
   avatars: Record<string, string | undefined>
+  /** opens the portrait dialog for a name (a click on the focused character's avatar) */
+  onPortrait?: (name: string) => void
   userName: string
 }) {
   const t = useT()
@@ -102,7 +104,7 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
             {present.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {present.map((n) => (
-                  <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} />
+                  <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} onPortrait={onPortrait} />
                 ))}
               </div>
             )}

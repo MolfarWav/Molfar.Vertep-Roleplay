@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useT } from '@/hooks/use-t'
+import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
 import { useApp } from '@/lib/store'
+import { PortraitDialog } from '@/components/library/portrait-dialog'
 import { DashCtx, useDashMaybe } from './dash-context'
 import { DashEmpty } from './dash-empty'
 import { DashPhoneBar, DashPhoneSheet } from './dash-phone'
@@ -67,20 +69,38 @@ function writeExpanded(v: boolean) {
   try { localStorage.setItem(STRIP_KEY, v ? '1' : '0') } catch { /* private mode */ }
 }
 
-/** name → avatar URL for the chat's card and every group member, matched by lower-cased name. */
+/**
+ * name → portrait for the names the dashboard lists: the user's own portrait (the Library's, one
+ * per name for every chat), else the chat's card or a group member, else any card or persona of
+ * that name, else initials.
+ */
 function useAvatars(chatId: string, names: string[] | undefined): Record<string, string | undefined> {
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
-  const characters = useApp((s) => s.characters)
+  const card = useApp((s) => s.characters.find((c) => c.id === chat?.characterId))
+  const map = usePortraitMap([card?.id, ...(card?.members ?? [])])
   const key = (names ?? []).join('|')
   return useMemo(() => {
-    const card = characters.find((c) => c.id === chat?.characterId)
-    const cards = [card, ...(card?.members ?? []).map((id) => characters.find((c) => c.id === id))]
-    const byName = new Map<string, string>()
-    for (const c of cards) if (c?.avatar) byName.set(c.name.toLowerCase(), c.avatar)
     const out: Record<string, string | undefined> = {}
-    for (const n of key ? key.split('|') : []) out[n] = byName.get(n.toLowerCase())
+    for (const n of key ? key.split('|') : []) out[n] = map.get(n.toLowerCase())
     return out
-  }, [chat?.characterId, characters, key])
+  }, [map, key])
+}
+
+/** The portrait dialog the dashboard opens from a click on the focused character's avatar. */
+function usePortraitEdit(avatars: Record<string, string | undefined>) {
+  const own = useOwnPortraits()
+  const [name, setName] = useState<string | null>(null)
+  const dialog = name ? (
+    <PortraitDialog
+      name={name}
+      current={avatars[name]}
+      own={!!own[name.toLowerCase()]}
+      open
+      onOpenChange={(o) => { if (!o) setName(null) }}
+      onSaved={setOwnPortraits}
+    />
+  ) : null
+  return { open: setName, dialog }
 }
 
 /** The name the chat shows for {{user}}: the chat's persona, else the default one. */
@@ -94,6 +114,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const dash = useContext(DashCtx)
   const t = useT()
   const avatars = useAvatars(chatId, dash?.view?.order)
+  const portrait = usePortraitEdit(avatars)
   const userName = useUserName(chatId)
   const [expanded, setExpanded] = useState(readExpanded)
   const [wideOpen, setWideOpen] = useState(false)
@@ -152,8 +173,11 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         onCollapse={toggle}
         now={dash.now}
         avatars={avatars}
+        onPortrait={portrait.open}
         userName={userName}
       />
+      {/* inside the sheet while it is open, so its focus trap does not hold the dialog */}
+      {!wideOpen && portrait.dialog}
       <Sheet
         open={wideOpen}
         onOpenChange={(o) => {
@@ -194,10 +218,12 @@ export function DashStripMount({ chatId }: { chatId: string }) {
               onClose={() => setWideOpen(false)}
               now={dash.now}
               avatars={avatars}
+              onPortrait={portrait.open}
               userName={userName}
             />
           )}
           {guard.dialog}
+          {portrait.dialog}
         </SheetContent>
       </Sheet>
     </div>
@@ -208,6 +234,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
   const dash = useContext(DashCtx)
   const t = useT()
   const avatars = useAvatars(chatId, dash?.view?.order)
+  const portrait = usePortraitEdit(avatars)
   const userName = useUserName(chatId)
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState(false)
@@ -276,12 +303,14 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
                   refreshing={dash.refreshing}
                   now={dash.now}
                   avatars={avatars}
+                  onPortrait={portrait.open}
                   userName={userName}
                 />
               </div>
             </>
           )}
           {guard.dialog}
+          {portrait.dialog}
         </SheetContent>
       </Sheet>
     </div>
