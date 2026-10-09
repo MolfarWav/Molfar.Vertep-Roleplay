@@ -132,6 +132,77 @@ describe("rp card sources: file types", () => {
   });
 });
 
+describe("rp card sources: Wyvern, Pygmalion, JannyAI", () => {
+  it("Wyvern: search sends no ordering with a term, the install builds a V2 card with every greeting", async () => {
+    const s = await drive("/marketplace/search", { source: "wyvern", search: "knight", sort: "rating", tags: ["Fantasy"], first: 6 }, (_k, req) => {
+      const q = new URL(String(req.url)).searchParams;
+      expect(String(req.url)).toContain("https://api.wyvern.chat/exploreSearch/characters?");
+      expect(q.get("q")).toBe("knight");
+      expect(q.has("sort")).toBe(false);
+      expect(q.get("tags")).toBe("Fantasy");
+      return { ok: true, status: 200, json: { results: [{ id: "_abcDEF123", name: "Kn", creator: { displayName: "Me" }, tags: ["Fantasy"], rating: "none", avatar: "https://imagedelivery.net/a/b/public", lorebooks: [{ id: "x" }] }], total: 7, hasMore: false } };
+    });
+    expect((s.json.results as unknown[])[0]).toMatchObject({ id: "_abcDEF123", source: "wyvern", creator: "Me", nsfw: false, linkedBooks: 1, pageUrl: "https://app.wyvern.chat/characters/_abcDEF123" });
+    const sorted = await drive("/marketplace/search", { source: "wyvern", sort: "rating" }, (_k, req) => {
+      expect(new URL(String(req.url)).searchParams.get("sort")).toBe("votes");
+      return { ok: true, status: 200, json: { results: [], total: 0 } };
+    });
+    expect(sorted.status).toBe(200);
+
+    const f = await drive("/fetch/card", { url: "https://wyvern.chat/characters/_abcDEF123" }, (_k, req) => {
+      expect(req.url).toBe("https://api.wyvern.chat/characters/_abcDEF123");
+      expect(req.json).toBe(true);
+      return { ok: true, status: 200, url: String(req.url), json: {
+        id: "_abcDEF123", name: "Кн", description: "D", first_mes: "Hi", alternate_greetings: ["Alt"],
+        greetings: [{ content: "Hi" }, { content: "Second" }], pre_history_instructions: "SP", avatar: "https://imagedelivery.net/a/b/public", lorebooks: [{ id: "x" }],
+      } };
+    });
+    expect(f.json).toMatchObject({ kind: "json", sourceLabel: "Wyvern", avatarUrl: "https://imagedelivery.net/a/b/public", skippedBooks: 1 });
+    const card = JSON.parse(Buffer.from(String(f.json.base64), "base64").toString("utf8"));
+    expect(card.data).toMatchObject({ name: "Кн", first_mes: "Hi", alternate_greetings: ["Second", "Alt"], system_prompt: "SP" });
+  });
+
+  it("Pygmalion: Connect GET with a 0-based page, persona and greeting become the card", async () => {
+    const s = await drive("/marketplace/search", { source: "pygmalion", search: "x", sort: "newest", page: 2, first: 10 }, (_k, req) => {
+      const u = new URL(String(req.url));
+      expect(u.origin + u.pathname).toBe("https://server.pygmalion.chat/galatea.v1.PublicCharacterService/CharacterSearch");
+      expect(JSON.parse(u.searchParams.get("message")!)).toMatchObject({ query: "x", orderBy: "approved_at", orderDescending: true, pageSize: 10, page: 1 });
+      return { ok: true, status: 200, json: { totalItems: 25, characters: [{ id: "6b67ca81-f58e-4a16-bf29-5f36313f29b7", displayName: "W", owner: { displayName: "O" }, downloads: 3, stars: 2, avatarUrl: "https://assets.pygmalion.chat/x" }] } };
+    });
+    expect(s.json).toMatchObject({ count: 25, hasMore: true });
+    expect((s.json.results as unknown[])[0]).toMatchObject({ source: "pygmalion", downloads: 3, favorites: 2, pageUrl: "https://pygmalion.chat/character/6b67ca81-f58e-4a16-bf29-5f36313f29b7" });
+    const f = await drive("/fetch/card", { url: "https://pygmalion.chat/character/6b67ca81-f58e-4a16-bf29-5f36313f29b7" }, (_k, req) => ({
+      ok: true, status: 200, url: String(req.url),
+      json: { character: { id: "6b67ca81-f58e-4a16-bf29-5f36313f29b7", displayName: "W", description: "short", avatarUrl: "https://assets.pygmalion.chat/x", tags: ["A"], personality: { name: "World", persona: "P", greeting: "G", characterNotes: "N", mesExample: "E" } } },
+    }));
+    const card = JSON.parse(Buffer.from(String(f.json.base64), "base64").toString("utf8"));
+    expect(card.data).toMatchObject({ name: "World", description: "P", first_mes: "G", mes_example: "E", creator_notes: "short\n\nN", tags: ["A"] });
+  });
+
+  it("JannyAI: search only, filters by tag id, plain-text descriptions, never downloads", async () => {
+    const s = await drive("/marketplace/search", { source: "janny", search: "elf", tags: ["Fantasy", "nope"], excludeTags: ["Horror"], minTokens: 500 }, (_k, req) => {
+      expect(req.url).toBe("https://search.jannyai.com/multi-search");
+      expect(req.method).toBe("POST");
+      expect(String((req.headers as Record<string, string>).authorization)).toStartWith("Bearer ");
+      const q = (req.body as { queries: Record<string, unknown>[] }).queries[0]!;
+      expect(q).toMatchObject({ indexUid: "janny-characters", q: "elf", page: 1 });
+      expect(q.filter).toEqual(["isNsfw = false", "isLowQuality = false", "totalToken >= 500", "tagIds = 53", "tagIds != 51"]);
+      expect(q.sort).toBeUndefined(); // a search term ranks by relevance
+      return { ok: true, status: 200, json: { results: [{ totalHits: 1, hits: [{ id: "3321c718-3682-4361-a3c6-fedb5f03e40b", name: "Dusk Elf", description: "<p><span>Line &amp; one</span></p><p>Two</p>", tagIds: [2, 53], isNsfw: false, totalToken: 900, avatar: "a_b.webp" }] }] } };
+    });
+    expect((s.json.results as unknown[])[0]).toMatchObject({
+      tagline: "Line & one", description: "Line & one\nTwo", topics: ["Female", "Fantasy"], browserOnly: true,
+      avatar: "https://image.jannyai.com/bot-avatars/a_b.webp",
+      pageUrl: "https://jannyai.com/characters/3321c718-3682-4361-a3c6-fedb5f03e40b_character-dusk-elf",
+    });
+    const rotated = await drive("/marketplace/search", { source: "janny" }, () => ({ ok: false, status: 403 }));
+    expect(String(rotated.json.error)).toContain("search key");
+    const d = await drive("/marketplace/detail", { source: "janny", id: "3321c718-3682-4361-a3c6-fedb5f03e40b" });
+    expect(d.json.browserOnly).toBe(true);
+    expect(d.requests).toHaveLength(0);
+  });
+});
+
 describe("rp card sources: search and detail", () => {
   it("RisuRealm: reads the site's page data and maps it to Store items", async () => {
     // devalue: object members and array items are indexes into the same array

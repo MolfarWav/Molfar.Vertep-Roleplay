@@ -552,7 +552,8 @@ const BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, l
 const HONEST_UA = "Molfar-Vertep studio-import/1.13.0 (+https://github.com/MolfarWav/Molfar.Vertep)";
 const CARD_MAX_BYTES = 16 * 1024 * 1024; // the chub card PNG cap
 const CARD_TIMEOUT_MS = 30000;
-const SOURCE_LABELS = { chub: "Chub", risurealm: "RisuRealm", charavault: "CharaVault", url: "a direct link" };
+const SOURCE_LABELS = { chub: "Chub", risurealm: "RisuRealm", charavault: "CharaVault", wyvern: "Wyvern", pygmalion: "Pygmalion", janny: "JannyAI", url: "a direct link" };
+const OTHER_SOURCES = ["risurealm", "charavault", "wyvern", "pygmalion", "janny"];
 // A direct link may only be downloaded from these services, and a redirect
 // may only stay inside the same service (Hugging Face serves files from its
 // CDN, github.com/raw lands on raw.githubusercontent.com). The engine checks
@@ -563,7 +564,7 @@ const DIRECT_SERVICES = [
   { name: "Catbox", hosts: ["files.catbox.moe"] },
   { name: "Discord", hosts: ["cdn.discordapp.com"] },
 ];
-const DIRECT_NAMES = "GitHub (raw), Hugging Face, Catbox, Discord";
+const DIRECT_NAMES = "GitHub (raw), Hugging Face, Catbox, Discord, Wyvern, Pygmalion";
 const hostIn = (hostname, patterns) =>
   patterns.some((p) => hostname === p || (p.startsWith("*.") && hostname.endsWith(p.slice(1))));
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -584,6 +585,27 @@ function classifyCardLink(raw) {
     return { status: 422, error: "JannyAI cards cannot be downloaded by the app. Open the page in your browser, download the card, then drop the file into the Store.", openInBrowser: u.href };
   }
   if (/(^|\.)(chub\.ai|characterhub\.(ai|org))$/.test(host)) return { status: 400, error: "Chub links go through the chub import." };
+  // Wyvern and Pygmalion give the card as JSON fields, not a file: the
+  // plugin reads them and builds a V2 card (see wyvernCard / pygCard)
+  if (host === "wyvern.chat" || host === "app.wyvern.chat") {
+    const id = parts[0] === "characters" ? parts[1] : "";
+    if (!id || !/^[\w-]{6,64}$/.test(id)) return { error: "Not a Wyvern character link. Use https://app.wyvern.chat/characters/<id>." };
+    return {
+      source: "wyvern", api: true, hosts: ["api.wyvern.chat"], fileBase: id,
+      pageUrl: "https://app.wyvern.chat/characters/" + id,
+      url: "https://api.wyvern.chat/characters/" + id, headers: { accept: "application/json" },
+    };
+  }
+  if (host === "pygmalion.chat" || host === "www.pygmalion.chat") {
+    const id = parts[0] === "character" ? parts[1] : "";
+    if (!id || !UUID_RE.test(id)) return { error: "Not a Pygmalion character link. Use https://pygmalion.chat/character/<id>." };
+    return {
+      source: "pygmalion", api: true, hosts: ["server.pygmalion.chat"], fileBase: id.toLowerCase(),
+      pageUrl: "https://pygmalion.chat/character/" + id.toLowerCase(),
+      url: PYG_API + "/Character?" + new URLSearchParams({ connect: "v1", encoding: "json", message: JSON.stringify({ characterMetaId: id.toLowerCase() }) }).toString(),
+      headers: { accept: "application/json" },
+    };
+  }
   if (host === "realm.risuai.net") {
     const id = parts[0] === "character" ? parts[1] : parts[0] === "api" ? parts[parts.length - 1] : "";
     if (!id || !UUID_RE.test(id)) return { error: "Not a RisuRealm character link. Use https://realm.risuai.net/character/<id>." };
@@ -723,6 +745,33 @@ const CV_SORTS = {
   name: "name_asc", name_desc: "name_desc", creator: "creator_asc",
   tokens: "token_count_desc", tokens_asc: "token_count_asc", comments: "most_commented",
 };
+// Wyvern: public JSON API, no key; without an account it lists SFW cards only.
+// With a search term the site's own client sends no ordering.
+const WYVERN_SORTS = { popular: "popular", recommended: "recommended", newest: "created_at", rating: "votes", chats: "messages" };
+// Pygmalion: the public Connect API (GET, JSON encoding), SFW without an
+// account. Page numbers start at 0 there.
+const PYG_API = "https://server.pygmalion.chat/galatea.v1.PublicCharacterService";
+const PYG_SORTS = { downloads: "downloads", rating: "stars", views: "views", newest: "approved_at", tokens: "token_count", name: "display_name" };
+// JannyAI: search only. Its site searches a public Meilisearch index from the
+// browser with this search-only key (a Meilisearch search key is meant to be
+// public); the site itself and its download API sit behind a browser check,
+// so cards are installed by the user in the browser, never fetched here.
+// When the key rotates, search answers 401/403 and the Store says so.
+const JANNY_SEARCH_URL = "https://search.jannyai.com/multi-search";
+const JANNY_SEARCH_KEY = "88a6463b66e04fb07ba87ee3db06af337f492ce511d93df6e2d2968cb2ff2b30";
+const JANNY_SORTS = { newest: ["createdAtStamp:desc"], oldest: ["createdAtStamp:asc"], tokens: ["totalToken:desc"], tokens_asc: ["totalToken:asc"] };
+// JannyAI's tag ids as its site names them (the index stores ids only)
+const JANNY_TAGS = {
+  1: "Male", 2: "Female", 3: "Non-binary", 4: "Celebrity", 5: "OC", 6: "Fictional", 7: "Real", 8: "Game", 9: "Anime",
+  10: "Historical", 11: "Royalty", 12: "Detective", 13: "Hero", 14: "Villain", 15: "Magical", 16: "Non-human", 17: "Monster",
+  18: "Monster Girl", 19: "Alien", 20: "Robot", 21: "Politics", 22: "Vampire", 23: "Giant", 24: "OpenAI", 25: "Elf",
+  26: "Multiple", 27: "VTuber", 28: "Dominant", 29: "Submissive", 30: "Scenario", 31: "Pokemon", 32: "Assistant",
+  34: "Non-English", 36: "Philosophy", 38: "RPG", 39: "Religion", 41: "Books", 42: "AnyPOV", 43: "Angst", 44: "Demi-Human",
+  45: "Enemies to Lovers", 46: "Smut", 47: "MLM", 48: "WLW", 49: "Action", 50: "Romance", 51: "Horror", 52: "Slice of Life",
+  53: "Fantasy", 54: "Drama", 55: "Comedy", 56: "Mystery", 57: "Sci-Fi", 59: "Yandere", 60: "Furry", 61: "Movies/TV",
+};
+const JANNY_TAG_IDS = Object.fromEntries(Object.entries(JANNY_TAGS).map(([id, name]) => [name.toLowerCase(), Number(id)]));
+const jannySlug = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 // where an archived card came from; the site lists these in its own filter
 const CV_ORIGINS = ["chub", "sakura", "crushx", "easygirl", "risuai", "nyai", "nsfwaichat", "janny", "Character Archive", "CharaVault"];
 
@@ -770,6 +819,135 @@ function cvItem(c) {
   };
 }
 
+const str = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+const httpsUrl = (v) => (typeof v === "string" && /^https:\/\//.test(v) ? v : null);
+const firstLine = (s) => String(s || "").split("\n").find((l) => l.trim())?.slice(0, 500) ?? "";
+const NO_STATS = { downloads: 0, favorites: 0, tokens: 0, rating: 0, ratingCount: 0, chats: 0, messages: 0 };
+
+function wyvernItem(c) {
+  const id = String(c.id || c._id || "");
+  const stats = c.entity_statistics && typeof c.entity_statistics === "object" ? c.entity_statistics : {};
+  return {
+    id, source: "wyvern",
+    name: str(c.name, 200) || "Untitled",
+    creator: c.creator && typeof c.creator.displayName === "string" ? c.creator.displayName : "",
+    tagline: str(c.tagline, 500) || firstLine(c.creator_notes),
+    description: str(c.creator_notes, 12000) || str(c.tagline, 12000),
+    topics: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 30) : [],
+    ...NO_STATS,
+    downloads: Number(stats.total_downloads) || 0,
+    favorites: Number(c.likes) || 0,
+    tokens: Number(c.token_count) || 0,
+    chats: Number(stats.total_chats) || 0,
+    messages: Number(stats.total_messages) || 0,
+    nsfw: typeof c.rating === "string" && c.rating !== "none",
+    avatar: httpsUrl(c.avatar), maxRes: httpsUrl(c.avatar),
+    createdAt: typeof c.created_at === "string" ? c.created_at : null,
+    // Wyvern links its books by id; they are not readable without an account
+    hasLore: false, linkedBooks: Array.isArray(c.lorebooks) ? c.lorebooks.length : 0,
+    pageUrl: "https://app.wyvern.chat/characters/" + id,
+  };
+}
+
+function pygItem(c) {
+  const id = String(c.id || "").toLowerCase();
+  const secs = Number(c.approvedAt || c.createdAt);
+  return {
+    id, source: "pygmalion",
+    name: str(c.displayName, 200) || "Untitled",
+    creator: c.owner && typeof c.owner.displayName === "string" ? c.owner.displayName : "",
+    tagline: firstLine(c.description), description: str(c.description, 12000),
+    topics: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 30) : [],
+    ...NO_STATS,
+    downloads: Number(c.downloads) || 0, favorites: Number(c.stars) || 0,
+    tokens: Number(c.personalityTokenCount) || 0, chats: Number(c.chatCount) || 0,
+    nsfw: false,
+    avatar: httpsUrl(c.avatarUrl), maxRes: httpsUrl(c.avatarUrl),
+    createdAt: Number.isFinite(secs) && secs > 0 ? new Date(secs * 1000).toISOString() : null,
+    hasLore: false,
+    pageUrl: "https://pygmalion.chat/character/" + id,
+  };
+}
+
+// JannyAI descriptions are HTML from its editor; the Store shows plain text
+const plainText = (html) => String(html || "")
+  .replace(/<(br|\/p|\/div|\/li)\b[^>]*>/gi, "\n").replace(/<[^>]*>/g, "")
+  .replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
+  .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+
+function jannyItem(h) {
+  const id = String(h.id || "");
+  const secs = Number(h.createdAtStamp);
+  const text = plainText(h.description);
+  return {
+    id, source: "janny",
+    name: str(h.name, 200) || "Untitled", creator: "",
+    tagline: firstLine(text), description: text.slice(0, 12000),
+    topics: Array.isArray(h.tagIds) ? h.tagIds.map((t) => JANNY_TAGS[t]).filter(Boolean) : [],
+    ...NO_STATS,
+    tokens: Number(h.totalToken) || 0,
+    nsfw: h.isNsfw === true,
+    avatar: typeof h.avatar === "string" && /^[\w.-]{1,200}$/.test(h.avatar) ? "https://image.jannyai.com/bot-avatars/" + h.avatar : null,
+    maxRes: null,
+    createdAt: Number.isFinite(secs) && secs > 0 ? new Date(secs * 1000).toISOString() : null,
+    hasLore: false,
+    // installed by the user in the browser: the Store opens this page
+    browserOnly: true,
+    pageUrl: "https://jannyai.com/characters/" + id + "_character-" + jannySlug(h.name),
+  };
+}
+
+/** A V2 card from Wyvern's character JSON. Greetings live in two places
+ *  there (first_mes + alternate_greetings, and the newer greetings list);
+ *  both are kept, duplicates dropped. */
+function wyvernCard(c) {
+  const fromList = Array.isArray(c.greetings) ? c.greetings.map((g) => (g && typeof g.content === "string" ? g.content : "")) : [];
+  const all = [str(c.first_mes, 100000), ...fromList, ...(Array.isArray(c.alternate_greetings) ? c.alternate_greetings.map(String) : [])]
+    .filter((g, i, arr) => g.trim() && arr.indexOf(g) === i);
+  const id = String(c.id || c._id || "");
+  return {
+    spec: "chara_card_v2", spec_version: "2.0",
+    data: {
+      name: str(c.name, 200) || "Untitled",
+      description: str(c.description, 200000), personality: str(c.personality, 100000), scenario: str(c.scenario, 100000),
+      first_mes: all[0] || "", alternate_greetings: all.slice(1), mes_example: str(c.mes_example, 100000),
+      creator_notes: str(c.creator_notes, 100000), system_prompt: str(c.pre_history_instructions, 100000),
+      post_history_instructions: str(c.post_history_instructions, 100000),
+      tags: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 60) : [],
+      creator: c.creator && typeof c.creator.displayName === "string" ? c.creator.displayName : "",
+      character_version: "",
+      extensions: { source: { site: "wyvern", id, url: "https://app.wyvern.chat/characters/" + id } },
+    },
+  };
+}
+
+/** A V2 card from Pygmalion's character JSON (persona, greeting, notes). */
+function pygCard(ch) {
+  const p = ch.personality && typeof ch.personality === "object" ? ch.personality : {};
+  const id = String(ch.id || "").toLowerCase();
+  return {
+    spec: "chara_card_v2", spec_version: "2.0",
+    data: {
+      name: str(p.name, 200) || str(ch.displayName, 200) || "Untitled",
+      description: str(p.persona, 200000), personality: "", scenario: str(p.scenario, 100000),
+      first_mes: str(p.greeting, 100000), alternate_greetings: [], mes_example: str(p.mesExample || p.exampleConversation, 100000),
+      creator_notes: [str(ch.description, 20000), str(p.characterNotes, 100000)].filter((s) => s.trim()).join("\n\n"),
+      system_prompt: "", post_history_instructions: "",
+      tags: Array.isArray(ch.tags) ? ch.tags.map(String).slice(0, 60) : [],
+      creator: ch.owner && typeof ch.owner.displayName === "string" ? ch.owner.displayName : "",
+      character_version: "",
+      extensions: { source: { site: "pygmalion", id, url: "https://pygmalion.chat/character/" + id } },
+    },
+  };
+}
+
+const utf8Base64 = (s) => {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+
 /** /marketplace/search and /marketplace/detail for the sources other than
  *  chub. Two-phase like chub: pass A asks host.net, pass B maps the answer. */
 function otherSourceSearch(source, b, host) {
@@ -777,8 +955,37 @@ function otherSourceSearch(source, b, host) {
   const search = String(b.search || "").slice(0, 120).trim();
   const page = Math.max(1, Math.min(1000, Math.floor(Number(b.page) || 1)));
   const label = SOURCE_LABELS[source];
+  const first = Math.max(1, Math.min(50, Math.floor(Number(b.first) || 24)));
+  const tagList = (v) => (Array.isArray(v) ? v : [])
+    .filter((t) => typeof t === "string" && t.trim() && t.length <= 60)
+    .slice(0, 12).map((t) => t.replace(/,/g, " ").trim()).filter(Boolean);
+  const num = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 1 && n <= 1000000 ? n : null; };
   let url;
-  if (source === "risurealm") {
+  let spec = null; // a request other than a plain GET
+  if (source === "wyvern") {
+    const qs = new URLSearchParams({ limit: String(first), page: String(page) });
+    if (search) qs.set("q", search);
+    else { qs.set("sort", WYVERN_SORTS[String(b.sort)] ?? "popular"); qs.set("order", "DESC"); }
+    const tags = tagList(b.tags);
+    if (tags.length) qs.set("tags", tags.join(","));
+    url = "https://api.wyvern.chat/exploreSearch/characters?" + qs.toString();
+  } else if (source === "pygmalion") {
+    const message = { query: search, orderBy: PYG_SORTS[String(b.sort)] ?? "downloads", orderDescending: b.sort !== "name", pageSize: first, page: page - 1 };
+    url = PYG_API + "/CharacterSearch?" + new URLSearchParams({ connect: "v1", encoding: "json", message: JSON.stringify(message) }).toString();
+  } else if (source === "janny") {
+    const filter = [];
+    if (b.nsfw !== true) filter.push("isNsfw = false");
+    if (b.lowQuality !== true) filter.push("isLowQuality = false");
+    if (num(b.minTokens) !== null) filter.push("totalToken >= " + num(b.minTokens));
+    if (num(b.maxTokens) !== null) filter.push("totalToken <= " + num(b.maxTokens));
+    for (const t of tagList(b.tags)) { const tid = JANNY_TAG_IDS[t.toLowerCase()]; if (tid) filter.push("tagIds = " + tid); }
+    for (const t of tagList(b.excludeTags)) { const tid = JANNY_TAG_IDS[t.toLowerCase()]; if (tid) filter.push("tagIds != " + tid); }
+    const query = { indexUid: "janny-characters", q: search, hitsPerPage: first, page, filter };
+    const sort = JANNY_SORTS[String(b.sort)] ?? (search ? null : JANNY_SORTS.newest);
+    if (sort) query.sort = sort;
+    url = JANNY_SEARCH_URL;
+    spec = { method: "POST", body: { queries: [query] }, headers: { authorization: "Bearer " + JANNY_SEARCH_KEY, "content-type": "application/json" } };
+  } else if (source === "risurealm") {
     // UNOFFICIAL: RisuRealm has no search API. This reads the data its own
     // search page loads (SvelteKit __data.json). It is not a promised
     // interface and may break when the site changes.
@@ -792,16 +999,12 @@ function otherSourceSearch(source, b, host) {
     // API section on charavault.net). Its robots.txt disallows /api/ for
     // crawlers, so this stays at one request per user action and never
     // prefetches downloads.
-    const first = Math.max(1, Math.min(50, Math.floor(Number(b.first) || 24)));
     const qs = new URLSearchParams({
       q: search, limit: String(first), offset: String((page - 1) * first),
       sort: CV_SORTS[String(b.sort)] ?? "most_downloaded", nsfw: b.nsfw === true ? "true" : "false",
     });
     // same body keys as the chub filters, so the Store reuses its controls;
     // the archive's origin filter ("chub", "risuai", "janny"...) is a tag there
-    const tagList = (v) => (Array.isArray(v) ? v : [])
-      .filter((t) => typeof t === "string" && t.trim() && t.length <= 60)
-      .slice(0, 12).map((t) => t.replace(/,/g, " ").trim()).filter(Boolean);
     const tags = tagList(b.tags);
     if (typeof b.origin === "string" && CV_ORIGINS.includes(b.origin)) tags.push(b.origin);
     if (tags.length) qs.set("tags", tags.join(","));
@@ -809,19 +1012,45 @@ function otherSourceSearch(source, b, host) {
     if (excludeTags.length) qs.set("exclude_tags", excludeTags.join(","));
     if (/^[\w .-]{1,80}$/.test(String(b.creator || ""))) qs.set("creator", String(b.creator));
     if (b.requireLore === true) qs.set("has_book", "true");
-    const num = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 1 && n <= 1000000 ? n : null; };
     if (num(b.minTokens) !== null) qs.set("token_min", String(num(b.minTokens)));
     if (num(b.maxTokens) !== null) qs.set("token_max", String(num(b.maxTokens)));
     url = "https://charavault.net/api/cards?" + qs.toString();
   }
   if (!Object.keys(host.net.results).length) {
-    host.net.request("search", { url, json: true, maxBytes: 4 * 1024 * 1024, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, accept: "application/json" } });
+    host.net.request("search", {
+      url, json: true, maxBytes: 4 * 1024 * 1024, timeoutMs: CARD_TIMEOUT_MS,
+      ...(spec ? { method: spec.method, body: spec.body } : {}),
+      headers: { "user-agent": HONEST_UA, accept: "application/json", ...(spec ? spec.headers : {}) },
+    });
     return { __llmPending: true };
   }
   const r = host.net.results.search;
   if (!r || !r.ok || !r.json) {
     const e = downloadError(r, label);
+    if (source === "janny" && r && (r.status === 401 || r.status === 403)) {
+      return { status: 502, json: { error: "JannyAI changed its search key; search there is not available until the app is updated. You can still open jannyai.com, download a card and drop it here." } };
+    }
     return { status: e.status, json: { error: e.status === 429 || e.status === 504 ? e.error : "Search on " + label + " failed (" + ((r && (r.status || r.error)) || "no response") + ")." } };
+  }
+  const shapeError = { status: 502, json: { error: label + " answered in an unknown shape; the site may have changed." } };
+  if (source === "wyvern") {
+    if (!Array.isArray(r.json.results)) return shapeError;
+    const results = r.json.results.filter((c) => c && typeof c === "object" && (c.id || c._id)).map(wyvernItem);
+    const total = Number(r.json.total) || results.length;
+    return { status: 200, json: { source, count: total, page, first, hasMore: r.json.hasMore === true || page * first < total, results } };
+  }
+  if (source === "pygmalion") {
+    if (!Array.isArray(r.json.characters)) return shapeError;
+    const results = r.json.characters.filter((c) => c && typeof c === "object" && UUID_RE.test(String(c.id || ""))).map(pygItem);
+    const total = Number(r.json.totalItems) || results.length;
+    return { status: 200, json: { source, count: total, page, first, hasMore: page * first < total, results } };
+  }
+  if (source === "janny") {
+    const res = Array.isArray(r.json.results) ? r.json.results[0] : null;
+    if (!res || !Array.isArray(res.hits)) return shapeError;
+    const results = res.hits.filter((h) => h && typeof h === "object" && /^[\w-]{6,64}$/.test(String(h.id || ""))).map(jannyItem);
+    const total = Number(res.totalHits) || results.length;
+    return { status: 200, json: { source, count: total, page, first, hasMore: page * first < total, results } };
   }
   if (source === "risurealm") {
     const root = risuNodeRoot(r.json, "cards");
@@ -834,9 +1063,9 @@ function otherSourceSearch(source, b, host) {
   const list = Array.isArray(r.json.results) ? r.json.results : null;
   if (!list) return { status: 502, json: { error: "CharaVault answered in an unknown shape." } };
   const results = list.filter((c) => c && typeof c === "object" && c.folder && c.file).map(cvItem);
-  const first = Number(r.json.limit) || results.length || 24;
+  const perPage = Number(r.json.limit) || results.length || first;
   const total = Number(r.json.total) || results.length;
-  return { status: 200, json: { source, count: total, page, first, hasMore: page * first < total, results } };
+  return { status: 200, json: { source, count: total, page, first: perPage, hasMore: page * perPage < total, results } };
 }
 
 function otherSourceDetail(source, b, host) {
@@ -844,7 +1073,16 @@ function otherSourceDetail(source, b, host) {
   const id = String(b.id || "");
   const label = SOURCE_LABELS[source];
   let url;
-  if (source === "risurealm") {
+  if (source === "janny") {
+    // the site is behind a browser check: the listing is all there is
+    if (!/^[\w-]{6,64}$/.test(id)) return { status: 400, json: { error: "bad listing id" } };
+    return { status: 200, json: { source, id, partial: true, browserOnly: true, greeting: "", alternateGreetings: [], personality: "", scenario: "", exampleDialogs: "", creatorNotes: "", systemPrompt: "", postHistoryInstructions: "", lorebookEntries: 0 } };
+  }
+  if (source === "wyvern" || source === "pygmalion") {
+    const link = classifyCardLink(source === "wyvern" ? "https://app.wyvern.chat/characters/" + id : "https://pygmalion.chat/character/" + id);
+    if (link.error) return { status: 400, json: { error: "bad listing id" } };
+    url = link.url;
+  } else if (source === "risurealm") {
     if (!UUID_RE.test(id)) return { status: 400, json: { error: "bad listing id" } };
     url = "https://realm.risuai.net/character/" + id.toLowerCase() + "/__data.json"; // unofficial, see search
   } else {
@@ -867,8 +1105,19 @@ function otherSourceDetail(source, b, host) {
     // with the download
     return { status: 200, json: { source, id, partial: true, greeting: "", alternateGreetings: [], personality: "", scenario: "", exampleDialogs: "", creatorNotes: clip(c.desc, 8000), systemPrompt: "", postHistoryInstructions: "", lorebookEntries: c.haslore === true ? -1 : 0 } };
   }
-  const meta = r.json.full_metadata && typeof r.json.full_metadata === "object" ? r.json.full_metadata : null;
-  const d = meta && meta.data && typeof meta.data === "object" ? meta.data : meta || {};
+  let d;
+  if (source === "wyvern" || source === "pygmalion") {
+    const ch = source === "pygmalion" ? r.json.character : r.json;
+    if (!ch || typeof ch !== "object") return { status: 502, json: { error: label + " answered in an unknown shape; the site may have changed." } };
+    // the same card the install builds, so the preview shows what arrives
+    d = (source === "wyvern" ? wyvernCard(ch) : pygCard(ch)).data;
+    if (source === "wyvern" && Array.isArray(ch.lorebooks) && ch.lorebooks.length) {
+      d = { ...d, creator_notes: d.creator_notes + (d.creator_notes ? "\n\n" : "") + "(This card links " + ch.lorebooks.length + " lorebook(s) on Wyvern; they are not readable without an account and do not come with the import.)" };
+    }
+  } else {
+    const meta = r.json.full_metadata && typeof r.json.full_metadata === "object" ? r.json.full_metadata : null;
+    d = meta && meta.data && typeof meta.data === "object" ? meta.data : meta || {};
+  }
   const book = d.character_book && typeof d.character_book === "object" ? d.character_book : null;
   return {
     status: 200,
@@ -895,10 +1144,29 @@ function fetchCardFile(b, host) {
   if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
   const label = link.source === "url" ? link.service : SOURCE_LABELS[link.source];
   if (!Object.keys(host.net.results).length) {
-    host.net.request("card", { url: link.url, binary: true, maxBytes: CARD_MAX_BYTES, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, ...link.headers } });
+    host.net.request("card", {
+      url: link.url, ...(link.api ? { json: true, maxBytes: 8 * 1024 * 1024 } : { binary: true, maxBytes: CARD_MAX_BYTES }),
+      timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, ...link.headers },
+    });
     return { __llmPending: true };
   }
   const r = host.net.results.card;
+  if (link.api) {
+    // Wyvern / Pygmalion: card fields as JSON -> a V2 card file for the importer
+    if (!r || !r.ok || !r.json) { const e = downloadError(r, label); return { status: e.status, json: { error: e.error } }; }
+    const ch = link.source === "pygmalion" ? r.json.character : r.json;
+    if (!ch || typeof ch !== "object" || !(ch.name || ch.displayName)) return { status: 502, json: { error: label + " answered in an unknown shape; the site may have changed." } };
+    const card = link.source === "wyvern" ? wyvernCard(ch) : pygCard(ch);
+    const avatarUrl = httpsUrl(link.source === "wyvern" ? ch.avatar : ch.avatarUrl);
+    return {
+      status: 200,
+      json: {
+        source: link.source, sourceLabel: label, kind: "json", fileName: fileNameOf(link.fileBase) + ".json",
+        base64: utf8Base64(JSON.stringify(card)), pageUrl: link.pageUrl, ...(avatarUrl ? { avatarUrl } : {}),
+        ...(link.source === "wyvern" && Array.isArray(ch.lorebooks) && ch.lorebooks.length ? { skippedBooks: ch.lorebooks.length } : {}),
+      },
+    };
+  }
   if (!r || !r.ok || !r.base64) { const e = downloadError(r, label); return { status: e.status, json: { error: e.error } }; }
   // the engine already refused hosts outside networkHosts; this keeps a
   // redirect inside the service the link belongs to
@@ -929,7 +1197,7 @@ export function handleRoute(req, host) {
   if (req.path === "/marketplace/search") {
     const b = req.body && typeof req.body === "object" ? req.body : {};
     const source = String(b.source || "chub");
-    if (source === "risurealm" || source === "charavault") return otherSourceSearch(source, b, host);
+    if (OTHER_SOURCES.includes(source)) return otherSourceSearch(source, b, host);
     if (source !== "chub") return { status: 400, json: { error: "unknown marketplace source: " + source } };
     if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
     // Orderings the catalog actually accepts — an unknown key is a 400, not a
@@ -1056,7 +1324,7 @@ export function handleRoute(req, host) {
   if (req.path === "/marketplace/detail") {
     const b = req.body && typeof req.body === "object" ? req.body : {};
     const source = String(b.source || "chub");
-    if (source === "risurealm" || source === "charavault") return otherSourceDetail(source, b, host);
+    if (OTHER_SOURCES.includes(source)) return otherSourceDetail(source, b, host);
     if (source !== "chub") return { status: 400, json: { error: "unknown marketplace source: " + source } };
     if (!host.net) return { status: 503, json: { error: "network permission not granted" } };
     const id = String(b.id || "");

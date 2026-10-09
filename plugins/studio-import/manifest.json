@@ -1,7 +1,7 @@
 {
   "name": "Studio Import",
   "version": "1.13.0",
-  "description": "Clean-room import: character cards (PNG v2/v3 + JSON + chub/CharacterHub URL), world info, presets, regex, personas, themes, chats; full backup zips (text entries plugin-side, PNG cards via the browser path); chub, RisuRealm and CharaVault search; card downloads from RisuRealm, CharaVault and direct links (GitHub raw, Hugging Face, Catbox, Discord). Zero external code — public data formats only.",
+  "description": "Clean-room import: character cards (PNG v2/v3 + JSON + chub/CharacterHub URL), world info, presets, regex, personas, themes, chats; full backup zips (text entries plugin-side, PNG cards via the browser path); chub, RisuRealm, CharaVault, Wyvern, Pygmalion and JannyAI search; card downloads from RisuRealm, CharaVault, Wyvern, Pygmalion and direct links (GitHub raw, Hugging Face, Catbox, Discord). Zero external code — public data formats only.",
   "origin": "local",
   "permissions": [
     "routes",
@@ -24,6 +24,12 @@
     "cdn-lfs.huggingface.co",
     "*.hf.co",
     "files.catbox.moe",
-    "cdn.discordapp.com"
+    "cdn.discordapp.com",
+    "api.wyvern.chat",
+    "imagedelivery.net",
+    "server.pygmalion.chat",
+    "assets.pygmalion.chat",
+    "search.jannyai.com",
+    "image.jannyai.com"
   ]
 }
