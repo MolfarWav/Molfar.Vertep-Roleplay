@@ -1188,6 +1188,11 @@ const en = {
   'tr.saveToast': 'Save the translation of {name}?',
   'tr.waiting': 'A translation is waiting for Save or Discard.',
   'lore.books.entriesOne': '1 entry',
+  'lore.molfar': 'With Molfar',
+  'lore.molfar.tip': 'Create a lorebook with Molfar',
+  'lore.molfar.message': 'Create a new lorebook for the Roleplay app with the lorebook-craft skill. Before writing anything, ask me what world or character it is for, which language the entries should be in, and which card to link it to. In Ukrainian or Russian keys, one base form of each word is enough (вежа also finds вежі, вежу). ',
+  'lore.bulk.vector': 'By meaning',
+  'lore.vector.note': '{n} entries match by meaning; their vectors are made at the next reply (needs an embedding model).',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -2372,6 +2377,11 @@ const uk: Record<MsgKey, string> = {
   'tr.saveToast': 'Зберегти переклад «{name}»?',
   'tr.waiting': 'Переклад чекає на «Зберегти» або «Відхилити».',
   'lore.books.entriesOne': '1 запис',
+  'lore.molfar': 'З Мольфаром',
+  'lore.molfar.tip': 'Створити лорбук разом з Мольфаром',
+  'lore.molfar.message': 'Створи новий лорбук для застосунку Roleplay за допомогою навички lorebook-craft. Перш ніж щось писати, запитай мене, для якого світу чи персонажа він, якою мовою мають бути записи і до якої картки його прив’язати. В українських чи російських ключах досить однієї початкової форми слова (вежа знайде й вежі, вежу). ',
+  'lore.bulk.vector': 'За змістом',
+  'lore.vector.note': 'Записів за змістом: {n}; їхні вектори створяться при наступній відповіді (потрібна модель для ембедингів).',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

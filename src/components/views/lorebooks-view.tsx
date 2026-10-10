@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenText, Plus, Trash, Copy, MagnifyingGlass, Globe, Flask, Pulse, CaretDown, CaretRight, Funnel,
-  PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut,
+  PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut, Sparkle,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import { LoreStatusIcon } from '@/components/lore-status-icon'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import { bookUsage } from '@/lib/lore-usage'
+import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import { BookSettings } from '@/components/lore/book-settings'
 import { EntryEditor } from '@/components/lore/entry-editor'
 import { KeywordTest } from '@/components/lore/keyword-test'
@@ -91,6 +92,15 @@ export function LorebooksView() {
   const safeBookPage = clampPage(bookPage, shownBooks.length, BOOK_PAGE)
   const pagedBooks = shownBooks.slice(safeBookPage * BOOK_PAGE, (safeBookPage + 1) * BOOK_PAGE)
 
+  /** Hands Molfar the brief: it asks the user what the book is for, then builds it. */
+  const createWithMolfar = async () => {
+    try {
+      await askMolfar(t('lore.molfar.message'))
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? `${t('home.askError')}: ${e.message}` : t('home.askError'))
+    }
+  }
+
   const usageLabel = (b: Lorebook): { text: string; muted: boolean } => {
     const { owners, users } = bookUsage(characters, b.id)
     if (users.length === 0) return { text: t('lore.use.none'), muted: true }
@@ -110,9 +120,16 @@ export function LorebooksView() {
         <aside className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <PaneTitle section="lorebooks" icon={<BookOpenText className="size-4 text-primary" aria-hidden="true" />} />
-          <Button variant="ghost" size="sm" className="ml-auto size-7 p-0" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
-            <Plus className="size-4" aria-hidden="true" />
-          </Button>
+          <div className="ml-auto flex items-center gap-1">
+            {canAskMolfar() && (
+              <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => void createWithMolfar()} title={t('lore.molfar.tip')} aria-label={t('lore.molfar.tip')}>
+                <Sparkle className="size-3.5" aria-hidden="true" />{t('lore.molfar')}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" className="size-7 p-0" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
+              <Plus className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
         </div>
         {lorebooks.length > 8 && (
           <div className="relative border-b border-border px-2 py-1.5">
@@ -382,6 +399,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => bulk({ enabled: false })}>{t('lore.bulk.disable')}</Button>
             <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => bulk({ status: 'constant' })}>{t('lore.bulk.constant')}</Button>
             <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => bulk({ status: 'normal' })}>{t('lore.bulk.keyed')}</Button>
+            <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => bulk({ status: 'vectorized' })}>{t('lore.bulk.vector')}</Button>
             <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => setCopyEntries(book.entries.filter((e) => selected.includes(e.id)))}>{t('lore.bulk.copy')}</Button>
             <Button variant="outline" size="sm" className="h-6 text-[11px] text-destructive" onClick={() => void bulkDelete()}>{t('lore.bulk.delete')}</Button>
             <Button variant="ghost" size="sm" className="ml-auto h-6 text-[11px]" onClick={() => setSelected([])}>{t('lore.bulk.clear')}</Button>
@@ -389,6 +407,9 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
         )}
       </div>
 
+        {counts.vector > 0 && (
+          <p className="px-4 pt-2 text-[11px] text-muted-foreground" data-testid="vector-note">{t('lore.vector.note', { n: counts.vector })}</p>
+        )}
         <ul className="flex flex-col gap-1.5 p-3">
           {pagedEntries.map((e) => {
             const open = openIds.includes(e.id)

@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { MagnifyingGlass } from '@phosphor-icons/react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
@@ -23,6 +25,7 @@ export function CharacterBooks({ c }: { c: Character }) {
   const addLorebook = useApp((s) => s.addLorebook)
   const focusLorebook = useApp((s) => s.focusLorebook)
   const [picker, setPicker] = useState<Picker>(null)
+  const [pickQuery, setPickQuery] = useState('')
 
   const own = c.embeddedLorebookId ? lorebooks.find((b) => b.id === c.embeddedLorebookId) ?? null : null
   const linked = c.linkedLorebookIds.map((id) => lorebooks.find((b) => b.id === id)).filter((b): b is Lorebook => !!b)
@@ -31,6 +34,10 @@ export function CharacterBooks({ c }: { c: Character }) {
   const globalCount = lorebooks.filter((b) => b.globalActive).length
 
   const usedElsewhere = (b: Lorebook) => bookUsage(characters, b.id).users.filter((u) => u.id !== c.id).length
+
+  const pq = pickQuery.trim().toLowerCase()
+  const shown = pq ? candidates.filter((b) => b.name.toLowerCase().includes(pq)) : candidates
+  const openPicker = (p: Picker) => { setPickQuery(''); setPicker(p) }
 
   const pick = (b: Lorebook) => {
     if (picker === 'replace') {
@@ -66,7 +73,7 @@ export function CharacterBooks({ c }: { c: Character }) {
           <ArrowSquareOut className="size-3.5" aria-hidden="true" />{t('lore.open')}
         </Button>
         {isOwn && (
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setPicker('replace')}>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openPicker('replace')}>
             <Swap className="size-3.5" aria-hidden="true" />{t('lore.cb.replace')}
           </Button>
         )}
@@ -95,7 +102,7 @@ export function CharacterBooks({ c }: { c: Character }) {
         <p className="text-xs text-muted-foreground">{t('lore.cb.missing')}</p>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" className="h-8 text-xs" disabled={candidates.length === 0} onClick={() => setPicker('add')}>
+        <Button variant="outline" size="sm" className="h-8 text-xs" disabled={candidates.length === 0} onClick={() => openPicker('add')}>
           <Plus className="size-3.5" aria-hidden="true" />{t('lore.cb.add')}
         </Button>
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={createBook}>
@@ -107,8 +114,21 @@ export function CharacterBooks({ c }: { c: Character }) {
       <Dialog open={picker != null} onOpenChange={(o) => { if (!o) setPicker(null) }}>
         <DialogContent className="max-h-[70dvh] overflow-y-auto sm:max-w-sm">
           <DialogHeader><DialogTitle>{picker === 'replace' ? t('lore.cb.replaceTitle') : t('lore.cb.addTitle')}</DialogTitle></DialogHeader>
-          <ul className="flex flex-col gap-1">
-            {candidates.map((b) => (
+          {candidates.length > 0 && (
+            <div className="relative">
+              <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                autoFocus
+                value={pickQuery}
+                onChange={(e) => setPickQuery(e.target.value)}
+                placeholder={t('lore.books.search')}
+                aria-label={t('lore.books.search')}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+          )}
+          <ul className="flex max-h-[45dvh] flex-col gap-1 overflow-y-auto overscroll-contain">
+            {shown.map((b) => (
               <li key={b.id}>
                 <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => pick(b)}>
                   <span className="truncate">{b.name}</span>
@@ -117,6 +137,7 @@ export function CharacterBooks({ c }: { c: Character }) {
               </li>
             ))}
             {candidates.length === 0 && <p className="text-xs text-muted-foreground">{t('lore.cb.noMore')}</p>}
+            {candidates.length > 0 && shown.length === 0 && <p className="text-xs text-muted-foreground">{t('lore.books.noMatch')}</p>}
           </ul>
         </DialogContent>
       </Dialog>
