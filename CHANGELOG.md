@@ -4,6 +4,15 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.32.0
+
+Where every part of the prompt comes from, and sends that stay fast with big lorebooks and preset regex. Works on Molfar Vertep 0.9.6; Molfar's prompt inspector shows the sources from 0.9.7.
+
+- **Sources in Prompt peek.** Above the blocks, a table of what the next request is made of: card fields, the persona, each preset section by name, each lorebook entry with why it fired, Data Bank chunks, the author's note, every history message (with the regex scripts that changed it) and the prefill, with tokens and share. A click marks that part in the text; Esc clears it. Below: what was left out and why (sections switched off, gated by a condition or not for this kind of reply; entries that did not fit or were filtered; how many entries' keys were not in the text; history the budget trimmed or Litopys keeps as chapters) and the preset's choices in effect.
+- **The same in Molfar's prompt inspector** (engine 0.9.7) for every real reply, with what Litopys and the dashboard added labeled too.
+- **Faster sends.** A big lorebook made every send slow: 300 entries took about 3 s on a desktop and 1000 entries ran past the plugin time limit, on phones much sooner ("script execution has exceeded the maximum allowed time limit"). Keys are now looked up as text first (the same matches as before): 300 entries in about 0.3 s, 1000 in 0.6 s. Macros skip text without `{{`, and regex scripts are read once per send and skip messages that cannot match: a 400-message chat with 150 preset regex scripts went from 3.3 s to 1.3 s.
+- **Counts read right.** "1 entry", "1 global book", "5 повідомлень": counts take the right word form in English and Ukrainian.
+
 ## 4.31.0
 
 Presets with options you pick for each chat, Marinara presets, and FRANKENX built in. Works on Molfar Vertep 0.9.5; no engine update needed.
