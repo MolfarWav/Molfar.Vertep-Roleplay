@@ -530,6 +530,13 @@ const LANG_CODES = {
 // per-request caps for code-based providers (URL/body limits); longer texts
 // are chunked and stitched so nothing is silently truncated
 const TRANSLATE_CHUNKS = { google: 4000, lingva: 1500, deepl: 4000 };
+const TRANSLATE_LLM_CHUNK = 3000;
+/** The model translator's instructions: card texts carry macros, script tags and markup that must survive. */
+function translateRules(target) {
+  return "Translate the user's text into " + target + ". Keep {{ }} macros, < > tags and code exactly as they are, "
+    + "keep the markdown, line breaks and blank lines, and leave parts already in " + target + " unchanged. "
+    + "Output ONLY the translation, no commentary.";
+}
 // split on natural boundaries (paragraph, line, sentence, word) so chunks
 // translate cleanly and concatenate back to the original
 /** Cosine similarity of two equal-length vectors; null on shape mismatch. */
@@ -716,8 +723,16 @@ function chunkForTranslate(text, limit) {
   let rest = text;
   while (rest.length > limit) {
     const win = rest.slice(0, limit);
-    let cut = Math.max(win.lastIndexOf("\n\n"), win.lastIndexOf("\n"), win.lastIndexOf(". "), win.lastIndexOf(" "));
-    if (cut < Math.floor(limit / 2)) cut = limit; // no boundary worth keeping — hard cut
+    // the best boundary in the second half: a paragraph, else a line, else a
+    // sentence, else a word (the latest of any kind cut mid-sentence)
+    const half = Math.floor(limit / 2);
+    let cut = -1;
+    // (a sentence keeps its full stop: the cut falls after it)
+    const sentence = Math.max(win.lastIndexOf(". "), win.lastIndexOf("! "), win.lastIndexOf("? "));
+    for (const at of [win.lastIndexOf("\n\n"), win.lastIndexOf("\n"), sentence >= 0 ? sentence + 1 : -1, win.lastIndexOf(" ")]) {
+      if (at >= half) { cut = at; break; }
+    }
+    if (cut < half) cut = limit; // no boundary worth keeping — hard cut
     parts.push(rest.slice(0, cut));
     rest = rest.slice(cut);
   }
@@ -3040,19 +3055,35 @@ export function handleRoute(req, host) {
       if (!text.trim()) return err(400, "nothing to translate");
 
       if (provider === "llm") {
-        const reply = host.llm.results.translation;
-        if (!reply) {
-                    const model = readJson("settings.json", {}).model;
-          host.llm.request("translation", {
-            messages: [{ role: "user", content: "Translate the following text to " + target + ". Output ONLY the translation, no commentary.\n\n" + text }],
-            ...(model ? { model } : {}),
+        // a long text goes in pieces: one request for a 20k-character card
+        // field ran past free models' output limits and came back cut or failed
+        const chunks = chunkForTranslate(text, TRANSLATE_LLM_CHUNK);
+        const keyOf = (i) => "translation:" + i;
+        if (chunks.some((_, i) => !host.llm.results[keyOf(i)])) {
+          const model = readJson("settings.json", {}).model;
+          chunks.forEach((c, i) => {
+            if (host.llm.results[keyOf(i)]) return;
+            host.llm.request(keyOf(i), {
+              messages: [
+                { role: "system", content: translateRules(target) },
+                { role: "user", content: c },
+              ],
+              ...(model ? { model } : {}),
+            });
           });
-          // no chat meta here — nothing to stash (this used to pass an
-          // undefined `meta` and throw, killing every provider on pass A)
+          // no chat meta here — nothing to stash
           return { __llmPending: true };
         }
-        if (reply.model === "error") return err(503, llmFailReason(reply));
-        return ok({ text: String(reply.text || "").trim() });
+        const replies = chunks.map((_, i) => host.llm.results[keyOf(i)]);
+        const bad = replies.find((r) => r.model === "error");
+        if (bad) return err(503, llmFailReason(bad));
+        // chunks were cut at whitespace: put each piece's own edges back
+        return ok({
+          text: chunks.map((c, i) => {
+            const lead = /^\s*/.exec(c)[0], trail = /\s*$/.exec(c)[0];
+            return lead + String(replies[i].text || "").trim() + trail;
+          }).join("").trim(),
+        });
       }
 
       if (!host.net) return err(503, "network permission not granted");

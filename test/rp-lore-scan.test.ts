@@ -451,3 +451,23 @@ describe("review fixes", () => {
     expect(r.scanDepth).toBe(3);
   });
 });
+
+describe("translate (llm provider)", () => {
+  it("a long text goes in pieces and comes back stitched in order", async () => {
+    const mod = (await import(engineUrl)) as { handleRoute: Function };
+    const h = host() as ReturnType<typeof host> & { llm: { request: Function; results: Record<string, unknown> } };
+    const reqs: { key: string; text: string }[] = [];
+    h.llm.request = (key: string, r: { messages: { content: string }[] }) => { reqs.push({ key, text: r.messages[1]!.content }); };
+    const para = (n: number) => "Абзац " + n + ". " + "слово ".repeat(120).trim();
+    const text = Array.from({ length: 12 }, (_, i) => para(i)).join("\n\n");
+    const call = { method: "POST", path: "/translate", query: {}, body: { text, target: "English", provider: "llm" } };
+    const first = mod.handleRoute(call, h) as { __llmPending?: boolean };
+    expect(first.__llmPending).toBe(true);
+    expect(reqs.length).toBeGreaterThan(2);
+    for (const r of reqs) h.llm.results[r.key] = { text: "EN<" + r.text.trim().slice(0, 8) + ">", model: "m" };
+    const out = mod.handleRoute(call, h) as { json: { text: string } };
+    expect(out.json.text.startsWith("EN<Абзац 0.>")).toBe(true);
+    expect(out.json.text.split("EN<").length - 1).toBe(reqs.length);
+    expect(out.json.text).toContain(">\n\nEN<");
+  });
+});
