@@ -34,7 +34,8 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 3. A new lorebook: `write_file` a small book with `"entries": []` (`settings` copied from
    `_example.json`), then ONE `json_set` with `{ pointer: "/entries", op: "append", value: {...} }`
    per entry (`uid` 1, 2, 3…, `enabled: true` as a boolean). A change to one entry:
-   `json_set` on `/entries/<index>/<field>`.
+   `json_set` on `/entries/<index>/<field>`; never renumber `uid`. Ukrainian and Russian keys: one
+   base form each, word forms match on their own (DATA-FORMATS, `keys`).
 4. ONE `json_set` on the card with every field change, plus the link when a book is new:
    `{ pointer: "/studio/linkedLorebookIds", op: "append", value: "<book id>" }` (json_set creates a
    missing `studio`; the book's own `linkedCharacterIds` is display only).
