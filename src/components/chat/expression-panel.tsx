@@ -38,6 +38,9 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
   const [minimized, setMinimized] = useState<boolean>(() => readJson<unknown>(MIN_KEY, false) === true)
   const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null)
   const resizeRef = useRef<{ y: number; h: number } | null>(null)
+  // set by a drag, read by the click that ends it: pointerup clears dragRef
+  // before the browser fires that click, so the chip asks this one instead
+  const movedRef = useRef(false)
   const boxRef = useRef<HTMLDivElement>(null)
 
   // memoized: this panel sits over the scrolling log and re-renders with the
@@ -74,6 +77,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
       }
       if (!dragRef.current) return
       dragRef.current.moved = true
+      movedRef.current = true
       setPos(clamp({ x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy }))
     }
     const up = () => {
@@ -104,6 +108,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     const at = pos ?? (r ? { x: r.left, y: r.top } : { x: e.clientX - 60, y: e.clientY - 60 })
     if (!pos) setPos(at)
     dragRef.current = { dx: e.clientX - at.x, dy: e.clientY - at.y, moved: false }
+    movedRef.current = false
   }
   const setFolded = (v: boolean) => { setMinimized(v); writeJson(MIN_KEY, v) }
   const label = `${speaker.name}: ${sprite.name}`
@@ -113,7 +118,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
       <div ref={boxRef} className="fixed z-30 touch-none select-none" style={style} onPointerDown={startDrag}>
         <button
           type="button"
-          onClick={() => { if (!dragRef.current?.moved) setFolded(false) }}
+          onClick={() => { if (movedRef.current) { movedRef.current = false; return } setFolded(false) }}
           className="block overflow-hidden rounded-full border border-border/60 bg-card shadow-lg ring-primary/50 hover:ring-2"
           style={{ width: CHIP, height: CHIP }}
           aria-label={`Show ${label}`}
