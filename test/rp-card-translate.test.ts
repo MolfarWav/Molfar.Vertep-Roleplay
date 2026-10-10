@@ -7,7 +7,7 @@
 import { describe, it, expect } from "bun:test";
 import {
   runLimited, planPreview, buildPreview, planCardJobs, applyCardResults, planBookJobs, applyBookResults,
-  splitKeys, mergeKeys, translateInstalled, TRANSLATE_LANGUAGES, restoreOriginal, hasTranslationRecord,
+  splitKeys, mergeKeys, translateInstalled, applyPendingTranslation, previewPendingTranslation, TRANSLATE_LANGUAGES, restoreOriginal, hasTranslationRecord,
 } from "../src/lib/card-translate";
 import type { Character, LoreEntry, Lorebook } from "../src/lib/types";
 
@@ -147,6 +147,30 @@ describe("translateInstalled", () => {
       },
     };
   };
+
+  it("apply: false writes nothing; the pending answers preview and then save", async () => {
+    const h = harness(char({ embeddedLorebookId: "b1" }), book([entry()]), async (t) => `EN(${t})`);
+    const r = await translateInstalled("c1", h.deps, META, { apply: false });
+    expect(h.state.updates).toEqual([]);
+    expect(r.unchanged).toBe(false);
+    const pv = previewPendingTranslation(r.pending!, h.state.c, h.state.b);
+    expect(pv.patch.description).toBe("EN(Опис)");
+    expect(h.state.c.description).toBe("Опис");
+    // edited while the preview was open: the edit wins
+    h.state.c = { ...h.state.c, personality: "нове" };
+    const res = applyPendingTranslation("c1", r.pending!, h.deps);
+    expect(h.state.c.description).toBe("EN(Опис)");
+    expect(h.state.c.personality).toBe("нове");
+    expect(res.changed).toBeGreaterThan(0);
+    expect(h.state.updates).toEqual(["char", "book"]);
+  });
+
+  it("a card already in the target language is reported, not silently skipped", async () => {
+    const h = harness(char({ embeddedLorebookId: "b1" }), book([entry()]), async (t) => t);
+    const r = await translateInstalled("c1", h.deps, META);
+    expect(r.unchanged).toBe(true);
+    expect(h.state.updates).toEqual([]);
+  });
 
   it("translates the card and its embedded book and saves both", async () => {
     const h = harness(char({ embeddedLorebookId: "b1" }), book([entry()]), async (t) => `EN(${t})`);

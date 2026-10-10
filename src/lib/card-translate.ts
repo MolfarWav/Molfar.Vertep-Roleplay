@@ -15,12 +15,14 @@ export const TRANSLATE_LANGUAGES = [
 /** The language the app translates cards to, one choice for the Store and the
  *  character editor, remembered per browser. */
 export const TRANSLATE_TO_KEY = 'chrysalis.marketplace.translateTo'
-export function loadTranslateTo(): string {
+/** The remembered choice, else `fallback` (callers pass the app's own language:
+ *  translating an English card "to English" changes nothing). */
+export function loadTranslateTo(fallback = 'English'): string {
   try {
     const v = localStorage.getItem(TRANSLATE_TO_KEY)
-    return v && TRANSLATE_LANGUAGES.includes(v) ? v : 'English'
+    return v && TRANSLATE_LANGUAGES.includes(v) ? v : fallback
   } catch {
-    return 'English'
+    return fallback
   }
 }
 export function saveTranslateTo(v: string): void {
@@ -293,14 +295,58 @@ export interface InstallTranslateResult {
   done: number
   /** what stayed in the original language, in words for a toast */
   notTranslated: string[]
+  /** every answer equalled its text: the card is already in the target language */
+  unchanged: boolean
+  /** with `{ apply: false }`: the answers, to preview and then save with applyPendingTranslation */
+  pending?: PendingTranslation
+}
+
+/** A finished pass that is not saved yet (the editor previews it first). */
+export interface PendingTranslation {
+  meta: TranslationMeta
+  cardJobs: CardJob[]
+  cardAnswers: (string | null)[]
+  bookId: string | null
+  bookJobs: BookJob[]
+  bookAnswers: (string | null)[]
+}
+
+/** What the character and its book look like with a pending translation in,
+ *  computed against their CURRENT state (a field edited meanwhile keeps the edit). */
+export function previewPendingTranslation(
+  pending: PendingTranslation,
+  c: Pick<Character, CardField | 'altGreetings' | 'cardExtras'>,
+  book: Pick<Lorebook, 'entries'> | undefined,
+): { patch: Partial<Character>; changed: string[]; skipped: string[]; entries: LoreEntry[] | null; bookChanged: number; bookSkipped: number } {
+  const card = applyCardResults(c, pending.cardJobs, pending.cardAnswers, pending.meta)
+  const b = book && pending.bookJobs.length ? applyBookResults(book, pending.bookJobs, pending.bookAnswers) : null
+  return {
+    patch: card.patch, changed: card.changed, skipped: card.skipped,
+    entries: b && b.changed ? b.entries : null, bookChanged: b ? b.changed : 0, bookSkipped: b ? b.skipped : 0,
+  }
+}
+
+/** Save a pending translation: the same checks as a direct pass, on the state as it is now. */
+export function applyPendingTranslation(id: string, pending: PendingTranslation, deps: Pick<InstallTranslateDeps, 'getCharacter' | 'updateCharacter' | 'getBook' | 'updateBook'>): { changed: number; skipped: string[] } {
+  const c = deps.getCharacter(id)
+  if (!c) return { changed: 0, skipped: ['the character was not found'] }
+  const book = pending.bookId ? deps.getBook(pending.bookId) : undefined
+  const p = previewPendingTranslation(pending, c, book)
+  if (p.changed.length) deps.updateCharacter(id, p.patch)
+  if (book && p.entries) deps.updateBook(book.id, { entries: p.entries })
+  const skipped = [...p.skipped.map((l) => `${l} (edited meanwhile)`)]
+  if (p.bookSkipped) skipped.push(`${p.bookSkipped} lorebook text${p.bookSkipped === 1 ? '' : 's'} (edited meanwhile)`)
+  return { changed: p.changed.length + p.bookChanged, skipped }
 }
 
 /** Translate a character's writing fields and its embedded lorebook. Two
  *  requests at a time; after TRANSLATE_MAX_FAILURES failures the pass stops and
- *  says what is left. Whatever was translated is saved. */
-export async function translateInstalled(id: string, deps: InstallTranslateDeps, meta: TranslationMeta): Promise<InstallTranslateResult> {
+ *  says what is left. Whatever was translated is saved, unless `apply: false`:
+ *  then nothing is written and `pending` carries the answers. */
+export async function translateInstalled(id: string, deps: InstallTranslateDeps, meta: TranslationMeta, opts: { apply?: boolean } = {}): Promise<InstallTranslateResult> {
+  const apply = opts.apply !== false
   const char = deps.getCharacter(id)
-  if (!char) return { total: 0, done: 0, notTranslated: ['the character was not found'] }
+  if (!char) return { total: 0, done: 0, notTranslated: ['the character was not found'], unchanged: false }
   const cardJobs = planCardJobs(char)
   const book = char.embeddedLorebookId ? deps.getBook(char.embeddedLorebookId) : undefined
   const bookJobs = book ? planBookJobs(book) : []
@@ -325,26 +371,27 @@ export async function translateInstalled(id: string, deps: InstallTranslateDeps,
     cardAnswers[i] = await ask(job.text)
     deps.progress(++done, total)
   }, stop)
-  const applied = applyCardResults(deps.getCharacter(id) ?? char, cardJobs, cardAnswers, meta)
-  if (applied.changed.length) deps.updateCharacter(id, applied.patch)
   const missed = cardJobs.filter((_, i) => !cardAnswers[i]).map(cardJobLabel)
   if (missed.length) notTranslated.push(...missed)
-  if (applied.skipped.length) notTranslated.push(...applied.skipped.map((l) => `${l} (edited meanwhile)`))
 
+  const bookAnswers: (string | null)[] = bookJobs.map(() => null)
+  if (book && bookJobs.length && !stop()) {
+    await runLimited(bookJobs, TRANSLATE_CONCURRENCY, async (job, i) => {
+      bookAnswers[i] = await ask(job.text)
+      deps.progress(++done, total)
+    }, stop)
+  }
   if (book && bookJobs.length) {
-    const bookAnswers: (string | null)[] = bookJobs.map(() => null)
-    if (!stop()) {
-      await runLimited(bookJobs, TRANSLATE_CONCURRENCY, async (job, i) => {
-        bookAnswers[i] = await ask(job.text)
-        deps.progress(++done, total)
-      }, stop)
-    }
-    const fresh = deps.getBook(book.id) ?? book
-    const res = applyBookResults(fresh, bookJobs, bookAnswers)
-    if (res.changed) deps.updateBook(book.id, { entries: res.entries })
     const missedEntries = new Set(bookJobs.filter((_, i) => !bookAnswers[i]).map((j) => j.entry))
-    if (res.skipped) notTranslated.push(`${res.skipped} lorebook text${res.skipped === 1 ? '' : 's'} (edited meanwhile)`)
     if (missedEntries.size) notTranslated.push(`${missedEntries.size} lorebook entr${missedEntries.size === 1 ? 'y' : 'ies'}`)
   }
-  return { total, done, notTranslated }
+  const same = (jobs: readonly { text: string }[], answers: readonly (string | null)[]) =>
+    answers.every((a, i) => a == null || a.trim() === jobs[i]!.text.trim())
+  const answered = cardAnswers.some(Boolean) || bookAnswers.some(Boolean)
+  const unchanged = answered && same(cardJobs, cardAnswers) && same(bookJobs, bookAnswers)
+  const pending: PendingTranslation = { meta, cardJobs, cardAnswers, bookId: book ? book.id : null, bookJobs, bookAnswers }
+  if (!apply) return { total, done, notTranslated, unchanged, pending }
+  const res = applyPendingTranslation(id, pending, deps)
+  notTranslated.push(...res.skipped)
+  return { total, done, notTranslated, unchanged }
 }
