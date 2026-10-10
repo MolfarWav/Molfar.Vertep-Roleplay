@@ -200,17 +200,26 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
                   <span className="block truncate text-xs font-semibold">{preset?.name ?? 'No preset'}</span>
                   <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(preset)}</span>
                 </span>
-                <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
-                  <ListChecks className="size-3" aria-hidden="true" /> {t('pc.open')}
-                </span>
+              </button>
+              {/* the two actions stand out: the fonts are alike, so color and shape carry the weight */}
+              <button
+                type="button"
+                onClick={() => pick(() => setPanelOpen(true))}
+                className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/85"
+                title={t('pc.openTip')}
+              >
+                <ListChecks className="size-3.5" aria-hidden="true" /> {t('pc.open')}
+                {preset && preset.variables.length > 0 && (
+                  <span className="rounded-full bg-primary-foreground/20 px-1.5 text-[10px] font-bold tabular-nums">{preset.variables.length}</span>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => { if (preset) pick(() => focusPreset(preset.id)) }}
-                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:border-primary/60 hover:bg-accent"
                 title="Open preset editor"
               >
-                <PencilSimple className="size-3" aria-hidden="true" /> Edit
+                <PencilSimple className="size-3.5" aria-hidden="true" /> Edit
               </button>
             </div>
           )}
