@@ -112,3 +112,37 @@ export async function moveSamplersToModel(ref: string, preset: Preset, params: M
   if (JSON.stringify(chat) === JSON.stringify(entry.chat ?? {})) return null
   return putModelParams(ref, { ...entry, chat })
 }
+
+/** What this app's replies would be sent and where each value comes from (engine 0.9.5). */
+export interface EffectiveParams {
+  block: string | null
+  applied?: {
+    temperature?: number
+    max_tokens?: number
+    reasoning?: string
+    thinkingBudget?: number
+    /** "model": the model's Chat block; "request": this preset */
+    from: Record<string, 'model' | 'request'>
+  }
+}
+
+/** The preset's side of a reply request, as the engine plugin builds it (plugin.js assemble). */
+export function presetRequestSide(p: Preset | undefined): Record<string, string> {
+  const S = p?.samplers
+  if (!S) return {}
+  const out: Record<string, string> = {}
+  if (S.temperature?.enabled) out.temperature = String(S.temperature.value)
+  if (S.maxTokens > 0) out.max_tokens = String(S.maxTokens)
+  if (S.reasoning?.enabled && S.reasoning.effort !== 'off') out.reasoning = EFFORT[S.reasoning.effort] ?? S.reasoning.effort
+  if (S.reasoning?.enabled && S.reasoning.budget > 0) out.thinkingBudget = String(S.reasoning.budget)
+  if (p?.samplersOverrideModel) out.paramsSource = 'request'
+  return out
+}
+
+/** GET /v1/models/params/effective for this app's chat replies; `applied` is missing on engines before 0.9.5. */
+export async function fetchEffectiveParams(ref: string, side: Record<string, string>, signal?: AbortSignal): Promise<EffectiveParams> {
+  const qs = new URLSearchParams({ model: ref, source: 'app:roleplay/roleplay__engine', key: 'reply', ...side })
+  const r = await fetch(`/v1/models/params/effective?${qs}`, { signal })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as EffectiveParams
+}

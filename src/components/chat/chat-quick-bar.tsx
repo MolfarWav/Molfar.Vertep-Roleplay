@@ -8,6 +8,7 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
 } from '@/components/ui/command'
 import { ModelMark } from '@/components/model-mark'
+import { EffectiveParams } from '@/components/chat/effective-params'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import {
   CaretDown, Check, Cpu, GearSix, PencilSimple, SlidersHorizontal, User,
@@ -243,6 +244,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
               </button>
             </div>
           )}
+          {tab === 'profile' && <EffectiveParams modelRef={current?.ref ?? model ?? null} preset={preset} />}
 
           <Command>
             <CommandInput placeholder={searchPlaceholder} />
