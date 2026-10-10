@@ -4,6 +4,7 @@ import { CircleNotch } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { promptPreview } from '@/lib/engine'
+import { MarkedPre, PromptSourcesPanel } from '@/components/chat/prompt-sources'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 
@@ -30,24 +31,45 @@ export function PromptPeekDialog({
   const [data, setData] = useState<Preview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // the source part whose marks are highlighted (index in sources.parts)
+  const [active, setActive] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open || !chatId) return
     setBusy(true)
     setError(null)
+    setActive(null)
     promptPreview(chatId, { userText, messageId })
       .then(setData)
       .catch((e) => setError(String((e as Error).message ?? e)))
       .finally(() => setBusy(false))
   }, [open, chatId, userText, messageId])
 
+  // msg: -1 = the system prompt, else the index in data.messages (what sourceSpans refer to)
   const blocks = data
     ? [
-        ...(data.systemPrompt ? [{ role: 'system', content: data.systemPrompt, name: 'System prompt' }] : []),
-        ...data.messages.map((m, i) => ({ role: m.role, content: m.content, name: `Message ${i + 1}` })),
+        ...(data.systemPrompt ? [{ role: 'system', content: data.systemPrompt, name: 'System prompt', msg: -1 }] : []),
+        ...data.messages.map((m, i) => ({ role: m.role, content: m.content, name: `Message ${i + 1}`, msg: i })),
       ]
     : []
   const total = blocks.reduce((a, b) => a + estimateTokens(b.content), 0)
+  const sources = data?.sources?.parts.length ? data.sources : null
+  const spans = data?.sourceSpans ?? []
+  // the block holding the first mark of the active part is the one to scroll to
+  const firstBlock = active == null ? -2 : (blocks.find((b) => spans.some((s) => s.msg === b.msg && s.part === active))?.msg ?? -2)
+
+  // Esc clears the highlight first; a second Esc closes the dialog
+  useEffect(() => {
+    if (active == null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      e.preventDefault()
+      setActive(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [active])
   // the exact request envelope a generation would send from this state —
   // what the pretty blocks above are assembled from
   const rawRequest = data
@@ -85,6 +107,7 @@ export function PromptPeekDialog({
           {error && <p className="p-4 text-sm text-destructive">{error}</p>}
           {data && !busy && (
             <div className="flex flex-col gap-2 pb-2">
+              {sources && <PromptSourcesPanel sources={sources} total={total} active={active} onPick={setActive} />}
               {blocks.map((b, i) => (
                 <div key={i} className={cn('rounded-md border border-border px-2.5 py-2', b.role === 'system' && 'bg-muted/30')}>
                   <div className="mb-1 flex items-center gap-2">
@@ -92,7 +115,13 @@ export function PromptPeekDialog({
                     <span className="text-[11px] text-muted-foreground">{b.name}</span>
                     <span className="ml-auto text-[11px] text-muted-foreground">{formatTokens(estimateTokens(b.content))} tok</span>
                   </div>
-                  <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">{b.content}</pre>
+                  <MarkedPre
+                    text={b.content}
+                    spans={sources ? spans.filter((s) => s.msg === b.msg) : undefined}
+                    parts={sources?.parts}
+                    active={active}
+                    scrollToActive={b.msg === firstBlock}
+                  />
                 </div>
               ))}
               {rawRequest && (

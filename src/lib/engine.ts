@@ -903,6 +903,12 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   return out
 }
 
+export interface PromptSourcePart { kind: string; label: string; detail?: string; text: string; located: boolean }
+export interface PromptSourceOmitted { kind: string; label: string; detail?: string; reason: string; tokens?: number }
+export interface PromptSourceVar { name: string; value: string; label?: string }
+export interface PromptSources { v: number; parts: PromptSourcePart[]; omitted: PromptSourceOmitted[]; vars: PromptSourceVar[] }
+export interface PromptSourceSpan { msg: number; start: number; end: number; part: number }
+
 /** The EXACT prompt the engine would send for this chat right now (macros
  *  expanded, world info + summary + injections spliced) — powers prompt peek.
  *  With messageId the assembly is scoped to that message: the prompt as it
@@ -918,6 +924,10 @@ export function promptPreview(chatId: string, opts?: { userText?: string; messag
   assistantPrefill?: string
   /** tool definitions the generation would carry (enabled app tools) */
   tools?: { name: string; description: string; parameters: Record<string, unknown> }[]
+  /** where each part of the request came from (absent from older plugins) */
+  sources?: PromptSources
+  /** ranges in the texts: msg -1 = systemPrompt, else the index in `messages`; part = index in sources.parts */
+  sourceSpans?: PromptSourceSpan[]
 }> {
   const { userText, messageId } = opts ?? {}
   // ?siblingtools=1: the engine attaches the exact tool set a send's
