@@ -42,7 +42,7 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md" aria-describedby={undefined}>
+      <SheetContent side="right" className="data-[side=right]:w-full sm:max-w-md" aria-describedby={undefined}>
         <SheetHeader>
           <SheetTitle>{t('pc.title')}</SheetTitle>
         </SheetHeader>
@@ -64,7 +64,7 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
                 className="shrink-0 text-xs"
                 disabled={preset.isDefault}
                 title={t('pc.makeDefaultTip')}
-                onClick={() => { updatePreset(preset.id, { isDefault: true }); toast.success(`${t('pc.title')}: ${preset.name}`) }}
+                onClick={() => { updatePreset(preset.id, { isDefault: true }); toast.success(t('pc.madeDefault', { name: preset.name })) }}
               >
                 <Star className="size-3.5" aria-hidden="true" />{preset.isDefault ? t('pc.default') : t('pc.makeDefault')}
               </Button>

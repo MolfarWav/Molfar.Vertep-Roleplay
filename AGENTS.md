@@ -95,6 +95,12 @@ to it on every change. Messages are a FLAT list with swipes.
   /v1/audio/speech: keyless Edge voices or a speech endpoint), the data bank
   (plugin /databank) and image generation are all engine-backed.
   Purely local: themes, quick replies, tags/folders, hotkeys, backgrounds.
+  Preset choices (4.31): a preset's variables (types choice, toggle, text, …) are picked
+  PER CHAT. The chat's Preset panel (chat/preset-panel.tsx, from the quick bar) and the
+  step before a chat starts (chat/new-chat-step.tsx, setting askPresetOnNewChat) share
+  chat/preset-choices.tsx; changes go through the store's setChatPreset (POST
+  /chats/:id/preset: this chat only, the engine records a muted note shown by
+  chat/preset-note.tsx). The editor for the variables is presets/variables-panel.tsx.
 
 ## Backups (the zip, both directions)
 

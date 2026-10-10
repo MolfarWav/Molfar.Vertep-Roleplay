@@ -183,7 +183,7 @@ function OptionPicker({
               title={costTitle(costs?.[o.id])}
               onClick={() => pick(o.id)}
               className={cn(
-                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                'flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-left text-xs transition-colors',
                 on ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
               )}
             >
