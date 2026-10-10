@@ -36,7 +36,7 @@ const en = {
   'preset.regexPick': 'Pick a script…',
   'preset.regexNoFree': 'No free scripts — everything is already bound.',
   'preset.regexDeleteAll': 'Delete all',
-  'preset.regexDeleteAllTitle': 'Delete {n} scripts?',
+  'preset.regexDeleteAllTitle': 'Delete {n} {n|script|scripts}?',
   'preset.regexDeleteAllBody': 'Bound scripts are removed for good and stop working everywhere. This cannot be undone.',
 
   'home.pickUp': 'Pick up the story',
@@ -532,7 +532,7 @@ const en = {
   'soul.guestMenu': 'What is {name}?',
   'soul.deleted': 'Soul deleted',
   'soul.proposalDot': 'A proposal is waiting',
-  'soul.notice': 'Souls proposed for {n} characters of {card}',
+  'soul.notice': 'Souls proposed for {n} {n|character|characters} of {card}',
   'soul.noSoul': 'no soul',
   'soul.notRated': 'Not rated yet',
   'soul.notRatedHint': 'Rate this character, or fill in the values by hand.',
@@ -711,7 +711,7 @@ const en = {
   'lit.recordTitle': 'Story record',
   'lit.cutLine': '{n} older messages are in the record and leave the prompt',
   'lit.lastInsert': 'The last reply carried about {tokens} tokens: {facts} facts, {chapters} chapters',
-  'lit.rebuilding': 'Rebuilding: {n} chapters so far. The current record is used until it is done.',
+  'lit.rebuilding': 'Rebuilding: {n} {n|chapter|chapters} so far. The current record is used until it is done.',
   'lit.rebuild': 'Rebuild from scratch',
   'lit.rebuildConfirm': 'Chapters and facts written from the messages are rewritten in the background: about {n} model calls, one every ~30 s. Your facts and the dashboard\x27s stay, and the current record is used until the new one is done.',
   'lit.rebuildStarted': 'Rebuild started',
@@ -741,7 +741,7 @@ const en = {
   'lit.arc.rewriteToast': 'Queued: the arc is merged again.',
   'lit.arc.chapters': 'Chapters ({n})',
   'lit.arc.inArc': 'In arc: {label}',
-  'lit.arc.inInsert': '· {n} arcs',
+  'lit.arc.inInsert': '· {n} {n|arc|arcs}',
   'lit.act.arcAsk': 'Asked to merge {n} chapters into an arc',
   'lit.act.arcWrite': 'Merged {n} chapters into the arc "{label}" (messages {from}–{to})',
   'lit.act.arcWriteRewrite': 'Merged the arc "{label}" again',
@@ -856,7 +856,7 @@ const en = {
   'lit.w.working': 'Writing the chapter for messages {from}–{to} · {s} s',
   'lit.w.workingNa': 'Writing a chapter…',
   'lit.w.idle': 'Up to date',
-  'lit.w.queued': '{n} scenes waiting for a chapter',
+  'lit.w.queued': '{n} {n|scene|scenes} waiting for a chapter',
   'lit.w.queuedTurn': 'Waiting for its turn',
   'lit.w.retry': 'Failed; next try at {time}',
   'lit.w.stalled': 'No progress for {n} min, {left} scenes waiting. The model or the engine may be down.',
@@ -922,12 +922,12 @@ const en = {
   'lit.noActivity': 'Nothing here yet.',
   'lore.global.tip': 'In every chat',
   'lore.global.label': 'Global',
-  'lore.books.entries': '{n} entries',
+  'lore.books.entries': '{n} {n|entry|entries}',
   'lore.books.search': 'Search books…',
   'lore.books.noMatch': 'No book matches.',
   'lore.use.own': 'Own book of {name}',
   'lore.use.cardsOne': 'Used by 1 card',
-  'lore.use.cards': 'Used by {n} cards',
+  'lore.use.cards': 'Used by {n} {n|card|cards}',
   'lore.use.none': 'Not linked',
   'lore.active': 'Active',
   'lore.testKeys': 'Test keys',
@@ -996,9 +996,9 @@ const en = {
   'lore.filter.nokeys': 'No keys',
   'lore.badge.noKeys': 'no keys: never fires',
   'lore.badge.position': 'Where it goes in the prompt',
-  'lore.badge.sticky': 'Sticky: stays on for {n} messages',
-  'lore.badge.cooldown': 'Cooldown: {n} messages',
-  'lore.badge.delay': 'Delay: waits {n} messages',
+  'lore.badge.sticky': 'Sticky: stays on for {n} {n|message|messages}',
+  'lore.badge.cooldown': 'Cooldown: {n} {n|message|messages}',
+  'lore.badge.delay': 'Delay: waits {n} {n|message|messages}',
   'lore.badge.waits': 'Waits for recursion level {n}',
   'lore.badge.group': 'Group: {group}',
   'lore.badge.filters': 'Limited by character, tag or generation type',
@@ -1011,10 +1011,10 @@ const en = {
   'lore.bulk.copy': 'Copy to book…',
   'lore.bulk.delete': 'Delete',
   'lore.bulk.clear': 'Clear',
-  'lore.bulk.deleteTitle': 'Delete {n} entries?',
+  'lore.bulk.deleteTitle': 'Delete {n} {n|entry|entries}?',
   'lore.bulk.deleteBody': 'They are removed from this book. This cannot be undone.',
   'lore.copyOne': 'Copy “{title}” to…',
-  'lore.copyMany': 'Copy {n} entries to…',
+  'lore.copyMany': 'Copy {n} {n|entry|entries} to…',
   'lore.copied': 'Copied {n} to {name}',
   'lore.status.normal': 'Keyed',
   'lore.status.constant': 'Always on',
@@ -1166,9 +1166,9 @@ const en = {
   'lore.cb.new': 'New book',
   'lore.cb.newName': '{name} lore',
   'lore.cb.created': 'Book created',
-  'lore.cb.globals': 'Plus {n} global books in every chat',
+  'lore.cb.globals': 'Plus {n} global {n|book|books} in every chat',
   'lore.del.alsoBook': 'Also delete its lorebook “{name}”',
-  'lore.del.alsoBooks': 'Also delete their {n} lorebooks',
+  'lore.del.alsoBooks': 'Also delete their {n} {n|lorebook|lorebooks}',
   'lore.del.sharedNote': 'Its lorebook is used by another card, so it stays.',
   'bank.scope': 'Scope',
   'bank.scope.global': 'Everywhere',
@@ -1194,7 +1194,7 @@ const en = {
   'lore.molfar.tip': 'Create a lorebook with Molfar',
   'lore.molfar.message': 'Create a new lorebook for the Roleplay app with the lorebook-craft skill. Before writing anything, ask me what world or character it is for, which language the entries should be in, and which card to link it to. In Ukrainian or Russian keys, one base form of each word is enough (вежа also finds вежі, вежу). ',
   'lore.bulk.vector': 'By meaning',
-  'lore.vector.note': '{n} entries match by meaning; their vectors are made at the next reply (needs an embedding model).',
+  'lore.vector.note': '{n} {n|entry matches|entries match} by meaning; {n|its vector is|their vectors are} made at the next reply (needs an embedding model).',
   'pc.title': 'Preset',
   'pc.open': 'Choices',
   'pc.openTip': 'Choose the options of the preset for this chat',
@@ -1750,7 +1750,7 @@ const uk: Record<MsgKey, string> = {
   'soul.guestMenu': 'Хто це: {name}?',
   'soul.deleted': 'Душу видалено',
   'soul.proposalDot': 'Є пропозиція',
-  'soul.notice': 'Душі запропоновано для {n} персонажів картки «{card}»',
+  'soul.notice': 'Душі запропоновано для {n} {n|персонажа|персонажів|персонажів} картки «{card}»',
   'soul.noSoul': 'без душі',
   'soul.notRated': 'Ще не оцінено',
   'soul.notRatedHint': 'Оціни цього персонажа або заповни значення вручну.',
@@ -2214,9 +2214,9 @@ const uk: Record<MsgKey, string> = {
   'lore.filter.nokeys': 'Без ключів',
   'lore.badge.noKeys': 'без ключів: не спрацює',
   'lore.badge.position': 'Де стоїть у промпті',
-  'lore.badge.sticky': 'Липкий: лишається {n} повідомлень',
-  'lore.badge.cooldown': 'Перепочинок: {n} повідомлень',
-  'lore.badge.delay': 'Затримка: чекає {n} повідомлень',
+  'lore.badge.sticky': 'Липкий: лишається {n} {n|повідомлення|повідомлення|повідомлень}',
+  'lore.badge.cooldown': 'Перепочинок: {n} {n|повідомлення|повідомлення|повідомлень}',
+  'lore.badge.delay': 'Затримка: чекає {n} {n|повідомлення|повідомлення|повідомлень}',
   'lore.badge.waits': 'Чекає рівня рекурсії {n}',
   'lore.badge.group': 'Група: {group}',
   'lore.badge.filters': 'Обмежено персонажем, тегом або типом генерації',
@@ -2469,11 +2469,27 @@ export function setLanguage(setting: unknown): Lang {
 
 export type Vars = Record<string, string | number>
 
+/** The plural category order a `{n|…}` form list follows (Intl's own names, the forms a language has). */
+const PLURAL_ORDER = ['zero', 'one', 'two', 'few', 'many', 'other']
+const pluralRules = new Map<Lang, Intl.PluralRules>()
+/** The word form for a count: `{n|entry|entries}` (en: one, other), `{n|запис|записи|записів}`
+ *  (uk: one, few, many); a missing form falls back to the last one. */
+function pluralForm(lang: Lang, count: number, forms: string[]): string {
+  let rules = pluralRules.get(lang)
+  if (!rules) pluralRules.set(lang, (rules = new Intl.PluralRules(lang)))
+  const cats = PLURAL_ORDER.filter((c) => rules.resolvedOptions().pluralCategories.includes(c as Intl.LDMLPluralRule))
+  const i = cats.indexOf(rules.select(count))
+  return forms[Math.min(i < 0 ? forms.length - 1 : i, forms.length - 1)] ?? ''
+}
+
 /** Translate a key into the current language (or an explicit one); `{name}`
- *  placeholders are filled from vars. */
+ *  placeholders are filled from vars, `{name|form|form…}` picks the plural form for that count. */
 export function t(key: MsgKey, lang: Lang = current, vars?: Vars): string {
   const s = DICTIONARIES[lang][key] ?? en[key]
-  return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s
+  if (!vars) return s
+  return s
+    .replace(/\{(\w+)\|([^{}]*)\}/g, (m, k: string, forms: string) => (k in vars ? pluralForm(lang, Number(vars[k]), forms.split('|')) : m))
+    .replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
 }
 
 /** "just now", "5m ago", "2h ago", … in the given language. */

@@ -49,9 +49,26 @@ describe("placeholders and relative time", () => {
 
   it("every Ukrainian string keeps the placeholders of the English one", () => {
     for (const key of Object.keys(DICTIONARIES.en) as MsgKey[]) {
-      const ph = (s: string) => (s.match(/{w+}/g) ?? []).sort().join(",");
+      // plain placeholders only: plural forms ({n|one|other}) differ by language on purpose
+      const ph = (s: string) => [...new Set(s.match(/\{\w+(?=[|}])/g) ?? [])].sort().join(",");
       expect(ph(DICTIONARIES.uk[key]), key).toBe(ph(DICTIONARIES.en[key]));
     }
+  });
+
+  it("picks plural forms by count in each language", () => {
+    expect(t("lore.books.entries", "en", { n: 1 })).toBe("1 entry");
+    expect(t("lore.books.entries", "en", { n: 2 })).toBe("2 entries");
+    expect(t("lore.cb.globals", "en", { n: 1 })).toBe("Plus 1 global book in every chat");
+    expect(t("lore.cb.globals", "en", { n: 3 })).toBe("Plus 3 global books in every chat");
+    expect(t("lore.vector.note", "en", { n: 1 })).toStartWith("1 entry matches by meaning; its vector is made");
+    expect(t("lore.badge.sticky", "uk", { n: 1 })).toBe("Липкий: лишається 1 повідомлення");
+    expect(t("lore.badge.sticky", "uk", { n: 3 })).toBe("Липкий: лишається 3 повідомлення");
+    expect(t("lore.badge.sticky", "uk", { n: 5 })).toBe("Липкий: лишається 5 повідомлень");
+    expect(t("lore.badge.sticky", "uk", { n: 21 })).toBe("Липкий: лишається 21 повідомлення");
+    expect(t("soul.notice", "uk", { n: 2, card: "Ember" })).toBe("Душі запропоновано для 2 персонажів картки «Ember»");
+    expect(t("soul.notice", "uk", { n: 1, card: "Ember" })).toBe("Душі запропоновано для 1 персонажа картки «Ember»");
+    // without vars the text is left as it is
+    expect(t("lore.books.entries", "en")).toBe("{n} {n|entry|entries}");
   });
 
   it("formats relative times in both languages", () => {

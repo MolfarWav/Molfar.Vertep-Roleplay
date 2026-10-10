@@ -1298,7 +1298,7 @@ export function MarketplaceView() {
                         <BookOpenText className="size-3.5" aria-hidden="true" />
                         {detailData.lorebookEntries < 0
                           ? 'Has a lorebook, imported on download.'
-                          : `Includes an embedded lorebook (${detailData.lorebookEntries} entries), imported on download.`}
+                          : `Includes an embedded lorebook (${detailData.lorebookEntries} ${detailData.lorebookEntries === 1 ? 'entry' : 'entries'}), imported on download.`}
                       </p>
                     )}
                   </>
