@@ -25,6 +25,7 @@ import {
 } from './seed'
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
+import { shellLocale } from './shell-bridge'
 import {
   j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
@@ -297,6 +298,8 @@ let stopStreams: (() => void) | null = null
  *  that had not been flushed yet. */
 let flushStreamDeltas: (() => void) | null = null
 let uiSyncTimer: ReturnType<typeof setTimeout> | undefined
+/** The shell's language for an app whose user never picked one: undefined = not asked yet (0.9.5). */
+let shellLang: 'en' | 'uk' | null | undefined
 /** single-flight + trailing queue for hydrate: concurrent hydrates interleave
  *  their set() calls, so a look_changed burst (our own writes echo back from
  *  the engine) can briefly revert optimistic local mutations */
@@ -663,6 +666,15 @@ export const useApp = create<AppState>()(
               }
               return { settings: merged as unknown as typeof s.settings }
             })
+          }
+          // 0.9.5: until the user picks a language here, the app follows the shell's (asked once;
+          // every later hydrate re-applies it over the saved value without saving it)
+          if (!get().settings.languageChosen) {
+            const follow = (lang: 'en' | 'uk' | null) => {
+              if (lang && !get().settings.languageChosen && get().settings.language !== lang) set((s) => ({ settings: { ...s.settings, language: lang } }))
+            }
+            if (shellLang !== undefined) follow(shellLang)
+            else void shellLocale().then((loc) => { shellLang = loc === 'uk' ? 'uk' : loc ? 'en' : null; follow(shellLang) })
           }
           // chat look: the old prose defaults move to the stage look once. The
           // engine copy's own version decides (its `ui` was merged over the local

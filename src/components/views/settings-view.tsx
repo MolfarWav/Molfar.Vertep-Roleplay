@@ -6,6 +6,7 @@ import { CustomCssSection } from "@/components/settings/custom-css-section"
 import { MemorySummarySection } from "@/components/settings/memory-summary-section"
 import { PROSE_FONTS } from "@/components/theme-applier"
 import { toast } from "sonner"
+import { canOpenSettingsTab, openSettingsTab } from "@/lib/shell-bridge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -172,7 +173,7 @@ export function SettingsView() {
           {c.label}
           {note && <span className="text-xs text-muted-foreground">{note}</span>}
         </span>
-        <Select value={value as string} onValueChange={(v) => v && updateSettings({ [c.key]: v })}>
+        <Select value={value as string} onValueChange={(v) => v && updateSettings({ [c.key]: v, ...(c.key === 'language' ? { languageChosen: true } : {}) })}>
           <SelectTrigger className="w-40" aria-label={c.label}>
             <SelectValue />
           </SelectTrigger>
@@ -504,7 +505,7 @@ function STImportSection() {
             accept=".zip,.charx"
             className="sr-only"
             onChange={(e) => { void handleBackupZip(e.target.files); e.target.value = "" }}
-            aria-label="Import backup zip"
+            aria-label="Restore Roleplay data from a zip"
           />
           <Button variant="outline" size="sm" onClick={() => backupInput.current?.click()}>
             <UploadSimple className="size-3.5" aria-hidden /> Choose file
@@ -579,7 +580,7 @@ function DataSection() {
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Data</h3>
       <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
         <Button variant="outline" className="justify-start gap-2 bg-transparent" disabled={busy} onClick={() => void handleExport()}>
-          <DownloadSimple className="size-4" aria-hidden /> Export backup (zip)
+          <DownloadSimple className="size-4" aria-hidden /> Export Roleplay data (zip)
         </Button>
         <input
           ref={importInput}
@@ -590,15 +591,26 @@ function DataSection() {
           aria-label="Import backup zip"
         />
         <Button variant="outline" className="justify-start gap-2 bg-transparent" disabled={busy} onClick={() => importInput.current?.click()}>
-          <UploadSimple className="size-4" aria-hidden /> Restore backup (zip)
+          <UploadSimple className="size-4" aria-hidden /> Restore Roleplay data (zip)
         </Button>
         <Button
           variant="outline"
           className="justify-start gap-2 bg-transparent text-destructive hover:text-destructive"
           onClick={() => setResetOpen(true)}
         >
-          <Trash className="size-4" aria-hidden /> Reset All Data
+          <Trash className="size-4" aria-hidden /> Reset look and local settings
         </Button>
+        <p className="text-[11px] text-muted-foreground">
+          These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex. The whole profile (every app, Molfar, connections) is saved in Molfar Vertep's Settings › Backup.
+          {canOpenSettingsTab() && (
+            <>
+              {' '}
+              <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => void openSettingsTab('backup').catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
+                Open it
+              </button>
+            </>
+          )}
+        </p>
       </div>
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogContent>
@@ -606,7 +618,7 @@ function DataSection() {
             <AlertDialogTitle>Reset local UI state?</AlertDialogTitle>
             <AlertDialogDescription>
               Resets appearance settings, themes, quick replies and tags to their defaults. Server data
-              (characters, chats, presets, lorebooks, stored by the Chrysalis engine) is not touched;
+              (characters, chats, presets, lorebooks, stored by the engine) is not touched;
               delete those from their own views.
             </AlertDialogDescription>
           </AlertDialogHeader>

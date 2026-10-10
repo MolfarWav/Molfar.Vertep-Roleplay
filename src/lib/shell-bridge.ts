@@ -71,3 +71,26 @@ export async function openModelSettings(ref?: string | null): Promise<void> {
   if (typeof fn !== 'function') throw new Error('This engine has no model settings yet')
   await fn(ref ?? undefined)
 }
+
+/** The shell's interface language (engine 0.9.5), e.g. "uk"; null on older engines or outside the shell. */
+export async function shellLocale(): Promise<string | null> {
+  if (typeof window === 'undefined') return null
+  const fn = (window.chrysalisShell as { locale?: () => Promise<unknown> } | undefined)?.locale
+  if (typeof fn !== 'function') return null
+  try {
+    const v = await fn()
+    return typeof v === 'string' ? v : null
+  } catch {
+    return null
+  }
+}
+
+/** The shell can open its Settings on one tab (engine 0.9.5). */
+export const canOpenSettingsTab = (): boolean =>
+  typeof window !== 'undefined' && typeof (window.chrysalisShell as { openSettingsTab?: unknown } | undefined)?.openSettingsTab === 'function'
+
+export async function openSettingsTab(tab: 'api' | 'models' | 'memory' | 'backup'): Promise<void> {
+  const fn = (window.chrysalisShell as { openSettingsTab?: (tab: string) => Promise<null> } | undefined)?.openSettingsTab
+  if (typeof fn !== 'function') throw new Error('This engine cannot open that part of Settings')
+  await fn(tab)
+}

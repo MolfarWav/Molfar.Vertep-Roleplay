@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
+import { modelLimits } from '@/lib/model-params'
 import { defaultSamplers } from '@/lib/seed'
 import { cn } from '@/lib/utils'
 import type { Preset, SamplerSettings } from '@/lib/types'
@@ -38,6 +39,13 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
   const up = (patch: Partial<SamplerSettings>) => updatePreset(preset.id, { samplers: { ...sp, ...patch } })
   const t = useT()
   const model = useApp((s) => s.model)
+  const models = useApp((s) => s.models)
+  const modelParams = useApp((s) => s.modelParams)
+  // 0.9.5: what the reply request budgets with instead of this preset (modelLimits): the window always,
+  // the Chat block's max output unless this preset overrides the model
+  const limits = modelLimits(model, models, modelParams)
+  const ctxFromModel = limits.contextWindow
+  const maxFromModel = preset.samplersOverrideModel ? undefined : limits.maxOutput
 
   return (
     // @container: this panel lives anywhere from a phone page to a narrow
@@ -114,15 +122,23 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
 
         <TabsContent value="tokensctx" className="mt-3 flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 @min-[26rem]:grid-cols-2 @min-[44rem]:grid-cols-3">
-            <Num label="Max response tokens" value={sp.maxTokens} onChange={(v) => up({ maxTokens: v })} disabled={ro} wide />
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Context size {sp.contextUnlocked && '(unlocked)'}</Label>
-              <div className="flex items-center gap-2">
-                <Input type="number" value={sp.contextSize} disabled={ro} onChange={(e) => up({ contextSize: Number(e.target.value) })} className="h-7 text-xs" aria-label="Context size" />
-                <Switch checked={sp.contextUnlocked} disabled={ro} onCheckedChange={(v) => up({ contextUnlocked: v })} aria-label="Unlock context" />
+            {maxFromModel ? (
+              <FromModel label="Max response tokens" value={maxFromModel} note={t('model.maxIsModel')} model={model} />
+            ) : (
+              <Num label="Max response tokens" value={sp.maxTokens} onChange={(v) => up({ maxTokens: v })} disabled={ro} wide />
+            )}
+            {ctxFromModel ? (
+              <FromModel label="Context size" value={ctxFromModel} note={t('model.ctxIsModel')} model={model} />
+            ) : (
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Context size {sp.contextUnlocked && '(unlocked)'}</Label>
+                <div className="flex items-center gap-2">
+                  <Input type="number" value={sp.contextSize} disabled={ro} onChange={(e) => up({ contextSize: Number(e.target.value) })} className="h-7 text-xs" aria-label="Context size" />
+                  <Switch checked={sp.contextUnlocked} disabled={ro} onCheckedChange={(v) => up({ contextUnlocked: v })} aria-label="Unlock context" />
+                </div>
+                <p className="text-[11px] text-muted-foreground">{t('model.ctxFromModel')}</p>
               </div>
-              <p className="text-[11px] text-muted-foreground">{t('model.ctxFromModel')}</p>
-            </div>
+            )}
             <Num label="Seed (-1 random)" value={sp.seed} onChange={(v) => up({ seed: v })} disabled={ro} wide />
           </div>
           <div className="flex flex-col gap-1">
@@ -247,6 +263,26 @@ function ExtraParamAdder({ preset, disabled, onAdd }: {
       <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="name" disabled={disabled} className="h-7 w-44 font-mono text-xs" aria-label="New parameter name" />
       <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="value" disabled={disabled} className="h-7 flex-1 font-mono text-xs" aria-label="New parameter value" onKeyDown={(e) => { if (e.key === 'Enter') add() }} />
       <Button variant="outline" size="sm" className="h-7 text-xs" disabled={disabled} onClick={add}>Add</Button>
+    </div>
+  )
+}
+
+/** A number the model decides, not this preset: shown, not edited here (Set up opens it in the shell). */
+function FromModel({ label, value, note, model }: { label: string; value: number; note: string; model: string | null }) {
+  const t = useT()
+  return (
+    <div className="flex flex-col gap-1" data-testid="from-model">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex h-7 items-center gap-2">
+        <span className="font-mono text-xs tabular-nums">{value.toLocaleString()}</span>
+        <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] text-emerald-600 dark:text-emerald-400">model</span>
+        {canOpenModelSettings() && model && (
+          <button type="button" className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => void openModelSettings(model).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
+            {t('model.setUp')}
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">{note}</p>
     </div>
   )
 }

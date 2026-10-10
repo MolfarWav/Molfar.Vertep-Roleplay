@@ -675,6 +675,8 @@ export interface AppSettings {
   /** Interface language for the nav labels and page titles: 'en' | 'uk'.
    *  Anything else (older builds wrote 'English') follows the browser. */
   language: string
+  /** 0.9.5: the user picked the language here; until then it follows the shell's (shell-bridge shellLocale). */
+  languageChosen?: boolean
   customCss: string
   activeBackgroundId: ID | null
   backgroundOpacity: number

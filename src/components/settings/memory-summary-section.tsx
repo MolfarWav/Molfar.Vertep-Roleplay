@@ -8,6 +8,7 @@ import { ModelPicker } from '@/components/settings/model-picker'
 import { useT } from '@/hooks/use-t'
 import { toast } from 'sonner'
 import { embedConfig, embedStatus, setEmbedConfig } from '@/lib/engine'
+import { canOpenSettingsTab, openSettingsTab } from '@/lib/shell-bridge'
 import { deleteLitPrompts, fetchLitConfig, putLitConfig, type LitConfig } from '@/components/library/litopys-api'
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
@@ -15,9 +16,6 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 export function MemorySummarySection() {
   const t = useT()
   const [cfg, setCfg] = useState<LitConfig | null>(null)
-  const [embed, setEmbed] = useState<{ ok: boolean; via: string | null } | null>(null)
-  const [embedModel, setEmbedModel] = useState('text-embedding-3-small')
-  useEffect(() => { void embedStatus().then(setEmbed); void embedConfig().then((c) => setEmbedModel(c.model)) }, [])
 
   useEffect(() => {
     void fetchLitConfig().then(setCfg).catch((e) => {
@@ -44,21 +42,7 @@ export function MemorySummarySection() {
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
         <p className="text-sm text-muted-foreground">…</p>
         <div className="flex flex-col gap-3 rounded-md border border-border p-3">
-          <p className="text-[11px] text-muted-foreground" aria-live="polite">
-            {embed === null ? 'Matching by meaning: checking…'
-              : embed.ok ? `Matching by meaning${embed.via ? ` via ${embed.via}` : ''}`
-              : 'Matching by words only. An embeddings connection adds matching by meaning.'}
-          </p>
-          <div className="flex items-center gap-2">
-            <Input
-              value={embedModel}
-              onChange={(e) => setEmbedModel(e.target.value)}
-              onBlur={() => { if (embedModel.trim()) { void setEmbedConfig(embedModel.trim()).then(() => embedStatus(true).then(setEmbed)) } }}
-              className="h-7 w-56 font-mono text-[11px]"
-              aria-label="Embeddings model"
-            />
-            <span className="text-[11px] text-muted-foreground">embeddings model</span>
-          </div>
+          <EmbedRow />
         </div>
       </div>
     )
@@ -343,11 +327,39 @@ export function MemorySummarySection() {
       <div className="flex flex-col gap-3 rounded-md border border-border p-3">
         <p className="text-sm font-medium">Facts</p>
         <p className="text-xs text-muted-foreground">Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.</p>
-        <p className="text-[11px] text-muted-foreground" aria-live="polite">
-          {embed === null ? 'Matching by meaning: checking…'
-            : embed.ok ? `Matching by meaning${embed.via ? ` via ${embed.via}` : ''}`
-            : 'Matching by words only. An embeddings connection adds matching by meaning.'}
-        </p>
+        <EmbedRow />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Matching by meaning: its status, and where to set it up. The embeddings provider, key and model belong
+ * to the shell (Settings > Memory, 0.9.5); an older engine without that link keeps the model field here.
+ */
+function EmbedRow() {
+  const [embed, setEmbed] = useState<{ ok: boolean; via: string | null } | null>(null)
+  const [embedModel, setEmbedModel] = useState('text-embedding-3-small')
+  const linked = canOpenSettingsTab()
+  useEffect(() => {
+    void embedStatus().then(setEmbed)
+    if (!linked) void embedConfig().then((c) => setEmbedModel(c.model))
+  }, [linked])
+  return (
+    <>
+      <p className="text-[11px] text-muted-foreground" aria-live="polite">
+        {embed === null ? 'Matching by meaning: checking…'
+          : embed.ok ? `Matching by meaning${embed.via ? ` via ${embed.via}` : ''}`
+          : 'Matching by words only. An embeddings connection adds matching by meaning.'}
+      </p>
+      {linked ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void openSettingsTab('memory').catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
+            Set up in Settings › Memory
+          </Button>
+          <span className="text-[11px] text-muted-foreground">The embeddings provider and model are shared by every app.</span>
+        </div>
+      ) : (
         <div className="flex items-center gap-2">
           <Input
             value={embedModel}
@@ -358,7 +370,7 @@ export function MemorySummarySection() {
           />
           <span className="text-[11px] text-muted-foreground">embeddings model</span>
         </div>
-      </div>
-    </div>
+      )}
+    </>
   )
 }
