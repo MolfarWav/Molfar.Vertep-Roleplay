@@ -40,6 +40,8 @@ import { HelpDialog } from './help-dialog'
 import { ExpressionPanel } from './expression-panel'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
+import { PresetNoteLine } from './preset-note'
+import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
@@ -536,6 +538,18 @@ export function ChatView() {
   // the newest real turn owns the swipe controls; a picture posted after a
   // reply does not take them over
   const lastReplyIndex = chat ? chat.messages.reduce((at, m, i) => (m.picture ? at : i), -1) : -1
+  // preset notes by the message they follow; one whose message is gone follows the last one
+  const notesAfter = useMemo(() => {
+    const out = new Map<string, PresetNote[]>()
+    if (!chat?.presetNotes?.length || !chat.messages.length) return out
+    const ids = new Set(chat.messages.map((m) => m.id))
+    const lastId = chat.messages[chat.messages.length - 1].id
+    for (const n of chat.presetNotes) {
+      const k = n.after && ids.has(n.after) ? n.after : lastId
+      out.set(k, [...(out.get(k) ?? []), n])
+    }
+    return out
+  }, [chat?.presetNotes, chat?.messages])
   const summaryCutIndex = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
 
   // A dead 'chat' state (stale persisted id, the chat deleted from another
@@ -912,6 +926,7 @@ export function ChatView() {
                     onSwipeFx={onSwipeFx}
                   />
                 )}
+                {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>
             )
