@@ -906,19 +906,56 @@ export function promptPreview(chatId: string, opts?: { userText?: string; messag
 /** World-info activation status for a chat — the same activation path a
  *  generation runs (constants + key matches over recent messages, with the
  *  real context-scaled budget), so the viewer shows what ACTUALLY fires. */
-export interface WIStatusRec {
+export interface WIFiredRow {
   book: string
   uid: number | null
   title: string
   chars: number
   constant: boolean
+  position: string
+  sticky?: boolean
+  via: 'key' | 'constant' | 'sticky' | 'vector'
+  key?: string
+  secondary?: string[]
+  /** vector hits: cosine score */
+  score?: number
+  /** recursion pass the entry fired in (0 = the first scan) */
+  pass: number
+  /** how many messages deep the scan was when it fired */
+  depth: number
+  probability?: number
+  group?: string
+  /** skipped rows only */
+  reason?: 'budget'
+}
+export type WIBlockReason =
+  | 'delay' | 'cooldown' | 'recursion_delay' | 'non_recursable' | 'secondary'
+  | 'probability' | 'group' | 'character' | 'trigger'
+export interface WIBlockedRow {
+  book: string
+  uid: number | null
+  title: string
+  reason: WIBlockReason
+  detail?: string | number
+  key?: string
+  secondary?: string[]
+  winner?: string
 }
 export interface WIStatus {
-  fired: WIStatusRec[]
-  skipped: WIStatusRec[]
+  fired: WIFiredRow[]
+  skipped: WIFiredRow[]
+  blocked: WIBlockedRow[]
   usedChars: number
   budgetChars: number
+  scanDepth: number
   contextTokens: number
+}
+export interface WITestResult {
+  fired: WIFiredRow[]
+  skipped: WIFiredRow[]
+  blocked: WIBlockedRow[]
+  usedChars: number
+  budgetChars: number
 }
 /** Core engine route (not an app route) — absolute path, like image-gen. */
 export async function embedConfig(): Promise<{ model: string }> {
@@ -950,6 +987,16 @@ export function fetchWIStatus(chatId: string): Promise<WIStatus> {
   return j('/wi-status', {
     method: 'POST',
     body: JSON.stringify({ chatId }),
+  })
+}
+
+/** The keyword test: the real scanner on pasted text, against the editor's
+ *  own (possibly unsaved) books. A chat lends its timed state and card. */
+export function wiTest(opts: { text: string; books: EngineLorebook[]; chatId?: string }, signal?: AbortSignal): Promise<WITestResult> {
+  return j('/wi-test', {
+    method: 'POST',
+    body: JSON.stringify({ text: opts.text, books: opts.books, ...(opts.chatId ? { chatId: opts.chatId } : {}) }),
+    signal,
   })
 }
 

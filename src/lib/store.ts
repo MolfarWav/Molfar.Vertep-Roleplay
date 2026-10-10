@@ -122,6 +122,8 @@ interface AppState {
   activeCharacterId: ID | null
   focusPresetId: ID | null
   focusPersonaId: ID | null
+  /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
+  focusLorebookId: ID | null
   /** set by Home's Branches button: the chat view opens that chat's branch tree and clears it */
   branchTreeFor: ID | null
   openBranchTree: (chatId: ID) => void
@@ -173,6 +175,7 @@ interface AppState {
   openDashboard: () => void
   focusPreset: (presetId: ID) => void
   focusPersona: (personaId: ID) => void
+  focusLorebook: (bookId: ID) => void
   setSettingsSection: (s: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   // chat actions
@@ -252,7 +255,7 @@ interface AppState {
   addConnection: () => ID
   deleteConnection: (id: ID) => void
   updateExtension: (id: ID, patch: Partial<Extension>) => void
-  uploadDataBankFile: (name: string, content: string, scope?: DataBankFile['scope']) => Promise<void>
+  uploadDataBankFile: (name: string, content: string, scope?: DataBankFile['scope'], scopeTargetId?: ID | null) => Promise<void>
   updateDataBankFile: (id: ID, patch: Partial<DataBankFile>) => void
   deleteDataBankFile: (id: ID) => void
   addConnectionProfile: (p: Omit<ConnectionProfile, 'id'>) => ID
@@ -425,6 +428,7 @@ export const useApp = create<AppState>()(
       openDashboard: () => set((s) => ({ dashOpen: s.dashOpen + 1 })),
       focusPresetId: null,
       focusPersonaId: null,
+      focusLorebookId: null,
       branchTreeFor: null,
       openBranchTree: (chatId) => {
         get().openChat(chatId)
@@ -940,6 +944,10 @@ export const useApp = create<AppState>()(
       focusPreset: (presetId) => {
         if (opensAsDrawer(get().view)) set({ focusPresetId: presetId, drawer: 'presets' })
         else set({ view: 'presets', focusPresetId: presetId })
+      },
+      focusLorebook: (bookId) => {
+        if (opensAsDrawer(get().view)) set({ focusLorebookId: bookId, drawer: 'lorebooks' })
+        else set({ view: 'lorebooks', focusLorebookId: bookId })
       },
       focusPersona: (personaId) => {
         if (opensAsDrawer(get().view)) set({ focusPersonaId: personaId, drawer: 'personas' })
@@ -1821,11 +1829,11 @@ export const useApp = create<AppState>()(
 
       updateExtension: (id, patch) => set((s) => ({ extensions: s.extensions.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
       // ── data bank: engine-backed (data/databank/*.json, chunked + searched) ──
-      uploadDataBankFile: async (name, content, scope = 'global') => {
+      uploadDataBankFile: async (name, content, scope = 'global', scopeTargetId = null) => {
         bumpMutate()
         const r = await j<{ file: DataBankFile }>('/databank', {
           method: 'POST',
-          body: JSON.stringify({ name, content, scope }),
+          body: JSON.stringify({ name, content, scope, ...(scope !== 'global' && scopeTargetId ? { scopeTargetId } : {}) }),
         })
         set((s) => ({ dataBank: [...s.dataBank, r.file] }))
       },

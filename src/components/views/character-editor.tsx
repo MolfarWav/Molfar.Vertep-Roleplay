@@ -25,6 +25,7 @@ import { useT } from '@/hooks/use-t'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
+import { CharacterBooks } from '@/components/character/character-books'
 import { TranslateMenu } from '@/components/character/translate-menu'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToExportCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
@@ -353,23 +354,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             )}
 
             <TabsContent value="lorebook" className="flex flex-col gap-3">
-              <p className="text-xs text-muted-foreground">
-                Embedded book: {c.embeddedLorebookId ? lorebooks.find((b) => b.id === c.embeddedLorebookId)?.name ?? 'none' : 'none'}
-              </p>
-              <Label className="text-xs">Additional linked lorebooks</Label>
-              <div className="flex flex-col gap-1.5">
-                {lorebooks.filter((b) => !b.isEmbedded).map((b) => (
-                  <label key={b.id} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
-                    <Switch
-                      checked={c.linkedLorebookIds.includes(b.id)}
-                      onCheckedChange={(v) => up({ linkedLorebookIds: v ? [...c.linkedLorebookIds, b.id] : c.linkedLorebookIds.filter((x) => x !== b.id) })}
-                      aria-label={`Link ${b.name}`}
-                    />
-                    {b.name}
-                    <Badge variant="outline" className="ml-auto text-[10px]">{b.entries.length} entries</Badge>
-                  </label>
-                ))}
-              </div>
+              <CharacterBooks c={c} />
             </TabsContent>
 
             <TabsContent value="colors" className="flex flex-col gap-3">

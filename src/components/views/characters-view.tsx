@@ -1,5 +1,5 @@
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MagnifyingGlass, Star, SquaresFour, List, Plus, UploadSimple, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,8 @@ import { downloadJson } from '@/lib/interop'
 import { CharacterEditor } from '@/components/views/character-editor'
 import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
+import { useT } from '@/hooks/use-t'
+import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
@@ -112,6 +114,20 @@ export function CharactersView() {
   }
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmBatch, setConfirmBatch] = useState(false)
+  const t = useT()
+  const lorebooks = useApp((s) => s.lorebooks)
+  // an own book nobody else uses goes with its card unless the user says no
+  const [alsoBook, setAlsoBook] = useState(true)
+  useEffect(() => { if (confirmDelete || confirmBatch) setAlsoBook(true) }, [confirmDelete, confirmBatch])
+  const bookName = (id: string | null) => lorebooks.find((b) => b.id === id)?.name ?? ''
+  const singleOwnId = confirmDelete ? ownBookOnlyFor(characters, confirmDelete) : null
+  const singleOwn = singleOwnId && lorebooks.some((b) => b.id === singleOwnId) ? singleOwnId : null
+  const singleShared = !!confirmDelete && !singleOwn && !!characters.find((c) => c.id === confirmDelete)?.embeddedLorebookId
+    && !!lorebooks.find((b) => b.id === characters.find((c) => c.id === confirmDelete)?.embeddedLorebookId)
+  const batchOwn = confirmBatch ? selected.map((id) => ownBookOnlyFor(characters, id)).filter((x): x is string => !!x && !!lorebooks.find((b) => b.id === x)) : []
+  const batchShared = confirmBatch
+    ? selected.filter((id) => { const o = characters.find((c) => c.id === id)?.embeddedLorebookId; return !!o && !batchOwn.includes(o) && !!lorebooks.find((b) => b.id === o) }).length
+    : 0
   const [groupOpen, setGroupOpen] = useState(false)
   const [convertTarget, setConvertTarget] = useState<(typeof characters)[number] | null>(null)
 
@@ -448,10 +464,17 @@ export function CharactersView() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this character?</AlertDialogTitle>
             <AlertDialogDescription>This removes the character and all of their chats. This cannot be undone.</AlertDialogDescription>
+            {singleOwn && (
+              <label className="mt-2 flex items-start gap-2 text-sm text-foreground">
+                <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={alsoBook} onChange={(e) => setAlsoBook(e.target.checked)} />
+                <span>{t('lore.del.alsoBook', { name: bookName(singleOwn) })}</span>
+              </label>
+            )}
+            {singleShared && <p className="mt-2 text-xs text-muted-foreground">{t('lore.del.sharedNote')}</p>}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDelete) deleteCharacter(confirmDelete); setConfirmDelete(null); toast.success('Character deleted') }}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (confirmDelete) deleteCharacter(confirmDelete, { withBook: !!singleOwn && alsoBook }); setConfirmDelete(null); toast.success('Character deleted') }}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -476,11 +499,18 @@ export function CharactersView() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selected.length} characters?</AlertDialogTitle>
             <AlertDialogDescription>Their cards and every chat with them are removed. This cannot be undone.</AlertDialogDescription>
+            {batchOwn.length > 0 && (
+              <label className="mt-2 flex items-start gap-2 text-sm text-foreground">
+                <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={alsoBook} onChange={(e) => setAlsoBook(e.target.checked)} />
+                <span>{batchOwn.length === 1 ? t('lore.del.alsoBook', { name: bookName(batchOwn[0]!) }) : t('lore.del.alsoBooks', { n: batchOwn.length })}</span>
+              </label>
+            )}
+            {batchShared > 0 && <p className="mt-2 text-xs text-muted-foreground">{t('lore.del.sharedNote')}</p>}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { selected.forEach((id) => deleteCharacter(id)); setSelected([]); setConfirmBatch(false); toast.success('Deleted') }}
+              onClick={() => { selected.forEach((id) => deleteCharacter(id, { withBook: alsoBook && batchOwn.length > 0 })); setSelected([]); setConfirmBatch(false); toast.success('Deleted') }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete {selected.length}

@@ -19,7 +19,8 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { estimateTokens, formatCost, knownCost } from '@/lib/tokens'
-import { fileToRawDataUrl, fetchWIStatus, type WIStatus } from '@/lib/engine'
+import { fileToRawDataUrl } from '@/lib/engine'
+import { WiStatusView } from '@/components/lore/wi-status-view'
 import { useApp, useChat, useCharacter, checkSoulProposals } from '@/lib/store'
 import { speakText, voiceFor } from '@/lib/tts'
 import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
@@ -480,21 +481,6 @@ export function ChatView() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Real world-info activation for this chat — the same activation path a
-  // generation runs (constants + key matches over recent messages with the
-  // context-scaled budget), fetched from the engine when the sheet opens.
-  // Never a client-side approximation: budget cuts and recursion change what
-  // actually fires.
-  const [wiStatus, setWiStatus] = useState<WIStatus | null>(null)
-  useEffect(() => {
-    if (!loreOpen || !chat) { setWiStatus(null); return }
-    let alive = true
-    fetchWIStatus(chat.id)
-      .then((s) => { if (alive) setWiStatus(s) })
-      .catch(() => { if (alive) setWiStatus(null) })
-    return () => { alive = false }
-  }, [loreOpen, chat])
-
   // 'none' = the user explicitly picked None for THIS chat — it must beat the
   // global active background (plain null just means "never chose": global wins)
   const bg = chat?.backgroundId === 'none'
@@ -580,7 +566,7 @@ export function ChatView() {
         <Note className="size-4" aria-hidden="true" /> Author&apos;s note
       </DropdownMenuItem>
       <DropdownMenuItem onClick={() => setLoreOpen(true)}>
-        <BookOpenText className="size-4" aria-hidden="true" /> Lorebook activity{wiStatus ? ` (${wiStatus.fired.length})` : ''}
+        <BookOpenText className="size-4" aria-hidden="true" /> {t('lore.activity.title')}
       </DropdownMenuItem>
       <DropdownMenuItem onClick={() => setSummaryOpen(true)}>
         <Brain className="size-4" aria-hidden="true" /> {t('lit.recordTitle')}
@@ -1113,55 +1099,14 @@ export function ChatView() {
         </SheetContent>
       </Sheet>
 
-      {/* Lore activity sheet */}
+      {/* Lore activity sheet: the engine's own scan, with the reason for every row */}
       <Sheet open={loreOpen} onOpenChange={setLoreOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>World info activity</SheetTitle>
+            <SheetTitle>{t('lore.activity.title')}</SheetTitle>
           </SheetHeader>
           <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
-            {!wiStatus ? (
-              <p className="text-sm text-muted-foreground">Checking what actually fires…</p>
-            ) : wiStatus.fired.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing fires for this chat right now. Entries need their keys in the recent
-                messages, or Constant status.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <p className="text-[11px] text-muted-foreground">
-                  {(wiStatus.usedChars / 4 | 0).toLocaleString()}t used of ~{(wiStatus.budgetChars / 4 | 0).toLocaleString()}t WI budget
-                  · context {wiStatus.contextTokens.toLocaleString()}t
-                </p>
-                <ul className="flex flex-col gap-2">
-                  {wiStatus.fired.map((r, i) => (
-                    <li key={`${r.book}-${r.uid}-${i}`} className="rounded-md border border-primary/40 bg-primary/5 p-2.5">
-                      <p className="flex items-center gap-2 text-sm font-medium">
-                        <span className="min-w-0 flex-1 truncate">{r.title}</span>
-                        <Badge variant="secondary" className="shrink-0 text-[10px]">{r.constant ? 'constant' : 'keyed'}</Badge>
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {r.book} · {Math.ceil(r.chars / 4)}t
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-                {wiStatus.skipped.length > 0 && (
-                  <>
-                    <p className="mt-1 text-xs text-muted-foreground">Cut by budget ({wiStatus.skipped.length})</p>
-                    <ul className="flex flex-col gap-1.5">
-                      {wiStatus.skipped.map((r, i) => (
-                        <li key={`skip-${r.book}-${r.uid}-${i}`} className="flex items-center gap-2 rounded-md border border-dashed border-border px-2.5 py-1.5 text-sm text-muted-foreground">
-                          <span className="min-w-0 flex-1 truncate">{r.title}</span>
-                          <span className="shrink-0 text-[10px]">{r.book}</span>
-                          <span className="shrink-0 text-[11px]">+{Math.ceil(r.chars / 4)}t over</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-            )}
+            <WiStatusView chatId={chat?.id ?? null} active={loreOpen} />
           </ScrollArea>
         </SheetContent>
       </Sheet>

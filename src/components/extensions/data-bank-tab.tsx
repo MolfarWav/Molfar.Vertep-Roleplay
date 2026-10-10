@@ -3,7 +3,11 @@ import { useRef, useState } from 'react'
 import { useApp } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Database, FileText, CircleNotch, Trash, UploadSimple } from '@phosphor-icons/react'
+import { Database, FileText, CircleNotch, Trash, UploadSimple, Globe, User, ChatCircle } from '@phosphor-icons/react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useT } from '@/hooks/use-t'
+import type { DataBankFile } from '@/lib/types'
 import { useConfirm } from '@/components/ui/confirm'
 import { toast } from 'sonner'
 import { j } from '@/lib/engine'
@@ -25,6 +29,93 @@ interface SearchHit {
   score: number
 }
 
+type Scope = DataBankFile['scope']
+const NO_TARGET = '__none__'
+
+/** Where a file applies: everywhere, one character, or one chat. */
+function ScopePicker({ scope, target, onScope, onTarget, compact }: {
+  scope: Scope; target: string | null; onScope: (s: Scope) => void; onTarget: (id: string | null) => void; compact?: boolean
+}) {
+  const t = useT()
+  const characters = useApp((s) => s.characters)
+  const chats = useApp((s) => s.chats)
+  const chatList = [...chats].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+  return (
+    <div className={compact ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-2'}>
+      <Select value={scope} onValueChange={(v) => { if (v) { onScope(v as Scope); onTarget(null) } }}>
+        <SelectTrigger className="h-8 w-44 text-xs" aria-label={t('bank.scope')}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="global">{t('bank.scope.global')}</SelectItem>
+          <SelectItem value="character">{t('bank.scope.character')}</SelectItem>
+          <SelectItem value="chat">{t('bank.scope.chat')}</SelectItem>
+        </SelectContent>
+      </Select>
+      {scope === 'character' && (
+        <Select value={target ?? NO_TARGET} onValueChange={(v) => v && onTarget(v === NO_TARGET ? null : v)}>
+          <SelectTrigger className="h-8 w-44 text-xs" aria-label={t('bank.pickCharacter')}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_TARGET}>{t('bank.pickCharacter')}</SelectItem>
+            {characters.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      {scope === 'chat' && (
+        <Select value={target ?? NO_TARGET} onValueChange={(v) => v && onTarget(v === NO_TARGET ? null : v)}>
+          <SelectTrigger className="h-8 w-44 text-xs" aria-label={t('bank.pickChat')}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_TARGET}>{t('bank.pickChat')}</SelectItem>
+            {chatList.map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  )
+}
+
+/** The scope of a stored file, changeable in place. */
+function FileScope({ f }: { f: DataBankFile }) {
+  const t = useT()
+  const characters = useApp((s) => s.characters)
+  const chats = useApp((s) => s.chats)
+  const updateDataBankFile = useApp((s) => s.updateDataBankFile)
+  const [open, setOpen] = useState(false)
+  const [scope, setScope] = useState<Scope>(f.scope)
+  const [target, setTarget] = useState<string | null>(f.scopeTargetId)
+  const label = f.scope === 'global' || !f.scopeTargetId
+    ? t('bank.scope.global')
+    : f.scope === 'character'
+      ? characters.find((c) => c.id === f.scopeTargetId)?.name ?? f.scopeTargetId
+      : t('bank.scope.chatNamed', { title: chats.find((c) => c.id === f.scopeTargetId)?.title ?? f.scopeTargetId })
+  const Icon = f.scope === 'character' ? User : f.scope === 'chat' ? ChatCircle : Globe
+  const apply = (s: Scope, tg: string | null) => {
+    if (s !== 'global' && !tg) return
+    updateDataBankFile(f.id, { scope: s, scopeTargetId: s === 'global' ? null : tg })
+    setOpen(false)
+    toast.success(t('bank.scope.changed'))
+  }
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) { setScope(f.scope); setTarget(f.scopeTargetId) } }}>
+      <PopoverTrigger
+        render={
+          <button type="button" className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent/50" title={t('bank.scope.change')} aria-label={t('bank.scope.changeNamed', { name: f.name })}>
+            <Icon className="size-3 shrink-0" aria-hidden="true" /><span className="truncate">{label}</span>
+          </button>
+        }
+      />
+      <PopoverContent align="start" className="w-60">
+        <p className="text-xs font-medium">{t('bank.scope.change')}</p>
+        <ScopePicker
+          compact
+          scope={scope}
+          target={target}
+          onScope={(s) => { setScope(s); if (s === 'global') apply('global', null) }}
+          onTarget={(id) => { setTarget(id); if (id) apply(scope, id) }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function DataBankTab() {
   const dataBank = useApp((s) => s.dataBank)
   const uploadDataBankFile = useApp((s) => s.uploadDataBankFile)
@@ -35,6 +126,12 @@ export function DataBankTab() {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [searching, setSearching] = useState(false)
+  const t = useT()
+  const chats = useApp((s) => s.chats)
+  const [upScope, setUpScope] = useState<Scope>('global')
+  const [upTarget, setUpTarget] = useState<string | null>(null)
+  const [searchChat, setSearchChat] = useState(NO_TARGET)
+  const needTarget = upScope !== 'global' && !upTarget
 
   const upload = async (files: FileList) => {
     for (const f of Array.from(files)) {
@@ -47,7 +144,7 @@ export function DataBankTab() {
         continue
       }
       try {
-        await uploadDataBankFile(f.name, await f.text())
+        await uploadDataBankFile(f.name, await f.text(), upScope, upScope === 'global' ? null : upTarget)
       } catch (e) {
         toast.error(`${f.name} failed`, { description: (e as Error).message })
       }
@@ -58,7 +155,7 @@ export function DataBankTab() {
     if (!query.trim()) { setHits(null); return }
     setSearching(true)
     try {
-      const r = await j<{ results: SearchHit[] }>(`/databank/search?q=${encodeURIComponent(query)}`)
+      const r = await j<{ results: SearchHit[] }>(`/databank/search?q=${encodeURIComponent(query)}${searchChat !== NO_TARGET ? `&chatId=${encodeURIComponent(searchChat)}` : ''}`)
       setHits(r.results)
     } catch (e) {
       toast.error('Search failed', { description: (e as Error).message })
@@ -67,7 +164,7 @@ export function DataBankTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-sm text-pretty text-muted-foreground">
           <Database className="size-4 shrink-0" aria-hidden="true" />
           Attach documents for retrieval. The engine chunks them and injects the most
@@ -84,9 +181,12 @@ export function DataBankTab() {
             e.target.value = ''
           }}
         />
-        <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
-          <UploadSimple className="size-4" aria-hidden="true" /> Upload
-        </Button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <ScopePicker scope={upScope} target={upTarget} onScope={setUpScope} onTarget={setUpTarget} />
+          <Button size="sm" variant="outline" disabled={needTarget} title={needTarget ? t('bank.needTarget') : undefined} onClick={() => fileRef.current?.click()}>
+            <UploadSimple className="size-4" aria-hidden="true" /> Upload
+          </Button>
+        </div>
       </div>
 
       <ul className="flex flex-col gap-2">
@@ -96,6 +196,7 @@ export function DataBankTab() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{f.name}</p>
               <p className="text-xs text-muted-foreground">{formatSize(f.size)} · {f.chunks} chunk{f.chunks === 1 ? '' : 's'}</p>
+              <FileScope f={f} />
             </div>
             <Switch
               checked={f.enabled}
@@ -134,7 +235,14 @@ export function DataBankTab() {
             <p className="text-sm font-medium">Search the bank</p>
             <p className="text-xs text-muted-foreground">The same retrieval that runs when you send a message.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Select value={searchChat} onValueChange={(v) => v && setSearchChat(v)}>
+              <SelectTrigger className="h-8 w-44 text-xs" aria-label={t('bank.searchChat')}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_TARGET}>{t('bank.searchAll')}</SelectItem>
+                {[...chats].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)).map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
