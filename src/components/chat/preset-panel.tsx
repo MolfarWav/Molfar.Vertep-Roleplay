@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { ArrowCounterClockwise, Star } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { PresetChoices, type PresetValues } from '@/components/chat/preset-choices'
+import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { formatTokens } from '@/lib/tokens'
-import type { ID, PresetCosts } from '@/lib/types'
+import type { ID } from '@/lib/types'
 
 /**
  * The chat's Preset panel: which preset THIS chat runs and what it picked in it. Every change is saved
@@ -20,22 +20,10 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
   const presets = useApp((s) => s.presets)
   const setChatPreset = useApp((s) => s.setChatPreset)
-  const fetchPresetCosts = useApp((s) => s.fetchPresetCosts)
   const updatePreset = useApp((s) => s.updatePreset)
   const preset = presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
   const stored: PresetValues = useMemo(() => (preset ? chat?.presetVars?.[preset.id] ?? {} : {}), [chat?.presetVars, preset])
-  const [costs, setCosts] = useState<PresetCosts | null>(null)
-
-  // costs follow the picks, a moment after the last change
-  const key = `${preset?.id ?? ''}|${JSON.stringify(stored)}|${preset?.variables.length ?? 0}`
-  useEffect(() => {
-    if (!open || !preset) return
-    let live = true
-    const timer = setTimeout(() => {
-      fetchPresetCosts(preset.id, { chatId }).then((c) => { if (live) setCosts(c) }).catch(() => { if (live) setCosts(null) })
-    }, 300)
-    return () => { live = false; clearTimeout(timer) }
-  }, [open, key, chatId, preset, fetchPresetCosts])
+  const costs = usePresetCosts(`${preset?.id ?? ''}|${JSON.stringify(preset?.variables ?? [])}`, preset?.id, { chatId }, JSON.stringify(stored), open)
 
   if (!chat || !preset) return null
   const hasPicks = Object.keys(stored).length > 0

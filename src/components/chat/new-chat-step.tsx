@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { PresetChoices, type PresetValues } from '@/components/chat/preset-choices'
+import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { formatTokens } from '@/lib/tokens'
-import type { ID, PresetCosts, PresetMemory } from '@/lib/types'
+import type { ID, PresetMemory } from '@/lib/types'
 
 /**
  * The short step before a chat starts: pick the preset and its options for this chat. It opens with the
@@ -26,7 +26,6 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const character = useApp((s) => s.characters.find((c) => c.id === charId))
   const presets = useApp((s) => s.presets)
   const fetchPresetMemory = useApp((s) => s.fetchPresetMemory)
-  const fetchPresetCosts = useApp((s) => s.fetchPresetCosts)
   const startChatWith = useApp((s) => s.startChatWith)
   const closeNewChatStep = useApp((s) => s.closeNewChatStep)
   const updateSettings = useApp((s) => s.updateSettings)
@@ -35,7 +34,6 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [ready, setReady] = useState(false)
   const [presetId, setPresetId] = useState<ID>(defaultId)
   const [values, setValues] = useState<PresetValues>({})
-  const [costs, setCosts] = useState<PresetCosts | null>(null)
   const [dontAsk, setDontAsk] = useState(false)
 
   // the character's memory (single characters only)
@@ -58,16 +56,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
 
   const preset = presets.find((p) => p.id === presetId) ?? presets.find((p) => p.id === defaultId)
 
-  const valuesKey = JSON.stringify(values)
-  useEffect(() => {
-    if (!ready || !preset) return
-    let live = true
-    const timer = setTimeout(() => {
-      fetchPresetCosts(preset.id, { vars: values }).then((c) => { if (live) setCosts(c) }).catch(() => { if (live) setCosts(null) })
-    }, 300)
-    return () => { live = false; clearTimeout(timer) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, preset?.id, valuesKey, fetchPresetCosts])
+  const costs = usePresetCosts(`${preset?.id ?? ''}|${JSON.stringify(preset?.variables ?? [])}`, preset?.id, { vars: values }, JSON.stringify(values), ready)
 
   const start = () => {
     if (!preset || !ready) return
@@ -79,7 +68,6 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const pickPreset = (id: ID) => {
     setPresetId(id)
     setValues(memory?.presetId === id ? memory.vars ?? {} : {})
-    setCosts(null)
   }
 
   return (
@@ -99,22 +87,23 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
           <DialogTitle>{t('pc.step.title', { name: character?.name ?? '' })}</DialogTitle>
           <DialogDescription>{t('pc.step.desc')}</DialogDescription>
         </DialogHeader>
+        {/* the preset picker stays in view; only the options scroll */}
+        {preset && (
+          <div className="flex flex-col gap-1.5">
+            <Select value={preset.id} onValueChange={(id) => id && pickPreset(id)}>
+              <SelectTrigger className="h-8 w-full text-xs" aria-label={t('pc.title')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {presets.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {costs ? t('pc.total', { n: formatTokens(costs.total) }) : t('pc.totalCounting')}
+            </p>
+          </div>
+        )}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-0.5">
-          {preset && (
-            <div className="flex flex-col gap-1.5">
-              <Select value={preset.id} onValueChange={(id) => id && pickPreset(id)}>
-                <SelectTrigger className="h-8 w-full text-xs" aria-label={t('pc.title')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {presets.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">
-                {costs ? t('pc.total', { n: formatTokens(costs.total) }) : t('pc.totalCounting')}
-              </p>
-            </div>
-          )}
           {preset && preset.variables.length > 0 && (
             <PresetChoices
               preset={preset}

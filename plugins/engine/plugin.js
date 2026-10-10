@@ -1905,11 +1905,12 @@ function presetChanges(a, b) {
  * each choice-like variable: the sections that mention the variable rendered with that option
  * alone, minus rendered with nothing picked (negative when an option drops text).
  */
-export function presetCosts(preset, meta) {
+export function presetCosts(preset, meta, totalOnly) {
   const bag = new Map(Array.isArray(preset.studio && preset.studio.sections) ? preset.studio.sections.map((x) => [x && x.id, x]) : []);
   const sections = [];
   for (const { p, enabled } of orderedPrompts(preset)) {
-    if (!enabled || p.marker) continue;
+    // a marker counts only for text of its own (the main prompt); the rest is the chat's
+    if (!enabled || (p.marker && !String(p.content || "").trim())) continue;
     const sec = bag.get(p.identifier);
     sections.push({ text: String(p.content || ""), cond: String((sec && sec.condition) || "") });
   }
@@ -1923,7 +1924,7 @@ export function presetCosts(preset, meta) {
     return tokens;
   };
   const vars = {};
-  for (const v of presetVariables(preset)) {
+  for (const v of totalOnly ? [] : presetVariables(preset)) {
     const choices = variableChoices(v);
     if (!choices) continue;
     const name = v.name.trim();
@@ -3063,7 +3064,8 @@ export function handleRoute(req, host) {
   if (head === "preset-memory" && id && req.method === "GET") {
     return ok(presetMemory(fsx, id) || { presetId: null, vars: {} });
   }
-  // token costs of a preset and its options: { chatId? } reads that chat's picks, { vars? } overrides them
+  // token costs of a preset and its options: { chatId? } reads that chat's picks, { vars? } overrides them,
+  // { only: "total" } skips the per-option costs (the slow part: the UI asks for them once per preset)
   if (head === "preset-costs" && id && req.method === "POST") {
     const preset = readJson("presets/" + id + ".json", null);
     if (!preset) return err(404, "preset not found");
@@ -3071,7 +3073,7 @@ export function handleRoute(req, host) {
     const cm = typeof b.chatId === "string" && b.chatId ? readJson("chats/" + b.chatId + ".meta.json", null) : null;
     const meta = { ...(cm || {}) };
     if (b.vars) meta.presetVars = { ...(meta.presetVars || {}), [id]: { ...((meta.presetVars || {})[id] || {}), ...cleanPresetVars(b.vars) } };
-    return ok(presetCosts(preset, meta));
+    return ok(presetCosts(preset, meta, b.only === "total"));
   }
   if (head === "prompt" && id === "preview" && req.method === "POST") {
     const b = body();
@@ -3899,6 +3901,12 @@ const toolX = (r) => ({
       delete nmeta.tainted;
       for (const k of OLD_MEMORY_KEYS) delete nmeta[k];
       const msgs = chat.msgs.slice(0, idx + 1).map((m) => ({ ...m }));
+      // preset notes go along only where their message did
+      if (Array.isArray(nmeta.presetNotes)) {
+        const kept = new Set(msgs.map((m) => m.id));
+        nmeta.presetNotes = nmeta.presetNotes.filter((n) => n && kept.has(n.after));
+        if (!nmeta.presetNotes.length) delete nmeta.presetNotes;
+      }
       saveChat(fsx, nid, nmeta, msgs);
       return ok({ meta: nmeta, messages: msgs }, 201);
     }

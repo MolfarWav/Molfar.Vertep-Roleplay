@@ -304,3 +304,29 @@ describe("built-in FRANKENX", () => {
     expect(sys).toContain("Write Ukrainian prose");
   });
 });
+
+describe("fixes after the UI round", () => {
+  it("costs: only the total on request; a marker's own text (the main prompt) counts", () => {
+    const quick = call("POST", "/preset-costs/fx", { only: "total" }) as { total: number; vars: Record<string, unknown> };
+    expect(quick.total).toBeGreaterThan(10);
+    expect(quick.vars).toEqual({});
+    fs.writeFileSync(path.join(root, "presets", "mainonly.json"), JSON.stringify({
+      id: "mainonly", name: "Main only",
+      prompts: [{ identifier: "main", name: "Main", role: "system", marker: true, content: "Write the next reply as the character, in vivid detail." }, { identifier: "chatHistory", marker: true }],
+      prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }, { identifier: "chatHistory", enabled: true }] }],
+    }));
+    expect((call("POST", "/preset-costs/mainonly", {}) as { total: number }).total).toBeGreaterThan(5);
+  });
+  it("a fork keeps only the notes whose message it copied", () => {
+    const meta = newChat({ presetId: "fx" });
+    const first = call("POST", `/chats/${meta.id}/messages`, { role: "user", text: "one" }).message as { id: string };
+    call("POST", `/chats/${meta.id}/preset`, { vars: { tense: "present" } });
+    call("POST", `/chats/${meta.id}/messages`, { role: "user", text: "two" });
+    call("POST", `/chats/${meta.id}/preset`, { vars: { pov: "first" } });
+    expect(readMeta(meta.id).presetNotes.length).toBe(2);
+    const fork = call("POST", `/chats/${meta.id}/fork`, { messageId: first.id }).meta as { id: string };
+    const notes = readMeta(fork.id).presetNotes;
+    expect(notes.length).toBe(1);
+    expect(notes[0].after).toBe(first.id);
+  });
+});

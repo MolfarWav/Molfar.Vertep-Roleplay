@@ -218,7 +218,8 @@ interface AppState {
   startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]> }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
-  fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null> }) => Promise<PresetCosts>
+  /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
+  fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null>; only?: 'total' }) => Promise<PresetCosts>
   fetchPresetMemory: (characterId: ID) => Promise<PresetMemory>
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
   convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<void>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -7,11 +7,44 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
+import { useApp } from '@/lib/store'
 import type { ID, Preset, PresetCosts, PromptVariable } from '@/lib/types'
 
 /** A chat's (or the step's) picks for one preset: variable name -> choice ids / option strings / text.
  *  A name that is absent means "the preset's default". */
 export type PresetValues = Record<string, string | string[]>
+
+/**
+ * A preset's token costs: what each option adds is fetched once per preset (the slow part in the
+ * engine's sandbox), the total again a moment after every change (`changeKey`). `body` says whose
+ * picks count: a chat's (`chatId`) or unsaved ones (`vars`).
+ */
+export function usePresetCosts(presetKey: string, presetId: ID | undefined, body: { chatId?: ID; vars?: PresetValues }, changeKey: string, enabled: boolean): PresetCosts | null {
+  const fetchPresetCosts = useApp((s) => s.fetchPresetCosts)
+  const [options, setOptions] = useState<PresetCosts['vars'] | null>(null)
+  const [total, setTotal] = useState<number | null>(null)
+  const bodyRef = useRef(body)
+  bodyRef.current = body
+  // biome-ignore lint/correctness/useExhaustiveDependencies: presetKey refetches when the preset's variables change
+  useEffect(() => {
+    setOptions(null)
+    setTotal(null)
+    if (!enabled || !presetId) return
+    let live = true
+    fetchPresetCosts(presetId, bodyRef.current).then((c) => { if (live) { setOptions(c.vars); setTotal(c.total) } }).catch(() => {})
+    return () => { live = false }
+  }, [enabled, presetKey, presetId, fetchPresetCosts])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: changeKey is the trigger; the body is read from a ref
+  useEffect(() => {
+    if (!enabled || !presetId) return
+    let live = true
+    const timer = setTimeout(() => {
+      fetchPresetCosts(presetId, { ...bodyRef.current, only: 'total' }).then((c) => { if (live) setTotal(c.total) }).catch(() => {})
+    }, 300)
+    return () => { live = false; clearTimeout(timer) }
+  }, [enabled, presetId, changeKey, fetchPresetCosts])
+  return total == null ? null : { total, vars: options ?? {} }
+}
 
 /** Past this many options a single choice becomes a select instead of a list of rows. */
 const LIST_MAX = 8

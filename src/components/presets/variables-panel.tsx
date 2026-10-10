@@ -133,7 +133,7 @@ function VariableCard({
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border px-2.5 py-2 text-sm" data-var-editor={v.name}>
       <div className="flex flex-wrap items-center gap-2">
-        <code className="text-xs text-primary">{'{{' + v.name + '}}'}</code>
+        <code className="text-xs text-primary">{`{{${v.name}}}`}</code>
         <Badge variant="outline" className="text-[10px]">{v.type}</Badge>
         <div className="ml-auto flex items-center gap-0.5">
           <Button variant="ghost" size="icon-sm" className="size-6 p-0" disabled={ro || first} aria-label={`Move ${v.name} up`} onClick={() => onMove(-1)}>
