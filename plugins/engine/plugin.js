@@ -2729,10 +2729,18 @@ export function handleRoute(req, host) {
     // what a normal send by the chat's (first) character would see
     const members = chatMembers(fsx, chat.meta);
     const lead = members[0] || null;
+    // the scope the app sends before each generation (global books + the
+    // cards' own and linked ones): a chat with no send yet has none stored
+    const globalIds = (() => {
+      try {
+        return fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
+          .map((f) => readJson("lorebooks/" + f, null)).filter((b) => b && b.globalActive === true).map((b) => b.id);
+      } catch { return []; }
+    })();
     const wi = activateWorldInfo(
       fsx, chat.meta,
       chat.msgs.filter((m) => m.role !== "system" && m.hidden !== true),
-      persona?.lorebookIds || [], wiBudgetChars(preset),
+      [...(persona?.lorebookIds || []), ...globalIds, ...cardBookIds(members.map((m) => m.card))], wiBudgetChars(preset),
       {
         dryRun: true, config: preset && preset.studio && preset.studio.worldInfo,
         speaker: lead ? { id: lead.id, name: lead.name, tags: lead.card && lead.card.tags } : null,

@@ -471,3 +471,17 @@ describe("translate (llm provider)", () => {
     expect(out.json.text).toContain(">\n\nEN<");
   });
 });
+
+describe("wi-status before the first send", () => {
+  it("scans the card's own book and global books though the chat has no stored scope", async () => {
+    fs.mkdirSync(path.join(root, "characters", "olena"), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", "olena", "card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Олена", description: "", studio: { embeddedLorebookId: "own" } }));
+    fs.writeFileSync(path.join(root, "lorebooks", "own.json"), JSON.stringify({ id: "own", name: "Own", settings: {}, entries: [entry("Own", ["вежа"])] }));
+    fs.writeFileSync(path.join(root, "lorebooks", "glob.json"), JSON.stringify({ id: "glob", name: "Glob", globalActive: true, settings: {}, entries: [entry("Glob", [], { status: "constant" })] }));
+    fs.writeFileSync(path.join(root, "lorebooks", "other.json"), JSON.stringify({ id: "other", name: "Other", settings: {}, entries: [entry("Other", ["вежа"])] }));
+    fs.writeFileSync(path.join(root, "chats", "c1.meta.json"), JSON.stringify({ id: "c1", characterId: "olena", presetId: "default" }));
+    fs.writeFileSync(path.join(root, "chats", "c1.jsonl"), JSON.stringify({ id: "m0", role: "char", name: "Олена", text: "Біля вежі." }) + "\n");
+    const r = (await route("/wi-status", { chatId: "c1" })).json;
+    expect(titles(r.fired)).toEqual(["Glob", "Own"]);
+  });
+});
