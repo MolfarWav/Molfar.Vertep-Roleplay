@@ -4,7 +4,7 @@ import { fetchEffectiveParams, presetRequestSide, type EffectiveParams } from '@
 import type { Preset } from '@/lib/types'
 
 type Applied = NonNullable<EffectiveParams['applied']>
-type Field = 'temperature' | 'max_tokens' | 'reasoning'
+type Field = 'temperature' | 'max_tokens' | 'reasoning' | 'thinkingBudget'
 
 const ROWS: [Field, string][] = [['temperature', 'Temperature'], ['max_tokens', 'Max output'], ['reasoning', 'Reasoning']]
 
@@ -15,7 +15,6 @@ const CHIP = {
 }
 
 function valueOf(a: Applied, f: Field): string | null {
-  if (f === 'reasoning') return a.reasoning ? (a.thinkingBudget ? `${a.reasoning} · ${a.thinkingBudget} tok` : a.reasoning) : null
   const v = a[f]
   return v === undefined ? null : String(v)
 }
@@ -48,7 +47,7 @@ export function EffectiveParams({ modelRef, preset }: { modelRef: string | null;
 
   return (
     <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-2 text-[11px]" aria-label="Parameters sent with replies">
-      {ROWS.map(([f, label]) => {
+      {ROWS.concat(applied?.thinkingBudget !== undefined ? [['thinkingBudget', 'Thinking budget']] : []).map(([f, label]) => {
         const value = applied ? valueOf(applied, f) : null
         const src = applied?.from[f]
         const chip = !applied ? null : value === null ? CHIP.provider : src === 'request' ? CHIP.preset : CHIP.model

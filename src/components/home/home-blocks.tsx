@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
-import { resolveLanguage } from '@/lib/i18n'
 import { importCardFiles } from '@/lib/card-import'
 import { ASK_MOLFAR_MAX, askMolfar, canAskMolfar, canListApps, listOtherApps, openShellApp, type ShellApp } from '@/lib/shell-bridge'
 import { cn } from '@/lib/utils'
@@ -181,10 +180,13 @@ export function AchievementsBlock() {
         <Ring value={d.biggestBook} goal={20} label={t('home.archivist')} />
         <Ring value={d.biggestGroup} goal={3} label={t('home.puppeteer')} />
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Tile label={t('home.statMessages')} value={d.messages} />
-        <Tile label={t('home.statChats')} value={chats.length} />
-        <Tile label={t('home.statCharacters')} value={characters.length} />
+      {/* three tiles where they fit; rows in a narrow column, where "Повідомлення" would break mid-word */}
+      <div className="@container">
+        <div className="grid grid-cols-1 gap-1.5 @[20rem]:grid-cols-3 @[20rem]:gap-2">
+          <Tile label={t('home.statMessages')} value={d.messages} />
+          <Tile label={t('home.statChats')} value={chats.length} />
+          <Tile label={t('home.statCharacters')} value={characters.length} />
+        </div>
       </div>
       {(d.firstContact || d.branching) && (
         <div className="flex flex-wrap gap-1.5">
@@ -197,12 +199,10 @@ export function AchievementsBlock() {
 }
 
 function Tile({ label, value }: { label: string; value: number }) {
-  // a long word ("Повідомлення") in a third of a narrow column: hyphenate in the UI language, else break it
-  const lang = resolveLanguage(useApp((s) => s.settings.language))
   return (
-    <div className="min-w-0 rounded-[3px] border border-border bg-secondary/60 px-2.5 py-1.5">
-      <p className="font-mono text-base font-semibold tabular-nums">{value.toLocaleString()}</p>
-      <p lang={lang} className="font-heading text-[11.5px] leading-tight text-muted-foreground hyphens-auto [overflow-wrap:anywhere]">{label}</p>
+    <div className="flex min-w-0 items-baseline justify-between gap-2 rounded-[3px] border border-border bg-secondary/60 px-2.5 py-1.5 @[20rem]:block">
+      <p className="order-2 font-mono text-base font-semibold tabular-nums @[20rem]:order-none">{value.toLocaleString()}</p>
+      <p className="min-w-0 font-heading text-[11.5px] leading-tight text-muted-foreground [overflow-wrap:anywhere]">{label}</p>
     </div>
   )
 }
