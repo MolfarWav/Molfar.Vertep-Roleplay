@@ -427,7 +427,7 @@ export function expandIfBlocks(text, lookup) {
   return out;
 }
 
-/** A section's `condition` on a variable: "name" (set, non-empty), "name==value", "name!=value".
+/** A section's `condition` on a variable: "name" (on), "!name" (off), "name==value", "name!=value".
  *  Preset variables come first (a choice matches by value or label), then chat variables;
  *  anything unparseable passes. */
 export function sectionCondPasses(cond, presetVars, chatVars) {
@@ -444,7 +444,10 @@ export function sectionCondPasses(cond, presetVars, chatVars) {
   if (m) return !is(m[1], m[2]);
   m = /^([\w.-]+)==(.+)$/.exec(c);
   if (m) return is(m[1], m[2]);
-  if (/^[\w.-]+$/.test(c)) return read(c).value.trim() !== "";
+  // a lone name: set and not off, so a toggle variable switches its sections
+  if (/^[\w.-]+$/.test(c)) return !["", "false", "0", "no", "off"].includes(norm(read(c).value));
+  // "!name": the section shows while the toggle is off
+  if (/^![\w.-]+$/.test(c)) return ["", "false", "0", "no", "off"].includes(norm(read(c.slice(1)).value));
   return true;
 }
 
@@ -1880,7 +1883,10 @@ function presetShown(preset, meta) {
   for (const v of presetVariables(preset)) {
     const name = v.name.trim();
     const r = pv[name];
-    const shown = r.picks ? r.picks.map((c) => c.label).join(", ") : r.value.length > 60 ? r.value.slice(0, 59) + "…" : r.value;
+    const off = ["", "false", "0", "no", "off"].includes(r.value.trim().toLowerCase());
+    const shown = r.picks ? r.picks.map((c) => c.label).join(", ")
+      : v.type === "toggle" ? (off ? "off" : "on")
+      : r.value.length > 60 ? r.value.slice(0, 59) + "…" : r.value;
     vars[name] = { label: String(v.label || name).trim(), shown: shown || "—" };
   }
   return { presetId: preset ? String(preset.id || "") : "", presetName: preset ? String(preset.name || preset.id || "") : "", vars };
@@ -2797,6 +2803,12 @@ export function onAppUpdate(ctx, host) {
   const fsx = host.fs;
   const from = ctx && typeof ctx.from === "string" ? ctx.from : "0.0.0";
   const done = [];
+  // 4.31.0: the built-in FRANKENX preset arrives as a data template (_frankenx.json, seeded by
+  // the update when missing); installs from before get their own copy once
+  if (olderThan(from, "4.31.0") && !readJsonFile(fsx, "presets/frankenx.json")) {
+    const tpl = readJsonFile(fsx, "presets/_frankenx.json");
+    if (tpl) { writeJsonFile(fsx, "presets/frankenx.json", tpl); done.push("presets/frankenx.json"); }
+  }
   if (olderThan(from, "4.18.2")) {
     let files = [];
     try { files = fsx.list("presets").filter((f) => f.endsWith(".json")); } catch { files = []; }

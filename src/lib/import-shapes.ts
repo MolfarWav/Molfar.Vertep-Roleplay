@@ -172,7 +172,134 @@ function activeOrder(d: WirePresetJson): WirePromptOrderEntry[] {
     ?? d.prompts.map((p) => ({ identifier: p.identifier, enabled: true }))
 }
 
+// ─── Marinara presets ───
+// { type: "marinara_preset", data: { preset, sections[], groups[], choiceBlocks[] } }; booleans and
+// nested lists often arrive as strings ("true", "[...]").
+type Loose = Record<string, unknown>
+const truthy = (v: unknown) => v === true || v === 'true' || v === 1
+const parsed = <T>(v: unknown, dflt: T): T => {
+  if (typeof v !== 'string') return (v as T) ?? dflt
+  try { return JSON.parse(v) as T } catch { return dflt }
+}
+// Marinara marker types -> our marker sections (canonical ids); the chat summary is left out:
+// the story memory (Litopys) places itself
+const MARINARA_MARKERS: Record<string, PromptSection['marker'][]> = {
+  lorebook: ['wiBefore'], persona: ['persona'], character: ['charDescription', 'personality', 'scenario'],
+  dialogue_examples: ['exampleDialogue'], chat_history: ['chatHistory'],
+}
+const MARINARA_EFFORT: Record<string, Preset['samplers']['reasoning']['effort']> = {
+  minimal: 'min', low: 'low', medium: 'med', high: 'high', xhigh: 'max', maximum: 'max',
+}
+
+export function isMarinaraPreset(json: unknown): boolean {
+  const d = json as Loose
+  return !!d && d.type === 'marinara_preset' && !!d.data && typeof d.data === 'object'
+}
+
+function marinaraImport(json: unknown, name: string, base: Preset): Preset | null {
+  const data = (json as { data: Loose }).data
+  const mp = (data.preset ?? {}) as Loose
+  const rawSections = Array.isArray(data.sections) ? (data.sections as Loose[]) : []
+  const groups = (Array.isArray(data.groups) ? (data.groups as Loose[]) : []).filter((g) => typeof g.id === 'string')
+  const offGroups = new Set(groups.filter((g) => g.enabled != null && !truthy(g.enabled)).map((g) => g.id as string))
+  const wrap = mp.wrapFormat === 'markdown' || mp.wrapFormat === 'none' ? mp.wrapFormat : 'xml'
+  // the author's order first, then anything it leaves out
+  const order = parsed<string[]>(mp.sectionOrder, [])
+  const byId = new Map(rawSections.map((s) => [s.id as string, s]))
+  const ordered = [...order.map((id) => byId.get(id)).filter((s): s is Loose => !!s), ...rawSections.filter((s) => !order.includes(s.id as string))]
+  const sections: PromptSection[] = []
+  const used = new Set<string>()
+  const common = (s: Loose) => {
+    const groupId = typeof s.groupId === 'string' && groups.some((g) => g.id === s.groupId) ? s.groupId : null
+    return {
+      enabled: truthy(s.enabled) && !(groupId && offGroups.has(groupId)),
+      role: (s.role === 'user' || s.role === 'assistant' ? s.role : 'system') as PromptSection['role'],
+      position: (s.injectionPosition === 'depth' ? 'in-chat' : 'relative') as PromptSection['position'],
+      depth: typeof s.injectionDepth === 'number' ? s.injectionDepth : 4,
+      injectionTriggers: [...TRIGGERS],
+      forbidOverrides: truthy(s.forbidOverrides),
+      groupId,
+    }
+  }
+  for (const s of ordered) {
+    if (truthy(s.isMarker)) {
+      const type = String(parsed<Loose>(s.markerConfig, {}).type ?? '')
+      for (const marker of MARINARA_MARKERS[type] ?? []) {
+        const id = MARKER_TO_IDENTIFIER[String(marker)]
+        if (!id || used.has(id)) continue
+        used.add(id)
+        sections.push({ ...common(s), id, name: type === 'character' ? `${s.name || 'Character'} (${id})` : String(s.name || id), marker, content: '', order: sections.length })
+      }
+      continue
+    }
+    const tag = truthy(s.wrapInXml) && typeof s.xmlTagName === 'string' && s.xmlTagName.trim() ? s.xmlTagName.trim() : ''
+    const content = String(s.content ?? '')
+    sections.push({ ...common(s), id: uid('sec'), name: String(s.name || 'Section'), marker: null, content: tag ? `<${tag}>\n${content}\n</${tag}>` : content, order: sections.length })
+  }
+  if (!sections.length) return null
+  const defaults = parsed<Record<string, string | string[]>>(mp.defaultChoices, {})
+  const blocks = (Array.isArray(data.choiceBlocks) ? (data.choiceBlocks as Loose[]) : [])
+    .filter((b) => typeof b.variableName === 'string' && /^[\w.-]+$/.test(b.variableName))
+    .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
+  const variables: Preset['variables'] = blocks.map((b) => {
+    const varName = b.variableName as string
+    const choices = parsed<Loose[]>(b.options, []).filter((o) => o && typeof o.value === 'string')
+      .map((o) => ({ id: typeof o.id === 'string' && o.id ? o.id : uid('opt'), label: String(o.label || o.value), value: String(o.value) }))
+    const want = defaults[varName]
+    const wanted = (Array.isArray(want) ? want : want == null ? [] : [want]).map((x) => String(x).trim())
+    const picked = choices.filter((c) => wanted.includes(c.value.trim())).map((c) => c.id)
+    return {
+      id: uid('var'),
+      name: varName,
+      label: varName.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
+      type: 'choice' as const,
+      defaultValue: '',
+      question: typeof b.question === 'string' ? b.question : '',
+      choices,
+      multi: truthy(b.multiSelect),
+      separator: typeof b.separator === 'string' ? b.separator : ', ',
+      display: b.displayMode === 'buttons' ? 'buttons' as const : 'list' as const,
+      defaults: picked,
+    }
+  })
+  const pr = parsed<Loose>(mp.parameters, {})
+  const num = (v: unknown, dflt: number) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt)
+  const effort = typeof pr.reasoningEffort === 'string' ? MARINARA_EFFORT[pr.reasoningEffort] : undefined
+  const stops = Array.isArray(pr.stopSequences) ? pr.stopSequences.filter((x): x is string => typeof x === 'string' && !!x.trim()) : []
+  return {
+    ...base,
+    id: uid('preset'),
+    name: typeof mp.name === 'string' && mp.name.trim() ? mp.name.trim() : name,
+    readOnly: false,
+    isDefault: false,
+    sections,
+    library: [],
+    groups: groups.map((g) => ({ id: g.id as string, name: String(g.name || 'Group'), wrapFormat: wrap })),
+    variables,
+    description: typeof mp.description === 'string' ? mp.description : '',
+    verbosity: pr.verbosity === 'low' || pr.verbosity === 'medium' || pr.verbosity === 'high' ? pr.verbosity : base.verbosity,
+    squashSystemMessages: typeof pr.squashSystemMessages === 'boolean' ? pr.squashSystemMessages : base.squashSystemMessages,
+    samplers: {
+      ...base.samplers,
+      temperature: { ...base.samplers.temperature, value: num(pr.temperature, base.samplers.temperature.value) },
+      top_p: { ...base.samplers.top_p, value: num(pr.topP, base.samplers.top_p.value) },
+      top_k: { ...base.samplers.top_k, value: num(pr.topK, base.samplers.top_k.value) },
+      min_p: { ...base.samplers.min_p, value: num(pr.minP, base.samplers.min_p.value) },
+      rep_pen: { ...base.samplers.rep_pen, value: num(pr.repetitionPenalty, base.samplers.rep_pen.value) },
+      freq_pen: { ...base.samplers.freq_pen, value: num(pr.frequencyPenalty, base.samplers.freq_pen.value) },
+      pres_pen: { ...base.samplers.pres_pen, value: num(pr.presencePenalty, base.samplers.pres_pen.value) },
+      maxTokens: num(pr.maxTokens, base.samplers.maxTokens),
+      contextSize: num(pr.maxContext, base.samplers.contextSize),
+      stopStrings: stops.length ? stops : base.samplers.stopStrings,
+      assistantPrefill: typeof pr.assistantPrefill === 'string' && pr.assistantPrefill.trim() ? pr.assistantPrefill : base.samplers.assistantPrefill,
+      reasoning: effort ? { ...base.samplers.reasoning, enabled: true, effort } : base.samplers.reasoning,
+    },
+    createdAt: Date.now(),
+  }
+}
+
 export function presetImport(json: unknown, name: string, base: Preset): Preset | null {
+  if (isMarinaraPreset(json)) return marinaraImport(json, name, base)
   const d = json as WirePresetJson
   if (!d || !Array.isArray(d.prompts)) return null
   const orderList = activeOrder(d)

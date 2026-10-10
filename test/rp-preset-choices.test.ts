@@ -196,3 +196,111 @@ describe("option costs", () => {
     expect(withPresent.total).toBeGreaterThan(costs.total); // the gated section joins
   });
 });
+
+describe("toggles and section conditions", () => {
+  it("a toggle variable switches its sections; !name shows while it is off", () => {
+    const on = { vn: { value: "true", picks: null } };
+    const off = { vn: { value: "false", picks: null } };
+    expect(eng.sectionCondPasses("vn", on, {})).toBe(true);
+    expect(eng.sectionCondPasses("vn", off, {})).toBe(false);
+    expect(eng.sectionCondPasses("!vn", off, {})).toBe(true);
+    expect(eng.sectionCondPasses("!vn", on, {})).toBe(false);
+    // chat variables still work when no preset variable has the name
+    expect(eng.sectionCondPasses("mood==tense", {}, { mood: "tense" })).toBe(true);
+  });
+});
+
+describe("Marinara import", () => {
+  it("maps sections, markers, groups, choice blocks with defaults and parameters", async () => {
+    const { presetImport } = await import("../src/lib/import-shapes.ts");
+    const base = {
+      id: "b", name: "B", readOnly: false, isDefault: false, folderId: null, picture: null, sections: [], groups: [], variables: [],
+      utilityPrompts: { impersonation: "", continueNudge: "", newChat: "", groupNudge: "", emptySend: "" },
+      samplers: {
+        temperature: { value: 1, enabled: true }, top_p: { value: 1, enabled: true }, top_k: { value: 0, enabled: false }, min_p: { value: 0, enabled: false },
+        rep_pen: { value: 1, enabled: false }, freq_pen: { value: 0, enabled: false }, pres_pen: { value: 0, enabled: false },
+        maxTokens: 1000, contextSize: 8000, contextUnlocked: false, seed: -1, stopStrings: [], logitBias: [],
+        reasoning: { enabled: false, effort: "off", budget: 0, autoParse: true, display: "collapsed", thinkTagOpen: "", thinkTagClose: "" },
+        streaming: true, streamingSpeed: 0, assistantPrefill: "",
+      },
+      namesBehavior: "default", verbosity: "auto", continuePrefill: true, squashSystemMessages: false,
+    } as never;
+    const json = {
+      type: "marinara_preset", version: 1,
+      data: {
+        preset: {
+          name: "Mari", description: "About.", wrapFormat: "xml",
+          sectionOrder: JSON.stringify(["s1", "m1", "m2", "m3", "s2"]),
+          defaultChoices: JSON.stringify({ pov: "first person", extras: ["humor"] }),
+          parameters: JSON.stringify({ temperature: 0.95, topP: 0.9, maxTokens: 8192, maxContext: 128000, reasoningEffort: "maximum", repetitionPenalty: 1.12 }),
+        },
+        sections: [
+          { id: "s2", name: "Depth", content: "Late.", role: "user", enabled: "true", isMarker: "false", groupId: "g1", injectionPosition: "depth", injectionDepth: 1, wrapInXml: "true", xmlTagName: "late" },
+          { id: "s1", name: "Role", content: "You are {{pov}}.", role: "system", enabled: "true", isMarker: "false", groupId: "g1", injectionPosition: "ordered" },
+          { id: "m1", name: "Characters", content: "", role: "system", enabled: "true", isMarker: "true", markerConfig: { type: "character" } },
+          { id: "m2", name: "Past Events", content: "", role: "user", enabled: "true", isMarker: "true", markerConfig: "{\"type\":\"chat_summary\"}" },
+          { id: "m3", name: "Chat History", content: "", role: "assistant", enabled: "true", isMarker: "true", markerConfig: "{\"type\":\"chat_history\"}" },
+        ],
+        groups: [{ id: "g1", name: "Core Identity", enabled: "true" }],
+        choiceBlocks: [
+          { variableName: "pov", question: "Whose eyes?", options: JSON.stringify([{ id: "o1", label: "Third", value: "third person" }, { id: "o2", label: "First", value: "first person" }]), multiSelect: "false", displayMode: "listbox", sortOrder: 0 },
+          { variableName: "extras", question: "Extras", options: [{ id: "x1", label: "Dark", value: "dark" }, { id: "x2", label: "Humor", value: "humor" }], multiSelect: "true", separator: " & ", displayMode: "buttons", sortOrder: 1 },
+        ],
+      },
+    };
+    const p = presetImport(json, "file-name", base)!;
+    expect(p.name).toBe("Mari");
+    expect(p.description).toBe("About.");
+    expect(p.sections.map((s) => (s.marker ? s.id : s.name))).toEqual(["Role", "charDescription", "charPersonality", "scenario", "chatHistory", "Depth"]);
+    const depth = p.sections.find((s) => s.name === "Depth")!;
+    expect(depth.position).toBe("in-chat");
+    expect(depth.depth).toBe(1);
+    expect(depth.content).toBe("<late>\nLate.\n</late>");
+    expect(p.sections.some((s) => s.marker === "summary")).toBe(false); // the story memory places itself
+    expect(p.groups).toEqual([{ id: "g1", name: "Core Identity", wrapFormat: "xml" }]);
+    const pov = p.variables.find((v) => v.name === "pov")!;
+    expect(pov.type).toBe("choice");
+    expect(pov.defaults).toEqual(["o2"]);
+    const extras = p.variables.find((v) => v.name === "extras")!;
+    expect(extras.multi).toBe(true);
+    expect(extras.separator).toBe(" & ");
+    expect(extras.display).toBe("buttons");
+    expect(extras.defaults).toEqual(["x2"]);
+    expect(p.samplers.temperature.value).toBe(0.95);
+    expect(p.samplers.maxTokens).toBe(8192);
+    expect(p.samplers.reasoning.effort).toBe("max");
+  });
+});
+
+describe("built-in FRANKENX", () => {
+  const shipped = path.join(import.meta.dir, "..", "data", "presets");
+  it("ships as a preset and as the update template, identical and read-only", () => {
+    const a = fs.readFileSync(path.join(shipped, "frankenx.json"), "utf8");
+    expect(fs.readFileSync(path.join(shipped, "_frankenx.json"), "utf8")).toBe(a);
+    const p = JSON.parse(a);
+    expect(p.id).toBe("frankenx");
+    expect(p.studio.readOnly).toBe(true);
+    expect(p.studio.isDefault).toBe(false);
+  });
+  it("an update from before 4.31.0 adds it once from the template", () => {
+    fs.copyFileSync(path.join(shipped, "_frankenx.json"), path.join(root, "presets", "_frankenx.json"));
+    expect(eng.onAppUpdate({ from: "4.30.0", to: "4.31.0" }, h()).upgraded).toContain("presets/frankenx.json");
+    expect(fs.existsSync(path.join(root, "presets", "frankenx.json"))).toBe(true);
+    expect(eng.onAppUpdate({ from: "4.30.0", to: "4.31.0" }, h()).upgraded).not.toContain("presets/frankenx.json");
+  });
+  it("renders with no macro left, without the scene header, and its toggles switch blocks", () => {
+    fs.copyFileSync(path.join(shipped, "frankenx.json"), path.join(root, "presets", "frankenx.json"));
+    const meta = newChat({ presetId: "frankenx" });
+    let sys = prompt(meta.id);
+    expect(sys.match(/\{\{[^}]*\}\}/g)).toBeNull();
+    expect(sys).not.toContain("scene_header");
+    expect(sys).not.toMatch(/tracker agents/i);
+    expect(sys).toContain("# Reasoning Rules");
+    expect(sys).not.toContain("colored_dialogue_protocol");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { Reasoning_Plan: "false", Colored_Dialogue: "true", Prose_Language: "Ukrainian" } });
+    sys = prompt(meta.id);
+    expect(sys).not.toContain("# Reasoning Rules");
+    expect(sys).toContain('<span style="color:#HEX">');
+    expect(sys).toContain("Write Ukrainian prose");
+  });
+});

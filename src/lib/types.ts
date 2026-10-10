@@ -247,15 +247,47 @@ export interface SectionGroup {
   wrapFormat: 'xml' | 'markdown' | 'none'
 }
 
+/** One option of a choice variable: `label` is what the user picks, `value` the prompt text
+ *  (may hold macros like {{char}}). */
+export interface PromptVariableChoice {
+  id: ID
+  label: string
+  value: string
+}
+
+/**
+ * A preset variable, picked per chat (chat meta `presetVars[presetId][name]`: choice ids for
+ * `choice`, option strings for dropdown/multi, a string otherwise; missing = the default).
+ * Sections read it as {{name}} or {{var:name}}, in {{#if name == "x"}} blocks and in a
+ * section's `condition`.
+ */
 export interface PromptVariable {
   id: ID
   name: string
   label: string
-  type: 'text' | 'number' | 'slider' | 'dropdown' | 'toggle' | 'multi'
+  type: 'text' | 'number' | 'slider' | 'dropdown' | 'toggle' | 'multi' | 'choice'
   options?: string[]
   min?: number
   max?: number
   defaultValue: string
+  /** choice: a help line under the label */
+  question?: string
+  choices?: PromptVariableChoice[]
+  /** choice: several picks, their values joined with `separator` (default ", ") */
+  multi?: boolean
+  separator?: string
+  display?: 'list' | 'buttons'
+  /** choice: ids picked by default (none = the first option of a single choice) */
+  defaults?: ID[]
+}
+
+/** A muted line in the chat after message `after`: what changed in the preset there.
+ *  Written by the engine (chat meta `presetNotes`), never sent to the model. */
+export interface PresetNote {
+  id: ID
+  after: ID | null
+  at: number
+  changes: { kind: 'preset' | 'var'; label: string; shown: string }[]
 }
 
 export interface SamplerSettings {
@@ -296,6 +328,8 @@ export interface Preset {
   library?: PromptSection[]
   groups: SectionGroup[]
   variables: PromptVariable[]
+  /** What the preset is for, shown in the chat's preset panel. */
+  description?: string
   utilityPrompts: { impersonation: string; continueNudge: string; newChat: string; groupNudge: string; emptySend: string }
   samplers: SamplerSettings
   /** 0.9.2: the engine sends the MODEL's parameters (Settings > connections) and this preset's
