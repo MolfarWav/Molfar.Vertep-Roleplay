@@ -1,6 +1,6 @@
 
-import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Star, Chats, Copy, DownloadSimple, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X } from '@phosphor-icons/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Translate, Star, Chats, Copy, DownloadSimple, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +26,8 @@ import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
+import { previewPendingTranslation } from '@/lib/card-translate'
+import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
 import { TranslateMenu } from '@/components/character/translate-menu'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToExportCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
@@ -42,7 +44,6 @@ function TokenBadge({ text }: { text: string }) {
 
 export function CharacterEditor({ character, onClose }: { character: Character; onClose: () => void }) {
   useBackClose(true, onClose)
-  const c = character
   const t = useT()
   const [tab, setTab] = useState('core')
   const [soulStatus, setSoulStatus] = useState<SoulStatus>(null)
@@ -56,6 +57,13 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const updateCharacter = useApp((s) => s.updateCharacter)
   const duplicateCharacter = useApp((s) => s.duplicateCharacter)
   const lorebooks = useApp((s) => s.lorebooks)
+  // a translation waiting for Save / Discard: the fields show it, read-only
+  const pending = usePendingTranslations((s) => s.byId[character.id])
+  const preview = useMemo(
+    () => (pending ? previewPendingTranslation(pending, character, lorebooks.find((b) => b.id === pending.bookId)) : null),
+    [pending, character, lorebooks],
+  )
+  const c: Character = preview ? { ...character, ...preview.patch } : character
   const regexScripts = useApp((s) => s.regexScripts)
   const chats = useApp((s) => s.chats)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
@@ -145,7 +153,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     if (n) { up({ gallery: items }); toast.success(`Added ${n} item${n > 1 ? 's' : ''}`) }
   }
 
-  const up = (patch: Partial<Character>) => updateCharacter(c.id, patch)
+  const up = (patch: Partial<Character>) => { if (!preview) updateCharacter(c.id, patch) }
   const lightboxIndex = c.gallery.findIndex((g) => g.id === lightboxId)
   const lightboxItem = lightboxIndex >= 0 ? c.gallery[lightboxIndex]! : null
   const totalTokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue + c.systemPromptOverride + c.postHistoryInstructions)
@@ -153,6 +161,14 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {pending && (
+        <div role="status" className="flex flex-wrap items-center gap-2 border-b border-sky-500/40 bg-sky-500/10 px-4 py-2 text-sm" data-testid="translation-banner">
+          <Translate className="size-4 shrink-0 text-sky-600 dark:text-sky-300" aria-hidden="true" />
+          <span className="min-w-0 flex-1 font-medium">{t('tr.banner', { target: pending.meta.target })}</span>
+          <Button size="sm" className="h-7" onClick={() => savePendingTranslation(character.id, character.name)}>{t('tr.save')}</Button>
+          <Button size="sm" variant="outline" className="h-7" onClick={() => discardPendingTranslation(character.id)}>{t('tr.discard')}</Button>
+        </div>
+      )}
       {/* header + tab strip scroll WITH the tab content (mobile keyboard room) */}
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="min-h-0 flex-1">
@@ -185,7 +201,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           <Button variant="ghost" size="sm" onClick={() => up({ favorite: !c.favorite })} aria-label="Toggle favorite">
             <Star weight={c.favorite ? 'fill' : 'regular'} className={c.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
           </Button>
-          {!c.isGroup && <TranslateMenu c={c} />}
+          {!c.isGroup && <TranslateMenu c={character} />}
           <Button variant="ghost" size="sm" onClick={() => setVersionsOpen(true)} aria-label="Version history">
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
           </Button>
@@ -225,7 +241,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             ))}
           </TabsList>
         </div>
-          <div className={`mx-auto flex flex-col gap-4 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'}`}>
+          <fieldset disabled={!!preview} className={`mx-auto flex w-full min-w-0 flex-col gap-4 border-0 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'} ${preview ? 'bg-sky-500/5 ring-1 ring-sky-500/40' : ''}`}>
             <TabsContent value="core" className="flex flex-col gap-4">
               <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
                 <div className="flex flex-col items-center gap-2">
@@ -598,7 +614,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 }).catch((e: Error) => toast.error(`TTS failed: ${e.message}`))
               }}>Test voice</Button>
             </TabsContent>
-          </div>
+          </fieldset>
         </ScrollArea>
       </Tabs>
 

@@ -1181,6 +1181,12 @@ const en = {
   'bank.scope.changed': 'Scope changed',
   'bank.searchChat': 'Search as this chat',
   'bank.searchAll': 'All files',
+  'tr.button': 'Translate',
+  'tr.banner': 'Translation preview ({target}), not saved',
+  'tr.save': 'Save',
+  'tr.discard': 'Discard',
+  'tr.saveToast': 'Save the translation of {name}?',
+  'tr.waiting': 'A translation is waiting for Save or Discard.',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -2358,6 +2364,12 @@ const uk: Record<MsgKey, string> = {
   'bank.scope.changed': 'Область змінено',
   'bank.searchChat': 'Шукати як для цього чату',
   'bank.searchAll': 'Усі файли',
+  'tr.button': 'Перекласти',
+  'tr.banner': 'Перегляд перекладу ({target}), не збережено',
+  'tr.save': 'Зберегти',
+  'tr.discard': 'Відхилити',
+  'tr.saveToast': 'Зберегти переклад «{name}»?',
+  'tr.waiting': 'Переклад чекає на «Зберегти» або «Відхилити».',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

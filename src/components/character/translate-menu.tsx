@@ -7,19 +7,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useConfirm } from '@/components/ui/confirm'
 import { useApp } from '@/lib/store'
 import { TRANSLATE_LANGUAGES, loadTranslateTo, saveTranslateTo, restoreOriginal } from '@/lib/card-translate'
-import { translateCharacter, isTranslating } from '@/lib/card-translate-store'
+import { previewTranslation, isTranslating, usePendingTranslations } from '@/lib/card-translate-store'
+import { installTranslationToasts } from '@/lib/card-translate-toast'
+import { resolveLanguage } from '@/lib/i18n'
+import { useT } from '@/hooks/use-t'
 import type { Character } from '@/lib/types'
 
 /** Translate an installed card into the Store's language, or put the original
  *  texts back. The editor saves every edit at once, so nothing is pending when
  *  a pass starts; a field edited while it runs is left as the user wrote it. */
+installTranslationToasts()
+
 export function TranslateMenu({ c }: { c: Character }) {
+  const t = useT()
+  const appLanguage = useApp((s) => s.settings.language)
+  const waiting = usePendingTranslations((s) => !!s.byId[c.id])
   const translation = useApp((s) => s.settings.translation)
   const updateCharacter = useApp((s) => s.updateCharacter)
-  const [target, setTarget] = useState(loadTranslateTo)
+  const [target, setTarget] = useState(() => loadTranslateTo(resolveLanguage(appLanguage) === 'uk' ? 'Ukrainian' : 'English'))
   useEffect(() => { saveTranslateTo(target) }, [target])
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(isTranslating(c.id))
+  const locked = busy || waiting
   const [confirm, confirmDialog] = useConfirm()
   const record = restoreOriginal(c)
 
@@ -27,7 +36,7 @@ export function TranslateMenu({ c }: { c: Character }) {
     setBusy(true)
     setOpen(false)
     try {
-      await translateCharacter(c.id, c.name, { target, translation })
+      await previewTranslation(c.id, c.name, { target, translation })
     } finally {
       setBusy(false)
     }
@@ -54,8 +63,9 @@ export function TranslateMenu({ c }: { c: Character }) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
-            <Button variant="ghost" size="sm" disabled={busy} aria-label="Translate this card" title="Translate this card">
+            <Button variant="ghost" size="sm" disabled={busy} aria-label="Translate this card" title="Translate this card" className="gap-1.5 bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300">
               {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Translate className="size-4" aria-hidden="true" />}
+              <span className="max-sm:sr-only">{t('tr.button')}</span>
             </Button>
           }
         />
@@ -75,11 +85,12 @@ export function TranslateMenu({ c }: { c: Character }) {
               </SelectContent>
             </Select>
           </label>
-          <Button size="sm" className="gap-1.5" disabled={busy} onClick={() => void run()}>
-            <Translate className="size-4" aria-hidden="true" />Translate
+          <Button size="sm" className="gap-1.5" disabled={locked} onClick={() => void run()}>
+            <Translate className="size-4" aria-hidden="true" />{t('tr.button')}
           </Button>
+          {waiting && <p className="text-[11px] text-muted-foreground">{t('tr.waiting')}</p>}
           {record && (
-            <Button variant="outline" size="sm" className="gap-1.5" disabled={busy} onClick={() => void restore()}>
+            <Button variant="outline" size="sm" className="gap-1.5" disabled={locked} onClick={() => void restore()}>
               <ArrowCounterClockwise className="size-4" aria-hidden="true" />Restore original
             </Button>
           )}
