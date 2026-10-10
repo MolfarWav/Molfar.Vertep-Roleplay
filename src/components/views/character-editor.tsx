@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, DownloadSimple, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -198,19 +198,24 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           <ClipboardText className="size-3 shrink-0" aria-hidden="true" />
         </button>
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-          <Button variant="ghost" size="sm" onClick={() => up({ favorite: !c.favorite })} aria-label="Toggle favorite">
+          {/* every icon says what it does: a tooltip always, a word beside it where there is room */}
+          <Button variant="ghost" size="sm" onClick={() => up({ favorite: !c.favorite })} aria-pressed={c.favorite} aria-label={t(c.favorite ? 'editor.unfavorite' : 'editor.favorite')} title={t(c.favorite ? 'editor.unfavorite' : 'editor.favorite')}>
             <Star weight={c.favorite ? 'fill' : 'regular'} className={c.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
+            <span className="hidden lg:inline">{t('editor.favoriteShort')}</span>
           </Button>
           {!c.isGroup && <TranslateMenu c={character} />}
-          <Button variant="ghost" size="sm" onClick={() => setVersionsOpen(true)} aria-label="Version history">
+          <Button variant="ghost" size="sm" onClick={() => setVersionsOpen(true)} aria-label={t('editor.versions')} title={t('editor.versions')}>
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
+            <span className="hidden lg:inline">{t('editor.versionsShort')}</span>
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setTokenReportOpen(true)}>Token report</Button>
-          <Button variant="ghost" size="sm" onClick={() => { duplicateCharacter(c.id); toast.success('Duplicated') }} aria-label="Duplicate">
+          <Button variant="ghost" size="sm" onClick={() => { duplicateCharacter(c.id); toast.success('Duplicated') }} aria-label={t('editor.duplicate')} title={t('editor.duplicate')}>
             <Copy className="size-4" aria-hidden="true" />
+            <span className="hidden lg:inline">{t('editor.duplicateShort')}</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void exportPng()} aria-label="Export">
-            <DownloadSimple className="size-4" aria-hidden="true" />
+          <Button variant="ghost" size="sm" onClick={() => void exportPng()} aria-label={t('editor.export')} title={t('editor.export')}>
+            <Export className="size-4" aria-hidden="true" />
+            <span className="hidden lg:inline">{t('editor.exportShort')}</span>
           </Button>
           <Button size="sm" onClick={() => { void startChatAndOpen(c.id) }}>
             <Chats className="size-4" aria-hidden="true" />Chat

@@ -240,6 +240,18 @@ describe("rp studio engine: chats + swipes", () => {
     expect(msgs[0]!.swipes).toHaveLength(3); // first_mes + 2 alternates
   }, 30_000);
 
+  it("a whole-card save keeps the studio keys the app does not manage", async () => {
+    const m = mockHost();
+    const file = path.join(root, "characters", "aria", "card.json");
+    const prev = JSON.parse(fs.readFileSync(file, "utf8"));
+    fs.writeFileSync(file, JSON.stringify({ ...prev, studio: { ...(prev.studio ?? {}), css: "old", toolNote: { x: 1 } } }));
+    await drive(engineUrl, { method: "PUT", path: "/characters/aria", body: { ...prev, name: "Aria", studio: { css: "new" } } }, m);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(saved.studio.toolNote).toEqual({ x: 1 }); // written by another tool: kept
+    expect(saved.studio.css).toBe("new"); // the app's own key: replaced
+    fs.writeFileSync(file, JSON.stringify(prev));
+  }, 30_000);
+
   it("starts a new chat on the preset the user made default", async () => {
     const m = mockHost();
     const stock = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);

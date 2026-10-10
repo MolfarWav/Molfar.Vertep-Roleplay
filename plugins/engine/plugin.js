@@ -1846,6 +1846,12 @@ function wiFormat(fmt, c) {
 }
 
 // ---------- chat file helpers ----------
+/** The studio keys the app writes in full on every whole-card save (characterToCard in src/lib/engine.ts). */
+const APP_STUDIO_KEYS = [
+  "avatar", "altAvatars", "depthPrompt", "favorite", "folderId", "createdAt", "lastChatAt", "embeddedLorebookId",
+  "linkedLorebookIds", "colors", "stats", "descVariants", "personalityVariants", "scenarioVariants", "versions",
+  "voiceProvider", "voiceId", "gallery", "expressions", "defaultExpression", "characterRegexIds", "css",
+];
 function loadChat(fsx, id) {
   const meta = (() => { try { return JSON.parse(fsx.read("chats/" + id + ".meta.json")); } catch { return null; } })();
   if (!meta) return null;
@@ -3269,6 +3275,12 @@ export function handleRoute(req, host) {
         ...(Array.isArray(b.tags) ? { tags: b.tags.map(String) } : {}),
         ...(typeof b.avatar === "string" && b.avatar.startsWith("data:") ? { avatar: b.avatar } : {}),
       };
+      // a whole card carries only the studio keys the app manages: the others (written by
+      // Molfar, imports or other tools) stay as they are on disk instead of vanishing
+      if (b.studio && typeof b.studio === "object" && prev.studio && typeof prev.studio === "object") {
+        const kept = Object.fromEntries(Object.entries(prev.studio).filter(([k]) => !APP_STUDIO_KEYS.includes(k)));
+        card.studio = { ...kept, ...b.studio };
+      }
       delete card.id;
       keepStoredSpriteImages(prev, card);
       writeJson("characters/" + id + "/card.json", card);
