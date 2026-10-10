@@ -171,6 +171,283 @@ function humanIdle(ms) {
   const days = Math.floor(hours / 24);
   return days + " day" + (days === 1 ? "" : "s");
 }
+// ---------- preset variables: choices picked per chat ----------
+// names the expander owns: a preset variable of the same name never shadows them
+const BUILTIN_MACROS = new Set(["user", "char", "persona", "description", "personality", "scenario", "time", "isotime", "date",
+  "isodate", "weekday", "lastmessage", "lastusermessage", "lastcharmessage", "idle_duration", "summary", "words", "limit", "trim", "newline"]);
+
+/** A preset's declared variables (studio bag) that have a usable name. */
+export function presetVariables(preset) {
+  const list = preset && preset.studio && Array.isArray(preset.studio.variables) ? preset.studio.variables : [];
+  return list.filter((v) => v && typeof v.name === "string" && /^[\w.-]+$/.test(v.name.trim()));
+}
+
+/** The options of a choice-like variable as {id, label, value}; null for free-form types.
+ *  Older dropdown/multi variables list plain strings: each is its own id, label and value. */
+export function variableChoices(v) {
+  if (v.type === "choice") {
+    return (Array.isArray(v.choices) ? v.choices : [])
+      .filter((c) => c && typeof c.id === "string" && c.id)
+      .map((c) => ({ id: c.id, label: String(c.label || c.value || ""), value: String(c.value ?? "") }));
+  }
+  if (v.type === "dropdown" || v.type === "multi") {
+    return (Array.isArray(v.options) ? v.options : []).map(String).filter(Boolean).map((o) => ({ id: o, label: o, value: o }));
+  }
+  return null;
+}
+
+const isMultiVar = (v) => v.type === "multi" || (v.type === "choice" && v.multi === true);
+
+/** The choice ids a variable starts with: its defaults, else the first option of a single choice. */
+function defaultPicks(v, choices) {
+  const raw = v.type === "choice"
+    ? (Array.isArray(v.defaults) ? v.defaults.map(String) : [])
+    : (isMultiVar(v) ? String(v.defaultValue ?? "").split(",") : [String(v.defaultValue ?? "")]).map((x) => x.trim());
+  const ids = raw.filter((id) => choices.some((c) => c.id === id));
+  if (isMultiVar(v)) return ids;
+  return ids.length ? ids.slice(0, 1) : choices.length ? [choices[0].id] : [];
+}
+
+/**
+ * Every preset variable's value for one chat, by name: { value, picks }. picks lists the chosen
+ * options of a choice-like variable ({id, label, value}), null for the others. The chat's picks
+ * live in meta.presetVars[presetId]; a missing name, or only ids the preset no longer has, fall
+ * back to the preset's defaults, so an edited preset never breaks a chat. `override` replaces
+ * stored picks by name (an empty array = nothing picked).
+ */
+export function resolvePresetVars(preset, meta, override) {
+  const out = {};
+  const pid = preset && preset.id ? String(preset.id) : "";
+  const bag = pid && meta && meta.presetVars && typeof meta.presetVars === "object" ? meta.presetVars[pid] : null;
+  const stored = { ...(bag && typeof bag === "object" ? bag : {}), ...(override || {}) };
+  for (const v of presetVariables(preset)) {
+    const name = v.name.trim();
+    const has = Object.prototype.hasOwnProperty.call(stored, name) && stored[name] != null;
+    const raw = has ? stored[name] : undefined;
+    const choices = variableChoices(v);
+    if (choices) {
+      const asked = has ? (Array.isArray(raw) ? raw : [raw]).map(String) : null;
+      let ids = asked ? asked.filter((id) => choices.some((c) => c.id === id)) : null;
+      if (!ids || (!ids.length && asked.length)) ids = defaultPicks(v, choices);
+      if (!isMultiVar(v)) ids = ids.slice(0, 1);
+      const picks = ids.map((id) => choices.find((c) => c.id === id));
+      out[name] = { value: picks.map((c) => c.value).join(typeof v.separator === "string" ? v.separator : ", "), picks };
+    } else {
+      out[name] = { value: has ? (Array.isArray(raw) ? raw.join(", ") : String(raw)) : String(v.defaultValue ?? ""), picks: null };
+    }
+  }
+  return out;
+}
+
+/** A preset variable by name, exact first, then ignoring case. */
+function presetVarOf(pv, name) {
+  if (!pv) return null;
+  const k = String(name).trim();
+  if (Object.prototype.hasOwnProperty.call(pv, k)) return pv[k];
+  const lk = k.toLowerCase();
+  const f = Object.keys(pv).find((x) => x.toLowerCase() === lk);
+  return f ? pv[f] : null;
+}
+
+/** What a {{#if}} operand name reads: {{user}}/{{char}}, then preset variables, then chat variables. */
+function macroLookup(mc) {
+  return (name) => {
+    const ln = String(name).toLowerCase();
+    if (ln === "user") return { value: mc.userName || "User", picks: null };
+    if (ln === "char") return { value: mc.charName || "", picks: null };
+    const pv = presetVarOf(mc.presetVars, name);
+    if (pv) return pv;
+    if (mc.vars && mc.vars[name] != null) return { value: String(mc.vars[name]), picks: null };
+    return undefined;
+  };
+}
+
+// ---------- {{#if}} blocks ----------
+const DQ = "\"“”„«»";
+const SQ = "'‘’";
+
+function condTokens(src) {
+  const raw = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    const cls = DQ.includes(ch) ? DQ : SQ.includes(ch) ? SQ : null;
+    if (cls) {
+      let j = i + 1;
+      while (j < src.length && !cls.includes(src[j])) j++;
+      raw.push({ t: "lit", v: src.slice(i + 1, j) });
+      i = j + 1;
+      continue;
+    }
+    const two = src.slice(i, i + 2);
+    if (two === "||" || two === "&&" || two === "==" || two === "!=") { raw.push({ t: two }); i += 2; continue; }
+    if (ch === "(" || ch === ")" || ch === "!") { raw.push({ t: ch }); i++; continue; }
+    if (ch === "=") { raw.push({ t: "==" }); i++; continue; }
+    const m = /^[^\s()!=|&"'“”„«»‘’]+/.exec(src.slice(i));
+    if (!m) { i++; continue; }
+    const w = m[0].toLowerCase();
+    if (w === "contains" || w === "includes") raw.push({ t: "contains" });
+    else if (w === "and") raw.push({ t: "&&" });
+    else if (w === "or") raw.push({ t: "||" });
+    else if (w === "is") raw.push({ t: "==" });
+    else if (w === "not") raw.push({ t: "not" });
+    else raw.push({ t: "name", v: m[0] });
+    i += m[0].length;
+  }
+  // "is not" / "not contains" fold into one operator; a lone "not" is "!"
+  const out = [];
+  for (let k = 0; k < raw.length; k++) {
+    const a = raw[k], b = raw[k + 1];
+    if (a.t === "==" && b && b.t === "not") { out.push({ t: "!=" }); k++; }
+    else if (a.t === "not" && b && b.t === "contains") { out.push({ t: "!contains" }); k++; }
+    else out.push(a.t === "not" ? { t: "!" } : a);
+  }
+  return out;
+}
+
+/**
+ * One {{#if}} condition. Operands are names (lookup(name) -> {value, picks} | undefined) or quoted
+ * literals; ==, !=, contains, not contains; ||, &&, !, parens; `a == "x" || "y"` repeats the last
+ * comparison. A lone name is true when set and not false/0/no/off. Comparisons trim and ignore
+ * case; a choice also matches by its label, and `contains` on a choice checks the picks.
+ * Bad syntax is false.
+ */
+export function evalIfCondition(src, lookup) {
+  const tk = condTokens(String(src || ""));
+  let p = 0;
+  let last = null;
+  const norm = (s) => String(s ?? "").trim().toLowerCase();
+  const peek = () => tk[p];
+  const operand = () => {
+    const t = tk[p];
+    if (!t || (t.t !== "lit" && t.t !== "name")) return null;
+    p++;
+    return t;
+  };
+  // a name nobody defines reads as its own text on the right of a comparison, as empty elsewhere
+  const valueOf = (t, right) => {
+    if (t.t === "lit") return { value: t.v, picks: null };
+    return lookup(t.v) || { value: right ? t.v : "", picks: null };
+  };
+  const truthy = (v) => { const s = norm(v.value); return s !== "" && !["false", "0", "no", "off"].includes(s); };
+  const compare = (left, op, rightRaw) => {
+    const r = norm(rightRaw);
+    const picks = left.picks;
+    const eq = norm(left.value) === r || (!!picks && picks.length === 1 && (norm(picks[0].label) === r || norm(picks[0].value) === r));
+    const has = picks ? picks.some((c) => norm(c.value) === r || norm(c.label) === r) : norm(left.value).includes(r);
+    if (op === "==") return eq;
+    if (op === "!=") return !eq;
+    if (op === "contains") return has;
+    return !has;
+  };
+  const primary = () => {
+    const t = peek();
+    if (!t) throw new Error("end");
+    if (t.t === "(") {
+      p++;
+      const v = orExpr();
+      if (!peek() || peek().t !== ")") throw new Error("paren");
+      p++;
+      return v;
+    }
+    const a = operand();
+    if (!a) throw new Error("operand");
+    const op = peek() && ["==", "!=", "contains", "!contains"].includes(peek().t) ? tk[p++].t : null;
+    if (op) {
+      const b = operand();
+      if (!b) throw new Error("operand");
+      const left = valueOf(a, false);
+      last = { left, op };
+      return compare(left, op, valueOf(b, true).value);
+    }
+    if (a.t === "lit" && last) return compare(last.left, last.op, a.v);
+    return truthy(valueOf(a, false));
+  };
+  const unary = () => {
+    if (peek() && peek().t === "!") { p++; return !unary(); }
+    return primary();
+  };
+  const andExpr = () => {
+    let v = unary();
+    while (peek() && peek().t === "&&") { p++; const r = unary(); v = v && r; }
+    return v;
+  };
+  function orExpr() {
+    let v = andExpr();
+    while (peek() && peek().t === "||") { p++; const r = andExpr(); v = v || r; }
+    return v;
+  }
+  try {
+    const v = orExpr();
+    return p === tk.length ? v : false;
+  } catch {
+    return false;
+  }
+}
+
+/** {{#if}}…{{else if}}…{{else}}…{{/if}}, nested, innermost first. A block standing on its own
+ *  lines that renders nothing takes its line with it; a stray {{/if}} is dropped. */
+export function expandIfBlocks(text, lookup) {
+  let out = String(text);
+  if (!/\{\{\s*#if\s/i.test(out)) return out;
+  for (let guard = 0; guard < 2000; guard++) {
+    const close = /\{\{\s*\/if\s*\}\}/i.exec(out);
+    if (!close) break;
+    // the first {{/if}} closes the nearest {{#if}} before it
+    let open = null;
+    const re = /\{\{\s*#if\s+([\s\S]*?)\}\}/gi;
+    for (let m = re.exec(out); m && m.index < close.index; m = re.exec(out)) open = m;
+    if (!open) {
+      out = out.slice(0, close.index) + out.slice(close.index + close[0].length);
+      continue;
+    }
+    const body = out.slice(open.index + open[0].length, close.index);
+    const branches = [];
+    const sep = /\{\{\s*else(?:\s+if\s+([\s\S]*?))?\s*\}\}/gi;
+    let cond = open[1];
+    let from = 0;
+    for (let s = sep.exec(body); s; s = sep.exec(body)) {
+      branches.push({ cond, text: body.slice(from, s.index) });
+      cond = s[1] === undefined ? null : s[1];
+      from = s.index + s[0].length;
+    }
+    branches.push({ cond, text: body.slice(from) });
+    const hit = branches.find((b) => b.cond === null || evalIfCondition(b.cond, lookup));
+    const chosen = hit ? hit.text.replace(/^[ \t]*\r?\n/, "").replace(/\r?\n[ \t]*$/, "") : "";
+    let start = open.index;
+    let end = close.index + close[0].length;
+    if (!chosen) {
+      const lineStart = out.lastIndexOf("\n", start - 1) + 1;
+      const nl = /^[ \t]*\r?\n/.exec(out.slice(end));
+      if (!out.slice(lineStart, start).trim() && nl) { start = lineStart; end += nl[0].length; }
+    }
+    out = out.slice(0, start) + chosen + out.slice(end);
+  }
+  return out;
+}
+
+/** A section's `condition` on a variable: "name" (set, non-empty), "name==value", "name!=value".
+ *  Preset variables come first (a choice matches by value or label), then chat variables;
+ *  anything unparseable passes. */
+export function sectionCondPasses(cond, presetVars, chatVars) {
+  const c = String(cond || "").trim().replace(/\s*([=!])=\s*/g, "$1=");
+  if (!c) return true;
+  const norm = (s) => String(s ?? "").trim().toLowerCase();
+  const read = (n) => presetVarOf(presetVars, n) || { value: String((chatVars || {})[n] ?? ""), picks: null };
+  const is = (n, want) => {
+    const v = read(n);
+    const w = norm(want);
+    return norm(v.value) === w || (!!v.picks && v.picks.length === 1 && norm(v.picks[0].label) === w);
+  };
+  let m = /^([\w.-]+)!=(.+)$/.exec(c);
+  if (m) return !is(m[1], m[2]);
+  m = /^([\w.-]+)==(.+)$/.exec(c);
+  if (m) return is(m[1], m[2]);
+  if (/^[\w.-]+$/.test(c)) return read(c).value.trim() !== "";
+  return true;
+}
+
 /**
  * Macro expansion. `mc` carries everything the macros can touch:
  *   userName/charName/personaText/chatId — identity
@@ -190,6 +467,17 @@ function expandMacros(text, mc) {
     return raw.split(sep).map((x) => x.replace(/\\,/g, ",").trim()).filter(Boolean);
   };
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  // {{#if}} blocks first, on the raw values; then preset variables: {{var:name}}, {{var::name}}
+  // and the bare {{name}} of a declared one (their values may hold macros, expanded below)
+  out = expandIfBlocks(out, macroLookup(mc));
+  if (mc.presetVars) {
+    out = out.replace(/\{\{var::?([\w.-]+)\}\}/gi, (_, n) => { const v = presetVarOf(mc.presetVars, n); return v ? v.value : ""; });
+    out = out.replace(/\{\{([\w.-]+)\}\}/g, (all, n) => {
+      if (BUILTIN_MACROS.has(n.toLowerCase())) return all;
+      const v = presetVarOf(mc.presetVars, n);
+      return v ? v.value : all;
+    });
+  }
   // chat-local variables — setvar/addvar/incvar/decvar mutate mc.vars, getvar reads
   out = out.replace(/\{\{setvar::([^:]+)::([\s\S]*?)\}\}/gi, (_, n, v) => {
     if (mc.vars) mc.vars[n.trim()] = v;
@@ -209,7 +497,8 @@ function expandMacros(text, mc) {
   });
   out = out.replace(/\{\{getvar::([^}]+)\}\}/gi, (_, n) => {
     const v = mc.vars ? mc.vars[n.trim()] : undefined;
-    return v == null ? "" : String(v);
+    if (v == null) { const pv = presetVarOf(mc.presetVars, n); return pv ? pv.value : ""; }
+    return String(v);
   });
   // random re-rolls on every resolution; pick is stable per chat+content
   out = out.replace(/\{\{random\s?::?([^}]+)\}\}/gi, (_, raw) => {
@@ -1550,6 +1839,96 @@ function defaultPresetId(fsx) {
   return "default";
 }
 
+/** Picks as a client sent them, kept to sane shapes: name -> string or string list. */
+function cleanPresetVars(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw).slice(0, 200)) {
+    if (!/^[\w.-]+$/.test(k)) continue;
+    if (Array.isArray(v)) out[k] = v.slice(0, 200).map((x) => String(x).slice(0, 200));
+    else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k] = String(v).slice(0, 20000);
+  }
+  return out;
+}
+
+/**
+ * Per-character memory: the preset and picks of the character's chat where the user last chose
+ * them (meta.presetAt, set by the chat's preset route and the new-chat step). Chats from before
+ * that never chose, so they leave new chats on the user's default preset.
+ */
+export function presetMemory(fsx, characterId) {
+  let best = null;
+  try {
+    for (const f of fsx.list("chats")) {
+      if (!f.endsWith(".meta.json")) continue;
+      let m = null;
+      try { m = JSON.parse(fsx.read("chats/" + f)); } catch {}
+      if (!m || m.characterId !== characterId || m.groupId || m.temporary || !m.presetAt || !m.presetId) continue;
+      const at = Math.max(m.presetAt, m.updatedAt || 0);
+      if (!best || at > best.at) best = { m, at };
+    }
+  } catch {}
+  if (!best || !readJsonFile(fsx, "presets/" + best.m.presetId + ".json")) return null;
+  const vars = best.m.presetVars && best.m.presetVars[best.m.presetId];
+  return { presetId: best.m.presetId, vars: vars && typeof vars === "object" ? { ...vars } : {} };
+}
+
+/** What a chat shows for its preset: the name and each variable's picks as text. */
+function presetShown(preset, meta) {
+  const pv = resolvePresetVars(preset, meta);
+  const vars = {};
+  for (const v of presetVariables(preset)) {
+    const name = v.name.trim();
+    const r = pv[name];
+    const shown = r.picks ? r.picks.map((c) => c.label).join(", ") : r.value.length > 60 ? r.value.slice(0, 59) + "…" : r.value;
+    vars[name] = { label: String(v.label || name).trim(), shown: shown || "—" };
+  }
+  return { presetId: preset ? String(preset.id || "") : "", presetName: preset ? String(preset.name || preset.id || "") : "", vars };
+}
+
+/** The changes between two presetShown states, for the chat's note. */
+function presetChanges(a, b) {
+  if (!a || a.presetId !== b.presetId) return [{ kind: "preset", label: "Preset", shown: b.presetName }];
+  return Object.entries(b.vars)
+    .filter(([k, v]) => !a.vars[k] || a.vars[k].shown !== v.shown)
+    .map(([, v]) => ({ kind: "var", label: v.label, shown: v.shown }));
+}
+
+/**
+ * Token cost of a preset's own sections with the chat's picks (`total`), and of each option of
+ * each choice-like variable: the sections that mention the variable rendered with that option
+ * alone, minus rendered with nothing picked (negative when an option drops text).
+ */
+export function presetCosts(preset, meta) {
+  const bag = new Map(Array.isArray(preset.studio && preset.studio.sections) ? preset.studio.sections.map((x) => [x && x.id, x]) : []);
+  const sections = [];
+  for (const { p, enabled } of orderedPrompts(preset)) {
+    if (!enabled || p.marker) continue;
+    const sec = bag.get(p.identifier);
+    sections.push({ text: String(p.content || ""), cond: String((sec && sec.condition) || "") });
+  }
+  const render = (list, override) => {
+    const pv = resolvePresetVars(preset, meta, override);
+    let tokens = 0;
+    for (const s of list) {
+      if (!sectionCondPasses(s.cond, pv, meta.chatVars)) continue;
+      tokens += estimateTokens(expandMacros(s.text, { userName: "User", charName: "Character", chatId: "costs", presetVars: pv, vars: { ...(meta.chatVars || {}) } }));
+    }
+    return tokens;
+  };
+  const vars = {};
+  for (const v of presetVariables(preset)) {
+    const choices = variableChoices(v);
+    if (!choices) continue;
+    const name = v.name.trim();
+    const re = new RegExp("(^|[^\\w.-])" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "($|[^\\w.-])", "i");
+    const mine = sections.filter((s) => re.test(s.text) || re.test(s.cond));
+    const none = render(mine, { [name]: [] });
+    vars[name] = Object.fromEntries(choices.map((c) => [c.id, render(mine, { [name]: [c.id] }) - none]));
+  }
+  return { total: render(sections, null), vars };
+}
+
 function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const members = chatMembers(fsx, meta);
   const speakerCard = (speaker && speaker.card) || (members[0] && members[0].card) || null;
@@ -1601,6 +1980,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       },
     });
 
+  // the chat's picks for this preset's variables ({{name}}, {{#if}}, section conditions)
+  const presetVars = resolvePresetVars(preset, meta);
   const mc = transcriptMacros(msgs, {
     userName,
     charName,
@@ -1612,6 +1993,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       scenario: speakerCard && speakerCard.scenario ? String(speakerCard.scenario) : "",
     },
     vars: meta.chatVars || (meta.chatVars = {}),
+    presetVars,
   });
 
   // marker → text (pre-macro). `main` carries no engine default — the preset's
@@ -1683,19 +2065,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const sectionGroups = new Map(
     Array.isArray(studioPreset && studioPreset.groups) ? studioPreset.groups.filter((g) => g && g.id).map((g) => [g.id, g]) : [],
   );
-  // a condition gates its section on a chat variable: "var" (set + non-empty),
-  // "var==value", "var!=value" — anything unparseable is ignored (always on)
-  const condPasses = (cond) => {
-    const c = String(cond || "").trim().replace(/\s*([=!])=\s*/g, "$1=");
-    if (!c) return true;
-    const vars = meta.chatVars || {};
-    let m = /^([\w.-]+)!=(.+)$/.exec(c);
-    if (m) return String(vars[m[1]] ?? "") !== m[2].trim();
-    m = /^([\w.-]+)==(.+)$/.exec(c);
-    if (m) return String(vars[m[1]] ?? "") === m[2].trim();
-    if (/^[\w.-]+$/.test(c)) return String(vars[c] ?? "").trim() !== "";
-    return true;
-  };
+  // a condition gates its section on a variable (preset choices first, then chat variables):
+  // "var" (set + non-empty), "var==value", "var!=value" — anything unparseable is always on
+  const condPasses = (cond) => sectionCondPasses(cond, presetVars, meta.chatVars);
   // wrap format per group: xml tags or a markdown heading; "none" groups
   // still merge consecutive members into one block
   const groupWrap = (g) => {
@@ -2675,6 +3047,20 @@ export function handleRoute(req, host) {
   }
 
   // ---------- peek: assembled prompt ----------
+  // per-character memory for the new-chat step: { presetId, vars } or nulls
+  if (head === "preset-memory" && id && req.method === "GET") {
+    return ok(presetMemory(fsx, id) || { presetId: null, vars: {} });
+  }
+  // token costs of a preset and its options: { chatId? } reads that chat's picks, { vars? } overrides them
+  if (head === "preset-costs" && id && req.method === "POST") {
+    const preset = readJson("presets/" + id + ".json", null);
+    if (!preset) return err(404, "preset not found");
+    const b = body();
+    const cm = typeof b.chatId === "string" && b.chatId ? readJson("chats/" + b.chatId + ".meta.json", null) : null;
+    const meta = { ...(cm || {}) };
+    if (b.vars) meta.presetVars = { ...(meta.presetVars || {}), [id]: { ...((meta.presetVars || {})[id] || {}), ...cleanPresetVars(b.vars) } };
+    return ok(presetCosts(preset, meta));
+  }
   if (head === "prompt" && id === "preview" && req.method === "POST") {
     const b = body();
     const chat = loadChat(fsx, b.chatId);
@@ -3264,13 +3650,21 @@ export function handleRoute(req, host) {
       const personaId = b.personaId || readJson("settings.json", {}).personaId || null;
       const persona = personaId ? readJson("personas/" + personaId + ".json", null) : null;
       const userName = typeof b.userName === "string" && b.userName ? b.userName : (persona && persona.name) || "User";
+      // the preset: the one the new-chat step sent, else the character's last chosen one
+      // (per-character memory), else the user's default preset
+      const mem = !b.presetId && b.characterId && !b.groupId ? presetMemory(fsx, b.characterId) : null;
+      const presetId = b.presetId || (mem && mem.presetId) || defaultPresetId(fsx);
+      const stepVars = b.presetVars && typeof b.presetVars === "object" && !Array.isArray(b.presetVars) ? cleanPresetVars(b.presetVars) : null;
+      const picks = stepVars || (mem && !b.presetId ? cleanPresetVars(mem.vars) : null);
       const meta = {
         id: cid,
         title: b.title || "New chat",
         characterId: b.characterId || null,
         groupId: b.groupId || null,
-        // a new chat starts on the user's default preset, not the stock one
-        presetId: b.presetId || defaultPresetId(fsx),
+        presetId,
+        ...(picks && Object.keys(picks).length ? { presetVars: { [presetId]: picks } } : {}),
+        // the step was shown: this chat's preset and picks are a choice per-character memory follows
+        ...(stepVars ? { presetAt: Date.now() } : {}),
         personaId: persona ? personaId : null,
         model: b.model || null,
         userName,
@@ -3438,6 +3832,46 @@ const toolX = (r) => ({
         if (persona && persona.name) meta.userName = persona.name;
       }
       // Settings and automatic binding repairs do not represent chat activity.
+      writeJson("chats/" + id + ".meta.json", meta);
+      return ok(meta);
+    }
+
+    // the chat's preset and choices: { presetId?, vars?: { name: value | value[] | null }, reset?: true }
+    // (null = back to the preset's default). Only this chat changes. meta.presetNotes records what
+    // changed after which message, for a muted line in the chat that never reaches the model;
+    // changes before the next message merge into one note, and changing back removes it.
+    if (op === "preset" && req.method === "POST") {
+      const b = body();
+      const curId = () => meta.presetId || defaultPresetId(fsx);
+      const before = presetShown(readJson("presets/" + curId() + ".json", null), meta);
+      if (typeof b.presetId === "string" && b.presetId && b.presetId !== curId()) {
+        if (!readJson("presets/" + b.presetId + ".json", null)) return err(404, "preset not found");
+        meta.presetId = b.presetId;
+      }
+      const pid = curId();
+      const all = meta.presetVars && typeof meta.presetVars === "object" ? { ...meta.presetVars } : {};
+      const cur = b.reset === true ? {} : { ...(all[pid] || {}) };
+      if (b.vars && typeof b.vars === "object" && !Array.isArray(b.vars)) {
+        for (const [k, v] of Object.entries(b.vars)) {
+          if (v === null) delete cur[k];
+          else Object.assign(cur, cleanPresetVars({ [k]: v }));
+        }
+      }
+      if (Object.keys(cur).length) all[pid] = cur;
+      else delete all[pid];
+      meta.presetVars = all;
+      meta.presetAt = Date.now();
+      const after = presetShown(readJson("presets/" + pid + ".json", null), meta);
+      const notes = Array.isArray(meta.presetNotes) ? meta.presetNotes.slice() : [];
+      const lastId = chat.msgs.length ? chat.msgs[chat.msgs.length - 1].id : null;
+      const open = notes.length && notes[notes.length - 1].after === lastId ? notes.pop() : null;
+      const from = open ? open.from : before;
+      const changes = presetChanges(from, after);
+      if (changes.length && chat.msgs.some((m) => m.role === "user")) {
+        notes.push({ id: open ? open.id : uid("pn"), after: lastId, at: Date.now(), changes, from });
+      }
+      if (notes.length) meta.presetNotes = notes.slice(-50);
+      else delete meta.presetNotes;
       writeJson("chats/" + id + ".meta.json", meta);
       return ok(meta);
     }
