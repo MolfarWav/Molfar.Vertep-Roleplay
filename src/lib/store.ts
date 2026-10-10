@@ -1566,7 +1566,16 @@ export const useApp = create<AppState>()(
       deleteCharacter: (id, opts) => {
         const own = opts?.withBook ? get().characters.find((c) => c.id === id)?.embeddedLorebookId ?? null : null
         const shared = own != null && get().characters.some((c) => c.id !== id && (c.embeddedLorebookId === own || c.linkedLorebookIds.includes(own)))
-        if (own && !shared) get().deleteLorebook(own)
+        if (own && !shared) {
+          // not deleteLorebook(): that rewrites the cards that pointed at the book,
+          // and its write for THIS card can land after the card's delete and bring it back
+          bumpMutate()
+          set((st) => ({ lorebooks: st.lorebooks.filter((b) => b.id !== own) }))
+          writeThrough('the lorebook deletion', j(`/lorebooks/${encodeURIComponent(own)}`, { method: 'DELETE' }))
+          for (const per of get().personas) {
+            if (per.lorebookIds.includes(own)) get().updatePersona(per.id, { lorebookIds: per.lorebookIds.filter((x) => x !== own) })
+          }
+        }
         bumpMutate()
         set((s) => ({
           characters: s.characters.filter((c) => c.id !== id),

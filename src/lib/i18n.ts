@@ -1187,6 +1187,7 @@ const en = {
   'tr.discard': 'Discard',
   'tr.saveToast': 'Save the translation of {name}?',
   'tr.waiting': 'A translation is waiting for Save or Discard.',
+  'lore.books.entriesOne': '1 entry',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -2370,6 +2371,7 @@ const uk: Record<MsgKey, string> = {
   'tr.discard': 'Відхилити',
   'tr.saveToast': 'Зберегти переклад «{name}»?',
   'tr.waiting': 'Переклад чекає на «Зберегти» або «Відхилити».',
+  'lore.books.entriesOne': '1 запис',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

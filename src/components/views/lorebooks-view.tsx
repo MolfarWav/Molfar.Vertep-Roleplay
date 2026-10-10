@@ -30,7 +30,7 @@ import { BookSettings } from '@/components/lore/book-settings'
 import { EntryEditor } from '@/components/lore/entry-editor'
 import { KeywordTest } from '@/components/lore/keyword-test'
 import { WiStatusView } from '@/components/lore/wi-status-view'
-import { POSITION_SHORT_KEY, STATUS_KEY, canonicalPosition } from '@/components/lore/lore-labels'
+import { POSITION_SHORT_KEY, STATUS_KEY, canonicalPosition, entriesKey } from '@/components/lore/lore-labels'
 
 export function LorebooksView() {
   const t = useT()
@@ -140,7 +140,7 @@ export function LorebooksView() {
                       )}
                     </span>
                     <span className="flex flex-wrap gap-x-1.5 text-[11px] text-muted-foreground">
-                      <span>{t('lore.books.entries', { n: b.entries.length })}</span>
+                      <span>{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
                       <span aria-hidden="true">·</span>
                       <span className={use.muted ? 'opacity-70' : undefined}>{use.text}</span>
                     </span>
@@ -430,7 +430,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
               <li key={b.id}>
                 <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => copyTo(b)}>
                   {b.name}
-                  <span className="ml-auto text-[11px] text-muted-foreground">{t('lore.books.entries', { n: b.entries.length })}</span>
+                  <span className="ml-auto text-[11px] text-muted-foreground">{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
                 </Button>
               </li>
             ))}

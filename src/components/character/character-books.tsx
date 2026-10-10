@@ -9,6 +9,7 @@ import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { bookUsage } from '@/lib/lore-usage'
 import type { Character, Lorebook } from '@/lib/types'
+import { entriesKey } from '@/components/lore/lore-labels'
 
 type Picker = 'replace' | 'add' | null
 
@@ -58,7 +59,7 @@ export function CharacterBooks({ c }: { c: Character }) {
           {isOwn && <Badge variant="secondary" className="shrink-0 text-[10px]">{t('lore.cb.ownBadge')}</Badge>}
         </span>
         <span className="text-[11px] text-muted-foreground">
-          {t('lore.books.entries', { n: b.entries.length })}
+          {t(entriesKey(b.entries.length), { n: b.entries.length })}
           {usedElsewhere(b) > 0 ? ` · ${t('lore.cb.alsoUsed', { n: usedElsewhere(b) })}` : ''}
         </span>
       </div>
@@ -113,7 +114,7 @@ export function CharacterBooks({ c }: { c: Character }) {
               <li key={b.id}>
                 <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => pick(b)}>
                   <span className="truncate">{b.name}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{t('lore.books.entries', { n: b.entries.length })}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
                 </Button>
               </li>
             ))}

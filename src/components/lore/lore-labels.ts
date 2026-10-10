@@ -45,3 +45,5 @@ export const LOGIC_KEY: Record<EntryLogic, MsgKey> = {
 }
 
 export const TRIGGER_TYPES = ['normal', 'continue', 'impersonate', 'swipe', 'regenerate', 'quiet'] as const
+
+export const entriesKey = (n: number): MsgKey => (n === 1 ? 'lore.books.entriesOne' : 'lore.books.entries')
