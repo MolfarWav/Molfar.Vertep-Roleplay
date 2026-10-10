@@ -4,6 +4,17 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.30.0
+
+What a reply is sent with, a longer backstory, and settings that agree with the shell. Needs Molfar Vertep 0.9.5 for the parameters in the chat header, the shell's language and the links to its Settings (on an older engine they are simply not shown and the old fields stay).
+
+- **Parameters in the chat header.** The header switch's Model tab shows the temperature, max output, reasoning and thinking budget replies are sent with, each marked **model** (Settings › Connections and models), **preset**, or **provider** (not sent). The engine works it out the same way it builds the request.
+- **Backstory along a chain.** A chat that continues a chain of earlier chats gets the stories of up to three of them, within the one Backstory budget: the oldest is filled first within its share (50/30/20 for three, 65/35 for two), what it leaves goes to the nearer ones, the oldest story comes first in the prompt and a fact is given once. The Library's insert record names the chain.
+- **Numbers the model decides.** In a preset's Samplers, Context size is shown as the model's window when the engine knows it (the preset's own number applies only to unknown windows), and Max response tokens as the model's Chat block value while the preset does not override the model; both with **Set up the model**.
+- **The shell's language.** The app starts in the shell's language (Ukrainian or English) until you pick one in Settings › Appearance.
+- **Settings that belong to the shell.** Matching by meaning: the embeddings model field became **Set up in Settings › Memory**. Data: **Export / Restore Roleplay data (zip)**, a note and a link to the shell's Backup for the whole profile; "Reset All Data" is **Reset look and local settings**.
+- Fixes: a new or forked chat could appear twice in the chat list for a moment (React's "two children with the same key"); the Home stat tiles broke long Ukrainian labels in the narrow column (they are rows there now).
+
 ## 4.29.0
 
 Lorebooks understand Ukrainian and Russian, say why an entry fired, and every setting the editor shows now works. Works on Molfar Vertep 0.9.3; no engine update needed.
