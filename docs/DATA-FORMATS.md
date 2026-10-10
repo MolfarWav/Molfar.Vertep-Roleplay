@@ -125,7 +125,7 @@ something risky, copy the preset to a new id first.
 | `openai_max_tokens`, `openai_max_context` | Reply length limit and context size, in tokens. When the model's context window and its max output are known (0.9.2+), those are used instead. |
 | `reasoning`, `reasoningTags`, `thinkingBudget` | Reasoning effort (`low`, `medium`, `high`), the tags of inline thinking, its token budget. |
 | `utilityPrompts` | Prompts of app features (summary, impersonate, empty send…), lifted from `studio` for the engine. |
-| `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`), `groups`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |
+| `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`), `groups`, `variables` (see Variables), `description`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |
 | other numbers (`top_a`, `typical_p`, `dry_*`, `xtc_*`, `dynatemp_*`, `mirostat_*` …) | Extra samplers from imported presets; sent when set. |
 
 ### Sections
@@ -142,6 +142,22 @@ something risky, copy the preset to a new id first.
 - The text of a section is `prompts[].content`; its place and on/off state are in `prompt_order`.
   A new section needs both: a `prompts` item and an `order` item. Section groups and conditions
   live only in `studio.sections` / `studio.groups`: change them in the editor.
+- `studio.sections[].condition` turns a section on or off by a variable: `name` (on when set and
+  not false/0/no/off), `!name` (the opposite), `name==value`, `name!=value`.
+
+### Variables (options the user picks per chat)
+`studio.variables`: `[{ id, name, label, type, defaultValue, question? }]`. `type`: `choice`,
+`toggle` (`"true"`/`"false"`), `text`, `number`, `slider`, older `dropdown` / `multi` (`options`:
+strings). A `choice` has `choices: [{ id, label, value }]` (`label` is what the user sees, `value`
+the prompt text, which may hold macros), `multi` (several picks, values joined with `separator`,
+default ", "), `display` (`list` or `buttons`), `defaults` (choice ids; none = the first option of a
+single choice). Sections read a variable as `{{name}}` or `{{var:name}}`, in `{{#if}}` blocks and in
+`condition`. Each chat keeps its own picks in `chats/<id>.meta.json`: `presetVars: { <presetId>:
+{ <name>: value } }` (choice ids, a string otherwise; missing or unknown = the default), `presetAt`
+(when the user last chose them: a new chat with the same character starts from that chat's preset
+and picks) and `presetNotes` (what changed after which message, shown in the chat, never sent to the
+model). Marinara presets (`type: "marinara_preset"`) import with their choice blocks as `choice`
+variables. `frankenx` is the built-in read-only example: copy it to change its text.
 
 ## Macros and regex scripts
 
@@ -153,6 +169,11 @@ builds the prompt. Names are case-insensitive.
   of asking the model to invent random results.
 - `{{setvar::name::value}}`, `{{getvar::name}}`, `{{addvar::name::n}}`, `{{incvar::name}}`,
   `{{decvar::name}}`: variables kept per chat.
+- `{{name}}` / `{{var:name}}`: a preset variable (see Presets). `{{#if name == "value"}}…{{else if
+  other}}…{{else}}…{{/if}}` keeps one branch: `==`, `!=`, `contains`, `not contains`, `&&`, `||`,
+  `!`, parentheses, `name == "a" || "b"`; a bare name is true when set and not false/0/no/off. Names
+  read `{{user}}`, `{{char}}`, preset variables, then chat variables; comparisons ignore case and a
+  choice matches by its value or its label.
 
 Regex scripts are `data/regex/<id>.json` (copy `data/regex/_example.json`): `findRegex`,
 `replaceString`, `placement` (`user_input`, `ai_output`, `prompt`, `display`), `scope` (`global`,
