@@ -1451,7 +1451,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
         .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
         .filter(Boolean);
     } catch {
-      return { before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [], trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: 0 };
+      return { before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [], trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: 0 };
     }
     // A book scans only when it is in THIS chat's scope — bound
     // to the chat, embedded in / linked to the character, or global (the app
@@ -1730,7 +1730,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   // fired, what the budget cut and what was held back, with the reasons
   const out = {
     before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [],
-    trace: [], skipped: [], blocked: [], placed: [], used: 0, budgetChars: budget, scanDepth: depthNow,
+    trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: depthNow,
   };
   const textOf = (x) => wiFormat(x.fmt, String(x.entry.content || "").trim());
   // The budget is claimed in order-DESCENDING priority (higher
@@ -1781,6 +1781,11 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     const { item, ...rest } = b;
     out.blocked.push({ book: item.book, uid: item.entry.uid ?? null, title: wiTitle(item.entry), ...rest });
   }
+  // enabled entries whose keys did not hit, counted per book (listing each would flood a big book)
+  const fired = new Set(activated.map((x) => x.id));
+  const quiet = new Map();
+  for (const x of items) if (!fired.has(x.id) && !blocked.has(x.id)) quiet.set(x.book, (quiet.get(x.book) || 0) + 1);
+  out.unmatched = [...quiet].map(([book, n]) => ({ book, n }));
   out.depth.sort((a, b) => a.depth - b.depth);
   return out;
 }
@@ -2466,6 +2471,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   for (const [name, v] of Object.entries(presetVars || {})) {
     const value = v && Array.isArray(v.picks) ? v.picks.map((c) => c.label || c.id).join(", ") : String(v && v.value != null ? v.value : "");
     src.vars.push({ name, value });
+  }
+  const quietN = (wi.unmatched || []).reduce((n, b) => n + b.n, 0);
+  if (quietN) {
+    omit("lorebook", quietN + (quietN === 1 ? " entry" : " entries") + ": no key in the scanned text", "did not fire", undefined);
+    src.omitted[src.omitted.length - 1].detail = wi.unmatched.map((b) => b.book + ": " + b.n).join(", ").slice(0, 300);
   }
   // lorebook entries considered but not inserted
   const wiOmitted = (wi.skipped || []).concat(wi.blocked || []).slice(0, 200);

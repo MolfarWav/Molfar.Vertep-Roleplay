@@ -123,6 +123,12 @@ describe("prompt sources", () => {
     const omitted = p.sources.omitted.map((x) => [x.label, x.reason]);
     expect(omitted).toContainEqual(["FX · Off", "switched off"]);
     expect(omitted).toContainEqual(["FX · Gated", "condition: tense==present"]);
+    // entries whose keys did not hit: one counted row per send, books in the detail
+    const quiet = p.sources.omitted.find((x) => x.kind === "lorebook")! as { label: string; reason: string; detail?: string };
+    expect([quiet.label, quiet.reason, quiet.detail]).toEqual(["2 entries: no key in the scanned text", "did not fire", "City: 2"]);
+    // a workspace with no lorebooks folder still assembles
+    fs.rmSync(path.join(root, "lorebooks"), { recursive: true, force: true });
+    expect(preview(chat(), "Hello.").messages.length).toBeGreaterThan(0);
     // no entry fired without its key
     expect(p.sources.parts.some((x) => x.kind === "lorebook")).toBe(false);
     expect(p.sources.vars).toContainEqual({ name: "tense", value: "Past" });
