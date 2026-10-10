@@ -1113,6 +1113,33 @@ function chunkForTranslate(text, limit) {
 
 // ---------- world info (key activation, clean-room semantics) ----------
 const WI_LOGIC = { AND_ANY: 0, NOT_ALL: 1, NOT_ANY: 2, AND_ALL: 3 };
+// Every key of every entry is tested on every send (and again on each recursion pass): a key's
+// pattern is compiled once per pass, and a whole-word key is looked up with indexOf first, its
+// word edges checked only where it occurs (a 300-entry book took 3 s on a desktop, 10+ on a phone).
+const wiReCache = new Map();
+function wiRe(src, flags) {
+  const k = flags + "\u0000" + src;
+  let r = wiReCache.get(k);
+  if (r === undefined) {
+    try { r = new RegExp(src, flags); } catch { r = null; }
+    wiReCache.set(k, r);
+  }
+  if (r) r.lastIndex = 0;
+  return r;
+}
+const WI_HAS_APOS = /['’ʼ‘`´ʹ′]/;
+const WI_EDGE_BEFORE = /[\p{L}\p{N}]$/u;
+const WI_EDGE_AFTER = /^[\p{L}\p{N}]/u;
+/** The lowercased key as a whole word in the lowercased scan: a letter or digit on neither side. */
+export function wholeWordIn(scan, lk) {
+  for (let at = scan.indexOf(lk); at >= 0; at = scan.indexOf(lk, at + 1)) {
+    if (at > 0 && WI_EDGE_BEFORE.test(scan.slice(Math.max(0, at - 2), at))) continue;
+    const end = at + lk.length;
+    if (end < scan.length && WI_EDGE_AFTER.test(scan.slice(end, end + 2))) continue;
+    return true;
+  }
+  return false;
+}
 function keyMatch(scan, key, entry, rawScan) {
   const k = String(key || "").trim();
   if (!k) return false;
@@ -1128,10 +1155,12 @@ function keyMatch(scan, key, entry, rawScan) {
   if (k.length > 2 && k.charCodeAt(0) === 47) {
     const m = /^\/(.*)\/([a-z]*)$/s.exec(k);
     if (m) {
-      try { return new RegExp(m[1], m[2].includes("i") ? m[2] : m[2] + "i").test(scan); } catch { /* bad pattern: fall through */ }
+      const re = wiRe(m[1], m[2].includes("i") ? m[2] : m[2] + "i");
+      if (re) return re.test(scan); // a bad pattern falls through
     }
   } else if (entry && entry.keysRegex === true) {
-    try { return new RegExp(k, "i").test(scan); } catch { /* bad pattern: fall through */ }
+    const re = wiRe(k, "i");
+    if (re) return re.test(scan);
   }
   const whole = entry ? (entry.wholeWordsOverride === true ? true : entry.wholeWordsOverride === false ? false : entry.matchWholeWords !== false) : true;
   const lk = k.toLowerCase();
@@ -1142,12 +1171,10 @@ function keyMatch(scan, key, entry, rawScan) {
     return !whole && scan.indexOf(lk) >= 0;
   }
   if (whole && WI_KEY_WORDS.test(k)) {
-    try {
-      const pat = lk.split(MEM_APOS).map(esc).join(WI_APOS_CLASS);
-      return new RegExp("(^|[^\\p{L}\\p{N}])" + pat + "([^\\p{L}\\p{N}]|$)", "u").test(scan);
-    } catch {
-      return scan.indexOf(lk) >= 0;
-    }
+    // no apostrophe: plain text, found by indexOf; with one, any apostrophe form matches (a pattern)
+    if (!WI_HAS_APOS.test(lk)) return wholeWordIn(scan, lk);
+    const re = wiRe("(^|[^\\p{L}\\p{N}])" + lk.split(MEM_APOS).map(esc).join(WI_APOS_CLASS) + "([^\\p{L}\\p{N}]|$)", "u");
+    return re ? re.test(scan) : scan.indexOf(lk) >= 0;
   }
   return scan.indexOf(lk) >= 0;
 }

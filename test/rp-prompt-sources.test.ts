@@ -161,6 +161,16 @@ describe("prompt sources", () => {
     expect(preview(id, "xyz").sources.parts.find((x) => x.label === "Taras · #2")!.text).toBe("ALT2");
   });
 
+  it("whole-word keys found by indexOf match exactly what the old word-edge regex matched", () => {
+    const old = (scan: string, lk: string) => new RegExp("(^|[^\\p{L}\\p{N}])" + lk.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^\\p{L}\\p{N}]|$)", "u").test(scan);
+    const scans = [
+      "the tower stands", "towers", "a tower.", "tower", "(tower)", "skytower tower2 tower_x", "x tower2", "🐉tower", "tower🐉",
+      "café tower", "toweŕ x", "étower", "the old tower and the tower", "towertower tower", "", "c++ rocks", "a c++b", "ville-tower",
+    ];
+    const keys = ["tower", "c++", "tower2", "e", "the tower", "ville-tower"];
+    for (const scan of scans) for (const lk of keys) expect([scan, lk, eng.wholeWordIn(scan, lk)]).toEqual([scan, lk, old(scan, lk)]);
+  });
+
   it("the locator: in order, unclaimed, short texts only as whole messages", () => {
     const sources = { parts: [{ text: "Hi" }, { text: "A long enough text" }, { text: "Hi" }, { text: "zz" }] };
     const r = eng.locateSources(sources, "A long enough text", [{ content: "Hi" }, { content: "Hi" }]);
