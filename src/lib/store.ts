@@ -667,8 +667,8 @@ export const useApp = create<AppState>()(
               return { settings: merged as unknown as typeof s.settings }
             })
           }
-          // 0.9.5: until the user picks a language here, the app follows the shell's (asked once;
-          // every later hydrate re-applies it over the saved value without saving it)
+          // 0.9.5: until the user picks a language here, the app follows the shell's (asked once, re-applied on
+          // every hydrate; the value may reach settings.json with other settings, languageChosen alone decides)
           if (!get().settings.languageChosen) {
             const follow = (lang: 'en' | 'uk' | null) => {
               if (lang && !get().settings.languageChosen && get().settings.language !== lang) set((s) => ({ settings: { ...s.settings, language: lang } }))
