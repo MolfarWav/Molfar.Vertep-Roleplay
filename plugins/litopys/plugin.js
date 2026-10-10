@@ -994,9 +994,16 @@ export function llmRequest(ctx, host) {
     } catch {}
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
-    if (back) messages = withInsert(messages, back.text);
-    if (insert) messages = withInsert(messages, insert.text);
-    return { messages };
+    const promptSources = { parts: [] };
+    if (back) {
+      messages = withInsert(messages, back.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: String(back.text || "").trim() });
+    }
+    if (insert) {
+      messages = withInsert(messages, insert.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · story so far", text: String(insert.text || "").trim() });
+    }
+    return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
     try {
       host.log("litopys insert: " + (e && e.message ? e.message : String(e)));

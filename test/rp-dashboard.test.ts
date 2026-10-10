@@ -1111,7 +1111,10 @@ describe("prompt insert", () => {
     const mock = withState();
     const msgs = [SYS("A"), SYS("B"), { role: "user", content: "X" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }];
     const out = ask(mock, "c1", msgs)!;
-    expect(Object.keys(out)).toEqual(["messages"]);
+    // messages, plus the label of what it inserted for the prompt inspector (host-only)
+    expect(Object.keys(out)).toEqual(["messages", "promptSources"]);
+    expect(out.promptSources.parts.map((p: { kind: string; label: string }) => [p.kind, p.label])).toEqual([["dashboard", "Relationship dashboard"]]);
+    expect(out.messages[2].content).toContain(out.promptSources.parts[0].text);
     expect(out.messages.length).toBe(6);
     expect(out.messages.slice(0, 2)).toEqual([SYS("A"), SYS("B")]);
     expect(out.messages[2].role).toBe("system");
@@ -1121,7 +1124,7 @@ describe("prompt insert", () => {
     expect(msgs.length).toBe(5);
     // with no leading system message the insert comes first
     const bare = ask(mock, "c1", [{ role: "user", content: "X" }, { role: "assistant", content: "Y" }])!;
-    expect(Object.keys(bare)).toEqual(["messages"]);
+    expect(Object.keys(bare)).toEqual(["messages", "promptSources"]);
     expect(bare.messages.length).toBe(3);
     expect(bare.messages[0].role).toBe("system");
     expect(bare.messages[0].content.startsWith("[Background, the scene:")).toBe(true);

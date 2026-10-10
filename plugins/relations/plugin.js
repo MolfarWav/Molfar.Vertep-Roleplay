@@ -3093,6 +3093,7 @@ export function llmRequest(ctx, host) {
   let messages = req.messages;
   let changed = false;
   let cfg = null;
+  const promptSources = { parts: [] };
   const turn = turnOf(ctx);
   try {
     cfg = loadConfig(fsx);
@@ -3106,6 +3107,7 @@ export function llmRequest(ctx, host) {
       }
       if (insert) {
         messages = withInsert(messages, insert.text);
+        promptSources.parts.push({ kind: "dashboard", label: "Relationship dashboard", text: String(insert.text || "").trim() });
         changed = true;
       }
     }
@@ -3118,7 +3120,9 @@ export function llmRequest(ctx, host) {
     if (cfg && cfg.mode === "fast" && FAST_OPS.includes(turn.op)) {
       const fctx = fastContext(fsx, chatId, turn, cfg);
       if (fctx) {
-        messages = withInsert(messages, fastInstructions(fctx));
+        const fastText = fastInstructions(fctx);
+        messages = withInsert(messages, fastText);
+        promptSources.parts.push({ kind: "dashboard", label: "Dashboard · fast sensor", text: String(fastText || "").trim() });
         fast = true;
         changed = true;
       }
@@ -3131,14 +3135,18 @@ export function llmRequest(ctx, host) {
     const note = takeNudge(fsx, chatId, turn, cfg || mergeConfig({}));
     if (note) {
       messages = withNudge(messages, note);
+      promptSources.parts.push({ kind: "dashboard", label: "Dashboard · note", text: String(note || "").trim() });
       changed = true;
     }
   } catch (e) {
     fail("nudge", e);
   }
   // last of all, so it follows the nudge
-  if (fast) messages = withNudge(messages, FAST_REMINDER);
-  return changed ? { messages } : null;
+  if (fast) {
+    messages = withNudge(messages, FAST_REMINDER);
+    promptSources.parts.push({ kind: "dashboard", label: "Dashboard · reminder", text: String(FAST_REMINDER || "").trim() });
+  }
+  return changed ? { messages, ...(promptSources.parts.length ? { promptSources } : {}) } : null;
 }
 
 /** Open threads (id, text) the story stands on at this turn; none without dashboard state. */

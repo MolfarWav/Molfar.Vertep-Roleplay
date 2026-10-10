@@ -661,7 +661,7 @@ function regexAxes(s) {
  *  `placements` is where the text comes from; `stage` is what is happening
  *  to it: "store" (a message is being saved), "edit" (a saved message was
  *  edited: stored scripts that opted in), or "prompt" (the outgoing prompt). */
-function runRegexScripts(scripts, meta, members, text, placements, depth, mc, stage) {
+function runRegexScripts(scripts, meta, members, text, placements, depth, mc, stage, hits) {
   const inScope = (s) => {
     const sc = s.scope || "global";
     if (sc === "global") return true;
@@ -682,7 +682,9 @@ function runRegexScripts(scripts, meta, members, text, placements, depth, mc, st
       if (s.minDepth != null && s.minDepth >= 0 && depth < s.minDepth) continue;
       if (s.maxDepth != null && s.maxDepth >= 0 && depth > s.maxDepth) continue;
     }
+    const before = out;
     out = applyRegexScript(s, out, mc);
+    if (hits && out !== before) hits.push(s.scriptName || s.name || s.id);
   }
   return out;
 }
@@ -1624,7 +1626,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   // fired, what the budget cut and what was held back, with the reasons
   const out = {
     before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [],
-    trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: depthNow,
+    trace: [], skipped: [], blocked: [], placed: [], used: 0, budgetChars: budget, scanDepth: depthNow,
   };
   const textOf = (x) => wiFormat(x.fmt, String(x.entry.content || "").trim());
   // The budget is claimed in order-DESCENDING priority (higher
@@ -1658,6 +1660,16 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     };
     if (!admitted.has(x)) { out.skipped.push({ ...rec, reason: "budget" }); continue; }
     out.trace.push(rec);
+    const whyText = (() => {
+      if (!why) return "";
+      if (why.via === "sticky") return "sticky";
+      if (why.via === "constant") return "constant";
+      if (why.via === "vector") return "vector (score: " + (why.score != null ? why.score : "") + ")";
+      if (why.via === "key") return "key: " + why.key + (why.secondary && why.secondary.length ? "; secondary: " + why.secondary.join(", ") : "");
+      return why.via || "";
+    })();
+    const outKey = position === "at_depth" ? "depth" : WI_POSITIONS[position];
+    out.placed.push({ text: c, book, entry: wiTitle(entry), position: outKey, why: whyText });
     if (position === "at_depth") out.depth.push({ depth: Math.max(0, Math.floor(entry.depth ?? 4)), role: entry.role === "assistant" ? "assistant" : entry.role === "user" ? "user" : "system", content: c });
     else out[WI_POSITIONS[position]].push(c);
   }
@@ -1668,6 +1680,44 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   out.depth.sort((a, b) => a.depth - b.depth);
   return out;
 }
+/** The prompt peek's copy of the engine's locator (src/prompt-sources.ts): each part's text found in
+ *  the request, in order from where the previous one ended, then (12+ chars) anywhere unclaimed, then
+ *  a short text that is a whole message. msg -1 = the system prompt. */
+export function locateSources(sources, systemPrompt, messages) {
+  const texts = [String(systemPrompt || "")].concat((messages || []).map((m) => (typeof m.content === "string" ? m.content : "")));
+  const claimed = texts.map(() => []);
+  const free = (t, s, e) => claimed[t].every(([a, b]) => e <= a || s >= b);
+  const findFrom = (needle, t0, off0) => {
+    for (let t = t0; t < texts.length; t++) {
+      let at = texts[t].indexOf(needle, t === t0 ? off0 : 0);
+      while (at >= 0) {
+        if (free(t, at, at + needle.length)) return [t, at];
+        at = texts[t].indexOf(needle, at + 1);
+      }
+    }
+    return null;
+  };
+  const spans = [];
+  const located = [];
+  let cur = [0, 0];
+  ((sources && sources.parts) || []).forEach((p, i) => {
+    const text = String(p.text || "");
+    let hit = text ? findFrom(text, cur[0], cur[1]) : null;
+    if (!hit && text.length >= 12) hit = findFrom(text, 0, 0);
+    if (!hit && text) {
+      const t = texts.findIndex((x, k) => x.trim() === text && free(k, x.indexOf(text), x.indexOf(text) + text.length));
+      if (t >= 0) hit = [t, texts[t].indexOf(text)];
+    }
+    located.push(!!hit);
+    if (!hit) return;
+    claimed[hit[0]].push([hit[1], hit[1] + text.length]);
+    spans.push({ msg: hit[0] - 1, start: hit[1], end: hit[1] + text.length, part: i });
+    cur = [hit[0], hit[1] + text.length];
+  });
+  spans.sort((x, y) => x.msg - y.msg || x.start - y.start);
+  return { spans, located };
+}
+
 function wiTitle(entry) {
   return entry.title || entry.comment || (entry.keys || []).join(", ") || "untitled";
 }
@@ -1942,6 +1992,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const isGroup = !!meta.groupId && members.length > 0;
   const { persona, userName } = chatPersona(fsx, meta);
   const charName = speakerCard ? speakerCard.name : "";
+  const cardName = charName;
   // generation type this assembly runs for — sections can restrict their
   // trigger list to it (send/swipe/continue/impersonate; a swipe on the last
   // message also satisfies "regenerate")
@@ -1962,6 +2013,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   }
   // a preset whose samplers override the model keeps its own max output; the window is still the model's
   preset = withModelLimits(preset, opts && opts.limits && preset && preset.samplers_override_model === true ? { ...opts.limits, maxOutput: 0 } : opts && opts.limits);
+  const presetName = preset && preset.name ? preset.name : "default";
   // studio bag: the full app preset rides the engine preset file
   const S = preset && preset.studio && typeof preset.studio.samplers === "object" ? preset.studio.samplers : null;
   // world info scans chat text (+ pending user text); lorebooks BOUND to the
@@ -2014,13 +2066,33 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     ? members.filter((m) => !((groupCfg.mutedIds || []).includes(m.id)) || (speaker && m.id === speaker.id))
     : [];
   const joined = (pick) => rosterMembers.map((m) => (m.card && pick(m.card) ? "[" + m.card.name + "]\n" + pick(m.card) : null)).filter(Boolean).join("\n\n");
+
+  const src = { v: 1, parts: [], omitted: [], vars: [] };
+  const addPart = (kind, label, text, detail) => {
+    const s = String(text || "").trim();
+    if (s) src.parts.push({ kind, label, text: s, ...(detail ? { detail } : {}) });
+  };
+  const omit = (kind, label, reason, tokens) => {
+    src.omitted.push({ kind, label, reason, ...(tokens != null ? { tokens } : {}) });
+  };
+  const addGroupCardPart = (fieldLabel, getter, kind) => {
+    for (const m of rosterMembers) {
+      if (!m.card) continue;
+      const val = getter(m.card);
+      if (val && String(val).trim()) {
+        const block = "[" + (m.card.name || m.name || "?") + "]\n" + String(val);
+        const bt = sub(block);
+        if (bt.trim()) addPart(kind || "card", (m.card.name || m.name || "?") + " · " + fieldLabel, bt);
+      }
+    }
+  };
   // regex scripts — shared machinery (scope/placement/depth gates, studio
   // replace semantics); imported patterns are length-capped there so a bad
   // regex costs a hiccup, not a hang
   const scripts = loadRegexScripts(fsx);
   // only prompt-stage scripts run here: stored rewrites are already baked
   // into the saved text, and preset sections are never regexed
-  const rx = (text, placement, depth) => runRegexScripts(scripts, meta, members, text, [placement], depth, mc, "prompt");
+  const rx = (text, placement, depth, hits) => runRegexScripts(scripts, meta, members, text, [placement], depth, mc, "prompt", hits);
   const rxWI = (text) => runRegexScripts(scripts, meta, members, text, ["wi"], null, mc, "prompt");
 
   const sub = (t) => expandMacros(t, mc);
@@ -2050,11 +2122,12 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     postHistory: speakerCard && speakerCard.post_history_instructions ? speakerCard.post_history_instructions : "",
   };
 
+  let groupSceneLine = "";
   // group instructions (who exists, who replies)
   if (isGroup) {
     const roster = members.map((m) => m.name).join(", ");
-    markers.scenario = (markers.scenario ? markers.scenario + "\n\n" : "") +
-      "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
+    groupSceneLine = "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
+    markers.scenario = (markers.scenario ? markers.scenario + "\n\n" : "") + groupSceneLine;
   }
 
 
@@ -2089,18 +2162,63 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const placed = new Set(); // markers the preset placed this turn
   let sawHistory = false;
   const depthInj = [];
+  // where a section's text came from (prompt inspector): the card, the persona,
+  // the preset's own text, or lorebook entries one by one
+  const placedWI = (pos) => {
+    for (const e of wi.placed.filter((x) => x.position === pos)) addPart("lorebook", e.book + " · " + e.entry, subWI(e.text), e.why);
+  };
+  const recordPresetSources = (p, t, secName, bagSec) => {
+    const own = String(p.content || "").trim();
+    if (p.marker && p.identifier === "main") {
+      const usedCard = String(markers.main || "").trim() && !(bagSec && bagSec.forbidOverrides);
+      addPart(usedCard ? "card" : "preset", usedCard ? cardName + " · system prompt" : presetName + " · " + secName, t);
+      return;
+    }
+    if (p.marker && (p.identifier === "worldInfoBefore" || p.identifier === "worldInfoAfter")) {
+      if (own) addPart("preset", presetName + " · " + secName, subWI(own));
+      placedWI(p.identifier === "worldInfoBefore" ? "before" : "after");
+      return;
+    }
+    if (!p.marker || own) { addPart("preset", presetName + " · " + secName, t); return; }
+    if (p.identifier === "dialogueExamples") {
+      placedWI("emBefore");
+      if (rosterMembers.length) addGroupCardPart("example chat", (c) => c.mes_example ? String(c.mes_example).replace(/<START>/gi, "[Example Chat]") : "", "example");
+      else if (speakerCard && speakerCard.mes_example) addPart("example", cardName + " · example chat", sub(String(speakerCard.mes_example).replace(/<START>/gi, "[Example Chat]")));
+      placedWI("emAfter");
+    } else if (p.identifier === "charDescription") {
+      if (rosterMembers.length) addGroupCardPart("description", (c) => c.description);
+      else if (speakerCard && speakerCard.description) addPart("card", cardName + " · description", sub(speakerCard.description));
+    } else if (p.identifier === "charPersonality") {
+      if (rosterMembers.length) addGroupCardPart("personality", (c) => c.personality);
+      else if (speakerCard && speakerCard.personality) addPart("card", cardName + " · personality", sub(speakerCard.personality));
+    } else if (p.identifier === "scenario") {
+      const line = groupSceneLine ? sub(groupSceneLine) : "";
+      const at = line ? t.lastIndexOf(line) : -1;
+      if (at >= 0) {
+        addPart("card", cardName + " · scenario", t.slice(0, at));
+        addPart("group", "Group scene", line);
+      } else addPart("card", cardName + " · scenario", t);
+    } else if (p.identifier === "postHistory") {
+      if (speakerCard && speakerCard.post_history_instructions) addPart("card", cardName + " · post-history instructions", t);
+    } else if (p.identifier === "personaDescription") {
+      addPart("persona", "Persona · " + userName, t);
+    } else {
+      addPart("preset", presetName + " · " + secName, t);
+    }
+  };
   // rows collect first so CONSECUTIVE same-group sections can merge into one
   // wrapped block; at-depth (absolute) sections never group
   const rows = [];
   for (const { p, enabled } of orderedPrompts(preset)) {
-    if (!enabled) continue;
-    if (p.marker && p.identifier === "chatHistory") { sawHistory = true; continue; }
+    const secName = p.name || p.identifier;
+    if (p.marker && p.identifier === "chatHistory") { if (enabled) sawHistory = true; continue; }
+    if (!enabled) { omit("preset", presetName + " · " + secName, "switched off"); continue; }
     const bagSec = bagSections.get(p.identifier) || null;
-    if (!condPasses(bagSec ? bagSec.condition : null)) continue;
+    if (!condPasses(bagSec ? bagSec.condition : null)) { omit("preset", presetName + " · " + secName, "condition: " + String(bagSec.condition)); continue; }
     // a section can gate itself to generation types (imported trigger lists;
     // absent/empty = always) — the engine maps its ops onto those types
     const trig = bagSec && Array.isArray(bagSec.injectionTriggers) && bagSec.injectionTriggers.length ? bagSec.injectionTriggers : null;
-    if (trig && genTypes && !genTypes.some((g) => trig.includes(g))) continue;
+    if (trig && genTypes && !genTypes.some((g) => trig.includes(g))) { omit("preset", presetName + " · " + secName, "not for this generation: " + trig.join(", ")); continue; }
     if (p.marker) placed.add(p.identifier);
     let raw;
     if (p.marker && p.identifier === "main") {
@@ -2123,6 +2241,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     const isWIMarker = p.marker && (p.identifier === "worldInfoBefore" || p.identifier === "worldInfoAfter");
     const t = isWIMarker ? subWI(raw) : sub(raw);
     if (!t.trim()) continue;
+    recordPresetSources(p, t, secName, bagSec);
     if (p.injection_position === "absolute" && typeof p.injection_depth === "number") {
       depthInj.push({ depth: Math.max(0, Math.floor(p.injection_depth)), role: normRole(p.role), content: t });
     } else {
@@ -2146,11 +2265,24 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // world info whose marker the preset does not place is not dropped: it joins
   // the end of the system block (the "why" viewer shows it as placed)
   for (const [id, text] of [["worldInfoBefore", markers.worldInfoBefore], ["worldInfoAfter", markers.worldInfoAfter]]) {
-    if (!placed.has(id) && text) before.push({ role: "system", content: subWI(text) });
+    if (!placed.has(id) && text) {
+      before.push({ role: "system", content: subWI(text) });
+      const pos = id === "worldInfoBefore" ? "before" : "after";
+      for (const e of wi.placed.filter((x) => x.position === pos)) {
+        const et = subWI(e.text);
+        if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+      }
+    }
   }
   if (!placed.has("dialogueExamples")) {
     const em = [...wi.emBefore, ...wi.emAfter];
-    if (em.length) before.push({ role: "system", content: subWI(em.join("\n")) });
+    if (em.length) {
+      before.push({ role: "system", content: subWI(em.join("\n")) });
+      for (const e of wi.placed.filter((x) => x.position === "emBefore" || x.position === "emAfter")) {
+        const et = subWI(e.text);
+        if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+      }
+    }
   }
 
   // data bank: top chunks relevant to the recent text join the system block
@@ -2163,14 +2295,22 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // small windows keep room for the story
     const ctxTokens = presetMaxCtx(preset) || 8192;
     let room = Math.max(800, Math.round(ctxTokens * 4 * 0.08));
-    const parts = [];
+    const chunks = [];
     for (const h of dbHits) {
       if (room <= 200) break;
       const text = h.text.length > room ? h.text.slice(0, room) + "…" : h.text;
-      parts.push("[" + h.fileName + " #" + (h.chunkIndex + 1) + "]\n" + text);
+      chunks.push({ fileName: h.fileName, n: h.chunkIndex + 1, text });
       room -= text.length;
     }
-    if (parts.length) extras.push({ role: "system", content: "[Data bank — retrieved reference material]\n" + parts.join("\n---\n") });
+    if (chunks.length) {
+      const parts = chunks.map((c) => "[" + c.fileName + " #" + c.n + "]\n" + c.text);
+      extras.push({ role: "system", content: "[Data bank — retrieved reference material]\n" + parts.join("\n---\n") });
+      for (const c of chunks) addPart("databank", c.fileName + " #" + c.n, c.text);
+    }
+    for (let i = chunks.length; i < dbHits.length; i++) {
+      const h = dbHits[i];
+      omit("databank", h.fileName + " #" + (h.chunkIndex + 1), "over the data bank room");
+    }
   }
 
   // author's note: the object form carries position/depth/role
@@ -2185,16 +2325,51 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   let anPlaced = false;
   if (an && String(an.text || "").trim() && (msgs.length % anFreq === 0 || an.position !== "in-chat")) {
     anPlaced = true;
-    const anContent = "[Author's note]\n" + [anWI[0], String(an.text), anWI[1]].filter((x) => x.trim()).join("\n");
+    const anText = String(an.text);
+    const anContent = "[Author's note]\n" + [anWI[0], anText, anWI[1]].filter((x) => x.trim()).join("\n");
     const anRole = an.role === "user" || an.role === "assistant" ? an.role : "system";
     if (an.position === "before-system") before.unshift({ role: anRole, content: anContent });
     else if (an.position === "in-chat") depthInj.push({ depth: injDepth(an.depth, 4), role: anRole, content: anContent });
     else extras.push({ role: anRole, content: anContent });
+    for (const e of wi.placed.filter((x) => x.position === "anTop")) {
+      const et = subWI(e.text);
+      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+    }
+    addPart("note", "Author's note", anText);
+    for (const e of wi.placed.filter((x) => x.position === "anBottom")) {
+      const et = subWI(e.text);
+      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+    }
   }
   if (!anPlaced && (anWI[0] || anWI[1])) {
     depthInj.push({ depth: injDepth(an && an.depth, 4), role: "system", content: anWI.filter(Boolean).join("\n") });
+    for (const e of wi.placed.filter((x) => x.position === "anTop" || x.position === "anBottom")) {
+      const et = subWI(e.text);
+      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+    }
+  }
+  if (an && String(an.text || "").trim() && !(msgs.length % anFreq === 0 || an.position !== "in-chat")) {
+    omit("note", "Author's note", "every " + anFreq + " messages");
   }
   for (const w of wi.depth) depthInj.push({ depth: w.depth, role: w.role, content: subWI(w.content) });
+  for (const e of wi.placed.filter((x) => x.position === "depth")) {
+    const et = subWI(e.text);
+    if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+  }
+
+  // preset variables in effect
+  // a choice shows its picked options' labels, a plain variable its value
+  for (const [name, v] of Object.entries(presetVars || {})) {
+    const value = v && Array.isArray(v.picks) ? v.picks.map((c) => c.label || c.id).join(", ") : String(v && v.value != null ? v.value : "");
+    src.vars.push({ name, value });
+  }
+  // lorebook entries considered but not inserted
+  const wiOmitted = (wi.skipped || []).concat(wi.blocked || []).slice(0, 200);
+  for (const x of wiOmitted) {
+    const entry = x.title || "entry";
+    const detail = x.detail ? " (" + x.detail + ")" : "";
+    omit("lorebook", x.book + " · " + entry, (x.reason || "unknown") + detail);
+  }
 
   // history → model messages. Names follow the preset's names-behavior:
   // none never, default only where turns must be told apart (groups),
@@ -2216,17 +2391,30 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     histMsgs = msgs.filter((m) => !gone.has(m.id));
   }
   const visibleHist = histMsgs.filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true);
+  const histRegex = [];
   const history = visibleHist
     .map((m, i) => {
       const depth = visibleHist.length - 1 - i;
       // a reply's {{char}} is whoever wrote it; a user turn keeps the speaker's
-      const body = expandMacros(rx(m.text, m.role === "user" ? "user_input" : "ai_output", depth), m.role === "char" && m.name ? { ...mc, charName: m.name } : mc);
+      const hits = [];
+      const body = expandMacros(rx(m.text, m.role === "user" ? "user_input" : "ai_output", depth, hits), m.role === "char" && m.name ? { ...mc, charName: m.name } : mc);
+      histRegex[i] = hits;
       return {
         role: m.role === "user" ? "user" : "assistant",
         ...(prefixNames && m.name && namesBehavior === "completion" ? { name: m.name } : {}),
         content: prefixNames && m.name ? m.name + ": " + body : body,
       };
     });
+  const msgNo = new Map(msgs.map((m, i) => [m, i + 1]));
+  const histParts = history.map((h, i) => {
+    const m = visibleHist[i];
+    const name = m.name || (m.role === "user" ? userName : charName);
+    const hits = histRegex[i] && histRegex[i].length ? "regex: " + histRegex[i].join(", ") : undefined;
+    return ["history", name + " · #" + (msgNo.get(m) || i + 1), h.content, hits];
+  });
+  if (litCut > 0) {
+    omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them");
+  }
 
   // compact chat history: the visible chat collapses into ONE message of the
   // chosen role, turns labeled by per-role prefixes so speakers stay
@@ -2257,8 +2445,18 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
   // what fell out is reported: automatic compaction fires on it
   let trimmed = 0;
+  let removedTokens = 0;
   let histTokens = history.reduce((a, m) => a + msgTokens(m), 0);
-  while (fixedTokens() + histTokens > budget && history.length > 1) { histTokens -= msgTokens(history[0]); history.splice(0, 1); trimmed++; }
+  while (fixedTokens() + histTokens > budget && history.length > 1) {
+    const tk = msgTokens(history[0]);
+    removedTokens += tk;
+    histTokens -= tk;
+    history.splice(0, 1);
+    trimmed++;
+  }
+  if (trimmed > 0) omit("history", trimmed + " oldest messages", "over the context budget", removedTokens);
+  // a compacted history is one message: its turns stay substrings of it and nothing was trimmed
+  for (const hp of histParts.slice(compactOn ? 0 : trimmed)) addPart(...hp);
 
   // utility prompts (preset-level, blank = off):
   //  - new-chat marker rides at the very top of a freshly started chat
@@ -2269,10 +2467,16 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // "freshly started" = no generated replies yet (the greeting may exist, and
   // the first user turn is already staged) — a history-length check can never
   // see this, every send has at least greeting + user
-  if (newChatTxt && msgs.filter((x) => x.role === "char").length <= 1) lead.push({ role: "system", content: sub(newChatTxt) });
+  if (newChatTxt && msgs.filter((x) => x.role === "char").length <= 1) {
+    const newChatContent = sub(newChatTxt);
+    lead.push({ role: "system", content: newChatContent });
+    addPart("utility", "New chat marker", newChatContent);
+  }
   const groupNudgeTxt = String(util.groupNudge || "").trim();
   if (isGroup && groupNudgeTxt) {
-    depthInj.push({ depth: 0, role: "system", content: sub(groupNudgeTxt).replace(/\{\{name\}\}/g, charName) });
+    const nudgeContent = sub(groupNudgeTxt).replace(/\{\{name\}\}/g, charName);
+    depthInj.push({ depth: 0, role: "system", content: nudgeContent });
+    addPart("group", "Group nudge", nudgeContent);
   }
 
   // Depth injections (author's note, world info at a depth, the group nudge,
@@ -2368,7 +2572,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     messages.push(...list);
   }
   // the prefill rides as the FINAL turn — after squash, so it stays separate
-  if (assistantPrefill) messages.push({ role: "assistant", content: assistantPrefill });
+  if (assistantPrefill) {
+    addPart("prefill", "Assistant prefill", assistantPrefill);
+    messages.push({ role: "assistant", content: assistantPrefill });
+  }
 
   // sampler (kernel GenerateRequest.presetParams). The classic numerics ride
   // the top-level preset keys; everything else lives in the studio bag
@@ -2439,6 +2646,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // order and the transport hoists them into the provider system prompt
     messages,
     presetParams,
+    sources: src,
     ...(assistantPrefill ? { assistantPrefill } : {}),
     ...(preset && typeof preset.reasoning === "string" && preset.reasoning !== "off" ? { reasoning: preset.reasoning } : {}),
     ...(preset && preset.reasoningTags && preset.reasoningTags.open && preset.reasoningTags.close ? { reasoningTags: preset.reasoningTags } : {}),
@@ -3131,6 +3339,11 @@ export function handleRoute(req, host) {
     const toolDefs = host && Array.isArray(host.siblingTools) ? host.siblingTools : null;
     return ok({
       systemPrompt: a.systemPrompt, messages: a.messages, presetParams: a.presetParams, presetName: a.presetName,
+      // where each part came from (the engine's inspector shows the same for a real send)
+      ...(() => {
+        const loc = locateSources(a.sources, a.systemPrompt, a.messages);
+        return { sources: { ...a.sources, parts: a.sources.parts.map((p, i) => ({ ...p, located: loc.located[i] })) }, sourceSpans: loc.spans };
+      })(),
       // the rest of the exact request envelope a generation would send
       // (chat profile model, else the global engine model — same resolution
       // a send uses)
@@ -3973,6 +4186,8 @@ const toolX = (r) => ({
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
           ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
+          // where each part came from, for the engine's prompt inspector (never sent to the model)
+          ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker ? speaker.name : "" },
           // who speaks and what kind of turn, for llmRequest hooks (never sent to the model)
@@ -4052,6 +4267,8 @@ const toolX = (r) => ({
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
           ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
+          // where each part came from, for the engine's prompt inspector (never sent to the model)
+          ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker.name },
           turn: { op: "next", chatId: id, speakerId: speaker.id, speakerName: speaker.name },
@@ -4129,6 +4346,8 @@ const toolX = (r) => ({
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
           ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
+          // where each part came from, for the engine's prompt inspector (never sent to the model)
+          ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
           turn: { op: "swipe", chatId: id, speakerId: speaker.id, speakerName: speaker.name, targetId: msg.id },
@@ -4246,6 +4465,8 @@ const toolX = (r) => ({
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
           ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
+          // where each part came from, for the engine's prompt inspector (never sent to the model)
+          ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
           turn: { op: "continue", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: msg.name, targetId: msg.id },
@@ -4368,6 +4589,8 @@ const toolX = (r) => ({
           ...(a.promptFormat ? { promptFormat: a.promptFormat } : {}),
           ...(a.paramsSource ? { paramsSource: a.paramsSource } : {}),
           ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
+          // where each part came from, for the engine's prompt inspector (never sent to the model)
+          ...(a.sources ? { promptSources: a.sources } : {}),
         });
         return pendingOut(meta);
       }
