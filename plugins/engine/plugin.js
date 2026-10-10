@@ -732,7 +732,7 @@ function keyMatch(scan, key, entry, rawScan) {
   if (!k) return false;
   // case-sensitive books/entries match against the RAW text (the shared scan
   // text is pre-lowercased for the case-blind default)
-  if (rawScan != null && entry && (entry.caseSensitiveOverride === true || entry.caseSensitive === true)) {
+  if (rawScan != null && entry && wiCaseSensitive(entry)) {
     if (k.length > 2 && k.charCodeAt(0) === 47) return false; // regex keys stay case-blind
     return rawScan.includes(k);
   }
@@ -764,6 +764,10 @@ function keyMatch(scan, key, entry, rawScan) {
     }
   }
   return scan.indexOf(lk) >= 0;
+}
+/** Case sensitivity of an entry: its own override wins over the (book's) flag. */
+function wiCaseSensitive(entry) {
+  return typeof entry.caseSensitiveOverride === "boolean" ? entry.caseSensitiveOverride : entry.caseSensitive === true;
 }
 const WI_CYR = /\p{Script=Cyrillic}/u;
 // letters of any script, digits, spaces, apostrophes, hyphens: a key that can take word boundaries
@@ -827,7 +831,7 @@ function wiEntryMatch(entry, scanText, rawText, countAll) {
   const keys = entry.keys || [];
   const secondary = entry.secondaryKeys || [];
   const logic = WI_LOGIC[entry.selectiveLogic] != null ? WI_LOGIC[entry.selectiveLogic] : 0;
-  const caseBlind = !(entry && (entry.caseSensitiveOverride === true || entry.caseSensitive === true));
+  const caseBlind = !(entry && wiCaseSensitive(entry));
   const raw = caseBlind ? null : rawText;
   const key = keys.find((k) => keyMatch(scanText, k, entry, raw));
   if (key == null) return null;
@@ -1185,7 +1189,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     eff.wordForms = typeof entry.wordFormsOverride === "boolean" ? entry.wordFormsOverride : bookSettings.wordForms !== false;
     let text = win.low, raw = win.raw;
     const own = typeof entry.scanDepthOverride === "number" && entry.scanDepthOverride > 0 ? Math.floor(entry.scanDepthOverride) : null;
-    if (own != null && own !== scanDepth && firstPass) {
+    if (own != null && own !== depthNow && firstPass) {
       const w = windowOf(own);
       text = w.low; raw = w.raw;
     }
@@ -1213,7 +1217,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       let win = carried.length ? { raw: base.raw + "\n" + carried.join("\n"), low: base.low + "\n" + carried.join("\n").toLowerCase() } : base;
       for (let pass = 0; ; pass++) {
         let newly = [];
-        const firstPass = pass === 0 && depthNow === scanDepth;
+        const firstPass = pass === 0;
         for (const item of items) {
           const { entry, id } = item;
           if (seen.has(id) || rolledOut.has(id)) continue;
@@ -1227,18 +1231,18 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
             continue;
           }
           if (typeof entry.delay === "number" && entry.delay > 0 && tick < entry.delay) {
-            if (wouldHit()) block(item, "delay", { detail: entry.delay });
+            if (!blocked.has(id) && wouldHit()) block(item, "delay", { detail: entry.delay });
             continue;
           }
           const cd = cooldownLive(id);
           if (cd && !st) {
-            if (wouldHit()) block(item, "cooldown", { detail: cd.end });
+            if (!blocked.has(id) && wouldHit()) block(item, "cooldown", { detail: cd.end });
             continue;
           }
           const delayLevel = typeof entry.delayUntilRecursion === "number" ? entry.delayUntilRecursion
             : entry.delayUntilRecursion === true ? 1 : 0;
           if (delayLevel > pass && !st) {
-            if (wouldHit()) block(item, "recursion_delay", { detail: delayLevel });
+            if (!blocked.has(id) && wouldHit()) block(item, "recursion_delay", { detail: delayLevel });
             continue;
           }
           if (pass > 0 && entry.nonRecursable === true && !st) {

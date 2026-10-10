@@ -432,3 +432,22 @@ describe("data bank", () => {
     expect(all).toContain("[World #1]");
   });
 });
+
+describe("review fixes", () => {
+  it("an entry's case override beats a case-sensitive book", async () => {
+    const r = await test("a tower", [entry("Blind", ["Tower"], { caseSensitiveOverride: false })], { caseSensitive: true });
+    expect(titles(r.fired)).toEqual(["Blind"]);
+  });
+
+  it("min-activations rounds keep an entry's own shorter scan depth", async () => {
+    fs.writeFileSync(path.join(root, "lorebooks", "b.json"), JSON.stringify(book([
+      entry("Short", ["вежа"], { scanDepthOverride: 1 }),
+      entry("Filler", ["нічогонемає"]),
+    ], { scanDepth: 1, minActivations: 2 })));
+    fs.writeFileSync(path.join(root, "chats", "c1.meta.json"), JSON.stringify({ id: "c1", lorebookIds: ["b"], presetId: "default" }));
+    fs.writeFileSync(path.join(root, "chats", "c1.jsonl"), ["Біля вежі.", "Далі.", "Ще."].map((t, i) => JSON.stringify({ id: "m" + i, role: "user", text: t })).join("\n") + "\n");
+    const r = (await route("/wi-status", { chatId: "c1" })).json;
+    expect(r.fired).toHaveLength(0);
+    expect(r.scanDepth).toBe(3);
+  });
+});
