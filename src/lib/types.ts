@@ -165,6 +165,10 @@ export interface Chat {
   parentMessageId: ID | null
   personaId: ID | null
   presetId: ID | null
+  /** 4.31: this chat's picks per preset, `{ [presetId]: { [variable]: choice ids | text } }`; absent = the preset's defaults. */
+  presetVars?: Record<ID, Record<string, string | string[]>>
+  /** 4.31: muted lines in the transcript, one per change of preset or picks (never sent to the model). */
+  presetNotes?: PresetNote[]
   /** 0.9.2: this chat's model ("<provider>/<model>"); null = the one chosen last in the app. */
   model?: string | null
   authorNote: {
@@ -288,6 +292,26 @@ export interface PresetNote {
   after: ID | null
   at: number
   changes: { kind: 'preset' | 'var'; label: string; shown: string }[]
+}
+
+/** Body of POST /chats/:id/preset: values are choice ids (an array for several), text, "true"/"false" for a
+ *  toggle, or null for the preset's default. `reset` drops every pick of the current preset. */
+export interface PresetChoiceBody {
+  presetId?: ID
+  vars?: Record<string, string | string[] | null>
+  reset?: boolean
+}
+
+/** POST /preset-costs/:id: tokens of the preset's own text with the picks, and what each option adds. */
+export interface PresetCosts {
+  total: number
+  vars: Record<string, Record<ID, number>>
+}
+
+/** GET /preset-memory/:characterId: the preset and picks of this character's last chat where they were chosen. */
+export interface PresetMemory {
+  presetId: ID | null
+  vars: Record<string, string | string[]>
 }
 
 export interface SamplerSettings {
@@ -709,6 +733,8 @@ export interface AppSettings {
   /** Interface language for the nav labels and page titles: 'en' | 'uk'.
    *  Anything else (older builds wrote 'English') follows the browser. */
   language: string
+  /** 4.31: a short step with the preset and its choices when a chat starts (absent = on). */
+  askPresetOnNewChat?: boolean
   /** 0.9.5: the user picked the language here; until then it follows the shell's (shell-bridge shellLocale). */
   languageChosen?: boolean
   customCss: string

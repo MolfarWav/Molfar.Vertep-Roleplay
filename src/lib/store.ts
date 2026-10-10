@@ -18,6 +18,7 @@ import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
   ConnectionProfile, DataBankFile, ID, ModelInfo, ChatBranch, ToolPart,
+  PresetChoiceBody, PresetCosts, PresetMemory,
 } from './types'
 import {
   seedThemes, defaultSettings, withBuiltinThemes,
@@ -207,8 +208,18 @@ interface AppState {
   forkChat: (chatId: ID, messageId: ID) => Promise<ID>
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
-  newChat: (charId: ID, greetingIndex?: number) => Promise<ID>
+  /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]> }) => Promise<ID>
   startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
+  /** the open new-chat step (preset and choices before a chat starts); null = none */
+  newChatStep: { charId: ID; greetingIndex?: number } | null
+  closeNewChatStep: () => void
+  /** create the chat (with the step's preset and picks, if any) and open it */
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]> }) => Promise<void>
+  /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
+  setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
+  fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null> }) => Promise<PresetCosts>
+  fetchPresetMemory: (characterId: ID) => Promise<PresetMemory>
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
   convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<void>
   reorderGroupMember: (groupId: ID, memberId: ID, dir: -1 | 1) => void
@@ -449,6 +460,8 @@ export const useApp = create<AppState>()(
       inputHistory: [],
       composerDraft: null,
       deleteMode: false,
+      newChatStep: null,
+      closeNewChatStep: () => set({ newChatStep: null }),
       helpOpen: false,
       railCollapsed: false,
       setRailCollapsed: (v) => set({ railCollapsed: v }),
@@ -1345,7 +1358,44 @@ export const useApp = create<AppState>()(
           } catch (e) { toast.error(String((e as Error).message ?? e)) }
         })()
       },
-      newChat: async (charId, greetingIndex = 0) => {
+      setChatPreset: async (chatId, body) => {
+        const before = get().chats.find((c) => c.id === chatId)
+        if (!before) return
+        bumpMutate()
+        // show the pick at once; the engine's meta (with the note) replaces it a moment later
+        const nextPresetId = body.presetId ?? before.presetId
+        const optimistic = (() => {
+          if (!nextPresetId) return before.presetVars
+          const all = { ...(before.presetVars ?? {}) }
+          const cur: Record<string, string | string[]> = body.reset ? {} : { ...(all[nextPresetId] ?? {}) }
+          for (const [k, v] of Object.entries(body.vars ?? {})) {
+            if (v === null) delete cur[k]
+            else cur[k] = v
+          }
+          if (Object.keys(cur).length) all[nextPresetId] = cur
+          else delete all[nextPresetId]
+          return all
+        })()
+        set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...c, presetId: nextPresetId ?? c.presetId, presetVars: optimistic } : c)) }))
+        try {
+          const meta = await j<EngineChatMeta>(`/chats/${encodeURIComponent(chatId)}/preset`, { method: 'POST', body: JSON.stringify(body) })
+          set((s) => ({
+            chats: s.chats.map((c) => (c.id === chatId
+              ? { ...c, presetId: meta.presetId ?? c.presetId, presetVars: meta.presetVars, presetNotes: meta.presetNotes?.length ? meta.presetNotes : undefined }
+              : c)),
+          }))
+        } catch (e) {
+          set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...c, presetId: before.presetId, presetVars: before.presetVars } : c)) }))
+          toast.error(String((e as Error).message ?? e))
+        }
+      },
+      fetchPresetCosts: (presetId, body) =>
+        j<PresetCosts>(`/preset-costs/${encodeURIComponent(presetId)}`, { method: 'POST', body: JSON.stringify(body ?? {}) }),
+      fetchPresetMemory: async (characterId) => {
+        try { return await j<PresetMemory>(`/preset-memory/${encodeURIComponent(characterId)}`) }
+        catch { return { presetId: null, vars: {} } }
+      },
+      newChat: async (charId, greetingIndex = 0, opts) => {
         const { personas, model } = get()
         const char = get().characters.find((c) => c.id === charId)
         // a persona bound to THIS character wins over the default; an
@@ -1359,6 +1409,7 @@ export const useApp = create<AppState>()(
             ...(char?.isGroup ? { groupId: charId } : { characterId: charId }),
             ...(personaId ? { personaId } : {}),
             ...(model ? { model } : {}),
+            ...(opts?.presetId ? { presetId: opts.presetId, presetVars: opts.presetVars ?? {} } : {}),
           }),
         })
         let chat = engineChatToUI(r.meta, r.messages ?? [])
@@ -1380,8 +1431,21 @@ export const useApp = create<AppState>()(
         return chat.id
       },
       startChatAndOpen: async (charId, greetingIndex) => {
+        // a short step with the preset and its choices, unless the user turned it off or there is
+        // nothing to choose (one preset without variables)
+        const { settings, presets } = get()
+        if (settings.askPresetOnNewChat !== false && presets.length > 0) {
+          const pre = presets.find((p) => p.isDefault) ?? presets[0]
+          if (presets.length > 1 || pre.variables.length > 0) {
+            set({ newChatStep: { charId, greetingIndex } })
+            return
+          }
+        }
+        await get().startChatWith(charId, greetingIndex)
+      },
+      startChatWith: async (charId, greetingIndex, opts) => {
         try {
-          const id = await get().newChat(charId, greetingIndex)
+          const id = await get().newChat(charId, greetingIndex, opts)
           sessionNewChats.add(id)
           get().openChat(id)
         } catch (e) { toast.error(String((e as Error).message ?? e)) }

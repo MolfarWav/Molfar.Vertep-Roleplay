@@ -76,6 +76,8 @@ export interface EngineChatMeta {
   characterId: string | null
   groupId: string | null
   presetId?: string | null
+  presetVars?: Chat['presetVars']
+  presetNotes?: Chat['presetNotes']
   personaId?: string | null
   /** this chat's model, when it has one of its own */
   model?: string | null
@@ -867,6 +869,8 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     parentMessageId: meta.parentMessageId ?? null,
     personaId: meta.personaId ?? null,
     presetId: meta.presetId ?? null,
+    ...(meta.presetVars ? { presetVars: meta.presetVars } : {}),
+    ...(meta.presetNotes?.length ? { presetNotes: meta.presetNotes } : {}),
     model: typeof meta.model === 'string' && meta.model ? meta.model : null,
     authorNote: meta.authorNoteObject ?? { ...DEFAULT_AUTHOR_NOTE, text: meta.authorNote ?? '' },
     litopysCut: meta.litopysCut,
@@ -1181,6 +1185,7 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     library: bag?.library ?? [],
     groups: bag?.groups ?? [],
     variables: bag?.variables ?? [],
+    ...(typeof bag?.description === 'string' && bag.description ? { description: bag.description } : {}),
     utilityPrompts: bag?.utilityPrompts ?? (ep.utilityPrompts as Preset['utilityPrompts'] | undefined) ?? { impersonation: '', continueNudge: '', newChat: '', groupNudge: '', emptySend: '' },
     samplers,
     // the editor bag first; a preset written before the bag knew the field carries it only at the top level
