@@ -4,6 +4,17 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.31.0
+
+Presets with options you pick for each chat, Marinara presets, and FRANKENX built in. Works on Molfar Vertep 0.9.5; no engine update needed.
+
+- **Options per chat.** A preset can offer choices (point of view, tense, reply length, genre…: one option or several) and switches that turn whole blocks on or off. Each chat keeps its own picks: open the chat header's switch, **Preset**, then **Choices**. Every option shows how many tokens it adds, the panel shows the preset's total, and **Reset to defaults** goes back to the preset's own picks. Changes apply from the next reply.
+- **Pick the preset when a chat starts.** A new chat opens a short step with the preset and its options ("Start" keeps the defaults). It remembers each character: the next chat with them starts with the preset and options you picked last time. Settings › Chat Behavior turns the step off.
+- **This chat only.** Switching the preset in a chat changes that chat; **Make default** is its own button. A muted line in the chat says what changed ("Point of view → First"), never sent to the model.
+- **FRANKENX 1.6** ships as a ready preset (read-only; duplicate it to edit): a simulation-style roleplay preset with 15 options and 6 switchable blocks, adapted to this app: no scene header (the scene heading and the dashboard track time and place), no tracker agents, the prose language as an option. Its instructions take about 13k tokens: use a model with a 32k window or more.
+- **Marinara presets import** with their options, groups, in-chat depth sections and defaults.
+- **Writing presets.** In the editor, Variables gain the Choice type (options with a label and the text they insert, one or several, defaults) and on/off switches; sections read them as `{{name}}`, in `{{#if name == "value"}}…{{else}}…{{/if}}` blocks, or through a section condition (`name`, `!name`, `name==value`). A preset can carry a description. Formats: `docs/DATA-FORMATS.md`.
+
 ## 4.30.0
 
 What a reply is sent with, a longer backstory, and settings that agree with the shell. Needs Molfar Vertep 0.9.5 for the parameters in the chat header, the shell's language and the links to its Settings (on an older engine they are simply not shown and the old fields stay).
