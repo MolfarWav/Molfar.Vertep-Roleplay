@@ -2045,7 +2045,11 @@ async function refreshLists(set: SetFn, _get: GetFn) {
 }
 
 /** branch metadata: forks record parentChatId/parentMessageId on the engine */
-function attachBranches(chats: Chat[]): Chat[] {
+function attachBranches(all: Chat[]): Chat[] {
+  // one entry per id, the first wins: newChat/forkChat prepend after several awaits, and a hydrate
+  // that ran meanwhile may already hold the same chat (React then sees two children with one key)
+  const seen = new Set<ID>()
+  const chats = all.filter((c) => !seen.has(c.id) && (seen.add(c.id), true))
   return chats.map((c) => ({
     ...c,
     branches: chats
