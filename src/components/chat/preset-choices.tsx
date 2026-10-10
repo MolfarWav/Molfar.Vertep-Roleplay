@@ -128,7 +128,7 @@ function VariableBlock({
     : v.type === 'toggle'
       ? (
         <label className="flex items-center justify-between gap-3 text-sm">
-          <span className="min-w-0 font-semibold text-primary">{label}</span>
+          <span className="min-w-0 font-semibold text-[color-mix(in_oklab,var(--primary)_65%,var(--foreground))]">{label}</span>
           <Switch
             checked={!isOff(textOf(v, stored))}
             onCheckedChange={(on) => onChange(on ? 'true' : 'false')}
@@ -143,7 +143,7 @@ function VariableBlock({
     <div className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-card/40 p-2.5" data-var={v.name}>
       {v.type !== 'toggle' && (
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-semibold text-primary">{label}</span>
+          <span className="text-sm font-semibold text-[color-mix(in_oklab,var(--primary)_65%,var(--foreground))]">{label}</span>
           {v.question && <span className="text-[11px] leading-snug text-muted-foreground">{v.question}</span>}
         </div>
       )}

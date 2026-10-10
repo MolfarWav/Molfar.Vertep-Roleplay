@@ -198,19 +198,19 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
                 <SlidersHorizontal className="size-4 shrink-0 text-amber-500" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold">{preset?.name ?? 'No preset'}</span>
-                  <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(preset)}</span>
+                  <span className="block break-words font-mono text-[10px] text-muted-foreground">{presetMeta(preset)}</span>
                 </span>
               </button>
               {/* the two actions stand out: the fonts are alike, so color and shape carry the weight */}
               <button
                 type="button"
                 onClick={() => pick(() => setPanelOpen(true))}
-                className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/85"
+                className="flex shrink-0 items-center gap-1.5 rounded-md bg-[color-mix(in_oklab,var(--primary)_70%,black)] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:brightness-110 dark:bg-[color-mix(in_oklab,var(--primary)_80%,white)] dark:text-primary-foreground"
                 title={t('pc.openTip')}
               >
                 <ListChecks className="size-3.5" aria-hidden="true" /> {t('pc.open')}
                 {preset && preset.variables.length > 0 && (
-                  <span className="rounded-full bg-primary-foreground/20 px-1.5 text-[10px] font-bold tabular-nums">{preset.variables.length}</span>
+                  <span className="rounded-full bg-black/15 px-1.5 text-[10px] font-bold tabular-nums dark:bg-white/25">{preset.variables.length}</span>
                 )}
               </button>
               <button
