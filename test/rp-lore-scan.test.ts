@@ -234,3 +234,116 @@ describe("the app's book adapter keeps what it does not edit", () => {
     expect(out.entries[0]).toMatchObject({ wordFormsOverride: false, scanDepthOverride: 9 });
   });
 });
+
+describe("fields the scanner used to ignore", () => {
+  const seed = (bookSettings: Record<string, unknown>, entries: Record<string, unknown>[], extra: { tags?: string[]; mes_example?: string; prompts?: unknown[]; authorNote?: string; formatTemplate?: string; studio?: Record<string, unknown>; more?: Record<string, unknown>[] } = {}) => {
+    fs.mkdirSync(path.join(root, "characters", "olena"), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", "olena", "card.json"), JSON.stringify({
+      spec: "chara_card_v2", name: "Олена", description: "d", personality: "", scenario: "", first_mes: "", mes_example: extra.mes_example ?? "",
+      tags: extra.tags ?? [], studio: extra.studio ?? {},
+    }));
+    fs.writeFileSync(path.join(root, "lorebooks", "b.json"), JSON.stringify({ ...book(entries, bookSettings), formatTemplate: extra.formatTemplate ?? "" }));
+    for (const b of extra.more ?? []) fs.writeFileSync(path.join(root, "lorebooks", (b.id as string) + ".json"), JSON.stringify(b));
+    fs.writeFileSync(path.join(root, "chats", "c1.meta.json"), JSON.stringify({
+      id: "c1", characterId: "olena", lorebookIds: ["b", ...(extra.more ?? []).map((b) => b.id)], presetId: "default",
+      ...(extra.authorNote ? { authorNote: extra.authorNote } : {}),
+    }));
+    fs.writeFileSync(path.join(root, "chats", "c1.jsonl"), [
+      JSON.stringify({ id: "m0", role: "user", name: "Вей", text: "Ми біля вежі." }),
+      JSON.stringify({ id: "m1", role: "char", name: "Олена", charId: "olena", text: "Так, біля вежі." }),
+    ].join("\n") + "\n");
+    if (extra.prompts) {
+      fs.writeFileSync(path.join(root, "presets", "default.json"), JSON.stringify({ id: "default", name: "Default", prompts: extra.prompts, prompt_order: [], openai_max_context: 8192, openai_max_tokens: 512 }));
+    }
+  };
+  const status = () => route("/wi-status", { chatId: "c1" }).then((r) => r.json);
+  const preview = async () => {
+    const r = await route("/prompt/preview", { chatId: "c1" });
+    const j = r.json as unknown as { systemPrompt?: string; messages: { role: string; content: string }[] };
+    return [j.systemPrompt ?? "", ...j.messages.map((m) => m.content)].join("\n----\n");
+  };
+
+  it("character filter: listed names/ids/tags only, or everyone but them", async () => {
+    seed({}, [
+      entry("For Olena", ["вежа"], { characterFilter: ["Олена"] }),
+      entry("For others", ["вежа"], { characterFilter: ["olena"], characterFilterExclude: true }),
+      entry("By tag", ["вежа"], { tagFilter: ["маг"] }),
+    ], { tags: ["Маг"] });
+    const r = await status();
+    expect(titles(r.fired)).toEqual(["By tag", "For Olena"]);
+    expect(r.blocked.find((x) => x.title === "For others")).toMatchObject({ reason: "character" });
+  });
+
+  it("trigger filter: generation types", async () => {
+    seed({}, [entry("On continue", ["вежа"], { triggerFilters: ["continue"] }), entry("On send", ["вежа"], { triggerFilters: ["normal"] })]);
+    const r = await status();
+    expect(titles(r.fired)).toEqual(["On send"]);
+    expect(r.blocked.find((x) => x.title === "On continue")).toMatchObject({ reason: "trigger", detail: "continue" });
+  });
+
+  it("include names: the speaker's name is in the scan", async () => {
+    seed({ includeNames: true }, [entry("Olena", ["Олена"])]);
+    expect(titles((await status()).fired)).toEqual(["Olena"]);
+    seed({ includeNames: false }, [entry("Olena", ["Олена"])]);
+    expect((await status()).fired).toHaveLength(0);
+  });
+
+  it("group scoring keeps the member whose keys hit most", async () => {
+    seed({ groupScoring: true }, [
+      entry("One key", ["вежа", "дракон"], { group: "g" }),
+      entry("Two keys", ["вежа", "біля"], { group: "g" }),
+    ]);
+    const r = await status();
+    expect(titles(r.fired)).toEqual(["Two keys"]);
+  });
+
+  it("insertion strategy: character books first, then by order", async () => {
+    const globalBook = { id: "g1", name: "Global", globalActive: true, settings: {}, entries: [entry("Global low", ["вежа"], { order: 1 })] };
+    seed({ insertionStrategy: "character_first" }, [entry("Char high", ["вежа"], { order: 500 })], { studio: { linkedLorebookIds: ["b"] }, more: [globalBook] });
+    expect((await status()).fired.map((x) => x.title)).toEqual(["Char high", "Global low"]);
+    seed({ insertionStrategy: "evenly" }, [entry("Char high", ["вежа"], { order: 500 })], { studio: { linkedLorebookIds: ["b"] }, more: [globalBook] });
+    expect((await status()).fired.map((x) => x.title)).toEqual(["Global low", "Char high"]);
+  });
+
+  it("format template wraps each entry of the book", async () => {
+    seed({}, [entry("T", ["вежа"], { content: "Вежа стара." })], { formatTemplate: "[Лор: {{original}}]" });
+    expect(await preview()).toContain("[Лор: Вежа стара.]");
+  });
+
+  it("example and author's-note positions land around the examples and the note", async () => {
+    seed({}, [
+      entry("EM", ["вежа"], { content: "EM-ENTRY", position: "before_em" }),
+      entry("AN", ["вежа"], { content: "AN-ENTRY", position: "after_an" }),
+    ], { mes_example: "<START>\nEXAMPLE-TEXT", authorNote: "NOTE-TEXT" });
+    const out = await preview();
+    expect(out).toMatch(/EM-ENTRY\n\[Example Chat\]\nEXAMPLE-TEXT/);
+    expect(out).toMatch(/NOTE-TEXT\nAN-ENTRY/);
+  });
+
+  it("an author's-note entry without a note still goes in", async () => {
+    seed({}, [entry("AN", ["вежа"], { content: "AN-ALONE", position: "before_an" })]);
+    expect(await preview()).toContain("AN-ALONE");
+  });
+
+  it("a preset without the world-info markers no longer drops the entries", async () => {
+    seed({}, [entry("B", ["вежа"], { content: "BEFORE-ENTRY" }), entry("A", ["вежа"], { content: "AFTER-ENTRY", position: "after_char" })], {
+      prompts: [
+        { identifier: "main", name: "Main", role: "system", content: "MAIN", enabled: true },
+        { identifier: "chatHistory", name: "History", marker: true, enabled: true },
+      ],
+    });
+    const out = await preview();
+    expect(out).toContain("BEFORE-ENTRY");
+    expect(out).toContain("AFTER-ENTRY");
+  });
+
+  it("a world-info marker with its own text keeps the entries under it", async () => {
+    seed({}, [entry("B", ["вежа"], { content: "BEFORE-ENTRY" })], {
+      prompts: [
+        { identifier: "worldInfoBefore", name: "WI", marker: true, role: "system", content: "WORLD:", enabled: true },
+        { identifier: "chatHistory", name: "History", marker: true, enabled: true },
+      ],
+    });
+    expect(await preview()).toMatch(/WORLD:\nBEFORE-ENTRY/);
+  });
+});

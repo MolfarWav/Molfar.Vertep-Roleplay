@@ -73,10 +73,10 @@ The id is the file name without `.json`, repeated in `"id"`. A chat uses: every 
 | `globalActive` | `true`: in every chat. |
 | `linkedCharacterIds` | Display only (see above). |
 | `entries` | The entries, below. |
-| `settings` | Scan settings: `scanDepth` (messages scanned for keys), `contextPercent` and `budgetCap` (how much room entries may take), `minActivations` (fewer entries fired: scan deeper into the chat until this many fire), `minActivationsDepthMax` (how deep that may go, 0 = the whole chat), `maxRecursion`, `insertionStrategy` (`character_first` …), `caseSensitive`, `wholeWords`, `groupScoring`, `recursiveScan`, `includeNames`, `overflowAlert`, `wordForms` (Cyrillic keys match every form of their words; absent = on). Copy them from `_example.json`. |
+| `settings` | Scan settings: `scanDepth` (messages scanned for keys), `contextPercent` and `budgetCap` (how much room entries may take), `minActivations` (fewer entries fired: scan deeper into the chat until this many fire), `minActivationsDepthMax` (how deep that may go, 0 = the whole chat), `maxRecursion`, `insertionStrategy` (`character_first`: entries of the character's books come first and claim the budget first; `global_first`: global books first; `evenly`: by `order` only), `caseSensitive`, `wholeWords`, `groupScoring`, `recursiveScan`, `includeNames` (the scan reads "Name: text", so a name can be a key), `overflowAlert`, `wordForms` (Cyrillic keys match every form of their words; absent = on). Copy them from `_example.json`. |
 | `vectorized` | Embedding settings for `vectorized` entries. |
 | `isEmbedded` | The book came inside a card. |
-| `formatTemplate` | Optional wrapper for each inserted entry. |
+| `formatTemplate` | Optional wrapper for each inserted entry: `{{original}}` marks the entry's text (`[Lore: {{original}}]`); empty = unwrapped. |
 | `folderId` | Library folder. |
 
 ### Entry fields
@@ -90,13 +90,13 @@ The id is the file name without `.json`, repeated in `"id"`. A chat uses: every 
 | `status` | `"normal"` fires on a key, `"constant"` is sent every message (keep those few and short), `"vectorized"` fires by meaning. The source of truth: never write the old `constant` boolean. |
 | `content` | The text inserted when the entry fires: short, concrete, one topic. |
 | `enabled` | `true` or `false` (a boolean, not a string). |
-| `position` | `before_char` or `after_char` (around the character definition), `at_depth` (inside the chat, `depth` messages from the end). |
+| `position` | `before_char` or `after_char` (around the character definition), `before_em` / `after_em` (around the example dialogues), `before_an` / `after_an` (around the author's note; without a note they go in at depth 4), `at_depth` (inside the chat, `depth` messages from the end). When the preset has no place for a position, the entry joins the end of the system block. |
 | `depth`, `role` | For `at_depth`: how deep, and as which role (`system`, `user`, `assistant`). |
 | `order` | Higher is inserted later (closer to the end) and wins when the budget runs out. Default 100. |
 | `probability` | Percent chance to fire when keyed; omit for always. |
 | `group`, `groupWeight`, `groupPrioritize` | Entries in one group: only one fires, picked by weight or priority. |
 | `sticky`, `cooldown`, `delay` | Timed effects, in messages: stays on, waits before firing again, waits before the first firing. |
-| `characterFilter`, `characterFilterExclude`, `tagFilter`, `triggerFilters` | Fire only for (or never for) these characters, tags or generation types. |
+| `characterFilter`, `characterFilterExclude`, `tagFilter`, `triggerFilters` | Fire only when the speaking character is in `characterFilter` (ids or names) or has a tag from `tagFilter`; `characterFilterExclude: true` turns it into "never for them". `triggerFilters`: only on these generation types (`normal`, `continue`, `impersonate`, `swipe`, `regenerate`, `quiet`). Empty lists = no filter. |
 | `nonRecursable`, `preventFurtherRecursion`, `delayUntilRecursion` | How entries trigger each other. |
 | `scanDepthOverride`, `caseSensitiveOverride`, `wholeWordsOverride`, `wordFormsOverride`, `groupScoringOverride` | Per-entry overrides of the book settings; `null` = the book setting. `wordFormsOverride: false` makes a Cyrillic key match only the exact text. |
 | `ignoreBudget` | Insert even when the budget is used up. |

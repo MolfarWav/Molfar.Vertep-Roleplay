@@ -796,7 +796,7 @@ function isConstantEntry(entry) {
  *  `secondary` = the secondary keys that hit; `fail: "secondary"` when the
  *  primary hit but the selective logic did not hold. Probability is the
  *  caller's (rolled once per activation). */
-function wiEntryMatch(entry, scanText, rawText) {
+function wiEntryMatch(entry, scanText, rawText, countAll) {
   const keys = entry.keys || [];
   const secondary = entry.secondaryKeys || [];
   const logic = WI_LOGIC[entry.selectiveLogic] != null ? WI_LOGIC[entry.selectiveLogic] : 0;
@@ -805,15 +805,18 @@ function wiEntryMatch(entry, scanText, rawText) {
   const key = keys.find((k) => keyMatch(scanText, k, entry, raw));
   if (key == null) return null;
   const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw));
+  // group scoring ranks members by how many of their keys hit
+  const score = countAll ? keys.filter((k) => keyMatch(scanText, k, entry, raw)).length + hits.length : 0;
   if (secondary.length) {
     const n = hits.length;
     const bad = (logic === 0 && n < 1) || (logic === 3 && n < secondary.length) || (logic === 2 && n > 0) || (logic === 1 && n === secondary.length);
     if (bad) return { key: String(key), secondary: hits.map(String), fail: "secondary" };
   }
-  return { key: String(key), secondary: hits.map(String) };
+  return { key: String(key), secondary: hits.map(String), score };
 }
 /** One winner per inclusion group among this pass's newly fired entries:
- *  a sticky-active member outranks everything, then an override flag, then a
+ *  a sticky-active member outranks everything; with group scoring only the
+ *  members whose keys hit most stay in; then an override flag, then a
  *  weighted roll by groupWeight (default 100). Losers land in `lost` (with
  *  the group and the winner) when the caller passes it. */
 function wiFilterInclusionGroups(list, stickyActive, lost) {
@@ -831,14 +834,19 @@ function wiFilterInclusionGroups(list, stickyActive, lost) {
     let winner;
     if (stickyMember) winner = stickyMember;
     else {
-      const prios = members.filter((m) => m.entry.groupOverride === true || m.entry.groupPrioritize === true)
+      let pool = members;
+      if (members.some((m) => m.groupScoring)) {
+        const best = Math.max(...members.map((m) => m.score || 0));
+        pool = members.filter((m) => (m.score || 0) === best);
+      }
+      const prios = pool.filter((m) => m.entry.groupOverride === true || m.entry.groupPrioritize === true)
         .sort((a, b) => ((a.entry.order ?? 100) - (b.entry.order ?? 100)));
       if (prios.length) winner = prios[0];
       else {
         const weight = (m) => (typeof m.entry.groupWeight === "number" && m.entry.groupWeight > 0 ? m.entry.groupWeight : 100);
-        let roll = Math.random() * members.reduce((acc, m) => acc + weight(m), 0);
-        winner = members[members.length - 1];
-        for (const m of members) { roll -= weight(m); if (roll <= 0) { winner = m; break; } }
+        let roll = Math.random() * pool.reduce((acc, m) => acc + weight(m), 0);
+        winner = pool[pool.length - 1];
+        for (const m of pool) { roll -= weight(m); if (roll <= 0) { winner = m; break; } }
       }
     }
     for (const m of members) if (m !== winner) {
@@ -999,7 +1007,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
         .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
         .filter(Boolean);
     } catch {
-      return { before: [], after: [], depth: [], trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: 0 };
+      return { before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [], trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: 0 };
     }
     // A book scans only when it is in THIS chat's scope — bound
     // to the chat, embedded in / linked to the character, or global (the app
@@ -1029,6 +1037,8 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     if (st.recursiveScan === true) bookCfg.recursive = true;
     if (st.recursiveScan === false && bookCfg.recursive === null) bookCfg.recursive = false;
     if (typeof st.maxRecursion === "number" && st.maxRecursion > bookCfg.maxRecursion) bookCfg.maxRecursion = Math.floor(st.maxRecursion);
+    if (st.includeNames === true) bookCfg.includeNames = true;
+    if (!bookCfg.strategy && typeof st.insertionStrategy === "string") bookCfg.strategy = st.insertionStrategy;
   }
   const scanDepth = typeof cfg.scanDepth === "number" && cfg.scanDepth > 0 ? Math.floor(cfg.scanDepth)
     : bookCfg.scanDepth > 0 ? bookCfg.scanDepth : 4;
@@ -1038,6 +1048,28 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   // min activations (ST): too few entries fired -> scan deeper into the history
   const minActivations = typeof cfg.minActivations === "number" && cfg.minActivations > 0 ? Math.floor(cfg.minActivations) : bookCfg.minActivations;
   const minDepthMax = typeof cfg.minActivationsDepthMax === "number" && cfg.minActivationsDepthMax > 0 ? Math.floor(cfg.minActivationsDepthMax) : bookCfg.minActivationsDepthMax;
+  // include names: the scan sees "Name: text", so a speaker's name can be a key
+  const includeNames = typeof cfg.includeNames === "boolean" ? cfg.includeNames : bookCfg.includeNames === true;
+  // insertion strategy: whose entries come first (and claim the budget first)
+  const strategy = ["evenly", "character_first", "global_first"].includes(cfg.insertionStrategy) ? cfg.insertionStrategy
+    : ["character_first", "global_first"].includes(bookCfg.strategy) ? bookCfg.strategy : "evenly";
+  const charBooks = new Set(Array.isArray(options.characterBookIds) ? options.characterBookIds : []);
+  // filters: who speaks (id, name, card tags) and the generation type; absent = not filtered
+  const speaker = options.speaker && typeof options.speaker === "object" ? options.speaker : null;
+  const speakerKeys = speaker ? new Set([speaker.id, speaker.name].filter(Boolean).map((x) => String(x).toLowerCase())) : null;
+  const speakerTags = speaker ? new Set((Array.isArray(speaker.tags) ? speaker.tags : []).map((x) => String(x).toLowerCase())) : null;
+  const genTypes = Array.isArray(options.genTypes) && options.genTypes.length ? options.genTypes : null;
+  const filterOut = (entry) => {
+    const trig = Array.isArray(entry.triggerFilters) ? entry.triggerFilters.filter((x) => typeof x === "string" && x) : [];
+    if (trig.length && genTypes && !genTypes.some((g) => trig.includes(g))) return { reason: "trigger", detail: trig.join(", ") };
+    const names = Array.isArray(entry.characterFilter) ? entry.characterFilter.filter(Boolean).map((x) => String(x).toLowerCase()) : [];
+    const tags = Array.isArray(entry.tagFilter) ? entry.tagFilter.filter(Boolean).map((x) => String(x).toLowerCase()) : [];
+    if ((names.length || tags.length) && speakerKeys) {
+      const hit = names.some((x) => speakerKeys.has(x)) || tags.some((t) => speakerTags.has(t));
+      if (entry.characterFilterExclude === true ? hit : !hit) return { reason: "character", detail: entry.characterFilterExclude === true ? "excluded" : "not listed" };
+    }
+    return null;
+  };
 
   // flattened, order-sorted entries with stable per-book ids
   const items = [];
@@ -1046,7 +1078,12 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     const bs = book.settings && typeof book.settings === "object" ? book.settings : {};
     entries.forEach((entry, i) => {
       if (entry.enabled === false) return;
-      items.push({ entry, book: book.name || book.id || "", bookSettings: bs, vec: book.vectorized, id: (book.id || book.name) + "#" + (entry.uid ?? i) });
+      items.push({
+        entry, book: book.name || book.id || "", bookSettings: bs, vec: book.vectorized, id: (book.id || book.name) + "#" + (entry.uid ?? i),
+        fmt: typeof book.formatTemplate === "string" ? book.formatTemplate : "",
+        rank: strategy === "character_first" ? (charBooks.has(book.id) ? 0 : 1) : strategy === "global_first" ? (book.globalActive === true ? 0 : 1) : 0,
+        groupScoring: typeof entry.groupScoringOverride === "boolean" ? entry.groupScoringOverride : bs.groupScoring === true,
+      });
     });
   }
   const entryById = new Map(items.map((x) => [x.id, x.entry]));
@@ -1095,7 +1132,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const blocked = new Map();
   const rolledOut = new Set(); // lost the probability roll: one roll per activation
   const windowOf = (n) => {
-    const raw = dialogue.slice(-n).map((m) => m.text).join("\n");
+    const raw = dialogue.slice(-n).map((m) => (includeNames && m.name ? m.name + ": " : "") + m.text).join("\n");
     return { raw, low: raw.toLowerCase() };
   };
   // entries with matchSources key off the card fields too: per-entry flags
@@ -1134,7 +1171,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       }
       if (parts.length) { text = text + "\n" + parts.join("\n"); raw = raw + "\n" + partsRaw.join("\n"); }
     }
-    return wiEntryMatch(eff, text, raw);
+    return wiEntryMatch(eff, text, raw, item.groupScoring && !!entry.group);
   };
   const block = (item, reason, extra) => blocked.set(item.id, { item, reason, ...extra });
 
@@ -1154,9 +1191,14 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           const { entry, id } = item;
           if (seen.has(id) || rolledOut.has(id)) continue;
           const constant = isConstantEntry(entry);
+          const filtered = filterOut(entry);
           const st = stickyLive(id);
           // held back: say why only for entries whose keys would hit now
           const wouldHit = () => constant || (() => { const m = matchEntry(item, win, firstPass); return m && !m.fail ? m : null; })();
+          if (filtered) {
+            if (!blocked.has(id) && wouldHit()) block(item, filtered.reason, { detail: filtered.detail });
+            continue;
+          }
           if (typeof entry.delay === "number" && entry.delay > 0 && tick < entry.delay) {
             if (wouldHit()) block(item, "delay", { detail: entry.delay });
             continue;
@@ -1185,6 +1227,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
             if (c != null && c >= threshold) vecScore = Math.round(c * 100) / 100;
           }
           let why;
+          let score = 0;
           if (st) why = { via: "sticky" };
           else if (constant) why = { via: "constant" };
           else if (vecScore != null) why = { via: "vector", score: vecScore };
@@ -1193,6 +1236,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
             if (!m) continue;
             if (m.fail) { block(item, "secondary", { key: m.key, secondary: m.secondary, detail: entry.selectiveLogic || "AND_ANY" }); continue; }
             why = { via: "key", key: m.key, ...(m.secondary.length ? { secondary: m.secondary } : {}) };
+            score = m.score || 0;
           }
           // probability: rolled once; dry runs (status, keyword test) never roll and say the chance
           const prob = typeof entry.probability === "number" && entry.probability < 100 ? Math.max(0, entry.probability) : null;
@@ -1206,7 +1250,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           }
           seen.add(id);
           blocked.delete(id);
-          newly.push({ ...item, sticky: !!st, why: { ...why, pass: passBase + pass, depth: depthNow } });
+          newly.push({ ...item, score, sticky: !!st, why: { ...why, pass: passBase + pass, depth: depthNow } });
         }
         const lost = [];
         newly = wiFilterInclusionGroups(newly, stickyLive, lost);
@@ -1240,38 +1284,44 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
 
   // trace/skipped/blocked feed the app's "active entries" viewer — what
   // fired, what the budget cut and what was held back, with the reasons
-  const out = { before: [], after: [], depth: [], trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: depthNow };
+  const out = {
+    before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [],
+    trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: depthNow,
+  };
+  const textOf = (x) => wiFormat(x.fmt, String(x.entry.content || "").trim());
   // The budget is claimed in order-DESCENDING priority (higher
   // order wins, constants NOT exempt); ignoreBudget entries are always
   // included but their content still consumes budget for later entries
-  const byPriority = activated.slice().sort((x, y) => ((y.entry.order ?? 100) - (x.entry.order ?? 100)));
+  const byPriority = activated.slice().sort((x, y) => (x.rank - y.rank) || ((y.entry.order ?? 100) - (x.entry.order ?? 100)));
   const admitted = new Set();
   let used = 0;
-  for (const { entry } of byPriority) {
-    const c = String(entry.content || "").trim();
+  for (const x of byPriority) {
+    const c = textOf(x);
     if (!c) continue;
     used += c.length;
-    if (entry.ignoreBudget === true || used <= budget) admitted.add(entry);
+    if (x.entry.ignoreBudget === true || used <= budget) admitted.add(x);
   }
   out.used = Math.min(used, budget);
-  // prompt emission stays in ACTIVATION order (ascending order — the final
-  // WI block runs order 1 → 999, top to bottom)
-  for (const { entry, book, sticky, why, group } of activated) {
-    const c = String(entry.content || "").trim();
+  // prompt emission: ascending order (the WI block runs order 1 -> 999, top to
+  // bottom), after the insertion strategy's book rank
+  const byOrder = activated.slice().sort((x, y) => (x.rank - y.rank) || ((x.entry.order ?? 100) - (y.entry.order ?? 100)));
+  for (const x of byOrder) {
+    const { entry, book, sticky, why, group } = x;
+    const c = textOf(x);
     if (!c) continue;
+    const position = WI_POSITIONS[entry.position] ? entry.position : "before_char";
     const rec = {
       book, uid: entry.uid ?? null,
       title: wiTitle(entry),
-      chars: c.length, constant: isConstantEntry(entry),
+      chars: c.length, constant: isConstantEntry(entry), position,
       ...(sticky ? { sticky: true } : {}),
       ...why,
       ...(group ? { group } : {}),
     };
-    if (!admitted.has(entry)) { out.skipped.push({ ...rec, reason: "budget" }); continue; }
+    if (!admitted.has(x)) { out.skipped.push({ ...rec, reason: "budget" }); continue; }
     out.trace.push(rec);
-    if (entry.position === "after_char") out.after.push(c);
-    else if (entry.position === "at_depth") out.depth.push({ depth: Math.max(0, Math.floor(entry.depth ?? 4)), role: entry.role === "assistant" ? "assistant" : entry.role === "user" ? "user" : "system", content: c });
-    else out.before.push(c);
+    if (position === "at_depth") out.depth.push({ depth: Math.max(0, Math.floor(entry.depth ?? 4)), role: entry.role === "assistant" ? "assistant" : entry.role === "user" ? "user" : "system", content: c });
+    else out[WI_POSITIONS[position]].push(c);
   }
   for (const b of blocked.values()) {
     const { item, ...rest } = b;
@@ -1282,6 +1332,20 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
 }
 function wiTitle(entry) {
   return entry.title || entry.comment || (entry.keys || []).join(", ") || "untitled";
+}
+// where an entry's position puts it in activateWorldInfo's result
+// (before/after_examples are the editor's other names for before/after_em)
+const WI_POSITIONS = {
+  before_char: "before", after_char: "after", at_depth: "depth",
+  before_em: "emBefore", before_examples: "emBefore", after_em: "emAfter", after_examples: "emAfter",
+  before_an: "anTop", after_an: "anBottom",
+};
+/** The book's format template around an entry: {{original}} (or ST's {0}) marks the content. */
+function wiFormat(fmt, c) {
+  if (!c || typeof fmt !== "string" || !fmt.trim()) return c;
+  if (fmt.includes("{{original}}")) return fmt.split("{{original}}").join(c);
+  if (fmt.includes("{0}")) return fmt.split("{0}").join(c);
+  return fmt + "\n" + c;
 }
 
 // ---------- chat file helpers ----------
@@ -1415,6 +1479,17 @@ function chatMembers(fsx, meta) {
  * msgs = messages BEFORE the reply being generated (already includes any
  * pending user message the caller staged). speaker = the member replying.
  */
+/** Lorebook ids the cards carry (own book + linked ones): "character" books for the insertion strategy. */
+function cardBookIds(cards) {
+  const out = [];
+  for (const c of cards) {
+    const st = c && c.studio && typeof c.studio === "object" ? c.studio : null;
+    if (!st) continue;
+    if (typeof st.embeddedLorebookId === "string") out.push(st.embeddedLorebookId);
+    if (Array.isArray(st.linkedLorebookIds)) out.push(...st.linkedLorebookIds.filter((x) => typeof x === "string"));
+  }
+  return out;
+}
 /** The preset the user marked as default; the stock file when none is. */
 function defaultPresetId(fsx) {
   try {
@@ -1469,6 +1544,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     {
       dryRun: !!(opts && opts.dryRun), config: preset && preset.studio && preset.studio.worldInfo,
       scanVec: opts && opts.scanVec ? opts.scanVec : null,
+      speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
+      genTypes,
+      characterBookIds: cardBookIds(members.map((m) => m.card)),
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -1501,6 +1579,18 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     ? members.filter((m) => !((groupCfg.mutedIds || []).includes(m.id)) || (speaker && m.id === speaker.id))
     : [];
   const joined = (pick) => rosterMembers.map((m) => (m.card && pick(m.card) ? "[" + m.card.name + "]\n" + pick(m.card) : null)).filter(Boolean).join("\n\n");
+  // regex scripts — shared machinery (scope/placement/depth gates, studio
+  // replace semantics); imported patterns are length-capped there so a bad
+  // regex costs a hiccup, not a hang
+  const scripts = loadRegexScripts(fsx);
+  // only prompt-stage scripts run here: stored rewrites are already baked
+  // into the saved text, and preset sections are never regexed
+  const rx = (text, placement, depth) => runRegexScripts(scripts, meta, members, text, [placement], depth, mc, "prompt");
+  const rxWI = (text) => runRegexScripts(scripts, meta, members, text, ["wi"], null, mc, "prompt");
+
+  const sub = (t) => expandMacros(t, mc);
+  const subWI = (t) => expandMacros(rxWI(t), mc);
+
   const markers = {
     main: speakerCard && speakerCard.system_prompt && speakerCard.system_prompt.trim()
       ? speakerCard.system_prompt
@@ -1515,8 +1605,12 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     worldInfoAfter: wi.after.length ? wi.after.join("\n") : "",
     // <START> separators become the example-chat marker line — a readable
     // block boundary instead of a literal tag the model might echo back
-    dialogueExamples: (rosterMembers.length ? joined((c) => c.mes_example) : (speakerCard && speakerCard.mes_example ? speakerCard.mes_example : ""))
-      .replace(/<START>/gi, "[Example Chat]"),
+    dialogueExamples: [
+      wi.emBefore.length ? rxWI(wi.emBefore.join("\n")) : "",
+      (rosterMembers.length ? joined((c) => c.mes_example) : (speakerCard && speakerCard.mes_example ? speakerCard.mes_example : ""))
+        .replace(/<START>/gi, "[Example Chat]"),
+      wi.emAfter.length ? rxWI(wi.emAfter.join("\n")) : "",
+    ].filter((x) => x.trim()).join("\n"),
     chatHistory: "", // history rides the message array
     postHistory: speakerCard && speakerCard.post_history_instructions ? speakerCard.post_history_instructions : "",
   };
@@ -1528,17 +1622,6 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
   }
 
-  // regex scripts — shared machinery (scope/placement/depth gates, studio
-  // replace semantics); imported patterns are length-capped there so a bad
-  // regex costs a hiccup, not a hang
-  const scripts = loadRegexScripts(fsx);
-  // only prompt-stage scripts run here: stored rewrites are already baked
-  // into the saved text, and preset sections are never regexed
-  const rx = (text, placement, depth) => runRegexScripts(scripts, meta, members, text, [placement], depth, mc, "prompt");
-  const rxWI = (text) => runRegexScripts(scripts, meta, members, text, ["wi"], null, mc, "prompt");
-
-  const sub = (t) => expandMacros(t, mc);
-  const subWI = (t) => expandMacros(rxWI(t), mc);
 
   // prompt entries → ordered {role, content} parts. The engine builds marker
   // CONTENT (card fields, world info, …) but the preset entry decides the ROLE
@@ -1578,6 +1661,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   };
   const before = []; // parts above the chat-history position
   const after = [];  // parts below it (post-history instructions)
+  const placed = new Set(); // markers the preset placed this turn
   let sawHistory = false;
   const depthInj = [];
   // rows collect first so CONSECUTIVE same-group sections can merge into one
@@ -1592,6 +1676,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // absent/empty = always) — the engine maps its ops onto those types
     const trig = bagSec && Array.isArray(bagSec.injectionTriggers) && bagSec.injectionTriggers.length ? bagSec.injectionTriggers : null;
     if (trig && genTypes && !genTypes.some((g) => trig.includes(g))) continue;
+    if (p.marker) placed.add(p.identifier);
     let raw;
     if (p.marker && p.identifier === "main") {
       // main prompt: the character card's system_prompt wins; the preset's own
@@ -1599,9 +1684,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       // entry marked "forbid overrides" keeps the preset's text instead — the
       // card doesn't get to speak over it.
       raw = String(markers.main || "").trim() && !(bagSec && bagSec.forbidOverrides) ? String(markers.main) : String(p.content || "");
+    } else if (p.marker && (p.identifier === "worldInfoBefore" || p.identifier === "worldInfoAfter")) {
+      // world-info markers: the entries; the preset's own text is a heading over them
+      const own = String(p.content || "").trim();
+      const entries = markers[p.identifier] || "";
+      raw = own && entries ? own + "\n" + entries : entries;
     } else if (p.marker) {
       // other markers: engine-built text, overridable by preset content.
-      // world-info markers run the WI-aware regex pass (wi + prompt scripts).
       raw = String(p.content || "").trim() ? String(p.content) : (markers[p.identifier] != null ? String(markers[p.identifier]) : "");
     } else {
       raw = String(p.content || "");
@@ -1629,6 +1718,16 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     i = j;
   }
 
+  // world info whose marker the preset does not place is not dropped: it joins
+  // the end of the system block (the "why" viewer shows it as placed)
+  for (const [id, text] of [["worldInfoBefore", markers.worldInfoBefore], ["worldInfoAfter", markers.worldInfoAfter]]) {
+    if (!placed.has(id) && text) before.push({ role: "system", content: subWI(text) });
+  }
+  if (!placed.has("dialogueExamples")) {
+    const em = [...wi.emBefore, ...wi.emAfter];
+    if (em.length) before.push({ role: "system", content: subWI(em.join("\n")) });
+  }
+
   // data bank: top chunks relevant to the recent text join the system block
   // (term-scored retrieval over enabled files — basic RAG)
   const dbScan = (pendingUserText ? pendingUserText + "\n" : "") + msgs.slice(-4).map((m) => m.text || "").join("\n");
@@ -1646,12 +1745,18 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     : (meta.authorNote && String(meta.authorNote).trim() ? { text: String(meta.authorNote), position: "in-chat", depth: 4, role: "user" } : null);
   // insertion frequency: every N messages (1 = every generation)
   const anFreq = Math.max(1, Math.floor(Number(an && an.frequency)) || 1);
+  const anWI = [wi.anTop.length ? subWI(wi.anTop.join("\n")) : "", wi.anBottom.length ? subWI(wi.anBottom.join("\n")) : ""];
+  let anPlaced = false;
   if (an && String(an.text || "").trim() && (msgs.length % anFreq === 0 || an.position !== "in-chat")) {
-    const anContent = "[Author's note]\n" + String(an.text);
+    anPlaced = true;
+    const anContent = "[Author's note]\n" + [anWI[0], String(an.text), anWI[1]].filter((x) => x.trim()).join("\n");
     const anRole = an.role === "user" || an.role === "assistant" ? an.role : "system";
     if (an.position === "before-system") before.unshift({ role: anRole, content: anContent });
     else if (an.position === "in-chat") depthInj.push({ depth: injDepth(an.depth, 4), role: anRole, content: anContent });
     else extras.push({ role: anRole, content: anContent });
+  }
+  if (!anPlaced && (anWI[0] || anWI[1])) {
+    depthInj.push({ depth: injDepth(an && an.depth, 4), role: "system", content: anWI.filter(Boolean).join("\n") });
   }
   for (const w of wi.depth) depthInj.push({ depth: w.depth, role: w.role, content: subWI(w.content) });
 
@@ -2563,16 +2668,21 @@ export function handleRoute(req, host) {
     if (!chat) return err(404, "chat not found");
     const personaId = chat.meta.personaId || (() => { try { return JSON.parse(fsx.read("settings.json")).personaId; } catch { return null; } })();
     const persona = personaId ? readJson("personas/" + personaId + ".json", null) : null;
-    const preset = readJson("presets/" + (chat.meta.presetId || "default") + ".json", null);
+    const preset = readJson("presets/" + (chat.meta.presetId || defaultPresetId(fsx)) + ".json", null);
+    // what a normal send by the chat's (first) character would see
+    const members = chatMembers(fsx, chat.meta);
+    const lead = members[0] || null;
     const wi = activateWorldInfo(
       fsx, chat.meta,
       chat.msgs.filter((m) => m.role !== "system" && m.hidden !== true),
       persona?.lorebookIds || [], wiBudgetChars(preset),
       {
         dryRun: true, config: preset && preset.studio && preset.studio.worldInfo,
+        speaker: lead ? { id: lead.id, name: lead.name, tags: lead.card && lead.card.tags } : null,
+        genTypes: ["normal"],
+        characterBookIds: cardBookIds(members.map((m) => m.card)),
         sources: (() => {
-          const base = chat.meta.characterId ? readJson("characters/" + chat.meta.characterId + "/card.json", null) : null;
-          const card = resolveCardVariants(base, chat.meta.fieldVariantSelection);
+          const card = lead ? lead.card : null;
           return {
             description: card ? card.description : null,
             personality: card ? card.personality : null,
@@ -2610,6 +2720,9 @@ export function handleRoute(req, host) {
       dryRun: true, books, config: preset && preset.studio && preset.studio.worldInfo,
       tick: chat ? chat.msgs.filter((m) => m.role !== "system" && m.hidden !== true).length + 1 : 1,
       sources: card ? { description: card.description, personality: card.personality, scenario: card.scenario } : {},
+      speaker: card ? { id: chat.meta.characterId, name: card.name, tags: card.tags } : null,
+      genTypes: ["normal"],
+      characterBookIds: card ? cardBookIds([card]) : [],
     });
     return ok({ fired: wi.trace, skipped: wi.skipped, blocked: wi.blocked, usedChars: wi.used, budgetChars: wi.budgetChars });
   }

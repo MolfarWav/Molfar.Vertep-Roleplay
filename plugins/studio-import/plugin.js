@@ -383,14 +383,17 @@ function embeddedBookToWorld(raw) {
       matchCharacterPersonality: x.match_character_personality === true,
       matchScenario: x.match_scenario === true,
       ignoreBudget: x.ignore_budget === true,
+      ...(x.character_filter && typeof x.character_filter === "object" ? { characterFilter: x.character_filter } : {}),
+      ...(Array.isArray(x.triggers) ? { triggers: x.triggers } : {}),
     };
   });
   return { entries };
 }
 
 // world_info_position: 0 before-char, 1 after-char, 2 AN-top, 3 AN-bottom,
-// 4 at-depth, 5 EM-top, 6 EM-bottom, 7 outlet. The studio engine models
-// before/after/at_depth — everything else lands after the char block.
+// 4 at-depth, 5 EM-top, 6 EM-bottom, 7 outlet. Outlets are not modelled:
+// they land after the char block.
+const ST_WI_POSITIONS = { 0: "before_char", 1: "after_char", 2: "before_an", 3: "after_an", 4: "at_depth", 5: "before_em", 6: "after_em" };
 // entry role: 0 system, 1 user, 2 assistant.
 function normalizeBook(raw, fallbackName) {
   if (!raw || !raw.entries || typeof raw.entries !== "object") return null;
@@ -403,7 +406,7 @@ function normalizeBook(raw, fallbackName) {
     const content = typeof e.content === "string" ? e.content : "";
     if (!content.trim()) continue;
     const stPos = typeof e.position === "number" ? e.position : 0;
-    const pos = stPos === 0 ? "before_char" : stPos === 4 ? "at_depth" : "after_char";
+    const pos = ST_WI_POSITIONS[stPos] || "after_char";
     // the comment doubles as the entry title/memo — without it every imported
     // entry renders with a blank name
     const comment = typeof e.comment === "string" ? e.comment.trim() : "";
@@ -426,6 +429,15 @@ function normalizeBook(raw, fallbackName) {
       ...(num(e.groupWeight) != null ? { groupWeight: e.groupWeight } : {}),
       ...(e.groupOverride === true ? { groupOverride: true } : {}),
       ...(e.matchWholeWords === false ? { matchWholeWords: false } : {}),
+      ...(typeof e.caseSensitive === "boolean" ? { caseSensitiveOverride: e.caseSensitive } : {}),
+      ...(typeof e.scanDepth === "number" && e.scanDepth > 0 ? { scanDepthOverride: e.scanDepth } : {}),
+      ...(typeof e.useGroupScoring === "boolean" ? { groupScoringOverride: e.useGroupScoring } : {}),
+      // ST: characterFilter {isExclude, names, tags}; triggers = generation types
+      ...(e.characterFilter && typeof e.characterFilter === "object" ? {
+        characterFilter: keyList(e.characterFilter.names), tagFilter: keyList(e.characterFilter.tags),
+        characterFilterExclude: e.characterFilter.isExclude === true,
+      } : {}),
+      ...(Array.isArray(e.triggers) && e.triggers.length ? { triggerFilters: e.triggers.filter((t) => typeof t === "string") } : {}),
       ...(e.excludeRecursion === true ? { nonRecursable: true } : {}),
       ...(e.ignoreBudget === true ? { ignoreBudget: true } : {}),
       ...(e.preventRecursion === true ? { preventFurtherRecursion: true } : {}),

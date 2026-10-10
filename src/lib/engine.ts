@@ -1066,13 +1066,16 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
 // ─────────────────────────────────────────────────────────────────────────────
 // Lorebook adapter
 // ─────────────────────────────────────────────────────────────────────────────
+// the engine places every position (0.9.4); before/after_examples are the same place as before/after_em
 const POS_TO_ENGINE: Record<string, string> = {
-  before_char: 'before_char', before_em: 'before_char', before_an: 'before_char', before_examples: 'before_char',
-  after_char: 'after_char', after_em: 'after_char', after_an: 'after_char', after_examples: 'after_char',
+  before_char: 'before_char', before_em: 'before_em', before_an: 'before_an', before_examples: 'before_em',
+  after_char: 'after_char', after_em: 'after_em', after_an: 'after_an', after_examples: 'after_em',
   at_depth: 'at_depth',
 }
 const ENGINE_TO_POS: Record<string, LoreEntry['position']> = {
   before_char: 'before_char', after_char: 'after_char', at_depth: 'at_depth',
+  before_em: 'before_em', after_em: 'after_em', before_an: 'before_an', after_an: 'after_an',
+  before_examples: 'before_em', after_examples: 'after_em',
 }
 
 /** Import lorebook files. A native studio book is stored verbatim; anything
