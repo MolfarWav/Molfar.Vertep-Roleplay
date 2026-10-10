@@ -28,6 +28,7 @@ import { SamplersPanel } from '@/components/views/samplers-panel'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { PresetDiffDialog } from '@/components/presets/preset-diff-dialog'
 import { ShapingPanel } from '@/components/presets/shaping-panel'
+import { VariablesPanel } from '@/components/presets/variables-panel'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
 
 const triggerOptions = ['normal', 'continue', 'impersonate', 'swipe', 'regenerate', 'quiet']
@@ -316,34 +317,7 @@ export function PresetsView() {
                   ))}
                 </TabsContent>
                 <TabsContent value="variables" className="mx-auto flex max-w-2xl flex-col gap-2">
-                  <p className="text-xs text-muted-foreground">Typed variables usable in prompt sections via {'{{var:name}}'} macros. Values are picked per chat.</p>
-                  {preset.variables.map((v) => (
-                    <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
-                      <code className="text-xs text-primary">{'{{var:' + v.name + '}}'}</code>
-                      <Input
-                        value={v.label} disabled={preset.readOnly} aria-label={`Label for ${v.name}`}
-                        className="h-7 w-32 text-xs"
-                        onChange={(e) => updatePreset(preset.id, { variables: preset.variables.map((x) => x.id === v.id ? { ...x, label: e.target.value } : x) })}
-                      />
-                      <Badge variant="outline" className="text-[10px]">{v.type}</Badge>
-                      {v.options && <span className="text-[11px] text-muted-foreground">{v.options.join(' / ')}</span>}
-                      <Input
-                        value={v.defaultValue} disabled={preset.readOnly} aria-label={`Default for ${v.name}`}
-                        className="ml-auto h-7 w-28 text-xs"
-                        onChange={(e) => updatePreset(preset.id, { variables: preset.variables.map((x) => x.id === v.id ? { ...x, defaultValue: e.target.value } : x) })}
-                      />
-                      {!preset.readOnly && (
-                        <Button variant="ghost" size="icon-sm" className="size-6 p-0 text-muted-foreground hover:text-destructive" aria-label={`Delete ${v.name}`}
-                          onClick={() => updatePreset(preset.id, { variables: preset.variables.filter((x) => x.id !== v.id) })}>
-                          <X className="size-3.5" aria-hidden="true" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button variant="outline" size="sm" className="w-fit text-xs" disabled={preset.readOnly}
-                    onClick={() => { const name = `var${preset.variables.length + 1}`; updatePreset(preset.id, { variables: [...preset.variables, { id: uid('var'), name, label: name, type: 'text', defaultValue: '' }] }); toast.success(`Added {{var:${name}}}, edit it below`) }}>
-                    <Plus className="size-3.5" aria-hidden="true" />Add variable
-                  </Button>
+                  <VariablesPanel preset={preset} />
                 </TabsContent>
                 <TabsContent value="regex" className="mx-auto flex max-w-2xl flex-col gap-2">
                   <PresetRegexPanel preset={preset} />
