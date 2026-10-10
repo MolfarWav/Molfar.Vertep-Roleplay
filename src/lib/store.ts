@@ -247,7 +247,6 @@ interface AppState {
   convertCharacterToPersona: (id: ID, opts?: { overwrite?: boolean }) => ID | null
   updatePersona: (id: ID, patch: Partial<Persona>) => void
   usePersona: (id: ID) => void
-  usePreset: (id: ID) => void
   addPersona: (init?: Partial<Persona> & { id?: ID }) => ID
   duplicatePersona: (id: ID) => ID
   deletePersona: (id: ID) => void
@@ -1727,17 +1726,6 @@ export const useApp = create<AppState>()(
         if (!persona.isDefault) get().updatePersona(id, { isDefault: true })
         const chat = activeChatId ? chats.find((c) => c.id === activeChatId) : null
         if (chat && chat.personaId !== id) get().updateChat(chat.id, { personaId: id })
-      },
-      usePreset: (id) => {
-        const { presets, chats, activeChatId } = get()
-        const preset = presets.find((x) => x.id === id)
-        if (!preset) return
-        // same rule as personas: new chats start with it and the open chat
-        // swaps to it on the spot (every chat stores its own preset, so the
-        // default alone would leave the open one where it was)
-        if (!preset.isDefault) get().updatePreset(id, { isDefault: true })
-        const chat = activeChatId ? chats.find((c) => c.id === activeChatId) : null
-        if (chat && chat.presetId !== id) get().updateChat(chat.id, { presetId: id })
       },
       addPersona: (init) => {
         bumpMutate()

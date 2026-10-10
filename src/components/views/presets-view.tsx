@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react'
-import { SlidersHorizontal, Plus, Copy, Trash, Lock, SealCheck, Eye, CaretDown, DownloadSimple, UploadSimple, ArrowsOut, X, GitDiff, Books as LibraryIcon, DotsSixVertical, Star, DotsThreeVertical, PencilSimple } from '@phosphor-icons/react'
+import { SlidersHorizontal, Plus, Copy, Trash, Lock, SealCheck, Eye, CaretDown, DownloadSimple, UploadSimple, ArrowsOut, X, GitDiff, Books as LibraryIcon, DotsSixVertical, Star, DotsThreeVertical, PencilSimple, ChatCircle } from '@phosphor-icons/react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -68,7 +68,7 @@ const UTILITY_PROMPT_META: Record<
 export function PresetsView() {
   const presets = useApp((s) => s.presets)
   const updatePreset = useApp((s) => s.updatePreset)
-  const usePreset = useApp((s) => s.usePreset)
+  const setChatPreset = useApp((s) => s.setChatPreset)
   const duplicatePreset = useApp((s) => s.duplicatePreset)
   const deletePreset = useApp((s) => s.deletePreset)
   const activeChatId = useApp((s) => s.activeChatId)
@@ -83,6 +83,15 @@ export function PresetsView() {
     ? activePresetId
     : (presets.find((p) => p.isDefault)?.id ?? null)
   const [selectedId, setSelectedId] = useState(__focus ?? activeId ?? presets[0]?.id ?? null)
+  // two separate things, as in the chat's own Preset panel: this chat only, and what new chats start with
+  const useInChat = (p: { id: ID; name: string }) => {
+    if (!activeChatId) return
+    void setChatPreset(activeChatId, { presetId: p.id }).then(() => toast.success(t('preset.usingInChat', { name: p.name })))
+  }
+  const makeDefault = (p: { id: ID; name: string }) => {
+    updatePreset(p.id, { isDefault: true })
+    toast.success(t('pc.madeDefault', { name: p.name }))
+  }
   const [detailOpen, setDetailOpen] = useState(false)
   const [peekOpen, setPeekOpen] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
@@ -167,8 +176,13 @@ export function PresetsView() {
                     </Button>
                   } />
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled={p.id === activeId} onClick={() => { usePreset(p.id); toast.success(`Using preset: ${p.name}`) }}>
-                      <Star className="size-4" aria-hidden="true" />Use this preset
+                    {activeChatId && (
+                      <DropdownMenuItem disabled={p.id === activePresetId} onClick={() => useInChat(p)}>
+                        <ChatCircle className="size-4" aria-hidden="true" />{t('preset.useInChat')}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem disabled={p.isDefault} onClick={() => makeDefault(p)} title={t('pc.makeDefaultTip')}>
+                      <Star className="size-4" aria-hidden="true" />{t('pc.makeDefault')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => { const id = duplicatePreset(p.id); select(id) }}>
                       <Copy className="size-4" aria-hidden="true" />Duplicate
@@ -246,7 +260,12 @@ export function PresetsView() {
                   <Button variant="ghost" size="sm" onClick={() => { const id = duplicatePreset(preset.id); setSelectedId(id) }} aria-label="Duplicate preset">
                     <Copy className="size-4" aria-hidden="true" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => { usePreset(preset.id); toast.success(`Using preset: ${preset.name}`) }} disabled={preset.id === activeId} className="text-sm">Use this preset</Button>
+                  {activeChatId && (
+                    <Button variant="ghost" size="sm" onClick={() => useInChat(preset)} disabled={preset.id === activePresetId} className="text-sm">{t('preset.useInChat')}</Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => makeDefault(preset)} disabled={preset.isDefault} title={t('pc.makeDefaultTip')} className="text-sm">
+                    <Star className="size-4" aria-hidden="true" />{preset.isDefault ? t('pc.default') : t('pc.makeDefault')}
+                  </Button>
                   <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void confirm({
                     title: `Delete ${preset.name}?`,
                     description: 'The preset file is removed from disk. Chats that used it fall back to the default.',
