@@ -369,7 +369,7 @@ function embeddedBookToWorld(raw) {
       position: typeof x.position === "number" ? x.position : entry.position === "before_char" ? 0 : 1,
       disable: entry.enabled === false,
       excludeRecursion: x.exclude_recursion === true, preventRecursion: x.prevent_recursion === true,
-      delayUntilRecursion: x.delay_until_recursion === true,
+      delayUntilRecursion: typeof x.delay_until_recursion === "number" ? x.delay_until_recursion : x.delay_until_recursion === true,
       probability: x.probability, useProbability: x.useProbability,
       depth: x.depth, selectiveLogic: x.selectiveLogic,
       group: x.group, groupOverride: x.group_override === true, groupWeight: x.group_weight,
@@ -1686,6 +1686,10 @@ export function handleRoute(req, host) {
   const lower = (v) => String(v ?? "").toLowerCase();
   const writeBook = (n, fallback, studio) => {
     if (!n) return;
+    // our own backups carry the app's file: every field survives
+    if (studio && studio.native && typeof studio.native === "object" && Array.isArray(studio.native.entries)) {
+      n = { ...studio.native, name: n.name || studio.native.name };
+    }
     const id = uid(slug(n.name || fallback || "book"), "lorebooks");
     // book-level knobs an export carries alongside the public entry list:
     // without them a restored book comes back switched off, with stock scan
@@ -1695,13 +1699,24 @@ export function handleRoute(req, host) {
           ...(studio.settings ? { settings: studio.settings } : {}),
           ...(studio.globalActive === true ? { globalActive: true } : {}),
           ...(studio.folderId ? { folderId: studio.folderId } : {}),
-          ...(studio.vectorized === true ? { vectorized: true } : {}),
-          ...(Array.isArray(studio._linkedNames) && studio._linkedNames.length
-            ? { linkedCharacterIds: studio._linkedNames.map((nm) => charIdByName().get(lower(nm))).filter(Boolean) }
-            : {}),
         }
       : {};
     writeJson("lorebooks/" + id + ".json", { ...n, ...extra, id });
+    // links live on the cards: point the named cards at the new id
+    if (studio && typeof studio === "object") {
+      const byName = charIdByName();
+      const relink = (names, edit) => {
+        for (const nm of Array.isArray(names) ? names : []) {
+          const cid = byName.get(lower(nm));
+          const card = cid ? readJson("characters/" + cid + "/card.json", null) : null;
+          if (!card) continue;
+          card.studio = edit(card.studio && typeof card.studio === "object" ? { ...card.studio } : {});
+          writeJson("characters/" + cid + "/card.json", card);
+        }
+      };
+      relink(studio._linkedNames, (st) => ({ ...st, linkedLorebookIds: [...new Set([...(Array.isArray(st.linkedLorebookIds) ? st.linkedLorebookIds : []), id])] }));
+      relink(studio._embeddedFor, (st) => ({ ...st, embeddedLorebookId: id }));
+    }
     bookIdByName.set(lower(n.name || fallback), id);
     summary.lorebooks.push(id);
   };

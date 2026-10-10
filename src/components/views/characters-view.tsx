@@ -26,7 +26,7 @@ import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
-import { characterToCard } from '@/lib/engine'
+import { characterToExportCard } from '@/lib/engine'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
 import { importCardFiles, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 import { downloadJson } from '@/lib/interop'
@@ -103,7 +103,7 @@ export function CharactersView() {
   /** Real export: V2 PNG card with the JSON spliced into a tEXt chunk. */
   const exportPng = async (c: (typeof characters)[number]) => {
     try {
-      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToCard(c))
+      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToExportCard(c, useApp.getState().lorebooks))
       downloadCardPng(bytes, c.name)
       toast.success(`Exported ${c.name} as a PNG card`)
     } catch (e) {
@@ -274,7 +274,7 @@ export function CharactersView() {
             <span className="text-xs text-muted-foreground">{selected.length} selected</span>
             <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => {
               const picked = characters.filter((c) => selected.includes(c.id) && !c.isGroup)
-              downloadJson(picked.map((c) => characterToCard(c)), `characters-${picked.length}`)
+              downloadJson(picked.map((c) => characterToExportCard(c, useApp.getState().lorebooks)), `characters-${picked.length}`)
               setSelected([])
               toast.success(`Exported ${picked.length} card${picked.length === 1 ? '' : 's'} as JSON`)
             }}>

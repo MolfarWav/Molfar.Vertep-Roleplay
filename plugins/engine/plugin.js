@@ -2748,7 +2748,11 @@ export function handleRoute(req, host) {
         if (!card) continue;
         const file = uname(slug(card.name || cid), ".json");
         files.push({ name: "characters/" + file, text: JSON.stringify(card, null, 2) });
-        chars.push({ id: cid, slug: file.replace(/\.json$/, ""), name: card.name });
+        const st = card.studio && typeof card.studio === "object" ? card.studio : {};
+        chars.push({
+          id: cid, slug: file.replace(/\.json$/, ""), name: card.name,
+          links: { embedded: st.embeddedLorebookId || null, linked: Array.isArray(st.linkedLorebookIds) ? st.linkedLorebookIds : [] },
+        });
       }
     } catch {}
     const groups = [];
@@ -2891,8 +2895,11 @@ export function handleRoute(req, host) {
               settings: book.settings ?? null,
               globalActive: book.globalActive === true,
               folderId: book.folderId ?? null,
-              vectorized: book.vectorized === true,
-              _linkedNames: namesOf(book.linkedCharacterIds, idToName),
+              // the app's own file, so a restore here loses nothing the public shape cannot carry
+              native: { ...book, id: undefined, linkedCharacterIds: undefined },
+              // the cards that use the book (the card side is where links live)
+              _linkedNames: chars.filter((c) => c.links.linked.includes(book.id)).map((c) => c.name),
+              _embeddedFor: chars.filter((c) => c.links.embedded === book.id).map((c) => c.name),
             },
           }, null, 2),
         });

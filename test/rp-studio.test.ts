@@ -2480,10 +2480,14 @@ describe("rp studio: backup zips survive the trip", () => {
   it("keeps a lorebook's own settings and its link to a card", async () => {
     const m = mockHost();
     fs.writeFileSync(path.join(root, "lorebooks", "b1.json"), JSON.stringify({
-      id: "b1", name: "City Lore", globalActive: true, linkedCharacterIds: ["aria"],
+      id: "b1", name: "City Lore", globalActive: true,
       settings: { scanDepth: 9, contextPercent: 40, recursiveScan: false },
-      entries: [{ uid: 0, title: "Docks", memo: "Docks", keys: ["docks"], content: "Cold water.", enabled: true, order: 100, position: "after_char" }],
+      entries: [{ uid: 0, title: "Docks", memo: "Docks", keys: ["docks"], content: "Cold water.", enabled: true, order: 100, position: "after_an", wordFormsOverride: false }],
     }));
+    // the link lives on the card
+    const ariaFile = path.join(root, "characters", "aria", "card.json");
+    const aria = JSON.parse(fs.readFileSync(ariaFile, "utf8"));
+    fs.writeFileSync(ariaFile, JSON.stringify({ ...aria, studio: { ...(aria.studio ?? {}), linkedLorebookIds: ["b1"] } }));
     const entries = await exportEntries(m);
     const m2 = mockHost();
     (m2.host as { zip: unknown }).zip = { entries: () => entries, list: () => Object.keys(entries).length };
@@ -2492,10 +2496,14 @@ describe("rp studio: backup zips survive the trip", () => {
     const book = JSON.parse(fs.readFileSync(path.join(root, "lorebooks", `${bookId}.json`), "utf8")) as Record<string, unknown>;
     expect(book.globalActive).toBe(true);
     expect((book.settings as { scanDepth: number }).scanDepth).toBe(9);
-    // linked by NAME across the trip: it lands on whichever id this workspace
-    // minted for Aria, not the id the other machine used
-    const linked = (book.linkedCharacterIds as string[])[0]!;
-    expect(JSON.parse(fs.readFileSync(path.join(root, "characters", linked, "card.json"), "utf8")).name).toBe("Aria");
+    // the app's own fields survive (the native book rides the backup)
+    expect((book.entries as Record<string, unknown>[])[0]).toMatchObject({ position: "after_an", wordFormsOverride: false });
+    // linked by NAME across the trip: the card this workspace knows as Aria
+    // now points at the new book id, not the id the other machine used
+    const linkedCards = fs.readdirSync(path.join(root, "characters"))
+      .map((cid) => JSON.parse(fs.readFileSync(path.join(root, "characters", cid, "card.json"), "utf8")))
+      .filter((c) => c.name === "Aria" && (c.studio?.linkedLorebookIds ?? []).includes(bookId));
+    expect(linkedCards.length).toBeGreaterThan(0);
   }, 30_000);
 });
 

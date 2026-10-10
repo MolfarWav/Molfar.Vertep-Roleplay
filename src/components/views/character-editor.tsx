@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { TranslateMenu } from '@/components/character/translate-menu'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
-import { characterToCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
+import { characterToExportCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
 import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
@@ -92,7 +92,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
   const exportPng = async () => {
     try {
-      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToCard(c))
+      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToExportCard(c, lorebooks))
       downloadCardPng(bytes, c.name)
       toast.success(`Exported ${c.name} as a PNG card`)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }

@@ -60,15 +60,20 @@ const opensAsDrawer = (page: ViewKey) => isDesktopViewport() || page === 'chat'
 export type BootState = 'loading' | 'ready' | 'error'
 
 /** Books the engine should scan for a chat: every global book plus the ones
- *  linked to the speaking character (studio semantics — engine honors
- *  meta.lorebookIds as the scope). */
+ *  of the chat's character (its own book and the linked ones; in a group, every
+ *  member's). The engine honors meta.lorebookIds as the scope. */
 function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characters: Character[]): string[] {
   if (!chat) return []
+  const exists = new Set(books.map((b) => b.id))
   const ids = new Set(books.filter((b) => b.globalActive).map((b) => b.id))
   const char = characters.find((c) => c.id === chat.characterId)
-  if (char?.embeddedLorebookId) ids.add(char.embeddedLorebookId)
-  for (const lid of char?.linkedLorebookIds ?? []) ids.add(lid)
-  return [...ids]
+  const cast = char?.isGroup ? (char.members ?? []).map((id) => characters.find((c) => c.id === id)) : [char]
+  for (const c of cast) {
+    if (c?.embeddedLorebookId) ids.add(c.embeddedLorebookId)
+    for (const lid of c?.linkedLorebookIds ?? []) ids.add(lid)
+  }
+  // a deleted book's id may linger on a card
+  return [...ids].filter((id) => exists.has(id))
 }
 
 interface AppState {
@@ -218,7 +223,8 @@ interface AppState {
   updateCharacter: (id: ID, patch: Partial<Character>) => void
   newCharacter: () => ID
   duplicateCharacter: (id: ID) => void
-  deleteCharacter: (id: ID) => void
+  /** withBook: also delete the card's own lorebook when no other card uses it */
+  deleteCharacter: (id: ID, opts?: { withBook?: boolean }) => void
   /** Make a card playable as the user: name, description and avatar move to a
    *  persona ({{char}}/{{user}} trade places). Null when a same-name persona
    *  exists and the caller has not confirmed with { overwrite: true }. */
@@ -1549,7 +1555,10 @@ export const useApp = create<AppState>()(
           .then(() => toast.success(`Duplicated ${c.name}`))
           .catch((e) => { toast.error(String((e as Error).message ?? e)); void get().hydrate() })
       },
-      deleteCharacter: (id) => {
+      deleteCharacter: (id, opts) => {
+        const own = opts?.withBook ? get().characters.find((c) => c.id === id)?.embeddedLorebookId ?? null : null
+        const shared = own != null && get().characters.some((c) => c.id !== id && (c.embeddedLorebookId === own || c.linkedLorebookIds.includes(own)))
+        if (own && !shared) get().deleteLorebook(own)
         bumpMutate()
         set((s) => ({
           characters: s.characters.filter((c) => c.id !== id),
@@ -1753,6 +1762,18 @@ export const useApp = create<AppState>()(
         bumpMutate()
         set((s) => ({ lorebooks: s.lorebooks.filter((b) => b.id !== id) }))
         writeThrough('the lorebook deletion', j(`/lorebooks/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+        // no card or persona keeps pointing at the deleted book
+        for (const c of get().characters) {
+          if (c.embeddedLorebookId === id || c.linkedLorebookIds.includes(id)) {
+            get().updateCharacter(c.id, {
+              embeddedLorebookId: c.embeddedLorebookId === id ? null : c.embeddedLorebookId,
+              linkedLorebookIds: c.linkedLorebookIds.filter((x) => x !== id),
+            })
+          }
+        }
+        for (const per of get().personas) {
+          if (per.lorebookIds.includes(id)) get().updatePersona(per.id, { lorebookIds: per.lorebookIds.filter((x) => x !== id) })
+        }
       },
 
       updateRegex: (id, patch) => {
@@ -2082,10 +2103,10 @@ async function runStream(
   let committed = false
   let committedRes: Record<string, unknown> | null = null
   try {
-    // keep the engine's chat meta in sync with the UI's lorebook bindings
-    if (bookIds.length || (chat.messages.length === 0 && op === 'send')) {
-      await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ lorebookIds: bookIds }), signal: ctrl.signal })
-    }
+    // keep the engine's chat meta in sync with the UI's lorebook bindings, an
+    // empty scope too (a book unlinked from the card must stop firing); the
+    // engine skips the write when nothing changed
+    await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ lorebookIds: bookIds }), signal: ctrl.signal })
     const model = get().modelFor(chatId)
     const res = await j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
       method: 'POST',

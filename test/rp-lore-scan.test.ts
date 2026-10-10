@@ -347,3 +347,30 @@ describe("fields the scanner used to ignore", () => {
     expect(await preview()).toMatch(/WORLD:\nBEFORE-ENTRY/);
   });
 });
+
+describe("card export carries the card's own book", () => {
+  it("a V2 envelope with character_book that imports back with positions, filters and the studio bag", async () => {
+    (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
+    const { characterToExportCard, engineLorebookToUI, cardToCharacter } = await import("../src/lib/engine");
+    const book = engineLorebookToUI({
+      name: "Olena lore", settings: { scanDepth: 6, recursiveScan: true },
+      entries: [
+        { uid: 4, title: "Tower", keys: ["вежа"], content: "Вежа стара.", position: "before_an", characterFilter: ["Олена"], triggerFilters: ["normal"], delayUntilRecursion: 2 },
+      ],
+    } as never, "olena-book");
+    const ch = cardToCharacter({ spec: "chara_card_v2", name: "Олена", description: "d", studio: { embeddedLorebookId: "olena-book", expressions: [{ id: "x1", name: "joy", url: "data:image/png;base64,AA" }] } } as never, "olena");
+    const card = characterToExportCard(ch, [book]) as unknown as { spec: string; name: string; data: { name: string; character_book: { entries: unknown[] }; studio: unknown } };
+    expect(card.spec).toBe("chara_card_v2");
+    expect(card.name).toBe("Олена");
+    expect(card.data.character_book.entries).toHaveLength(1);
+
+    const stUrl = new URL("../plugins/studio-import/plugin.js", import.meta.url).href;
+    const mod = (await import(stUrl)) as { handleRoute: Function };
+    const out = mod.handleRoute({ method: "POST", path: "/import/batch", query: {}, body: { cards: [card] } }, host()) as { json: { characters: string[] } };
+    const cid = out.json.characters[0]!;
+    const saved = JSON.parse(fs.readFileSync(path.join(root, "characters", cid, "card.json"), "utf8"));
+    expect(saved.studio.expressions[0]).toMatchObject({ name: "joy", url: "data:image/png;base64,AA" });
+    const bookFile = JSON.parse(fs.readFileSync(path.join(root, "lorebooks", saved.studio.embeddedLorebookId + ".json"), "utf8"));
+    expect(bookFile.entries[0]).toMatchObject({ keys: ["вежа"], position: "before_an", characterFilter: ["Олена"], triggerFilters: ["normal"], delayUntilRecursion: 2 });
+  });
+});

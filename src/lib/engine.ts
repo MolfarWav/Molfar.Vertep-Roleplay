@@ -679,6 +679,82 @@ export function characterToCard(c: Character): EngineCard {
   }
 }
 
+// ── Card export: a V2 envelope that other apps read, with the card's own book ──
+const ST_POSITION: Record<string, number> = {
+  before_char: 0, after_char: 1, before_an: 2, after_an: 3, at_depth: 4,
+  before_em: 5, after_em: 6, before_examples: 5, after_examples: 6,
+}
+const ST_LOGIC = ['AND_ANY', 'NOT_ALL', 'NOT_ANY', 'AND_ALL']
+const ST_ROLE = ['system', 'user', 'assistant']
+
+/** A lorebook as a card-spec `character_book` (ST's extension fields; the importer reads them back). */
+export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
+  return {
+    name: b.name,
+    description: '',
+    scan_depth: b.settings.scanDepth,
+    recursive_scanning: b.settings.recursiveScan !== false,
+    extensions: {},
+    entries: b.entries.map((e, i) => ({
+      id: typeof e.uid === 'number' ? e.uid : i,
+      keys: e.keys,
+      secondary_keys: e.secondaryKeys,
+      comment: e.title,
+      content: e.content,
+      constant: e.status === 'constant',
+      selective: e.secondaryKeys.length > 0,
+      insertion_order: e.order,
+      enabled: e.enabled,
+      position: e.position === 'before_char' ? 'before_char' : 'after_char',
+      extensions: {
+        position: ST_POSITION[e.position] ?? 1,
+        depth: e.depth,
+        role: Math.max(0, ST_ROLE.indexOf(e.role)),
+        selectiveLogic: Math.max(0, ST_LOGIC.indexOf(e.logic)),
+        probability: e.useProbability ? e.probability : 100,
+        useProbability: e.useProbability,
+        group: e.group, group_override: e.groupPrioritize, group_weight: e.groupWeight,
+        exclude_recursion: e.nonRecursable, prevent_recursion: e.preventFurtherRecursion,
+        delay_until_recursion: e.delayUntilRecursion,
+        scan_depth: e.scanDepthOverride, case_sensitive: e.caseSensitiveOverride,
+        match_whole_words: e.wholeWordsOverride, use_group_scoring: e.groupScoringOverride,
+        automation_id: e.automationId,
+        vectorized: e.status === 'vectorized',
+        sticky: e.sticky, cooldown: e.cooldown, delay: e.delay,
+        ignore_budget: e.ignoreBudget,
+        match_character_description: e.matchSources.description,
+        match_character_personality: e.matchSources.personality,
+        match_scenario: e.matchSources.scenario,
+        match_persona_description: e.matchSources.persona,
+        ...(e.characterFilter.length || e.tagFilter.length
+          ? { character_filter: { isExclude: e.characterFilterExclude, names: e.characterFilter, tags: e.tagFilter } }
+          : {}),
+        ...(e.triggerFilters.length ? { triggers: e.triggerFilters } : {}),
+      },
+    })),
+  }
+}
+
+/** The card as exported (PNG chunk, JSON file): a chara_card_v2 envelope with the
+ *  fields under `data` (V1 fields mirrored on top, like other apps write), the
+ *  card's own lorebook as `data.character_book`. The app's own `studio` bag rides
+ *  inside `data`, so re-importing here keeps sprites, gallery and the rest. */
+export function characterToExportCard(c: Character, books: Lorebook[]): EngineCard {
+  const { spec: _spec, ...fields } = characterToCard(c)
+  const own = c.embeddedLorebookId ? books.find((b) => b.id === c.embeddedLorebookId) : undefined
+  return {
+    spec: 'chara_card_v2',
+    spec_version: '2.0',
+    name: fields.name,
+    description: fields.description,
+    personality: fields.personality,
+    scenario: fields.scenario,
+    first_mes: fields.first_mes,
+    mes_example: fields.mes_example,
+    data: { ...fields, ...(own ? { character_book: lorebookToCharacterBook(own) } : {}) },
+  } as EngineCard
+}
+
 export function groupToCharacter(g: EngineGroup, members: Character[]): Character {
   const first = members.find((m) => m.id === g.memberIds?.[0])
   return {

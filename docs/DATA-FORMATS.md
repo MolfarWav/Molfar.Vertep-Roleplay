@@ -63,15 +63,15 @@ An imported card may have no `studio` yet; json_set creates it when you set a ke
 
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with
 `globalActive: true`, the character's `studio.embeddedLorebookId`, every id in the character's
-`studio.linkedLorebookIds`, and the books bound to the active persona. The book's own
-`linkedCharacterIds` only feeds a counter in the list: link from the character's side.
+`studio.linkedLorebookIds` (in a group chat: every member's), and the books bound to the active persona.
+Links live on the card only; the book's old `linkedCharacterIds` field is not read.
 
 ### Book fields
 | Field | What it is |
 |---|---|
 | `id`, `name` | Id (= file name) and display name. |
 | `globalActive` | `true`: in every chat. |
-| `linkedCharacterIds` | Display only (see above). |
+| `linkedCharacterIds` | Old field, not read (see above). |
 | `entries` | The entries, below. |
 | `settings` | Scan settings: `scanDepth` (messages scanned for keys), `contextPercent` and `budgetCap` (how much room entries may take), `minActivations` (fewer entries fired: scan deeper into the chat until this many fire), `minActivationsDepthMax` (how deep that may go, 0 = the whole chat), `maxRecursion`, `insertionStrategy` (`character_first`: entries of the character's books come first and claim the budget first; `global_first`: global books first; `evenly`: by `order` only), `caseSensitive`, `wholeWords`, `groupScoring`, `recursiveScan`, `includeNames` (the scan reads "Name: text", so a name can be a key), `overflowAlert`, `wordForms` (Cyrillic keys match every form of their words; absent = on). Copy them from `_example.json`. |
 | `vectorized` | Embedding settings for `vectorized` entries. |
