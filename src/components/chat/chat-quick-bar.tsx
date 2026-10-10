@@ -9,9 +9,11 @@ import {
 } from '@/components/ui/command'
 import { ModelMark } from '@/components/model-mark'
 import { EffectiveParams } from '@/components/chat/effective-params'
+import { PresetPanel } from '@/components/chat/preset-panel'
+import { useT } from '@/hooks/use-t'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import {
-  CaretDown, Check, Cpu, GearSix, PencilSimple, SlidersHorizontal, User,
+  CaretDown, Check, Cpu, GearSix, ListChecks, PencilSimple, SlidersHorizontal, User,
 } from '@phosphor-icons/react'
 
 /**
@@ -76,6 +78,9 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
   const lastModel = useApp((s) => s.model)
   const setChatModel = useApp((s) => s.setChatModel)
   const updateChat = useApp((s) => s.updateChat)
+  const setChatPreset = useApp((s) => s.setChatPreset)
+  const t = useT()
+  const [panelOpen, setPanelOpen] = useState(false)
   const focusPreset = useApp((s) => s.focusPreset)
   const focusPersona = useApp((s) => s.focusPersona)
   const [open, setOpen] = useState(false)
@@ -182,21 +187,32 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
 
           {/* live context line for the active tab */}
           {tab === 'preset' && (
-            <button
-              type="button"
-              onClick={() => { if (preset) pick(() => focusPreset(preset.id)) }}
-              className="flex w-full items-center gap-2 border-b border-border bg-card px-3 py-2 text-left hover:bg-accent/50"
-              title="Open preset editor"
-            >
-              <SlidersHorizontal className="size-4 shrink-0 text-amber-500" aria-hidden="true" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold">{preset?.name ?? 'No preset'}</span>
-                <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(preset)}</span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+            <div className="flex w-full items-center gap-1 border-b border-border bg-card pr-2 hover:bg-accent/30">
+              <button
+                type="button"
+                onClick={() => pick(() => setPanelOpen(true))}
+                className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left"
+                title={t('pc.openTip')}
+                data-testid="preset-panel-open"
+              >
+                <SlidersHorizontal className="size-4 shrink-0 text-amber-500" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold">{preset?.name ?? 'No preset'}</span>
+                  <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(preset)}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+                  <ListChecks className="size-3" aria-hidden="true" /> {t('pc.open')}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (preset) pick(() => focusPreset(preset.id)) }}
+                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                title="Open preset editor"
+              >
                 <PencilSimple className="size-3" aria-hidden="true" /> Edit
-              </span>
-            </button>
+              </button>
+            </div>
           )}
           {tab === 'persona' && (
             <button
@@ -256,7 +272,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
                   {presets.slice(0, GROUP_CAP).map((p) => {
                     const active = p.id === preset?.id
                     return (
-                      <CommandItem key={p.id} value={`preset ${p.name}`} onSelect={() => pick(() => updateChat(chatId, { presetId: p.id }))}
+                      <CommandItem key={p.id} value={`preset ${p.name}`} onSelect={() => pick(() => { if (p.id !== preset?.id) void setChatPreset(chatId, { presetId: p.id }) })}
                         className={cn(itemCls, active && activeItemCls)}>
                         <span className={cn(
                           'flex size-5 shrink-0 items-center justify-center rounded-full',
@@ -364,6 +380,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
         </PopoverContent>
       </Popover>
 
+      <PresetPanel chatId={chatId} open={panelOpen} onOpenChange={setPanelOpen} />
     </>
   )
 }

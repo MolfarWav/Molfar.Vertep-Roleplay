@@ -18,6 +18,7 @@ import { CharactersView } from '@/components/views/characters-view'
 import { MarketplaceView } from '@/components/views/marketplace-view'
 import { ChatsView } from '@/components/views/chats-view'
 import { ChatView } from '@/components/chat/chat-view'
+import { NewChatStep } from '@/components/chat/new-chat-step'
 import { PersonasView } from '@/components/views/personas-view'
 import { PresetsView } from '@/components/views/presets-view'
 import { LorebooksView } from '@/components/views/lorebooks-view'
@@ -134,6 +135,7 @@ export function AppShell() {
       </div>
       {view !== 'chat' && !keyboardOpen && <MobileTabBar />}
       <SectionDrawer isDesktop={isDesktop} />
+      <NewChatStep />
       {/* Live generation status, below the header line at the right edge:
           clear of the header buttons, the composer, toasts and quick replies. */}
       {streaming && (

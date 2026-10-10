@@ -23,14 +23,14 @@ import { useApp } from "@/lib/store"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MasterDetail } from "@/components/shell/master-detail"
 import { SectionPage } from "@/components/shell/section-page"
-import { resolveLanguage } from "@/lib/i18n"
+import { resolveLanguage, t, type MsgKey } from "@/lib/i18n"
 import type { AppSettings } from "@/lib/types"
 import { extractCharaFromPng, regexImport } from "@/lib/interop"
 import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/engine"
 import { cn } from "@/lib/utils"
 
 type ControlDef =
-  | { kind: "switch"; key: keyof AppSettings; label: string }
+  | { kind: "switch"; key: keyof AppSettings; label: string; labelKey?: MsgKey; defaultOn?: boolean }
   | { kind: "slider"; key: keyof AppSettings; label: string; min: number; max: number; step: number; unit?: string }
   | { kind: "select"; key: keyof AppSettings; label: string; options: [string, string][] }
 
@@ -70,6 +70,7 @@ const SECTIONS: SectionDef[] = [
       { kind: "switch", key: "upArrowEditLast", label: "Up Arrow Recalls Input History" },
       { kind: "switch", key: "autoScroll", label: "Auto-scroll" },
       { kind: "switch", key: "confirmDeletions", label: "Confirm Deletions" },
+      { kind: "switch", key: "askPresetOnNewChat", label: "Ask for the preset when a chat starts", labelKey: "pc.settings.ask", defaultOn: true },
       { kind: "switch", key: "showTimestamps", label: "Show Timestamps" },
       { kind: "switch", key: "showMessageIds", label: "Show Message IDs" },
       { kind: "switch", key: "showEdited", label: "Show Edited Markers" },
@@ -143,8 +144,8 @@ export function SettingsView() {
     if (c.kind === "switch") {
       return (
         <label key={c.key} className="flex items-center justify-between py-1.5 text-sm">
-          <span>{c.label}</span>
-          <Switch checked={value as boolean} onCheckedChange={(v) => updateSettings({ [c.key]: v })} />
+          <span>{c.labelKey ? t(c.labelKey, resolveLanguage(settings.language)) : c.label}</span>
+          <Switch checked={c.defaultOn ? value !== false : (value as boolean)} onCheckedChange={(v) => updateSettings({ [c.key]: v })} />
         </label>
       )
     }
