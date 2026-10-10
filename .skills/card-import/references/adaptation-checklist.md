@@ -32,7 +32,7 @@ Load this reference only when the card needs adaptation, not for a straight file
 
 - [ ] One topic per entry.
 - [ ] Always-on entries are few, short, and load-bearing.
-- [ ] Keys include the inflected forms the user will type in the card's language.
+- [ ] Ukrainian and Russian keys: one base form each (word forms match on their own); extra forms only where the stem changes.
 - [ ] Framing lore `before_char`, supporting detail `after_char`; higher `order` for what must survive the budget.
 - [ ] The book id is appended to the character's `/studio/linkedLorebookIds`.
 

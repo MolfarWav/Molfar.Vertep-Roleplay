@@ -722,14 +722,68 @@ function keyMatch(scan, key, entry, rawScan) {
   }
   const whole = entry ? (entry.wholeWordsOverride === true ? true : entry.wholeWordsOverride === false ? false : entry.matchWholeWords !== false) : true;
   const lk = k.toLowerCase();
-  if (whole && /^[\w\s'-]+$/.test(k)) {
+  // Cyrillic keys match any form of their words ("вежа" hits "вежі", "вежу"),
+  // as a phrase: the key's words side by side, in order
+  if (WI_CYR.test(k) && !(entry && entry.wordForms === false)) {
+    if (phraseMatch(wordIndex(scan), lk)) return true;
+    return !whole && scan.indexOf(lk) >= 0;
+  }
+  if (whole && WI_KEY_WORDS.test(k)) {
     try {
-      return new RegExp("(^|[^\\p{L}\\p{N}])" + esc(lk) + "([^\\p{L}\\p{N}]|$)", "u").test(scan);
+      const pat = lk.split(MEM_APOS).map(esc).join(WI_APOS_CLASS);
+      return new RegExp("(^|[^\\p{L}\\p{N}])" + pat + "([^\\p{L}\\p{N}]|$)", "u").test(scan);
     } catch {
       return scan.indexOf(lk) >= 0;
     }
   }
   return scan.indexOf(lk) >= 0;
+}
+const WI_CYR = /\p{Script=Cyrillic}/u;
+// letters of any script, digits, spaces, apostrophes, hyphens: a key that can take word boundaries
+const WI_KEY_WORDS = /^[\p{L}\p{M}\p{N}\s'’ʼ‘`´ʹ′-]+$/u;
+const WI_APOS_CLASS = "['’ʼ‘`´ʹ′]";
+// word indexes of scan texts, alive for one activateWorldInfo call (the same
+// window is matched against every key of every entry)
+let wiIndexCache = null;
+function wiWords(s) {
+  return norm(s).split(/[^\p{L}\p{N}']+/u).map((t) => t.replace(/^'+|'+$/g, "")).filter(Boolean);
+}
+function wordIndex(text) {
+  const hit = wiIndexCache && wiIndexCache.get(text);
+  if (hit) return hit;
+  const toks = wiWords(text);
+  const exact = new Map(), byStem = new Map(), byPrefix = new Map();
+  const add = (m, k, i) => { const a = m.get(k); if (a) a.push(i); else m.set(k, [i]); };
+  toks.forEach((t, i) => {
+    add(exact, t, i);
+    if (t.length <= 3) return; // short words only ever match exactly (sameWord)
+    const s = stem(t);
+    add(byStem, s, i);
+    if (s.length >= 4) add(byPrefix, s.slice(0, 4), i);
+  });
+  const idx = { toks, exact, byStem, byPrefix };
+  if (wiIndexCache) wiIndexCache.set(text, idx);
+  return idx;
+}
+/** Positions of the scan words that are the same word as `w` (sameWord, through the index). */
+function wordPositions(idx, w) {
+  if (w.length <= 3) return new Set(idx.exact.get(w) || []);
+  const x = stem(w);
+  const out = new Set(idx.byStem.get(x) || []);
+  if (x.length >= 4) for (const i of idx.byPrefix.get(x.slice(0, 4)) || []) if (sameWord(w, idx.toks[i])) out.add(i);
+  return out;
+}
+/** Every word of the key, in order and side by side, each in any of its forms. */
+function phraseMatch(idx, key) {
+  const kw = wiWords(key);
+  if (!kw.length) return false;
+  const sets = kw.map((w) => wordPositions(idx, w));
+  for (const p of sets[0]) {
+    let j = 1;
+    while (j < sets.length && sets[j].has(p + j)) j++;
+    if (j === sets.length) return true;
+  }
+  return false;
 }
 /** Constant-ness: the `status` field is the source of truth; the `constant`
  *  boolean is a legacy mirror kept for old files. When both are present they
@@ -738,27 +792,31 @@ function keyMatch(scan, key, entry, rawScan) {
 function isConstantEntry(entry) {
   return entry.status != null ? entry.status === "constant" : entry.constant === true;
 }
-function wiEntryFires(entry, scanText, rawText) {
+/** Keys of one entry against a scan text: `key` = the primary key that hit,
+ *  `secondary` = the secondary keys that hit; `fail: "secondary"` when the
+ *  primary hit but the selective logic did not hold. Probability is the
+ *  caller's (rolled once per activation). */
+function wiEntryMatch(entry, scanText, rawText) {
   const keys = entry.keys || [];
   const secondary = entry.secondaryKeys || [];
   const logic = WI_LOGIC[entry.selectiveLogic] != null ? WI_LOGIC[entry.selectiveLogic] : 0;
   const caseBlind = !(entry && (entry.caseSensitiveOverride === true || entry.caseSensitive === true));
   const raw = caseBlind ? null : rawText;
-  if (!keys.some((k) => keyMatch(scanText, k, entry, raw))) return false;
+  const key = keys.find((k) => keyMatch(scanText, k, entry, raw));
+  if (key == null) return null;
+  const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw));
   if (secondary.length) {
-    const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw)).length;
-    if (logic === 0 && hits < 1) return false;
-    if (logic === 3 && hits < secondary.length) return false;
-    if (logic === 2 && hits > 0) return false;
-    if (logic === 1 && hits === secondary.length) return false;
+    const n = hits.length;
+    const bad = (logic === 0 && n < 1) || (logic === 3 && n < secondary.length) || (logic === 2 && n > 0) || (logic === 1 && n === secondary.length);
+    if (bad) return { key: String(key), secondary: hits.map(String), fail: "secondary" };
   }
-  if (entry.probability != null && entry.probability < 100 && Math.random() * 100 >= entry.probability) return false;
-  return true;
+  return { key: String(key), secondary: hits.map(String) };
 }
 /** One winner per inclusion group among this pass's newly fired entries:
  *  a sticky-active member outranks everything, then an override flag, then a
- *  weighted roll by groupWeight (default 100). */
-function wiFilterInclusionGroups(list, stickyActive) {
+ *  weighted roll by groupWeight (default 100). Losers land in `lost` (with
+ *  the group and the winner) when the caller passes it. */
+function wiFilterInclusionGroups(list, stickyActive, lost) {
   const groups = new Map();
   for (const item of list) {
     const names = typeof item.entry.group === "string" ? item.entry.group.split(/,\s*/).map((x) => x.trim()).filter(Boolean) : [];
@@ -767,7 +825,7 @@ function wiFilterInclusionGroups(list, stickyActive) {
       groups.get(name).push(item);
     }
   }
-  for (const members of groups.values()) {
+  for (const [name, members] of groups) {
     if (members.length <= 1) continue;
     const stickyMember = members.find((m) => stickyActive(m.id));
     let winner;
@@ -786,7 +844,9 @@ function wiFilterInclusionGroups(list, stickyActive) {
     for (const m of members) if (m !== winner) {
       const idx = list.indexOf(m);
       if (idx >= 0) list.splice(idx, 1);
+      if (lost && !lost.some((x) => x.item === m)) lost.push({ item: m, group: name, winner });
     }
+    if (list.includes(winner)) winner.group = winner.group || name;
   }
   return list;
 }
@@ -930,19 +990,24 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const cfg = options.config && typeof options.config === "object" ? options.config : {};
   let budget = budgetChars && budgetChars > 0 ? budgetChars : 8192;
   let books = [];
-  try {
-    books = fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
-      .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
-      .filter(Boolean);
-  } catch {
-    return { before: [], after: [], depth: [], trace: [], skipped: [], used: 0, budgetChars: budget };
+  if (Array.isArray(options.books)) {
+    // the keyword test hands its books in (an unsaved edit included): no scope filter
+    books = options.books.filter((b) => b && typeof b === "object");
+  } else {
+    try {
+      books = fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
+        .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
+        .filter(Boolean);
+    } catch {
+      return { before: [], after: [], depth: [], trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: 0 };
+    }
+    // A book scans only when it is in THIS chat's scope — bound
+    // to the chat, embedded in / linked to the character, or global (the app
+    // resolves all three into meta.lorebookIds before each send). An empty
+    // scope means NO world info, never "scan the whole library".
+    const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || [])]);
+    books = books.filter((b) => bound.has(b.id || b.name));
   }
-  // A book scans only when it is in THIS chat's scope — bound
-  // to the chat, embedded in / linked to the character, or global (the app
-  // resolves all three into meta.lorebookIds before each send). An empty
-  // scope means NO world info, never "scan the whole library".
-  const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || [])]);
-  books = books.filter((b) => bound.has(b.id || b.name));
   // budget knobs live on the books: contextPercent rescales the caller's
   // budget (which is the 25% figure), budgetCap is an absolute ceiling —
   // bound books asking for more win, the cap always clamps
@@ -955,10 +1020,12 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   }
   // effective scan settings: bound books merge (a book wanting a deeper window
   // gets it), the preset's worldInfo block wins when it sets a value
-  const bookCfg = { scanDepth: 0, recursive: null, maxRecursion: 0 };
+  const bookCfg = { scanDepth: 0, recursive: null, maxRecursion: 0, minActivations: 0, minActivationsDepthMax: 0 };
   for (const b of books) {
     const st = b.settings && typeof b.settings === "object" ? b.settings : {};
     if (typeof st.scanDepth === "number" && st.scanDepth > bookCfg.scanDepth) bookCfg.scanDepth = Math.floor(st.scanDepth);
+    if (typeof st.minActivations === "number" && st.minActivations > bookCfg.minActivations) bookCfg.minActivations = Math.floor(st.minActivations);
+    if (typeof st.minActivationsDepthMax === "number" && st.minActivationsDepthMax > bookCfg.minActivationsDepthMax) bookCfg.minActivationsDepthMax = Math.floor(st.minActivationsDepthMax);
     if (st.recursiveScan === true) bookCfg.recursive = true;
     if (st.recursiveScan === false && bookCfg.recursive === null) bookCfg.recursive = false;
     if (typeof st.maxRecursion === "number" && st.maxRecursion > bookCfg.maxRecursion) bookCfg.maxRecursion = Math.floor(st.maxRecursion);
@@ -968,14 +1035,18 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const recursionOn = cfg.recursion != null ? cfg.recursion !== false : bookCfg.recursive !== false;
   const maxPasses = typeof cfg.recursionDepth === "number" && cfg.recursionDepth > 0 ? Math.floor(cfg.recursionDepth)
     : bookCfg.maxRecursion > 0 ? bookCfg.maxRecursion : 3;
+  // min activations (ST): too few entries fired -> scan deeper into the history
+  const minActivations = typeof cfg.minActivations === "number" && cfg.minActivations > 0 ? Math.floor(cfg.minActivations) : bookCfg.minActivations;
+  const minDepthMax = typeof cfg.minActivationsDepthMax === "number" && cfg.minActivationsDepthMax > 0 ? Math.floor(cfg.minActivationsDepthMax) : bookCfg.minActivationsDepthMax;
 
   // flattened, order-sorted entries with stable per-book ids
   const items = [];
   for (const book of books) {
     const entries = (book.entries || []).slice().sort((a, b) => ((a.order ?? 100) - (b.order ?? 100)));
+    const bs = book.settings && typeof book.settings === "object" ? book.settings : {};
     entries.forEach((entry, i) => {
       if (entry.enabled === false) return;
-      items.push({ entry, book: book.name || book.id || "", id: (book.id || book.name) + "#" + (entry.uid ?? i) });
+      items.push({ entry, book: book.name || book.id || "", bookSettings: bs, vec: book.vectorized, id: (book.id || book.name) + "#" + (entry.uid ?? i) });
     });
   }
   const entryById = new Map(items.map((x) => [x.id, x.entry]));
@@ -984,7 +1055,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   // messages, cooldown locks it out for N after its sticky ends, delay holds
   // an entry back until the chat has N messages. State lives on chat meta;
   // dry runs (peek, the status viewer) read it but never consume it.
-  const tick = dialogue.length;
+  const tick = typeof options.tick === "number" ? options.tick : dialogue.length;
   const timed = meta.wiTimed && typeof meta.wiTimed === "object" ? meta.wiTimed : {};
   let nextTimed = null;
   if (!dryRun) {
@@ -1019,8 +1090,14 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   // fired appended to the base window, so entries can trigger entries
   const activated = [];
   const seen = new Set();
-  let scanText = dialogue.slice(-scanDepth).map((m) => m.text).join("\n").toLowerCase();
-  let scanRaw = dialogue.slice(-scanDepth).map((m) => m.text).join("\n");
+  // entries that would have fired but did not, with the reason (the "why"
+  // viewer and the keyword test); an entry that fires later leaves this map
+  const blocked = new Map();
+  const rolledOut = new Set(); // lost the probability roll: one roll per activation
+  const windowOf = (n) => {
+    const raw = dialogue.slice(-n).map((m) => m.text).join("\n");
+    return { raw, low: raw.toLowerCase() };
+  };
   // entries with matchSources key off the card fields too: per-entry flags
   // pick which sources (speaker description / personality / scenario, the
   // persona description) join that entry's own scan
@@ -1032,66 +1109,124 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     scenario: mkSrc(srcIn.scenario),
     persona: mkSrc(srcIn.persona),
   };
-  let windowText = scanText;
-  let windowRaw = scanRaw;
-  for (let pass = 0; ; pass++) {
-    let newly = [];
-    for (const { entry, book, id } of items) {
-      if (seen.has(id)) continue;
-      if (typeof entry.delay === "number" && entry.delay > 0 && tick < entry.delay) continue;
-      const st = stickyLive(id);
-      if (cooldownLive(id) && !st) continue;
-      const delayLevel = typeof entry.delayUntilRecursion === "number" ? entry.delayUntilRecursion
-        : entry.delayUntilRecursion === true ? 1 : 0;
-      if (delayLevel > pass && !st) continue;
-      if (pass > 0 && entry.nonRecursable === true && !st) continue;
-      // vectorized entries activate on embedding similarity OR their keys
-      let vecHit = false;
-      if ((entry.vectorized === true || entry.status === "vectorized") && scanVec && wiVecMap) {
-        const rec = wiVecMap[id];
-        const c = rec && Array.isArray(rec.vector) ? cosine(rec.vector, scanVec) : null;
-        vecHit = c != null && c >= (book.vectorized && typeof book.vectorized.scoreThreshold === "number" ? book.vectorized.scoreThreshold : 0.35);
-      }
-      let fired;
-      if (vecHit || st || isConstantEntry(entry)) fired = true;
-      else {
-        // book-level case sensitivity + whole words + per-entry scan-depth
-        // override: a deeper personal window sees messages the book default
-        // misses
-        const bookSettings = book.settings && typeof book.settings === "object" ? book.settings : {};
-        const eff = { ...entry };
-        if (bookSettings.caseSensitive === true) eff.caseSensitive = true;
-        if (bookSettings.wholeWords === false) eff.matchWholeWords = eff.wholeWordsOverride == null ? false : eff.wholeWordsOverride;
-        let text = windowText, raw = windowRaw;
-        const own = typeof entry.scanDepthOverride === "number" && entry.scanDepthOverride > 0 ? Math.floor(entry.scanDepthOverride) : null;
-        if (own != null && own !== scanDepth && pass === 0) {
-          text = dialogue.slice(-own).map((m) => m.text).join("\n").toLowerCase();
-          raw = dialogue.slice(-own).map((m) => m.text).join("\n");
-        }
-        const ms = entry.matchSources && typeof entry.matchSources === "object" ? entry.matchSources : null;
-        if (ms) {
-          const parts = [], partsRaw = [];
-          for (const srcKey of ["description", "personality", "scenario", "persona"]) {
-            const st = sourceTexts[srcKey];
-            if (ms[srcKey] === true && st) { parts.push(st.low); partsRaw.push(st.raw); }
-          }
-          if (parts.length) { text = text + "\n" + parts.join("\n"); raw = raw + "\n" + partsRaw.join("\n"); }
-        }
-        fired = wiEntryFires(eff, text, raw);
-      }
-      if (!fired) continue;
-      seen.add(id);
-      newly.push({ entry, book, id, sticky: !!st });
+  // keys of one entry against the current window: book-level case
+  // sensitivity, whole words and word forms, the per-entry scan-depth
+  // override (a deeper personal window sees messages the book default misses)
+  // and its matchSources
+  const matchEntry = (item, win, firstPass) => {
+    const { entry, bookSettings } = item;
+    const eff = { ...entry };
+    if (bookSettings.caseSensitive === true) eff.caseSensitive = true;
+    if (bookSettings.wholeWords === false) eff.matchWholeWords = eff.wholeWordsOverride == null ? false : eff.wholeWordsOverride;
+    eff.wordForms = typeof entry.wordFormsOverride === "boolean" ? entry.wordFormsOverride : bookSettings.wordForms !== false;
+    let text = win.low, raw = win.raw;
+    const own = typeof entry.scanDepthOverride === "number" && entry.scanDepthOverride > 0 ? Math.floor(entry.scanDepthOverride) : null;
+    if (own != null && own !== scanDepth && firstPass) {
+      const w = windowOf(own);
+      text = w.low; raw = w.raw;
     }
-    newly = wiFilterInclusionGroups(newly, stickyLive);
-    activated.push(...newly);
-    if (!recursionOn || pass + 1 >= maxPasses) break;
-    const added = newly
-      .filter((x) => x.entry.preventFurtherRecursion !== true)
-      .map((x) => String(x.entry.content || ""));
-    if (!added.length) break;
-    windowText = windowText + "\n" + added.join("\n").toLowerCase();
-    windowRaw = windowRaw + "\n" + added.join("\n");
+    const ms = entry.matchSources && typeof entry.matchSources === "object" ? entry.matchSources : null;
+    if (ms) {
+      const parts = [], partsRaw = [];
+      for (const srcKey of ["description", "personality", "scenario", "persona"]) {
+        const s = sourceTexts[srcKey];
+        if (ms[srcKey] === true && s) { parts.push(s.low); partsRaw.push(s.raw); }
+      }
+      if (parts.length) { text = text + "\n" + parts.join("\n"); raw = raw + "\n" + partsRaw.join("\n"); }
+    }
+    return wiEntryMatch(eff, text, raw);
+  };
+  const block = (item, reason, extra) => blocked.set(item.id, { item, reason, ...extra });
+
+  let depthNow = scanDepth;
+  let passBase = 0; // pass numbers keep counting across min-activations rounds
+  wiIndexCache = new Map();
+  try {
+    for (;;) {
+      const base = windowOf(depthNow);
+      // a deeper round still sees what earlier rounds pulled in by recursion
+      const carried = activated.filter((x) => x.entry.preventFurtherRecursion !== true).map((x) => String(x.entry.content || ""));
+      let win = carried.length ? { raw: base.raw + "\n" + carried.join("\n"), low: base.low + "\n" + carried.join("\n").toLowerCase() } : base;
+      for (let pass = 0; ; pass++) {
+        let newly = [];
+        const firstPass = pass === 0 && depthNow === scanDepth;
+        for (const item of items) {
+          const { entry, id } = item;
+          if (seen.has(id) || rolledOut.has(id)) continue;
+          const constant = isConstantEntry(entry);
+          const st = stickyLive(id);
+          // held back: say why only for entries whose keys would hit now
+          const wouldHit = () => constant || (() => { const m = matchEntry(item, win, firstPass); return m && !m.fail ? m : null; })();
+          if (typeof entry.delay === "number" && entry.delay > 0 && tick < entry.delay) {
+            if (wouldHit()) block(item, "delay", { detail: entry.delay });
+            continue;
+          }
+          const cd = cooldownLive(id);
+          if (cd && !st) {
+            if (wouldHit()) block(item, "cooldown", { detail: cd.end });
+            continue;
+          }
+          const delayLevel = typeof entry.delayUntilRecursion === "number" ? entry.delayUntilRecursion
+            : entry.delayUntilRecursion === true ? 1 : 0;
+          if (delayLevel > pass && !st) {
+            if (wouldHit()) block(item, "recursion_delay", { detail: delayLevel });
+            continue;
+          }
+          if (pass > 0 && entry.nonRecursable === true && !st) {
+            if (!blocked.has(id) && wouldHit()) block(item, "non_recursable");
+            continue;
+          }
+          // vectorized entries activate on embedding similarity OR their keys
+          let vecScore = null;
+          if ((entry.vectorized === true || entry.status === "vectorized") && scanVec && wiVecMap) {
+            const rec = wiVecMap[id];
+            const c = rec && Array.isArray(rec.vector) ? cosine(rec.vector, scanVec) : null;
+            const threshold = item.vec && typeof item.vec.scoreThreshold === "number" ? item.vec.scoreThreshold : 0.35;
+            if (c != null && c >= threshold) vecScore = Math.round(c * 100) / 100;
+          }
+          let why;
+          if (st) why = { via: "sticky" };
+          else if (constant) why = { via: "constant" };
+          else if (vecScore != null) why = { via: "vector", score: vecScore };
+          else {
+            const m = matchEntry(item, win, firstPass);
+            if (!m) continue;
+            if (m.fail) { block(item, "secondary", { key: m.key, secondary: m.secondary, detail: entry.selectiveLogic || "AND_ANY" }); continue; }
+            why = { via: "key", key: m.key, ...(m.secondary.length ? { secondary: m.secondary } : {}) };
+          }
+          // probability: rolled once; dry runs (status, keyword test) never roll and say the chance
+          const prob = typeof entry.probability === "number" && entry.probability < 100 ? Math.max(0, entry.probability) : null;
+          if (prob != null && !st) {
+            if (!dryRun && Math.random() * 100 >= prob) {
+              rolledOut.add(id);
+              block(item, "probability", { detail: prob });
+              continue;
+            }
+            why.probability = prob;
+          }
+          seen.add(id);
+          blocked.delete(id);
+          newly.push({ ...item, sticky: !!st, why: { ...why, pass: passBase + pass, depth: depthNow } });
+        }
+        const lost = [];
+        newly = wiFilterInclusionGroups(newly, stickyLive, lost);
+        for (const l of lost) block(l.item, "group", { detail: l.group, winner: wiTitle(l.winner.entry) });
+        activated.push(...newly);
+        if (!recursionOn || pass + 1 >= maxPasses) { passBase += pass + 1; break; }
+        const added = newly
+          .filter((x) => x.entry.preventFurtherRecursion !== true)
+          .map((x) => String(x.entry.content || ""));
+        if (!added.length) { passBase += pass + 1; break; }
+        win = { raw: win.raw + "\n" + added.join("\n"), low: win.low + "\n" + added.join("\n").toLowerCase() };
+      }
+      if (!(minActivations > 0) || activated.length >= minActivations) break;
+      const limit = Math.min(dialogue.length, minDepthMax > 0 ? minDepthMax : dialogue.length);
+      if (depthNow >= limit) break;
+      // at most ~50 deeper rounds however long the chat is
+      depthNow = Math.min(limit, depthNow + Math.max(1, Math.ceil((limit - scanDepth) / 50)));
+    }
+  } finally {
+    wiIndexCache = null;
   }
   // sticky arms on every real activation
   if (nextTimed) {
@@ -1103,9 +1238,9 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     meta.wiTimed = nextTimed;
   }
 
-  // trace/skipped feed the app's "active entries" viewer — what fired and
-  // what the budget cut, with real numbers instead of a mock
-  const out = { before: [], after: [], depth: [], trace: [], skipped: [], used: 0, budgetChars: budget };
+  // trace/skipped/blocked feed the app's "active entries" viewer — what
+  // fired, what the budget cut and what was held back, with the reasons
+  const out = { before: [], after: [], depth: [], trace: [], skipped: [], blocked: [], used: 0, budgetChars: budget, scanDepth: depthNow };
   // The budget is claimed in order-DESCENDING priority (higher
   // order wins, constants NOT exempt); ignoreBudget entries are always
   // included but their content still consumes budget for later entries
@@ -1121,23 +1256,32 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   out.used = Math.min(used, budget);
   // prompt emission stays in ACTIVATION order (ascending order — the final
   // WI block runs order 1 → 999, top to bottom)
-  for (const { entry, book, sticky } of activated) {
+  for (const { entry, book, sticky, why, group } of activated) {
     const c = String(entry.content || "").trim();
     if (!c) continue;
     const rec = {
       book, uid: entry.uid ?? null,
-      title: entry.title || entry.comment || (entry.keys || []).join(", ") || "untitled",
+      title: wiTitle(entry),
       chars: c.length, constant: isConstantEntry(entry),
       ...(sticky ? { sticky: true } : {}),
+      ...why,
+      ...(group ? { group } : {}),
     };
-    if (!admitted.has(entry)) { out.skipped.push(rec); continue; }
+    if (!admitted.has(entry)) { out.skipped.push({ ...rec, reason: "budget" }); continue; }
     out.trace.push(rec);
     if (entry.position === "after_char") out.after.push(c);
     else if (entry.position === "at_depth") out.depth.push({ depth: Math.max(0, Math.floor(entry.depth ?? 4)), role: entry.role === "assistant" ? "assistant" : entry.role === "user" ? "user" : "system", content: c });
     else out.before.push(c);
   }
+  for (const b of blocked.values()) {
+    const { item, ...rest } = b;
+    out.blocked.push({ book: item.book, uid: item.entry.uid ?? null, title: wiTitle(item.entry), ...rest });
+  }
   out.depth.sort((a, b) => a.depth - b.depth);
   return out;
+}
+function wiTitle(entry) {
+  return entry.title || entry.comment || (entry.keys || []).join(", ") || "untitled";
 }
 
 // ---------- chat file helpers ----------
@@ -2439,10 +2583,35 @@ export function handleRoute(req, host) {
       },
     );
     return ok({
-      fired: wi.trace, skipped: wi.skipped,
-      usedChars: wi.used, budgetChars: wi.budgetChars,
+      fired: wi.trace, skipped: wi.skipped, blocked: wi.blocked,
+      usedChars: wi.used, budgetChars: wi.budgetChars, scanDepth: wi.scanDepth,
       contextTokens: presetMaxCtx(preset),
     });
+  }
+
+  // ---------- keyword test: the real scanner on pasted text ----------
+  // {text, books?: [book] (the editor's copy, unsaved edits included) | bookIds?: [id], chatId?}.
+  // A dry run: nothing is consumed; a chat lends its timed state, message
+  // count and card fields, the scan itself sees only the pasted text.
+  if (head === "wi-test" && req.method === "POST") {
+    const b = body();
+    const text = typeof b.text === "string" ? b.text.slice(0, 200000) : "";
+    let books;
+    if (Array.isArray(b.books)) books = b.books.slice(0, 50).filter((x) => x && typeof x === "object" && Array.isArray(x.entries));
+    else if (Array.isArray(b.bookIds)) {
+      books = b.bookIds.filter((x) => typeof x === "string" && /^[\w-]{1,128}$/.test(x))
+        .map((x) => readJson("lorebooks/" + x + ".json", null)).filter(Boolean);
+    } else return err(400, "books or bookIds required");
+    const chat = b.chatId ? loadChat(fsx, String(b.chatId)) : null;
+    if (b.chatId && !chat) return err(404, "chat not found");
+    const preset = readJson("presets/" + ((chat && chat.meta.presetId) || defaultPresetId(fsx)) + ".json", null);
+    const card = chat && chat.meta.characterId ? resolveCardVariants(readJson("characters/" + chat.meta.characterId + "/card.json", null), chat.meta.fieldVariantSelection) : null;
+    const wi = activateWorldInfo(fsx, chat ? chat.meta : {}, [{ text }], [], wiBudgetChars(preset), {
+      dryRun: true, books, config: preset && preset.studio && preset.studio.worldInfo,
+      tick: chat ? chat.msgs.filter((m) => m.role !== "system" && m.hidden !== true).length + 1 : 1,
+      sources: card ? { description: card.description, personality: card.personality, scenario: card.scenario } : {},
+    });
+    return ok({ fired: wi.trace, skipped: wi.skipped, blocked: wi.blocked, usedChars: wi.used, budgetChars: wi.budgetChars });
   }
 
   // ---------- export backup (zip, store entries) ----------

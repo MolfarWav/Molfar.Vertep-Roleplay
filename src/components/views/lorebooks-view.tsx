@@ -311,7 +311,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           </div>
         )}
         <Button size="sm" className={cn('h-7 text-xs', selected.length === 0 && 'ml-auto')} onClick={() => {
-          const e: LoreEntry = { id: uid('we'), title: 'New entry', memo: '', keys: [], keysRegex: false, secondaryKeys: [], logic: 'AND_ANY', status: 'normal', content: '', position: 'after_char', depth: 4, role: 'system', order: 100, probability: 100, useProbability: false, group: '', groupWeight: 100, groupPrioritize: false, sticky: 0, cooldown: 0, delay: 0, enabled: true, characterFilter: [], characterFilterExclude: false, tagFilter: [], triggerFilters: [], nonRecursable: false, preventFurtherRecursion: false, delayUntilRecursion: false, ignoreBudget: false, scanDepthOverride: null, caseSensitiveOverride: null, wholeWordsOverride: null, groupScoringOverride: null, automationId: '', matchSources: { description: false, personality: false, scenario: false, persona: false } }
+          const e: LoreEntry = { id: uid('we'), title: 'New entry', memo: '', keys: [], keysRegex: false, secondaryKeys: [], logic: 'AND_ANY', status: 'normal', content: '', position: 'after_char', depth: 4, role: 'system', order: 100, probability: 100, useProbability: false, group: '', groupWeight: 100, groupPrioritize: false, sticky: 0, cooldown: 0, delay: 0, enabled: true, characterFilter: [], characterFilterExclude: false, tagFilter: [], triggerFilters: [], nonRecursable: false, preventFurtherRecursion: false, delayUntilRecursion: false, ignoreBudget: false, scanDepthOverride: null, caseSensitiveOverride: null, wholeWordsOverride: null, wordFormsOverride: null, groupScoringOverride: null, automationId: '', matchSources: { description: false, personality: false, scenario: false, persona: false } }
           onUpdate({ entries: [e, ...book.entries] })
           setOpenIds((o) => [...o, e.id])
         }}>
@@ -510,7 +510,7 @@ function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyToBook }
           ['ignoreBudget', 'ignore budget'],
         ] as const).map(([key, label]) => (
           <label key={key} className="flex items-center gap-1.5">
-            <Switch checked={e[key]} onCheckedChange={(v) => onChange({ [key]: v })} aria-label={label} />
+            <Switch checked={!!e[key]} onCheckedChange={(v) => onChange({ [key]: v })} aria-label={label} />
             {label}
           </label>
         ))}

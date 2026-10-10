@@ -36,7 +36,7 @@ Without a plan, lorebooks become a pile of isolated nouns: entries that never fi
 - Plan before prose. Each entry needs a purpose: a decision, behavior, or continuity problem it supports. Split when subjects activate in different contexts; merge when two entries always appear together.
 - One topic per entry. Content is short, concrete, and answers what the thing is, how it connects to other canon, and what changes when it becomes relevant.
 - Anchor entries. Each important entry connects to at least two other canon elements: a structural anchor (rule, boundary, institution) and a relational anchor (dependency, conflict, history, consequence). Name-dropping is not anchoring.
-- Design keys for how people type. Ukrainian and Russian keys list inflected forms. Include the English or Latin name if the story uses one. Avoid broad common words that cause false positives.
+- Design keys for how people type. Ukrainian and Russian keys: one base form each, word forms match on their own (list extra forms only where the stem changes, and for words of 3 letters or fewer). Include the English or Latin name if the story uses one. Avoid broad common words that cause false positives.
 - Keep constant entries few and short. Use them only for load-bearing facts that must apply every message. Do not use probability to hide a structural dependency.
 - Separate knowledge layers: what is objectively true, who knows it, who believes a false version, and what evidence exists. Do not leak hidden truth through omniscient prose.
 - Stable lore vs state. Lorebook content holds stable or slowly changing knowledge. Current location, inventory, relationship scores, and active conditions belong in chat state, not lorebook entries.
@@ -54,7 +54,7 @@ Without a plan, lorebooks become a pile of isolated nouns: entries that never fi
 Run in the head before the final write:
 
 - Every planned entry has a purpose and at least one trigger scenario.
-- Keys include inflected forms the user will actually type; no broad false-positive words.
+- Keys are the base forms of the words the user will actually type; no broad false-positive words.
 - Constant entries are few and short; the rest are keyed or vectorized.
 - Each important entry has two meaningful anchors, not just names mentioned.
 - Hidden truth is not written into entries public characters would not know.

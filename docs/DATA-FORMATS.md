@@ -73,7 +73,7 @@ The id is the file name without `.json`, repeated in `"id"`. A chat uses: every 
 | `globalActive` | `true`: in every chat. |
 | `linkedCharacterIds` | Display only (see above). |
 | `entries` | The entries, below. |
-| `settings` | Scan settings: `scanDepth` (messages scanned for keys), `contextPercent` and `budgetCap` (how much room entries may take), `minActivations`, `maxRecursion`, `insertionStrategy` (`character_first` …), `caseSensitive`, `wholeWords`, `groupScoring`, `recursiveScan`, `includeNames`, `overflowAlert`. Copy them from `_example.json`. |
+| `settings` | Scan settings: `scanDepth` (messages scanned for keys), `contextPercent` and `budgetCap` (how much room entries may take), `minActivations` (fewer entries fired: scan deeper into the chat until this many fire), `minActivationsDepthMax` (how deep that may go, 0 = the whole chat), `maxRecursion`, `insertionStrategy` (`character_first` …), `caseSensitive`, `wholeWords`, `groupScoring`, `recursiveScan`, `includeNames`, `overflowAlert`, `wordForms` (Cyrillic keys match every form of their words; absent = on). Copy them from `_example.json`. |
 | `vectorized` | Embedding settings for `vectorized` entries. |
 | `isEmbedded` | The book came inside a card. |
 | `formatTemplate` | Optional wrapper for each inserted entry. |
@@ -82,9 +82,9 @@ The id is the file name without `.json`, repeated in `"id"`. A chat uses: every 
 ### Entry fields
 | Field | What it is |
 |---|---|
-| `uid` | Number, unique in the book: 1, 2, 3… |
+| `uid` | Number, unique in the book: 1, 2, 3… Never renumber: timed effects and vectors key on it. |
 | `title`, `memo` | Name and a note for people; not sent. |
-| `keys` | Words that fire the entry. Ukrainian and Russian: list the inflected forms people will type (`вежа`, `вежі`, `вежу`, `вежею`). |
+| `keys` | Words that fire the entry, matched as whole words. Ukrainian and Russian keys match every form of their words: one base form is enough (`вежа` fires on `вежі`, `вежу`, `вежею`); a key of several words fires when those words stand side by side in that order, each in any form (`Червона Вежа` fires on `до Червоної Вежі`). Words of 3 letters or fewer match only exactly. |
 | `keysRegex` | `true`: keys are regular expressions. |
 | `secondaryKeys`, `selectiveLogic` | Optional second key list and how it combines with `keys`: `AND_ANY`, `AND_ALL`, `NOT_ANY`, `NOT_ALL`. |
 | `status` | `"normal"` fires on a key, `"constant"` is sent every message (keep those few and short), `"vectorized"` fires by meaning. The source of truth: never write the old `constant` boolean. |
@@ -98,6 +98,7 @@ The id is the file name without `.json`, repeated in `"id"`. A chat uses: every 
 | `sticky`, `cooldown`, `delay` | Timed effects, in messages: stays on, waits before firing again, waits before the first firing. |
 | `characterFilter`, `characterFilterExclude`, `tagFilter`, `triggerFilters` | Fire only for (or never for) these characters, tags or generation types. |
 | `nonRecursable`, `preventFurtherRecursion`, `delayUntilRecursion` | How entries trigger each other. |
+| `scanDepthOverride`, `caseSensitiveOverride`, `wholeWordsOverride`, `wordFormsOverride`, `groupScoringOverride` | Per-entry overrides of the book settings; `null` = the book setting. `wordFormsOverride: false` makes a Cyrillic key match only the exact text. |
 | `ignoreBudget` | Insert even when the budget is used up. |
 | `matchSources` | `{ description, personality, scenario, persona }`: also scan these texts for keys. |
 | `automationId` | Quick-reply automation to run when it fires. |

@@ -37,12 +37,12 @@ Do not create one entry per noun automatically. Split when subjects activate und
 
 Keys fire the entry when the user or model types them. Design for natural use:
 
-- List inflected forms for Ukrainian and Russian: the forms people actually type in dialogue and narration (for example "вежа", "вежі", "вежу", "вежею").
+- Ukrainian and Russian keys match every form of their words: write one base form (`вежа` also fires on `вежі`, `вежу`, `вежею`). A key of several words fires when the words stand side by side in that order, each in any form. List extra forms only when the stem changes (`дім` / `дому`, `людина` / `люди`) and for words of 3 letters or fewer, which match only exactly.
 - Include the English or Latin name if the story uses one.
 - Include aliases only when they add real recall; do not pad keys with variants no one will type.
 - Avoid broad common words that cause false positives ("дім", "дорога", "місто" alone are too broad; "дім старої ткалі" is not).
 - Use `secondaryKeys` with `AND_ANY` or `AND_ALL` when an entry should fire only in combination with another concept.
-- Use `keysRegex: true` only when a pattern captures many inflections compactly and you are sure the regex matches only the intended forms.
+- Use `keysRegex: true` only for patterns word forms cannot express, and only when you are sure the regex matches only the intended text. Regex keys get no word-form matching.
 - Test each entry mentally: the exact expected trigger, a natural paraphrase or alias, and a near miss that should not trigger.
 
 ## Constant vs keyed vs vectorized

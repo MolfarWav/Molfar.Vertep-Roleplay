@@ -369,6 +369,8 @@ export type EntryPosition = 'before_char' | 'after_char' | 'before_em' | 'after_
 
 export interface LoreEntry {
   id: ID
+  /** The engine-side id (sticky/cooldown state and vectors key on it); kept across saves */
+  uid?: number
   title: string
   memo: string
   keys: string[]
@@ -396,15 +398,20 @@ export interface LoreEntry {
   triggerFilters: string[]
   nonRecursable: boolean
   preventFurtherRecursion: boolean
-  delayUntilRecursion: boolean
+  /** true = level 1; a number = the recursion level the entry waits for */
+  delayUntilRecursion: boolean | number
   /** Include this entry even when the WI budget is exhausted */
   ignoreBudget: boolean
   scanDepthOverride: number | null
   caseSensitiveOverride: boolean | null
   wholeWordsOverride: boolean | null
+  /** Cyrillic keys match any form of their words; null = the book setting (default on) */
+  wordFormsOverride: boolean | null
   groupScoringOverride: boolean | null
   automationId: string
   matchSources: { description: boolean; personality: boolean; scenario: boolean; persona: boolean }
+  /** Engine fields the editor does not model (imported books), written back untouched */
+  extra?: Record<string, unknown>
 }
 
 export interface Lorebook {
@@ -427,6 +434,10 @@ export interface Lorebook {
     recursiveScan: boolean
     includeNames: boolean
     overflowAlert: boolean
+    /** Cyrillic keys match any form of their words (absent = on) */
+    wordForms?: boolean
+    /** min activations scan no deeper than this many messages (0 = the whole chat) */
+    minActivationsDepthMax?: number
   }
   vectorized: { embedding: string; queryMessages: number; scoreThreshold: number; topK: number }
   isEmbedded: boolean // embedded in a character card
@@ -436,6 +447,8 @@ export interface Lorebook {
    * entry's own content goes. Empty string means "insert content unwrapped".
    */
   formatTemplate: string
+  /** Book fields the app does not model, written back untouched */
+  extra?: Record<string, unknown>
 }
 
 // ── Quick replies ──

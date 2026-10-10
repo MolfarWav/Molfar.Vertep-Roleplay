@@ -47,7 +47,7 @@ describe("docs/DATA-FORMATS.md names every field the app writes", () => {
       group: "g", groupWeight: 100, groupPrioritize: false, sticky: 0, cooldown: 0, delay: 0, enabled: true,
       characterFilter: [], characterFilterExclude: false, tagFilter: [], triggerFilters: [], nonRecursable: false,
       preventFurtherRecursion: false, delayUntilRecursion: false, ignoreBudget: false, scanDepthOverride: null,
-      caseSensitiveOverride: null, wholeWordsOverride: null, groupScoringOverride: null, automationId: "",
+      caseSensitiveOverride: null, wholeWordsOverride: null, wordFormsOverride: null, groupScoringOverride: null, automationId: "",
       matchSources: { description: false, personality: false, scenario: false, persona: false },
     };
     const book = { id: "b", name: "B", folderId: null, globalActive: false, linkedCharacterIds: [], entries: [entry], settings: {}, vectorized: {}, isEmbedded: false, formatTemplate: "" } as unknown as Lorebook;

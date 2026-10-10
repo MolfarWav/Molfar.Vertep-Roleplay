@@ -1110,13 +1110,47 @@ export async function importLorebookFiles(
   return ids
 }
 
+// Engine entry fields the editor models; anything else rides `extra` so a save never drops it.
+// caseSensitive / matchWholeWords / groupOverride (imported books) are read into the editor's
+// override fields and written back under those names only.
+const LORE_ENTRY_KNOWN = new Set([
+  'uid', 'title', 'memo', 'keys', 'keysRegex', 'secondaryKeys', 'selectiveLogic', 'status', 'constant', 'content',
+  'position', 'depth', 'role', 'order', 'probability', 'group', 'groupWeight', 'groupPrioritize', 'groupOverride',
+  'sticky', 'cooldown', 'delay', 'enabled', 'characterFilter', 'characterFilterExclude', 'tagFilter', 'triggerFilters',
+  'nonRecursable', 'preventFurtherRecursion', 'ignoreBudget', 'delayUntilRecursion', 'automationId', 'matchSources',
+  'scanDepthOverride', 'caseSensitiveOverride', 'caseSensitive', 'wholeWordsOverride', 'matchWholeWords',
+  'groupScoringOverride', 'wordFormsOverride',
+])
+const LORE_BOOK_KNOWN = new Set([
+  'id', 'name', 'folderId', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
+])
+const extraOf = (o: Record<string, unknown>, known: Set<string>): Record<string, unknown> | undefined => {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(o)) if (!known.has(k) && v !== undefined) out[k] = v
+  return Object.keys(out).length ? out : undefined
+}
+const boolOrNull = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null)
+
 export function lorebookToEngine(b: Lorebook): EngineLorebook {
+  // uids are stable: kept from the file, new entries get the next free number
+  const used = new Set<number>()
+  for (const e of b.entries) if (typeof e.uid === 'number') used.add(e.uid)
+  let next = used.size ? Math.max(...used) + 1 : 0
+  const taken = new Set<number>()
+  const uidOf = (e: LoreEntry): number => {
+    if (typeof e.uid === 'number' && !taken.has(e.uid)) { taken.add(e.uid); return e.uid }
+    while (used.has(next) || taken.has(next)) next++
+    taken.add(next)
+    return next
+  }
   return {
+    ...b.extra,
     id: b.id, name: b.name, globalActive: b.globalActive, linkedCharacterIds: b.linkedCharacterIds,
     settings: b.settings, vectorized: b.vectorized, isEmbedded: b.isEmbedded, formatTemplate: b.formatTemplate,
     folderId: b.folderId,
-    entries: b.entries.map((e, i) => ({
-      uid: i,
+    entries: b.entries.map((e) => ({
+      ...e.extra,
+      uid: uidOf(e),
       title: e.title, memo: e.memo,
       keys: e.keys, keysRegex: e.keysRegex, secondaryKeys: e.secondaryKeys,
       selectiveLogic: e.logic, content: e.content,
@@ -1129,6 +1163,9 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
       tagFilter: e.tagFilter, triggerFilters: e.triggerFilters,
       nonRecursable: e.nonRecursable, preventFurtherRecursion: e.preventFurtherRecursion, ignoreBudget: e.ignoreBudget,
       delayUntilRecursion: e.delayUntilRecursion, automationId: e.automationId, matchSources: e.matchSources,
+      scanDepthOverride: e.scanDepthOverride, caseSensitiveOverride: e.caseSensitiveOverride,
+      wholeWordsOverride: e.wholeWordsOverride, groupScoringOverride: e.groupScoringOverride,
+      wordFormsOverride: e.wordFormsOverride,
     })),
   }
 }
@@ -1140,6 +1177,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
     linkedCharacterIds: (b.linkedCharacterIds as string[]) ?? [],
     entries: (b.entries ?? []).map((e, i): LoreEntry => ({
       id: `e${e.uid ?? i}`,
+      uid: typeof e.uid === 'number' ? e.uid : i,
       title: (e.title as string) ?? '', memo: (e.memo as string) ?? '',
       keys: e.keys ?? [], keysRegex: e.keysRegex === true,
       secondaryKeys: e.secondaryKeys ?? [],
@@ -1149,16 +1187,22 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
       position: ENGINE_TO_POS[e.position ?? 'before_char'] ?? 'before_char',
       depth: e.depth ?? 4, role: (e.role as LoreEntry['role']) ?? 'system',
       order: e.order ?? 100, probability: e.probability ?? 100, useProbability: e.probability != null && e.probability < 100,
-      group: (e.group as string) ?? '', groupWeight: (e.groupWeight as number) ?? 100, groupPrioritize: e.groupPrioritize === true,
+      group: (e.group as string) ?? '', groupWeight: (e.groupWeight as number) ?? 100,
+      groupPrioritize: e.groupPrioritize === true || e.groupOverride === true,
       sticky: (e.sticky as number) ?? 0, cooldown: (e.cooldown as number) ?? 0, delay: (e.delay as number) ?? 0,
       enabled: e.enabled !== false,
       characterFilter: (e.characterFilter as ID[]) ?? [], characterFilterExclude: e.characterFilterExclude === true,
       tagFilter: (e.tagFilter as string[]) ?? [], triggerFilters: (e.triggerFilters as string[]) ?? [],
       nonRecursable: e.nonRecursable === true, preventFurtherRecursion: e.preventFurtherRecursion === true, ignoreBudget: e.ignoreBudget === true,
-      delayUntilRecursion: e.delayUntilRecursion === true,
-      scanDepthOverride: null, caseSensitiveOverride: null, wholeWordsOverride: null, groupScoringOverride: null,
+      delayUntilRecursion: typeof e.delayUntilRecursion === 'number' && e.delayUntilRecursion > 0 ? e.delayUntilRecursion : e.delayUntilRecursion === true,
+      scanDepthOverride: typeof e.scanDepthOverride === 'number' && e.scanDepthOverride > 0 ? e.scanDepthOverride : null,
+      caseSensitiveOverride: boolOrNull(e.caseSensitiveOverride) ?? (e.caseSensitive === true ? true : null),
+      wholeWordsOverride: boolOrNull(e.wholeWordsOverride) ?? (e.matchWholeWords === false ? false : null),
+      groupScoringOverride: boolOrNull(e.groupScoringOverride),
+      wordFormsOverride: boolOrNull(e.wordFormsOverride),
       automationId: (e.automationId as string) ?? '',
       matchSources: (e.matchSources as LoreEntry['matchSources']) ?? { description: false, personality: false, scenario: false, persona: false },
+      ...(extraOf(e, LORE_ENTRY_KNOWN) ? { extra: extraOf(e, LORE_ENTRY_KNOWN) } : {}),
     })),
     settings: (b.settings as Lorebook['settings']) ?? {
       scanDepth: 4, contextPercent: 25, budgetCap: 0, minActivations: 0, maxRecursion: 2,
@@ -1168,6 +1212,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
     vectorized: (b.vectorized as Lorebook['vectorized']) ?? { embedding: 'all-MiniLM-L6-v2', queryMessages: 2, scoreThreshold: 0.35, topK: 10 },
     isEmbedded: b.isEmbedded === true,
     formatTemplate: (b.formatTemplate as string) ?? '',
+    ...(extraOf(b, LORE_BOOK_KNOWN) ? { extra: extraOf(b, LORE_BOOK_KNOWN) } : {}),
   }
 }
 

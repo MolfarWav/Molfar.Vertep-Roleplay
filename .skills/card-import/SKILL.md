@@ -28,7 +28,7 @@ Without this skill, imported cards carry platform-specific syntax that this app 
 - Map source `description` content to the card fields that match its role: appearance and world go to `description`; inner traits, drives, and manner go to `personality`; the starting situation goes to `scenario`; opening words go to `first_mes`. If the source has one undifferentiated block, split it by content, not by source ordering.
 - Voice samples go to `mes_example` (the best two or three). Side details and facts needed only in some scenes go to lorebook entries, not into the card body: a bloated card makes the model recite it.
 - A source book's always-on entries become `status: "constant"`. Keep those few and short. Normal keyed entries become `status: "normal"`.
-- For Ukrainian or Russian lorebook keys, list the inflected forms people type: `вежа`, `вежі`, `вежу`, `вежею`. Do not transliterate; use the natural language of the card.
+- Ukrainian and Russian keys match every form of their words: write one base form (`вежа` also fires on `вежі`, `вежу`, `вежею`). A key of several words fires when the words stand side by side in that order, each in any form. List extra forms only when the stem changes (`дім` / `дому`, `людина` / `люди`) and for words of 3 letters or fewer, which match only exactly. Do not transliterate; use the natural language of the card.
 
 ### Platform syntax to strip or replace
 
@@ -64,7 +64,7 @@ Run in the head, not with tools:
 - Unknown top-level fields and `extensions` kept.
 - Platform syntax removed or converted to plain meaning.
 - The card text is in the language of the source or the language the user asked for.
-- Lorebook entries one topic each; keys include natural inflections.
+- Lorebook entries one topic each; keys in base forms (word forms match on their own).
 - The book id lands in the character's `/studio/linkedLorebookIds`.
 - The result fits the app's top-level card layout, not a nested `data` object.
 
