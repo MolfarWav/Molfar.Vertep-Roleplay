@@ -679,6 +679,27 @@ export function characterToCard(c: Character): EngineCard {
   }
 }
 
+/** What changed between two saved forms of a card, as the PATCH /characters/:id body
+ *  (null when nothing did). Values compare as JSON; the studio bag key by key. */
+export function cardPatch(prev: EngineCard, next: EngineCard): Record<string, unknown> | null {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+  const diff = (a: Record<string, unknown>, b: Record<string, unknown>, skip: string[]) => {
+    const set: Record<string, unknown> = {}
+    const unset: string[] = []
+    for (const k of Object.keys(b)) if (!skip.includes(k) && b[k] !== undefined && !same(a[k], b[k])) set[k] = b[k]
+    for (const k of Object.keys(a)) if (!skip.includes(k) && a[k] !== undefined && b[k] === undefined) unset.push(k)
+    return { set, unset }
+  }
+  const top = diff(prev as Record<string, unknown>, next as Record<string, unknown>, ['studio', 'spec'])
+  const st = diff((prev.studio ?? {}) as Record<string, unknown>, (next.studio ?? {}) as Record<string, unknown>, [])
+  const out: Record<string, unknown> = {}
+  if (Object.keys(top.set).length) out.set = top.set
+  if (top.unset.length) out.unset = top.unset
+  if (Object.keys(st.set).length) out.studio = st.set
+  if (st.unset.length) out.studioUnset = st.unset
+  return Object.keys(out).length ? out : null
+}
+
 // ── Card export: a V2 envelope that other apps read, with the card's own book ──
 const ST_POSITION: Record<string, number> = {
   before_char: 0, after_char: 1, before_an: 2, after_an: 3, at_depth: 4,

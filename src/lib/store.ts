@@ -27,7 +27,7 @@ import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
 import {
   j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
-  cardToCharacter, characterToCard, groupToCharacter,
+  cardToCharacter, cardPatch, characterToCard, groupToCharacter,
   engineChatToUI, chatPatchOf,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
@@ -242,7 +242,8 @@ interface AppState {
   duplicatePreset: (id: ID) => ID
   deletePreset: (id: ID) => void
   updateLorebook: (id: ID, patch: Partial<Lorebook>) => void
-  addLorebook: () => ID
+  /** A new empty book; the name gets " 2", " 3"… when a book already has it */
+  addLorebook: (name?: string) => ID
   duplicateLorebook: (id: ID) => ID
   deleteLorebook: (id: ID) => void
   updateRegex: (id: ID, patch: Partial<RegexScript>) => void
@@ -1530,8 +1531,14 @@ export const useApp = create<AppState>()(
             c = withVersion
           }
         }
-        void j(`/characters/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(characterToCard(c)) })
-          .catch((e) => toast.error(String((e as Error).message ?? e)))
+        // only the changed fields: a whole card with its emotion images inside
+        // passes the engine's 1 MB cap on app requests
+        const diff = before ? cardPatch(characterToCard(before), characterToCard(c)) : null
+        if (before && !diff) return
+        const req = diff
+          ? j(`/characters/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(diff) })
+          : j(`/characters/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(characterToCard(c)) })
+        void req.catch((e) => toast.error(String((e as Error).message ?? e)))
       },
       newCharacter: () => {
         bumpMutate()
@@ -1750,11 +1757,11 @@ export const useApp = create<AppState>()(
         void j(`/lorebooks/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ ...lorebookToEngine(b), id }) })
           .catch((e) => toast.error(String((e as Error).message ?? e)))
       },
-      addLorebook: () => {
+      addLorebook: (name) => {
         bumpMutate()
         const id = uid('book')
         const book: Lorebook = {
-          id, name: 'New Lorebook', folderId: null, globalActive: false, linkedCharacterIds: [], entries: [],
+          id, name: uniqueName(name?.trim() || 'New Lorebook', get().lorebooks.map((b) => b.name)), folderId: null, globalActive: false, linkedCharacterIds: [], entries: [],
           settings: { scanDepth: 4, contextPercent: 25, budgetCap: 0, minActivations: 0, maxRecursion: 2, insertionStrategy: 'character_first', caseSensitive: false, wholeWords: true, groupScoring: false, recursiveScan: true, includeNames: true, overflowAlert: true },
           vectorized: { embedding: 'all-MiniLM-L6-v2', queryMessages: 2, scoreThreshold: 0.35, topK: 10 }, isEmbedded: false,
           formatTemplate: '',
@@ -2253,6 +2260,13 @@ function warnUnrunnableShortcut(label: string, command: string): void {
   toast.error(`Shortcut "${label}" can't auto-run ${key}`, {
     description: 'Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text.',
   })
+}
+
+/** `base`, or "base 2", "base 3"… the first one no name in `taken` has (case-blind). */
+export function uniqueName(base: string, taken: readonly string[]): string {
+  const have = new Set(taken.map((n) => n.trim().toLowerCase()))
+  if (!have.has(base.toLowerCase())) return base
+  for (let i = 2; ; i++) if (!have.has(`${base} ${i}`.toLowerCase())) return `${base} ${i}`
 }
 
 function writeThrough(what: string, req: Promise<unknown>): void {

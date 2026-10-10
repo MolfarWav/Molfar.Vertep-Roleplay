@@ -21,7 +21,6 @@ export function CharacterBooks({ c }: { c: Character }) {
   const characters = useApp((s) => s.characters)
   const updateCharacter = useApp((s) => s.updateCharacter)
   const addLorebook = useApp((s) => s.addLorebook)
-  const updateLorebook = useApp((s) => s.updateLorebook)
   const focusLorebook = useApp((s) => s.focusLorebook)
   const [picker, setPicker] = useState<Picker>(null)
 
@@ -44,8 +43,7 @@ export function CharacterBooks({ c }: { c: Character }) {
   }
 
   const createBook = () => {
-    const id = addLorebook()
-    updateLorebook(id, { name: t('lore.cb.newName', { name: c.name }) })
+    const id = addLorebook(t('lore.cb.newName', { name: c.name }))
     if (!c.embeddedLorebookId) updateCharacter(c.id, { embeddedLorebookId: id })
     else updateCharacter(c.id, { linkedLorebookIds: [...c.linkedLorebookIds, id] })
     toast.success(t('lore.cb.created'))

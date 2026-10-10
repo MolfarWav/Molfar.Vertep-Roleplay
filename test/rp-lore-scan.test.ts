@@ -485,3 +485,36 @@ describe("wi-status before the first send", () => {
     expect(titles(r.fired)).toEqual(["Glob", "Own"]);
   });
 });
+
+describe("card saves send only what changed", () => {
+  it("cardPatch: changed fields, removed fields, studio keys; nothing when equal", async () => {
+    (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
+    const { cardPatch } = await import("../src/lib/engine");
+    const big = "data:image/png;base64," + "A".repeat(2_000_000);
+    const prev = { spec: "chara_card_v2", name: "A", description: "d", system_prompt: "s", studio: { expressions: [{ name: "joy", url: big }], linkedLorebookIds: [] } };
+    const next = { spec: "chara_card_v2", name: "A", description: "d2", studio: { expressions: [{ name: "joy", url: big }], linkedLorebookIds: ["b1"] } };
+    const p = cardPatch(prev as never, next as never)!;
+    expect(p).toEqual({ set: { description: "d2" }, unset: ["system_prompt"], studio: { linkedLorebookIds: ["b1"] } });
+    expect(JSON.stringify(p).length).toBeLessThan(200);
+    expect(cardPatch(prev as never, prev as never)).toBeNull();
+  });
+
+  it("PATCH /characters/:id merges into the stored card and keeps the rest", async () => {
+    fs.mkdirSync(path.join(root, "characters", "big"), { recursive: true });
+    const big = "data:image/png;base64,AAAA";
+    fs.writeFileSync(path.join(root, "characters", "big", "card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Big", description: "d", system_prompt: "s", avatar: big, studio: { expressions: [{ name: "joy", url: big }], favorite: false } }));
+    const mod = (await import(engineUrl)) as { handleRoute: Function };
+    const out = mod.handleRoute({ method: "PATCH", path: "/characters/big", query: {}, body: { set: { description: "d2", avatar: "/media/x.png" }, unset: ["system_prompt", "name"], studio: { favorite: true }, studioUnset: ["nope"] } }, host()) as { status?: number };
+    expect(out.status ?? 200).toBe(200);
+    const card = JSON.parse(fs.readFileSync(path.join(root, "characters", "big", "card.json"), "utf8"));
+    expect(card).toMatchObject({ name: "Big", description: "d2", avatar: big, studio: { favorite: true, expressions: [{ name: "joy", url: big }] } });
+    expect(card.system_prompt).toBeUndefined();
+  });
+
+  it("uniqueName numbers a taken name", async () => {
+    (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
+    const { uniqueName } = await import("../src/lib/store");
+    expect(uniqueName("New Lorebook", [])).toBe("New Lorebook");
+    expect(uniqueName("New Lorebook", ["new lorebook", "New Lorebook 2"])).toBe("New Lorebook 3");
+  });
+});

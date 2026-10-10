@@ -2567,6 +2567,34 @@ export function handleRoute(req, host) {
       writeJson("characters/" + id + "/card.json", card);
       return ok({ ok: true, id });
     }
+    // only what changed: {set, unset, studio, studioUnset}. A card with its
+    // emotion images inside runs to megabytes, past the engine's 1 MB cap on
+    // app requests, so the app sends a whole card only when it creates one.
+    if (req.method === "PATCH") {
+      const b = body();
+      const prev = readJson("characters/" + id + "/card.json", null);
+      if (!prev) return err(404, "character not found");
+      const card = { ...prev };
+      const set = b.set && typeof b.set === "object" ? b.set : {};
+      for (const [k, v] of Object.entries(set)) {
+        if (k === "id" || k === "studio" || k === "spec") continue;
+        if (k === "avatar" && !(typeof v === "string" && v.startsWith("data:"))) continue; // a served URL is not the image
+        card[k] = v;
+      }
+      if (typeof card.name !== "string" || !card.name) return err(400, "name required");
+      for (const k of Array.isArray(b.unset) ? b.unset : []) {
+        if (typeof k === "string" && !["name", "spec", "studio", "avatar"].includes(k)) delete card[k];
+      }
+      if ((b.studio && typeof b.studio === "object") || Array.isArray(b.studioUnset)) {
+        const st = { ...(prev.studio && typeof prev.studio === "object" ? prev.studio : {}) };
+        for (const [k, v] of Object.entries(b.studio || {})) st[k] = v;
+        for (const k of Array.isArray(b.studioUnset) ? b.studioUnset : []) if (typeof k === "string") delete st[k];
+        card.studio = st;
+        keepStoredSpriteImages(prev, card);
+      }
+      writeJson("characters/" + id + "/card.json", card);
+      return ok({ ok: true, id });
+    }
     if (req.method === "DELETE") {
       try {
         fsx.remove("characters/" + id);
