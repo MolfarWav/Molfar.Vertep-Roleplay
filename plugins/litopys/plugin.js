@@ -988,7 +988,7 @@ export function llmRequest(ctx, host) {
           chapters: insert ? insert.chapters : 0,
           arcs: insert ? insert.arcs : 0,
           cut: insert ? insert.cut : 0,
-          ...(back ? { backstory: { from: back.from, tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
+          ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
         }),
       );
     } catch {}
@@ -2760,22 +2760,30 @@ export function linkRoute(fsx, body) {
   return { status: 200, json: { links } };
 }
 
+/** How far back a chain of linked chats is read (0.9.5): A -> B -> C gives C the stories of B and A. */
+const CHAIN_MAX = 3;
+/** Each chat's share of the one backstory budget, nearest first, by chain length. */
+const CHAIN_SHARES = [[1], [0.65, 0.35], [0.5, 0.3, 0.2]];
+
 /**
  * The earlier story a linked chat continues, as one block; null when there is no link, no record
- * there, or nothing fits. Read from the earlier chat's record as it is now, never copied. Fill
- * order (whole items; a group stops at its first item that does not fit): pinned facts of the world
- * or of a name present now, the earlier chat's last chapter, key facts (newest first), then arcs
- * and the chapters no fresh arc holds, walking back from the end. Rendered in story order.
+ * there, or nothing fits. Read from the earlier chats' records as they are now, never copied. A chain
+ * of links is followed back up to CHAIN_MAX chats; the budget stays one: the oldest chat is filled
+ * first within its share and what it leaves unused goes to the nearer ones, so the nearest gets the
+ * rest. Rendered oldest first, each chat as its own part (backstoryPart).
  */
 export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
   const budget = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
   if (!budget) return null;
-  const link = loadLinks(fsx)[chatId];
-  if (!link) return null;
-  const prc = readChat(fsx, link.from);
-  const pst = loadChatFile(fsx, link.from);
-  if (!prc || !pst) return null;
-  const pline = activeLine(prc.msgs);
+  const links = loadLinks(fsx);
+  // nearest first; the link route refuses loops, the seen set guards files written before it did
+  const chain = [];
+  const seen = new Set([chatId]);
+  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && chain.length < CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
+    seen.add(cur);
+    chain.push(cur);
+  }
+  if (!chain.length) return null;
 
   // present: the names of the new chat's recent messages, the speaker and the user
   const here = new Set();
@@ -2783,9 +2791,48 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
   for (const m of arr(line).slice(-recent)) if (str(m && m.name)) here.add(str(m.name).toLowerCase());
   if (str(speakerName)) here.add(str(speakerName).toLowerCase());
   here.add((str(meta && meta.userName) || "You").toLowerCase());
+
+  const shares = CHAIN_SHARES[chain.length - 1];
+  const usedFacts = new Set();
+  const parts = [];
+  let spent = 0;
+  for (let i = chain.length - 1; i >= 0; i--) {
+    // this chat and the older ones together may use their summed shares
+    const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
+    const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
+    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    if (!part) continue;
+    parts.push(part);
+    spent += part.tokens;
+  }
+  if (!parts.length) return null;
+  const text = parts.map((p) => p.text).join("\n\n");
+  return {
+    text,
+    tokens: estimateTokens(text),
+    from: chain[0],
+    ...(chain.length > 1 ? { chain: parts.map((p) => p.from) } : {}),
+    facts: parts.reduce((n, p) => n + p.facts, 0),
+    chapters: parts.reduce((n, p) => n + p.chapters, 0),
+  };
+}
+
+/**
+ * One earlier chat's part of the backstory, within `cap` tokens. Fill order (whole items; a group
+ * stops at its first item that does not fit): pinned facts of the world or of a name present now, the
+ * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
+ * walking back from the end. A fact already given by an older part is not repeated.
+ */
+function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle }) {
+  if (cap <= 0) return null;
+  const prc = readChat(fsx, from);
+  const pst = loadChatFile(fsx, from);
+  if (!prc || !pst) return null;
+  const pline = activeLine(prc.msgs);
   const subj = (f) => str(f.subject).toLowerCase();
   const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
-  const active = arr(pst.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
+  const factKey = (f) => str(f.text).trim().toLowerCase();
+  const active = arr(pst.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f) && !usedFacts.has(factKey(f)));
 
   const ranges = new Map();
   const chapters = arr(pst.chapters)
@@ -2802,8 +2849,10 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
   const a = active.filter((f) => f.pinned === true && (subj(f) === "world" || here.has(subj(f))));
   const c = active.filter((f) => !a.includes(f) && f.weight === "key").sort((x, y) => (Number(y.updatedAt) || 0) - (Number(x.updatedAt) || 0));
 
-  const title = str(prc.meta && prc.meta.title) || link.from;
-  const header = "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". Background for the next reply: do not retell it, do not contradict it.]";
+  const title = str(prc.meta && prc.meta.title) || from;
+  const header = nearerTitle
+    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". Background for the next reply: do not retell it, do not contradict it.]"
+    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". Background for the next reply: do not retell it, do not contradict it.]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const facts = [];
   const story = [];
@@ -2815,7 +2864,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
   };
   const tryAdd = (list, item) => {
     list.push(item);
-    if (estimateTokens(render()) <= budget) return true;
+    if (estimateTokens(render()) <= cap) return true;
     list.pop();
     return false;
   };
@@ -2824,8 +2873,9 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
   for (const f of c) if (!tryAdd(facts, f)) break;
   for (const x of older) if (!tryAdd(story, x)) break;
   if (!facts.length && !story.length) return null;
+  for (const f of facts) usedFacts.add(factKey(f));
   const text = render();
-  return { text, tokens: estimateTokens(text), from: link.from, facts: facts.length, chapters: story.length };
+  return { text, tokens: estimateTokens(text), from, facts: facts.length, chapters: story.length };
 }
 
 // ---------- M4a: the user edits the record ----------
@@ -3393,7 +3443,7 @@ export function uiPanel(_ctx, host) {
           { key: "recentMessages", label: "Recent messages", hint: "Newest messages the prompt keeps word for word. A scene gets its chapter as soon as the next scene has begun.", kind: "number", value: cfg.recentMessages },
           { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add the Litopys record for this chat: chapters before the cut and facts.", kind: "select", list: ["on", "off"], value: cfg.insert === false ? "off" : "on" },
           { key: "budget", label: "Insert budget, tokens", hint: "The most the Litopys block may take. 200 to 4000, default 800.", kind: "number", value: cfg.budget },
-          { key: "linkBudget", label: "Backstory budget, tokens", hint: "A chat that continues an earlier one (linked on the map of chats) gets that chat's story as background, up to this many tokens. 0 to 3000, default 800; 0 = none.", kind: "number", value: cfg.linkBudget },
+          { key: "linkBudget", label: "Backstory budget, tokens", hint: "A chat that continues an earlier one (linked on the map of chats) gets that chat's story as background, and up to two chats further back along the chain, all within this many tokens (the nearest chat gets the largest share). 0 to 3000, default 800; 0 = none.", kind: "number", value: cfg.linkBudget },
           { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
           { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
           { key: "pinLimit", label: "Pin limit", hint: "The most pinned facts per character (and for the world). Only you pin; Litopys may propose a pin.", kind: "number", value: cfg.pinLimit },

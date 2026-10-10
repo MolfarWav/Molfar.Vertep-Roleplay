@@ -130,3 +130,68 @@ describe("backstory", () => {
     expect(L.llmRequest(ctx("new"), mockHost().host)).toBeNull();
   });
 });
+
+describe("backstory along a chain (0.9.5)", () => {
+  /** old -> mid -> new: "mid" has its own chapter and repeats one of old's facts. */
+  function chain() {
+    seed();
+    writeChat("mid", story(10, "k"), { title: "Ashes" });
+    writeJson("litopys/chats/mid.json", {
+      ...L.emptyChat("mid"),
+      migrated: true,
+      chapters: [{ id: "c1", from: "k1", to: "k10", count: 10, kind: "scene", text: "Aria left the valley.", label: "Road", at: 5 }],
+      facts: [
+        { id: "f1", text: "Aria fears fire.", subject: "Aria", knownBy: "all", type: "trait", weight: "important", pinned: true, status: "active", updatedAt: 6 },
+        { id: "f2", text: "Aria owes Bram a debt.", subject: "world", knownBy: "all", type: "relation", weight: "key", pinned: false, status: "active", updatedAt: 7 },
+      ],
+    });
+    const m = mockHost();
+    route(m.host, "POST", "/litopys/links", { chatId: "mid", from: "old" });
+    route(m.host, "POST", "/litopys/links", { chatId: "new", from: "mid" });
+    return m;
+  }
+
+  it("reads back past the direct predecessor, oldest first, a shared fact once", () => {
+    const m = chain();
+    const text = L.llmRequest(ctx("new"), m.host).messages[1].content as string;
+    expect(text.indexOf('"The mill"')).toBeGreaterThan(-1);
+    expect(text.indexOf("Aria burned the mill down.")).toBeLessThan(text.indexOf("Aria left the valley."));
+    expect(text).toContain('[Backstory (Litopys), older: the story before "Ashes", from the chat "The mill"');
+    expect(text).toContain('[Backstory (Litopys): the earlier story this chat continues, from the chat "Ashes"');
+    expect(text.split("Aria fears fire.").length - 1).toBe(1);
+    expect(text).toContain("Aria owes Bram a debt.");
+    expect(readJson("litopys/insert/new.json").backstory).toMatchObject({ from: "mid", chain: ["old", "mid"] });
+  });
+
+  it("keeps to the one budget, the nearest chat first in line for it", () => {
+    chain();
+    writeJson("litopys/config.json", { linkBudget: 120 });
+    const res = L.llmRequest(ctx("new"), mockHost().host);
+    const text = res.messages[1].content as string;
+    expect(L.estimateTokens(text)).toBeLessThanOrEqual(122);
+    expect(text).toContain("Aria left the valley.");
+  });
+
+  it("stops after three chats back", () => {
+    chain();
+    writeChat("first", story(4, "z"), { title: "Before" });
+    writeJson("litopys/chats/first.json", {
+      ...L.emptyChat("first"),
+      migrated: true,
+      chapters: [{ id: "c1", from: "z1", to: "z4", count: 4, kind: "scene", text: "Aria was born.", label: "Birth", at: 0 }],
+    });
+    writeChat("fourth", story(2, "q"), { title: "Later" });
+    const m = mockHost();
+    route(m.host, "POST", "/litopys/links", { chatId: "old", from: "first" });
+    route(m.host, "POST", "/litopys/links", { chatId: "fourth", from: "new" });
+    writeJson("litopys/chats/new.json", {
+      ...L.emptyChat("new"),
+      migrated: true,
+      chapters: [{ id: "c1", from: "n1", to: "n2", count: 2, kind: "scene", text: "Aria came home.", label: "Home", at: 8 }],
+    });
+    const text = L.llmRequest(ctx("fourth"), m.host).messages[1].content as string;
+    expect(text).toContain("Aria came home.");
+    expect(text).toContain("Aria burned the mill down.");
+    expect(text).not.toContain("Aria was born.");
+  });
+});
