@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
+import { resolveLanguage } from '@/lib/i18n'
 import { importCardFiles } from '@/lib/card-import'
 import { ASK_MOLFAR_MAX, askMolfar, canAskMolfar, canListApps, listOtherApps, openShellApp, type ShellApp } from '@/lib/shell-bridge'
 import { cn } from '@/lib/utils'
@@ -196,10 +197,12 @@ export function AchievementsBlock() {
 }
 
 function Tile({ label, value }: { label: string; value: number }) {
+  // a long word ("Повідомлення") in a third of a narrow column: hyphenate in the UI language, else break it
+  const lang = resolveLanguage(useApp((s) => s.settings.language))
   return (
     <div className="min-w-0 rounded-[3px] border border-border bg-secondary/60 px-2.5 py-1.5">
       <p className="font-mono text-base font-semibold tabular-nums">{value.toLocaleString()}</p>
-      <p className="font-heading text-[11.5px] leading-tight text-muted-foreground">{label}</p>
+      <p lang={lang} className="font-heading text-[11.5px] leading-tight text-muted-foreground hyphens-auto [overflow-wrap:anywhere]">{label}</p>
     </div>
   )
 }
