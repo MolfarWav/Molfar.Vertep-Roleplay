@@ -138,6 +138,29 @@ describe("prompt sources", () => {
     expect(user.detail).toBe("regex: Shout");
   });
 
+  it("regex speed-ups keep results: literal heads, alternation, case, a cached list", () => {
+    expect(eng.literalHead("<solatag[\\s\\S]{0,50000}?<\\/solatag>")).toBe("<solatag");
+    expect(eng.literalHead("<\\/date>")).toBe("</date>");
+    expect(eng.literalHead("<\\s{0,8}story_notes")).toBe("<");
+    expect(eng.literalHead("ab?c")).toBe("a");
+    expect(eng.literalHead("abc|xyz")).toBe("");
+    expect(eng.literalHead("x(a|b)y[|]")).toBe("x");
+    expect(eng.literalHead("Time:\\s*(Dusk)")).toBe("Time:");
+    const write = (id: string, findRegex: string, flags: string, replaceString: string) =>
+      fs.writeFileSync(path.join(root, "regex", id + ".json"), JSON.stringify({ id, scriptName: id, findRegex, flags, replaceString, placement: ["user_input"], promptOnly: true }));
+    write("alt", "abc|xyz", "g", "ALT");
+    write("case", "<DATE>[\\s\\S]*?<\\/date>", "gi", "");
+    write("absent", "<solatag[\\s\\S]*?<\\/solatag>", "g", "GONE");
+    const id = chat();
+    const p = preview(id, "xyz then <date>Day 3</date> end");
+    const user = p.sources.parts.find((x) => x.label === "Taras · #2")!;
+    expect(user.text).toBe("ALT then  end");
+    expect(user.detail).toBe("regex: alt, case");
+    // a second preview in a new pass reads the scripts again (an edited script applies)
+    write("alt", "abc|xyz", "g", "ALT2");
+    expect(preview(id, "xyz").sources.parts.find((x) => x.label === "Taras · #2")!.text).toBe("ALT2");
+  });
+
   it("the locator: in order, unclaimed, short texts only as whole messages", () => {
     const sources = { parts: [{ text: "Hi" }, { text: "A long enough text" }, { text: "Hi" }, { text: "zz" }] };
     const r = eng.locateSources(sources, "A long enough text", [{ content: "Hi" }, { content: "Hi" }]);

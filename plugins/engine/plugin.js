@@ -463,6 +463,8 @@ export function sectionCondPasses(cond, presetVars, chatVars) {
  */
 function expandMacros(text, mc) {
   let out = String(text);
+  // every macro starts with "{{": without one there is nothing to do (dozens of passes saved per message)
+  if (out.indexOf("{{") < 0) return out;
   // macro names are case-insensitive ({{user}}, {{User}}, {{USER}} all resolve)
   const ci = (t, name, val) => t.replace(new RegExp("\\{\\{" + name + "\\}\\}", "gi"), val == null ? "" : String(val));
   const list = (raw) => {
@@ -588,17 +590,22 @@ function regexScopeRank(s) {
   return 2;
 }
 
+const regexCache = new WeakMap();
 function loadRegexScripts(fsx) {
-  let scripts = [];
-  try {
-    scripts = fsx.list("regex").filter((f) => f.endsWith(".json"))
-      .map((f) => { try { return JSON.parse(fsx.read("regex/" + f)); } catch { return null; } })
-      .filter(Boolean);
-  } catch {}
-  return scripts.sort((a, b) =>
+  let names = [];
+  try { names = fsx.list("regex").filter((f) => f.endsWith(".json")); } catch {}
+  const key = names.join("\n");
+  const hit = fsx && typeof fsx === "object" ? regexCache.get(fsx) : null;
+  if (hit && hit.key === key) return hit.scripts;
+  const scripts = names
+    .map((f) => { try { return JSON.parse(fsx.read("regex/" + f)); } catch { return null; } })
+    .filter(Boolean);
+  scripts.sort((a, b) =>
     regexScopeRank(a) - regexScopeRank(b) ||
     ((a.order ?? 0) - (b.order ?? 0)) ||
     String(a.scriptName ?? "").localeCompare(String(b.scriptName ?? "")));
+  if (fsx && typeof fsx === "object") regexCache.set(fsx, { key, scripts });
+  return scripts;
 }
 
 /** One script over one string — the studio replace semantics: {{match}} is
@@ -606,13 +613,71 @@ function loadRegexScripts(fsx) {
  *  trimmed of the script's trim strings, a missing group vanishes — and
  *  macros substitute in the replacement. The FIND side substitutes macros
  *  per the script's macroMode (none / raw / escaped). */
+/** The literal text every match of a pattern starts with ("<solatag" for a pattern opening "<solatag[…"),
+ *  or "" when it opens with anything else or has a top-level "|": a text without it cannot match, and
+ *  indexOf is far cheaper than running the regex over a long message. Escaped punctuation is literal;
+ *  a quantified char ends the head. */
+export function literalHead(find) {
+  let depth = 0;
+  for (let i = 0; i < find.length; i++) {
+    const c = find[i];
+    if (c === "\\") { i++; continue; }
+    if (c === "[") { // a class: skip to its end
+      for (i++; i < find.length && find[i] !== "]"; i++) if (find[i] === "\\") i++;
+      continue;
+    }
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "|" && depth === 0) return "";
+  }
+  let out = "";
+  for (let i = 0; i < find.length; i++) {
+    let c = find[i];
+    let w = 1;
+    if (c === "\\") {
+      const n = find[i + 1];
+      if (!n || /[A-Za-z0-9]/.test(n)) break; // \s, \d, \b, \1 …
+      c = n;
+      w = 2;
+    } else if ("^$.|?*+()[]{}".includes(c)) break;
+    const q = find[i + w];
+    if (q === "?" || q === "*" || q === "+" || q === "{") break;
+    out += c;
+    i += w - 1;
+  }
+  return out;
+}
+/** Per script, per pass: the compiled pattern and its literal head (kept off the script object). */
+const compiledRegex = new WeakMap();
+
 function applyRegexScript(s, input, mc) {
   let find = String(s.findRegex ?? "");
   if (!find || find.length > 500) return String(input);
+  const plain = s.macroMode !== "raw" && s.macroMode !== "escaped";
   if (s.macroMode === "raw") find = expandMacros(find, mc);
   else if (s.macroMode === "escaped") find = expandMacros(find, macroEscapedContext(mc));
+  const flags = s.flags || "g";
   let re;
-  try { re = new RegExp(find, s.flags || "g"); } catch { return String(input); }
+  if (plain) {
+    // a stored pattern has no macros: compiled once per pass
+    let c = compiledRegex.get(s);
+    if (!c || c.find !== find || c.flags !== flags) {
+      let r = null;
+      try { r = new RegExp(find, flags); } catch {}
+      c = { find, flags, re: r, head: literalHead(find) };
+      compiledRegex.set(s, c);
+    }
+    if (!c.re) return String(input);
+    if (c.head.length >= 2) {
+      const text = String(input).slice(0, 20000);
+      const ci = flags.includes("i");
+      if ((ci ? text.toLowerCase() : text).indexOf(ci ? c.head.toLowerCase() : c.head) < 0) return String(input);
+    }
+    re = c.re;
+    re.lastIndex = 0;
+  } else {
+    try { re = new RegExp(find, flags); } catch { return String(input); }
+  }
   const trims = (Array.isArray(s.trimStrings) ? s.trimStrings : [])
     .map((t) => expandMacros(String(t), mc)).filter(Boolean);
   const trim = (v) => { let out = v; for (const t of trims) out = out.split(t).join(""); return out; };
@@ -637,6 +702,7 @@ function applyRegexScript(s, input, mc) {
   } catch { return String(input); }
 }
 
+const regexFiltered = new WeakMap();
 const REGEX_WHERE = ["user_input", "ai_output", "slash", "wi", "reasoning"];
 /** A script's two axes: WHERE it applies (placement) and WHEN. With neither
  *  "only" flag the text is rewritten as the message is saved; markdownOnly
@@ -672,12 +738,23 @@ function runRegexScripts(scripts, meta, members, text, placements, depth, mc, st
     return true;
   };
   let out = String(text);
-  for (const s of scripts) {
-    if (!s || s.disabled || !inScope(s)) continue;
-    const ax = regexAxes(s);
-    if (!placements.some((p) => ax.where.includes(p))) continue;
-    if (stage === "prompt" ? !ax.promptOnly : ax.markdownOnly || ax.promptOnly) continue;
-    if (stage === "edit" && s.runOnEdit !== true) continue;
+  // which scripts apply here depends on the chat, the placement and the stage, not on the text:
+  // worked out once per list and reused for every message of a pass
+  const key = [stage, placements.join(","), meta && meta.id, meta && meta.characterId, meta && meta.presetId, (members || []).map((x) => x && x.id).join(",")].join("|");
+  let byKey = regexFiltered.get(scripts);
+  if (!byKey) regexFiltered.set(scripts, (byKey = new Map()));
+  let applies = byKey.get(key);
+  if (!applies) {
+    applies = scripts.filter((s) => {
+      if (!s || s.disabled || !inScope(s)) return false;
+      const ax = regexAxes(s);
+      if (!placements.some((p) => ax.where.includes(p))) return false;
+      if (stage === "prompt" ? !ax.promptOnly : ax.markdownOnly || ax.promptOnly) return false;
+      return !(stage === "edit" && s.runOnEdit !== true);
+    });
+    byKey.set(key, applies);
+  }
+  for (const s of applies) {
     if (depth != null && typeof depth === "number") {
       if (s.minDepth != null && s.minDepth >= 0 && depth < s.minDepth) continue;
       if (s.maxDepth != null && s.maxDepth >= 0 && depth > s.maxDepth) continue;
