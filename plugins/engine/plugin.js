@@ -429,17 +429,40 @@ function regexOnSave(fsx, meta, members, text, placement, mc) {
 }
 
 // ---------- data bank (chunked documents, term-scored retrieval) ----------
-/** Split text into overlapping chunks — good enough for term-frequency
- *  retrieval without an embedding backend (basic RAG, vector-lite). */
+/** Split text into overlapping chunks, cut at a paragraph, sentence or word
+ *  boundary (a passage cut mid-word reads as noise to the model). */
 function chunkText(t, size = 1000, overlap = 150) {
   const parts = [];
   let i = 0;
   while (i < t.length) {
-    parts.push(t.slice(i, i + size));
-    if (i + size >= t.length) break;
-    i += size - overlap;
+    let end = Math.min(t.length, i + size);
+    if (end < t.length) {
+      const win = t.slice(i, end);
+      const cut = Math.max(win.lastIndexOf("\n\n"), win.lastIndexOf("\n"), win.lastIndexOf(". "), win.lastIndexOf("! "), win.lastIndexOf("? "));
+      const space = win.lastIndexOf(" ");
+      if (cut >= size / 2) end = i + cut + 1;
+      else if (space >= size / 2) end = i + space + 1;
+    }
+    parts.push(t.slice(i, end));
+    if (end >= t.length) break;
+    // the overlap starts at a word boundary too
+    let next = Math.max(i + 1, end - overlap);
+    const sp = t.indexOf(" ", next);
+    if (sp > 0 && sp < end) next = sp + 1;
+    i = next;
   }
-  return parts.filter((x) => x.trim()).map((text, n) => ({ i: n, text }));
+  return parts.filter((x) => x.trim()).map((text, n) => ({ i: n, text, terms: dbTerms(text) }));
+}
+
+/** A text's words as stems with counts (word forms of one word share a stem). */
+function dbTerms(text) {
+  const out = {};
+  for (const w of wiWords(text)) {
+    if (w.length < 3 || MEM_STOP.has(w)) continue;
+    const st = stem(w);
+    out[st] = (out[st] || 0) + 1;
+  }
+  return out;
 }
 
 function listDatabank(fsx) {
@@ -452,42 +475,46 @@ function listDatabank(fsx) {
     .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
 }
 
-// query terms that match everything and rank nothing — without this list a
-// file mentioning "the" often outranks the file actually about the query
+// English words that match everything and rank nothing; Ukrainian and
+// Russian ones come from MEM_STOP
 const DB_STOPWORDS = new Set(("the and for are but not you all any can had her was his that this with have " +
   "from they them then than there here what when where which while who whom will your into upon over under " +
   "again once only very just also been being because both each more most other some such too own same about " +
   "after before between during through above below off out up down further once she him his hers its our ours " +
   "their theirs myself yourself himself herself itself ourselves themselves").split(" "));
 
+/** Is a bank file in this chat's scope? global always; character/chat files
+ *  only for their target (a file without a target counts as global). */
+function databankInScope(file, scope) {
+  if (!scope || !file.scopeTargetId || file.scope === "global" || !file.scope) return true;
+  if (file.scope === "chat") return file.scopeTargetId === scope.chatId;
+  if (file.scope === "character") return (scope.characterIds || []).includes(file.scopeTargetId);
+  return true;
+}
+
 /** Top chunks by term density against the query — the retrieval half of the
  *  data bank (used by /databank/search AND by assemble() for injection).
- *  Score is hits per 1000 characters so a long chunk can't win on size alone;
- *  the floor (2.0) means a single glancing hit never injects — short dense
- *  chunks clear it easily, long filler does not. */
-function searchDatabank(fsx, query, limit = 3) {
-  const terms = String(query || "")
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((t) => t.length >= 3 && !DB_STOPWORDS.has(t))
-    .slice(0, 32);
+ *  Words are matched by stem, so a word form in the query finds the other
+ *  forms in the text. Score is hits per 1000 characters so a long chunk can't
+ *  win on size alone; the floor (2.0) keeps glancing hits out. Files written
+ *  before stems were stored get them on first use. */
+function searchDatabank(fsx, query, limit = 3, scope) {
+  const terms = Object.keys(dbTerms(String(query || ""))).slice(0, 48);
   if (!terms.length) return [];
   const scored = [];
   for (const file of listDatabank(fsx)) {
-    if (file.enabled === false) continue;
+    if (file.enabled === false || !databankInScope(file, scope)) continue;
+    let upgraded = false;
     for (const c of file.chunks || []) {
-      const low = String(c.text || "").toLowerCase();
+      if (!c.terms || typeof c.terms !== "object") { c.terms = dbTerms(String(c.text || "")); upgraded = true; }
       let hits = 0;
-      for (const t of terms) {
-        let i = -1, n = 0;
-        while ((i = low.indexOf(t, i + 1)) >= 0 && n < 50) n++;
-        hits += n;
-      }
+      for (const t of terms) hits += Math.min(50, c.terms[t] || 0);
       if (hits > 0) {
-        const score = Math.round((hits * 1000) / Math.max(200, low.length) * 10) / 10;
+        const score = Math.round((hits * 1000) / Math.max(200, String(c.text || "").length) * 10) / 10;
         if (score >= 2.0) scored.push({ fileId: file.id, fileName: file.name, chunkIndex: c.i, text: c.text, score });
       }
     }
+    if (upgraded && file.id) { try { fsx.write("databank/" + file.id + ".json", JSON.stringify(file)); } catch { /* read-only: next time again */ } }
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
@@ -1732,9 +1759,20 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // (term-scored retrieval over enabled files — basic RAG)
   const dbScan = (pendingUserText ? pendingUserText + "\n" : "") + msgs.slice(-4).map((m) => m.text || "").join("\n");
   const extras = [];
-  const dbHits = searchDatabank(fsx, dbScan, 3);
+  const dbHits = searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: members.map((m) => m.id) });
   if (dbHits.length) {
-    extras.push({ role: "system", content: "[Data bank — retrieved reference material]\n" + dbHits.map((h) => h.text).join("\n---") });
+    // about 8% of the context (chars ~ tokens x 4), never under ~200 tokens:
+    // small windows keep room for the story
+    const ctxTokens = presetMaxCtx(preset) || 8192;
+    let room = Math.max(800, Math.round(ctxTokens * 4 * 0.08));
+    const parts = [];
+    for (const h of dbHits) {
+      if (room <= 200) break;
+      const text = h.text.length > room ? h.text.slice(0, room) + "…" : h.text;
+      parts.push("[" + h.fileName + " #" + (h.chunkIndex + 1) + "]\n" + text);
+      room -= text.length;
+    }
+    if (parts.length) extras.push({ role: "system", content: "[Data bank — retrieved reference material]\n" + parts.join("\n---\n") });
   }
 
   // author's note: the object form carries position/depth/role
@@ -3083,16 +3121,22 @@ export function handleRoute(req, host) {
         const chunks = chunkText(content);
         const file = {
           id: fid, name, scope: ["global", "character", "chat"].includes(b.scope) ? b.scope : "global",
-          scopeTargetId: null, enabled: true, addedAt: Date.now(),
+          scopeTargetId: b.scope !== "global" && typeof b.scopeTargetId === "string" && b.scopeTargetId ? b.scopeTargetId : null,
+          enabled: true, addedAt: Date.now(),
           size: content.length, chunks,
         };
         writeJson("databank/" + fid + ".json", file);
-        return ok({ file: { id: fid, name, scope: file.scope, scopeTargetId: null, status: "ready", size: file.size, chunks: chunks.length, enabled: true, addedAt: file.addedAt } });
+        return ok({ file: { id: fid, name, scope: file.scope, scopeTargetId: file.scopeTargetId, status: "ready", size: file.size, chunks: chunks.length, enabled: true, addedAt: file.addedAt } });
       }
       if (req.method === "GET" && id === "search") {
         const q = String((req.query && req.query.q) || (body().q) || "");
         if (!q.trim()) return err(400, "q required");
-        return ok({ results: searchDatabank(fsx, q, 8) });
+        // ?chatId= searches what that chat would see; without it, every file
+        const sc = req.query && req.query.chatId ? (() => {
+          const ch = loadChat(fsx, String(req.query.chatId));
+          return ch ? { chatId: ch.meta.id, characterIds: chatMembers(fsx, ch.meta).map((m) => m.id) } : null;
+        })() : null;
+        return ok({ results: searchDatabank(fsx, q, 8, sc) });
       }
       if (req.method === "PATCH" && id) {
         const b = body();
@@ -3100,6 +3144,10 @@ export function handleRoute(req, host) {
         if (!f) return err(404, "no such file");
         if (typeof b.enabled === "boolean") f.enabled = b.enabled;
         if (typeof b.name === "string" && b.name.trim()) f.name = b.name.trim().slice(0, 120);
+        if (["global", "character", "chat"].includes(b.scope)) {
+          f.scope = b.scope;
+          f.scopeTargetId = b.scope !== "global" && typeof b.scopeTargetId === "string" && b.scopeTargetId ? b.scopeTargetId : null;
+        }
         writeJson("databank/" + id + ".json", f);
         return ok({ ok: true });
       }

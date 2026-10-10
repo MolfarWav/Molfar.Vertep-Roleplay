@@ -374,3 +374,61 @@ describe("card export carries the card's own book", () => {
     expect(bookFile.entries[0]).toMatchObject({ keys: ["вежа"], position: "before_an", characterFilter: ["Олена"], triggerFilters: ["normal"], delayUntilRecursion: 2 });
   });
 });
+
+describe("data bank", () => {
+  const call = async (method: string, p: string, body?: unknown, query: Record<string, string> = {}) => {
+    const mod = (await import(engineUrl)) as { handleRoute: Function };
+    const out = mod.handleRoute({ method, path: p, query, body }, host()) as { status?: number; json: Record<string, unknown> };
+    return { status: out.status ?? 200, json: out.json };
+  };
+  const upload = (name: string, content: string, scope = "global", scopeTargetId?: string) =>
+    call("POST", "/databank", { name, content, scope, scopeTargetId }).then((r) => (r.json.file as { id: string }).id);
+  const search = (q: string, chatId?: string) =>
+    call("GET", "/databank/search", undefined, { q, ...(chatId ? { chatId } : {}) }).then((r) => r.json.results as { fileName: string; text: string }[]);
+  const seedChat = (id: string, characterId: string) => {
+    fs.mkdirSync(path.join(root, "characters", characterId), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", characterId, "card.json"), JSON.stringify({ spec: "chara_card_v2", name: characterId, description: "" }));
+    fs.writeFileSync(path.join(root, "chats", id + ".meta.json"), JSON.stringify({ id, characterId, lorebookIds: [], presetId: "default" }));
+    fs.writeFileSync(path.join(root, "chats", id + ".jsonl"), "");
+  };
+
+  it("word forms: a query form finds the other forms; stopwords do not count", async () => {
+    await upload("City", "Старе місто стоїть на пагорбі. У місті є ринок і собор.");
+    expect((await search("що сталося в місті")).map((r) => r.fileName)).toEqual(["City"]);
+    expect(await search("що як але")).toHaveLength(0);
+  });
+
+  it("no substring false hits", async () => {
+    await upload("Firm", "Компанія торгувала сукном і вином уздовж ріки.");
+    expect(await search("пан")).toHaveLength(0);
+  });
+
+  it("scope: a chat file only in its chat, a character file only with its character", async () => {
+    seedChat("c1", "aria");
+    seedChat("c2", "bran");
+    await upload("Chat notes", "Кампанія біля фортеці.", "chat", "c1");
+    await upload("Aria book", "Фортеця Арії на скелі.", "character", "aria");
+    await upload("World", "Фортеця стоїть віками.");
+    const names = async (chatId: string) => (await search("фортеця", chatId)).map((r) => r.fileName).sort();
+    expect(await names("c1")).toEqual(["Aria book", "Chat notes", "World"]);
+    expect(await names("c2")).toEqual(["World"]);
+    expect((await search("фортеця")).length).toBe(3);
+  });
+
+  it("chunks end on a sentence or word boundary", async () => {
+    const sentence = "Вартові змінюються щоночі біля брами. ";
+    const id = await upload("Long", sentence.repeat(80));
+    const file = JSON.parse(fs.readFileSync(path.join(root, "databank", id + ".json"), "utf8")) as { chunks: { text: string }[] };
+    expect(file.chunks.length).toBeGreaterThan(1);
+    for (const c of file.chunks.slice(0, -1)) expect(c.text.trimEnd().endsWith(".")).toBe(true);
+  });
+
+  it("the prompt names the source of each passage", async () => {
+    seedChat("c1", "aria");
+    fs.writeFileSync(path.join(root, "chats", "c1.jsonl"), JSON.stringify({ id: "m0", role: "user", name: "U", text: "Розкажи про фортецю." }) + "\n");
+    await upload("World", "Фортеця стоїть віками на скелі над морем.");
+    const r = await call("POST", "/prompt/preview", { chatId: "c1" });
+    const all = JSON.stringify(r.json);
+    expect(all).toContain("[World #1]");
+  });
+});
