@@ -22,6 +22,8 @@ export function installTranslationToasts(): void {
         duration: Infinity,
         dismissible: false,
         closeButton: false,
+        // on a phone the shell puts toasts at the top, over the editor's banner
+        ...(typeof window !== 'undefined' && window.innerWidth < 768 ? { position: 'bottom-center' as const } : {}),
         action: { label: t('tr.save', lang()), onClick: () => savePendingTranslation(id, name) },
         cancel: { label: t('tr.discard', lang()), onClick: () => discardPendingTranslation(id) },
       })
