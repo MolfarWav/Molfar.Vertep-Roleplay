@@ -66,21 +66,26 @@ the prompt, presets and every export use; other clients see plain text. Empty fi
 text. Every key is optional; unknown keys are kept. Code: `src/lib/profile.ts`.
 
     { "v": 1,
-      "identity":   { "first": "", "family": "", "title": "", "occupation": "", "nicknames": [], "age": "", "gender": "", "pronouns": "", "comment": "" },
-      "appearance": { "face": "", "eyes": "", "hair": "", "body": "", "height": "", "skin": "", "marks": "", "attire": "", "voice": "", "scent": "", "other": "" },
-      "lists":      { "strengths": [], "flaws": [], "traits": [], "values": [], "fears": [], "wishes": [], "secrets": [] },
-      "behaviors":  { "speech": "", "quirks": "", "habits": "", "underStress": "", "bodyLanguage": "" },
-      "goals":      { "life": "", "shortTerm": "" },
-      "background": { "birthplace": "", "location": "", "socialClass": "", "culture": "", "affiliations": [], "circle": "", "summary": "" },
+      "identity":   { "first": "", "family": "", "title": "", "occupation": "", "nicknames": [], "age": "", "birthday": "", "gender": "", "pronouns": "", "comment": "" },
+      "appearance": { "face": "", "eyes": "", "hair": "", "body": "", "height": "", "weight": "", "measurements": "", "skin": "", "marks": "", "attire": "", "voice": "", "scent": "", "other": "" },
+      "lists":      { "strengths": [], "flaws": [], "traits": [], "values": [], "fears": [], "wishes": [], "secrets": [], "petPeeves": [], "guiltyPleasures": [], "coreBeliefs": [] },
+      "behaviors":  { "speech": "", "quirks": "", "habits": "", "motivations": "", "social": "", "underStress": "", "bodyLanguage": "", "hobbies": "" },
+      "goals":      { "life": "", "shortTerm": "", "career": "", "growth": "", "relationships": "", "unfinished": "" },
+      "background": { "birthplace": "", "nationality": "", "ethnicity": "", "culture": "", "socialClass": "", "location": "", "living": "", "neighborhood": "", "summary": "",
+                      "affiliations": [], "circle": "", "politics": "", "religion": "" },
+      "trauma":     { "experiences": [], "triggers": [], "coping": "" },
       "relationships": [ { "name": "", "relation": "", "notes": "" } ],
-      "sexuality":  { "enabled": false, "orientation": "", "experience": "", "turnOns": [], "turnOffs": [], "kinks": [], "boundaries": "" },
+      "sexuality":  { "enabled": false, "orientation": "", "romantic": "", "relationshipStyle": "", "libido": "", "position": "", "experience": "",
+                      "turnOns": [], "turnOffs": [], "kinks": [], "boundaries": "", "notes": "" },
+      "sections":   { "appearance": true, "personality": true, "behaviors": true, "goals": true, "background": true, "circles": false, "trauma": false, "relationships": true, "sexuality": false },
       "notes":      { "description": "", "personality": "" },
       "free": false,
       "compiled":   { "at": 0, "hash": "" } }
 | Key | What it is |
 |---|---|
-| `identity`, `appearance`, `background`, `relationships`, `notes.description` | Compiled into `description` as labeled lines (`Eyes: grey`), in this order. `identity.comment` is private: never compiled. |
-| `lists`, `behaviors`, `goals`, `sexuality`, `notes.personality` | Compiled into `personality`. Lists are joined with commas. `sexuality` only when `enabled` is `true` (adult characters, off by default). |
+| `identity`, `appearance`, `background`, `relationships`, `notes.description` | Compiled into `description` as labeled lines (`Eyes: grey`), in this order: identity, appearance, origin and backstory, circles (`affiliations`, `circle`, `politics`, `religion`), relationships, notes. `identity.comment` is private: never compiled. `measurements` is bust-waist-hips. |
+| `lists`, `behaviors`, `goals`, `trauma`, `sexuality`, `notes.personality` | Compiled into `personality`. Lists are joined with commas. |
+| `sections` | Section switches. An off section keeps its fields and writes nothing. Keys: `appearance`, `personality` (the `lists`), `behaviors`, `goals`, `background` (origin and backstory), `circles`, `trauma`, `relationships`, `sexuality`. A missing key: `sexuality` follows the old `sexuality.enabled` (off by default, adult characters only), `trauma` and `circles` are on once one of their fields is filled, the rest are on. |
 | `notes` | Text that fits no field; it follows the fields. Starting a profile moves the card's old text here, so nothing changes until fields are filled. |
 | `free` | Free write: the profile is kept but no longer writes the card. |
 | `compiled` | When the profile last wrote the card and an FNV-1a hash of `description` + `personality` as written. A different hash means the text was edited by hand; the tab then offers to keep the additions, rewrite, or switch to Free write. |
@@ -89,17 +94,21 @@ To change a profiled card's text, change the profile fields and leave `descripti
 alone (the next save in the app would rewrite them), or set `free: true` first. Writing the profile
 does not recompile by itself: the app does that on the next edit in the tab.
 "Structure it" (button in the tab) asks the model to split the card's text into fields and files a
-proposal in `data/profile-drafts/<id>.json`; accepting it replaces the profile's sections, puts the text
-that fit no field in `notes`, and saves the old text as a version.
+proposal in `data/profile-drafts/<id>.json` (`kind: "structure"`); accepting it replaces the profile's
+sections, puts the text that fit no field in `notes`, and saves the old text as a version.
+"Fill empty" asks the model for the empty fields of the switched-on sections (or one section) and files
+`kind: "fill"`; accepting it writes only fields that are still empty, never relationships, and saves the
+old text as a version. With a vision model chosen, the portrait goes along and appearance comes from it.
 
 ## Personas: `data/personas/<id>.json`
 
 The user's side of a chat. `name` is `{{user}}`; `description` is what the prompt's persona part
 carries; also `title`, `pronouns`, `avatar`, `lorebookIds` (books bound to the persona), `binding`,
 `boundCharacterIds`, `autoLock`, `folderId`, `createdAt`. `profile` (optional) is the same shape as a
-card's `molfar_profile`, written by the Personas page's five questions: `description` is then compiled
-from all of it as one text (`identity.comment` holds the private "what I want from stories" note and is
-never compiled). Text added by hand after the compiled lines is kept on the next save; an edit inside
+card's `molfar_profile`, written by the Personas page's five questions, its Profile section, Structure it
+and Fill empty (drafts in `data/profile-drafts/persona-<id>.json`): `description` is then compiled from all
+of it as one text (`identity.comment` holds the private "what I want from stories" note and is never
+compiled; both notes texts go into `notes.description`). Text added by hand after the compiled lines is kept on the next save; an edit inside
 them is replaced after the app asks.
 
 ## Lorebooks: `data/lorebooks/<id>.json`

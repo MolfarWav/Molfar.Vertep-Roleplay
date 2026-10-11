@@ -27,7 +27,8 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - A card with `/extensions/molfar_profile` (the Profile tab) has `description` and
   `personality` WRITTEN from that profile: change the profile's fields (DATA-FORMATS,
   "The profile"), not the two texts, or the next edit in the Profile tab overwrites yours.
-  When the profile has `"free": true`, edit the texts as usual.
+  When the profile has `"free": true`, edit the texts as usual. A section switched off
+  in `sections` (`"trauma": false`) keeps its fields but writes nothing into the text.
 
 ## The calls
 1. Read: ONE `json_get` with every pointer you need, for example

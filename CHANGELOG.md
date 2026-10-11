@@ -9,6 +9,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 - Character editor: Export offers PNG, CHARX (the portrait, emotion images and gallery as files, readable by RisuAI and this app) and JSON. No exported card carries its version history (old texts and drafts) any more; the full backup still does.
 - Character editor: header buttons say what they do; Export has an export icon; saving a whole card keeps studio keys other tools wrote.
 - Presets: "Use in this chat" and "Make default" are two separate actions.
+- Profile tab, second round: many more fields (birthday, weight, measurements, pet peeves, guilty pleasures, core beliefs, motivations, hobbies, career and growth goals, origin, circles, trauma, more of the adult block). Every section has a switch: an off section keeps its fields and writes nothing, so a small context window pays only for what is on. Sections have their own icon and color, a side list jumps between them, and lists are chips.
+- Profile tab: "Fill empty" asks the model for the empty fields of one section or the whole profile and shows them for Accept; with a vision model chosen it reads the portrait for the appearance (engine 0.9.8 for pictures; older engines fill from the text).
+- Personas: a Profile section with the same fields, and "Structure it" to sort a pasted persona text into them.
+- Character editor: the tabs have icons and are grouped (text, world, look, tech).
 
 ## 4.32.0
 
