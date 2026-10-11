@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.35.0
+
+Group chats: a group has its own card and editor, a narrator mode that voices every member in one reply, and each member's dialogue in its own colour. Works on Molfar Vertep 0.9.7 and later.
+
 - Groups: deleting a group works and takes its chats with it (it used to come back after a reload); the members stay.
 - Groups: a group's description names its own members, not every character; Home's character count leaves groups out; a group's card menu no longer offers Duplicate, Convert to persona or Export PNG; a group's favorite is kept.
 - Groups: a group has its own editor (Characters › Groups): members with their order, mute, talkativeness, opening and dialogue colour in this group; a shared scenario and openings; turn order; the group's own lorebooks and which members' books count; its chats.
