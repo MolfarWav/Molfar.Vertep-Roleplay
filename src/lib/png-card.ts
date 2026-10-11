@@ -41,6 +41,22 @@ function b64(s: string): string {
   return btoa(bin)
 }
 
+/** A 400x600 portrait with the name's first letter, for a card with no picture of its own. */
+function plainPortrait(name: string): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = 400
+  canvas.height = 600
+  const g = canvas.getContext('2d')!
+  g.fillStyle = '#2a2633'
+  g.fillRect(0, 0, 400, 600)
+  g.fillStyle = '#d9d4e6'
+  g.font = '200px serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.fillText((name.trim()[0] ?? '?').toUpperCase(), 200, 300)
+  return canvas.toDataURL('image/png')
+}
+
 /** Build the PNG bytes of `imageDataUrl` with `card` embedded as tEXt. */
 export async function buildCardPng(imageDataUrl: string, card: EngineCard): Promise<Uint8Array> {
   // normalize to PNG via canvas (source may be jpeg/data-url/placeholder)
@@ -51,7 +67,9 @@ export async function buildCardPng(imageDataUrl: string, card: EngineCard): Prom
       canvas.width = Math.max(64, img.width)
       canvas.height = Math.max(64, img.height)
       canvas.getContext('2d')!.drawImage(img, 0, 0)
-      resolve(canvas.toDataURL('image/png'))
+      // the app runs in a sandboxed frame: its own files (the default avatar) count as
+      // another origin and taint the canvas. A plain portrait then, never a silent stop.
+      try { resolve(canvas.toDataURL('image/png')) } catch { resolve(plainPortrait(String((card as { name?: unknown }).name ?? ''))) }
     }
     img.onerror = () => reject(new Error('could not load avatar'))
     img.src = imageDataUrl

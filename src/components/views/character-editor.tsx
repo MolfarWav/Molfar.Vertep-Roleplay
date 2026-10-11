@@ -237,10 +237,19 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 <span className="hidden lg:inline">{t('editor.exportShort')}</span>
               </Button>
             } />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void exportPng()}>PNG card (portrait with the card inside)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void exportCharx()}>CHARX (with emotion images and gallery)</DropdownMenuItem>
-              <DropdownMenuItem onClick={exportJson}>JSON (the card file, V2)</DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem onClick={() => void exportPng()} className="flex-col items-start gap-0">
+                <span>PNG card</span>
+                <span className="text-xs text-muted-foreground">The portrait with the card inside</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void exportCharx()} className="flex-col items-start gap-0">
+                <span>CHARX</span>
+                <span className="text-xs text-muted-foreground">With the emotion images and gallery</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportJson} className="flex-col items-start gap-0">
+                <span>JSON</span>
+                <span className="text-xs text-muted-foreground">The card file alone (V2)</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="sm" onClick={() => { void startChatAndOpen(c.id) }}>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,11 +43,13 @@ export function PersonaQuestionnaire({ persona, open, onOpenChange, onSave }: {
   const [a, setA] = useState<PersonaAnswers>(() => answersOf(persona))
   // a fresh copy of the persona's answers each time the dialog opens
   useEffect(() => { if (open) setA(answersOf(persona)) }, [open, persona.id])
+  // focus the first answer: the default (the first button) is Cancel at the bottom, which scrolled the dialog there
+  const firstRef = useRef<HTMLInputElement>(null)
   const set = (key: Key, v: string) => setA((prev) => ({ ...prev, [key]: v }))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" initialFocus={firstRef}>
         <DialogHeader><DialogTitle>Your persona in five questions</DialogTitle></DialogHeader>
         <p className="text-xs text-muted-foreground">The answers write the persona's description as short labeled lines. Skip anything you like; text you wrote before stays below them.</p>
         <div className="flex flex-col gap-4">
@@ -61,7 +63,7 @@ export function PersonaQuestionnaire({ persona, open, onOpenChange, onSave }: {
                     <Label className="text-xs">{f.label}</Label>
                     {f.area
                       ? <Textarea rows={3} value={a[f.key]} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label} className="text-sm" />
-                      : <Input value={a[f.key]} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label} />}
+                      : <Input ref={f.key === 'first' ? firstRef : undefined} value={a[f.key]} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label} />}
                   </div>
                 ))}
               </div>
