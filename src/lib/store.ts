@@ -1469,11 +1469,11 @@ export const useApp = create<AppState>()(
         const gid = uid('grp')
         await j(`/groups/${encodeURIComponent(gid)}`, {
           method: 'PUT',
-          body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [] }),
+          body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),
         })
         const members = get().characters.filter((c) => memberIds.includes(c.id))
         bumpMutate()
-        set((s) => ({ characters: [...s.characters, groupToCharacter({ id: gid, name, memberIds, mode: 'natural', mutedIds: [] }, members)] }))
+        set((s) => ({ characters: [...s.characters, groupToCharacter({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, members)] }))
         const chatId = await get().newChat(gid)
         return chatId
       },
@@ -1485,13 +1485,13 @@ export const useApp = create<AppState>()(
         const gid = uid('grp')
         await j(`/groups/${encodeURIComponent(gid)}`, {
           method: 'PUT',
-          body: JSON.stringify({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [] }),
+          body: JSON.stringify({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),
         })
         await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ groupId: gid, characterId: null }) })
         const members = get().characters.filter((c) => memberIds.includes(c.id))
         bumpMutate()
         set((s) => ({
-          characters: [...s.characters, groupToCharacter({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [] }, members)],
+          characters: [...s.characters, groupToCharacter({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, members)],
           chats: s.chats.map((c) => (c.id === chatId ? { ...c, characterId: gid } : c)),
           activeCharacterId: s.activeCharacterId === solo.id ? gid : s.activeCharacterId,
         }))

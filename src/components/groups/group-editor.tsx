@@ -742,12 +742,26 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="narrator">{t('group.ed.generationModeNarrator')}</SelectItem>
                   <SelectItem value="swap">{t('group.ed.generationModeSwap')}</SelectItem>
                   <SelectItem value="append">{t('group.ed.generationModeAppend')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+              <div className="min-w-0">
+                <Label htmlFor="color-dialogue" className="mb-0">{t('group.ed.colorDialogue')}</Label>
+                <p className="text-xs text-muted-foreground">{t('group.ed.colorDialogueHint')}</p>
+              </div>
+              <Switch
+                id="color-dialogue"
+                checked={g.colorDialogue !== false}
+                onCheckedChange={(v) => updateGroup(group.id, { colorDialogue: v })}
+              />
+            </div>
+
+            {g.generationMode !== 'narrator' && (<>
             <div className="space-y-1.5">
               <Label htmlFor="who-answers">{t('group.ed.whoAnswers')}</Label>
               <Select
@@ -775,6 +789,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 onCheckedChange={(v) => updateGroup(group.id, { allowSelfResponses: v })}
               />
             </div>
+            </>)}
 
             <div className="space-y-3 rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-3">

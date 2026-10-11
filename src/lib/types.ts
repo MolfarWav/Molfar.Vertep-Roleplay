@@ -42,7 +42,9 @@ export interface GroupConfig {
   mode?: 'manual' | 'list' | 'natural'
   mutedIds?: string[]
   /** 'append' = all member cards join the prompt, 'swap' = speaker's only */
-  generationMode?: 'swap' | 'append'
+  generationMode?: 'swap' | 'append' | 'narrator'
+  /** colour each member's dialogue in this group's chats (default on) */
+  colorDialogue?: boolean
   allowSelfResponses?: boolean
   autoMode?: boolean
   autoDelaySec?: number
@@ -237,7 +239,7 @@ export interface Chat {
   hasUser?: boolean
   groupSettings?: {
     activation: 'natural' | 'list' | 'manual'
-    generationMode?: 'swap' | 'append' // swap = individual character turns, append = merged card
+    generationMode?: 'swap' | 'append' | 'narrator' // swap = individual character turns, append = merged card
     autoMode: boolean
     autoDelaySec: number
     allowSelfResponses: boolean

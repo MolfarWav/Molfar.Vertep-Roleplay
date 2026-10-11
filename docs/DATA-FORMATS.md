@@ -122,7 +122,8 @@ Edit groups in the app's group editor (Characters, Groups); every field below is
 | `name`, `memberIds` | The group's name; member card ids in speaking order. |
 | `mode` | Who answers: `natural` (whoever the user names, else one pick by talkativeness), `list` (everyone in order), `manual` (only a triggered member). |
 | `mutedIds` | Members that get no turns; their card and books stay out of the prompt and they bring no opening. |
-| `generationMode` | `swap` (the speaker's card only) or `append` (every unmuted member's card). |
+| `generationMode` | `narrator` (one reply voices every unmuted member, stored with the group's id as `charId`; new groups start here), `swap` (the speaker's card only; the default when the field is absent) or `append` (every unmuted member's card). |
+| `colorDialogue` | Colour each member's dialogue in this group's chats (default on): `memberSettings.<id>.color`, else the card's dialogue colour, else a palette colour by position. |
 | `allowSelfResponses`, `autoMode`, `autoDelaySec` | The same member may answer twice in a row; the group keeps talking on its own every N seconds. |
 | `favorite`, `avatar`, `tags`, `note` | Library fields; `avatar` empty = the members' portraits; `note` is never sent to the model. |
 | `scenario` | Shared scenario: replaces every member's own scenario in this group's chats. |

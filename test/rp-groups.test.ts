@@ -162,3 +162,52 @@ describe("group settings reach the prompt and the chat", () => {
     expect(JSON.stringify(r)).toContain("Bo");
   });
 });
+
+describe("narrator mode", () => {
+  const narrate = (g: Record<string, unknown> = {}) => {
+    fs.writeFileSync(path.join(root, "groups", "duo.json"), JSON.stringify({ id: "duo", name: "Duo", memberIds: ["aria", "bo"], mode: "natural", mutedIds: [], generationMode: "narrator", ...g }));
+    for (const [id, desc] of [["aria", "{{char}} is a mage."], ["bo", "{{char}} is a thief."]] as const) {
+      const card = JSON.parse(fs.readFileSync(path.join(root, "characters", id, "card.json"), "utf8"));
+      card.description = desc;
+      fs.writeFileSync(path.join(root, "characters", id, "card.json"), JSON.stringify(card));
+    }
+    return call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+  };
+
+  it("one prompt carries every unmuted member's card, {{char}} read as that card", () => {
+    const id = narrate();
+    const all = JSON.stringify(call("POST", "/prompt/preview", { chatId: id }).json);
+    expect(all).toContain("Aria is a mage.");
+    expect(all).toContain("Bo is a thief.");
+    expect(all).toContain("You narrate the scene");
+  });
+
+  it("a muted member stays out of the narrator's prompt", () => {
+    const id = narrate({ mutedIds: ["bo"] });
+    const all = JSON.stringify(call("POST", "/prompt/preview", { chatId: id }).json);
+    expect(all).toContain("Aria is a mage.");
+    expect(all).not.toContain("Bo is a thief.");
+  });
+
+  it("a send makes one reply, carried by the group itself", () => {
+    const id = narrate();
+    const requests: unknown[] = [];
+    const llm = host.llm as { request: (k: string, r: unknown) => void; results: Record<string, unknown> };
+    const prevRequest = llm.request;
+    llm.request = (_k, r) => { requests.push(r); };
+    try {
+      const req: Record<string, unknown> = { method: "POST", path: `/chats/${id}/send`, query: {}, body: { text: "Hello both." } };
+      const a = E.handleRoute(req, host) as { stash?: unknown; json?: Record<string, any> };
+      expect(requests.length).toBe(1);
+      if (a.stash) req.stash = a.stash;
+      llm.results.reply = { text: 'Aria nods. "Welcome."\n\nBo grins. "Hey."', model: "m" };
+      const b = E.handleRoute(req, host) as { json?: Record<string, any> };
+      expect(b.json?.reply?.charId).toBe("duo");
+      expect(b.json?.reply?.name).toBe("Duo");
+      expect(b.json?.queue).toBeUndefined();
+    } finally {
+      llm.request = prevRequest;
+      delete llm.results.reply;
+    }
+  });
+});

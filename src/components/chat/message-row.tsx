@@ -12,7 +12,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RichText } from '@/components/rich-blocks'
-import { Markdown } from '@/components/markdown'
+import { DialogueVoices, Markdown } from '@/components/markdown'
+import { groupVoices, memberColor, type DialogueVoice } from '@/lib/dialogue-voices'
 import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
@@ -199,6 +200,8 @@ function ThinkBlock({ text, ms, live, open, onOpenChange, onEdit }: {
 
 /** stable fallback: a fresh {} would make every render a new value */
 const EMPTY_THINK_OPEN: Record<number, boolean> = {}
+
+const NO_VOICES: DialogueVoice[] = []
 
 export const MessageRow = memo(function MessageRow({
   chat, message, index, character, isLast, slidePhase, onSwipeFx, summarized = false,
@@ -507,6 +510,15 @@ export const MessageRow = memo(function MessageRow({
     : characters.find((c) => c.id === (message.characterId ?? chat.characterId))
   const name = isUser ? (message.authorName ?? currentPersona?.name ?? 'You') : (speaker?.name ?? character.name)
   const avatar = isUser ? ((authorPersona ?? currentPersona)?.avatar ?? DEFAULT_AVATAR) : (speaker && 'avatar' in speaker ? speaker.avatar : character.avatar)
+  // group dialogue colours: a member's own message takes that member's colour;
+  // the group's own (narrator) messages colour each quote by who says it
+  const groupChar = character.isGroup && character.group ? character : null
+  const speakingMember = groupChar && !isUser && speaker && 'isGroup' in speaker && !speaker.isGroup && groupChar.group!.memberIds.includes(speaker.id) ? speaker : null
+  const memberQuoteColor = groupChar && speakingMember && groupChar.group!.colorDialogue !== false ? memberColor(groupChar, speakingMember) : undefined
+  const voices = useMemo(
+    () => (groupChar && !isUser && !speakingMember ? groupVoices(groupChar, characters) : NO_VOICES),
+    [groupChar, isUser, speakingMember, characters],
+  )
   // expression sprites: the reply's own words pick the sprite (keyword
   // classifier + synonym resolution against the card's sprite set). Memoized:
   // every rule is a regex over the whole message, and a streaming tick
@@ -818,11 +830,15 @@ export const MessageRow = memo(function MessageRow({
               // dialogue; without a character colour it falls back to the
               // theme's italics colour via the CSS variable default.
               style={
-                !isUser && character?.colors.name
-                  ? ({ '--tap-italics': `color-mix(in oklab, ${character.colors.name} 55%, var(--muted-foreground))` } as React.CSSProperties)
+                !isUser && (character?.colors.name || memberQuoteColor)
+                  ? ({
+                      ...(character?.colors.name ? { '--tap-italics': `color-mix(in oklab, ${character.colors.name} 55%, var(--muted-foreground))` } : {}),
+                      ...(memberQuoteColor ? { '--tap-quotes': memberQuoteColor } : {}),
+                    } as React.CSSProperties)
                   : undefined
               }
             >
+              <DialogueVoices.Provider value={voices}>
               <div key={`${message.id}-${shownSwipe}`}>
                 {parts ? (
                   // committed tool-using reply: thinking, text and tool rows
@@ -887,6 +903,7 @@ export const MessageRow = memo(function MessageRow({
                   </div>
                 )}
               </div>
+              </DialogueVoices.Provider>
             </div>
           )}
 

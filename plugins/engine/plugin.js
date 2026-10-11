@@ -1982,6 +1982,24 @@ function groupBookIds(g) {
   if (g && Array.isArray(g.linkedLorebookIds)) out.push(...g.linkedLorebookIds.filter((x) => typeof x === "string" && x));
   return out;
 }
+/** A group in narrator mode answers with one voice that speaks for every member. */
+function isNarratorGroup(g) {
+  return !!g && g.generationMode === "narrator";
+}
+/** The narrator: a pseudo-member with the group's id and name and a card with no fields
+ *  of its own. The members' cards go into its prompt as a roster; a shared scenario rides along. */
+function narratorVoice(g, groupId) {
+  const name = String((g && g.name) || "").trim() || "Narrator";
+  const scenario = g && typeof g.scenario === "string" ? g.scenario : "";
+  return {
+    id: groupId, name, narrator: true,
+    card: { name, description: "", personality: "", scenario, mes_example: "", system_prompt: "", post_history_instructions: "", tags: [] },
+  };
+}
+/** Every voice a reply in this chat can carry: the members, plus the narrator in narrator mode. */
+function chatVoices(g, members, groupId) {
+  return isNarratorGroup(g) && groupId ? [...members, narratorVoice(g, groupId)] : members;
+}
 
 function chatMembers(fsx, meta) {
   // returns [{id, name, card}] the bots participating in this chat, each card
@@ -2142,6 +2160,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const { persona, userName } = chatPersona(fsx, meta);
   const charName = speakerCard ? speakerCard.name : "";
   const cardName = charName;
+  // narrator mode: one reply voices every member (the speaker is the group itself)
+  const narrating = !!(speaker && speaker.narrator);
   // generation type this assembly runs for — sections can restrict their
   // trigger list to it (send/swipe/continue/impersonate; a swipe on the last
   // message also satisfies "regenerate")
@@ -2180,7 +2200,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
-      excludeBookIds: meta.groupId ? groupExcludedBookIds(readJsonFile(fsx, "groups/" + meta.groupId + ".json"), members, (speaker && speaker.id) || null) : [],
+      excludeBookIds: meta.groupId ? groupExcludedBookIds(readJsonFile(fsx, "groups/" + meta.groupId + ".json"), members, (!narrating && speaker && speaker.id) || null) : [],
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -2212,10 +2232,12 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // not just the speaker's — muted members stay out unless they're speaking.
   let groupCfg = null;
   if (meta.groupId) { try { groupCfg = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {} }
-  const rosterMembers = isGroup && groupCfg && groupCfg.generationMode === "append"
+  // narrator mode joins the cards the same way; there {{char}} in a card means that card
+  const rosterMembers = isGroup && groupCfg && (groupCfg.generationMode === "append" || narrating)
     ? members.filter((m) => !((groupCfg.mutedIds || []).includes(m.id)) || (speaker && m.id === speaker.id))
     : [];
-  const joined = (pick) => rosterMembers.map((m) => (m.card && pick(m.card) ? "[" + m.card.name + "]\n" + pick(m.card) : null)).filter(Boolean).join("\n\n");
+  const ownChar = (c, t) => (narrating && t ? String(t).replace(/\{\{char\}\}/gi, c.name || "") : t);
+  const joined = (pick) => rosterMembers.map((m) => (m.card && pick(m.card) ? "[" + m.card.name + "]\n" + ownChar(m.card, pick(m.card)) : null)).filter(Boolean).join("\n\n");
 
   const src = { v: 1, parts: [], omitted: [], vars: [] };
   const addPart = (kind, label, text, detail) => {
@@ -2228,7 +2250,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const addGroupCardPart = (fieldLabel, getter, kind) => {
     for (const m of rosterMembers) {
       if (!m.card) continue;
-      const val = getter(m.card);
+      const val = ownChar(m.card, getter(m.card));
       if (val && String(val).trim()) {
         const block = "[" + (m.card.name || m.name || "?") + "]\n" + String(val);
         const bt = sub(block);
@@ -2256,7 +2278,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     enhanceDefinitions: "",
     charDescription: rosterMembers.length ? joined((c) => c.description) : (speakerCard && speakerCard.description ? speakerCard.description : ""),
     charPersonality: rosterMembers.length ? joined((c) => c.personality) : (speakerCard && speakerCard.personality ? speakerCard.personality : ""),
-    scenario: speakerCard && speakerCard.scenario ? speakerCard.scenario : "",
+    // a narrator without a shared scenario carries every member's own
+    scenario: speakerCard && speakerCard.scenario ? speakerCard.scenario : narrating ? joined((c) => c.scenario) : "",
     personaDescription: persona && persona.description ? persona.description : "",
     worldInfoBefore: wi.before.length ? wi.before.join("\n") : "",
     worldInfoAfter: wi.after.length ? wi.after.join("\n") : "",
@@ -2276,7 +2299,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // group instructions (who exists, who replies)
   if (isGroup) {
     const roster = members.map((m) => m.name).join(", ");
-    groupSceneLine = "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
+    groupSceneLine = narrating
+      ? "This is a group scene with " + userName + ". Characters: " + rosterMembers.map((m) => m.name).join(", ") + ". You narrate the scene and voice these characters: write their actions and dialogue as the scene calls for, not every one of them every time. Give each character's speech its own paragraph and name the character in that paragraph. Never write " + userName + "'s words or actions."
+      : "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
     markers.scenario = (markers.scenario ? markers.scenario + "\n\n" : "") + groupSceneLine;
   }
 
@@ -3508,7 +3533,9 @@ export function handleRoute(req, host) {
     const peekGroup = chat.meta.groupId ? readJson("groups/" + chat.meta.groupId + ".json", null) : null;
     const peeked = b.messageId ? chat.msgs.find((m) => m.id === b.messageId) : null;
     const lastReply = [...msgs].reverse().find((m) => m.role === "char" && !m.picture);
-    const peekSpeaker = (peeked && peeked.role === "char" && members.find((m) => m.id === peeked.charId))
+    const peekVoices = chatVoices(peekGroup, members, chat.meta.groupId);
+    const peekSpeaker = (peeked && peeked.role === "char" && peekVoices.find((m) => m.id === peeked.charId))
+      || (isNarratorGroup(peekGroup) ? peekVoices[peekVoices.length - 1] : null)
       || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null)[0] : null)
       || members[0] || null;
     const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { limits: limitsOf(body()), dryRun: true, scanVec: scanVecPeek, gen: "preview" });
@@ -4144,6 +4171,8 @@ export function handleRoute(req, host) {
     const meta = chat.meta;
     const members = chatMembers(fsx, meta);
     const group = meta.groupId ? readJson("groups/" + meta.groupId + ".json", null) : null;
+    // who a reply can come from: the members, and the narrator in narrator mode
+    const voices = chatVoices(group, members, meta.groupId);
     const modelOf = () => (body().model != null ? body().model : meta.model);
     // stored-text regex for a message about to be saved in this chat
     const onSave = (text, placement, speaker) => regexOnSave(fsx, meta, members, text, placement, saveMacros(fsx, meta, chat.msgs, speaker));
@@ -4362,8 +4391,8 @@ const toolX = (r) => ({
         let plan = null;
         if (group) {
           const lastChar = [...chat.msgs].reverse().find((m) => m.role === "char" && !m.picture);
-          plan = groupTurnPlan(group, members, lastChar ? lastChar.charId : null, text).map((m) => m.id);
-          speaker = members.find((m) => m.id === plan[0]) || null;
+          plan = isNarratorGroup(group) ? [meta.groupId] : groupTurnPlan(group, members, lastChar ? lastChar.charId : null, text).map((m) => m.id);
+          speaker = voices.find((m) => m.id === plan[0]) || null;
         }
         if (!speaker) return err(400, "chat has no participating characters");
         const staged = userMsg ? [...chat.msgs, userMsg] : chat.msgs;
@@ -4414,7 +4443,7 @@ const toolX = (r) => ({
       const stateTag = cutReply(reply);
       replyText = stateTag.text;
       const plan = group && req.stash && Array.isArray(req.stash.plan) ? req.stash.plan : null;
-      if (group) speaker = (plan && members.find((m) => m.id === plan[0])) || null;
+      if (group) speaker = (plan && voices.find((m) => m.id === plan[0])) || null;
       if (!speaker) return err(400, "chat has no participating characters");
       replyText = stripEchoedName(replyText, speaker.name);
       // assistant prefill: the committed message starts with it (servers that
@@ -4446,7 +4475,7 @@ const toolX = (r) => ({
     if (op === "next" && req.method === "POST") {
       if (!group) return err(400, "not a group chat");
       const b = body();
-      const speaker = members.find((m) => m.id === b.charId) || null;
+      const speaker = voices.find((m) => m.id === b.charId) || null;
       if (!speaker) return err(400, "charId must be a member of this group");
       const reply = host.llm.results.reply;
       if (!reply) {
@@ -4526,7 +4555,7 @@ const toolX = (r) => ({
       // generate a fresh swipe (two-phase) from history WITHOUT this message
       const reply = host.llm.results.reply;
       const before = chat.msgs.slice(0, idx);
-      const speaker = members.find((m) => m.id === msg.charId) || members[0] || null;
+      const speaker = voices.find((m) => m.id === msg.charId) || members[0] || null;
       if (!speaker) return err(400, "speaker character missing");
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, before, "", req);
@@ -4579,7 +4608,7 @@ const toolX = (r) => ({
     // of double-writing)
     if (op === "cancelled" && req.method === "POST") {
       const b = body();
-      const cancelSpeaker = members.find((m) => m.id === (chat.msgs.find((x) => x.id === b.targetMessageId) || {}).charId) || members[0] || null;
+      const cancelSpeaker = voices.find((m) => m.id === (chat.msgs.find((x) => x.id === b.targetMessageId) || {}).charId) || members[0] || null;
       // the client froze what it showed, which may still carry the state tag: cut it, keep nothing of it
       const text = onSave(stripEchoedName(cutStateTag(String(b.text ?? "")).text, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
       const parts = Array.isArray(b.parts) ? cutPartsTag(b.parts).parts : null;
@@ -4631,7 +4660,7 @@ const toolX = (r) => ({
       })();
       if (idx < 0) return err(400, "no character message to continue");
       const msg = chat.msgs[idx];
-      const speaker = members.find((m) => m.id === msg.charId) || members[0] || null;
+      const speaker = voices.find((m) => m.id === msg.charId) || members[0] || null;
       if (!speaker) return err(400, "speaker character missing");
       const reply = host.llm.results.reply;
       if (!reply) {
@@ -4733,7 +4762,7 @@ const toolX = (r) => ({
     // member id is given; hidden messages stay out of the prompt.
     if (op === "messages" && !seg[3] && req.method === "POST") {
       const b = body();
-      const speaker = b.role === "user" ? null : members.find((m) => m.id === b.charId) || members[0] || null;
+      const speaker = b.role === "user" ? null : voices.find((m) => m.id === b.charId) || members[0] || null;
       const text = onSave(String(b.text || "").trim().slice(0, 20000), speaker ? "ai_output" : "user_input", speaker || members[0] || null);
       const attachments = Array.isArray(b.attachments)
         ? b.attachments.filter((a) => a && typeof a.url === "string" && a.url).slice(0, 8)

@@ -147,6 +147,7 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
+                      <SelectItem value="narrator">Narrator (one reply voices everyone)</SelectItem>
                       <SelectItem value="swap">Swap character cards (individual turns)</SelectItem>
                       <SelectItem value="append">Join character cards (merged)</SelectItem>
                     </SelectGroup>

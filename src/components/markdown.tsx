@@ -10,6 +10,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { cn } from '@/lib/utils'
 import { scopeCss } from '@/lib/scope-css'
+import { firstVoiceIn, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -117,9 +118,61 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   return out
 }
 
+/** The group voices a narrator's message is coloured by (none outside such messages). */
+export const DialogueVoices = createContext<DialogueVoice[]>([])
+
+type VoiceState = { speaker: DialogueVoice | null; carry: DialogueVoice | null; pending: Record<string, string>[] }
+
+/** Paints each tinted quote with the colour of the member who says it: the first member
+ *  named in its line (a line ends at a hard break). A line that names nobody keeps the
+ *  previous line's speaker; before anyone is named, the theme's colour stays. */
+function voiceQuotes(children: ReactNode, voices: DialogueVoice[], st: VoiceState, depth = 0): ReactNode[] {
+  const paint = (style: Record<string, string>, v: DialogueVoice) => { style['--tap-quotes'] = v.color }
+  const name = (text: string) => {
+    if (st.speaker) return
+    const v = firstVoiceIn(text, voices)
+    if (!v) return
+    st.speaker = v
+    for (const style of st.pending) paint(style, v)
+    st.pending = []
+  }
+  const endLine = () => {
+    if (st.speaker) st.carry = st.speaker
+    else if (st.carry) for (const style of st.pending) paint(style, st.carry)
+    st.speaker = null
+    st.pending = []
+  }
+  const out: ReactNode[] = []
+  for (const child of Children.toArray(children)) {
+    if (typeof child === 'string') {
+      const lines = child.split('\n')
+      lines.forEach((line, i) => { if (i > 0) endLine(); name(line) })
+      out.push(child)
+      continue
+    }
+    if (!isValidElement(child)) { out.push(child); continue }
+    const el = child as ReactElement<{ children?: ReactNode; style?: Record<string, string> }>
+    const tag = typeof el.type === 'string' ? el.type : ''
+    if (tag === 'br') { endLine(); out.push(child); continue }
+    if (tag === 'q') {
+      const style: Record<string, string> = { ...(el.props.style ?? {}) }
+      if (st.speaker) paint(style, st.speaker)
+      else st.pending.push(style)
+      out.push(cloneElement(el, { style }))
+      continue
+    }
+    if (OPAQUE.has(tag) || el.props?.children == null || depth > 6) { out.push(child); continue }
+    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, voices, st, depth + 1)))
+  }
+  if (depth === 0) endLine()
+  return out
+}
+
 const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | 'td' | 'th') =>
   function Tinted({ children }: { children?: ReactNode }) {
-    return <Tag>{tintQuotes(children)}</Tag>
+    const voices = useContext(DialogueVoices)
+    const tinted = tintQuotes(children)
+    return <Tag>{voices.length ? voiceQuotes(tinted, voices, { speaker: null, carry: null, pending: [] }) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
