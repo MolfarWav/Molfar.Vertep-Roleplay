@@ -36,6 +36,9 @@ import { dominantColor } from '@/lib/image-gen'
 import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
+import { buildCharx, cardJson } from '@/lib/charx'
+import { saveFile } from '@/lib/export'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Character } from '@/lib/types'
 import { copyText, DEFAULT_AVATAR } from '@/lib/utils'
 
@@ -106,6 +109,19 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
       downloadCardPng(bytes, c.name)
       toast.success(`Exported ${c.name} as a PNG card`)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
+  }
+
+  const fileBase = c.name.replace(/[^\p{L}\p{N}-]+/gu, '_').slice(0, 60) || 'character'
+  const exportCharx = async () => {
+    try {
+      const bytes = await buildCharx(c, lorebooks)
+      saveFile(new Blob([bytes as BlobPart], { type: 'application/zip' }), `${fileBase}.charx`)
+      toast.success(`Exported ${c.name} as CHARX with ${c.expressions.length} emotion image${c.expressions.length === 1 ? '' : 's'}`)
+    } catch (e) { toast.error(String((e as Error).message ?? e)) }
+  }
+  const exportJson = () => {
+    saveFile(new Blob([cardJson(c, lorebooks)], { type: 'application/json' }), `${fileBase}.json`)
+    toast.success(`Exported ${c.name} as JSON`)
   }
 
   const changeAvatar = async (file: File | undefined) => {
@@ -214,10 +230,19 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             <Copy className="size-4" aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.duplicateShort')}</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void exportPng()} aria-label={t('editor.export')} title={t('editor.export')}>
-            <Export className="size-4" aria-hidden="true" />
-            <span className="hidden lg:inline">{t('editor.exportShort')}</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button variant="ghost" size="sm" aria-label={t('editor.export')} title={t('editor.export')}>
+                <Export className="size-4" aria-hidden="true" />
+                <span className="hidden lg:inline">{t('editor.exportShort')}</span>
+              </Button>
+            } />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => void exportPng()}>PNG card (portrait with the card inside)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void exportCharx()}>CHARX (with emotion images and gallery)</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportJson}>JSON (the card file, V2)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" onClick={() => { void startChatAndOpen(c.id) }}>
             <Chats className="size-4" aria-hidden="true" />Chat
           </Button>
