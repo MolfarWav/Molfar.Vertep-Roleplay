@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +44,19 @@ import { copyText, DEFAULT_AVATAR } from '@/lib/utils'
 
 function TokenBadge({ text }: { text: string }) {
   return <Badge variant="outline" className="text-[10px] text-muted-foreground">{formatTokens(estimateTokens(text))} tok</Badge>
+}
+
+
+/** The editor's tabs by purpose: text, world, look, then the technical one. */
+const TAB_GROUPS: readonly (readonly string[])[] = [
+  ['core', 'profile', 'dialogue', 'soul'],
+  ['lorebook', 'regex'],
+  ['colors', 'sprites', 'gallery', 'voice'],
+  ['advanced'],
+]
+const TAB_ICONS: Record<string, PhosphorIcon> = {
+  core: UserCircle, profile: ListBullets, dialogue: ChatsCircle, advanced: SlidersHorizontal, soul: Sparkle,
+  lorebook: BookOpen, colors: Palette, sprites: Smiley, gallery: Images, regex: Code, voice: SpeakerHigh,
 }
 
 export function CharacterEditor({ character, onClose }: { character: Character; onClose: () => void }) {
@@ -267,18 +280,28 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           }}
         >
           <TabsList className="h-8 w-max flex-nowrap">
-            {['core', ...(c.isGroup ? [] : ['profile']), 'dialogue', 'advanced', ...(c.isGroup ? [] : ['soul']), 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((name) => (
-              <TabsTrigger
-                key={name}
-                value={name}
-                className={cn('flex-none px-2.5 text-xs capitalize', name === 'soul' && soulStatus === 'unrated' && 'outline-1 -outline-offset-1 outline-dashed outline-amber-500')}
-              >
-                {name === 'soul' ? t('soul.tab') : name}
-                {name === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
-                {name === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
-                {name === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
-              </TabsTrigger>
-            ))}
+            {TAB_GROUPS.map((group, gi) => {
+              const names = group.filter((name) => !(c.isGroup && (name === 'profile' || name === 'soul')))
+              return [
+                gi > 0 && <span key={`divider-${group[0]}`} className="mx-1 h-4 w-px shrink-0 self-center bg-border" aria-hidden="true" />,
+                ...names.map((name) => {
+                  const Icon = TAB_ICONS[name] ?? UserCircle
+                  return (
+                    <TabsTrigger
+                      key={name}
+                      value={name}
+                      className={cn('flex-none gap-1 px-2.5 text-xs capitalize', name === 'soul' && soulStatus === 'unrated' && 'outline-1 -outline-offset-1 outline-dashed outline-amber-500')}
+                    >
+                      <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                      {name === 'soul' ? t('soul.tab') : name}
+                      {name === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
+                      {name === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
+                      {name === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
+                    </TabsTrigger>
+                  )
+                }),
+              ]
+            })}
           </TabsList>
         </div>
           <fieldset disabled={!!preview} className={`mx-auto flex w-full min-w-0 flex-col gap-4 border-0 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'} ${preview ? 'bg-sky-500/5 ring-1 ring-sky-500/40' : ''}`}>

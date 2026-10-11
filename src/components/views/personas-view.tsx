@@ -1,11 +1,9 @@
 
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle, ListChecks } from '@phosphor-icons/react'
+import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,11 +15,11 @@ import { useConfirm } from '@/components/ui/confirm'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
-import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { downloadTextFile } from '@/lib/export'
 import { fileToDataUrl } from '@/lib/engine'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { PersonaQuestionnaire } from '@/components/persona/persona-questionnaire'
+import { PersonaDescription } from '@/components/persona/persona-profile'
 import { applyAnswers, personaAdditions, type PersonaAnswers } from '@/lib/profile'
 
 export function PersonasView() {
@@ -207,18 +205,7 @@ export function PersonasView() {
               <Label className="text-xs">Title</Label>
               <Input value={p.title} onChange={(e) => updatePersona(p.id, { title: e.target.value })} aria-label="Title" />
             </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Label className="flex items-center gap-2 text-xs">
-                  Description
-                  <Badge variant="outline" className="text-[10px]">{formatTokens(estimateTokens(p.description))} tok</Badge>
-                </Label>
-                <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={() => setAskOpen(true)}>
-                  <ListChecks className="size-3.5" aria-hidden="true" />{p.profile ? 'Edit answers' : 'Five questions'}
-                </Button>
-              </div>
-              <Textarea value={p.description} rows={5} onChange={(e) => updatePersona(p.id, { description: e.target.value })} aria-label="Description" className="text-sm" />
-            </div>
+            <PersonaDescription key={p.id} p={p} update={(patch) => updatePersona(p.id, patch)} onAsk={() => setAskOpen(true)} confirm={confirm} />
 
             <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
               <h2 className="text-xs font-semibold uppercase text-muted-foreground">Bindings</h2>
