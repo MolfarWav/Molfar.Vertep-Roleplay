@@ -110,6 +110,30 @@ function useUserName(chatId: string): string {
   return (personas.find((p) => p.id === personaId) ?? personas.find((p) => p.isDefault))?.name ?? ''
 }
 
+/** The settings on their own, for a chat whose dashboard is not built yet: the sensor model and the
+ *  rest can be set before the first build (they used to be reachable from Tools > Panels only). */
+function EmptySettingsSheet({ chatId, open, onClose, side }: { chatId: string; open: boolean; onClose: () => void; side: 'right' | 'bottom' }) {
+  const t = useT()
+  const dash = useContext(DashCtx)
+  const guard = useSettingsGuard()
+  const leave = () => { void guard.canLeave().then((ok) => { if (ok) onClose() }) }
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) leave() }}>
+      <SheetContent
+        side={side}
+        showCloseButton={false}
+        className={side === 'right' ? 'gap-0 p-0 data-[side=right]:w-[min(1180px,calc(100vw-48px))] data-[side=right]:sm:max-w-none' : 'h-[85dvh] gap-0 p-0'}
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>{t('dash.set.title')}</SheetTitle>
+        </SheetHeader>
+        {open && <DashSettings chatId={chatId} view={null} onBack={leave} onSaved={() => { void dash?.reload() }} onDirty={guard.setDirty} />}
+        {guard.dialog}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 export function DashStripMount({ chatId }: { chatId: string }) {
   const dash = useContext(DashCtx)
   const t = useT()
@@ -140,7 +164,10 @@ export function DashStripMount({ chatId }: { chatId: string }) {
       <aside className="hidden h-full w-[272px] shrink-0 flex-col border-l border-border bg-card lg:flex" aria-label={t('dash.title')}>
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
           <span className="font-heading text-[15px]">{t('dash.title')}</span>
-          <Button variant="ghost" size="icon-xs" onClick={toggle} aria-label={t('dash.collapse')} title={t('dash.collapse')} className="ml-auto rounded-none">
+          <Button variant="ghost" size="icon-xs" onClick={() => setSettings(true)} aria-label={t('dash.set.title')} title={t('dash.set.title')} className="ml-auto rounded-none">
+            <GearSix />
+          </Button>
+          <Button variant="ghost" size="icon-xs" onClick={toggle} aria-label={t('dash.collapse')} title={t('dash.collapse')} className="rounded-none">
             <CaretRight />
           </Button>
         </div>
@@ -152,6 +179,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
             error={dash.data?.lastError?.message ?? null}
           />
         </div>
+        <EmptySettingsSheet chatId={chatId} open={settings} onClose={() => setSettings(false)} side="right" />
       </aside>
     )
   }
@@ -252,6 +280,10 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
             {dash.refreshing ? t('dash.refreshing') : t('dash.empty.build')}
           </Button>
         )}
+        <Button variant="ghost" size="icon-xs" onClick={() => setSettings(true)} aria-label={t('dash.set.title')} title={t('dash.set.title')} className="rounded-none">
+          <GearSix />
+        </Button>
+        <EmptySettingsSheet chatId={chatId} open={settings} onClose={() => setSettings(false)} side="bottom" />
       </div>
     )
   }

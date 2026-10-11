@@ -20,7 +20,7 @@
  * now" in words as the last leading system message (buildInsert).
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
- *  DELETE /dashboard/config/prompts        back to the shipped prompt
+ *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
  *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/events                back to the default vocabulary
@@ -3687,6 +3687,11 @@ function configBody(fsx) {
     sensorParts,
     // what fast mode adds to every reply, in tokens (the UI hint says "about N")
     fastTokens: fastTokens(cfg, loadVocab(fsx)),
+    noteAgeTurns: noteAgeOf(cfg),
+    // the other prompts as the calls get them (a stored past default reads as today's default)
+    soul: promptOf("soul", cfg),
+    nudge: promptOf("nudge", cfg),
+    fast: promptOf("fast", cfg),
     custom: customPrompts(fsx),
     events: vocabRows(userEventRows(fsx)),
     deltaKeys: DELTA_KEYS,
@@ -3924,7 +3929,12 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/config/prompts" && method === "DELETE") {
     const next = { ...storedConfig(fsx) };
     const only = str(req.query && req.query.part);
-    if (only) {
+    const key = str(req.query && req.query.key);
+    if (key) {
+      // one whole prompt back to its default (soul, nudge, fast; sensor also drops its blocks)
+      if (PROMPT_KEYS.includes(key)) delete next[key];
+      if (key === "sensor") delete next.sensorParts;
+    } else if (only) {
       // one part back to its default
       if (isObj(next.sensorParts)) {
         const sp = { ...next.sensorParts };
@@ -3941,52 +3951,4 @@ export function handleRoute(req, host) {
   }
   if (path === "/dashboard/notes" && method === "POST") return notesRoute(req, fsx);
   return null;
-}
-
-export function uiPanel(_ctx, host) {
-  const fsx = host && host.fs ? host.fs : null;
-  const cfg = fsx ? loadConfig(fsx) : mergeConfig({});
-  const custom = fsx ? customPrompts(fsx) : [];
-  return {
-    label: "Relationship dashboard",
-    icon: "heart",
-    hint: "A sensor model reads each new reply; code turns what it reports into relationship numbers per character. State: data/dashboard/.",
-    items: [
-      {
-        id: "config",
-        title: "Sensor",
-        subtitle: (cfg.mode === "manual" || cfg.mode === "fast" ? cfg.mode : "sensor") + " · " + (str(cfg.sensorModel) || "chat model"),
-        enabled: cfg.mode !== "manual",
-        saveUrl: "/dashboard/config",
-        ...(custom.length ? { deleteUrl: "/dashboard/config/prompts", deleteLabel: "Restore default prompts" } : {}),
-        fields: [
-          { key: "sensorModel", label: "Sensor model", hint: "Empty = the chat's own model. A cheap, fast model is enough: it only reports what happened, as JSON.", placeholder: "provider/model-id", kind: "model", value: cfg.sensorModel || "" },
-          { key: "sensorMaxTokens", label: "Sensor reply limit, tokens", hint: "The most the sensor (and the soul rating) may write per call. A higher limit allows longer replies, which are slower and cost more; if replies are cut off, raise it. 1000 to 8000, default 3000.", kind: "number", value: cfg.sensorMaxTokens },
-          { key: "maxThreads", label: "Open threads at most", hint: "How many open threads the story may carry, yours included. 1 to 6, default 3.", kind: "number", value: cfg.maxThreads },
-          { key: "noteAgeTurns", label: "Notes leave the insert after, turns", hint: "Older notes stay in the notebook but leave the dashboard insert; Litopys keeps the important and key ones as facts. Pinned notes always stay. 5 to 500, default 30.", kind: "number", value: noteAgeOf(cfg) },
-          { key: "threadCheckEvery", label: "Check old threads every N turns", hint: "Every N turns the sensor is asked whether threads open that long are settled, dropped or still open. 0 = never. Default 5.", kind: "number", value: cfg.threadCheckEvery },
-          { key: "mode", label: "Mode", hint: "sensor: a separate call reads each reply. fast: for strong models, the story reply itself ends with the report, so there is no separate call (adds about " + fastTokens(cfg, fsx ? loadVocab(fsx) : DEFAULT_VOCAB) + " tokens to every reply); when the reply leaves it out, the sensor runs. manual: no automatic updates.", kind: "select", list: ["sensor", "fast", "manual"], value: cfg.mode },
-          { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add how the characters are right now (in words, never numbers).", kind: "select", list: ["on", "off"], value: cfg.injection.enabled === false ? "off" : "on" },
-          { key: "insertTokens", label: "Insert limit, tokens per character", hint: "The block of one character may take this much; the scene, open threads and closing line come on top. Over the limit, the lines about the others go first, then the notebooks. Default 300.", kind: "number", value: cfg.injection.maxTokens },
-          { key: "catchUp", label: "Catch up", hint: "Update a recently active chat in the background when it missed an update.", kind: "select", list: ["on", "off"], value: cfg.catchUp ? "on" : "off" },
-          { key: "autoSoul", label: "Rate characters automatically", hint: "When a card is imported or first played and has no soul, one call on the sensor model proposes souls for its main characters. You review them in the card's Soul tab.", kind: "select", list: ["on", "off"], value: cfg.autoSoul === false ? "off" : "on" },
-          // one textarea per block of the sensor prompt; a whole custom prompt (older way) stays one textarea
-          ...(wholeSensorCustom(cfg)
-            ? [{ key: "sensor", label: "Sensor prompt (whole)", hint: "A custom prompt for the whole sensor. Restore default prompts (below) puts the default back, in blocks. The event list and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("sensor", cfg) }]
-            : SENSOR_PARTS.map((part) => ({
-                key: "sensorPart_" + part.key,
-                label: "Sensor prompt: " + part.title,
-                hint: isObj(cfg.sensorParts) && part.key in cfg.sensorParts ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the sensor is told. The event list and the output shape are added by code.",
-                kind: "textarea",
-                rows: 6,
-                advanced: true,
-                value: isObj(cfg.sensorParts) && typeof cfg.sensorParts[part.key] === "string" && cfg.sensorParts[part.key].trim() ? cfg.sensorParts[part.key] : DEFAULT_SENSOR_PARTS[part.key],
-              }))),
-          { key: "soul", label: "Soul rating prompt", hint: custom.includes("soul") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change what the rating call is told. The event list, the stat names and the output shape are added by code.", kind: "textarea", rows: 12, advanced: true, value: promptOf("soul", cfg) },
-          { key: "nudge", label: "Story, move prompt", hint: custom.includes("nudge") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change the note the next reply gets when you press Story, move. {threads} is replaced by the open thread(s) it pulls on; leave it out to send none.", kind: "textarea", rows: 5, advanced: true, value: promptOf("nudge", cfg) },
-          { key: "fast", label: "Fast mode prompt", hint: custom.includes("fast") ? "Changed from the default: Restore default prompts (below) puts it back." : "This is the default; edit it to change the note the story model gets in fast mode. The sensor's rules, the event list, the output shape and the previous state are added by code; keep the <vertep_state> tag in it.", kind: "textarea", rows: 8, advanced: true, value: promptOf("fast", cfg) },
-        ],
-      },
-    ],
-  };
 }

@@ -617,7 +617,20 @@ describe("Litopys 2.0 state", () => {
       const res = L.handleRoute({ method: "GET", path: "/litopys/config" }, m.host);
       expect(res).toBeDefined();
       expect(res.status).toBe(200);
-      expect(res.json).toEqual({ ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS });
+      expect(res.json).toEqual({ ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS, custom: [] });
+    });
+
+    it("restores one prompt or both, and says which differ", () => {
+      const m = mockHost();
+      const put = L.handleRoute({ method: "PUT", path: "/litopys/config", body: { chapter: "My chapters.", arc: "My arcs." } }, m.host);
+      expect(put.json.custom).toEqual(["chapter", "arc"]);
+      const one = L.handleRoute({ method: "DELETE", path: "/litopys/config/prompts", query: { key: "arc" } }, m.host);
+      expect(one.json.arc).toBe(L.DEFAULT_PROMPTS.arc);
+      expect(one.json.chapter).toBe("My chapters.");
+      expect(one.json.custom).toEqual(["chapter"]);
+      const both = L.handleRoute({ method: "DELETE", path: "/litopys/config/prompts", query: {} }, m.host);
+      expect(both.json.chapter).toBe(L.DEFAULT_PROMPTS.chapter);
+      expect(both.json.custom).toEqual([]);
     });
 
     it("clamps flat and nested values on PUT", () => {
@@ -681,12 +694,6 @@ describe("Litopys 2.0 state", () => {
       const m = mockHost();
       expect(L.handleRoute({ method: "GET", path: "/litopys/other" }, m.host)).toBeNull();
       expect(L.handleRoute({ method: "POST", path: "/litopys/config" }, m.host)).toBeNull();
-    });
-
-    it("exposes the panel save URL", () => {
-      const m = mockHost();
-      const panel = L.uiPanel({}, m.host);
-      expect(panel.items[0].saveUrl).toBe("/litopys/config");
     });
   });
 

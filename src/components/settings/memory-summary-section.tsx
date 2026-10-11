@@ -13,7 +13,8 @@ import { deleteLitPrompts, fetchLitConfig, putLitConfig, type LitConfig } from '
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
-export function MemorySummarySection() {
+/** `inDialog`: the dialog's own title names it, so the card drops its heading. */
+export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean } = {}) {
   const t = useT()
   const [cfg, setCfg] = useState<LitConfig | null>(null)
 
@@ -26,6 +27,14 @@ export function MemorySummarySection() {
   const save = (patch: Record<string, unknown>) => {
     if (!cfg) return
     void putLitConfig(patch).then(setCfg).catch((e) => {
+      toast.error(e instanceof Error ? e.message : String(e))
+    })
+  }
+
+  // an older plugin sends no `custom`: then both buttons stay, as before
+  const changed = (key: 'chapter' | 'arc') => !cfg?.custom || cfg.custom.includes(key)
+  const restore = (key: 'chapter' | 'arc') => {
+    void deleteLitPrompts(key).then(setCfg).catch((e) => {
       toast.error(e instanceof Error ? e.message : String(e))
     })
   }
@@ -52,9 +61,16 @@ export function MemorySummarySection() {
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <div className="flex flex-col gap-3 rounded-md border border-border p-3">
         <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>
+          {!inDialog && <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>}
           <p className="text-xs text-muted-foreground">{t('lit.set.hint')}</p>
         </div>
+        <Field orientation="horizontal">
+          <div className="flex flex-col gap-0.5">
+            <FieldLabel htmlFor="lit-enabled">{t('lit.set.enabled')}</FieldLabel>
+            <p className="text-xs text-muted-foreground">{t('lit.set.enabledHint')}</p>
+          </div>
+          <Switch id="lit-enabled" checked={cfg.enabled !== false} onCheckedChange={(v) => save({ enabled: v })} />
+        </Field>
         <Field orientation="horizontal">
           <div className="flex flex-col gap-0.5">
             <FieldLabel htmlFor="lit-insert">{t('lit.set.insert')}</FieldLabel>
@@ -287,21 +303,7 @@ export function MemorySummarySection() {
           />
         </Field>
         <Field>
-          <div className="flex items-center justify-between gap-2">
-            <FieldLabel htmlFor="lit-chapter">{t('lit.set.prompt')}</FieldLabel>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs"
-              onClick={() => {
-                void deleteLitPrompts().then(() => fetchLitConfig()).then(setCfg).catch((e) => {
-                  toast.error(e instanceof Error ? e.message : String(e))
-                })
-              }}
-            >
-              {t('lit.set.reset')}
-            </Button>
-          </div>
+          <PromptLabel id="lit-chapter" label={t('lit.set.prompt')} changed={changed('chapter')} onRestore={() => restore('chapter')} />
           <Textarea
             id="lit-chapter"
             rows={5}
@@ -312,7 +314,7 @@ export function MemorySummarySection() {
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="lit-arc-prompt">{t('lit.set.arcPrompt')}</FieldLabel>
+          <PromptLabel id="lit-arc-prompt" label={t('lit.set.arcPrompt')} changed={changed('arc')} onRestore={() => restore('arc')} />
           <Textarea
             id="lit-arc-prompt"
             rows={5}
@@ -329,6 +331,21 @@ export function MemorySummarySection() {
         <p className="text-xs text-muted-foreground">Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.</p>
         <EmbedRow />
       </div>
+    </div>
+  )
+}
+
+/** A prompt's label, with "Restore default" while it differs from the default. */
+function PromptLabel({ id, label, changed, onRestore }: { id: string; label: string; changed: boolean; onRestore: () => void }) {
+  const t = useT()
+  return (
+    <div className="flex min-h-6 items-center justify-between gap-2">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {changed && (
+        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onRestore}>
+          {t('lit.set.reset')}
+        </Button>
+      )}
     </div>
   )
 }

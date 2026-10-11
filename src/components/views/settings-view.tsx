@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Archive, BookOpen, MagnifyingGlass, Check, DownloadSimple, UploadSimple, Trash, FileCode, FileImage, FileText, Asterisk as RegexIcon } from '@phosphor-icons/react'
 import { ProseColorsSection } from "@/components/settings/prose-colors-section"
 import { CustomCssSection } from "@/components/settings/custom-css-section"
-import { MemorySummarySection } from "@/components/settings/memory-summary-section"
 import { PROSE_FONTS } from "@/components/theme-applier"
 import { toast } from "sonner"
 import { canOpenSettingsTab, openSettingsTab } from "@/lib/shell-bridge"
@@ -20,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useApp } from "@/lib/store"
+import { useT } from "@/hooks/use-t"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MasterDetail } from "@/components/shell/master-detail"
 import { SectionPage } from "@/components/shell/section-page"
@@ -284,7 +284,7 @@ export function SettingsView() {
             {searchResults ?? (section === "themes" ? (
               <ThemesSection themes={themes} activeThemeId={settings.activeThemeId} onPick={(id) => updateSettings({ activeThemeId: id })} />
             ) : section === "memory" ? (
-              <MemorySummarySection />
+              <MemoryMovedNote />
             ) : section === "prose" ? (
               <ProseColorsSection />
             ) : section === "custom-css" ? (
@@ -634,6 +634,28 @@ function DataSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+/** Litopys' settings moved to the Library, next to the record they shape; this keeps the old way in working. */
+function MemoryMovedNote() {
+  const t = useT()
+  const setView = useApp((s) => s.setView)
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-md border border-border p-3">
+      <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>
+      <p className="text-xs text-muted-foreground">{t('lit.settings.moved')}</p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          useApp.setState({ litopysSettings: true })
+          setView('litopys')
+        }}
+      >
+        {t('lit.settings.openInLibrary')}
+      </Button>
     </div>
   )
 }

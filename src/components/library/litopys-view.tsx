@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowsClockwise, Graph, Scroll } from '@phosphor-icons/react'
+import { ArrowsClockwise, GearSix, Graph, Scroll } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { MemorySummarySection } from '@/components/settings/memory-summary-section'
+import { useApp } from '@/lib/store'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
@@ -28,6 +31,9 @@ export function LitopysView() {
   const [mode, setModeState] = useState<Mode>(readMode)
   // the map of chats takes the detail pane until a chat is picked on it
   const [showMap, setShowMap] = useState(false)
+  // Litopys' settings live here, with the record they shape; Settings > Memory sends people here
+  const [settingsOpen, setSettingsOpen] = useState(() => useApp.getState().litopysSettings)
+  useEffect(() => { if (useApp.getState().litopysSettings) useApp.setState({ litopysSettings: false }) }, [])
   // picking Overview or Ledger shows that view of the chat: the map gives way
   const setMode = (m: Mode) => {
     setModeState(m)
@@ -104,7 +110,7 @@ export function LitopysView() {
         onBack={() => setDetailOpen(false)}
         detailTitle={showMap ? t('lit.map.title') : current?.title}
         masterWidth="w-72"
-        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={showMap ? setSelectedId : select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={toggleMap} mapOpen={showMap} />}
+        master={<ChatPicker items={items} error={listError} selectedId={selectedId} onSelect={showMap ? setSelectedId : select} onRefresh={refresh} mode={mode} onMode={setMode} onMap={toggleMap} mapOpen={showMap} onSettings={() => setSettingsOpen(true)} />}
         detail={
           showMap ? (
             <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
@@ -119,6 +125,14 @@ export function LitopysView() {
           )
         }
       />
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('lit.settingsTitle')}</DialogTitle>
+          </DialogHeader>
+          <MemorySummarySection inDialog />
+        </DialogContent>
+      </Dialog>
     </SectionPage>
   )
 }
@@ -165,11 +179,13 @@ function ChatPicker({
   onMode,
   onMap,
   mapOpen,
+  onSettings,
 }: {
   mode: Mode
   onMode: (m: Mode) => void
   onMap: () => void
   mapOpen: boolean
+  onSettings: () => void
   items: LitChatItem[] | null
   error: string
   selectedId: string | null
@@ -187,6 +203,9 @@ function ChatPicker({
         </Button>
         <Button variant="ghost" size="sm" className="size-9 p-0 md:size-7" onClick={onRefresh} aria-label={t('lit.refresh')}>
           <ArrowsClockwise className="size-4" aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" size="sm" className="size-9 p-0 md:size-7" onClick={onSettings} aria-label={t('lit.settings.open')} title={t('lit.settings.open')}>
+          <GearSix className="size-4" aria-hidden="true" />
         </Button>
       </div>
       <div className="flex flex-col gap-2 border-b border-border px-3 py-2">

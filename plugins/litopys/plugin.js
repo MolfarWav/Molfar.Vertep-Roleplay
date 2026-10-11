@@ -18,7 +18,7 @@
  *
  * Routes (under /v1/apps/roleplay/):
  *  GET /litopys/config . PUT /litopys/config
- *  DELETE /litopys/config/prompts   back to the shipped prompt
+ *  DELETE /litopys/config/prompts   back to the shipped prompts (?key=chapter|arc: only that one)
  */
 
 // PART A: utils, config, legacy store, chat reading, scenes, worker request / parse / apply
@@ -344,10 +344,10 @@ export function patchConfig(fsx, body) {
   return loadConfig(fsx);
 }
 
-/** Deletes the stored prompt, returns loadConfig(fsx). */
-export function resetPrompts(fsx) {
+/** Deletes the stored prompts (only `only` when it names one), returns loadConfig(fsx). */
+export function resetPrompts(fsx, only) {
   const stored = storedConfig(fsx);
-  for (const key of PROMPT_KEYS) delete stored[key];
+  for (const key of PROMPT_KEYS) if (!only || only === key) delete stored[key];
   fsx.write(CONFIG_FILE, JSON.stringify(stored, null, 2));
   return loadConfig(fsx);
 }
@@ -3393,12 +3393,13 @@ export function handleRoute(req, host) {
     if (!view) return { status: 404, json: { error: "chat not found" } };
     return { status: 200, json: view };
   }
+  // the config answers carry `custom`: which prompts differ from the default
   if (path === "/litopys/config" && req.method === "GET") {
-    return { status: 200, json: loadConfig(fsx) };
+    return { status: 200, json: { ...loadConfig(fsx), custom: customPrompts(fsx) } };
   }
   if (path === "/litopys/config" && req.method === "PUT") {
     const cfg = patchConfig(fsx, req.body || {});
-    return { status: 200, json: cfg };
+    return { status: 200, json: { ...cfg, custom: customPrompts(fsx) } };
   }
   if (path === "/litopys/rebuild" && req.method === "POST") {
     const body = isObj(req.body) ? req.body : {};
@@ -3418,52 +3419,9 @@ export function handleRoute(req, host) {
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
-    const cfg = resetPrompts(fsx);
-    return { status: 200, json: cfg };
+    const key = req.query && typeof req.query.key === "string" ? req.query.key : "";
+    const cfg = resetPrompts(fsx, key);
+    return { status: 200, json: { ...cfg, custom: customPrompts(fsx) } };
   }
   return null;
-}
-
-export function uiPanel(_ctx, host) {
-  const fsx = host && host.fs ? host.fs : null;
-  const cfg = fsx ? loadConfig(fsx) : { ...DEFAULT_CONFIG, ...DEFAULT_PROMPTS };
-  let chats = 0;
-  if (fsx) {
-    try {
-      chats = fsx.list("litopys/chats").filter((f) => f.endsWith(".json")).length;
-    } catch {}
-  }
-  const custom = fsx ? customPrompts(fsx) : [];
-  return {
-    label: "Litopys",
-    icon: "book",
-    hint: "Chapters and facts per chat, built in shadow mode (" + chats + " chats have a file).",
-    items: [
-      {
-        id: "config",
-        title: "Chapters and facts",
-        enabled: cfg.enabled !== false,
-        saveUrl: "/litopys/config",
-        ...(custom.length ? { deleteUrl: "/litopys/config/prompts", deleteLabel: "Restore default prompts" } : {}),
-        fields: [
-          { key: "model", label: "Model", hint: "Empty = the chat's own model.", placeholder: "provider/model-id", kind: "model", value: cfg.model || "" },
-          { key: "recentMessages", label: "Recent messages", hint: "Newest messages the prompt keeps word for word. A scene gets its chapter as soon as the next scene has begun.", kind: "number", value: cfg.recentMessages },
-          { key: "insert", label: "Insert into the prompt", hint: "Before each reply, add the Litopys record for this chat: chapters before the cut and facts.", kind: "select", list: ["on", "off"], value: cfg.insert === false ? "off" : "on" },
-          { key: "budget", label: "Insert budget, tokens", hint: "The most the Litopys block may take. 200 to 4000, default 800.", kind: "number", value: cfg.budget },
-          { key: "linkBudget", label: "Backstory budget, tokens", hint: "A chat that continues an earlier one (linked on the map of chats) gets that chat's story as background, and up to two chats further back along the chain, all within this many tokens (the nearest chat gets the largest share). 0 to 3000, default 800; 0 = none.", kind: "number", value: cfg.linkBudget },
-          { key: "scene_minMessages", label: "Min messages per scene", hint: "Shorter scenes merge into the previous one.", kind: "number", value: cfg.scene.minMessages },
-          { key: "scene_maxMessages", label: "Max messages per scene", hint: "Longer scenes split into parts.", kind: "number", value: cfg.scene.maxMessages },
-          { key: "pinLimit", label: "Pin limit", hint: "The most pinned facts per character (and for the world). Only you pin; Litopys may propose a pin.", kind: "number", value: cfg.pinLimit },
-          { key: "arcMode", label: "Arcs", hint: "When the older chapters outgrow the threshold, neighbouring chapters can merge into one arc. ask = the Library offers it, auto = Litopys merges by itself, off = no new arcs.", kind: "select", list: ARC_MODES, value: cfg.arcMode },
-          { key: "arcKeep", label: "Newest chapters kept whole", hint: "Chapters before the cut that never merge into an arc. Default 4.", kind: "number", value: cfg.arcKeep },
-          { key: "arcThreshold", label: "Arc threshold, tokens", hint: "How much the older chapters may take before a merge is offered. 0 = twice the insert budget (now " + arcThresholdOf(cfg) + ").", kind: "number", value: cfg.arcThreshold },
-          { key: "arcSizeMin", label: "Chapters per arc, at least", hint: "Default 5.", kind: "number", value: cfg.arcSizeMin },
-          { key: "arcSizeMax", label: "Chapters per arc, at most", hint: "Default 8.", kind: "number", value: cfg.arcSizeMax },
-          { key: "arcWords", label: "Arc length, words", hint: "At most this many words per arc. Default 150.", kind: "number", value: cfg.arcWords },
-          { key: "chapter", label: "Chapter prompt", hint: custom.includes("chapter") ? "Changed from the default." : "This is the default.", kind: "textarea", rows: 10, advanced: true, value: cfg.chapter },
-          { key: "arc", label: "Arc prompt", hint: custom.includes("arc") ? "Changed from the default." : "This is the default.", kind: "textarea", rows: 10, advanced: true, value: cfg.arc },
-        ],
-      },
-    ],
-  };
 }

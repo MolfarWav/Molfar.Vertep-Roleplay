@@ -123,6 +123,8 @@ interface AppState {
   activeChatId: ID | null
   activeCharacterId: ID | null
   focusPresetId: ID | null
+  /** one-shot: the Library opens its Litopys settings (set by Settings > Memory) */
+  litopysSettings: boolean
   focusPersonaId: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
@@ -442,6 +444,7 @@ export const useApp = create<AppState>()(
       dashOpen: 0,
       openDashboard: () => set((s) => ({ dashOpen: s.dashOpen + 1 })),
       focusPresetId: null,
+      litopysSettings: false,
       focusPersonaId: null,
       focusLorebookId: null,
       branchTreeFor: null,

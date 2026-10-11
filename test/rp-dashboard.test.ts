@@ -938,37 +938,35 @@ describe("config", () => {
     expect(long.json.sensor.length).toBe(8000);
   });
 
-  it("the panel", () => {
+  it("the config body carries every setting the dashboard's settings edit", () => {
     const mock = mockHost();
-    const plain = P.uiPanel({}, mock.host);
-    expect(plain.label).toBe("Relationship dashboard");
-    expect(plain.items.length).toBe(1);
-    const item = plain.items[0];
-    expect(item.saveUrl).toBe("/dashboard/config");
-    expect(item.deleteUrl).toBeUndefined();
-    const field = (it: any, key: string) => it.fields.find((f: any) => f.key === key);
-    const partKeys = P.SENSOR_PARTS.map((x: any) => "sensorPart_" + x.key);
-    expect(item.fields.map((f: any) => f.key)).toEqual(["sensorModel", "sensorMaxTokens", "maxThreads", "noteAgeTurns", "threadCheckEvery", "mode", "insert", "insertTokens", "catchUp", "autoSoul", ...partKeys, "soul", "nudge", "fast"]);
-    expect(item.fields[0].kind).toBe("model");
-    expect(field(item, "autoSoul")).toMatchObject({ kind: "select", list: ["on", "off"], value: "on" });
-    expect(field(item, "sensorPart_role")).toMatchObject({ kind: "textarea", advanced: true, value: P.DEFAULT_SENSOR_PARTS.role });
-    expect(field(item, "soul")).toMatchObject({ kind: "textarea", advanced: true, label: "Soul rating prompt", value: P.DEFAULT_PROMPTS.soul });
-    // a whole custom prompt (the older way) shows as one textarea
-    drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensor: "Mine." } });
-    const custom = P.uiPanel({}, mock.host).items[0];
-    expect(custom.deleteUrl).toBe("/dashboard/config/prompts");
-    expect(field(custom, "sensor").value).toBe("Mine.");
-    expect(field(custom, "sensorPart_role")).toBeUndefined();
+    const get = () => drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    const plain = get();
+    expect(plain.custom).toEqual([]);
+    expect(plain.noteAgeTurns).toBe(30);
+    expect(plain.autoSoul).toBe(true);
+    expect(plain.soul).toBe(P.DEFAULT_PROMPTS.soul);
+    expect(plain.nudge).toBe(P.DEFAULT_PROMPTS.nudge);
+    expect(plain.fast).toBe(P.DEFAULT_PROMPTS.fast);
+    expect(plain.sensorParts.find((x: any) => x.key === "role").text).toBe(P.DEFAULT_SENSOR_PARTS.role);
     // the automatic rating switch is stored only when it is off, and a custom soul prompt is kept like the sensor's
-    drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "off", soul: "My rating." } });
-    expect(stored()).toEqual({ sensor: "Mine.", autoSoul: false, soul: "My rating." });
-    const off = P.uiPanel({}, mock.host).items[0];
-    expect(field(off, "autoSoul").value).toBe("off");
-    expect(field(off, "soul").value).toBe("My rating.");
-    drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on" } });
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "off", soul: "My rating.", noteAgeTurns: 80 } });
+    expect(stored()).toEqual({ autoSoul: false, soul: "My rating.", noteAgeTurns: 80 });
+    expect(get()).toMatchObject({ autoSoul: false, soul: "My rating.", noteAgeTurns: 80, custom: ["soul"] });
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { autoSoul: "on", noteAgeTurns: 30 } });
     expect(stored().autoSoul).toBeUndefined();
-    expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.soul).toBe(P.DEFAULT_PROMPTS.soul);
+    // one prompt back to its default: the others stay
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { nudge: "Move. {threads}", sensorParts: { role: "Blocks." } } });
+    const back = drive(mock, { method: "DELETE", path: "/dashboard/config/prompts", query: { key: "soul" } }).json;
+    expect(back.soul).toBe(P.DEFAULT_PROMPTS.soul);
+    expect(back.nudge).toBe("Move. {threads}");
+    expect(stored().sensorParts).toEqual({ role: "Blocks." });
+    // key=sensor drops the sensor's blocks and nothing else
+    drive(mock, { method: "DELETE", path: "/dashboard/config/prompts", query: { key: "sensor" } });
+    expect(stored()).toEqual({ nudge: "Move. {threads}" });
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.nudge).toBe(P.DEFAULT_PROMPTS.nudge);
   });
+
 });
 
 // ---------- catch-up ----------
@@ -1446,9 +1444,6 @@ describe("prompt insert", () => {
     expect(roomy.insert.text).toContain("long letter");
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { values: { insert: "off" } } });
     expect(ask(mock, "c1")).toBeNull();
-    const panel = P.uiPanel({}, mock.host).items[0].fields.map((f: any) => f.key);
-    expect(panel).toContain("insert");
-    expect(panel).toContain("insertTokens");
   });
 
   it("12. a name counts with an ending, a plain substring does not", () => {
@@ -3156,10 +3151,7 @@ describe("sensor reply limit and pronouns in the sensor input", () => {
     // back to the default: not stored
     putCfg(mock, { sensorMaxTokens: 3000 });
     expect(storedCfg().sensorMaxTokens).toBeUndefined();
-    // the panel has the field with its value
-    const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "sensorMaxTokens");
-    expect(field).toMatchObject({ kind: "number", value: 3000 });
-    expect(String(field.hint)).toContain("slower");
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.sensorMaxTokens).toBe(3000);
   });
 
   it("the sensor call and the soul rating call use it as max_tokens", () => {
@@ -3476,16 +3468,14 @@ describe("the sensor prompt in blocks", () => {
     const j = getCfg(mock);
     expect(j.sensorMode).toBe("whole");
     expect(j.sensor).toBe("The whole thing.");
-    expect(P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "sensor").value).toBe("The whole thing.");
     drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" });
     expect(getCfg(mock).sensorMode).toBe("parts");
-    // the panel envelope: one field per block
+    // the older panel envelope still saves: one field per block
     putCfg(mock, { enabled: true, values: { sensorPart_truth: "Only facts.", sensorPart_scene: P.DEFAULT_SENSOR_PARTS.scene } });
     expect(stored().sensorParts).toEqual({ truth: "Only facts." });
-    const item = P.uiPanel({}, mock.host).items[0];
-    expect(item.fields.find((f: any) => f.key === "sensorPart_truth")).toMatchObject({ kind: "textarea", advanced: true, value: "Only facts." });
-    expect(item.fields.find((f: any) => f.key === "sensorPart_scene").value).toBe(P.DEFAULT_SENSOR_PARTS.scene);
-    expect(item.deleteUrl).toBe("/dashboard/config/prompts");
+    const parts = getCfg(mock).sensorParts;
+    expect(parts.find((x: any) => x.key === "truth")).toMatchObject({ text: "Only facts.", custom: true });
+    expect(parts.find((x: any) => x.key === "scene")).toMatchObject({ text: P.DEFAULT_SENSOR_PARTS.scene, custom: false });
   });
 
   it("the previous default sensor prompt counts as the default", () => {
@@ -3781,9 +3771,7 @@ describe("story, move (nudge)", () => {
     const cfgFile = path.join(root, "dashboard/config.json");
     expect(fs.existsSync(cfgFile) ? JSON.parse(fs.readFileSync(cfgFile, "utf8")).nudge : undefined).toBeUndefined();
     expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.custom).not.toContain("nudge");
-    // the panel field carries the prompt
-    const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "nudge");
-    expect(field).toMatchObject({ kind: "textarea", advanced: true, label: "Story, move prompt", value: P.DEFAULT_PROMPTS.nudge });
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.nudge).toBe(P.DEFAULT_PROMPTS.nudge);
   });
 });
 
@@ -4050,7 +4038,7 @@ describe("fast mode", () => {
     expect(bare.messages[1]).toEqual({ role: "user", content: REMINDER });
   });
 
-  it("the fast prompt: shipped in English, kept only when changed, shown in the panel; the mode is accepted", () => {
+  it("the fast prompt: shipped in English, kept only when changed, in the config body; the mode is accepted", () => {
     const mock = mockHost();
     expect(P.DEFAULT_PROMPTS.fast).toContain("<vertep_state>");
     expect(CYRILLIC.test(P.DEFAULT_PROMPTS.fast)).toBe(false);
@@ -4058,7 +4046,7 @@ describe("fast mode", () => {
     const stored = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "fast" } });
     expect(stored().mode).toBe("fast");
-    expect(P.uiPanel({}, mock.host).items[0].subtitle.startsWith("fast")).toBe(true);
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.mode).toBe("fast");
     // an unknown mode changes nothing
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { mode: "turbo" } });
     expect(stored().mode).toBe("fast");
@@ -4073,14 +4061,10 @@ describe("fast mode", () => {
     expect(out.messages[1].content.startsWith("Custom note.")).toBe(true);
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { fast: P.DEFAULT_PROMPTS.fast + " " } });
     expect(stored().fast).toBeUndefined();
-    const field = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "fast");
-    expect(field).toMatchObject({ kind: "textarea", advanced: true, label: "Fast mode prompt", value: P.DEFAULT_PROMPTS.fast });
-    const modeField = P.uiPanel({}, mock.host).items[0].fields.find((f: any) => f.key === "mode");
-    expect(modeField.list).toEqual(["sensor", "fast", "manual"]);
-    // the config body carries the size of the note, and the hint says it
+    expect(drive(mock, { method: "GET", path: "/dashboard/config" }).json.fast).toBe(P.DEFAULT_PROMPTS.fast);
+    // the config body carries the size of the note (the settings' mode hint says it)
     const tokens = drive(mock, { method: "GET", path: "/dashboard/config" }).json.fastTokens;
     expect(tokens).toBeGreaterThan(500);
-    expect(modeField.hint).toContain("adds about " + tokens + " tokens");
     // restoring the prompts brings the default back
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { fast: "Mine." } });
     expect(drive(mock, { method: "DELETE", path: "/dashboard/config/prompts" }).json.fast).toBe(P.DEFAULT_PROMPTS.fast);

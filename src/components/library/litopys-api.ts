@@ -242,13 +242,17 @@ export interface LitConfig {
   arcSizeMax: number
   arcWords: number
   arc: string
+  /** which prompts differ from the default (4.34; absent on an older plugin) */
+  custom?: string[]
 }
 
 export const fetchLitChats = () => j<{ items: LitChatItem[]; total: number }>('/litopys/chats')
 export const fetchLitChat = (chatId: string) => j<LitChat>(`/litopys/chat?chatId=${encodeURIComponent(chatId)}`)
 export const fetchLitConfig = () => j<LitConfig>('/litopys/config')
 export const putLitConfig = (patch: Record<string, unknown>) => j<LitConfig>('/litopys/config', { method: 'PUT', body: JSON.stringify(patch) })
-export const deleteLitPrompts = () => j<{ ok: boolean }>('/litopys/config/prompts', { method: 'DELETE' })
+/** Both prompts back to the default, or only `key`. */
+export const deleteLitPrompts = (key?: 'chapter' | 'arc') =>
+  j<LitConfig>(`/litopys/config/prompts${key ? `?key=${key}` : ''}`, { method: 'DELETE' })
 export const rebuildLitChat = (chatId: string) => j<{ scenes: number }>('/litopys/rebuild', { method: 'POST', body: JSON.stringify({ chatId }) })
 
 // ---------- M4a editing: every call answers the whole chat view ----------

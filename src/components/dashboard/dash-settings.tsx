@@ -54,7 +54,16 @@ interface DashConfig {
   threadCheckEvery?: number
   sensorMode?: 'parts' | 'whole'
   sensorParts?: { key: string; title: string; text: string; default: string; custom: boolean }[]
+  /** 4.34: absent on an older plugin */
+  noteAgeTurns?: number
+  soul?: string
+  nudge?: string
+  fast?: string
 }
+
+/** The prompts besides the sensor's, each edited and restored on its own. */
+const OTHER_PROMPTS = ['soul', 'nudge', 'fast'] as const
+type OtherPrompt = (typeof OTHER_PROMPTS)[number]
 
 /** The part of the config the Sensor section edits and PUT /dashboard/config takes. */
 interface Form {
@@ -65,12 +74,15 @@ interface Form {
   sensorMaxTokens: number
   maxThreads: number
   threadCheckEvery: number
+  noteAgeTurns: number
   catchUp: boolean
   autoSoul: boolean
   /** the whole prompt: only sent in "whole" and legacy mode */
   sensor: string
   /** the prompt's blocks by key: only sent in "parts" mode */
   parts: Record<string, string>
+  /** soul, nudge and fast: only sent when the plugin offers them */
+  prompts: Partial<Record<OtherPrompt, string>>
 }
 
 /** The prompt as the plugin offers it: in blocks, one custom text ("whole"), or an older plugin ("legacy"). */
@@ -100,6 +112,7 @@ const MAX_SENSOR_TOKENS = 8000
 const DEFAULT_SENSOR_TOKENS = 3000
 const DEFAULT_MAX_THREADS = 3
 const DEFAULT_THREAD_CHECK = 5
+const DEFAULT_NOTE_AGE = 30
 const FIELD = 'rounded-none'
 
 function readTab(): Section {
@@ -118,10 +131,12 @@ function pickForm(c: DashConfig): Form {
     sensorMaxTokens: c.sensorMaxTokens ?? DEFAULT_SENSOR_TOKENS,
     maxThreads: c.maxThreads ?? DEFAULT_MAX_THREADS,
     threadCheckEvery: c.threadCheckEvery ?? DEFAULT_THREAD_CHECK,
+    noteAgeTurns: c.noteAgeTurns ?? DEFAULT_NOTE_AGE,
     catchUp: c.catchUp !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
     parts: Object.fromEntries((c.sensorParts ?? []).map((p) => [p.key, p.text])),
+    prompts: Object.fromEntries(OTHER_PROMPTS.filter((k) => typeof c[k] === 'string').map((k) => [k, c[k] as string])),
   }
 }
 
@@ -136,6 +151,7 @@ function promptMeta(c: DashConfig): PromptMeta {
 const clampTokens = (n: number) => Math.min(MAX_TOKENS, Math.max(MIN_TOKENS, Math.round(Number.isFinite(n) ? n : MIN_TOKENS)))
 const clampSensorTokens = (n: number) => Math.min(MAX_SENSOR_TOKENS, Math.max(MIN_SENSOR_TOKENS, Math.round(Number.isFinite(n) ? n : DEFAULT_SENSOR_TOKENS)))
 const clampThreads = (n: number) => Math.min(6, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MAX_THREADS)))
+const clampNoteAge = (n: number) => Math.min(500, Math.max(5, Math.round(Number.isFinite(n) ? n : DEFAULT_NOTE_AGE)))
 const clampCheck = (n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
@@ -202,9 +218,11 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     if (!form) return
     setSaving(true)
     try {
-      const { sensor, parts, ...rest } = form
+      const { sensor, parts, prompts, ...rest } = form
       const body = {
         ...rest,
+        ...prompts,
+        noteAgeTurns: clampNoteAge(form.noteAgeTurns),
         injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) },
         sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens),
         maxThreads: clampThreads(form.maxThreads),
@@ -235,7 +253,8 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
   /** Only the prompt comes back to default: the other unsaved edits stay. */
   const restorePrompts = async () => {
     try {
-      const c = await j<DashConfig>('/dashboard/config/prompts', { method: 'DELETE' })
+      // the sensor's prompt only (its blocks or its whole text): the other prompts restore on their own
+      const c = await j<DashConfig>('/dashboard/config/prompts?key=sensor', { method: 'DELETE' })
       const f = pickForm(c)
       setForm((cur) => (cur ? { ...cur, sensor: f.sensor, parts: f.parts } : cur))
       setFormBase((cur) => (cur ? { ...cur, sensor: f.sensor, parts: f.parts } : cur))
@@ -251,6 +270,20 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
       if (text !== undefined) {
         setForm((cur) => (cur ? { ...cur, parts: { ...cur.parts, [key]: text } } : cur))
         setFormBase((cur) => (cur ? { ...cur, parts: { ...cur.parts, [key]: text } } : cur))
+      }
+      setMeta((m) => (m ? { ...m, ...promptMeta(c) } : m))
+      toast.success(t('dash.set.promptsRestored'))
+    } catch (e) { fail(e) }
+  }
+
+  /** One of the other prompts back to its default: the other unsaved edits stay. */
+  const restorePrompt = async (key: OtherPrompt) => {
+    try {
+      const c = await j<DashConfig>(`/dashboard/config/prompts?key=${key}`, { method: 'DELETE' })
+      const text = c[key]
+      if (typeof text === 'string') {
+        setForm((cur) => (cur ? { ...cur, prompts: { ...cur.prompts, [key]: text } } : cur))
+        setFormBase((cur) => (cur ? { ...cur, prompts: { ...cur.prompts, [key]: text } } : cur))
       }
       setMeta((m) => (m ? { ...m, ...promptMeta(c) } : m))
       toast.success(t('dash.set.promptsRestored'))
@@ -312,7 +345,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     body = (
       <SensorSection
         meta={meta} form={form} setForm={setForm} view={view} saving={saving}
-        dirty={!same(form, formBase)} onSave={saveForm} onRestorePrompts={restorePrompts} onRestorePart={restorePart} onSplit={splitPrompt}
+        dirty={!same(form, formBase)} onSave={saveForm} onRestorePrompts={restorePrompts} onRestorePart={restorePart} onRestorePrompt={restorePrompt} onSplit={splitPrompt}
       />
     )
   } else if (section === 'events') {
@@ -403,7 +436,7 @@ function Fieldset({ label, children }: { label: string; children: ReactNode }) {
 
 // ---------- Sensor ----------
 
-function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRestorePrompts, onRestorePart, onSplit }: {
+function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRestorePrompts, onRestorePart, onRestorePrompt, onSplit }: {
   meta: Meta
   form: Form
   setForm: (f: (cur: Form | null) => Form | null) => void
@@ -413,6 +446,7 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
   onSave: () => void
   onRestorePrompts: () => void
   onRestorePart: (key: string) => void
+  onRestorePrompt: (key: OtherPrompt) => void
   onSplit: () => void
 }) {
   const t = useT()
@@ -494,6 +528,16 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                     value={form.threadCheckEvery}
                     onChange={(e) => patch({ threadCheckEvery: Number(e.target.value) })}
                     onBlur={() => patch({ threadCheckEvery: clampCheck(form.threadCheckEvery) })}
+                    className={cn(FIELD, 'w-24')}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span>{t('dash.set.noteAge')}</span>
+                  <Input
+                    type="number" min={5} max={500} step={1}
+                    value={form.noteAgeTurns}
+                    onChange={(e) => patch({ noteAgeTurns: Number(e.target.value) })}
+                    onBlur={() => patch({ noteAgeTurns: clampNoteAge(form.noteAgeTurns) })}
                     className={cn(FIELD, 'w-24')}
                   />
                 </label>
@@ -587,6 +631,25 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                 </div>
               </>
             )}
+            {OTHER_PROMPTS.filter((k) => typeof form.prompts[k] === 'string').map((k) => (
+              <div key={k} className="flex flex-col gap-1.5 pt-2">
+                <label className="text-sm" htmlFor={`dash-prompt-${k}`}>{t(`dash.set.prompt.${k}`)}</label>
+                <p className="text-[11px] text-muted-foreground">{t(`dash.set.prompt.${k}.hint`)}</p>
+                <Textarea
+                  id={`dash-prompt-${k}`}
+                  rows={k === 'nudge' ? 5 : 10}
+                  value={form.prompts[k]}
+                  maxLength={8000}
+                  onChange={(e) => patch({ prompts: { ...form.prompts, [k]: e.target.value } })}
+                  className={cn(FIELD, 'font-mono text-xs')}
+                />
+                {meta.custom.includes(k) && (
+                  <Button size="xs" variant="outline" className={cn(FIELD, 'w-fit')} onClick={() => onRestorePrompt(k)}>
+                    {t('dash.set.promptRestore')}
+                  </Button>
+                )}
+              </div>
+            ))}
           </CollapsibleContent>
         </Collapsible>
       </div>
