@@ -23,6 +23,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/lib/store'
+import type { Character, Chat } from '@/lib/types'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
@@ -36,6 +37,10 @@ import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
+import { GroupEditor } from '@/components/groups/group-editor'
+
+/** Characters | Groups: kept per page session, so coming back from an editor lands on the same side. */
+let lastMode: 'characters' | 'groups' = 'characters'
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
 
@@ -66,6 +71,8 @@ export function CharactersView() {
   const [urlValue, setUrlValue] = useState('')
   const [urlBusy, setUrlBusy] = useState(false)
   const [page, setPage] = useState(0)
+  const [mode, setModeState] = useState<'characters' | 'groups'>(lastMode)
+  const setMode = (m: 'characters' | 'groups') => { lastMode = m; setModeState(m); setPage(0) }
   const importRef = useRef<HTMLInputElement>(null)
 
   /** Import cards from links: chub, RisuRealm, CharaVault or a direct file
@@ -148,6 +155,7 @@ export function CharactersView() {
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
     let list = characters.filter((c) =>
+      !!c.isGroup === (mode === 'groups') &&
       (!q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q) || c.tags.some((t) => t.includes(q))) &&
       (tagFilter.every((t) => c.tags.includes(t))),
     )
@@ -163,16 +171,19 @@ export function CharactersView() {
       case 'random': list = [...list].sort(() => Math.random() - 0.5); break
     }
     return list
-  }, [characters, chats, query, sort, tagFilter])
+  }, [characters, chats, query, sort, tagFilter, mode])
 
-  const favorites = characters.filter((c) => c.favorite)
+  const soloCards = useMemo(() => characters.filter((c) => !c.isGroup), [characters])
+  const groupCards = useMemo(() => characters.filter((c) => c.isGroup), [characters])
+  const shownCount = mode === 'groups' ? groupCards.length : soloCards.length
+  const favorites = soloCards.filter((c) => c.favorite)
 
   /** Tag filter chips: the tag manager owns color, visibility and order —
    *  tags in use but never configured in the manager fall back to neutral
    *  chips at the end (alphabetical). */
   const tagChips = useMemo(() => {
     const meta = new Map(tags.map((t) => [t.name, t]))
-    return Array.from(new Set(characters.flatMap((c) => c.tags)))
+    return Array.from(new Set(soloCards.flatMap((c) => c.tags)))
       .filter((name) => meta.get(name)?.visible !== false)
       .sort((a, b) => {
         const oa = meta.get(a)?.order ?? Number.MAX_SAFE_INTEGER
@@ -180,28 +191,39 @@ export function CharactersView() {
         return oa !== ob ? oa - ob : a.localeCompare(b)
       })
       .map((name) => ({ name, tag: meta.get(name) }))
-  }, [characters, tags])
+  }, [soloCards, tags])
 
   const PAGE_SIZE = 24
   const paged = useMemo(() => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE), [filtered, page])
 
+  if (active?.isGroup && active.group) {
+    return <GroupEditor group={active} onClose={() => openCharacter(null)} />
+  }
   if (active) {
     return <CharacterEditor character={active} onClose={() => openCharacter(null)} />
   }
 
   return (
-    <SectionPage section="characters" count={characters.length}>
+    <SectionPage section="characters" count={shownCount}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tag filter + favorites scroll WITH the grid — a pinned
           toolbar eats the viewport on mobile once the keyboard opens */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-        <PaneTitle section="characters" count={characters.length} />
+        <PaneTitle section="characters" count={shownCount} />
+        <div role="group" aria-label={t('groups.switch')} className="flex rounded-md border border-border p-0.5">
+          {(['characters', 'groups'] as const).map((m) => (
+            <Button key={m} variant={mode === m ? 'secondary' : 'ghost'} size="sm" className="h-6 px-2.5 text-xs" aria-pressed={mode === m} onClick={() => setMode(m)}>
+              {t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}
+            </Button>
+          ))}
+        </div>
         <div className="relative order-last w-full md:order-none md:w-64">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder="Search characters…" className="h-8 pl-8 text-sm" aria-label="Search characters" />
+          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-8 pl-8 text-sm" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          {mode === 'characters' && (<>
           <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
             <SelectTrigger className="h-8 w-32 text-xs" aria-label="Sort characters">
               <SelectValue />
@@ -247,12 +269,15 @@ export function CharactersView() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm" onClick={() => setGroupOpen(true)}>
-            <Users className="size-4" aria-hidden="true" />Group
+          </>)}
+          <Button variant={mode === 'groups' ? 'default' : 'outline'} size="sm" onClick={() => setGroupOpen(true)}>
+            <Users className="size-4" aria-hidden="true" />{mode === 'groups' ? t('groups.create') : 'Group'}
           </Button>
-          <Button size="sm" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
-            <Plus className="size-4" aria-hidden="true" />New
-          </Button>
+          {mode === 'characters' && (
+            <Button size="sm" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
+              <Plus className="size-4" aria-hidden="true" />New
+            </Button>
+          )}
         </div>
       </header>
 
@@ -260,10 +285,11 @@ export function CharactersView() {
 
       {/* tag filter row — tags IN USE on existing cards, horizontally
           scrollable so it never wraps into a wall of chips on mobile */}
+      {mode === 'characters' && (
       <div className="flex items-center gap-1.5 border-b border-border px-4 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
           {tagChips.map(({ name, tag }) => {
-            const n = characters.filter((c) => c.tags.includes(name)).length
+            const n = soloCards.filter((c) => c.tags.includes(name)).length
             const active = tagFilter.includes(name)
             return (
               <button
@@ -303,9 +329,10 @@ export function CharactersView() {
           </div>
         )}
       </div>
+      )}
 
       {/* favorites hotswap bar */}
-      {favorites.length > 0 && (
+      {mode === 'characters' && favorites.length > 0 && (
         <div className="flex items-center gap-2 border-b border-border px-4 py-1.5">
           <Star className="size-3.5 text-primary" aria-hidden="true" />
           {favorites.map((c) => (
@@ -319,7 +346,9 @@ export function CharactersView() {
         </div>
       )}
 
-        {filtered.length === 0 ? (
+        {mode === 'groups' ? (
+          <GroupTiles groups={filtered} chats={chats} onCreate={() => setGroupOpen(true)} onDelete={setConfirmDelete} hasAny={groupCards.length > 0} />
+        ) : filtered.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon"><Users aria-hidden="true" /></EmptyMedia>
@@ -527,6 +556,78 @@ export function CharactersView() {
       </AlertDialog>
     </div>
     </SectionPage>
+  )
+}
+
+function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
+  groups: Character[]; chats: Chat[]; onCreate: () => void; onDelete: (id: string) => void; hasAny: boolean
+}) {
+  const t = useT()
+  const openCharacter = useApp((s) => s.openCharacter)
+  const startChatAndOpen = useApp((s) => s.startChatAndOpen)
+  const updateCharacter = useApp((s) => s.updateCharacter)
+  const characters = useApp((s) => s.characters)
+  if (groups.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Users aria-hidden="true" /></EmptyMedia>
+          <EmptyTitle>{hasAny ? t('groups.noMatch') : t('groups.empty')}</EmptyTitle>
+          {!hasAny && <EmptyDescription>{t('groups.emptyHint')}</EmptyDescription>}
+        </EmptyHeader>
+        {!hasAny && <Button size="sm" onClick={onCreate}><Users className="size-4" aria-hidden="true" />{t('groups.create')}</Button>}
+      </Empty>
+    )
+  }
+  return (
+    <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {groups.map((c) => {
+        const members = (c.group?.memberIds ?? []).map((id) => characters.find((m) => m.id === id)).filter((m): m is Character => !!m)
+        const chatCount = chats.filter((ch) => ch.characterId === c.id).length
+        return (
+          <div key={c.id} className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50">
+            <button type="button" className="flex flex-col text-left" onClick={() => openCharacter(c.id)}>
+              {c.group?.avatar ? (
+                <img src={c.group.avatar} alt="" className="aspect-square w-full object-cover" />
+              ) : (
+                <div className={cn('grid aspect-square w-full grid-cols-2 bg-muted', members.length > 2 ? 'grid-rows-2' : 'grid-rows-1')}>
+                  {members.slice(0, 4).map((m, i) => (
+                    <img key={m.id} src={m.avatar || DEFAULT_AVATAR} alt="" className={cn('size-full min-h-0 min-w-0 object-cover', members.length === 3 && i === 0 && 'row-span-2')} />
+                  ))}
+                </div>
+              )}
+              <span className="flex flex-col gap-1 p-2.5">
+                <span className="flex items-center gap-1.5 text-sm font-semibold">
+                  <span className="min-w-0 truncate">{c.name}</span>
+                  {c.favorite && <Star weight="fill" className="size-3 shrink-0 text-primary" aria-hidden="true" />}
+                </span>
+                <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-0.5"><Users className="size-3" aria-hidden="true" />{members.length}</span>
+                  <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount}</span>
+                </span>
+              </span>
+            </button>
+            <div className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100">
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="secondary" size="sm" className="size-7 p-0" aria-label={`${c.name} actions`}><DotsThree className="size-4" aria-hidden="true" /></Button>} />
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => { void startChatAndOpen(c.id) }}>
+                    <Chats className="size-4" aria-hidden="true" />New chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateCharacter(c.id, { favorite: !c.favorite })}>
+                    <Star className="size-4" aria-hidden="true" />{c.favorite ? 'Unfavorite' : 'Favorite'}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete(c.id)}>
+                    <Trash className="size-4" aria-hidden="true" />Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

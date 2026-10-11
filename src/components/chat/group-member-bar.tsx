@@ -1,6 +1,6 @@
 
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, IdentificationCard, ChatCenteredText, MicrophoneSlash, GearSix, Users } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowRight, IdentificationCard, SlidersHorizontal, ChatCenteredText, MicrophoneSlash, GearSix, Users } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useApp } from '@/lib/store'
 import type { Character, Chat } from '@/lib/types'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-t'
 
 export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }) {
   const characters = useApp((s) => s.characters)
@@ -21,6 +22,7 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
   const openCharacter = useApp((s) => s.openCharacter)
   const setView = useApp((s) => s.setView)
   const [strategyOpen, setStrategyOpen] = useState(false)
+  const t = useT()
 
   const gs = chat.groupSettings ?? { activation: 'natural' as const, generationMode: 'swap' as const, autoMode: false, autoDelaySec: 5, allowSelfResponses: false, muted: [] }
   const byId = new Map(characters.map((c) => [c.id, c]))
@@ -179,6 +181,12 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
                   onCheckedChange={(v) => updateChat(chat.id, { groupSettings: { ...gs, allowSelfResponses: v } })}
                 />
               </Field>
+              <Button
+                size="sm" variant="outline" className="w-full"
+                onClick={() => { setStrategyOpen(false); openCharacter(group.id); setView('characters') }}
+              >
+                <SlidersHorizontal className="size-4" aria-hidden="true" /> {t('groups.settings')}
+              </Button>
             </div>
           </PopoverContent>
         </Popover>

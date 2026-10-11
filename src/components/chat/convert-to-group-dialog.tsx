@@ -8,12 +8,16 @@ import { useApp } from '@/lib/store'
 import type { Chat, Character } from '@/lib/types'
 import { toast } from 'sonner'
 import { DEFAULT_AVATAR } from '@/lib/utils'
+import { useT } from '@/hooks/use-t'
 
 export function ConvertToGroupDialog({
   chat, character, open, onOpenChange,
 }: { chat: Chat; character: Character; open: boolean; onOpenChange: (o: boolean) => void }) {
   const characters = useApp((s) => s.characters)
   const convertToGroup = useApp((s) => s.convertToGroup)
+  const openCharacter = useApp((s) => s.openCharacter)
+  const setView = useApp((s) => s.setView)
+  const t = useT()
   const [selected, setSelected] = useState<string[]>([])
 
   const candidates = characters.filter((c) => !c.isGroup && c.id !== character.id)
@@ -22,10 +26,15 @@ export function ConvertToGroupDialog({
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
 
   const convert = () => {
-    void convertToGroup(chat.id, selected)
+    const picked = selected
     onOpenChange(false)
     setSelected([])
-    toast.success('Converted to group chat')
+    void convertToGroup(chat.id, picked).then((gid) => {
+      if (!gid) return
+      toast.success('Converted to group chat', {
+        action: { label: t('groups.editGroup'), onClick: () => { openCharacter(gid); setView('characters') } },
+      })
+    })
   }
 
   return (

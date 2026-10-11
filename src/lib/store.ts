@@ -227,7 +227,7 @@ interface AppState {
   fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null>; only?: 'total' }) => Promise<PresetCosts>
   fetchPresetMemory: (characterId: ID) => Promise<PresetMemory>
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
-  convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<void>
+  convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<ID | null>
   reorderGroupMember: (groupId: ID, memberId: ID, dir: -1 | 1) => void
   /** Change a group's file (the group editor). Arrays and memberSettings go whole. */
   updateGroup: (groupId: ID, patch: Partial<GroupConfig>) => void
@@ -1480,7 +1480,7 @@ export const useApp = create<AppState>()(
       convertToGroup: async (chatId, addMemberIds) => {
         const chat = get().chats.find((c) => c.id === chatId)
         const solo = get().characters.find((c) => c.id === chat?.characterId)
-        if (!chat || !solo || solo.isGroup) return
+        if (!chat || !solo || solo.isGroup) return null
         const memberIds = [solo.id, ...addMemberIds.filter((id) => id !== solo.id)]
         const gid = uid('grp')
         await j(`/groups/${encodeURIComponent(gid)}`, {
@@ -1495,7 +1495,7 @@ export const useApp = create<AppState>()(
           chats: s.chats.map((c) => (c.id === chatId ? { ...c, characterId: gid } : c)),
           activeCharacterId: s.activeCharacterId === solo.id ? gid : s.activeCharacterId,
         }))
-        toast.success(`Converted to a group with ${members.map((m) => m.name).join(', ')}`)
+        return gid
       },
       updateGroup: (groupId, patch) => {
         const g = get().characters.find((c) => c.id === groupId)
@@ -1615,11 +1615,16 @@ export const useApp = create<AppState>()(
         let c = get().characters.find((x) => x.id === id)
         if (!c) return
         if (c.isGroup) {
-          // a group's name and favorite live in its group file; the rest goes through group actions
-          const gp: { name?: string; favorite?: boolean } = {}
+          // the card-shaped fields a group has live in its group file (so card widgets such as the
+          // book links work for a group); everything else goes through updateGroup
+          const gp: Partial<GroupConfig> = {}
           if (patch.name != null) gp.name = patch.name
           if (patch.favorite != null) gp.favorite = patch.favorite
-          if (Object.keys(gp).length) writeThrough('the group', j(`/groups/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(gp) }))
+          if (patch.avatar != null) gp.avatar = patch.avatar
+          if (patch.tags != null) gp.tags = patch.tags
+          if (patch.embeddedLorebookId !== undefined) gp.embeddedLorebookId = patch.embeddedLorebookId
+          if (patch.linkedLorebookIds != null) gp.linkedLorebookIds = patch.linkedLorebookIds
+          if (Object.keys(gp).length) get().updateGroup(id, gp)
           return
         }
         // self-filling version history: snapshot the writing fields when they

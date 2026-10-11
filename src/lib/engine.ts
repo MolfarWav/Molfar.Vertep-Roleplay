@@ -803,7 +803,7 @@ export function groupToCharacter(g: EngineGroup, cards: Character[]): Character 
     altGreetings: [], groupGreetings: [], exampleDialogue: '', systemPromptOverride: '', postHistoryInstructions: '',
     depthPrompt: { text: '', depth: 4, role: 'system' },
     creatorNotes: '', creator: 'You', version: '1.0', tags: g.tags?.length ? g.tags : ['group'], favorite: g.favorite === true, folderId: null,
-    createdAt: 0, lastChatAt: 0, embeddedLorebookId: null, linkedLorebookIds: [],
+    createdAt: 0, lastChatAt: 0, embeddedLorebookId: g.embeddedLorebookId ?? null, linkedLorebookIds: g.linkedLorebookIds ?? [],
     colors: { name: '', dialogue: '', bubble: '' }, stats: [],
     isGroup: true, members: g.memberIds ?? [], group: { ...g, memberIds: g.memberIds ?? [] },
     descVariants: [], personalityVariants: [], scenarioVariants: [], versions: [],
