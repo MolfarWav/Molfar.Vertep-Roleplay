@@ -23,6 +23,7 @@ import { useDragList } from '@/lib/drag-list'
 import { presetExport, downloadJson } from '@/lib/interop'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
+import { DEFAULT_UTILITY_PROMPTS } from '@/lib/seed'
 import type { Preset, PromptSection, SectionGroup, ID } from '@/lib/types'
 import { SamplersPanel } from '@/components/views/samplers-panel'
 import { MasterDetail } from '@/components/shell/master-detail'
@@ -38,6 +39,9 @@ const triggerOptions = ['normal', 'continue', 'impersonate', 'swipe', 'regenerat
  * "Utility Prompts" drawer. The hints matter most for the blank-by-default
  * fields, where an empty box is a deliberate setting rather than an oversight.
  */
+/** Same text apart from spacing: what the plugins' prompt defaults compare by too. */
+const sameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim()
+
 const UTILITY_PROMPT_META: Record<
   keyof Preset['utilityPrompts'],
   { label: string; hint: string; placeholder?: string }
@@ -317,7 +321,19 @@ export function PresetsView() {
                 <TabsContent value="utility" className="mx-auto flex max-w-2xl flex-col gap-3">
                   {(Object.entries(preset.utilityPrompts) as [keyof Preset['utilityPrompts'], string][]).map(([key, val]) => (
                     <div key={key} className="flex flex-col gap-1">
-                      <Label className="text-xs">{UTILITY_PROMPT_META[key]?.label ?? key}</Label>
+                      <div className="flex min-h-6 items-center justify-between gap-2">
+                        <Label className="text-xs">{UTILITY_PROMPT_META[key]?.label ?? key}</Label>
+                        {!preset.readOnly && key in DEFAULT_UTILITY_PROMPTS && !sameText(val, DEFAULT_UTILITY_PROMPTS[key]) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => updatePreset(preset.id, { utilityPrompts: { ...preset.utilityPrompts, [key]: DEFAULT_UTILITY_PROMPTS[key] } })}
+                          >
+                            {t('preset.restoreDefault')}
+                          </Button>
+                        )}
+                      </div>
                       <Textarea
                         value={val}
                         rows={2}

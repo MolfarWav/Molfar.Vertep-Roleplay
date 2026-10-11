@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Presets: each utility prompt in an editable preset (Impersonation, Continue nudge, New chat, Group nudge, Empty send) gets "Restore default" when its text differs from the shipped one.
+
 ## 4.33.0
 
 A character card split into fields you can see and switch, filled by the model from the text or the portrait, and the same for your persona. Works on Molfar Vertep 0.9.7; reading pictures needs 0.9.8.
