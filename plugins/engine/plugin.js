@@ -3335,6 +3335,24 @@ export function handleRoute(req, host) {
     }
   }
 
+  // a deleted group takes its chats with it (they cannot open without it); members stay
+  if (head === "groups" && id && req.method === "DELETE") {
+    // a group file already gone still sweeps its chats
+    try { fsx.remove("groups/" + id + ".json"); } catch {}
+    try {
+      for (const f of fsx.list("chats")) {
+        if (!f.endsWith(".meta.json")) continue;
+        const meta = readJson("chats/" + f, null);
+        if (meta && (meta.groupId === id || meta.characterId === id)) {
+          try { fsx.remove("chats/" + meta.id + ".jsonl"); } catch {}
+          try { fsx.remove("chats/" + meta.id + ".meta.json"); } catch {}
+          try { fsx.remove("chats/" + meta.id + ".memories.json"); } catch {}
+        }
+      }
+    } catch {}
+    return ok({ ok: true });
+  }
+
   // ---------- generic JSON entities ----------
   for (const kind of ["personas", "presets", "regex", "groups", "lorebooks"]) {
     if (head !== kind) continue;

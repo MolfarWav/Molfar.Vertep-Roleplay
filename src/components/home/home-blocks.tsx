@@ -185,7 +185,7 @@ export function AchievementsBlock() {
         <div className="grid grid-cols-1 gap-1.5 @[20rem]:grid-cols-3 @[20rem]:gap-2">
           <Tile label={t('home.statMessages')} value={d.messages} />
           <Tile label={t('home.statChats')} value={chats.length} />
-          <Tile label={t('home.statCharacters')} value={characters.length} />
+          <Tile label={t('home.statCharacters')} value={characters.filter((c) => !c.isGroup).length} />
         </div>
       </div>
       {(d.firstContact || d.branching) && (

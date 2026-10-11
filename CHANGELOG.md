@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Groups: deleting a group works and takes its chats with it (it used to come back after a reload); the members stay.
+- Groups: a group's description names its own members, not every character; Home's character count leaves groups out; a group's card menu no longer offers Duplicate, Convert to persona or Export PNG; a group's favorite is kept.
+
 ## 4.34.0
 
 Each tool's settings live with it: Litopys in the Library, the dashboard in its own settings; every prompt restores to its default on its own. Works on Molfar Vertep 0.9.7 and later.

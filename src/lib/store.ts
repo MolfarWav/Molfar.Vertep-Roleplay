@@ -1587,7 +1587,14 @@ export const useApp = create<AppState>()(
         set((s) => ({ characters: s.characters.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))
         let c = get().characters.find((x) => x.id === id)
         if (!c) return
-        if (c.isGroup) return // group metadata goes through group actions
+        if (c.isGroup) {
+          // a group's name and favorite live in its group file; the rest goes through group actions
+          const gp: { name?: string; favorite?: boolean } = {}
+          if (patch.name != null) gp.name = patch.name
+          if (patch.favorite != null) gp.favorite = patch.favorite
+          if (Object.keys(gp).length) writeThrough('the group', j(`/groups/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(gp) }))
+          return
+        }
         // self-filling version history: snapshot the writing fields when they
         // actually changed, throttled to one per 10 min (the manual "Save
         // current as version" button in the editor is always available)
@@ -1650,6 +1657,19 @@ export const useApp = create<AppState>()(
           .catch((e) => { toast.error(String((e as Error).message ?? e)); void get().hydrate() })
       },
       deleteCharacter: (id, opts) => {
+        if (get().characters.find((c) => c.id === id)?.isGroup) {
+          // a group lives in groups/, and the engine takes its chats with it; the members stay
+          bumpMutate()
+          set((s) => ({
+            characters: s.characters.filter((c) => c.id !== id),
+            chats: attachBranches(s.chats.filter((c) => c.characterId !== id)),
+            activeCharacterId: s.activeCharacterId === id ? null : s.activeCharacterId,
+          }))
+          void j(`/groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+            .then(() => void refreshLists(set, get))
+            .catch((e) => { toast.error(String((e as Error).message ?? e)); void get().hydrate() })
+          return
+        }
         const own = opts?.withBook ? get().characters.find((c) => c.id === id)?.embeddedLorebookId ?? null : null
         const shared = own != null && get().characters.some((c) => c.id !== id && (c.embeddedLorebookId === own || c.linkedLorebookIds.includes(own)))
         if (own && !shared) {

@@ -117,6 +117,7 @@ export interface EngineGroup {
   autoMode?: boolean
   autoDelaySec?: number
   openingMessage?: string
+  favorite?: boolean
 }
 
 export interface EngineLorebook {
@@ -800,8 +801,10 @@ export function characterToExportCard(c: Character, books: Lorebook[]): EngineCa
   } as EngineCard
 }
 
-export function groupToCharacter(g: EngineGroup, members: Character[]): Character {
-  const first = members.find((m) => m.id === g.memberIds?.[0])
+export function groupToCharacter(g: EngineGroup, cards: Character[]): Character {
+  // callers may pass every card: keep this group's members, in its order
+  const members = (g.memberIds ?? []).map((id) => cards.find((m) => m.id === id)).filter((m): m is Character => !!m)
+  const first = members[0]
   return {
     id: g.id ?? '',
     name: g.name,
@@ -811,7 +814,7 @@ export function groupToCharacter(g: EngineGroup, members: Character[]): Characte
     firstMessage: g.openingMessage ?? `*${members.map((m) => m.name).join(', ')} are here.*`,
     altGreetings: [], groupGreetings: [], exampleDialogue: '', systemPromptOverride: '', postHistoryInstructions: '',
     depthPrompt: { text: '', depth: 4, role: 'system' },
-    creatorNotes: '', creator: 'You', version: '1.0', tags: ['group'], favorite: false, folderId: null,
+    creatorNotes: '', creator: 'You', version: '1.0', tags: ['group'], favorite: g.favorite === true, folderId: null,
     createdAt: 0, lastChatAt: 0, embeddedLorebookId: null, linkedLorebookIds: [],
     colors: { name: '', dialogue: '', bubble: '' }, stats: [],
     isGroup: true, members: g.memberIds ?? [],

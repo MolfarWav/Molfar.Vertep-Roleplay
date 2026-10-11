@@ -120,6 +120,7 @@ export function CharactersView() {
   const [alsoBook, setAlsoBook] = useState(true)
   useEffect(() => { if (confirmDelete || confirmBatch) setAlsoBook(true) }, [confirmDelete, confirmBatch])
   const bookName = (id: string | null) => lorebooks.find((b) => b.id === id)?.name ?? ''
+  const deletingGroup = !!confirmDelete && !!characters.find((c) => c.id === confirmDelete)?.isGroup
   const singleOwnId = confirmDelete ? ownBookOnlyFor(characters, confirmDelete) : null
   const singleOwn = singleOwnId && lorebooks.some((b) => b.id === singleOwnId) ? singleOwnId : null
   const singleShared = !!confirmDelete && !singleOwn && !!characters.find((c) => c.id === confirmDelete)?.embeddedLorebookId
@@ -374,15 +375,19 @@ export function CharactersView() {
                         <DropdownMenuItem onClick={() => updateCharacter(c.id, { favorite: !c.favorite })}>
                           <Star className="size-4" aria-hidden="true" />{c.favorite ? 'Unfavorite' : 'Favorite'}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { duplicateCharacter(c.id); toast.success('Duplicated') }}>
-                          <Copy className="size-4" aria-hidden="true" />Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => convertToPersona(c)}>
-                          <UserCircle className="size-4" aria-hidden="true" />Convert to persona
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => void exportPng(c)}>
-                          <DownloadSimple className="size-4" aria-hidden="true" />Export PNG
-                        </DropdownMenuItem>
+                        {!c.isGroup && (
+                          <>
+                            <DropdownMenuItem onClick={() => { duplicateCharacter(c.id); toast.success('Duplicated') }}>
+                              <Copy className="size-4" aria-hidden="true" />Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => convertToPersona(c)}>
+                              <UserCircle className="size-4" aria-hidden="true" />Convert to persona
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => void exportPng(c)}>
+                              <DownloadSimple className="size-4" aria-hidden="true" />Export PNG
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(c.id)}>
                           <Trash className="size-4" aria-hidden="true" />Delete
@@ -462,8 +467,10 @@ export function CharactersView() {
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this character?</AlertDialogTitle>
-            <AlertDialogDescription>This removes the character and all of their chats. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle>{deletingGroup ? 'Delete this group?' : 'Delete this character?'}</AlertDialogTitle>
+            <AlertDialogDescription>{deletingGroup
+              ? 'This removes the group and all of its chats. Its members stay. This cannot be undone.'
+              : 'This removes the character and all of their chats. This cannot be undone.'}</AlertDialogDescription>
             {singleOwn && (
               <label className="mt-2 flex items-start gap-2 text-sm text-foreground">
                 <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={alsoBook} onChange={(e) => setAlsoBook(e.target.checked)} />
@@ -474,7 +481,7 @@ export function CharactersView() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDelete) deleteCharacter(confirmDelete, { withBook: !!singleOwn && alsoBook }); setConfirmDelete(null); toast.success('Character deleted') }}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (confirmDelete) deleteCharacter(confirmDelete, { withBook: !!singleOwn && alsoBook }); setConfirmDelete(null); toast.success(deletingGroup ? 'Group deleted' : 'Character deleted') }}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
