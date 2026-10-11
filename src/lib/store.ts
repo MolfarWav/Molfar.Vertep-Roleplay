@@ -18,7 +18,7 @@ import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
   ConnectionProfile, DataBankFile, ID, ModelInfo, ChatBranch, ToolPart,
-  PresetChoiceBody, PresetCosts, PresetMemory,
+  PresetChoiceBody, PresetCosts, PresetMemory, GroupConfig,
 } from './types'
 import {
   seedThemes, defaultSettings, withBuiltinThemes,
@@ -74,6 +74,9 @@ function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characters: Cha
     if (c?.embeddedLorebookId) ids.add(c.embeddedLorebookId)
     for (const lid of c?.linkedLorebookIds ?? []) ids.add(lid)
   }
+  // a group's own books; the engine leaves members' books out by the group's memberBooks choice
+  if (char?.group?.embeddedLorebookId) ids.add(char.group.embeddedLorebookId)
+  for (const lid of char?.group?.linkedLorebookIds ?? []) ids.add(lid)
   // a deleted book's id may linger on a card
   return [...ids].filter((id) => exists.has(id))
 }
@@ -226,6 +229,8 @@ interface AppState {
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
   convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<void>
   reorderGroupMember: (groupId: ID, memberId: ID, dir: -1 | 1) => void
+  /** Change a group's file (the group editor). Arrays and memberSettings go whole. */
+  updateGroup: (groupId: ID, patch: Partial<GroupConfig>) => void
   triggerMember: (chatId: ID, memberId: ID) => void
   deleteChat: (chatId: ID) => void
   pushInputHistory: (s: string) => void
@@ -1347,6 +1352,13 @@ export const useApp = create<AppState>()(
             // mutes, card mode, self responses, auto delay) — PATCH-merge so
             // no read-modify-write window exists
             if (patch.groupSettings && chat) {
+              // the group editor reads the group file: keep its copy in step
+              const gs = patch.groupSettings
+              set((s) => ({ characters: s.characters.map((c) => (c.id === chat.characterId && c.group ? { ...c, group: {
+                ...c.group, mode: gs.activation, mutedIds: gs.muted, generationMode: gs.generationMode ?? 'swap',
+                allowSelfResponses: gs.allowSelfResponses ?? false,
+                ...(gs.autoMode != null ? { autoMode: gs.autoMode, autoDelaySec: gs.autoDelaySec ?? 5 } : {}),
+              } } : c)) }))
               await j(`/groups/${encodeURIComponent(chat.characterId)}`, {
                 method: 'PATCH',
                 body: JSON.stringify({
@@ -1485,22 +1497,37 @@ export const useApp = create<AppState>()(
         }))
         toast.success(`Converted to a group with ${members.map((m) => m.name).join(', ')}`)
       },
+      updateGroup: (groupId, patch) => {
+        const g = get().characters.find((c) => c.id === groupId)
+        if (!g?.isGroup || !g.group) return
+        const next: GroupConfig = { ...g.group, ...patch, id: groupId }
+        const solo = get().characters.filter((c) => !c.isGroup)
+        bumpMutate()
+        set((s) => ({
+          characters: s.characters.map((c) => (c.id === groupId ? groupToCharacter(next, solo) : c)),
+          // the chat's reply settings mirror the group file (hydrate does the same)
+          chats: s.chats.map((c) => (c.characterId !== groupId ? c : {
+            ...c,
+            groupSettings: {
+              activation: next.mode ?? 'natural', generationMode: next.generationMode ?? 'swap',
+              autoMode: next.autoMode ?? false, autoDelaySec: next.autoDelaySec ?? 5,
+              allowSelfResponses: next.allowSelfResponses ?? false, muted: next.mutedIds ?? [],
+            },
+          })),
+        }))
+        writeThrough('the group', j(`/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', body: JSON.stringify(patch) }))
+      },
       reorderGroupMember: (groupId, memberId, dir) => {
         const g = get().characters.find((c) => c.id === groupId)
-        if (!g?.isGroup || !g.members) return
-        const idx = g.members.indexOf(memberId)
+        if (!g?.isGroup || !g.group) return
+        const members = [...g.group.memberIds]
+        const idx = members.indexOf(memberId)
         const to = idx + dir
-        if (idx < 0 || to < 0 || to >= g.members.length) return
-        const members = [...g.members]
-        const tmp = members[idx]!
+        if (idx < 0 || to < 0 || to >= members.length) return
         members[idx] = members[to]!
-        members[to] = tmp
-        bumpMutate()
-        set((s) => ({ characters: s.characters.map((c) => (c.id === groupId ? { ...c, members } : c)) }))
-        // PATCH-merge just the member order — a GET-then-PUT round trip here
-        // used to race the look_changed echo and revert the local update
-        void j(`/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', body: JSON.stringify({ memberIds: members }) })
-          .catch(() => void get().hydrate())
+        members[to] = memberId
+        // PATCH-merge just the member order (a GET-then-PUT here once raced the look_changed echo)
+        get().updateGroup(groupId, { memberIds: members })
       },
       triggerMember: (chatId, memberId) => {
         void runGeneration(set, get, chatId, 'next', { charId: memberId })
@@ -1669,6 +1696,18 @@ export const useApp = create<AppState>()(
             .then(() => void refreshLists(set, get))
             .catch((e) => { toast.error(String((e as Error).message ?? e)); void get().hydrate() })
           return
+        }
+        // a deleted card leaves the groups it was in (the engine skips a missing member, the editor would not)
+        for (const g of get().characters) {
+          if (g.isGroup && g.group && g.group.memberIds.includes(id)) {
+            const ms = { ...(g.group.memberSettings ?? {}) }
+            delete ms[id]
+            get().updateGroup(g.id, {
+              memberIds: g.group.memberIds.filter((x) => x !== id),
+              mutedIds: (g.group.mutedIds ?? []).filter((x) => x !== id),
+              memberSettings: ms,
+            })
+          }
         }
         const own = opts?.withBook ? get().characters.find((c) => c.id === id)?.embeddedLorebookId ?? null : null
         const shared = own != null && get().characters.some((c) => c.id !== id && (c.embeddedLorebookId === own || c.linkedLorebookIds.includes(own)))

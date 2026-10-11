@@ -9,7 +9,7 @@
 // cookie auth — the page itself is behind the same session).
 import type {
   Character, Chat, Message, Persona, Preset, Lorebook, LoreEntry, RegexScript,
-  Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences,
+  Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig,
 } from './types'
 import { uid } from './tokens'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
@@ -105,20 +105,8 @@ export interface EngineChatMeta {
   hasUser?: boolean
 }
 
-export interface EngineGroup {
-  id?: string
-  name: string
-  memberIds: string[]
-  mode?: 'manual' | 'list' | 'natural'
-  mutedIds?: string[]
-  /** 'append' = all member cards join the prompt, 'swap' = speaker's only */
-  generationMode?: 'swap' | 'append'
-  allowSelfResponses?: boolean
-  autoMode?: boolean
-  autoDelaySec?: number
-  openingMessage?: string
-  favorite?: boolean
-}
+/** groups/<id>.json; the shape lives in types.ts */
+export type EngineGroup = GroupConfig
 
 export interface EngineLorebook {
   id?: string
@@ -808,16 +796,16 @@ export function groupToCharacter(g: EngineGroup, cards: Character[]): Character 
   return {
     id: g.id ?? '',
     name: g.name,
-    avatar: first?.avatar ?? PLACEHOLDER,
+    avatar: g.avatar || (first?.avatar ?? PLACEHOLDER),
     altAvatars: [], description: `Group chat with ${members.map((m) => m.name).join(', ')}.`,
     personality: '', scenario: '',
     firstMessage: g.openingMessage ?? `*${members.map((m) => m.name).join(', ')} are here.*`,
     altGreetings: [], groupGreetings: [], exampleDialogue: '', systemPromptOverride: '', postHistoryInstructions: '',
     depthPrompt: { text: '', depth: 4, role: 'system' },
-    creatorNotes: '', creator: 'You', version: '1.0', tags: ['group'], favorite: g.favorite === true, folderId: null,
+    creatorNotes: '', creator: 'You', version: '1.0', tags: g.tags?.length ? g.tags : ['group'], favorite: g.favorite === true, folderId: null,
     createdAt: 0, lastChatAt: 0, embeddedLorebookId: null, linkedLorebookIds: [],
     colors: { name: '', dialogue: '', bubble: '' }, stats: [],
-    isGroup: true, members: g.memberIds ?? [],
+    isGroup: true, members: g.memberIds ?? [], group: { ...g, memberIds: g.memberIds ?? [] },
     descVariants: [], personalityVariants: [], scenarioVariants: [], versions: [],
     voiceProvider: '', voiceId: '', gallery: [], expressions: [], defaultExpression: 'neutral', characterRegexIds: [], css: '',
   }

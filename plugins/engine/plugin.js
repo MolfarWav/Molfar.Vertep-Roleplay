@@ -1458,7 +1458,10 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     // resolves all three into meta.lorebookIds before each send). An empty
     // scope means NO world info, never "scan the whole library".
     const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || [])]);
-    books = books.filter((b) => bound.has(b.id || b.name));
+    // a group can leave members' books out (opts.excludeBookIds); a global or persona book stays
+    const extra = new Set(extraBookIds || []);
+    const excluded = new Set(Array.isArray(opts && opts.excludeBookIds) ? opts.excludeBookIds : []);
+    books = books.filter((b) => bound.has(b.id || b.name) && !(excluded.has(b.id) && b.globalActive !== true && !extra.has(b.id)));
   }
   // budget knobs live on the books: contextPercent rescales the caller's
   // budget (which is the 25% figure), budgetCap is an absolute ceiling —
@@ -1949,6 +1952,37 @@ function resolveCardVariants(card, sel) {
   return out || card;
 }
 
+/** A member's card as this group sees it: the group's shared scenario replaces the card's, and the
+ *  group's talkativeness for this member wins over the card's. A copy; the card file is untouched. */
+function groupCardOverrides(g, mid, card) {
+  let out = card;
+  if (typeof g.scenario === "string" && g.scenario.trim()) out = { ...out, scenario: g.scenario };
+  const ms = g.memberSettings && typeof g.memberSettings === "object" ? g.memberSettings[mid] : null;
+  const t = ms ? Number(ms.talkativeness) : NaN;
+  if (ms && ms.talkativeness != null && Number.isFinite(t)) out = { ...out, extensions: { ...(out.extensions || {}), talkativeness: Math.min(1, Math.max(0, t)) } };
+  return out;
+}
+/** Book ids a group chat must NOT scan: the group's memberBooks choice ("all" = default, "speaker" =
+ *  only the speaker's own and linked books, "off" = none of the members'), and muted members' books
+ *  always (unless the muted one is speaking). Global, persona and the group's own books stay. */
+function groupExcludedBookIds(g, members, speakerId) {
+  if (!g) return [];
+  // with no known speaker (a peek before anyone is picked) "speaker" reads as "all"
+  const mode = g.memberBooks === "off" ? "off" : g.memberBooks === "speaker" && speakerId ? "speaker" : "all";
+  const muted = new Set(g.mutedIds || []);
+  const drop = members.filter((m) => mode === "off" || (m.id !== speakerId && (mode === "speaker" || muted.has(m.id))));
+  // a book a kept member (or the group) also carries stays in
+  const keep = new Set([...cardBookIds(members.filter((m) => !drop.includes(m)).map((m) => m.card)), ...groupBookIds(g)]);
+  return cardBookIds(drop.map((m) => m.card)).filter((id) => !keep.has(id));
+}
+/** The group's own book and linked books. */
+function groupBookIds(g) {
+  const out = [];
+  if (g && typeof g.embeddedLorebookId === "string" && g.embeddedLorebookId) out.push(g.embeddedLorebookId);
+  if (g && Array.isArray(g.linkedLorebookIds)) out.push(...g.linkedLorebookIds.filter((x) => typeof x === "string" && x));
+  return out;
+}
+
 function chatMembers(fsx, meta) {
   // returns [{id, name, card}] the bots participating in this chat, each card
   // resolved through the chat's own field-variant selection
@@ -1961,7 +1995,7 @@ function chatMembers(fsx, meta) {
     for (const mid of g.memberIds || []) {
       try {
         const card = JSON.parse(fsx.read("characters/" + mid + "/card.json"));
-        const rcard = resolveCardVariants(card, sel);
+        const rcard = groupCardOverrides(g, mid, resolveCardVariants(card, sel));
         out.push({ id: mid, name: rcard.name, card: rcard });
       } catch { /* member deleted */ }
     }
@@ -2146,6 +2180,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
+      excludeBookIds: meta.groupId ? groupExcludedBookIds(readJsonFile(fsx, "groups/" + meta.groupId + ".json"), members, (speaker && speaker.id) || null) : [],
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -3516,6 +3551,7 @@ export function handleRoute(req, host) {
     const lead = members[0] || null;
     // the scope the app sends before each generation (global books + the
     // cards' own and linked ones): a chat with no send yet has none stored
+    const peekGroupCfg = chat.meta.groupId ? readJson("groups/" + chat.meta.groupId + ".json", null) : null;
     const globalIds = (() => {
       try {
         return fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
@@ -3525,9 +3561,10 @@ export function handleRoute(req, host) {
     const wi = activateWorldInfo(
       fsx, chat.meta,
       chat.msgs.filter((m) => m.role !== "system" && m.hidden !== true),
-      [...(persona?.lorebookIds || []), ...globalIds, ...cardBookIds(members.map((m) => m.card))], wiBudgetChars(preset),
+      [...(persona?.lorebookIds || []), ...globalIds, ...cardBookIds(members.map((m) => m.card)), ...groupBookIds(peekGroupCfg)], wiBudgetChars(preset),
       {
         dryRun: true, config: preset && preset.studio && preset.studio.worldInfo,
+        excludeBookIds: groupExcludedBookIds(peekGroupCfg, members, lead ? lead.id : null),
         speaker: lead ? { id: lead.id, name: lead.name, tags: lead.card && lead.card.tags } : null,
         genTypes: ["normal"],
         characterBookIds: cardBookIds(members.map((m) => m.card)),
@@ -4063,12 +4100,29 @@ export function handleRoute(req, host) {
           if (b.openingMessage && String(b.openingMessage).trim()) {
             msgs.push({ id: uid(), name: "System", charId: null, role: "system", text: String(b.openingMessage), at: Date.now(), swipes: [String(b.openingMessage)], swipe: 0 });
           }
-          // group-only greetings: a member carrying them opens with one of
-          // them (random pick, all variants as swipes) instead of never
-          // greeting — the v3 card field, or its legacy extension spelling
+          // the group's own openings: one narrated scene-setter, the variants as swipes
+          const openings = (Array.isArray(g.openings) ? g.openings : []).map(String).filter((t) => t.trim())
+            .map((t) => t.split("{{user}}").join(userName));
+          if (openings.length) {
+            msgs.push({ id: uid(), name: "Narrator", charId: null, role: "system", text: openings[0], at: Date.now(), swipes: openings, swipe: 0, greeting: true });
+          }
+          // each member's opening, by the group's choice for that member: "group" (default) = its
+          // group-only greetings, "none" = no opening, a number = that greeting of the card
+          // (0 = first message, then the alternates), every greeting as a swipe
           for (const mid of g.memberIds || []) {
             const card = readJson("characters/" + mid + "/card.json", null);
             if (!card) continue;
+            if ((g.mutedIds || []).includes(mid)) continue;
+            const pickOpening = g.memberSettings && g.memberSettings[mid] ? g.memberSettings[mid].opening : undefined;
+            if (pickOpening === "none") continue;
+            if (typeof pickOpening === "number" && pickOpening >= 0) {
+              const all = cardGreetings(fsx, meta, mid, card);
+              if (!all.length) continue;
+              const at = Math.min(Math.floor(pickOpening), all.length - 1);
+              const swipes = all.map((t) => t.split("{{user}}").join(userName).split("{{char}}").join(card.name));
+              msgs.push({ id: uid(), name: card.name, charId: mid, role: "char", text: swipes[at], at: Date.now(), swipes, swipe: at, greeting: true });
+              continue;
+            }
             const gg = Array.isArray(card.group_only_greetings) ? card.group_only_greetings
               : card.extensions && Array.isArray(card.extensions.group_greetings) ? card.extensions.group_greetings : [];
             const who = { id: mid, name: card.name, card };

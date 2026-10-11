@@ -24,6 +24,46 @@ export interface AltVariant {
   content: string
 }
 
+/** What a group sees of one member (all optional: absent = the card's own). */
+export interface GroupMemberSettings {
+  /** 0..1, wins over the card's talkativeness in this group */
+  talkativeness?: number | null
+  /** which opening the member brings: its group-only greetings (default), none, or that greeting of the card (0 = first message) */
+  opening?: 'group' | 'none' | number
+  /** dialogue colour in this group (CSS colour); empty = the card's */
+  color?: string
+}
+
+/** groups/<id>.json. A group is not a card: it lists members and how they share a chat. */
+export interface GroupConfig {
+  id?: string
+  name: string
+  memberIds: string[]
+  mode?: 'manual' | 'list' | 'natural'
+  mutedIds?: string[]
+  /** 'append' = all member cards join the prompt, 'swap' = speaker's only */
+  generationMode?: 'swap' | 'append'
+  allowSelfResponses?: boolean
+  autoMode?: boolean
+  autoDelaySec?: number
+  openingMessage?: string
+  favorite?: boolean
+  /** the group's picture (a stored media URL or data URL); absent = the members' portraits */
+  avatar?: string
+  tags?: string[]
+  /** a note for the user, never sent to the model */
+  note?: string
+  /** shared scenario: replaces every member's own scenario in this group's chats */
+  scenario?: string
+  /** narrated openings for a new chat (the first shows, the rest are swipes) */
+  openings?: string[]
+  memberSettings?: Record<string, GroupMemberSettings>
+  embeddedLorebookId?: string | null
+  linkedLorebookIds?: string[]
+  /** members' lorebooks in this group: all (default), only the current speaker's, or none */
+  memberBooks?: 'all' | 'speaker' | 'off'
+}
+
 export interface Character {
   id: ID
   name: string
@@ -55,6 +95,8 @@ export interface Character {
   stats: CharacterStat[]
   isGroup: boolean
   members?: ID[] // for groups
+  /** for groups: the group file as the engine stores it (the group editor edits this) */
+  group?: GroupConfig
   descVariants: AltVariant[]
   personalityVariants: AltVariant[]
   scenarioVariants: AltVariant[]

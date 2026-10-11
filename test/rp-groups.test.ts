@@ -90,3 +90,75 @@ describe("groupToCharacter", () => {
     expect(c.isGroup).toBe(true)
   });
 });
+
+describe("group settings reach the prompt and the chat", () => {
+  const entry = (key: string, content: string) => ({ uid: 1, title: content, keys: [key], content, enabled: true, order: 100, position: "before_char" });
+  const seed = (g: Record<string, unknown>) => {
+    fs.writeFileSync(path.join(root, "presets", "default.json"), JSON.stringify({
+      id: "default", name: "Default", prompt_order: [], openai_max_context: 8192, openai_max_tokens: 512,
+      prompts: [
+        { identifier: "worldInfoBefore", name: "WI", marker: true, role: "system", enabled: true },
+        { identifier: "scenario", name: "Scenario", marker: true, role: "system", enabled: true },
+        { identifier: "chatHistory", name: "History", marker: true, enabled: true },
+      ],
+    }));
+    fs.writeFileSync(path.join(root, "groups", "duo.json"), JSON.stringify({ id: "duo", name: "Duo", memberIds: ["aria", "bo"], mode: "list", mutedIds: [], ...g }));
+    for (const [id, owner] of [["ba", "aria"], ["bb", "bo"]] as const) {
+      fs.writeFileSync(path.join(root, "lorebooks", `${id}.json`), JSON.stringify({ id, name: id, settings: {}, entries: [entry("tower", `LORE-${owner}`)] }));
+      const card = JSON.parse(fs.readFileSync(path.join(root, "characters", owner, "card.json"), "utf8"));
+      card.scenario = `SCEN-${owner}`;
+      card.studio = { embeddedLorebookId: id };
+      fs.writeFileSync(path.join(root, "characters", owner, "card.json"), JSON.stringify(card));
+    }
+  };
+  const peek = () => {
+    const id = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    call("PATCH", `/chats/${id}`, { lorebookIds: ["ba", "bb"] });
+    fs.appendFileSync(path.join(root, "chats", `${id}.jsonl`), JSON.stringify({ id: "u1", role: "user", name: "You", text: "the tower" }) + "\n");
+    return JSON.stringify(call("POST", "/prompt/preview", { chatId: id }).json);
+  };
+
+  it("by default every member's book fires", () => {
+    seed({});
+    const all = peek();
+    expect(all).toContain("LORE-aria");
+    expect(all).toContain("LORE-bo");
+  });
+  it("memberBooks speaker: only the speaker's book (list mode: aria first)", () => {
+    seed({ memberBooks: "speaker" });
+    const all = peek();
+    expect(all).toContain("LORE-aria");
+    expect(all).not.toContain("LORE-bo");
+  });
+  it("memberBooks off: no member's book", () => {
+    seed({ memberBooks: "off" });
+    const all = peek();
+    expect(all).not.toContain("LORE-aria");
+    expect(all).not.toContain("LORE-bo");
+  });
+  it("a muted member's book stays out", () => {
+    seed({ mutedIds: ["bo"] });
+    expect(peek()).not.toContain("LORE-bo");
+  });
+  it("the shared scenario replaces the members' own", () => {
+    seed({ scenario: "SCEN-SHARED" });
+    const all = peek();
+    expect(all).toContain("SCEN-SHARED");
+    expect(all).not.toContain("SCEN-aria");
+  });
+  it("openings: the group's narrated one, then each member's by choice", () => {
+    seed({ openings: ["The tavern is loud.", "Rain outside."], memberSettings: { aria: { opening: 0 }, bo: { opening: "none" } } });
+    const msgs = call("POST", "/chats", { groupId: "duo" }).json.messages as { name: string; text: string; swipes: string[]; charId: string | null }[];
+    expect(msgs.map((m) => m.name)).toEqual(["Narrator", "Aria"]);
+    expect(msgs[0]!.swipes).toEqual(["The tavern is loud.", "Rain outside."]);
+    expect(msgs[1]!.text).toBe("Hi.");
+  });
+  it("talkativeness: the group's value wins over the card's", () => {
+    seed({ mode: "natural", memberSettings: { aria: { talkativeness: 0 }, bo: { talkativeness: 1 } } });
+    const id = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    fs.appendFileSync(path.join(root, "chats", `${id}.jsonl`), JSON.stringify({ id: "u1", role: "user", name: "You", text: "hello" }) + "\n");
+    // a peek takes the most likely pick
+    const r = call("POST", "/prompt/preview", { chatId: id }).json;
+    expect(JSON.stringify(r)).toContain("Bo");
+  });
+});
