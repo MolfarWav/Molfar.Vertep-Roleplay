@@ -47,5 +47,9 @@ describe("buildCharx", () => {
   it("the JSON export is the V2 card", () => {
     const c = cardToCharacter({ spec: "chara_card_v2", name: "A", description: "d" } as never);
     expect(JSON.parse(cardJson(c, [])).spec).toBe("chara_card_v2");
+    // no export carries the edit history
+    const withHistory = cardToCharacter({ spec: "chara_card_v2", name: "A", description: "d", studio: { versions: [{ id: "v", label: "x", savedAt: 1, snapshot: { description: "old secret" } }] } } as never);
+    expect(cardJson(withHistory, [])).not.toContain("old secret");
+    expect(withHistory.versions).toHaveLength(1);
   });
 });

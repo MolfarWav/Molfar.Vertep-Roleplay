@@ -764,6 +764,11 @@ export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
  *  inside `data`, so re-importing here keeps sprites, gallery and the rest. */
 export function characterToExportCard(c: Character, books: Lorebook[]): EngineCard {
   const { spec: _spec, ...fields } = characterToCard(c)
+  // the edit history (old texts, drafts) stays home: a shared card carries the current text only
+  if (fields.studio && typeof fields.studio === 'object') {
+    const { versions: _versions, ...studio } = fields.studio as Record<string, unknown>
+    ;(fields as Record<string, unknown>).studio = studio
+  }
   const own = c.embeddedLorebookId ? books.find((b) => b.id === c.embeddedLorebookId) : undefined
   return {
     spec: 'chara_card_v2',

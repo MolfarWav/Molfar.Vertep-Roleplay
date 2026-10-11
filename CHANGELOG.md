@@ -6,7 +6,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 - Character editor: a Profile tab, a card split into fields modeled on Lorebary (identity, appearance, traits, behaviors, goals, background, relationships, an opt-in adult block). It writes Description and Personality as labeled lines, keeps the old text as notes, notices hand edits and has a Free write switch.
 - Profile tab: "Structure it" asks the model to sort the card's text into the fields and shows what Description and Personality would become; Accept fills the profile (the old text goes to Versions), Discard drops the proposal. New field: Occupation.
 - Personas: "Five questions" writes the persona's description from short answers (name, looks, character, who you are; a private note stays out of the prompt), keeping text written before.
-- Character editor: Export offers PNG, CHARX (the portrait, emotion images and gallery as files, readable by RisuAI and this app) and JSON.
+- Character editor: Export offers PNG, CHARX (the portrait, emotion images and gallery as files, readable by RisuAI and this app) and JSON. No exported card carries its version history (old texts and drafts) any more; the full backup still does.
 - Character editor: header buttons say what they do; Export has an export icon; saving a whole card keeps studio keys other tools wrote.
 - Presets: "Use in this chat" and "Make default" are two separate actions.
 
