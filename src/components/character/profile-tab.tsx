@@ -15,6 +15,7 @@ import {
   acceptFill,
 } from '@/lib/profile'
 import { ProfileForm } from '@/components/profile/profile-form'
+import { ReadPictureDialog } from '@/components/profile/read-picture-dialog'
 import { FillControls, ProfileDraftPanel, StructureButton, useFillEmpty, useProfileDraft, useVisionModel } from '@/components/character/structure-draft'
 
 export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Character>) => void }) {
@@ -23,7 +24,7 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
   const draft = useProfileDraft({ characterId: c.id }, (d) => {
     if (d.kind === 'fill') {
       up(acceptFill(c, d))
-      toast.success('Empty fields filled. The old text is in Versions.')
+      toast.success(d.replace ? 'Appearance updated from the picture. The old text is in Versions.' : 'Empty fields filled. The old text is in Versions.')
     } else {
       up(acceptDraft(c, d))
       toast.success('Profile filled. The old text is in Versions.')
@@ -31,6 +32,8 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
   })
   const vision = useVisionModel()
   const fill = useFillEmpty(draft, p, c.avatar, vision)
+  const [readOpen, setReadOpen] = useState(false)
+  const [reading, setReading] = useState(false)
   const structureButton = <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} onClick={() => void draft.runStructure()} />
   const draftPanel = draft.draft && (
     <ProfileDraftPanel draft={draft.draft} before={c} mode="character" onAccept={draft.accept} onDiscard={draft.drop} />
@@ -98,7 +101,24 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
         </div>
       )}
 
-      <ProfileForm p={p} save={save} mode="character" fill={{ busy: fill.busy || !!draft.busy, run: fill.run }} />
+      <ProfileForm
+        p={p}
+        save={save}
+        mode="character"
+        fill={{ busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } }}
+      />
+      <ReadPictureDialog
+        open={readOpen}
+        onOpenChange={setReadOpen}
+        profile={p}
+        avatar={c.avatar}
+        vision={vision}
+        busy={reading}
+        onRead={(fields, image, model, replace) => {
+          setReading(true)
+          void draft.runFill(fields, image, model, replace).finally(() => setReading(false))
+        }}
+      />
     </div>
   )
 }

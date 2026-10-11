@@ -2,12 +2,14 @@ import { useId, useState, type ComponentType, type ReactNode } from 'react'
 import {
   Brain,
   Check,
+  CircleNotch,
   Fire,
   HandWaving,
   Heart,
   HeartBreak,
   House,
   IdentificationCard,
+  Image as ImageIcon,
   MagicWand,
   NotePencil,
   PersonSimple,
@@ -50,7 +52,12 @@ import {
 export type SectionKey = keyof typeof SECTION_FIELDS
 type FormId = 'identity' | SectionId | 'notes'
 type Mode = 'character' | 'persona'
-export interface FillControl { busy: boolean; run: (section?: SectionKey) => void }
+export interface FillControl {
+  busy: boolean
+  run: (section?: SectionKey) => void
+  /** "Read from picture" in the Appearance header: opens the caller's dialog */
+  readPicture?: { busy: boolean; open: () => void }
+}
 
 const MAX_ITEMS = 12
 const MAX_ITEM_LEN = 120
@@ -394,6 +401,12 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count }: {
           {canFill && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={fill.busy} onClick={() => fill.run(s.id as SectionKey)} title="A model proposes values for this section's empty fields; you review before anything changes">
               <MagicWand className="size-3.5" aria-hidden="true" />Fill empty
+            </Button>
+          )}
+          {s.id === 'appearance' && on && fill?.readPicture && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={fill.busy || fill.readPicture.busy} onClick={fill.readPicture.open} title="A model that reads pictures describes the appearance from the portrait; you review before anything changes">
+              {fill.readPicture.busy ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <ImageIcon className="size-3.5" aria-hidden="true" />}
+              {fill.readPicture.busy ? 'Reading…' : 'Read from picture'}
             </Button>
           )}
           {s.switchable && (

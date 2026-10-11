@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CaretRight, ListChecks } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import {
   type Profile,
 } from '@/lib/profile'
 import { ProfileForm } from '@/components/profile/profile-form'
+import { ReadPictureDialog } from '@/components/profile/read-picture-dialog'
 import { FillControls, ProfileDraftPanel, StructureButton, useFillEmpty, useProfileDraft, useVisionModel } from '@/components/character/structure-draft'
 
 /** The persona's Description with "Five questions", "Structure it" and the
@@ -36,7 +37,7 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
   const draft = useProfileDraft({ personaId: p.id }, (d) => {
     if (d.kind === 'fill') {
       update(acceptPersonaFill(p, d))
-      toast.success('Empty fields filled.')
+      toast.success(d.replace ? 'Appearance updated from the picture.' : 'Empty fields filled.')
     } else {
       update(acceptPersonaDraft(p, d))
       toast.success('Persona profile filled.')
@@ -44,6 +45,8 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
   })
   const vision = useVisionModel()
   const fill = useFillEmpty(draft, profile, p.avatar, vision)
+  const [readOpen, setReadOpen] = useState(false)
+  const [reading, setReading] = useState(false)
   const approved = useRef(false)
   const asking = useRef(false)
 
@@ -107,7 +110,24 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
           </label>
           {profile.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the description.</p>}
           <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
-          <ProfileForm p={profile} save={save} mode="persona" fill={{ busy: fill.busy || !!draft.busy, run: fill.run }} />
+          <ProfileForm
+            p={profile}
+            save={save}
+            mode="persona"
+            fill={{ busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } }}
+          />
+          <ReadPictureDialog
+            open={readOpen}
+            onOpenChange={setReadOpen}
+            profile={profile}
+            avatar={p.avatar}
+            vision={vision}
+            busy={reading}
+            onRead={(fields, image, model, replace) => {
+              setReading(true)
+              void draft.runFill(fields, image, model, replace).finally(() => setReading(false))
+            }}
+          />
         </CollapsibleContent>
       </Collapsible>
     </>

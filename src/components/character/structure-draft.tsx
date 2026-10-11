@@ -15,7 +15,7 @@ import type { ModelInfo } from '@/lib/types'
 /** Whose draft: a character's or a persona's (plugins/profile files one per target). */
 export type DraftTarget = { characterId: string } | { personaId: string }
 type Busy = null | 'structure' | 'fill'
-type Image = { data: string; mimeType: string }
+export type Image = { data: string; mimeType: string }
 
 /** "Structure it" and "Fill empty": one model call each (plugins/profile). The
  *  result is a draft shown in the panel below; nothing changes until Accept. */
@@ -47,8 +47,8 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
     return false
   }
   const runStructure = () => post('structure', {}, 'Structure it')
-  const runFill = (fields: Record<string, string[]>, image?: Image, model?: string) =>
-    post('fill', { fields, ...(image ? { image } : {}), ...(model ? { model } : {}) }, 'Fill empty')
+  const runFill = (fields: Record<string, string[]>, image?: Image, model?: string, replace = false) =>
+    post('fill', { fields, ...(image ? { image } : {}), ...(model ? { model } : {}), ...(replace ? { replace: true } : {}) }, replace ? 'Read from picture' : 'Fill empty')
   const drop = () => { setDraft(null); void j(query, { method: 'DELETE' }).catch(() => {}) }
   const accept = () => {
     if (!draft) return
@@ -82,9 +82,9 @@ export function useVisionModel() {
 }
 export type VisionModel = ReturnType<typeof useVisionModel>
 
-const hasPortrait = (url: string | undefined): url is string => !!url && url !== DEFAULT_AVATAR && !url.endsWith('avatar-default.png')
+export const hasPortrait = (url: string | undefined): url is string => !!url && url !== DEFAULT_AVATAR && !url.endsWith('avatar-default.png')
 
-function toBase64(bytes: Uint8Array): string {
+export function toBase64(bytes: Uint8Array): string {
   let s = ''
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return btoa(s)
@@ -183,7 +183,9 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
   let summary: string
   if (fill) {
     const lines = fillLines(draft.profile)
-    summary = `${lines.length} value${lines.length === 1 ? '' : 's'} proposed${by}. Only empty fields get them; nothing you wrote is replaced.${mode === 'character' ? ' The current text goes to Versions.' : ''}`
+    summary = draft.replace
+      ? `${lines.length} value${lines.length === 1 ? '' : 's'} read from the picture${by}. Accepting replaces these fields${mode === 'character' ? '; the old text goes to Versions' : ''}.`
+      : `${lines.length} value${lines.length === 1 ? '' : 's'} proposed${by}. Only empty fields get them; nothing you wrote is replaced.${mode === 'character' ? ' The current text goes to Versions.' : ''}`
     body = (
       <ul className="flex max-h-72 flex-col gap-1 overflow-auto rounded-md border border-border bg-background/60 p-2 text-xs">
         {lines.map((l) => <li key={l} className="break-words">{l}</li>)}
@@ -209,7 +211,7 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3" data-testid="structure-draft">
       <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-semibold">{fill ? 'Proposed values for empty fields' : 'Proposed profile'}</h2>
+        <h2 className="text-sm font-semibold">{fill ? (draft.replace ? 'Appearance from the picture' : 'Proposed values for empty fields') : 'Proposed profile'}</h2>
         <p className="text-xs text-muted-foreground">{summary}</p>
         {draft.note && <p className="text-xs italic text-muted-foreground">{draft.note}</p>}
       </div>
