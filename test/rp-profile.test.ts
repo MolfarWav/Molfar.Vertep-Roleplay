@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  acceptDraft, acceptFill, acceptPersonaDraft, acceptPersonaFill, mergeFill, emptyFields, personaProfile, sectionOn, writePersona, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
+  acceptDraft, acceptFill, acceptPersonaDraft, acceptPersonaFill, mergeFill, emptyFields, isMale, personaProfile, sectionOn, writePersona, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
   type Profile,
 } from "../src/lib/profile";
 
@@ -246,5 +246,19 @@ describe("the fields Fill empty asks for", () => {
     expect(all.trauma).toBeUndefined()
     expect(all.relationships).toBeUndefined()
     expect(emptyFields(p, "circles")).toEqual({ background: ["affiliations", "circle", "politics", "religion"] })
+  })
+})
+
+describe("fields that do not apply", () => {
+  it("a male character is not offered measurements, from Gender or else the pronouns", () => {
+    expect(isMale({ identity: { gender: "Male" } })).toBe(true)
+    expect(isMale({ identity: { gender: "чоловік" } })).toBe(true)
+    expect(isMale({ identity: { gender: "man (he)" } })).toBe(true)
+    expect(isMale({ identity: { gender: "woman" } })).toBe(false)
+    expect(isMale({ identity: { gender: "female" } })).toBe(false)
+    expect(isMale({ identity: { pronouns: "he/him" } })).toBe(true)
+    expect(isMale({ identity: { gender: "non-binary", pronouns: "he" } })).toBe(false)
+    expect(emptyFields({ identity: { gender: "male" } }).appearance).not.toContain("measurements")
+    expect(emptyFields({ identity: { gender: "female" } }).appearance).toContain("measurements")
   })
 })

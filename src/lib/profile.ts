@@ -293,6 +293,22 @@ export const SECTION_FIELDS: Record<'identity' | Exclude<SectionId, 'relationshi
   sexuality: { key: 'sexuality', fields: [...SEXUALITY.map(([k]) => k), 'turnOns', 'turnOffs', 'kinks', 'boundaries', 'notes'] },
 }
 
+// a word at the start of Gender ("male", "man, 34", "чоловік") or, without one, the pronouns
+const MALE = /^(m|male|man|boy|guy|чоловік\S*|чол|хлопець|хлопчик|юнак|мужчина|парень|мужской)(\b|$|[\s,.(/])/iu
+const HE = /^(he|him|він|его|он)(\b|$|[\s,./])/iu
+
+/** The profile says the character is male: fields that do not apply (measurements) are not offered. */
+export function isMale(p: Profile): boolean {
+  const gender = filled(p.identity?.gender).toLowerCase()
+  if (gender) return MALE.test(gender)
+  return HE.test(filled(p.identity?.pronouns).toLowerCase())
+}
+
+/** Fields that do not apply to this character; still shown when someone filled them. */
+export function skippedFields(p: Profile): Set<string> {
+  return new Set(isMale(p) ? ['measurements'] : [])
+}
+
 /** The empty fields "Fill empty" asks the model for, by profile key: one section
  *  (`only`), or every section that is switched on. Relationships are never
  *  invented: a made-up person changes the story's world. */
@@ -301,7 +317,8 @@ export function emptyFields(p: Profile, only?: keyof typeof SECTION_FIELDS): Rec
   for (const [id, { key, fields }] of Object.entries(SECTION_FIELDS) as [keyof typeof SECTION_FIELDS, (typeof SECTION_FIELDS)[keyof typeof SECTION_FIELDS]][]) {
     if (only ? id !== only : id !== 'identity' && !sectionOn(p, id)) continue
     const bag = isObj(p[key]) ? (p[key] as Record<string, unknown>) : {}
-    const empty = fields.filter((f) => (Array.isArray(bag[f]) ? !joined(bag[f]) : !filled(bag[f])))
+    const skip = skippedFields(p)
+    const empty = fields.filter((f) => !skip.has(f) && (Array.isArray(bag[f]) ? !joined(bag[f]) : !filled(bag[f])))
     if (empty.length) out[key] = [...(out[key] ?? []), ...empty]
   }
   return out

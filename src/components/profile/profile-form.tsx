@@ -27,6 +27,7 @@ import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 import {
   APPEARANCE,
+  skippedFields,
   BACKGROUND,
   BEHAVIORS,
   CIRCLES,
@@ -153,7 +154,9 @@ function counts(p: Profile, id: FormId, mode: Mode): [number, number] | null {
   }
   const { key, fields } = SECTION_FIELDS[id]
   const bag = bagOf(p, key)
-  return [fields.filter((f) => isFilled(bag[f])).length, fields.length]
+  const skip = skippedFields(p)
+  const shown = fields.filter((f) => !skip.has(f) || isFilled(bag[f]))
+  return [shown.filter((f) => isFilled(bag[f])).length, shown.length]
 }
 
 const fillable = (id: FormId): id is SectionKey => id in SECTION_FIELDS
@@ -256,9 +259,11 @@ type Save = (next: Profile) => void
 function RowsGrid({ p, save, pkey, rows }: { p: Profile; save: Save; pkey: string; rows: readonly (readonly [string, string])[] }) {
   const bag = bagOf(p, pkey)
   const set = (field: string, v: string) => save({ ...p, [pkey]: { ...bag, [field]: v } })
+  // a field that does not apply (measurements on a male character) hides unless it holds something
+  const skip = skippedFields(p)
   return (
     <>
-      {rows.map(([field, label]) => (
+      {rows.filter(([field]) => !skip.has(field) || isFilled(bag[field])).map(([field, label]) => (
         <div key={field} className={cn('min-w-0', LONG.has(field) && '@md:col-span-2')}>
           {LONG.has(field)
             ? <AreaField label={label} value={bag[field] as string | undefined} onChange={(v) => set(field, v)} rows={field === 'summary' ? 5 : 2} />
