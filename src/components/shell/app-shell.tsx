@@ -208,8 +208,9 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
                 // the Library holds a timeline, character cards and a ledger side by side: it gets more room
                 // 88vw ran past the screen: the drawer starts after the rail, so its room is the screen minus the rail and a gap
                 // full screen: everything right of the rail
+                // the rest: 980px holds the character editor's whole tab row (720 cut it off)
                 full ? (wide ? 'data-[side=left]:w-[calc(100vw-206px)]' : 'data-[side=left]:w-[calc(100vw-48px)]')
-                : drawer === 'litopys' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : 'data-[side=left]:w-[min(720px,75vw)]',
+                : drawer === 'litopys' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : (wide ? 'data-[side=left]:w-[min(980px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(980px,calc(100vw-48px-16px))]'),
                 'data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
                 wide ? 'data-[side=left]:left-[206px]' : 'data-[side=left]:left-12',
               )

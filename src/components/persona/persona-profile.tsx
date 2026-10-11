@@ -71,12 +71,14 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
 
   return (
     <>
-      <div className="flex flex-col gap-1">
+      {/* a long description pushed the profile off screen: it folds, and starts folded once a profile writes it */}
+      <Collapsible defaultOpen={!p.profile} className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Label className="flex items-center gap-2 text-xs">
-            Description
+          <CollapsibleTrigger className="group flex items-center gap-2 text-left text-xs font-medium">
+            <CaretRight className="size-3.5 transition-transform group-data-[panel-open]:rotate-90" aria-hidden="true" />
+            <Label className="pointer-events-none text-xs">Description</Label>
             <Badge variant="outline" className="text-[10px]">{formatTokens(estimateTokens(p.description))} tok</Badge>
-          </Label>
+          </CollapsibleTrigger>
           <div className="ml-auto flex flex-wrap gap-1.5">
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onAsk}>
               <ListChecks className="size-3.5" aria-hidden="true" />{p.profile ? 'Edit answers' : 'Five questions'}
@@ -84,8 +86,10 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
             <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} onClick={() => void draft.runStructure()} />
           </div>
         </div>
-        <Textarea value={p.description} rows={5} onChange={(e) => update({ description: e.target.value })} aria-label="Description" className="text-sm" />
-      </div>
+        <CollapsibleContent>
+          <Textarea value={p.description} rows={5} onChange={(e) => update({ description: e.target.value })} aria-label="Description" className="text-sm" />
+        </CollapsibleContent>
+      </Collapsible>
       {draft.draft && (
         <ProfileDraftPanel draft={draft.draft} before={{ description: p.description, personality: '' }} mode="persona" onAccept={draft.accept} onDiscard={draft.drop} />
       )}
