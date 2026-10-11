@@ -3,6 +3,11 @@
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
+
+## 4.33.0
+
+A character card split into fields you can see and switch, filled by the model from the text or the portrait, and the same for your persona. Works on Molfar Vertep 0.9.7; reading pictures needs 0.9.8.
+
 - Character editor: a Profile tab, a card split into fields modeled on Lorebary (identity, appearance, traits, behaviors, goals, background, relationships, an opt-in adult block). It writes Description and Personality as labeled lines, keeps the old text as notes, notices hand edits and has a Free write switch.
 - Profile tab: "Structure it" asks the model to sort the card's text into the fields and shows what Description and Personality would become; Accept fills the profile (the old text goes to Versions), Discard drops the proposal. New field: Occupation.
 - Personas: "Five questions" writes the persona's description from short answers (name, looks, character, who you are; a private note stays out of the prompt), keeping text written before.
