@@ -3,6 +3,9 @@
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
+- Character editor: a Profile tab, a card split into fields modeled on Lorebary (identity, appearance, traits, behaviors, goals, background, relationships, an opt-in adult block). It writes Description and Personality as labeled lines, keeps the old text as notes, notices hand edits and has a Free write switch.
+- Character editor: header buttons say what they do; Export has an export icon; saving a whole card keeps studio keys other tools wrote.
+- Presets: "Use in this chat" and "Make default" are two separate actions.
 
 ## 4.32.0
 

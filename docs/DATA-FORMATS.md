@@ -34,7 +34,7 @@ the top level, not under `data`.
 | `character_version` | Version string of the card. |
 | `tags` | Array of strings. |
 | `avatar` | The portrait as a base64 data URL or a stored media URL. Tens of KB: never print or send it. |
-| `extensions` | Free object for other tools. Known keys: `molfar_card_type` (`narrator`, `single`, `group`, `assistant`, `other`), `molfar_soul` (the dashboard's Soul tab, `docs/SOUL.md`: leave it to that tab). `molfar_translation` (written by Translate: `{ target, provider, at, original: { <field>: <text before the translation> } }`, used by "Restore original"; leave it alone). Imported cards carry others (`world`, `talkativeness`, `fav`, `chub`…): keep them. |
+| `extensions` | Free object for other tools. Known keys: `molfar_card_type` (`narrator`, `single`, `group`, `assistant`, `other`), `molfar_soul` (the dashboard's Soul tab, `docs/SOUL.md`: leave it to that tab). `molfar_profile` (the editor's Profile tab, below). `molfar_translation` (written by Translate: `{ target, provider, at, original: { <field>: <text before the translation> } }`, used by "Restore original"; leave it alone). Imported cards carry others (`world`, `talkativeness`, `fav`, `chub`…): keep them. |
 | `studio` | The app's own bag, below. |
 
 Unknown top-level fields from an imported card are kept as they are and written back.
@@ -58,6 +58,36 @@ An imported card may have no `studio` yet; json_set creates it when you set a ke
 | `characterRegexIds` | Regex scripts that apply only to this character. |
 | `css` | Custom CSS for this character's chat. |
 | `favorite`, `folderId`, `createdAt`, `lastChatAt` | Library state: leave them alone. |
+
+### The profile: `extensions.molfar_profile`
+The editor's Profile tab: the card split into fields, modeled on Lorebary's character editor. It is
+the editing form only. Every save COMPILES it into `description` and `personality`, which stay what
+the prompt, presets and every export use; other clients see plain text. Empty fields never reach the
+text. Every key is optional; unknown keys are kept. Code: `src/lib/profile.ts`.
+
+    { "v": 1,
+      "identity":   { "first": "", "family": "", "title": "", "nicknames": [], "age": "", "gender": "", "pronouns": "", "comment": "" },
+      "appearance": { "face": "", "eyes": "", "hair": "", "body": "", "height": "", "skin": "", "marks": "", "attire": "", "voice": "", "scent": "", "other": "" },
+      "lists":      { "strengths": [], "flaws": [], "traits": [], "values": [], "fears": [], "wishes": [], "secrets": [] },
+      "behaviors":  { "speech": "", "quirks": "", "habits": "", "underStress": "", "bodyLanguage": "" },
+      "goals":      { "life": "", "shortTerm": "" },
+      "background": { "birthplace": "", "location": "", "socialClass": "", "culture": "", "affiliations": [], "circle": "", "summary": "" },
+      "relationships": [ { "name": "", "relation": "", "notes": "" } ],
+      "sexuality":  { "enabled": false, "orientation": "", "experience": "", "turnOns": [], "turnOffs": [], "kinks": [], "boundaries": "" },
+      "notes":      { "description": "", "personality": "" },
+      "free": false,
+      "compiled":   { "at": 0, "hash": "" } }
+| Key | What it is |
+|---|---|
+| `identity`, `appearance`, `background`, `relationships`, `notes.description` | Compiled into `description` as labeled lines (`Eyes: grey`), in this order. `identity.comment` is private: never compiled. |
+| `lists`, `behaviors`, `goals`, `sexuality`, `notes.personality` | Compiled into `personality`. Lists are joined with commas. `sexuality` only when `enabled` is `true` (adult characters, off by default). |
+| `notes` | Text that fits no field; it follows the fields. Starting a profile moves the card's old text here, so nothing changes until fields are filled. |
+| `free` | Free write: the profile is kept but no longer writes the card. |
+| `compiled` | When the profile last wrote the card and an FNV-1a hash of `description` + `personality` as written. A different hash means the text was edited by hand; the tab then offers to keep the additions, rewrite, or switch to Free write. |
+
+To change a profiled card's text, change the profile fields and leave `description` / `personality`
+alone (the next save in the app would rewrite them), or set `free: true` first. Writing the profile
+does not recompile by itself: the app does that on the next edit in the tab.
 
 ## Lorebooks: `data/lorebooks/<id>.json`
 

@@ -26,6 +26,7 @@ import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
+import { ProfileTab } from '@/components/character/profile-tab'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
 import { TranslateMenu } from '@/components/character/translate-menu'
@@ -232,7 +233,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           }}
         >
           <TabsList className="h-8 w-max flex-nowrap">
-            {['core', 'dialogue', 'advanced', ...(c.isGroup ? [] : ['soul']), 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((name) => (
+            {['core', ...(c.isGroup ? [] : ['profile']), 'dialogue', 'advanced', ...(c.isGroup ? [] : ['soul']), 'lorebook', 'colors', 'sprites', 'gallery', 'regex', 'voice'].map((name) => (
               <TabsTrigger
                 key={name}
                 value={name}
@@ -303,6 +304,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 </Button>
               </div>
             </TabsContent>
+
+            {!c.isGroup && (
+              <TabsContent value="profile" className="flex flex-col gap-4">
+                <ProfileTab c={c} up={up} />
+              </TabsContent>
+            )}
 
             <TabsContent value="dialogue">
               <Field label="Example dialogue" hint="Use <START> to separate example chats. {{user}} / {{char}} macros supported." value={c.exampleDialogue} onChange={(v) => up({ exampleDialogue: v })} rows={12} mono />

@@ -24,10 +24,14 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
   (for "Restore original"): leave it alone. To translate a card, point the user
   to Translate in the character editor instead of rewriting fields one by one.
 - `/studio/expressions` holds the emotion images (base64): never print it.
+- A card with `/extensions/molfar_profile` (the Profile tab) has `description` and
+  `personality` WRITTEN from that profile: change the profile's fields (DATA-FORMATS,
+  "The profile"), not the two texts, or the next edit in the Profile tab overwrites yours.
+  When the profile has `"free": true`, edit the texts as usual.
 
 ## The calls
 1. Read: ONE `json_get` with every pointer you need, for example
-   `pointers: ["/name", "/description", "/personality", "/scenario", "/first_mes", "/mes_example", "/studio/linkedLorebookIds"]`.
+   `pointers: ["/name", "/description", "/personality", "/scenario", "/first_mes", "/mes_example", "/studio/linkedLorebookIds", "/extensions/molfar_profile"]`.
    A value too big comes back as its shape: ask again for the part you need. If a linked book
    matters, json_get its `/entries` in the same reply.
 2. Write the new texts in your head, in the card's language.
