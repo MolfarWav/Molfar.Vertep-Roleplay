@@ -14,7 +14,7 @@ export interface Relationship { name: string; relation: string; notes: string }
 
 export interface Profile {
   v?: number
-  identity?: { first?: string; family?: string; title?: string; nicknames?: string[]; age?: string; gender?: string; pronouns?: string; comment?: string }
+  identity?: { first?: string; family?: string; title?: string; occupation?: string; nicknames?: string[]; age?: string; gender?: string; pronouns?: string; comment?: string }
   appearance?: ProfileText
   lists?: Record<string, string[]>
   behaviors?: ProfileText
@@ -90,6 +90,7 @@ export function compileProfile(p: Profile): { description: string; personality: 
   const identity = [
     name && `Full name: ${name}`,
     joined(id.nicknames) && `Also called: ${joined(id.nicknames)}`,
+    filled(id.occupation) && `Occupation: ${filled(id.occupation)}`,
     filled(id.age) && `Age: ${filled(id.age)}`,
     gender && `Gender: ${gender}`,
   ].filter(Boolean)
@@ -189,3 +190,37 @@ export function adoptHandEdits(p: Profile, c: Pick<Character, 'description' | 'p
   if (description === null || personality === null) return null
   return { ...p, free: false, notes: { description, personality } }
 }
+
+/** What "Structure it" files (plugins/profile): proposed fields and the text that fit none. */
+export interface ProfileDraft {
+  v?: number
+  at?: number
+  model?: string
+  note?: string
+  profile: Profile
+  leftover?: { description?: string; personality?: string }
+}
+
+const SECTIONS = ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'relationships', 'sexuality'] as const
+
+/** Accepting a draft: the card's whole text was split again, so the draft's sections
+ *  replace the old ones (a section the draft lacks is dropped, or its text would show
+ *  twice) and the leftover becomes the notes. The private comment and unknown keys stay.
+ *  The text before goes into the version history: one click back. */
+export function acceptDraft(c: Pick<Character, 'cardExtras' | 'versions'> & Record<VersionField, string>, draft: ProfileDraft, now = Date.now()): Partial<Character> {
+  const prev = profileOf(c) ?? {}
+  const next: Profile = { ...prev }
+  for (const k of SECTIONS) delete next[k]
+  Object.assign(next, normalizeProfile(draft.profile))
+  for (const k of ['notes', 'free', 'compiled', 'v'] as const) delete next[k]
+  const comment = prev.identity?.comment
+  if (comment) next.identity = { ...next.identity, comment }
+  next.notes = { description: draft.leftover?.description ?? '', personality: draft.leftover?.personality ?? '' }
+  const snapshot = Object.fromEntries(VERSION_FIELDS.map((f) => [f, c[f]])) as Partial<Character>
+  const version = { id: `v_${now.toString(36)}`, label: `Before Structure it: ${new Date(now).toLocaleString()}`, savedAt: now, snapshot }
+  return { ...applyProfile(c, next, now), versions: [version, ...c.versions] }
+}
+
+/** The fields a version snapshot holds (as the editor's "Save current as version"). */
+export const VERSION_FIELDS = ['description', 'personality', 'scenario', 'firstMessage', 'exampleDialogue', 'systemPromptOverride', 'postHistoryInstructions'] as const
+type VersionField = (typeof VERSION_FIELDS)[number]

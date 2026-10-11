@@ -22,6 +22,7 @@ import {
   startProfile,
   adoptHandEdits,
 } from '@/lib/profile'
+import { StructureButton, StructureDraftPanel, useStructureDraft } from '@/components/character/structure-draft'
 
 // Field helpers live at module level: defined inside the tab they would be new
 // component types on every render, and each keystroke would remount the input.
@@ -78,6 +79,10 @@ function Section({ title, token, hint, children }: { title: string; token: strin
 export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Character>) => void }) {
   const p = profileOf(c)
   const [adoptMsg, setAdoptMsg] = useState<string | null>(null)
+  const structure = useStructureDraft(c, up)
+  const draftPanel = structure.draft && (
+    <StructureDraftPanel c={c} draft={structure.draft} onAccept={structure.accept} onDiscard={structure.drop} />
+  )
 
   if (!p) {
     return (
@@ -85,7 +90,12 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
         <p className="text-sm text-muted-foreground">
           A profile splits the card into fields (identity, looks, personality, background). It writes Description and Personality for you; the text they hold now is kept as notes.
         </p>
-        <Button className="w-fit" onClick={() => up(applyProfile(c, startProfile(c)))}>Start a profile</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" className="w-fit" onClick={() => up(applyProfile(c, startProfile(c)))}>Start a profile</Button>
+          <StructureButton busy={structure.busy} onClick={() => void structure.run()} />
+        </div>
+        <p className="text-xs text-muted-foreground">Structure it asks the model to sort the text into the fields; you see the result before anything changes.</p>
+        {draftPanel}
       </div>
     )
   }
@@ -104,7 +114,9 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
           Free write: edit Description and Personality by hand; the profile stops writing them
         </label>
         {p.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the card's text.</p>}
+        <StructureButton busy={structure.busy} onClick={() => void structure.run()} />
       </div>
+      {draftPanel}
 
       {!p.free && profileOutOfDate(c) && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
@@ -140,6 +152,7 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
           <TextField label="Title" value={p.identity?.title} onChange={(title) => save({ ...p, identity: { ...p.identity, title } })} />
           <TextField label="First name" value={p.identity?.first} onChange={(first) => save({ ...p, identity: { ...p.identity, first } })} />
           <TextField label="Family name" value={p.identity?.family} onChange={(family) => save({ ...p, identity: { ...p.identity, family } })} />
+          <TextField label="Occupation" value={p.identity?.occupation} onChange={(occupation) => save({ ...p, identity: { ...p.identity, occupation } })} />
           <TextField label="Age" value={p.identity?.age} onChange={(age) => save({ ...p, identity: { ...p.identity, age } })} />
           <TextField label="Gender" value={p.identity?.gender} onChange={(gender) => save({ ...p, identity: { ...p.identity, gender } })} />
           <TextField label="Pronouns" value={p.identity?.pronouns} onChange={(pronouns) => save({ ...p, identity: { ...p.identity, pronouns } })} />

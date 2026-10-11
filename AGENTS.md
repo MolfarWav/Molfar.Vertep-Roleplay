@@ -271,6 +271,7 @@ data/
 ├─ lorebooks/<id>.json  world-info books (entries[], settings, vectorized)
 ├─ regex/<id>.json      regex scripts (find/replace/placements/flags)
 ├─ databank/<id>.json   { name, scope, enabled, size, chunks: [{i, text}] }
+├─ profile-drafts/      profile plugin: <characterId>.json, a "Structure it" proposal
 ├─ dashboard/           relations plugin: state/<chatId>.json, soul-drafts/<characterId>.json, config.json, events.json
 ├─ litopys/             litopys plugin (shadow mode, nothing reaches the prompt yet): chats/<chatId>.json (chapters, facts,
 │                       proposals, worker state), vectors/<chatId>.json, config.json; store.json = the 1.x backup.

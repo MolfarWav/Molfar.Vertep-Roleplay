@@ -66,7 +66,7 @@ the prompt, presets and every export use; other clients see plain text. Empty fi
 text. Every key is optional; unknown keys are kept. Code: `src/lib/profile.ts`.
 
     { "v": 1,
-      "identity":   { "first": "", "family": "", "title": "", "nicknames": [], "age": "", "gender": "", "pronouns": "", "comment": "" },
+      "identity":   { "first": "", "family": "", "title": "", "occupation": "", "nicknames": [], "age": "", "gender": "", "pronouns": "", "comment": "" },
       "appearance": { "face": "", "eyes": "", "hair": "", "body": "", "height": "", "skin": "", "marks": "", "attire": "", "voice": "", "scent": "", "other": "" },
       "lists":      { "strengths": [], "flaws": [], "traits": [], "values": [], "fears": [], "wishes": [], "secrets": [] },
       "behaviors":  { "speech": "", "quirks": "", "habits": "", "underStress": "", "bodyLanguage": "" },
@@ -88,6 +88,9 @@ text. Every key is optional; unknown keys are kept. Code: `src/lib/profile.ts`.
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. Writing the profile
 does not recompile by itself: the app does that on the next edit in the tab.
+"Structure it" (button in the tab) asks the model to split the card's text into fields and files a
+proposal in `data/profile-drafts/<id>.json`; accepting it replaces the profile's sections, puts the text
+that fit no field in `notes`, and saves the old text as a version.
 
 ## Lorebooks: `data/lorebooks/<id>.json`
 

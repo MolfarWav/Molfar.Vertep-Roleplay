@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  adoptHandEdits, applyProfile, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
+  acceptDraft, adoptHandEdits, applyProfile, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
   type Profile,
 } from "../src/lib/profile";
 
@@ -105,5 +105,24 @@ describe("applying a profile", () => {
     expect(p?.identity).toBeUndefined();
     expect(p?.relationships).toEqual([{ name: "A", relation: "", notes: "" }]);
     expect(compileProfile(p!).description).toBe("Relationships:\n- A");
+  });
+});
+
+describe("accepting a Structure it draft", () => {
+  it("replaces the sections, keeps the comment and unknown keys, files the old text as a version", () => {
+    const c = cardToCharacter(baseCard() as never);
+    const before = { ...c, ...applyProfile(c, { identity: { first: "Old", comment: "mine" }, goals: { life: "gone" }, futureField: 1 }, 1) };
+    const patch = acceptDraft(before, { profile: { identity: { first: "Elias" }, lists: { flaws: ["proud"] } }, leftover: { description: "World: guilds rule." } }, 5);
+    const next = { ...before, ...patch };
+    const p = profileOf(next)!;
+    expect(p.identity).toEqual({ first: "Elias", comment: "mine" });
+    expect(p.goals).toBeUndefined();
+    expect(p.futureField).toBe(1);
+    expect(p.notes).toEqual({ description: "World: guilds rule.", personality: "" });
+    expect(next.description).toBe("Full name: Elias\n\nWorld: guilds rule.");
+    expect(next.personality).toBe("Flaws: proud");
+    expect(next.versions[0]!.snapshot.description).toBe(before.description);
+    expect(next.versions[0]!.label.startsWith("Before Structure it")).toBe(true);
+    expect(profileOutOfDate(next)).toBe(false);
   });
 });
