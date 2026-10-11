@@ -256,7 +256,8 @@ function fillRoute(req, host) {
   const r = host.llm.results.fill;
   if (!r) {
     const img = isObj(b.image) ? { data: String(b.image.data || ""), mimeType: String(b.image.mimeType || "") } : null;
-    const model = MODEL_REF.test(str(b.model)) ? str(b.model) : modelOf(fsx);
+    // a picture with no model named goes to the engine's Vision model (Settings), not the chat model
+    const model = MODEL_REF.test(str(b.model)) ? str(b.model) : img ? "" : modelOf(fsx);
     const ask = Object.entries(fields).map(([s, keys]) => s + ": " + keys.join(", ")).join("\n");
     const head = b.replace === true && img
       ? "\n\nDescribe these fields from the attached picture; where the text says otherwise, the picture wins (these fields are NOT empty, rewrite them):\n"

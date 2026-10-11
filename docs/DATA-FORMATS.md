@@ -98,7 +98,7 @@ proposal in `data/profile-drafts/<id>.json` (`kind: "structure"`); accepting it 
 sections, puts the text that fit no field in `notes`, and saves the old text as a version.
 "Fill empty" asks the model for the empty fields of the switched-on sections (or one section) and files
 `kind: "fill"`; accepting it writes only fields that are still empty, never relationships, and saves the
-old text as a version. With a vision model chosen, the portrait goes along and appearance comes from it.
+old text as a version. The portrait goes along to the engine's Vision model (Settings) unless the request names a model; "Read from picture" (`replace: true`) rewrites filled appearance fields.
 
 ## Personas: `data/personas/<id>.json`
 

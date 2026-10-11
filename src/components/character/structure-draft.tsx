@@ -4,7 +4,7 @@ import { CircleNotch, MagicWand } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { fetchModels, j } from '@/lib/engine'
+import { fetchModels, fetchVisionModel, j } from '@/lib/engine'
 import { readImage } from '@/lib/charx'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR } from '@/lib/utils'
@@ -62,23 +62,35 @@ export type ProfileDraftState = ReturnType<typeof useProfileDraft>
 const VISION_KEY = 'rp.profile.visionModel'
 
 /** Connected models that read pictures, and the one chosen for the portrait ('' = don't read). */
+/** Which model reads pictures. 'settings' (the default) = the engine's Vision model,
+ *  'none' = don't read (Fill empty only), or a model ref picked here for this app. */
 export function useVisionModel() {
   const [models, setModels] = useState<ModelInfo[]>([])
+  const [engineRef, setEngineRef] = useState<string | null>(null)
   const [value, setValueState] = useState<string>(() => {
-    try { return localStorage.getItem(VISION_KEY) ?? '' } catch { return '' }
+    try { return localStorage.getItem(VISION_KEY) ?? 'settings' } catch { return 'settings' }
   })
   useEffect(() => {
     let alive = true
     void fetchModels().then((r) => { if (alive) setModels(r.models.filter((m) => m.images === true)) })
+    void fetchVisionModel().then((ref) => { if (alive) setEngineRef(ref) })
     return () => { alive = false }
   }, [])
   const setValue = (v: string) => {
     setValueState(v)
-    try { if (v) localStorage.setItem(VISION_KEY, v); else localStorage.removeItem(VISION_KEY) } catch { /* storage blocked */ }
+    try { if (v && v !== 'settings') localStorage.setItem(VISION_KEY, v); else localStorage.removeItem(VISION_KEY) } catch { /* storage blocked */ }
   }
-  // a remembered model that is no longer connected counts as "don't read"
-  const chosen = models.some((m) => m.ref === value) ? value : ''
-  return { models, value: chosen, setValue }
+  // a remembered model that is no longer connected falls back to Settings
+  const value2 = value === 'none' || value === 'settings' || models.some((m) => m.ref === value) ? value : 'settings'
+  const override = value2 === 'none' || value2 === 'settings' ? undefined : value2
+  // the model that will read: '' = none (pictures are not sent)
+  const active = value2 === 'none' ? '' : (override ?? engineRef ?? '')
+  const named = (ref: string | null) => {
+    const m = models.find((x) => x.ref === ref)
+    return m ? `${m.provider} · ${m.id}` : (ref ?? '').replace(/^c_[^/]*\//, '')
+  }
+  const settingsLabel = engineRef ? `From Settings: ${named(engineRef)}` : 'From Settings: none reads pictures'
+  return { models, value: value2, setValue, engineRef, override, active, settingsLabel }
 }
 export type VisionModel = ReturnType<typeof useVisionModel>
 
@@ -99,11 +111,12 @@ export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avat
     let image: Image | undefined
     let model: string | undefined
     let textOnly = false
-    if (vision.value) {
+    if (vision.active) {
       const img = hasPortrait(avatar) ? await readImage(avatar) : null
       if (img) {
         image = { data: toBase64(img.bytes), mimeType: `image/${img.ext}` }
-        model = vision.value
+        // no model = the engine's Vision model reads it
+        model = vision.override
       } else textOnly = true
     }
     const ok = await d.runFill(fields, image, model)
@@ -123,7 +136,7 @@ export function StructureButton({ busy, onClick, variant = 'outline', disabled }
 
 /** The whole-profile "Fill empty" button and the portrait model picker. */
 export function FillControls({ busy, disabled, onFill, vision }: { busy: boolean; disabled?: boolean; onFill: () => void; vision: VisionModel }) {
-  const none = vision.models.length === 0
+  const none = vision.models.length === 0 && !vision.engineRef
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="outline" size="sm" className="w-fit" disabled={busy || disabled} onClick={onFill} title="A model proposes values for the empty fields of the sections that are on; you review before anything changes">
@@ -132,9 +145,10 @@ export function FillControls({ busy, disabled, onFill, vision }: { busy: boolean
       </Button>
       <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty'}>
         Portrait:
-        <Select value={vision.value || 'none'} onValueChange={(v) => vision.setValue(v === 'none' || !v ? '' : String(v))} disabled={none}>
-          <SelectTrigger size="sm" className="h-7 max-w-52 text-xs" aria-label="Portrait model"><SelectValue /></SelectTrigger>
+        <Select value={none ? 'none' : vision.value} onValueChange={(v) => vision.setValue(v ? String(v) : 'settings')} disabled={none}>
+          <SelectTrigger size="sm" className="h-7 max-w-60 text-xs" aria-label="Portrait model"><SelectValue /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="settings">{vision.settingsLabel}</SelectItem>
             <SelectItem value="none">Don't read</SelectItem>
             {vision.models.map((m) => <SelectItem key={m.ref} value={m.ref}>{`${m.provider} · ${m.id}`}</SelectItem>)}
           </SelectContent>

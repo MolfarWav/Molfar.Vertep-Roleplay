@@ -126,6 +126,16 @@ describe("POST /profile/fill", () => {
     expect(JSON.parse(m.files["profile-drafts/eli.json"]!).kind).toBe("fill");
   });
 
+  it("leaves the model out for a picture with none named, so the engine's vision model reads it", () => {
+    const m = memHost(files());
+    const pic = { characterId: "eli", fields: { appearance: ["hair"] }, image: { data: "AAAA", mimeType: "image/png" } };
+    handleRoute({ method: "POST", path: "/profile/fill", query: {}, body: pic }, m.host);
+    expect(m.requests[0]!.spec.model).toBeUndefined();
+    const text = memHost(files());
+    handleRoute({ method: "POST", path: "/profile/fill", query: {}, body: { characterId: "eli", fields: { appearance: ["hair"] } } }, text.host);
+    expect(text.requests[0]!.spec.model).toBe("c/m");
+  });
+
   it("refuses a request with no valid field and needs no model for it", () => {
     const m = memHost(files());
     const out = handleRoute({ method: "POST", path: "/profile/fill", query: {}, body: { characterId: "eli", fields: { appearance: ["bogus"] } } }, m.host) as { status: number };

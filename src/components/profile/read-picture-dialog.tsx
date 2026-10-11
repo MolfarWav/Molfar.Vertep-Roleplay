@@ -24,7 +24,7 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
   avatar: string | undefined
   vision: VisionModel
   busy: boolean
-  onRead: (fields: Record<string, string[]>, image: Image, model: string, replace: boolean) => void
+  onRead: (fields: Record<string, string[]>, image: Image, model: string | undefined, replace: boolean) => void
 }) {
   const [picked, setPicked] = useState<{ url: string; image: Image } | null>(null)
   const [replace, setReplace] = useState(true)
@@ -35,7 +35,9 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
 
   const portrait = hasPortrait(avatar) ? avatar : null
   const shown = picked?.url ?? portrait
-  const none = vision.models.length === 0
+  const none = vision.models.length === 0 && !vision.engineRef
+  // "Don't read" belongs to Fill empty; here the picture is the point
+  const reader = vision.override ?? vision.engineRef ?? ''
 
   const pick = (file: File | undefined) => {
     if (!file) return
@@ -52,7 +54,7 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
   }
 
   const read = async () => {
-    if (!vision.value || !shown) return
+    if (!reader || !shown) return
     const skip = skippedFields(profile)
     const fields = replace
       ? { appearance: APPEARANCE.map(([k]) => k).filter((k) => !skip.has(k)) }
@@ -65,7 +67,7 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
     }
     if (!image) { toast.error('Could not read the picture. Attach another one.'); return }
     onOpenChange(false)
-    onRead(fields, image, vision.value, replace)
+    onRead(fields, image, vision.override, replace)
   }
 
   return (
@@ -97,10 +99,10 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
 
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Model</Label>
-            <Select value={vision.value || 'none'} onValueChange={(v) => vision.setValue(v === 'none' || !v ? '' : String(v))} disabled={none}>
+            <Select value={vision.override ?? 'settings'} onValueChange={(v) => vision.setValue(v ? String(v) : 'settings')} disabled={none}>
               <SelectTrigger className="w-full text-sm" aria-label="Vision model"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Choose a model that reads pictures</SelectItem>
+                <SelectItem value="settings">{vision.settingsLabel}</SelectItem>
                 {vision.models.map((m) => <SelectItem key={m.ref} value={m.ref}>{label(m)}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -112,7 +114,7 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
               This needs a model that reads pictures (a vision model). A text-only model fails with an error.
             </p>
             {none
-              ? <p className="text-muted-foreground">None of your connected models reads pictures. Families that do include Gemini, GPT-4o and GPT-4.1, Qwen-VL, Pixtral and Llama 3.2 Vision: add one in the engine's Settings → Connections.</p>
+              ? <p className="text-muted-foreground">None of your connected models reads pictures. Families that do include Gemini, GPT-4o and GPT-4.1, Qwen-VL, Pixtral and Llama 3.2 Vision: add one in Settings → Connections and models; its Vision model then picks the cheapest one by itself.</p>
               : <p className="text-muted-foreground">Your models that read pictures: {vision.models.map(label).join(', ')}</p>}
           </div>
 
@@ -123,7 +125,7 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button size="sm" disabled={busy || !shown || !vision.value} onClick={() => void read()}>
+          <Button size="sm" disabled={busy || !shown || !reader} onClick={() => void read()}>
             {busy && <CircleNotch className="size-4 animate-spin" aria-hidden="true" />}
             {busy ? 'Reading…' : 'Read'}
           </Button>

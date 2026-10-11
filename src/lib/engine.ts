@@ -245,6 +245,20 @@ export function fetchBootstrap(chatId?: string | null): Promise<EngineBootstrap>
 /** A starred model of the engine's quick switch (set in the shell's Settings), with an optional name. */
 export interface ModelFavorite { ref: string; name?: string }
 
+/** The model the engine sends pictures to (Settings > Connections and models > Vision model:
+ *  the user's pick, or Auto = the cheapest that reads pictures). null when none does, or on
+ *  an engine before 0.9.8 (no route). */
+export async function fetchVisionModel(): Promise<string | null> {
+  try {
+    const r = await fetch('/v1/models/vision')
+    if (!r.ok) return null
+    const { ref } = (await r.json()) as { ref?: unknown }
+    return typeof ref === 'string' && ref ? ref : null
+  } catch {
+    return null
+  }
+}
+
 /** The models the pickers show, and the quick switch the engine keeps (0.9.2; [] on older engines). */
 export async function fetchModels(): Promise<{ models: ModelInfo[]; favorites: ModelFavorite[] }> {
   try {
