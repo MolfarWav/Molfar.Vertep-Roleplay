@@ -8,7 +8,7 @@ import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import { buildDefaultPreset } from "../src/lib/seed";
-import type { Character, LoreEntry, Lorebook } from "../src/lib/types";
+import type { Character, GroupConfig, GroupMemberSettings, LoreEntry, Lorebook } from "../src/lib/types";
 
 // engine.ts reads the frame URL at import time; give it one outside a browser
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -38,6 +38,18 @@ describe("docs/DATA-FORMATS.md names every field the app writes", () => {
     const card = characterToCard(c) as Record<string, unknown>;
     expect(missing(Object.keys(card))).toEqual([]);
     expect(missing(Object.keys(card.studio as object))).toEqual([]);
+  });
+
+  it("groups", () => {
+    // every field GroupConfig names (types.ts); a new one must be documented
+    const g: Required<GroupConfig> = {
+      id: "g", name: "G", memberIds: [], mode: "natural", mutedIds: [], generationMode: "swap", allowSelfResponses: false,
+      autoMode: false, autoDelaySec: 5, openingMessage: "", favorite: false, avatar: "", tags: [], note: "", scenario: "",
+      openings: [], memberSettings: {}, embeddedLorebookId: null, linkedLorebookIds: [], memberBooks: "all",
+    };
+    expect(missing(Object.keys(g).filter((k) => k !== "id"))).toEqual([]);
+    const ms: Required<GroupMemberSettings> = { talkativeness: 0.5, opening: "group", color: "" };
+    expect(missing(Object.keys(ms))).toEqual([]);
   });
 
   it("lorebooks and their entries", () => {

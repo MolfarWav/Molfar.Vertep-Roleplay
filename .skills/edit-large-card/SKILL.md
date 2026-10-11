@@ -17,6 +17,8 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - Card: `apps/roleplay/data/characters/<id>/card.json` (id = folder name; fields at the TOP level,
   not under `/data`).
 - Lorebook: `apps/roleplay/data/lorebooks/<id>.json` (id = file name, repeated in `"id"`).
+- Group: `apps/roleplay/data/groups/<id>.json` (not a card: members, shared scenario,
+  openings, per-member settings, the group's own books; fields in DATA-FORMATS, "Groups").
 - Files starting with `_` are AI-only templates: copy, never edit.
 - Never ask for or print `/avatar` or `/studio/avatar` (base64 images). Leave
   `/extensions/molfar_soul` to the Soul tab.

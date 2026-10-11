@@ -111,12 +111,34 @@ of it as one text (`identity.comment` holds the private "what I want from storie
 compiled; both notes texts go into `notes.description`). Text added by hand after the compiled lines is kept on the next save; an edit inside
 them is replaced after the app asks.
 
+## Groups: `data/groups/<id>.json`
+
+A group is not a card: it names its members (cards stay where they are) and how they share a chat. A group
+chat's meta has `groupId` and no `characterId`. Deleting a group deletes its chats; its members stay.
+Edit groups in the app's group editor (Characters, Groups); every field below is optional except the first two.
+
+| Field | What it is |
+|---|---|
+| `name`, `memberIds` | The group's name; member card ids in speaking order. |
+| `mode` | Who answers: `natural` (whoever the user names, else one pick by talkativeness), `list` (everyone in order), `manual` (only a triggered member). |
+| `mutedIds` | Members that get no turns; their card and books stay out of the prompt and they bring no opening. |
+| `generationMode` | `swap` (the speaker's card only) or `append` (every unmuted member's card). |
+| `allowSelfResponses`, `autoMode`, `autoDelaySec` | The same member may answer twice in a row; the group keeps talking on its own every N seconds. |
+| `favorite`, `avatar`, `tags`, `note` | Library fields; `avatar` empty = the members' portraits; `note` is never sent to the model. |
+| `scenario` | Shared scenario: replaces every member's own scenario in this group's chats. |
+| `openings` | Narrated lines a new chat opens with (the first shows, the others are swipes). |
+| `memberSettings` | `{ <memberId>: { talkativeness?, opening?, color? } }`: talkativeness 0..1 wins over the card's; `opening` is `"group"` (default: the card's group-only greetings), `"none"`, or a number (that greeting of the card: 0 = first message, then the alternates); `color` is the member's dialogue colour here. |
+| `embeddedLorebookId`, `linkedLorebookIds` | The group's own books, scanned in every chat of the group. |
+| `memberBooks` | Members' books in this group: `all` (default), `speaker` (only the current speaker's), `off`. Global and persona books always stay. |
+| `openingMessage` | Older field: a system line at the start of a new chat. |
+
 ## Lorebooks: `data/lorebooks/<id>.json`
 
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with
 `globalActive: true`, the character's `studio.embeddedLorebookId`, every id in the character's
-`studio.linkedLorebookIds` (in a group chat: every member's), and the books bound to the active persona.
-Links live on the card only; the book's old `linkedCharacterIds` field is not read.
+`studio.linkedLorebookIds` (in a group chat: every member's, filtered by the group's `memberBooks`, plus the
+group's own books), and the books bound to the active persona.
+Links live on the card (or the group) only; the book's old `linkedCharacterIds` field is not read.
 
 ### Book fields
 | Field | What it is |
