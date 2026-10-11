@@ -590,6 +590,8 @@ export interface ModelInfo {
   context: number
   maxOut: number
   reasoning: boolean
+  /** The model reads pictures (engine catalog); false or missing: text only. */
+  images?: boolean
   /** USD per million tokens, as the engine reports them (the user's own price
    *  table first, then the catalog). null when nobody knows this model's
    *  rates — spend for it is unknown, not free. */

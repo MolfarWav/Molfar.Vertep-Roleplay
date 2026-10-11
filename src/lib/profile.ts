@@ -14,14 +14,23 @@ export interface Relationship { name: string; relation: string; notes: string }
 
 export interface Profile {
   v?: number
-  identity?: { first?: string; family?: string; title?: string; occupation?: string; nicknames?: string[]; age?: string; gender?: string; pronouns?: string; comment?: string }
+  identity?: { first?: string; family?: string; title?: string; occupation?: string; nicknames?: string[]; age?: string; birthday?: string; gender?: string; pronouns?: string; comment?: string }
   appearance?: ProfileText
   lists?: Record<string, string[]>
   behaviors?: ProfileText
   goals?: ProfileText
-  background?: { birthplace?: string; location?: string; socialClass?: string; culture?: string; affiliations?: string[]; circle?: string; summary?: string }
+  /** origin fields (BACKGROUND), the circles (CIRCLES, `affiliations` a list) and the backstory */
+  background?: { affiliations?: string[]; summary?: string; [field: string]: string | string[] | undefined }
+  trauma?: { experiences?: string[]; triggers?: string[]; coping?: string }
   relationships?: Relationship[]
-  sexuality?: { enabled?: boolean; orientation?: string; experience?: string; turnOns?: string[]; turnOffs?: string[]; kinks?: string[]; boundaries?: string }
+  sexuality?: {
+    /** the old switch (v1); `sections.sexuality` wins when set */
+    enabled?: boolean
+    orientation?: string; romantic?: string; relationshipStyle?: string; libido?: string; position?: string; experience?: string
+    turnOns?: string[]; turnOffs?: string[]; kinks?: string[]; boundaries?: string; notes?: string
+  }
+  /** section switches: an off section keeps its fields but writes nothing (`sectionOn`) */
+  sections?: Partial<Record<SectionId, boolean>>
   /** free text that fits no field; compiled after the structured lines */
   notes?: { description?: string; personality?: string }
   /** Free write: the profile is kept but no longer writes the card */
@@ -32,20 +41,40 @@ export interface Profile {
 
 /** Field ids and their labels, in compile order. The labels are what the model reads. */
 export const APPEARANCE: readonly (readonly [string, string])[] = [
-  ['face', 'Face'], ['eyes', 'Eyes'], ['hair', 'Hair'], ['body', 'Body'], ['height', 'Height'], ['skin', 'Skin'],
+  ['face', 'Face'], ['eyes', 'Eyes'], ['hair', 'Hair'], ['body', 'Body'], ['height', 'Height'], ['weight', 'Weight'],
+  ['measurements', 'Measurements'], ['skin', 'Skin'],
   ['marks', 'Marks and scars'], ['attire', 'Attire'], ['voice', 'Voice'], ['scent', 'Scent'], ['other', 'Other'],
 ]
 export const LISTS: readonly (readonly [string, string])[] = [
   ['strengths', 'Strengths'], ['flaws', 'Flaws'], ['traits', 'Traits'], ['values', 'Values'],
   ['fears', 'Fears'], ['wishes', 'Wishes'], ['secrets', 'Secrets'],
+  ['petPeeves', 'Pet peeves'], ['guiltyPleasures', 'Guilty pleasures'], ['coreBeliefs', 'Core beliefs'],
 ]
 export const BEHAVIORS: readonly (readonly [string, string])[] = [
-  ['speech', 'Speech'], ['quirks', 'Quirks'], ['habits', 'Habits'], ['underStress', 'Under stress'], ['bodyLanguage', 'Body language'],
+  ['speech', 'Speech'], ['quirks', 'Quirks'], ['habits', 'Habits'], ['motivations', 'Motivations'], ['social', 'Socially'],
+  ['underStress', 'Under stress'], ['bodyLanguage', 'Body language'], ['hobbies', 'Hobbies'],
 ]
-export const GOALS: readonly (readonly [string, string])[] = [['life', 'Life goal'], ['shortTerm', 'Short-term goal']]
+export const GOALS: readonly (readonly [string, string])[] = [
+  ['life', 'Life goal'], ['shortTerm', 'Short-term goal'], ['career', 'Career goal'], ['growth', 'Wants to grow'],
+  ['relationships', 'Relationship goal'], ['unfinished', 'Unfinished business'],
+]
+/** Origin: where they come from and how they live now. */
 export const BACKGROUND: readonly (readonly [string, string])[] = [
-  ['birthplace', 'Birthplace'], ['location', 'Lives in'], ['socialClass', 'Social class'], ['culture', 'Culture'], ['circle', 'Social circle'],
+  ['birthplace', 'Birthplace'], ['nationality', 'Nationality'], ['ethnicity', 'Ethnicity'], ['culture', 'Culture'],
+  ['socialClass', 'Social class'], ['location', 'Lives in'], ['living', 'Living conditions'], ['neighborhood', 'Neighborhood'],
 ]
+/** Circles: what they belong to and believe in (stored in `background`; `affiliations` is a list). */
+export const CIRCLES: readonly (readonly [string, string])[] = [
+  ['circle', 'Social circle'], ['politics', 'Political views'], ['religion', 'Religious beliefs'],
+]
+export const SEXUALITY: readonly (readonly [string, string])[] = [
+  ['orientation', 'Orientation'], ['romantic', 'Romantic orientation'], ['relationshipStyle', 'Relationship style'],
+  ['libido', 'Libido'], ['position', 'Position'], ['experience', 'Experience'],
+]
+
+/** The sections a switch turns off, in the order the form shows them (identity has none). */
+export const SECTION_IDS = ['appearance', 'personality', 'behaviors', 'goals', 'background', 'circles', 'trauma', 'relationships', 'sexuality'] as const
+export type SectionId = (typeof SECTION_IDS)[number]
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const s = (v: unknown): string => (typeof v === 'string' ? v : '')
@@ -56,7 +85,7 @@ const joined = (v: unknown): string => list(v).map((x) => x.trim()).filter(Boole
 /** A tolerant read: wrong types become empty, unknown keys stay. */
 export function normalizeProfile(raw: unknown): Profile {
   const p: Profile = isObj(raw) ? { ...raw } : {}
-  for (const k of ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'sexuality', 'notes', 'compiled'] as const) {
+  for (const k of ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'trauma', 'sexuality', 'sections', 'notes', 'compiled'] as const) {
     if (k in p && !isObj(p[k])) delete p[k]
   }
   if ('relationships' in p) {
@@ -81,6 +110,24 @@ function lines(rows: readonly (readonly [string, string])[], bag: unknown, value
 
 const block = (...groups: string[][]): string => groups.map((g) => g.join('\n')).filter(Boolean).join('\n\n')
 
+const hasAny = (bag: unknown, keys: readonly string[]): boolean => {
+  const b = isObj(bag) ? bag : {}
+  return keys.some((k) => (Array.isArray(b[k]) ? joined(b[k]) : filled(b[k])) !== '')
+}
+const CIRCLE_KEYS = ['affiliations', ...CIRCLES.map(([k]) => k)]
+
+/** Whether a section writes into the text. Its own switch wins; without one,
+ *  sexuality follows its old `enabled`, trauma and circles are on only once
+ *  something is filled, and the rest are on. */
+export function sectionOn(p: Profile, id: SectionId): boolean {
+  const set = isObj(p.sections) ? p.sections[id] : undefined
+  if (typeof set === 'boolean') return set
+  if (id === 'sexuality') return isObj(p.sexuality) && p.sexuality.enabled === true
+  if (id === 'trauma') return hasAny(p.trauma, ['experiences', 'triggers', 'coping'])
+  if (id === 'circles') return hasAny(p.background, CIRCLE_KEYS)
+  return true
+}
+
 /** What the profile writes into `description` (who and what they are) and
  *  `personality` (how they think and act). Labeled lines, empty fields skipped. */
 export function compileProfile(p: Profile): { description: string; personality: string } {
@@ -92,32 +139,44 @@ export function compileProfile(p: Profile): { description: string; personality: 
     joined(id.nicknames) && `Also called: ${joined(id.nicknames)}`,
     filled(id.occupation) && `Occupation: ${filled(id.occupation)}`,
     filled(id.age) && `Age: ${filled(id.age)}`,
+    filled(id.birthday) && `Birthday: ${filled(id.birthday)}`,
     gender && `Gender: ${gender}`,
   ].filter(Boolean)
+  const on = (id: SectionId) => sectionOn(p, id)
   const bg = isObj(p.background) ? p.background : {}
-  const background = [
-    ...lines(BACKGROUND, bg, filled),
-    joined(bg.affiliations) && `Affiliations: ${joined(bg.affiliations)}`,
-    filled(bg.summary) && `Backstory: ${filled(bg.summary)}`,
-  ].filter(Boolean)
-  const rel = (p.relationships ?? [])
+  const background = on('background')
+    ? [...lines(BACKGROUND, bg, filled), filled(bg.summary) && `Backstory: ${filled(bg.summary)}`].filter(Boolean)
+    : []
+  const circles = on('circles')
+    ? [joined(bg.affiliations) && `Affiliations: ${joined(bg.affiliations)}`, ...lines(CIRCLES, bg, filled)].filter(Boolean)
+    : []
+  const tr = isObj(p.trauma) ? p.trauma : {}
+  const trauma = on('trauma')
+    ? [
+        joined(tr.experiences) && `Trauma: ${joined(tr.experiences)}`,
+        joined(tr.triggers) && `Triggered by: ${joined(tr.triggers)}`,
+        filled(tr.coping) && `Copes by: ${filled(tr.coping)}`,
+      ].filter(Boolean)
+    : []
+  const rel = !on('relationships') ? [] : (p.relationships ?? [])
     .filter((r) => r.name.trim())
     .map((r) => `- ${r.name.trim()}${r.relation.trim() ? ` (${r.relation.trim()})` : ''}${r.notes.trim() ? `: ${r.notes.trim()}` : ''}`)
   const sx = isObj(p.sexuality) ? p.sexuality : {}
-  const sexuality = sx.enabled === true
+  const sexuality = on('sexuality')
     ? [
-        filled(sx.orientation) && `Orientation: ${filled(sx.orientation)}`,
-        filled(sx.experience) && `Experience: ${filled(sx.experience)}`,
+        ...lines(SEXUALITY, sx, filled),
         joined(sx.turnOns) && `Turn-ons: ${joined(sx.turnOns)}`,
         joined(sx.turnOffs) && `Turn-offs: ${joined(sx.turnOffs)}`,
         joined(sx.kinks) && `Kinks: ${joined(sx.kinks)}`,
         filled(sx.boundaries) && `Boundaries: ${filled(sx.boundaries)}`,
+        filled(sx.notes) && `Intimacy notes: ${filled(sx.notes)}`,
       ].filter(Boolean)
     : []
   const notes = isObj(p.notes) ? p.notes : {}
+  const part = (id: SectionId, rows: readonly (readonly [string, string])[], bag: unknown, value: (v: unknown) => string) => (on(id) ? lines(rows, bag, value) : [])
   return {
-    description: block(identity, lines(APPEARANCE, p.appearance, filled), background, rel.length ? ['Relationships:', ...rel] : [], [filled(notes.description)].filter(Boolean)),
-    personality: block(lines(LISTS, p.lists, joined), lines(BEHAVIORS, p.behaviors, filled), lines(GOALS, p.goals, filled), sexuality, [filled(notes.personality)].filter(Boolean)),
+    description: block(identity, part('appearance', APPEARANCE, p.appearance, filled), background, circles, rel.length ? ['Relationships:', ...rel] : [], [filled(notes.description)].filter(Boolean)),
+    personality: block(part('personality', LISTS, p.lists, joined), part('behaviors', BEHAVIORS, p.behaviors, filled), part('goals', GOALS, p.goals, filled), trauma, sexuality, [filled(notes.personality)].filter(Boolean)),
   }
 }
 
@@ -194,6 +253,8 @@ export function adoptHandEdits(p: Profile, c: Pick<Character, 'description' | 'p
 /** What "Structure it" files (plugins/profile): proposed fields and the text that fit none. */
 export interface ProfileDraft {
   v?: number
+  /** "fill": only empty fields, merged by `mergeFill`; otherwise a Structure it split */
+  kind?: 'structure' | 'fill'
   at?: number
   model?: string
   note?: string
@@ -201,7 +262,7 @@ export interface ProfileDraft {
   leftover?: { description?: string; personality?: string }
 }
 
-const SECTIONS = ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'relationships', 'sexuality'] as const
+const SECTIONS = ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'trauma', 'relationships', 'sexuality'] as const
 
 /** Accepting a draft: the card's whole text was split again, so the draft's sections
  *  replace the old ones (a section the draft lacks is dropped, or its text would show
@@ -216,9 +277,67 @@ export function acceptDraft(c: Pick<Character, 'cardExtras' | 'versions'> & Reco
   const comment = prev.identity?.comment
   if (comment) next.identity = { ...next.identity, comment }
   next.notes = { description: draft.leftover?.description ?? '', personality: draft.leftover?.personality ?? '' }
-  const snapshot = Object.fromEntries(VERSION_FIELDS.map((f) => [f, c[f]])) as Partial<Character>
-  const version = { id: `v_${now.toString(36)}`, label: `Before Structure it: ${new Date(now).toLocaleString()}`, savedAt: now, snapshot }
-  return { ...applyProfile(c, next, now), versions: [version, ...c.versions] }
+  return { ...applyProfile(c, next, now), versions: [versionOf(c, 'Before Structure it', now), ...c.versions] }
+}
+
+/** Where each form section keeps its fields: the profile key and the field ids. */
+export const SECTION_FIELDS: Record<'identity' | Exclude<SectionId, 'relationships'>, { key: 'identity' | 'appearance' | 'lists' | 'behaviors' | 'goals' | 'background' | 'trauma' | 'sexuality'; fields: readonly string[] }> = {
+  identity: { key: 'identity', fields: ['first', 'family', 'title', 'occupation', 'age', 'birthday', 'gender', 'pronouns', 'nicknames'] },
+  appearance: { key: 'appearance', fields: APPEARANCE.map(([k]) => k) },
+  personality: { key: 'lists', fields: LISTS.map(([k]) => k) },
+  behaviors: { key: 'behaviors', fields: BEHAVIORS.map(([k]) => k) },
+  goals: { key: 'goals', fields: GOALS.map(([k]) => k) },
+  background: { key: 'background', fields: [...BACKGROUND.map(([k]) => k), 'summary'] },
+  circles: { key: 'background', fields: ['affiliations', ...CIRCLES.map(([k]) => k)] },
+  trauma: { key: 'trauma', fields: ['experiences', 'triggers', 'coping'] },
+  sexuality: { key: 'sexuality', fields: [...SEXUALITY.map(([k]) => k), 'turnOns', 'turnOffs', 'kinks', 'boundaries', 'notes'] },
+}
+
+/** The empty fields "Fill empty" asks the model for, by profile key: one section
+ *  (`only`), or every section that is switched on. Relationships are never
+ *  invented: a made-up person changes the story's world. */
+export function emptyFields(p: Profile, only?: keyof typeof SECTION_FIELDS): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const [id, { key, fields }] of Object.entries(SECTION_FIELDS) as [keyof typeof SECTION_FIELDS, (typeof SECTION_FIELDS)[keyof typeof SECTION_FIELDS]][]) {
+    if (only ? id !== only : id !== 'identity' && !sectionOn(p, id)) continue
+    const bag = isObj(p[key]) ? (p[key] as Record<string, unknown>) : {}
+    const empty = fields.filter((f) => (Array.isArray(bag[f]) ? !joined(bag[f]) : !filled(bag[f])))
+    if (empty.length) out[key] = [...(out[key] ?? []), ...empty]
+  }
+  return out
+}
+
+/** "Fill empty": the draft's fields go only where the profile has nothing yet;
+ *  a field already filled, by hand or before, is never overwritten. */
+export function mergeFill(prev: Profile, fill: Profile): Profile {
+  const next: Profile = { ...prev }
+  const f = normalizeProfile(fill)
+  for (const k of ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'trauma', 'sexuality'] as const) {
+    const add = f[k]
+    if (!isObj(add)) continue
+    const have: Record<string, unknown> = isObj(prev[k]) ? { ...(prev[k] as Record<string, unknown>) } : {}
+    for (const [field, v] of Object.entries(add)) {
+      if (field === 'enabled' || field === 'comment') continue
+      const empty = Array.isArray(have[field]) ? !joined(have[field]) : !filled(have[field])
+      const value = Array.isArray(v) ? list(v).map((x) => x.trim()).filter(Boolean) : filled(v)
+      if (empty && (Array.isArray(value) ? value.length : value)) have[field] = value
+    }
+    ;(next as Record<string, unknown>)[k] = have
+  }
+  return next
+}
+
+const versionOf = (c: Record<VersionField, string>, label: string, now: number) => ({
+  id: `v_${now.toString(36)}`,
+  label: `${label}: ${new Date(now).toLocaleString()}`,
+  savedAt: now,
+  snapshot: Object.fromEntries(VERSION_FIELDS.map((f) => [f, c[f]])) as Partial<Character>,
+})
+
+/** Accepting a "Fill empty" draft on a card: empty fields filled, the text before in Versions. */
+export function acceptFill(c: Pick<Character, 'cardExtras' | 'versions' | 'description' | 'personality'> & Record<VersionField, string>, draft: ProfileDraft, now = Date.now()): Partial<Character> {
+  const prev = profileOf(c) ?? startProfile(c)
+  return { ...applyProfile(c, mergeFill(prev, draft.profile), now), versions: [versionOf(c, 'Before Fill empty', now), ...c.versions] }
 }
 
 /** The fields a version snapshot holds (as the editor's "Save current as version"). */
@@ -292,12 +411,41 @@ export function applyAnswers(p: Pick<Persona, 'name' | 'description' | 'profile'
     lists: { ...base.lists, traits: words(a.traits), flaws: words(a.flaws) },
     background: { ...base.background, summary: t(a.summary) },
   }
-  const description = compileProfileText(next)
-  return {
-    profile: { ...next, compiled: { at: now, hash: textHash(description, '') } },
-    description,
-    pronouns: t(a.pronouns),
-    // the name is {{user}} in every prompt: the first name, when one is given
-    name: t(a.first) || p.name,
-  }
+  return { ...writePersona(p, next, now), pronouns: t(a.pronouns) }
+}
+
+/** The persona patch for a profile: one compiled text, the hash, and the name and
+ *  pronouns the profile gives (the name is {{user}} in every prompt). Free write
+ *  keeps the profile and leaves the text alone. */
+export function writePersona(p: Pick<Persona, 'name'>, profile: Profile, now = Date.now()): Partial<Persona> {
+  const id = profile.identity ?? {}
+  const who = { name: filled(id.first) || p.name, ...(filled(id.pronouns) ? { pronouns: filled(id.pronouns) } : {}) }
+  if (profile.free) return { profile: { ...profile, v: PROFILE_VERSION }, ...who }
+  const description = compileProfileText(profile)
+  return { profile: { ...profile, v: PROFILE_VERSION, compiled: { at: now, hash: textHash(description, '') } }, description, ...who }
+}
+
+/** A persona's profile to edit: its own, or one holding its text as notes. */
+export function personaProfile(p: Pick<Persona, 'name' | 'pronouns' | 'description' | 'profile'>): Profile {
+  if (p.profile) return normalizeProfile(p.profile)
+  return { v: PROFILE_VERSION, identity: { first: p.name, ...(p.pronouns ? { pronouns: p.pronouns } : {}) }, notes: { description: p.description.trim() } }
+}
+
+/** "Structure it" on a persona: the draft's sections replace the old ones, both
+ *  leftovers become the notes (a persona has one text). */
+export function acceptPersonaDraft(p: Pick<Persona, 'name' | 'profile'>, draft: ProfileDraft, now = Date.now()): Partial<Persona> {
+  const prev: Profile = p.profile ? normalizeProfile(p.profile) : {}
+  const next: Profile = { ...prev }
+  for (const k of SECTIONS) delete next[k]
+  Object.assign(next, normalizeProfile(draft.profile))
+  for (const k of ['notes', 'free', 'compiled', 'v'] as const) delete next[k]
+  const comment = prev.identity?.comment
+  if (comment) next.identity = { ...next.identity, comment }
+  next.notes = { description: [draft.leftover?.description ?? '', draft.leftover?.personality ?? ''].map((x) => x.trim()).filter(Boolean).join('\n\n') }
+  return writePersona(p, next, now)
+}
+
+/** "Fill empty" on a persona. */
+export function acceptPersonaFill(p: Pick<Persona, 'name' | 'pronouns' | 'description' | 'profile'>, draft: ProfileDraft, now = Date.now()): Partial<Persona> {
+  return writePersona(p, mergeFill(personaProfile(p), draft.profile), now)
 }

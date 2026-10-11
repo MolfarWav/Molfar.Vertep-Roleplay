@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  acceptDraft, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
+  acceptDraft, acceptFill, acceptPersonaDraft, acceptPersonaFill, mergeFill, emptyFields, personaProfile, sectionOn, writePersona, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
   type Profile,
 } from "../src/lib/profile";
 
@@ -38,7 +38,7 @@ describe("compileProfile", () => {
     expect(description).toBe(
       "Full name: Dr. Elias Thorne\nAlso called: Eli\nAge: 34\nGender: man (he)\n\n" +
         "Eyes: grey, tired\nHeight: 185 cm\n\n" +
-        "Birthplace: Lviv\nAffiliations: the Guild\nBackstory: A surgeon who left the city.\n\n" +
+        "Birthplace: Lviv\nBackstory: A surgeon who left the city.\n\nAffiliations: the Guild\n\n" +
         "Relationships:\n- Mira (sister): missing\n\nSmells of iodine.",
     );
     expect(personality).toBe("Strengths: patient, sharp\nFears: fire\n\nSpeech: dry, short sentences\n\nLife goal: find his sister");
@@ -159,3 +159,92 @@ describe("the persona questionnaire", () => {
     expect(answersOf({ name: "Ann", pronouns: "she", profile: undefined })).toMatchObject({ first: "Ann", pronouns: "she" });
   });
 });
+
+describe("section switches", () => {
+  it("trauma and circles start off until filled, sexuality follows its old switch, the rest are on", () => {
+    expect(sectionOn({}, "trauma")).toBe(false)
+    expect(sectionOn({}, "circles")).toBe(false)
+    expect(sectionOn({}, "sexuality")).toBe(false)
+    expect(sectionOn({}, "goals")).toBe(true)
+    expect(sectionOn({ trauma: { coping: "drinks" } }, "trauma")).toBe(true)
+    expect(sectionOn({ background: { religion: "none" } }, "circles")).toBe(true)
+    expect(sectionOn({ sexuality: { enabled: true } }, "sexuality")).toBe(true)
+    expect(sectionOn({ sexuality: { enabled: true }, sections: { sexuality: false } }, "sexuality")).toBe(false)
+  })
+
+  it("an off section keeps its fields and writes nothing", () => {
+    const p: Profile = { appearance: { eyes: "grey" }, goals: { career: "captain" }, sections: { appearance: false } }
+    expect(compileProfile(p)).toEqual({ description: "", personality: "Career goal: captain" })
+    expect(p.appearance).toEqual({ eyes: "grey" })
+  })
+
+  it("compiles the new fields where they belong", () => {
+    const p: Profile = {
+      identity: { first: "Eva", birthday: "11/11" },
+      appearance: { height: "144 cm", weight: "35 kg", measurements: "70-50-72" },
+      background: { nationality: "Ironport", politics: "none" },
+      trauma: { experiences: ["betrayal"], triggers: ["cold"], coping: "work" },
+      sexuality: { romantic: "demiromantic", libido: "low" },
+      sections: { sexuality: true },
+    }
+    const { description, personality } = compileProfile(p)
+    expect(description).toBe("Full name: Eva\nBirthday: 11/11\n\nHeight: 144 cm\nWeight: 35 kg\nMeasurements: 70-50-72\n\nNationality: Ironport\n\nPolitical views: none")
+    expect(personality).toBe("Trauma: betrayal\nTriggered by: cold\nCopes by: work\n\nRomantic orientation: demiromantic\nLibido: low")
+  })
+})
+
+describe("Fill empty", () => {
+  it("fills only empty fields and never the private comment", () => {
+    const prev: Profile = { identity: { first: "Eva", comment: "mine" }, appearance: { eyes: "red" }, lists: { flaws: [] } }
+    const fill: Profile = { identity: { first: "X", age: "19", comment: "no" }, appearance: { eyes: "blue", hair: "white" }, lists: { flaws: ["proud"] } }
+    const next = mergeFill(prev, fill)
+    expect(next.identity).toEqual({ first: "Eva", comment: "mine", age: "19" })
+    expect(next.appearance).toEqual({ eyes: "red", hair: "white" })
+    expect(next.lists).toEqual({ flaws: ["proud"] })
+  })
+
+  it("on a card: the text before goes to Versions", () => {
+    const c = cardToCharacter(baseCard() as never)
+    const next = { ...c, ...acceptFill(c, { kind: "fill", profile: { appearance: { hair: "white" } } }, 7) }
+    expect(next.description).toBe("Hair: white\n\nold")
+    expect(next.versions[0]!.label.startsWith("Before Fill empty")).toBe(true)
+  })
+})
+
+describe("the persona profile", () => {
+  it("a persona without a profile starts from its name and text", () => {
+    expect(personaProfile({ name: "Ann", pronouns: "she", description: "Likes tea.", profile: undefined })).toMatchObject({ identity: { first: "Ann", pronouns: "she" }, notes: { description: "Likes tea." } })
+  })
+
+  it("writes one text, takes the name, and Free write leaves the text alone", () => {
+    const patch = writePersona({ name: "User" }, { identity: { first: "Serhii", pronouns: "he" }, lists: { traits: ["calm"] } }, 1)
+    expect(patch).toMatchObject({ name: "Serhii", pronouns: "he", description: "Full name: Serhii\nGender: (he)\n\nTraits: calm" })
+    expect(personaEdited({ description: patch.description!, profile: patch.profile })).toBe(false)
+    expect(writePersona({ name: "U" }, { free: true, identity: { first: "A" } }).description).toBeUndefined()
+  })
+
+  it("Structure it: sections replaced, both leftovers become the notes, the comment stays", () => {
+    const patch = acceptPersonaDraft({ name: "U", profile: { identity: { first: "Old", comment: "mine" } } }, { profile: { identity: { first: "Ann" } }, leftover: { description: "World.", personality: "Rules." } }, 2)
+    expect(patch.profile?.identity).toEqual({ first: "Ann", comment: "mine" })
+    expect(patch.description).toBe("Full name: Ann\n\nWorld.\n\nRules.")
+  })
+
+  it("Fill empty keeps what the persona has", () => {
+    const patch = acceptPersonaFill({ name: "Ann", pronouns: "", description: "", profile: { identity: { first: "Ann", age: "30" } } }, { kind: "fill", profile: { identity: { age: "99", gender: "woman" } } }, 3)
+    expect(patch.profile?.identity).toMatchObject({ first: "Ann", age: "30", gender: "woman" })
+  })
+})
+
+describe("the fields Fill empty asks for", () => {
+  it("only switched-on sections, never relationships, one section on request", () => {
+    const p: Profile = { identity: { first: "Eva" }, appearance: { eyes: "red" }, sections: { goals: false } }
+    const all = emptyFields(p)
+    expect(all.identity).not.toContain("first")
+    expect(all.appearance).not.toContain("eyes")
+    expect(all.appearance).toContain("measurements")
+    expect(all.goals).toBeUndefined()
+    expect(all.trauma).toBeUndefined()
+    expect(all.relationships).toBeUndefined()
+    expect(emptyFields(p, "circles")).toEqual({ background: ["affiliations", "circle", "politics", "religion"] })
+  })
+})

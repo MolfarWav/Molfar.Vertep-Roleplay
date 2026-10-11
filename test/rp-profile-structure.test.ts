@@ -101,3 +101,50 @@ describe("keeping a reply to the profile", () => {
     expect(parseReply('Sure! {"a": {"b": 1}} done')).toEqual({ a: { b: 1 } });
   });
 });
+
+describe("POST /profile/fill", () => {
+  const files = () => ({ "characters/eli/card.json": JSON.stringify(card), "settings.json": JSON.stringify({ model: "c/m" }) });
+
+  it("asks only for the named empty fields, sends the portrait to the chosen model, files a fill draft", () => {
+    const m = memHost(files());
+    const req = {
+      method: "POST", path: "/profile/fill", query: {},
+      body: { characterId: "eli", fields: { appearance: ["hair", "bogus"], nope: ["x"], lists: ["flaws"] }, image: { data: "AAAA", mimeType: "image/png" }, model: "c/vision" },
+    };
+    expect((handleRoute(req, m.host) as { __llmPending?: boolean }).__llmPending).toBe(true);
+    const spec = m.requests[0]!.spec;
+    expect(spec.model).toBe("c/vision");
+    expect(spec.images).toEqual([{ data: "AAAA", mimeType: "image/png" }]);
+    expect(spec.messages[0].content).toContain("appearance: hair\nlists: flaws");
+    expect(spec.messages[0].content).not.toContain("bogus");
+    m.results.fill = { text: '{"profile":{"appearance":{"hair":"white","eyes":"red"},"lists":{"flaws":["cold"]}},"note":"from the picture"}', model: "c/vision" };
+    const out = handleRoute(req, m.host) as { json: { ok: boolean; draft: Record<string, any> } };
+    expect(out.json.ok).toBe(true);
+    expect(out.json.draft.kind).toBe("fill");
+    // eyes were not asked for: dropped
+    expect(out.json.draft.profile).toEqual({ appearance: { hair: "white" }, lists: { flaws: ["cold"] } });
+    expect(JSON.parse(m.files["profile-drafts/eli.json"]!).kind).toBe("fill");
+  });
+
+  it("refuses a request with no valid field and needs no model for it", () => {
+    const m = memHost(files());
+    const out = handleRoute({ method: "POST", path: "/profile/fill", query: {}, body: { characterId: "eli", fields: { appearance: ["bogus"] } } }, m.host) as { status: number };
+    expect(out.status).toBe(400);
+    expect(m.requests.length).toBe(0);
+  });
+});
+
+describe("a persona as the target", () => {
+  it("Structure it reads the persona and files persona-<id>.json; the draft route finds it", () => {
+    const m = memHost({ "personas/me.json": JSON.stringify({ id: "me", name: "Serhii", description: "A bard, 30. Dark hair." }) });
+    const req = { method: "POST", path: "/profile/structure", query: {}, body: { personaId: "me" } };
+    handleRoute(req, m.host);
+    expect(m.requests[0]!.spec.messages[0].content).toContain("Persona (the user's own character): Serhii");
+    m.results.structure = { text: '{"profile":{"identity":{"age":"30"}},"leftover":{"description":"","personality":""}}', model: "c/m" };
+    handleRoute(req, m.host);
+    expect(m.files["profile-drafts/persona-me.json"]).toBeTruthy();
+    const got = handleRoute({ method: "GET", path: "/profile/draft", query: { personaId: "me" }, body: null }, m.host) as { json: { draft: Record<string, any> } };
+    expect(got.json.draft.kind).toBe("structure");
+    expect((handleRoute({ method: "GET", path: "/profile/draft", query: { personaId: "../x" }, body: null }, m.host) as { status: number }).status).toBe(400);
+  });
+});

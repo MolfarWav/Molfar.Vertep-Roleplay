@@ -182,6 +182,8 @@ export interface EngineModel {
   connectionName: string | null
   contextWindow: number | null
   reasoning: boolean
+  /** takes pictures as input (from the engine catalog) */
+  images?: boolean
   pricing: ModelPricing | null
 }
 
@@ -260,6 +262,7 @@ export async function fetchModels(): Promise<{ models: ModelInfo[]; favorites: M
       context: m.contextWindow ?? 0,
       maxOut: 0,
       reasoning: m.reasoning,
+      images: m.images === true,
       pricing: m.pricing ?? null,
     })) }
   } catch { return { models: [], favorites: [] } }
