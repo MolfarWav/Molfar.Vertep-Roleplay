@@ -6,6 +6,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 - Groups: deleting a group works and takes its chats with it (it used to come back after a reload); the members stay.
 - Groups: a group's description names its own members, not every character; Home's character count leaves groups out; a group's card menu no longer offers Duplicate, Convert to persona or Export PNG; a group's favorite is kept.
+- Groups: a group has its own editor (Characters › Groups): members with their order, mute, talkativeness, opening and dialogue colour in this group; a shared scenario and openings; turn order; the group's own lorebooks and which members' books count; its chats.
+- Groups: a narrator mode, the default for new groups: one reply voices every member. In group chats each member's dialogue takes its colour.
+- Character and persona profiles: "Fill empty" scrolls its proposal into view; it opened at the top of the card, out of sight of the section you pressed it in.
 
 ## 4.34.0
 

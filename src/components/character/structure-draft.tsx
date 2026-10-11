@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { CircleNotch, MagicWand } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -183,6 +183,13 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
   onDiscard: () => void
 }) {
   const fill = draft.kind === 'fill'
+  // the panel opens at the top of the card, often far above the section whose
+  // "Fill empty" was pressed: bring it into view so the proposal is not missed
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ref.current?.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+  }, [draft])
   const by = draft.model ? ` by ${modelName(draft.model)}` : ''
   const block = (title: string, now: string, after: string) => (
     <div className="flex min-w-0 flex-col gap-1">
@@ -223,7 +230,7 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
     }
   }
   return (
-    <section className="flex min-w-0 flex-col gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3" data-testid="structure-draft">
+    <section ref={ref} className="flex min-w-0 flex-col gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 scroll-mt-4" data-testid="structure-draft">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-semibold">{fill ? (draft.replace ? 'Appearance from the picture' : 'Proposed values for empty fields') : 'Proposed profile'}</h2>
         <p className="text-xs text-muted-foreground">{summary}</p>
