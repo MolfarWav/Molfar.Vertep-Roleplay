@@ -255,6 +255,8 @@ export interface ProfileDraft {
   v?: number
   /** "fill": only empty fields, merged by `mergeFill`; otherwise a Structure it split */
   kind?: 'structure' | 'fill'
+  /** a fill from "Read from picture": its values replace filled fields too */
+  replace?: boolean
   at?: number
   model?: string
   note?: string
@@ -326,7 +328,7 @@ export function emptyFields(p: Profile, only?: keyof typeof SECTION_FIELDS): Rec
 
 /** "Fill empty": the draft's fields go only where the profile has nothing yet;
  *  a field already filled, by hand or before, is never overwritten. */
-export function mergeFill(prev: Profile, fill: Profile): Profile {
+export function mergeFill(prev: Profile, fill: Profile, replace = false): Profile {
   const next: Profile = { ...prev }
   const f = normalizeProfile(fill)
   for (const k of ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'trauma', 'sexuality'] as const) {
@@ -337,7 +339,7 @@ export function mergeFill(prev: Profile, fill: Profile): Profile {
       if (field === 'enabled' || field === 'comment') continue
       const empty = Array.isArray(have[field]) ? !joined(have[field]) : !filled(have[field])
       const value = Array.isArray(v) ? list(v).map((x) => x.trim()).filter(Boolean) : filled(v)
-      if (empty && (Array.isArray(value) ? value.length : value)) have[field] = value
+      if ((empty || replace) && (Array.isArray(value) ? value.length : value)) have[field] = value
     }
     ;(next as Record<string, unknown>)[k] = have
   }
@@ -354,7 +356,8 @@ const versionOf = (c: Record<VersionField, string>, label: string, now: number) 
 /** Accepting a "Fill empty" draft on a card: empty fields filled, the text before in Versions. */
 export function acceptFill(c: Pick<Character, 'cardExtras' | 'versions' | 'description' | 'personality'> & Record<VersionField, string>, draft: ProfileDraft, now = Date.now()): Partial<Character> {
   const prev = profileOf(c) ?? startProfile(c)
-  return { ...applyProfile(c, mergeFill(prev, draft.profile), now), versions: [versionOf(c, 'Before Fill empty', now), ...c.versions] }
+  const label = draft.replace ? 'Before Read from picture' : 'Before Fill empty'
+  return { ...applyProfile(c, mergeFill(prev, draft.profile, draft.replace === true), now), versions: [versionOf(c, label, now), ...c.versions] }
 }
 
 /** The fields a version snapshot holds (as the editor's "Save current as version"). */
@@ -464,5 +467,5 @@ export function acceptPersonaDraft(p: Pick<Persona, 'name' | 'profile'>, draft: 
 
 /** "Fill empty" on a persona. */
 export function acceptPersonaFill(p: Pick<Persona, 'name' | 'pronouns' | 'description' | 'profile'>, draft: ProfileDraft, now = Date.now()): Partial<Persona> {
-  return writePersona(p, mergeFill(personaProfile(p), draft.profile), now)
+  return writePersona(p, mergeFill(personaProfile(p), draft.profile, draft.replace === true), now)
 }

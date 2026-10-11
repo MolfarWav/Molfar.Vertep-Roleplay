@@ -148,3 +148,26 @@ describe("a persona as the target", () => {
     expect((handleRoute({ method: "GET", path: "/profile/draft", query: { personaId: "../x" }, body: null }, m.host) as { status: number }).status).toBe(400);
   });
 });
+
+describe("Read from picture", () => {
+  it("asks to rewrite the listed fields from the picture and files a replacing draft", () => {
+    const m = memHost({ "characters/eli/card.json": JSON.stringify(card) });
+    const req: Record<string, any> = {
+      method: "POST", path: "/profile/fill", query: {},
+      body: { characterId: "eli", fields: { appearance: ["eyes", "hair"] }, image: { data: "AAAA", mimeType: "image/png" }, model: "c/vision", replace: true },
+    };
+    const first = handleRoute(req, m.host) as { stash: Record<string, unknown> };
+    expect(m.requests[0]!.spec.messages[0].content).toContain("the picture wins");
+    m.results.fill = { text: '{"profile":{"appearance":{"eyes":"violet","hair":"white"}}}', model: "c/vision" };
+    const out = handleRoute({ ...req, stash: first.stash }, m.host) as { json: { draft: Record<string, any> } };
+    expect(out.json.draft.replace).toBe(true);
+  });
+
+  it("without a picture, replace is ignored: only empty fields", () => {
+    const m = memHost({ "characters/eli/card.json": JSON.stringify(card) });
+    const req = { method: "POST", path: "/profile/fill", query: {}, body: { characterId: "eli", fields: { appearance: ["eyes"] }, replace: true } };
+    const first = handleRoute(req, m.host) as { stash: Record<string, unknown> };
+    expect(m.requests[0]!.spec.messages[0].content).toContain("Empty fields to fill");
+    expect(first.stash.replace).toBe(false);
+  });
+});

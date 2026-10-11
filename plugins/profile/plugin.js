@@ -11,7 +11,8 @@
  *
  * Routes (relative to /v1/apps/roleplay); a target is {characterId} or {personaId}:
  *   POST   /profile/structure {target}                         split the text, file the draft
- *   POST   /profile/fill {target, fields, image?, model?}      fill empty fields, file the draft
+ *   POST   /profile/fill {target, fields, image?, model?, replace?}  fill empty fields, file the draft
+ *          (replace: "Read from picture" describes the listed fields anew, filled or not)
  *   GET    /profile/draft?characterId= | ?personaId=           the draft, or null
  *   DELETE /profile/draft?characterId= | ?personaId=           discard it
  */
@@ -257,20 +258,23 @@ function fillRoute(req, host) {
     const img = isObj(b.image) ? { data: String(b.image.data || ""), mimeType: String(b.image.mimeType || "") } : null;
     const model = MODEL_REF.test(str(b.model)) ? str(b.model) : modelOf(fsx);
     const ask = Object.entries(fields).map(([s, keys]) => s + ": " + keys.join(", ")).join("\n");
+    const head = b.replace === true && img
+      ? "\n\nDescribe these fields from the attached picture; where the text says otherwise, the picture wins (these fields are NOT empty, rewrite them):\n"
+      : "\n\nEmpty fields to fill:\n";
     host.llm.request("fill", {
       ...(model ? { model } : {}),
       systemPrompt: FILL_SYSTEM,
-      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : userText(src)) + "\n\nEmpty fields to fill:\n" + ask }],
+      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : userText(src)) + head + ask }],
       ...(img ? { images: [img] } : {}),
       presetParams: { temperature: 0.7, max_tokens: 3000 },
     });
-    return { __llmPending: true, stash: {} };
+    return { __llmPending: true, stash: { replace: b.replace === true && !!img } };
   }
   const draft = draftFromReply(r);
   if (draft.error) return ok({ ok: false, error: draft.error });
   const profile = onlyFields(draft.profile, fields);
   if (!Object.keys(profile).length) return ok({ ok: false, error: "the reply filled none of the empty fields" });
-  const filed = { ...draft, kind: "fill", profile, leftover: undefined };
+  const filed = { ...draft, kind: "fill", ...(isObj(req.stash) && req.stash.replace ? { replace: true } : {}), profile, leftover: undefined };
   delete filed.leftover;
   fsx.write(draftPath(t), JSON.stringify(filed, null, 2));
   return ok({ ok: true, draft: filed });

@@ -262,3 +262,14 @@ describe("fields that do not apply", () => {
     expect(emptyFields({ identity: { gender: "female" } }).appearance).toContain("measurements")
   })
 })
+
+describe("a replacing fill", () => {
+  it("overwrites filled fields and labels the version", () => {
+    const c = cardToCharacter(baseCard() as never)
+    const before = { ...c, ...applyProfile(c, { appearance: { eyes: "grey" } }, 1) }
+    const next = { ...before, ...acceptFill(before, { kind: "fill", replace: true, profile: { appearance: { eyes: "violet" } } }, 2) }
+    expect(profileOf(next)?.appearance).toEqual({ eyes: "violet" })
+    expect(next.versions[0]!.label.startsWith("Before Read from picture")).toBe(true)
+    expect(mergeFill({ appearance: { eyes: "grey" } }, { appearance: { eyes: "violet" } }).appearance).toEqual({ eyes: "grey" })
+  })
+})
