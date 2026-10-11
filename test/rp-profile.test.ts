@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  acceptDraft, adoptHandEdits, applyProfile, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
+  acceptDraft, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
   type Profile,
 } from "../src/lib/profile";
 
@@ -124,5 +124,38 @@ describe("accepting a Structure it draft", () => {
     expect(next.versions[0]!.snapshot.description).toBe(before.description);
     expect(next.versions[0]!.label.startsWith("Before Structure it")).toBe(true);
     expect(profileOutOfDate(next)).toBe(false);
+  });
+});
+
+describe("the persona questionnaire", () => {
+  const empty = { first: "", family: "", nicknames: "", age: "", gender: "", pronouns: "", hair: "", eyes: "", body: "", attire: "", traits: "", flaws: "", occupation: "", summary: "", wants: "" };
+  const answers = { ...empty, first: "Serhii", nicknames: "Molfar", age: "30", gender: "man", pronouns: "he", hair: "dark", traits: "curious, stubborn", flaws: "impatient", occupation: "bard", summary: "Came to the valley to find old songs.", wants: "slow-burn mystery" };
+
+  it("keeps the old description as notes and compiles one text", () => {
+    const patch = applyAnswers({ name: "User", description: "Likes tea.", profile: undefined }, answers, 3);
+    expect(patch.name).toBe("Serhii");
+    expect(patch.pronouns).toBe("he");
+    expect(patch.description).toBe(
+      "Full name: Serhii\nAlso called: Molfar\nOccupation: bard\nAge: 30\nGender: man (he)\n\nHair: dark\n\nBackstory: Came to the valley to find old songs.\n\nLikes tea.\n\nFlaws: impatient\nTraits: curious, stubborn",
+    );
+    expect(patch.description).not.toContain("slow-burn");
+    const saved = { name: patch.name!, description: patch.description!, pronouns: "he", profile: patch.profile };
+    expect(personaEdited(saved)).toBe(false);
+    expect(answersOf(saved)).toEqual({ ...answers, nicknames: "Molfar", traits: "curious, stubborn" });
+  });
+
+  it("text added after the compiled lines survives the next save; an edit inside them is reported", () => {
+    const first = applyAnswers({ name: "U", description: "", profile: undefined }, answers, 1);
+    const edited = { name: "Serhii", description: `${first.description}\n\nHates mornings.`, profile: first.profile };
+    expect(personaEdited(edited)).toBe(true);
+    expect(personaAdditions(edited)).toBe("Hates mornings.");
+    const again = applyAnswers(edited, { ...answers, age: "31" }, 2);
+    expect(again.description).toContain("Age: 31");
+    expect(again.description).toContain("Hates mornings.");
+    expect(personaAdditions({ description: first.description!.replace("bard", "poet"), profile: first.profile })).toBeNull();
+  });
+
+  it("a persona without a profile starts from its name and pronouns", () => {
+    expect(answersOf({ name: "Ann", pronouns: "she", profile: undefined })).toMatchObject({ first: "Ann", pronouns: "she" });
   });
 });

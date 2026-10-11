@@ -1053,6 +1053,7 @@ export function enginePersonaToUI(p: { id?: string } & Record<string, unknown>, 
     boundCharacterIds: (p.boundCharacterIds as string[]) ?? [],
     autoLock: p.autoLock === true,
     createdAt: (p.createdAt as number) ?? 0,
+    ...(p.profile && typeof p.profile === 'object' && !Array.isArray(p.profile) ? { profile: p.profile as Record<string, unknown> } : {}),
   }
 }
 

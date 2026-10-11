@@ -4,7 +4,7 @@
 // `personality`, which stay the fields the prompt, presets and every export use.
 // Empty fields never reach the text. Unknown keys survive every pass here.
 
-import type { Character } from '@/lib/types'
+import type { Character, Persona } from '@/lib/types'
 
 export const PROFILE_VERSION = 1
 
@@ -224,3 +224,80 @@ export function acceptDraft(c: Pick<Character, 'cardExtras' | 'versions'> & Reco
 /** The fields a version snapshot holds (as the editor's "Save current as version"). */
 export const VERSION_FIELDS = ['description', 'personality', 'scenario', 'firstMessage', 'exampleDialogue', 'systemPromptOverride', 'postHistoryInstructions'] as const
 type VersionField = (typeof VERSION_FIELDS)[number]
+
+// ── The user's persona ──────────────────────────────────────────────────────
+// A persona keeps the same profile shape at `persona.profile` and one text,
+// `description`, compiled from all of it. The questionnaire fills a few fields.
+
+export interface PersonaAnswers {
+  first: string; family: string; nicknames: string
+  age: string; gender: string; pronouns: string
+  hair: string; eyes: string; body: string; attire: string
+  traits: string; flaws: string
+  occupation: string; summary: string
+  /** what they want from stories: private, never compiled */
+  wants: string
+}
+
+const words = (v: string): string[] => v.split(',').map((x) => x.trim()).filter(Boolean)
+
+/** The questionnaire's starting values: what the persona already says. */
+export function answersOf(p: Pick<Persona, 'name' | 'pronouns' | 'profile'>): PersonaAnswers {
+  const pr = p.profile ? normalizeProfile(p.profile) : {}
+  const id = pr.identity ?? {}
+  const ap = pr.appearance ?? {}
+  return {
+    first: id.first ?? (pr.identity ? '' : p.name), family: id.family ?? '', nicknames: (id.nicknames ?? []).join(', '),
+    age: id.age ?? '', gender: id.gender ?? '', pronouns: id.pronouns ?? p.pronouns,
+    hair: ap.hair ?? '', eyes: ap.eyes ?? '', body: ap.body ?? '', attire: ap.attire ?? '',
+    traits: (pr.lists?.traits ?? []).join(', '), flaws: (pr.lists?.flaws ?? []).join(', '),
+    occupation: id.occupation ?? '', summary: pr.background?.summary ?? '', wants: id.comment ?? '',
+  }
+}
+
+/** The persona's text was edited by hand since the profile last wrote it. */
+export function personaEdited(p: Pick<Persona, 'description' | 'profile'>): boolean {
+  if (!p.profile) return false
+  return normalizeProfile(p.profile).compiled?.hash !== textHash(p.description, '')
+}
+
+/** Text added by hand AFTER the persona's compiled text (trimmed; "" when none);
+ *  null when the compiled text itself was edited, which saving answers would lose. */
+export function personaAdditions(p: Pick<Persona, 'description' | 'profile'>): string | null {
+  if (!p.profile) return ''
+  const head = compileProfileText(normalizeProfile(p.profile))
+  if (!p.description.startsWith(head)) return null
+  const rest = p.description.slice(head.length)
+  return !head || !rest || rest.startsWith('\n') ? rest.trim() : null
+}
+
+/** The persona patch for saved answers. Fields the questionnaire does not ask
+ *  about stay. A persona without a profile keeps its old text as notes, and text
+ *  added by hand after the compiled lines joins the notes. An edit INSIDE the
+ *  compiled lines is replaced: the caller asks first (`personaAdditions` is null). */
+export function applyAnswers(p: Pick<Persona, 'name' | 'description' | 'profile'>, a: PersonaAnswers, now = Date.now()): Partial<Persona> {
+  const prev: Profile = p.profile ? normalizeProfile(p.profile) : { notes: { description: p.description.trim() } }
+  const added = p.profile ? personaAdditions(p) : ''
+  const base: Profile = added ? { ...prev, notes: { ...prev.notes, description: [prev.notes?.description?.trim() ?? '', added].filter(Boolean).join('\n\n') } } : prev
+  const t = (v: string) => v.trim()
+  const next: Profile = {
+    ...base,
+    v: PROFILE_VERSION,
+    identity: {
+      ...base.identity,
+      first: t(a.first), family: t(a.family), nicknames: words(a.nicknames),
+      age: t(a.age), gender: t(a.gender), pronouns: t(a.pronouns), occupation: t(a.occupation), comment: t(a.wants),
+    },
+    appearance: { ...base.appearance, hair: t(a.hair), eyes: t(a.eyes), body: t(a.body), attire: t(a.attire) },
+    lists: { ...base.lists, traits: words(a.traits), flaws: words(a.flaws) },
+    background: { ...base.background, summary: t(a.summary) },
+  }
+  const description = compileProfileText(next)
+  return {
+    profile: { ...next, compiled: { at: now, hash: textHash(description, '') } },
+    description,
+    pronouns: t(a.pronouns),
+    // the name is {{user}} in every prompt: the first name, when one is given
+    name: t(a.first) || p.name,
+  }
+}

@@ -218,6 +218,8 @@ export interface Persona {
   boundCharacterIds: ID[]
   autoLock: boolean
   createdAt: number
+  /** The persona's structured fields (src/lib/profile.ts); `description` is compiled from it. */
+  profile?: Record<string, unknown>
 }
 
 // ── Presets / prompt manager ──

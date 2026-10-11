@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle } from '@phosphor-icons/react'
+import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle, ListChecks } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +21,8 @@ import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { downloadTextFile } from '@/lib/export'
 import { fileToDataUrl } from '@/lib/engine'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
+import { PersonaQuestionnaire } from '@/components/persona/persona-questionnaire'
+import { applyAnswers, personaAdditions, type PersonaAnswers } from '@/lib/profile'
 
 export function PersonasView() {
   const personas = useApp((s) => s.personas)
@@ -37,6 +39,7 @@ export function PersonasView() {
   const [selectedId, setSelectedId] = useState(__focus ?? personas[0]?.id ?? null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [askOpen, setAskOpen] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
   const importInput = useRef<HTMLInputElement>(null)
   const avatarInput = useRef<HTMLInputElement>(null)
@@ -205,10 +208,15 @@ export function PersonasView() {
               <Input value={p.title} onChange={(e) => updatePersona(p.id, { title: e.target.value })} aria-label="Title" />
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="flex items-center gap-2 text-xs">
-                Description
-                <Badge variant="outline" className="text-[10px]">{formatTokens(estimateTokens(p.description))} tok</Badge>
-              </Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="flex items-center gap-2 text-xs">
+                  Description
+                  <Badge variant="outline" className="text-[10px]">{formatTokens(estimateTokens(p.description))} tok</Badge>
+                </Label>
+                <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={() => setAskOpen(true)}>
+                  <ListChecks className="size-3.5" aria-hidden="true" />{p.profile ? 'Edit answers' : 'Five questions'}
+                </Button>
+              </div>
               <Textarea value={p.description} rows={5} onChange={(e) => updatePersona(p.id, { description: e.target.value })} aria-label="Description" className="text-sm" />
             </div>
 
@@ -267,6 +275,23 @@ export function PersonasView() {
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No persona selected</div>
       )}
 
+      {p && (
+        <PersonaQuestionnaire
+          persona={p}
+          open={askOpen}
+          onOpenChange={setAskOpen}
+          onSave={(a: PersonaAnswers) => {
+            const write = () => { updatePersona(p.id, applyAnswers(p, a)); setAskOpen(false); toast.success('Persona written') }
+            // an edit inside the lines the answers wrote would be replaced: ask first
+            if (personaAdditions(p) !== null) return write()
+            void confirm({
+              title: 'Replace your edits?',
+              description: 'You changed the description by hand where the answers wrote it. Saving rewrites those lines from the answers.',
+              actionLabel: 'Rewrite',
+            }).then((yes) => { if (yes) write() })
+          }}
+        />
+      )}
       <Dialog open={statsOpen} onOpenChange={setStatsOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Usage: {p?.name}</DialogTitle></DialogHeader>

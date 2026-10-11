@@ -92,6 +92,16 @@ does not recompile by itself: the app does that on the next edit in the tab.
 proposal in `data/profile-drafts/<id>.json`; accepting it replaces the profile's sections, puts the text
 that fit no field in `notes`, and saves the old text as a version.
 
+## Personas: `data/personas/<id>.json`
+
+The user's side of a chat. `name` is `{{user}}`; `description` is what the prompt's persona part
+carries; also `title`, `pronouns`, `avatar`, `lorebookIds` (books bound to the persona), `binding`,
+`boundCharacterIds`, `autoLock`, `folderId`, `createdAt`. `profile` (optional) is the same shape as a
+card's `molfar_profile`, written by the Personas page's five questions: `description` is then compiled
+from all of it as one text (`identity.comment` holds the private "what I want from stories" note and is
+never compiled). Text added by hand after the compiled lines is kept on the next save; an edit inside
+them is replaced after the app asks.
+
 ## Lorebooks: `data/lorebooks/<id>.json`
 
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with
