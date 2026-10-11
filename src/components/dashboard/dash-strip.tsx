@@ -1,4 +1,4 @@
-import { ArrowClockwise, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowsOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -77,6 +77,14 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
         </Button>
       </div>
 
+      {/* the way into the full dashboard sits on top, in the accent colour: at the bottom of a long strip it went unseen */}
+      <div className="shrink-0 border-b border-border px-3 py-2">
+        <Button size="sm" className="w-full rounded-none" onClick={onOpen}>
+          <ArrowsOut aria-hidden="true" />
+          {t('dash.open')}
+        </Button>
+      </div>
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex w-[271px] flex-col">
           {(view.clock || present.length > 0) && (
@@ -124,11 +132,8 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
             <NameChip char={char} onClick={onNotebook} />
           </div>
 
-          <div className="flex flex-col gap-2 px-3 py-2.5">
+          <div className="flex flex-col gap-2 px-3 py-2.5 empty:hidden">
             <Notices view={view} />
-            <Button variant="outline" className="w-full rounded-none" onClick={onOpen}>
-              {t('dash.open')}
-            </Button>
           </div>
         </div>
       </ScrollArea>

@@ -6,6 +6,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 - Library: Litopys settings open from a gear in the Library, next to the record they shape, with the Chapters and facts switch that used to sit in Tools. Settings › Memory points there.
 - Dashboard: its settings in the chat now hold everything the Tools panel had: when notes leave the insert, and the soul rating, "Story, move" and fast mode prompts. A gear opens them before the dashboard is first built.
+- Dashboard: "Open dashboard" sits at the top of the side strip, in the accent colour; at the bottom of a long strip it went unseen.
 - Tools: the Litopys and Relationship dashboard panels are gone (each one's settings live with it now).
 - Prompts: each Litopys and dashboard prompt restores to its default on its own; the sensor's "Restore default prompts" no longer resets the other prompts.
 - Presets: each utility prompt in an editable preset (Impersonation, Continue nudge, New chat, Group nudge, Empty send) gets "Restore default" when its text differs from the shipped one.
