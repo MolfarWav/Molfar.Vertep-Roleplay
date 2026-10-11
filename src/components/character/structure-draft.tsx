@@ -71,7 +71,7 @@ export function StructureDraftPanel({ c, draft, onAccept, onDiscard }: { c: Char
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-semibold">Proposed profile</h2>
         <p className="text-xs text-muted-foreground">
-          {filled} section{filled === 1 ? '' : 's'} filled{draft.model ? ` by ${draft.model}` : ''}. Text that fit no field stays as notes. Accepting rewrites Description and Personality as shown; the current text goes to Versions.
+          {filled} section{filled === 1 ? '' : 's'} filled{draft.model ? ` by ${draft.model.replace(/^c_[^/]*\//, '')}` : ''}. Text that fit no field stays as notes. Accepting rewrites Description and Personality as shown; the current text goes to Versions.
         </p>
         {draft.note && <p className="text-xs italic text-muted-foreground">{draft.note}</p>}
       </div>
