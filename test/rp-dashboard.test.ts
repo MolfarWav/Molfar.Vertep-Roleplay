@@ -254,7 +254,7 @@ afterEach(() => {
   } catch {}
 });
 
-type Reply = string | { error: string; text?: string };
+type Reply = string | { error?: string; text?: string; reasoning?: string };
 type Sent = { key: string; req: any };
 
 function mockHost(replies: Reply[] = []) {
@@ -296,7 +296,7 @@ function mockHost(replies: Reply[] = []) {
       results[key] =
         typeof next === "string"
           ? { text: next, model: "mock/sensor", usage: { input: 100, output: 20 }, genTimeMs: 42 }
-          : { text: next.text ?? "", model: "error", error: next.error, usage: { input: 0, output: 0 } };
+          : { text: next.text ?? "", model: "error", error: next.error, usage: { input: 0, output: 0 }, ...(next.reasoning ? { reasoning: next.reasoning } : {}) };
     }
     pending = [];
   };
@@ -3170,6 +3170,59 @@ describe("sensor reply limit and pronouns in the sensor input", () => {
     const rating = mock.requests.slice(before).find((r) => r.key.startsWith("soul"));
     expect(rating).toBeDefined();
     expect(rating!.req.presetParams.max_tokens).toBe(6000);
+  });
+
+  it("the dashboard's calls think like the chat's preset, and the budget adds to the reply limit", () => {
+    fs.mkdirSync(path.join(root, "presets"), { recursive: true });
+    fs.writeFileSync(path.join(root, "presets/think.json"), JSON.stringify({ name: "Think", reasoning: "low", thinkingBudget: 2000, reasoningTags: { open: "<think>", close: "</think>" } }));
+    writeChat("c1", three(), { presetId: "think" });
+    const mock = mockHost([quietReply]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const { req } = mock.requests[0]!;
+    expect(req.reasoning).toBe("low");
+    expect(req.thinkingBudget).toBe(2000);
+    expect(req.reasoningTags).toEqual({ open: "<think>", close: "</think>" });
+    expect(req.presetParams).toEqual({ temperature: 0.2, max_tokens: 5000 });
+    // the rating of a card, from a chat on that preset
+    const before = mock.requests.length;
+    mock.push(quietReply);
+    drive(mock, { method: "POST", path: "/dashboard/soul/rate", body: { characterId: "bram", chatId: "c1" } });
+    const rating = mock.requests.slice(before).find((r) => r.key.startsWith("soul"))!;
+    expect(rating.req.reasoning).toBe("low");
+    expect(rating.req.presetParams).toEqual({ temperature: 0.3, max_tokens: 5000 });
+  });
+
+  it("with no preset on the chat, the default preset's thinking counts; thinking off sends none", () => {
+    fs.mkdirSync(path.join(root, "presets"), { recursive: true });
+    fs.writeFileSync(path.join(root, "presets/main.json"), JSON.stringify({ name: "Main", reasoning: "medium", studio: { isDefault: true } }));
+    fs.writeFileSync(path.join(root, "presets/quiet.json"), JSON.stringify({ name: "Quiet", reasoning: "off", thinkingBudget: 2000 }));
+    writeChat("c1", three());
+    writeChat("c2", three(), { presetId: "quiet" });
+    const mock = mockHost([quietReply, quietReply]);
+    update(mock, "c1");
+    update(mock, "c2");
+    const [a, b] = mock.requests.map((r) => r.req);
+    // a level with no budget leaves the reply limit as it was
+    expect(a.reasoning).toBe("medium");
+    expect(a.thinkingBudget).toBeUndefined();
+    expect(a.presetParams.max_tokens).toBe(3000);
+    expect(b.reasoning).toBeUndefined();
+    expect(b.thinkingBudget).toBeUndefined();
+    expect(b.presetParams.max_tokens).toBe(3000);
+  });
+
+  it("a reply that is all thinking says so instead of 'returned nothing'", () => {
+    writeChat("c1", three());
+    const mock = mockHost([{ text: "", reasoning: "Let me think about Aria. First, the promise..." }]);
+    const r = update(mock, "c1");
+    expect(r.json.ok).toBe(false);
+    expect(r.json.error).toContain("spent its whole reply limit thinking");
+    expect(readStateFile("c1").lastError.message).toContain("thinking budget");
+  });
+
+  it("an inline thinking block before the JSON is skipped, braces and all", () => {
+    const out = P.parseSensorText('<think>The shape is { "present": [] } so I write it.</think>\n{"present":["Aria"],"minutes":5}');
+    expect(out).toEqual({ present: ["Aria"], minutes: 5 });
   });
 
   it("the Characters line carries the soul's pronouns, and only when it has them", () => {

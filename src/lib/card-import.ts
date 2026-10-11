@@ -3,12 +3,14 @@ import { API, j, fileToDataUrl, fileToRawBase64, downscaleRemoteImage } from '@/
 import { extractCharaFromPng } from '@/lib/interop'
 import { unzipSync, zipSync } from 'fflate'
 
-/** Ask the dashboard plugin to rate each imported card, one after another and
- *  without waiting: the plugin decides whether to (its setting, an existing soul),
- *  and a missing plugin or a failed rating must never disturb the import. */
+/** Ask the dashboard plugin to rate an imported card, without waiting: the plugin
+ *  decides whether to (its setting, an existing soul), and a missing plugin or a
+ *  failed rating must never disturb the import. Only a single card is rated here:
+ *  a bulk import sent one model call per card and kept a local model busy for a
+ *  long time (a Reddit report, 2026-10-12). The rest are rated when first played. */
 function rateImported(ids: unknown): void {
   const list = (Array.isArray(ids) ? ids : []).filter((id): id is string => typeof id === 'string' && id !== '')
-  if (!list.length) return
+  if (list.length !== 1) return
   void (async () => {
     for (const id of list) {
       try {
