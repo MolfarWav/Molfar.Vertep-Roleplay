@@ -198,7 +198,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
           icon={<BookOpenText className="size-4" weight="fill" />}
           title={t('chats.panel.story')}
           action={(chapters?.length ?? 0) > 0 && (
-            <button type="button" onClick={() => setRecordOpen(true)} className="flex min-h-8 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <button type="button" onClick={() => setRecordOpen(true)} className="flex min-h-8 items-center gap-1 text-xs max-sm:min-h-10 text-muted-foreground hover:text-foreground">
               {t('chats.panel.openRecord')}<ArrowRight className="size-3" aria-hidden="true" />
             </button>
           )}
@@ -231,7 +231,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
                 const who = speaker(m)
                 return (
                   <div key={m.id} className="max-w-prose border-l-2 pl-3" style={{ borderColor: who.color ?? 'var(--border)' }}>
-                    <p className={cn('text-xs font-semibold', !who.color && 'text-muted-foreground')} style={who.color ? { color: who.color } : undefined}>{who.name}</p>
+                    <p className={cn('text-xs font-semibold', !who.color && 'text-muted-foreground')} style={who.color ? { color: `color-mix(in oklab, ${who.color} 70%, var(--foreground))` } : undefined}>{who.name}</p>
                     <p className="line-clamp-4 text-sm leading-relaxed">{cleanPreview(m.swipes[m.activeSwipe]?.content ?? '', 420)}</p>
                   </div>
                 )

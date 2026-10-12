@@ -109,7 +109,7 @@ export function ChatsView() {
   const sections = useMemo(() => groupChats(filtered, sort), [filtered, sort])
 
   // desktop: the panel always shows a chat, the top one until another is picked
-  const selected = filtered.find((c) => c.id === selectedId) ?? (isMobile ? undefined : filtered[0])
+  const selected = filtered.find((c) => c.id === selectedId) ?? (isMobile ? undefined : sections[0]?.chats[0])
   useEffect(() => {
     if (isMobile && detailOpen && !selected) setDetailOpen(false)
   }, [isMobile, detailOpen, selected])
@@ -184,17 +184,17 @@ export function ChatsView() {
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('chats.search')} className="h-9 pl-8 text-sm" aria-label={t('chats.search')} />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('chats.search')} className="h-9 pl-8 text-sm max-sm:h-10" aria-label={t('chats.search')} />
             </div>
             <Select value={sort} onValueChange={(v) => setSort(v as ChatSort)}>
-              <SelectTrigger className="h-9 w-auto shrink-0" aria-label={t('chats.sort')}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-auto shrink-0 max-sm:h-10" aria-label={t('chats.sort')}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="recent">{t('chats.sortRecent')}</SelectItem>
                 <SelectItem value="messages">{t('chats.sortMessages')}</SelectItem>
                 <SelectItem value="name">{t('chats.sortName')}</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant={selecting ? 'default' : 'secondary'} className="h-9 shrink-0" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+            <Button variant={selecting ? 'default' : 'secondary'} className="h-9 min-w-[4.75rem] shrink-0 max-sm:h-10" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
               {selecting ? t('chats.done') : t('chats.select')}
             </Button>
           </div>
@@ -206,7 +206,7 @@ export function ChatsView() {
                 aria-pressed={kind === k}
                 onClick={() => setKind(k)}
                 className={cn(
-                  'flex h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs max-sm:h-9',
+                  'flex h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs max-sm:h-10',
                   kind === k
                     ? k === 'group' ? 'border-group/60 bg-group/15 text-group' : 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground hover:text-foreground',
@@ -224,7 +224,7 @@ export function ChatsView() {
                   type="button"
                   aria-pressed={activeFolderId === f.id}
                   onClick={() => setActiveFolderId(activeFolderId === f.id ? null : f.id)}
-                  className={`flex h-8 items-center gap-1.5 rounded-full border pl-2.5 text-xs max-sm:h-9 ${activeFolderId === f.id ? 'border-primary bg-primary/10 text-primary pr-1' : 'border-border text-muted-foreground hover:text-foreground pr-2.5'}`}
+                  className={`flex h-8 items-center gap-1.5 rounded-full border pl-2.5 text-xs max-sm:h-10 ${activeFolderId === f.id ? 'border-primary bg-primary/10 text-primary pr-1' : 'border-border text-muted-foreground hover:text-foreground pr-2.5'}`}
                 >
                   <FolderIcon className="size-3" style={{ color: f.color }} aria-hidden="true" />
                   {f.name}
@@ -336,7 +336,7 @@ export function ChatsView() {
 
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>New chat folder</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('chats.folderTitle')}</DialogTitle></DialogHeader>
           <Input
             autoFocus
             value={folderName}
@@ -345,12 +345,12 @@ export function ChatsView() {
               if (e.nativeEvent.isComposing || e.keyCode === 229) return
               if (e.key === 'Enter') { e.preventDefault(); createFolder() }
             }}
-            placeholder="Folder name…"
-            aria-label="Folder name"
+            placeholder={t('chats.folderName')}
+            aria-label={t('chats.folderName')}
           />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setFolderOpen(false)}>Cancel</Button>
-            <Button onClick={createFolder} disabled={!folderName.trim()}>Create folder</Button>
+            <Button variant="ghost" onClick={() => setFolderOpen(false)}>{t('chats.cancel')}</Button>
+            <Button onClick={createFolder} disabled={!folderName.trim()}>{t('chats.folderCreate')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -362,8 +362,9 @@ export function ChatsView() {
             <AlertDialogDescription>{t('chats.deleteDesc')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('chats.cancel')}</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={() => {
                 for (const id of confirmIds ?? []) deleteChat(id)
                 toast.success(t('chats.deleted', { n: confirmIds?.length ?? 1 }))
@@ -379,10 +380,10 @@ export function ChatsView() {
 
       <Dialog open={!!renameId} onOpenChange={(o) => !o && setRenameId(null)}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Rename chat</DialogTitle></DialogHeader>
-          <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} aria-label="Chat title" />
+          <DialogHeader><DialogTitle>{t('chats.renameTitle')}</DialogTitle></DialogHeader>
+          <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} aria-label={t('chats.renameTitle')} />
           <DialogFooter>
-            <Button onClick={() => { if (renameId) updateChat(renameId, { title: renameValue }); setRenameId(null); toast.success('Renamed') }}>Save</Button>
+            <Button onClick={() => { if (renameId) updateChat(renameId, { title: renameValue }); setRenameId(null); toast.success('Renamed') }}>{t('chats.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
