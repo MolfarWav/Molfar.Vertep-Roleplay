@@ -64,6 +64,7 @@ import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
 import { useT } from '@/hooks/use-t'
 import { CharacterBooks } from '@/components/character/character-books'
+import { OpeningGenerator, ScenarioGenerator, useSceneDraft } from '@/components/groups/scene-generate'
 import type { Character, Chat, GroupConfig, GroupMemberSettings } from '@/lib/types'
 
 const COLORS = ['#e06c75', '#e5c07b', '#98c379', '#56b6c2', '#61afef', '#c678dd', '#d19a66', '#abb2bf']
@@ -139,6 +140,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
   const [draftNote, setDraftNote] = useState(g.note ?? '')
   const [draftScenario, setDraftScenario] = useState(g.scenario ?? '')
   const [draftOpenings, setDraftOpenings] = useState<string[]>(g.openings ?? [])
+  const scene = useSceneDraft(group.id)
 
   const [draftDelay, setDraftDelay] = useState(String(g.autoDelaySec ?? 5))
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -701,6 +703,12 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               <p className="text-xs text-muted-foreground">{t('group.ed.scenarioHint')}</p>
             </div>
 
+            <ScenarioGenerator
+              s={scene}
+              hasScenario={!!draftScenario.trim()}
+              onAccept={(text) => { setDraftScenario(text); updateGroup(group.id, { scenario: text }) }}
+            />
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>{t('group.ed.openings')}</Label>
@@ -710,6 +718,15 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">{t('group.ed.openingsHint')}</p>
+              <OpeningGenerator
+                s={scene}
+                scenario={draftScenario}
+                onAccept={(text) => {
+                  const drafts = [...draftOpenings.filter((o) => o.trim()), text]
+                  setDraftOpenings(drafts)
+                  persistOpenings(drafts)
+                }}
+              />
 
               <div className="space-y-2">
                 {draftOpenings.map((text, i) => (
@@ -735,12 +752,6 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button disabled>
-                {t('group.ed.generateScene')}
-              </Button>
-              <Badge variant="outline">{t('group.ed.soon')}</Badge>
-            </div>
           </TabsContent>
 
           <TabsContent value="turns" className="space-y-5 max-w-3xl px-3 pb-6">

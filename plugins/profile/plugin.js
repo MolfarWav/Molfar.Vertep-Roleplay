@@ -13,8 +13,15 @@
  *   POST   /profile/structure {target}                         split the text, file the draft
  *   POST   /profile/fill {target, fields, image?, model?, replace?}  fill empty fields, file the draft
  *          (replace: "Read from picture" describes the listed fields anew, filled or not)
- *   GET    /profile/draft?characterId= | ?personaId=           the draft, or null
- *   DELETE /profile/draft?characterId= | ?personaId=           discard it
+ *   GET    /profile/draft?characterId= | ?personaId= | ?groupId=  the draft, or null
+ *   DELETE /profile/draft?characterId= | ?personaId= | ?groupId=  discard it
+ *
+ * Group scene (the group editor's Scene tab): one model call writes a proposal
+ * the user accepts or discards; the plugin never writes the group file.
+ *   POST   /profile/group-scene {groupId, mode?: "cards" | "wild", wish?}  the shared scenario
+ *   POST   /profile/group-opening {groupId, scenario?, wish?}  one opening, from the scenario
+ *          (the editor's text, else the group's saved one)
+ * Both file data/profile-drafts/group-<groupId>.json {kind: "scenario" | "opening", text}.
  */
 
 const CARD_ID = /^[A-Za-z0-9_-]{1,120}$/;
@@ -281,7 +288,154 @@ function fillRoute(req, host) {
   return ok({ ok: true, draft: filed });
 }
 
+// ---------- Group scene: the shared scenario, then openings ----------
+
+/** How the scenario is invented: from what the cards say, or a surprise. */
+const SCENE_MODES = ["cards", "wild"];
+
+export const SCENE_SYSTEM = [
+  "You write the shared scenario for a group roleplay chat: the situation the characters and {{user}} start in.",
+  "Every member listed below takes part and has a reason to be there.",
+  "{{user}} is the player: give {{user}} a clear place in the scene, but never decide what {{user}} does, says, thinks or feels.",
+  "Cover: where and when, what is going on right now, how the members know each other (or why they meet), and the tension or goal that pulls the scene forward.",
+  "One to three short paragraphs, under 180 words. Present tense. No dialogue, no headings, no lists, no notes.",
+  "Keep {{user}} and the members' names exactly as written.",
+  "Write in the language of the user's wish when there is one, otherwise in the language of the cards.",
+  "Reply with the scenario text only.",
+].join("\n");
+
+const SCENE_MODE_LINES = {
+  cards: "Stay faithful to the cards: use their own world, places, relationships and backstories. Invent only what joins them into one scene.",
+  wild: "Surprise the user: put the members in an unexpected place, situation or genre twist the cards never mention. Each member still acts true to their personality.",
+};
+
+export const OPENING_SYSTEM = [
+  "You write the first message of a group roleplay chat, set in the scenario below.",
+  "A narrator sets the scene in a few sentences, then each member present gets a line or an action in their own voice.",
+  "End on a moment that invites {{user}} to act. Never write what {{user}} does, says, thinks or feels.",
+  "Roleplay style: actions and narration in *asterisks*, speech in \"quotes\". 120 to 250 words.",
+  "Keep {{user}} and the members' names exactly as written.",
+  "Write in the language of the scenario.",
+  "Reply with the message text only.",
+].join("\n");
+
+/** Each member's card, cut so that all of them together stay small enough for small models. */
+export function membersText(cards) {
+  const n = Math.max(1, cards.length);
+  const desc = Math.max(400, Math.floor(6000 / n));
+  const field = (label, v, max) => (str(v) ? label + ": " + cut(str(v), max) : "");
+  return cards.map((c) => [
+    "## " + (str(c.name) || "unnamed"),
+    field("Description", c.description, desc),
+    field("Personality", c.personality, Math.floor(desc / 3)),
+    field("Their own scenario", c.scenario, Math.floor(desc / 4)),
+  ].filter(Boolean).join("\n")).join("\n\n");
+}
+
+/** The model's text without fences, thinking, a leading label or wrapping quotes. */
+export function cleanSceneText(text) {
+  let s = String(text || "").replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
+  const fence = /^```[a-z]*\s*([\s\S]*?)\s*```$/i.exec(s);
+  if (fence) s = fence[1].trim();
+  s = s.replace(/^(?:\*\*|#+\s*)?(?:scenario|opening|first message|сценарій|опенінг|сценарий)\s*:?\s*(?:\*\*)?\s*:?\s*\n?/i, "").trim();
+  if (s.length > 1 && /^["“«]/.test(s) && /["”»]$/.test(s) && !/["“”«»]/.test(s.slice(1, -1))) s = s.slice(1, -1).trim();
+  return s;
+}
+
+/** The group, its unmuted members' cards; a fail response when something is missing. */
+function loadGroup(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const id = String(b.groupId || "");
+  if (!CARD_ID.test(id)) return { fail: ok({ error: "groupId required" }, 400) };
+  const group = readJson(fsx, "groups/" + id + ".json", null);
+  if (!isObj(group)) return { fail: ok({ error: "no such group" }, 404) };
+  const muted = new Set(Array.isArray(group.mutedIds) ? group.mutedIds.map(String) : []);
+  const ids = (Array.isArray(group.memberIds) ? group.memberIds.map(String) : []).filter((m) => CARD_ID.test(m) && !muted.has(m));
+  const cards = ids.map((m) => readJson(fsx, "characters/" + m + "/card.json", null)).filter(isObj);
+  if (!cards.length) return { fail: ok({ error: "the group has no active members" }, 400) };
+  return { id, group, cards, b };
+}
+
+/** The chat model writes scenes (the dashboard's sensor model only when there is none). */
+function sceneModel(fsx) {
+  const settings = readJson(fsx, "settings.json", null);
+  const dash = readJson(fsx, "dashboard/config.json", null);
+  return str(isObj(settings) ? settings.model : "") || str(isObj(dash) ? dash.sensorModel : "");
+}
+
+const groupDraftPath = (id) => "profile-drafts/group-" + id + ".json";
+
+/** A finished call becomes the group's draft; nothing on the group changes. */
+function fileSceneDraft(fsx, id, kind, r, extra) {
+  if (!isObj(r) || r.error) return ok({ ok: false, error: isObj(r) && r.error ? String(r.error) : "the model returned nothing" });
+  const text = cut(cleanSceneText(r.text), 6000);
+  if (!text) return ok({ ok: false, error: "the model returned nothing" });
+  const draft = { v: 1, at: Date.now(), kind, text, ...(str(r.model) ? { model: str(r.model) } : {}), ...extra };
+  fsx.write(groupDraftPath(id), JSON.stringify(draft, null, 2));
+  return ok({ ok: true, draft });
+}
+
+function sceneRoute(req, host) {
+  const fsx = host.fs;
+  const { id, cards, b, fail } = loadGroup(req, fsx);
+  if (fail) return fail;
+  const mode = SCENE_MODES.includes(b.mode) ? b.mode : "cards";
+  const r = host.llm.results.scene;
+  if (!r) {
+    const model = sceneModel(fsx);
+    const wish = cut(str(b.wish), 600);
+    host.llm.request("scene", {
+      ...(model ? { model } : {}),
+      systemPrompt: SCENE_SYSTEM + "\n" + SCENE_MODE_LINES[mode],
+      messages: [{ role: "user", content: "Members:\n\n" + membersText(cards) + (wish ? "\n\nThe user's wish (it comes first): " + wish : "") }],
+      presetParams: { temperature: mode === "wild" ? 1 : 0.8, max_tokens: 1200 },
+    });
+    return { __llmPending: true, stash: {} };
+  }
+  return fileSceneDraft(fsx, id, "scenario", r, { mode });
+}
+
+function openingRoute(req, host) {
+  const fsx = host.fs;
+  const { id, group, cards, b, fail } = loadGroup(req, fsx);
+  if (fail) return fail;
+  // the editor sends the scenario as typed: its own save may still be on the way
+  const scenario = str(b.scenario) || str(group.scenario);
+  if (!scenario) return ok({ error: "the group has no scenario yet" }, 400);
+  const r = host.llm.results.opening;
+  if (!r) {
+    const model = sceneModel(fsx);
+    const wish = cut(str(b.wish), 600);
+    const taken = (Array.isArray(group.openings) ? group.openings : []).map(str).filter(Boolean).slice(0, 5);
+    const content = [
+      "Scenario:\n" + cut(scenario, 3000),
+      "Members:\n\n" + membersText(cards),
+      taken.length ? "Openings the group already has (write a different one):\n" + taken.map((o) => "- " + cut(o, 300)).join("\n") : "",
+      wish ? "The user's wish (it comes first): " + wish : "",
+    ].filter(Boolean).join("\n\n");
+    host.llm.request("opening", {
+      ...(model ? { model } : {}),
+      systemPrompt: OPENING_SYSTEM,
+      messages: [{ role: "user", content }],
+      presetParams: { temperature: 0.9, max_tokens: 1500 },
+    });
+    return { __llmPending: true, stash: {} };
+  }
+  return fileSceneDraft(fsx, id, "opening", r, {});
+}
+
 function draftRoute(req, fsx) {
+  const q = isObj(req.query) ? req.query : {};
+  if (q.groupId !== undefined) {
+    const id = String(q.groupId);
+    if (!CARD_ID.test(id)) return ok({ error: "groupId required" }, 400);
+    if (req.method === "DELETE") {
+      fsx.remove(groupDraftPath(id));
+      return ok({ ok: true });
+    }
+    const draft = readJson(fsx, groupDraftPath(id), null);
+    return ok({ draft: isObj(draft) && str(draft.text) ? draft : null });
+  }
   const t = targetOf(req.query);
   if (!t) return ok({ error: "characterId or personaId required" }, 400);
   const path = draftPath(t);
@@ -298,6 +452,8 @@ export function handleRoute(req, host) {
   if (!path.startsWith("/profile/")) return null;
   if (path === "/profile/structure" && req.method === "POST") return structureRoute(req, host);
   if (path === "/profile/fill" && req.method === "POST") return fillRoute(req, host);
+  if (path === "/profile/group-scene" && req.method === "POST") return sceneRoute(req, host);
+  if (path === "/profile/group-opening" && req.method === "POST") return openingRoute(req, host);
   if (path === "/profile/draft" && (req.method === "GET" || req.method === "DELETE")) return draftRoute(req, host.fs);
   return ok({ error: "not found" }, 404);
 }
