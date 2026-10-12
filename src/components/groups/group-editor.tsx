@@ -5,6 +5,7 @@ import {
   Chats,
   Info,
   Users,
+  ChatCircleDots,
   BookOpenText,
   ArrowsLeftRight,
   Books,
@@ -92,6 +93,8 @@ function TalkSlider({ value, onCommit }: { value: number; onCommit: (v: number) 
   const num = (x: number | readonly number[]) => (Array.isArray(x) ? x[0] : (x as number)) ?? 0
   return (
     <Slider
+      // the group hue, like the member's talkativeness chip
+      className="[--primary:var(--group)] [--ring:var(--group)]"
       value={[v]}
       min={0}
       max={1}
@@ -453,7 +456,8 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                       <div className="min-w-0 flex-1">
                         <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
                           <span className="truncate">{m.name}</span>
-                          <span className="shrink-0 rounded-full bg-group/15 px-1.5 text-[10px] font-medium tabular-nums text-group" title={t('group.ed.talkativeness')}>
+                          <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-group/15 px-1.5 text-[10px] font-medium tabular-nums text-group" title={t('group.ed.talkativeness')}>
+                            <ChatCircleDots className="size-3" weight="fill" aria-hidden="true" />
                             <span className="sr-only">{t('group.ed.talkativeness')}: </span>{Math.round(talk * 100)}%
                           </span>
                         </p>
@@ -462,9 +466,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                             className="mt-1 h-1.5 w-4 rounded-full"
                             style={{ backgroundColor: color }}
                           />
-                        ) : (
-                          <div className="mt-1 h-1.5 w-4 rounded-full border border-border bg-transparent" />
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1">
