@@ -89,31 +89,50 @@ const EVENT_ROWS = [
   ["trust", "shared_secret", "trusted them with a secret", { trust: 2, affection: 1 }],
   ["trust", "kept_her_secret", "kept their secret when it cost something", { trust: 2 }],
   ["trust", "betrayed_secret", "told their secret to others", { trust: -4, comfort: -2, hostility: 3 }],
+  ["trust", "manipulated_her", "tricked or used them, short of a lie", { trust: -3, comfort: -1, hostility: 2 }],
+  ["trust", "abandoned_her", "left them behind or walked out on them", { trust: -3, comfort: -2, affection: -1, hostility: 2 }],
+  ["trust", "respected_limit", "held back when they set a limit", { trust: 2, comfort: 1 }],
+  ["trust", "pushed_limit", "pressed on after they set a limit", { trust: -2, comfort: -3, hostility: 2 }],
   ["warmth", "compliment", "sincere praise", { affection: 1, attraction: 1 }],
   ["warmth", "shared_laughter", "laughed together", { comfort: 1, affection: 1 }],
   ["warmth", "remembered_detail", "remembered something small about them", { affection: 2 }],
   ["warmth", "gift", "gave something meant for them", { affection: 1, comfort: 1 }],
   ["warmth", "cold_shoulder", "ignored or dismissed them", { affection: -2, comfort: -1 }],
+  ["warmth", "teased_her", "teased them playfully, without malice", { affection: 1, comfort: 1, excitement: 4 }],
+  ["warmth", "confessed_feelings", "confessed love or deep feelings to them", { affection: 2, attraction: 1, excitement: 8 }],
+  ["warmth", "shared_meal", "ate or drank together", { comfort: 1, affection: 1 }],
+  ["warmth", "shared_victory", "won or achieved something together", { affection: 1, trust: 1, excitement: 10 }],
+  ["warmth", "checked_on_her", "asked how they are and listened", { affection: 1, comfort: 1 }],
+  ["warmth", "thanked_her", "thanked them sincerely", { affection: 1, respect: 1 }],
   ["power", "gave_order", "commanded them", { respect: 1, comfort: -1 }],
   ["power", "asked_her_advice", "asked and listened", { respect: 1, trust: 1 }],
   ["power", "deferred_to_her", "let them decide", { respect: 1, comfort: 1 }],
   ["power", "overruled_her", "overrode their choice", { comfort: -1, respect: -1 }],
-  ["power", "protected_her_standing", "defended them in front of others", { respect: 1, affection: 1, trust: 1 }],
+  ["power", "protected_her_standing", "took their side or defended them before others", { respect: 1, affection: 1, trust: 1 }],
   ["power", "humiliated_her", "shamed them in front of others", { respect: -2, comfort: -3, hostility: 3 }],
+  ["power", "impressed_her", "showed real skill or courage before them", { respect: 2, attraction: 1, excitement: 4 }],
+  ["power", "taught_her", "taught or showed them how to do something", { respect: 1, trust: 1 }],
+  ["power", "acted_cowardly", "froze or fled when they needed help", { respect: -3, trust: -1 }],
   ["body", "gentle_touch", "wanted, gentle touch", { comfort: 1, attraction: 1, arousal: 6 }],
   ["body", "unwanted_touch", "touch they did not want", { comfort: -4, trust: -2, hostility: 3 }],
   ["body", "flirt", "flirted with them", { attraction: 1, excitement: 6, arousal: 4 }],
   ["body", "kiss", "kissed (welcome)", { attraction: 2, affection: 1, arousal: 12 }],
   ["body", "intimacy", "intimate moment (welcome)", { attraction: 2, comfort: 1, arousal: 20 }],
+  ["body", "rejected_advance", "turned down their romantic or sexual advance", { comfort: -2, affection: -1 }],
   ["conflict", "raised_voice", "shouted, at them or near them", { comfort: -3 }],
-  ["conflict", "insult", "insulted them", { respect: -2, affection: -2, hostility: 3 }],
+  ["conflict", "insult", "insulted, mocked or belittled them", { respect: -2, affection: -2, hostility: 3 }],
   ["conflict", "threat", "threatened them", { comfort: -4, trust: -3, hostility: 4 }],
   ["conflict", "fair_argument", "argued honestly", { respect: 1 }],
   ["conflict", "apology", "sincere apology", { trust: 1, comfort: 1, hostility: -2 }],
-  ["care", "protected_her", "shielded them from harm", { trust: 2, affection: 1, comfort: 1 }],
+  ["conflict", "attacked_her", "hit or physically attacked them", { comfort: -5, trust: -3, hostility: 5 }],
+  ["conflict", "jealous_scene", "showed jealousy over them", { attraction: 1, comfort: -1, excitement: 4 }],
+  ["conflict", "forgave_her", "forgave them a wrong they did", { trust: 1, affection: 2, hostility: -3 }],
+  ["care", "protected_her", "shielded or rescued them from harm", { trust: 2, affection: 1, comfort: 1 }],
   ["care", "cared_for_kin", "helped their people or family", { affection: 2, trust: 1 }],
   ["care", "tended_her", "looked after their wound or need", { comfort: 2, affection: 1 }],
   ["care", "ignored_her_need", "saw their need and did nothing", { affection: -2, trust: -1 }],
+  ["care", "comforted_her", "consoled them when they were upset", { comfort: 2, affection: 1, trust: 1 }],
+  ["care", "kept_company", "stayed with them so they were not alone", { comfort: 2, affection: 1 }],
   ["knowledge", "novelty", "something new or surprising", { excitement: 12 }],
   ["knowledge", "danger", "danger in the scene", { excitement: 10, comfort: -1 }],
   ["other", "other", "anything else", {}],
@@ -2058,11 +2077,13 @@ function readEvents(list, ctx, known, unknownIds) {
   const events = [];
   for (const e of arr(list)) {
     if (!isObj(e)) continue;
-    const id = str(e.id);
+    // small models sometimes copy the family in front: "trust.shared_secret"
+    const raw = str(e.id);
+    const id = ctx.vocab[raw] ? raw : raw.slice(raw.lastIndexOf(".") + 1).trim();
     const entry = ctx.vocab[id];
     // a family switched off for this chat counts as "other"
     const def = entry && ctx.cfg.families[entry.family] !== false ? entry : null;
-    if (!entry && id) unknownIds.push(id);
+    if (!entry && raw) unknownIds.push(raw);
     const use = def || ctx.vocab.other;
     events.push({
       id: use.id,

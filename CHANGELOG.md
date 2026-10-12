@@ -8,6 +8,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 - Dashboard: an answer that is all thinking says so, with what to change, instead of "the sensor returned nothing"; a thinking block written inline before the JSON no longer breaks reading it.
 - Dashboard: importing many cards at once no longer rates each one with a model call; a single imported card is still rated, the rest when first played.
 - Dashboard: the note before each reply, and fast mode's state instruction, say the reply stays in the story's language (the notes are in English, and small models followed them into English).
+- Dashboard: a bigger event vocabulary, so fewer turns land in `other`. New events: manipulated, abandoned, respected or pushed a limit (trust); teased, confessed feelings, shared a meal, shared a victory, checked on them, thanked them (warmth); impressed them, taught them, acted cowardly (power); turned down their advance (body); attacked them, jealousy, forgave them (conflict); comforted them, kept them company (care). Clearer meanings for `protected_her` (now also a rescue), `protected_her_standing` (taking their side) and `insult` (also mockery). On 72 test scenes in Ukrainian, Russian and English, a cheap sensor left 2 to 6 turns with no usable event instead of 39; a small local-class model improved too, though its results swing a lot between runs. The sensor prompt grows by about 300 tokens; event groups can still be switched off per chat.
+- Dashboard: an event id the sensor writes with its family in front (`trust.shared_secret`) counts as that event instead of `other`.
 
 ## 4.35.0
 
