@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.36.0
+
+The dashboard works with thinking models: it follows the chat preset's thinking settings instead of thinking without limit and returning nothing, and its bigger event vocabulary catches more of what happens in a scene. Works on Molfar Vertep 1.0.0 and later; for a local server (llama.cpp and the like), Molfar Vertep 1.0.1 lets the preset switch the model's thinking on and off.
+
 - Dashboard: its sensor and soul rating calls think the way the chat's preset says (level, thinking budget, thinking tags), and a thinking budget adds to the dashboard's reply limit. Before, a thinking model got no budget there, spent the whole limit thinking and gave an empty answer.
 - Dashboard: an answer that is all thinking says so, with what to change, instead of "the sensor returned nothing"; a thinking block written inline before the JSON no longer breaks reading it.
 - Dashboard: importing many cards at once no longer rates each one with a model call; a single imported card is still rated, the rest when first played.
