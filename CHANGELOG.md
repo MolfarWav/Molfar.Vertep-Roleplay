@@ -2,7 +2,11 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased (manifest at 4.37.0)
+## Unreleased
+
+## 4.37.0
+
+A UI round: groups get their own colour, FRANKENX's prose language is a pick, group members differ in how much they talk, and Molfar writes cards into the Profile tab's fields. No engine change needed.
 
 - Characters page: the Characters / Groups switch is two separate tabs with icons and counts; groups have their own colour (violet), also on group tiles, the Group button and group chats in the Chats list (a ring and a small group mark on the picture).
 - FRANKENX: Prose language is a pick instead of free text: the 14 interface languages plus "Same as my messages" (replies follow the language you write in). English stays the default. An update turns the old text field into the pick in every preset that still has it; an old answer written as the English name of a language ("Ukrainian") keeps working.
