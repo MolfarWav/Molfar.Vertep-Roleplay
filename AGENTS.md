@@ -227,6 +227,16 @@ call app_deps (remove one with app_deps { remove: ["name"] }). The sandbox has
 no npm itself. After src/ or dependency edits, app_check waits for the browser
 build and returns its errors.
 
+Usability comes first in every UI change (the user's rule): a user must find,
+understand and use it without docs, on a phone too. The checklist is the
+"Usability" part of the app-authoring skill. Here that means: reuse
+components/ui (field.tsx FieldDescription for a one-line hint, popover.tsx for
+an "i" explanation opened by tap, confirm.tsx before deleting, empty.tsx for
+empty lists, sonner toasts for results); theme colours only (primary/cta,
+destructive, muted), never hex; below MOBILE_BREAKPOINT (768 px,
+hooks/use-mobile.ts) tap targets of 40 px, nothing hover-only, no sideways
+scroll; rare options folded under "More" like the lorebook entry editor.
+
 ## Engine contract (wired in v4.1)
 
 All app behavior (chats, swipes, presets, world info, characters, import)
