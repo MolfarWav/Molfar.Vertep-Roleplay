@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { InfoTip } from '@/components/ui/info-tip'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pager, clampPage } from '@/components/ui/pager'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -146,7 +147,7 @@ export function LorebooksView() {
                   <button
                     type="button"
                     onClick={() => select(b.id)}
-                    className={cn('flex min-h-11 w-full flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm', b.id === book?.id ? 'bg-accent' : 'hover:bg-accent/50')}
+                    className={cn('relative flex min-h-11 w-full flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7', b.id === book?.id ? 'bg-accent' : 'hover:bg-accent/50')}
                   >
                     <span className="flex items-center gap-1.5 font-medium">
                       <span className="min-w-0 truncate">{b.name}</span>
@@ -161,6 +162,7 @@ export function LorebooksView() {
                       <span aria-hidden="true">·</span>
                       <span className={use.muted ? 'opacity-70' : undefined}>{use.text}</span>
                     </span>
+                    <CaretRight className="absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
                   </button>
                 </li>
               )
@@ -175,6 +177,7 @@ export function LorebooksView() {
           <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setActiveViewerOpen(true)}>
             <Pulse className="size-3.5" aria-hidden="true" />{t('lore.active')}
           </Button>
+          <InfoTip label={t('lore.active')} className="self-center">{t('lore.active.info')}</InfoTip>
         </div>
       </aside>
       }
@@ -311,11 +314,12 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           toolbar pinning at the top was eating the viewport on mobile */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
-        <Input value={book.name} onChange={(e) => onUpdate({ name: e.target.value })} className="h-8 w-full text-sm font-medium md:w-52" aria-label="Book name" />
+        <Input value={book.name} onChange={(e) => onUpdate({ name: e.target.value })} className="h-8 w-full min-w-0 text-sm font-medium md:w-auto md:max-w-md md:min-w-56 md:flex-1" aria-label="Book name" />
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title={t('lore.global.tip')}>
-          <Switch checked={book.globalActive} onCheckedChange={(v) => onUpdate({ globalActive: v })} aria-label={t('lore.global.label')} />
+          <Switch tone="cta" checked={book.globalActive} onCheckedChange={(v) => onUpdate({ globalActive: v })} aria-label={t('lore.global.label')} />
           {t('lore.global.label')}
         </label>
+        <InfoTip label={t('lore.global.label')}>{t('lore.global.info')}</InfoTip>
         <Badge variant="outline" className="text-[10px]">{formatTokens(book.entries.reduce((a, e) => a + estimateTokens(e.content), 0))} tok total</Badge>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           <Button variant="outline" size="sm" className="text-xs" onClick={onTest}>
@@ -366,6 +370,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpenIds(openIds.length ? [] : entries.map((e) => e.id))}>
             {openIds.length ? t('lore.closeAll') : t('lore.openAll')}
           </Button>
+          <InfoTip label={t('lore.badges.label')}>{t('lore.badges.info')}</InfoTip>
           <Button size="sm" className="ml-auto h-7 text-xs" onClick={() => {
             const e = newEntry()
             onUpdate({ entries: [e, ...book.entries] })
@@ -520,7 +525,7 @@ function EntryRowHead({ e, open, checked, onCheck, onToggle, onEnable }: {
           )}
         </span>
       </button>
-      <Switch className="mt-0.5" checked={e.enabled} onCheckedChange={onEnable} aria-label={`Enable ${e.title}`} />
+      <Switch tone="cta" className="mt-0.5" checked={e.enabled} onCheckedChange={onEnable} aria-label={`Enable ${e.title}`} />
     </div>
   )
 }

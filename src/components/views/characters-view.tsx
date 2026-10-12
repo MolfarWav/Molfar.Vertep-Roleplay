@@ -204,13 +204,13 @@ export function CharactersView() {
   }
 
   return (
-    <SectionPage section="characters" count={shownCount}>
+    <SectionPage section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tag filter + favorites scroll WITH the grid — a pinned
           toolbar eats the viewport on mobile once the keyboard opens */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-        <PaneTitle section="characters" count={shownCount} />
+        <PaneTitle section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined} />
         {/* two clearly separate tabs, each in its own colour: characters take the
             theme's accent, groups the group hue the group tiles and group chats share */}
         <div role="group" aria-label={t('groups.switch')} className="flex gap-1">
@@ -392,7 +392,7 @@ export function CharactersView() {
                     />
                   )}
                   <button type="button" className="flex flex-col text-left" onClick={() => batchMode ? setSelected((s) => s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]) : openCharacter(c.id)}>
-                    <img src={c.avatar || DEFAULT_AVATAR} alt={c.name} className="aspect-square w-full object-cover" />
+                    {c.avatar && !c.avatar.endsWith('avatar-default.png') ? <img src={c.avatar} alt={c.name} className="aspect-square w-full object-cover" /> : <NoPortrait name={c.name} />}
                     <span className="flex flex-col gap-1 p-2.5">
                       <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: readableNameColor(c.colors.name) }}>
                         {c.name}
@@ -408,8 +408,8 @@ export function CharactersView() {
                         {c.tags.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                       </span>
                       <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{formatTokens(tokens)} tok</span>
-                        <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount}</span>
+                        <span>{formatTokens(tokens)} tokens</span>
+                        <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</span>
                       </span>
                     </span>
                   </button>
@@ -579,6 +579,16 @@ export function CharactersView() {
   )
 }
 
+/** The card has no portrait: a neutral silhouette and the words, not a "?" that reads as a broken image. */
+function NoPortrait({ name }: { name: string }) {
+  return (
+    <span role="img" aria-label={`${name}: no portrait`} className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
+      <UserCircle className="size-1/3" weight="light" aria-hidden="true" />
+      <span className="text-[11px]">No portrait</span>
+    </span>
+  )
+}
+
 function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
   groups: Character[]; chats: Chat[]; onCreate: () => void; onDelete: (id: string) => void; hasAny: boolean
 }) {
@@ -622,8 +632,8 @@ function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
                   {c.favorite && <Star weight="fill" className="size-3 shrink-0 text-primary" aria-hidden="true" />}
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-0.5 font-medium text-group"><Users className="size-3" weight="fill" aria-hidden="true" />{members.length}</span>
-                  <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount}</span>
+                  <span className="flex items-center gap-0.5 font-medium text-group"><Users className="size-3" weight="fill" aria-hidden="true" />{members.length} {members.length === 1 ? 'member' : 'members'}</span>
+                  <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</span>
                 </span>
               </span>
             </button>

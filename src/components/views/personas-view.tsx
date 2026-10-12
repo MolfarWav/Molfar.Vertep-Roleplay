@@ -1,8 +1,10 @@
 
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle } from '@phosphor-icons/react'
+import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle, CaretRight } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { InfoTip } from '@/components/ui/info-tip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -114,7 +116,7 @@ export function PersonasView() {
                 <button
                   type="button"
                   onClick={() => select(x.id)}
-                  className={cn('flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm', x.id === p?.id ? 'bg-accent' : 'hover:bg-accent/50')}
+                  className={cn('relative flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7', x.id === p?.id ? 'bg-accent' : 'hover:bg-accent/50')}
                 >
                   <Avatar className="size-7 rounded-md">
                     <AvatarImage src={x.avatar || DEFAULT_AVATAR} alt="" />
@@ -123,10 +125,11 @@ export function PersonasView() {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1 truncate font-medium">
                       {x.name}
-                      {x.id === activeId && <SealCheck className="size-3.5 shrink-0 text-primary" aria-hidden="true" />}
+                      {x.id === activeId && <Badge variant="secondary" className="shrink-0 px-1.5 text-[10px] font-normal">In use</Badge>}
                     </span>
                     <span className="block truncate text-[11px] text-muted-foreground">{x.title}</span>
                   </span>
+                  <CaretRight className="absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
                 </button>
                 {x.id !== activeId && (
                   <Button
@@ -166,15 +169,20 @@ export function PersonasView() {
                 <div className="flex gap-1.5">
                   <Button variant="outline" size="sm" className="text-xs" onClick={() => avatarInput.current?.click()}>Upload</Button>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={p.id === activeId}
-                  onClick={() => { usePersona(p.id); toast.success(`Using ${p.name}`) }}
-                >
-                  {p.id === activeId ? 'In use' : 'Use this persona'}
-                </Button>
+                {p.id === activeId ? (
+                  <Badge variant="secondary" className="h-7 w-fit gap-1 px-2 text-xs font-normal" data-testid="persona-in-use">
+                    <SealCheck className="size-3.5" aria-hidden="true" />In use
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => { usePersona(p.id); toast.success(`Using ${p.name}`) }}
+                  >
+                    Use this persona
+                  </Button>
+                )}
               </div>
               <div className="ml-auto flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)} aria-label="Usage stats"><ChartBar className="size-4" aria-hidden="true" /></Button>
@@ -209,8 +217,15 @@ export function PersonasView() {
 
             <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
               <h2 className="text-xs font-semibold uppercase text-muted-foreground">Bindings</h2>
-              <div className="flex items-center gap-3">
-                <Label className="w-28 text-xs">Binding mode</Label>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex w-28 items-center gap-1">
+                  <Label className="text-xs">Binding mode</Label>
+                  <InfoTip label="About binding mode">
+                    <p><strong>Default</strong>: nothing is bound; you pick the persona by hand.</p>
+                    <p><strong>Lock to character</strong>: a new chat with a character you tick below starts with this persona.</p>
+                    <p>Lock to chat is saved but does not change which persona a new chat starts with.</p>
+                  </InfoTip>
+                </div>
                 <Select value={p.binding} onValueChange={(v) => updatePersona(p.id, { binding: v as never })}>
                   <SelectTrigger className="w-48" aria-label="Binding mode"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -223,6 +238,7 @@ export function PersonasView() {
                   <Switch checked={p.autoLock} onCheckedChange={(v) => updatePersona(p.id, { autoLock: v })} aria-label="Auto-lock" />
                   Auto-lock
                 </label>
+                <InfoTip label="About auto-lock">When two personas are bound to the same character, the auto-locked one is chosen for new chats with it.</InfoTip>
               </div>
               {p.binding === 'character' && (
                 <div className="flex flex-col gap-1">

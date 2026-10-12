@@ -51,6 +51,7 @@ export function ChatsView() {
   const chats = useApp((s) => s.chats)
   const characters = useApp((s) => s.characters)
   const deleteChat = useApp((s) => s.deleteChat)
+  const setView = useApp((s) => s.setView)
   const updateChat = useApp((s) => s.updateChat)
   const folders = useApp((s) => s.folders)
   const addFolder = useApp((s) => s.addFolder)
@@ -164,7 +165,9 @@ export function ChatsView() {
               )}
             </span>
             <span className="line-clamp-1 text-xs text-muted-foreground">
-              <span className="text-foreground/90">{chat.title}</span> · {cleanPreview(previewText, 120)}
+              {/* a title that only repeats the character's name says nothing: show the last words instead */}
+              {chat.title.trim() && chat.title.trim() !== owner?.name && <><span className="text-foreground/90">{chat.title}</span> · </>}
+              {cleanPreview(previewText, 120) || 'No messages yet'}
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
@@ -181,6 +184,9 @@ export function ChatsView() {
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-2.5 border-b border-border px-4 py-3">
+          <Button variant="outline" className="h-9 w-full justify-center gap-1.5 font-heading text-[14px] max-sm:h-10" onClick={() => setView('characters')}>
+            <Plus aria-hidden="true" /> {t('home.newChat')}
+          </Button>
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

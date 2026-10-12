@@ -56,20 +56,20 @@ export function HomeHero() {
         aria-hidden="true"
         className="absolute inset-0 -z-10 size-full object-cover object-[center_30%] md:left-auto md:w-[44%]"
       />
-      <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/85 to-card/30 md:bg-gradient-to-r md:from-card md:from-[56%] md:via-card/60 md:to-transparent" />
+      <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/90 to-card/60 md:bg-gradient-to-r md:from-card md:from-[56%] md:via-card/60 md:to-transparent" />
       <div className="mt-auto flex w-full flex-col gap-2 p-5 md:mt-0 md:max-w-[62%] md:p-6">
-        <p className="flex items-center gap-2 font-heading text-sm text-muted-foreground">
+        <p className="flex items-center gap-2 font-heading text-sm text-foreground/80">
           <Diamond /> {t('home.pickUp')}
         </p>
         <h2 className="font-heading text-[28px] leading-tight md:text-[32px]">{title}</h2>
         {quote && <p className="font-heading text-[17px] leading-snug text-foreground/90">«{quote}»</p>}
         <div className="flex flex-wrap items-center gap-2">
           {persona && (
-            <Chip tone="red" icon={<UserCircle className="size-3.5 shrink-0" aria-hidden="true" />}>{t('home.persona')}: {persona.name}</Chip>
+            <Chip tone="red" className="bg-card/90 text-foreground" icon={<UserCircle className="size-3.5 shrink-0" aria-hidden="true" />}>{t('home.persona')}: {persona.name}</Chip>
           )}
-          {book && <Chip>{t('home.lorebook')}: {book.name}</Chip>}
+          {book && <Chip className="bg-card/90 text-foreground/80">{t('home.lorebook')}: {book.name}</Chip>}
         </div>
-        <p className="font-mono text-[11.5px] text-muted-foreground">
+        <p className="font-mono text-[11.5px] text-foreground/75">
           {character.name} · {count} {t('home.msgs')} · {when(chat.updatedAt)}
         </p>
         <div className="mt-1 flex flex-wrap gap-2">

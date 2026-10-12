@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowsClockwise, GearSix, Graph, Scroll } from '@phosphor-icons/react'
+import { ArrowsClockwise, CaretRight, GearSix, Graph, Scroll } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MemorySummarySection } from '@/components/settings/memory-summary-section'
@@ -9,7 +9,7 @@ import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
+import { distinctName, fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
 import { LedgerChat } from './ledger'
 import { WorkerDot } from './worker-dot'
 import { ChatsMap } from './chats-map'
@@ -224,7 +224,7 @@ function ChatPicker({
                 aria-current={c.id === selectedId ? 'true' : undefined}
                 data-testid="ledger-chat"
                 className={cn(
-                  'flex min-h-11 w-full flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm',
+                  'relative flex min-h-11 w-full flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7',
                   c.id === selectedId ? 'bg-accent' : 'hover:bg-accent/50',
                   !c.hasData && 'opacity-60',
                 )}
@@ -234,10 +234,11 @@ function ChatPicker({
                   <span className="min-w-0 truncate">{c.title}</span>
                 </span>
                 <span className="truncate text-[11px] text-muted-foreground">
-                  {c.name ? `${c.name} · ` : ''}
+                  {distinctName(c.title, c.name) ? `${distinctName(c.title, c.name)} · ` : ''}
                   {c.hasData ? t('lit.counts', { chapters: c.chapters, facts: c.facts, proposals: c.proposals }) : t('lit.noData')}
                 </span>
                 {c.updatedAt > 0 && <span className="text-[10px] text-muted-foreground">{rel(c.updatedAt)}</span>}
+                <CaretRight className="absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
               </button>
             </li>
           ))}

@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { InfoTip } from '@/components/ui/info-tip'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -40,6 +41,18 @@ export function QuickRepliesView() {
         </Button>
       </header>
         <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
+          {qrSets.length === 0 && (
+            <Empty className="border" data-testid="qr-empty">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><Lightning aria-hidden="true" /></EmptyMedia>
+                <EmptyTitle>Create your first set</EmptyTitle>
+                <EmptyDescription>A set is a group of quick-reply buttons: tap one in a chat to send or insert a ready-made message.</EmptyDescription>
+              </EmptyHeader>
+              <Button size="sm" onClick={() => { addQRSet(); toast.success('New shortcut set created') }}>
+                <Plus className="size-4" aria-hidden="true" />New set
+              </Button>
+            </Empty>
+          )}
           {pagedSets.map((set) => (
             <section key={set.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
               <div className="flex items-center gap-2">
@@ -124,9 +137,13 @@ export function QuickRepliesView() {
             </section>
           ))}
           <Pager total={qrSets.length} page={clampPage(qrPage, qrSets.length, QR_PAGE)} pageSize={QR_PAGE} onPage={setQrPage} />
-          <div className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            <Label className="text-xs font-medium text-foreground">Automation hooks</Label>
-            <p>Replies with auto-execute run when the matching event fires: on app startup, after you send a message, after an AI reply commits, and when a chat opens. Slash forms (/continue, /impersonate, /regenerate, /swipe) run the real actions; plain text is sent as your message.</p>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <p>A reply can also run by itself on an event, such as when a chat opens.</p>
+            <InfoTip label="About automation hooks">
+              <p className="font-medium text-foreground">Automation hooks</p>
+              <p>Replies with auto-execute run when the matching event fires: on app startup, after you send a message, after an AI reply commits, and when a chat opens.</p>
+              <p>Slash forms (/continue, /impersonate, /regenerate, /swipe) run the real actions; plain text is sent as your message.</p>
+            </InfoTip>
           </div>
         </div>
       </ScrollArea>

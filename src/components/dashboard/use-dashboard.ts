@@ -9,6 +9,7 @@ import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { onDashReload } from '@/lib/dash-live'
 import type { DashResponse, DashView } from '@/lib/dashboard'
+import { plainDashError } from './dash-common'
 
 export type DashStatus = 'absent' | 'loading' | 'empty' | 'ready'
 
@@ -83,9 +84,9 @@ export function useDashboard(chatId: string): UseDashboard {
     setRefreshing(true)
     try {
       const r = await j<{ ok?: boolean; error?: string }>('/dashboard/update', { method: 'POST', body: JSON.stringify({ chatId: id, op: 'send' }) })
-      if (r && r.ok === false) toast.error(tRef.current('dash.error', { message: r.error || 'unknown error' }))
+      if (r && r.ok === false) toast.error(plainDashError(tRef.current, r.error || ''), { description: r.error || undefined })
     } catch (e) {
-      toast.error(tRef.current('dash.error', { message: String((e as Error)?.message ?? e) }))
+      toast.error(plainDashError(tRef.current, String((e as Error)?.message ?? e)), { description: String((e as Error)?.message ?? e) })
     }
     try { await load() } finally { setRefreshing(false) }
   }, [load])

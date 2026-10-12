@@ -4,6 +4,19 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Chats page: the chat's details open their sections. A member chip opens that card, the group name or portrait opens the group editor, and the persona, preset and each lorebook open in their own section. A target that no longer exists stays plain text.
+- UX audit, the small fixes:
+  - Plain words instead of developer text: dashboard errors say what happened, with the raw reason under "Details"; a soul rating that failed on unreadable JSON says so; the marketplace says it could not be reached, with the detail behind an info button.
+  - Labels: the Groups tab's title says "Groups"; "Single" / "Narrator" instead of capitals; "tokens", "permanent tokens" and "1 chat" instead of "tok" and "1 chats"; a silhouette and "No portrait" instead of the "?" image.
+  - One of each: the stock preset shows one neutral notice and one "Create editable copy"; read-only prompt rows show a lock instead of a pencil; the Soul tab has one rating button and "Delete soul" moved into a "⋯" menu; Home hides the Create card while the hero shows the same three buttons.
+  - Hints: one line under Post-history instructions, Depth prompt, @ depth and Role; under the soul's Class and start values; "Story, move" says what it does (and shows it on a tap). Lorebooks, Personas and Shortcuts get info buttons that open on click or tap (a new `ui/info-tip`). "Test keys" is "Test triggers".
+  - Switches are "on" in the theme's second accent (cyan in Vertep, green in Daylight) instead of red, which now means destructive only.
+  - The card editor shows "Saved" after an edit. The Chats list has a "New chat" button. A chat titled with the character's name shows its last line instead of the name twice.
+  - Library: one name for the section; Litopys is introduced once as the chronicler; one empty state that says what appears and when.
+  - Settings, Appearance: split into Text, Layout and Motion, with "Restore defaults" for those controls.
+  - Group chats in narrator mode show the group's portrait next to the narrator's replies.
+  - Phones: the "no model" chip shows and opens Settings (a toast explains when the app may not); list rows that open a page have a chevron; message actions and info buttons are 40 px targets; the Daylight Home hero text sits on a scrim.
+
 ## 4.38.0
 
 Groups write their own scene, and the Chats page shows what each chat is about. Works on Molfar Vertep 1.0.0 and later.

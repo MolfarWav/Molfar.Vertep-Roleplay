@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react'
-import { SlidersHorizontal, Plus, Copy, Trash, Lock, SealCheck, Eye, CaretDown, DownloadSimple, UploadSimple, ArrowsOut, X, GitDiff, Books as LibraryIcon, DotsSixVertical, Star, DotsThreeVertical, PencilSimple, ChatCircle } from '@phosphor-icons/react'
+import { SlidersHorizontal, Plus, Copy, Trash, Lock, SealCheck, Eye, CaretDown, DownloadSimple, UploadSimple, ArrowsOut, X, GitDiff, Books as LibraryIcon, DotsSixVertical, Star, DotsThreeVertical, PencilSimple, ChatCircle, CaretRight } from '@phosphor-icons/react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -161,7 +161,7 @@ export function PresetsView() {
                 <button
                   type="button"
                   onClick={() => select(p.id)}
-                  className={cn('flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm', p.id === preset?.id ? 'bg-accent' : 'hover:bg-accent/50')}
+                  className={cn('relative flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7', p.id === preset?.id ? 'bg-accent' : 'hover:bg-accent/50')}
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
@@ -172,6 +172,7 @@ export function PresetsView() {
                     {p.id === activeId && <span className="text-primary">currently using</span>}
                     <span>{p.sections.filter((s) => s.enabled).length}/{p.sections.length} prompts</span>
                   </span>
+                  <CaretRight className="absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger render={
@@ -305,8 +306,8 @@ export function PresetsView() {
             </div>
             <div className={cn('p-4', preset.readOnly && 'pointer-events-none opacity-60')}>
                 {preset.readOnly && (
-                  <p className="mb-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                    Stock preset, everything below is read-only. Use “Create editable copy” above to make changes.
+                  <p role="note" className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Stock preset: everything below is read-only. Use “Create editable copy” above to change it.
                   </p>
                 )}
                 <TabsContent value="prompts">
@@ -388,7 +389,6 @@ const MACRO_HINTS = [
 ]
 function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: string) => void }) {
   const updatePreset = useApp((s) => s.updatePreset)
-  const duplicatePreset = useApp((s) => s.duplicatePreset)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [maximizedId, setMaximizedId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -481,18 +481,6 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
           <Plus className="size-3.5" aria-hidden="true" /> Add group
         </Button>
       )}
-      {ro && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-xs">
-          <span className="text-foreground">Stock preset, duplicate to edit.</span>
-          <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={() => {
-            const id = duplicatePreset(preset.id)
-            onSelect?.(id)
-            toast.success('Duplicated, the copy is editable')
-          }}>
-            <Copy className="size-3.5" aria-hidden="true" />Duplicate
-          </Button>
-        </div>
-      )}
       {ordered.map((s) => {
         const expanded = expandedId === s.id
         return (
@@ -522,20 +510,26 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
                   the drag gesture (touch hold, or browsers that don't
                   synthesize a click after our scroll blocker), so opening
                   must not depend on it. A real button never starts a drag. */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 shrink-0 p-0"
-                disabled={ro}
-                onClick={() => setExpandedId(expanded ? null : s.id)}
-                aria-label={expanded ? `Collapse ${s.name}` : `Edit ${s.name}`}
-                aria-expanded={expanded}
-              >
-                {expanded
-                  ? <CaretDown className="size-4 rotate-180" aria-hidden="true" />
-                  : <PencilSimple className="size-4" aria-hidden="true" />}
-              </Button>
+              {ro ? (
+                // a stock preset cannot be edited: a lock says so, a pencil promised an edit
+                <span className="flex size-8 shrink-0 items-center justify-center text-muted-foreground" role="img" aria-label="Read-only (stock preset)">
+                  <Lock className="size-4" aria-hidden="true" />
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 shrink-0 p-0"
+                  onClick={() => setExpandedId(expanded ? null : s.id)}
+                  aria-label={expanded ? `Collapse ${s.name}` : `Edit ${s.name}`}
+                  aria-expanded={expanded}
+                >
+                  {expanded
+                    ? <CaretDown className="size-4 rotate-180" aria-hidden="true" />
+                    : <PencilSimple className="size-4" aria-hidden="true" />}
+                </Button>
+              )}
             </div>
 
             {/* Expanded editor — Main Prompt is fully editable CUSTOM text

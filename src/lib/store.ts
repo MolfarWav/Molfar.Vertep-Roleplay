@@ -384,7 +384,9 @@ export async function checkSoulProposals(chatId: ID) {
       try { localStorage.setItem(key, String(at)) } catch { /* storage unavailable */ }
       const card = st.characters.find((c) => c.id === cardId)?.name ?? ''
       if (failed) {
-        const reason = String(draft.error).replace(/\s+/g, ' ').slice(0, 120)
+        const raw = String(draft.error).replace(/\s+/g, ' ').slice(0, 120)
+        // the model's answer was not readable JSON: say that in plain words, not the parser's
+        const reason = /not JSON/i.test(raw) ? t('soul.reasonUnreadable', lang) : raw
         toast.warning(t('soul.noticeFailed', lang, { card, reason }), {
           duration: 15_000,
           action: { label: t('soul.open', lang), onClick: () => useApp.getState().openCharacterOnTab(cardId, 'soul') },

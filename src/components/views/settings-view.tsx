@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Archive, BookOpen, MagnifyingGlass, Check, DownloadSimple, UploadSimple, Trash, FileCode, FileImage, FileText, Asterisk as RegexIcon } from '@phosphor-icons/react'
+import { Archive, BookOpen, MagnifyingGlass, Check, DownloadSimple, UploadSimple, Trash, FileCode, FileImage, FileText, Asterisk as RegexIcon, ArrowCounterClockwise, CaretRight } from '@phosphor-icons/react'
 import { ProseColorsSection } from "@/components/settings/prose-colors-section"
 import { CustomCssSection } from "@/components/settings/custom-css-section"
 import { PROSE_FONTS } from "@/components/theme-applier"
@@ -28,6 +28,8 @@ import type { AppSettings } from "@/lib/types"
 import { extractCharaFromPng, regexImport } from "@/lib/interop"
 import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/engine"
 import { cn } from "@/lib/utils"
+import { useConfirm } from "@/components/ui/confirm"
+import { defaultSettings } from "@/lib/seed"
 
 type ControlDef =
   | { kind: "switch"; key: keyof AppSettings; label: string; labelKey?: MsgKey; defaultOn?: boolean }
@@ -38,12 +40,19 @@ interface SectionDef {
   id: string
   label: string
   controls: ControlDef[]
+  /** optional sub-blocks (heading + border each); a control in no group is not shown, so list them all */
+  groups?: { label: string; keys: (keyof AppSettings)[] }[]
 }
 
 const SECTIONS: SectionDef[] = [
   {
     id: "appearance",
     label: "Appearance",
+    groups: [
+      { label: "Text", keys: ["language", "proseFont", "fontScale", "lineSpacing", "paragraphSpacing", "quoteStyle"] },
+      { label: "Layout", keys: ["chatWidth", "uiScale", "avatarScale", "messageSpacing", "hideAvatars", "dayDividers"] },
+      { label: "Motion", keys: ["reducedMotion"] },
+    ],
     controls: [
       // NOTE: no light/dark pick here — the Themes section is the single
       // source of truth (a light theme like Daylight switches the mode).
@@ -102,6 +111,7 @@ export function SettingsView() {
   const section = useApp((s) => s.selectedSettingsSection)
   const setSection = useApp((s) => s.setSettingsSection)
   const isMobile = useIsMobile()
+  const [confirm, confirmDialog] = useConfirm()
   const [query, setQuery] = useState("")
   const [detailOpen, setDetailOpen] = useState(false)
   // deep-links (palette "Settings: …") open the section directly; the plain
@@ -196,10 +206,48 @@ export function SettingsView() {
     )
   }
 
+  // "Restore defaults" for the look fields only: the language follows the
+  // browser, and the theme, colours and custom CSS have their own sections
+  const APPEARANCE_RESET = (SECTIONS.find((x) => x.id === "appearance")?.controls ?? []).map((c) => c.key).filter((k) => k !== "language")
+  const restoreAppearance = () =>
+    void confirm({
+      title: "Restore appearance defaults?",
+      description: "Text, layout and motion settings go back to their defaults. Your language, theme, colours and custom CSS stay as they are.",
+      actionLabel: "Restore",
+      destructive: false,
+    }).then((yes) => {
+      if (!yes) return
+      const d = defaultSettings()
+      updateSettings(Object.fromEntries(APPEARANCE_RESET.map((k) => [k, d[k]])) as Partial<AppSettings>)
+      toast.success("Appearance restored to defaults")
+    })
+
   const renderSection = (s: SectionDef) => (
     <div key={s.id} className="flex flex-col gap-1">
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</h3>
-      <div className="rounded-lg border border-border px-3 py-1.5">{s.controls.map(renderControl)}</div>
+      <div className="mb-1 flex items-center gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</h3>
+        {s.id === "appearance" && !q && (
+          <Button variant="outline" size="sm" className="ml-auto h-8 text-xs max-md:h-10" onClick={restoreAppearance} data-testid="appearance-reset">
+            <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />Restore defaults
+          </Button>
+        )}
+      </div>
+      {s.groups ? (
+        <div className="flex flex-col gap-4">
+          {s.groups.map((g) => {
+            const controls = s.controls.filter((c) => g.keys.includes(c.key))
+            if (!controls.length) return null
+            return (
+              <div key={g.label} className="flex flex-col gap-1">
+                <h4 className="text-xs font-medium text-foreground">{g.label}</h4>
+                <div className="rounded-lg border border-border px-3 py-1.5">{controls.map(renderControl)}</div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border px-3 py-1.5">{s.controls.map(renderControl)}</div>
+      )}
     </div>
   )
 
@@ -266,11 +314,12 @@ export function SettingsView() {
                     type="button"
                     onClick={() => { setQuery(""); setSection(item.id); setDetailOpen(true) }}
                     className={cn(
-                      "flex min-h-11 items-center rounded-md px-3 text-left text-sm transition-colors",
+                      "relative flex min-h-11 items-center rounded-md px-3 text-left text-sm transition-colors max-md:min-h-12 max-md:pr-8",
                       section === item.id && !q ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50",
                     )}
                   >
                     {item.label}
+                    <CaretRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
                   </button>
                 ))}
               </nav>
@@ -300,6 +349,7 @@ export function SettingsView() {
         </ScrollArea>
       }
     />
+    {confirmDialog}
     </SectionPage>
   )
 }

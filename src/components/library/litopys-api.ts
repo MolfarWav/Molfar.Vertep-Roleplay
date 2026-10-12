@@ -336,3 +336,9 @@ export const pinnedOf = (facts: LitFact[], subject: string) =>
 /** 0.9.2: set the chat this one continues (from = null removes the link). Refused (400) for itself, a missing chat or a loop. */
 export const setLitLink = (chatId: string, from: string | null) =>
   post<{ links: Record<string, { from: string; at: number }> }>('/litopys/links', { chatId, from })
+
+/** The chat's character name, unless the title already says it (a new chat is titled with the name: "Dzvinka Dzvinka"). */
+export const distinctName = (title: string, name: string): string => {
+  const n = name.trim()
+  return n && !title.toLowerCase().includes(n.toLowerCase()) ? n : ''
+}

@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { CaretRight, ListChecks } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { InfoTip } from '@/components/ui/info-tip'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -98,11 +99,14 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
       )}
 
       <Collapsible defaultOpen={!!p.profile} className="flex flex-col gap-3 rounded-lg border border-border p-3">
-        <CollapsibleTrigger className="group flex items-center gap-2 text-left text-xs font-semibold uppercase text-muted-foreground">
-          <CaretRight className="size-3.5 transition-transform group-data-[panel-open]:rotate-90" aria-hidden="true" />
-          Profile
-          <span className="font-normal normal-case">fields that write the description</span>
-        </CollapsibleTrigger>
+        <div className="flex items-center gap-1">
+          <CollapsibleTrigger className="group flex items-center gap-2 text-left text-xs font-semibold uppercase text-muted-foreground">
+            <CaretRight className="size-3.5 transition-transform group-data-[panel-open]:rotate-90" aria-hidden="true" />
+            Profile
+            <span className="font-normal normal-case">fields that write the description</span>
+          </CollapsibleTrigger>
+          <InfoTip label="About the profile">Fill in the fields and the description above is written from them, so you do not have to compose it yourself. Turn on Free write to edit the description by hand instead.</InfoTip>
+        </div>
         <CollapsibleContent className="flex flex-col gap-3">
           <label className="flex items-center gap-2 text-xs">
             <Switch checked={!!profile.free} onCheckedChange={(v) => save({ ...profile, free: v })} aria-label="Free write" />

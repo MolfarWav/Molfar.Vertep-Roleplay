@@ -68,6 +68,22 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+/** A value that opens its own section (a preset, a book, a persona). The dotted underline shows it is
+ *  a link without a hover, so a phone user sees it too; a missing target stays plain text. */
+function GoTo({ onClick, label, children }: { onClick: () => void; label: string; children: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={children}
+      className="max-w-full truncate rounded-sm text-left font-medium underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:text-primary hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:py-1.5"
+    >
+      {children}
+    </button>
+  )
+}
+
 /** The right side of the Chats page: what this chat is, how far the story got, its last lines and settings. */
 export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: () => void; onRename: () => void }) {
   const t = useT()
@@ -83,6 +99,11 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
   const ensureChatMessages = useApp((s) => s.ensureChatMessages)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
   const forkAndOpen = useApp((s) => s.forkAndOpen)
+  const openCharacter = useApp((s) => s.openCharacter)
+  const setView = useApp((s) => s.setView)
+  const focusPreset = useApp((s) => s.focusPreset)
+  const focusPersona = useApp((s) => s.focusPersona)
+  const focusLorebook = useApp((s) => s.focusLorebook)
   const [chapters, setChapters] = useState<LitChapter[] | null>(null)
   const [recordOpen, setRecordOpen] = useState(false)
 
@@ -110,7 +131,9 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
   const modelRef = chat.model || appModel || ''
   const model = models.find((m) => m.ref === modelRef)
   const history = shown.reduce((n, m) => n + estimateTokens(m.swipes[m.activeSwipe]?.content), 0)
-  const books = scopeBookIds(lorebooks, chat, characters).map((id) => lorebooks.find((b) => b.id === id)?.name).filter(Boolean) as string[]
+  const books = scopeBookIds(lorebooks, chat, characters).map((id) => lorebooks.find((b) => b.id === id)).filter((b): b is NonNullable<typeof b> => !!b)
+  // a card opens its editor, a group its group editor (the Characters section shows whichever is active)
+  const openCard = (id: string) => { openCharacter(id); setView('characters') }
   const chatFolders = folders.filter((f) => f.scope === 'chats')
   const lastSpeaker = [...chat.messages].reverse().find((m) => m.role === 'assistant' && !m.picture)
 
@@ -136,10 +159,32 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
             />
           )}
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end">
-            <ChatAvatar owner={owner} members={members} size={80} />
+            {owner ? (
+              <button
+                type="button"
+                onClick={() => openCard(owner.id)}
+                aria-label={t(isGroup ? 'chats.panel.openGroup' : 'chats.panel.openCard', { name: owner.name })}
+                className="w-fit shrink-0 rounded-md transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChatAvatar owner={owner} members={members} size={80} />
+              </button>
+            ) : (
+              <ChatAvatar owner={owner} members={members} size={80} />
+            )}
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">
-                <span className={cn('font-medium', isGroup ? 'text-group' : 'text-foreground')}>{owner?.name ?? t('chats.panel.unknown')}</span>
+                {owner ? (
+                  <button
+                    type="button"
+                    onClick={() => openCard(owner.id)}
+                    aria-label={t(isGroup ? 'chats.panel.openGroup' : 'chats.panel.openCard', { name: owner.name })}
+                    className={cn('rounded-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', isGroup ? 'text-group' : 'text-foreground')}
+                  >
+                    {owner.name}
+                  </button>
+                ) : (
+                  <span className="font-medium text-foreground">{t('chats.panel.unknown')}</span>
+                )}
                 {isGroup && <> · {t('chats.panel.groupChat')}</>}
                 {' · '}{t('chats.panel.messages', { n: msgCount })}{' · '}{timeAgo(chat.updatedAt)}
               </p>
@@ -147,10 +192,17 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
               {isGroup && (
                 <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t('chats.panel.members')}>
                   {members.map((m) => (
-                    <li key={m.id} className="flex items-center gap-1.5 rounded-full border border-border bg-background/40 py-0.5 pl-0.5 pr-2 text-xs">
-                      <img src={m.avatar || DEFAULT_AVATAR} alt="" className="size-5 rounded-full object-cover" />
-                      {m.name}
-                      {owner && <span className="size-2 rounded-full" style={{ background: memberColor(owner, m) }} aria-hidden="true" />}
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => openCard(m.id)}
+                        aria-label={t('chats.panel.openCard', { name: m.name })}
+                        className="flex items-center gap-1.5 rounded-full border border-border bg-background/40 py-0.5 pl-0.5 pr-2 text-xs transition-colors hover:border-foreground/40 hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-10 max-sm:pl-1.5 max-sm:pr-3"
+                      >
+                        <img src={m.avatar || DEFAULT_AVATAR} alt="" className="size-5 rounded-full object-cover" />
+                        {m.name}
+                        {owner && <span className="size-2 rounded-full" style={{ background: memberColor(owner, m) }} aria-hidden="true" />}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -242,8 +294,12 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
 
         <Section icon={<Users className="size-4" weight="fill" />} title={t('chats.panel.details')}>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-3">
-            <Detail label={t('chats.panel.persona')}>{persona?.name ?? '—'}</Detail>
-            <Detail label={t('chats.panel.preset')}>{preset?.name ?? '—'}</Detail>
+            <Detail label={t('chats.panel.persona')}>
+              {persona ? <GoTo onClick={() => focusPersona(persona.id)} label={t('chats.panel.openPersona', { name: persona.name })}>{persona.name}</GoTo> : '—'}
+            </Detail>
+            <Detail label={t('chats.panel.preset')}>
+              {preset ? <GoTo onClick={() => focusPreset(preset.id)} label={t('chats.panel.openPreset', { name: preset.name })}>{preset.name}</GoTo> : '—'}
+            </Detail>
             <Detail label={t('chats.panel.model')}>{model ? model.id : modelRef.replace(/^c_[^/]*\//, '') || '—'}</Detail>
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">{t('chats.panel.history')}</dt>
@@ -256,7 +312,20 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
                 </div>
               ) : null}
             </div>
-            <Detail label={t('chats.panel.books')}>{books.length ? books.join(', ') : '—'}</Detail>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{t('chats.panel.books')}</dt>
+              <dd className="text-sm">
+                {books.length ? (
+                  <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    {books.map((b) => (
+                      <li key={b.id} className="min-w-0 max-w-full">
+                        <GoTo onClick={() => focusLorebook(b.id)} label={t('chats.panel.openBook', { name: b.name })}>{b.name}</GoTo>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <span className="font-medium">—</span>}
+              </dd>
+            </div>
             {isGroup ? (
               <Detail label={t('chats.panel.turns')}>{t(owner?.group?.generationMode === 'narrator' ? 'chats.panel.turnsNarrator' : 'chats.panel.turnsEach')}</Detail>
             ) : (

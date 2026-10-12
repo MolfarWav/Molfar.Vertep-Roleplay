@@ -638,14 +638,30 @@ export const MessageRow = memo(function MessageRow({
     </DropdownMenu>
   )
 
+  // the group's own (narrator) reply: the card's avatar is the first member's, so show the members together unless the group has its own picture
+  const narratorMembers = !isUser && speaker && 'isGroup' in speaker && speaker.isGroup && !speaker.group?.avatar
+    ? (speaker.group?.memberIds ?? []).map((id) => characters.find((m) => m.id === id)).filter((m): m is Character => !!m).slice(0, 4)
+    : []
   const portrait = (
     <div className="ls-arch">
-      <img
-        src={shownAvatar || DEFAULT_AVATAR}
-        alt=""
-        draggable={false}
-        onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
-      />
+      {narratorMembers.length > 1 ? (
+        <div
+          className={cn('grid size-full gap-px overflow-hidden bg-group', narratorMembers.length > 2 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2')}
+          style={{ borderRadius: 'calc(var(--ls-av-w) / 2 - 3px) calc(var(--ls-av-w) / 2 - 3px) 0 0' }}
+          data-testid="narrator-collage"
+        >
+          {narratorMembers.map((m, i) => (
+            <img key={m.id} src={m.avatar || DEFAULT_AVATAR} alt="" draggable={false} className={cn('size-full min-h-0 min-w-0 object-cover', narratorMembers.length === 3 && i === 0 && 'row-span-2')} />
+          ))}
+        </div>
+      ) : (
+        <img
+          src={shownAvatar || DEFAULT_AVATAR}
+          alt=""
+          draggable={false}
+          onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
+        />
+      )}
     </div>
   )
 

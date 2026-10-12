@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pager, clampPage } from '@/components/ui/pager'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
+import { FieldDescription } from '@/components/ui/field'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -184,11 +185,22 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     if (n) { up({ gallery: items }); toast.success(`Added ${n} item${n > 1 ? 's' : ''}`) }
   }
 
-  const up = (patch: Partial<Character>) => { if (!preview) updateCharacter(c.id, patch) }
+  // every edit is written at once; "Saved" shows for a moment so the user knows there is no Save button to find
+  const [savedFlash, setSavedFlash] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
+  const up = (patch: Partial<Character>) => {
+    if (preview) return
+    updateCharacter(c.id, patch)
+    setSavedFlash(true)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    savedTimer.current = setTimeout(() => setSavedFlash(false), 2500)
+  }
   const lightboxIndex = c.gallery.findIndex((g) => g.id === lightboxId)
   const lightboxItem = lightboxIndex >= 0 ? c.gallery[lightboxIndex]! : null
   const totalTokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue + c.systemPromptOverride + c.postHistoryInstructions)
   const permanentTokens = estimateTokens(c.description + c.personality)
+  const chatCount = chats.filter((ch) => ch.characterId === c.id).length
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -210,9 +222,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         <img src={c.avatar || DEFAULT_AVATAR} alt="" className="size-8 rounded-md object-cover" />
         <h1 className="text-sm font-semibold" style={{ color: c.colors.name || undefined }}>{c.name}</h1>
         {!c.isGroup && <CardKindMenu c={c} />}
-        <Badge variant="secondary">{formatTokens(totalTokens)} tok</Badge>
-        <Badge variant="outline">{formatTokens(permanentTokens)} permanent</Badge>
-        <Badge variant="outline">{chats.filter((ch) => ch.characterId === c.id).length} chats</Badge>
+        <Badge variant="secondary" title="Estimated size of the whole card">{formatTokens(totalTokens)} tokens</Badge>
+        <Badge variant="outline" title="Description and personality: sent with every reply">{formatTokens(permanentTokens)} permanent tokens</Badge>
+        <Badge variant="outline">{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</Badge>
         {/* the id is the card's folder: what to give Molfar so it edits this
             card and not one with a similar name */}
         <button
@@ -239,6 +251,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.versionsShort')}</span>
           </Button>
+          <span role="status" aria-live="polite" className="flex min-w-16 items-center gap-1 text-[11px] text-muted-foreground">
+            {savedFlash && !preview && <><Check className="size-3.5 text-primary" aria-hidden="true" />Saved</>}
+          </span>
           <Button variant="ghost" size="sm" onClick={() => setTokenReportOpen(true)}>Token report</Button>
           {/* a group is not a card: no copy, no card export */}
           {!c.isGroup && (
@@ -380,12 +395,13 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
             <TabsContent value="advanced" className="flex flex-col gap-4">
               <Field label="System prompt override" value={c.systemPromptOverride} onChange={(v) => up({ systemPromptOverride: v })} rows={3} />
-              <Field label="Post-history instructions" value={c.postHistoryInstructions} onChange={(v) => up({ postHistoryInstructions: v })} rows={3} />
+              <Field label="Post-history instructions" description="Sent after the chat history, right before the reply. Good for reminders the model must not forget." value={c.postHistoryInstructions} onChange={(v) => up({ postHistoryInstructions: v })} rows={3} />
               <div className="grid gap-3 sm:grid-cols-[1fr_100px_140px]">
-                <Field label="Depth prompt" value={c.depthPrompt.text} onChange={(v) => up({ depthPrompt: { ...c.depthPrompt, text: v } })} rows={2} />
+                <Field label="Depth prompt" description="A note placed inside the chat history instead of at the top." value={c.depthPrompt.text} onChange={(v) => up({ depthPrompt: { ...c.depthPrompt, text: v } })} rows={2} />
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">@ depth</Label>
                   <Input type="number" value={c.depthPrompt.depth} onChange={(e) => up({ depthPrompt: { ...c.depthPrompt, depth: Number(e.target.value) } })} aria-label="Depth" />
+                  <FieldDescription className="text-[11px]">Messages from the end (0 = last).</FieldDescription>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">Role</Label>
@@ -397,6 +413,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       <SelectItem value="assistant">assistant</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldDescription className="text-[11px]">Who the note speaks as. “system” is usual.</FieldDescription>
                 </div>
               </div>
               <VariantField
@@ -801,8 +818,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   )
 }
 
-function Field({ label, hint, value, onChange, rows = 3, mono = false }: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void; rows?: number; mono?: boolean
+function Field({ label, hint, description, value, onChange, rows = 3, mono = false }: {
+  label: string; hint?: string; description?: string; value: string; onChange: (v: string) => void; rows?: number; mono?: boolean
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -812,6 +829,7 @@ function Field({ label, hint, value, onChange, rows = 3, mono = false }: {
         {hint && <span className="font-normal text-muted-foreground">{hint}</span>}
       </Label>
       <Textarea value={value} rows={rows} onChange={(e) => onChange(e.target.value)} aria-label={label} className={mono ? 'font-mono text-xs' : 'text-sm'} />
+      {description && <FieldDescription className="text-[11px]">{description}</FieldDescription>}
     </div>
   )
 }

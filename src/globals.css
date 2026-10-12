@@ -590,8 +590,8 @@ h1 {
   height: 15px;
 }
 .look-stage .ls-acts.is-touch .ls-act {
-  min-width: 36px;
-  height: 36px;
+  min-width: 40px;
+  height: 40px;
   padding: 0 8px;
 }
 .look-stage .ls-acts.is-touch .ls-act-label {
@@ -692,7 +692,8 @@ h1 {
     display: none;
   }
   .look-stage .ls-act {
-    min-width: 32px;
+    min-width: 40px;
+    height: 40px;
     padding: 0 6px;
   }
   .look-stage .ls-scene b {

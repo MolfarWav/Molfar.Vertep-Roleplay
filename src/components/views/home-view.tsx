@@ -1,9 +1,10 @@
 import { Plus } from '@phosphor-icons/react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
-import { shortModel } from '@/lib/utils'
+import { cn, shortModel } from '@/lib/utils'
 import { canAskMolfar, canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import { SectionPage } from '@/components/shell/section-page'
 import { HomeHero } from '@/components/home/home-hero'
@@ -16,15 +17,25 @@ export function HomeView() {
   const model = useApp((s) => s.model)
   const setView = useApp((s) => s.setView)
   const molfar = canAskMolfar()
+  // the hero shows New character / Import card / With Molfar while there is no chat to continue:
+  // the Create card would repeat the same three buttons
+  const heroCreates = useApp((s) => {
+    const last = [...s.chats].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    return !last || !s.characters.some((c) => c.id === last.characterId)
+  })
 
   const actions = (
     <>
       <button
         type="button"
         // 0.9.2: models are chosen and set up in the shell's Settings
-        onClick={() => { if (canOpenModelSettings()) void openModelSettings(model).catch(() => undefined) }}
-        className="hidden max-w-[16rem] truncate rounded-[3px] border border-border bg-secondary px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-foreground sm:block"
-        aria-label={t('nav.connections')}
+        onClick={() => {
+          const hint = () => toast.info('Models are set up in the main Settings, under Connections.')
+          if (!canOpenModelSettings()) { hint(); return }
+          void openModelSettings(model).catch(hint)
+        }}
+        className="block max-w-[9rem] truncate rounded-[3px] border border-border bg-secondary px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-foreground max-md:h-10 sm:max-w-[16rem]"
+        aria-label={`${t('nav.connections')}: ${shortModel(model ?? '') || t('home.noModel')}`}
       >
         {shortModel(model ?? '') || t('home.noModel')}
       </button>
@@ -39,8 +50,10 @@ export function HomeView() {
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-5 px-4 py-4 md:px-8 md:py-6">
           <HomeHero />
-          <div className={molfar ? 'grid gap-4 md:grid-cols-[1.15fr_1.15fr_0.9fr]' : 'grid gap-4 md:grid-cols-[1.15fr_0.9fr]'}>
-            <CreateBlock />
+          <div className={cn('grid gap-4', heroCreates
+            ? molfar ? 'md:grid-cols-[1.15fr_0.9fr]' : 'md:grid-cols-1'
+            : molfar ? 'md:grid-cols-[1.15fr_1.15fr_0.9fr]' : 'md:grid-cols-[1.15fr_0.9fr]')}>
+            {!heroCreates && <CreateBlock />}
             {molfar && <AskMolfarBlock />}
             <AchievementsBlock />
           </div>
