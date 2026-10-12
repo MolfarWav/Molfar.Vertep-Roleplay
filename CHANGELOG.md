@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.38.0
+
+Groups write their own scene, and the Chats page shows what each chat is about. Works on Molfar Vertep 1.0.0 and later.
+
+- Group editor, Scene tab: "Generate the scenario" writes the shared scenario, either from the members' cards or as something wild, with an optional wish (its language sets the scenario's language). "Generate opening" then writes openings from that scenario, one at a time and unlike the ones the group already has. Each result is a draft you can edit, use, retry or discard; nothing on the group changes until you accept it. The model of the group's latest chat writes it (else the app's chat model). Muted members are left out.
+- Chats page: the list sits on the left, grouped into Pinned, Today, This week and Earlier, each heading in its own colour, with One-on-one / Groups filters, three sorts and Select for moving or deleting several chats at once. The right side shows the picked chat: Continue, Pin, New chat, the story so far from Litopys, the last three messages in each speaker's colour, and its persona, preset, model, history size, lorebooks and turns. On a phone the panel opens after a tap.
+- Chats can be pinned to the top of the Chats page (a `pinned` flag on the chat; pinning does not count as activity).
+
 ## 4.37.0
 
 A UI round: groups get their own colour, FRANKENX's prose language is a pick, group members differ in how much they talk, and Molfar writes cards into the Profile tab's fields. No engine change needed.
