@@ -570,13 +570,15 @@ export const DEFAULT_PROMPTS = {
   // fast mode: what the story model is told about the state tag; the sensor's rules, the event list, the output shape and
   // the previous state are added in code (see fastInstructions)
   fast:
-    "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
+    "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
 // The defaults before every text value went English (2026-10-07): the story's language.
 const SENSOR_PROMPT_7 = DEFAULT_PROMPTS.sensor
   .replace("Write every text value in English, whatever language the story is written in. Keep every name exactly as the story spells it, in its own script: never translate or transliterate a name. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given.", "Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.")
   .replace("label: 2 to 5 words in English naming the new scene; only when new is true.", "label: 2 to 5 words naming the new scene, in the language of the story; only when new is true.");
-const FAST_PROMPT_1 = DEFAULT_PROMPTS.fast.replace("Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script.", "Write every text value in the language the story is written in. Keep ids, keys and enum values exactly as given, and every name as the story spells it.");
+// The fast note before it said the story keeps its own language (2026-10-12): a small model wrote the story in English too.
+const FAST_PROMPT_2 = DEFAULT_PROMPTS.fast.replace(" The story itself stays in its own language: only the JSON is in English.", "");
+const FAST_PROMPT_1 = FAST_PROMPT_2.replace("Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script.", "Write every text value in the language the story is written in. Keep ids, keys and enum values exactly as given, and every name as the story spells it.");
 // The sensor prompt in blocks the user can edit one by one: the default is cut at its headings
 // (blank-line paragraphs), and the blocks joined with a blank line give the default back exactly.
 export const SENSOR_PARTS = [
@@ -611,7 +613,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -1983,7 +1985,8 @@ const parseObj = (body) => {
 
 /** The sensor's JSON. A reply cut off mid-way keeps its complete fields, marked `__partial`. */
 export function parseSensorText(text) {
-  let s = String(text || "").trim();
+  // a model that writes its thinking inline (no reasoning tags in the preset) puts it first; braces in it are not the answer
+  let s = String(text || "").replace(/^\s*<(think|thinking|reasoning)>[\s\S]*?<\/\1>/i, "").trim();
   const fence = /```(?:json)?\s*([\s\S]*?)(?:```|$)/i.exec(s);
   if (fence) s = fence[1];
   const { body, cuts } = firstObject(s);
@@ -2520,6 +2523,46 @@ function soulModel(fsx, cfg, meta) {
   return str(cfg.sensorModel) || str(meta && meta.model) || (isObj(settings) ? str(settings.model) : "");
 }
 
+/** The preset a chat replies with (the default preset when there is no chat), as the chat plugin picks it. */
+function chatPreset(fsx, meta) {
+  let id = meta && str(meta.presetId);
+  if (!id) {
+    let files = [];
+    try {
+      files = fsx.list("presets").filter((f) => f.endsWith(".json"));
+    } catch {}
+    for (const f of files) {
+      const p = readJson(fsx, "presets/" + f, null);
+      if (isObj(p) && isObj(p.studio) && p.studio.isDefault === true) {
+        id = f.slice(0, -5);
+        break;
+      }
+    }
+  }
+  if (/[\\/]|^\.\.?$/.test(id || "default")) return null;
+  const preset = readJson(fsx, "presets/" + (id || "default") + ".json", null);
+  return isObj(preset) ? preset : null;
+}
+
+/**
+ * The thinking settings of the chat's preset, for the dashboard's own calls. Without them a
+ * thinking model thought with no budget and spent the whole reply limit on it: an empty answer
+ * (a local Gemma 4 finetune, 2026-10-12). With a budget, the reply limit grows by it, so the
+ * answer keeps its own room.
+ */
+function callParams(fsx, cfg, meta, temperature) {
+  const preset = chatPreset(fsx, meta);
+  const reasoning = preset && typeof preset.reasoning === "string" && preset.reasoning !== "off" ? preset.reasoning : "";
+  const budget = reasoning && typeof preset.thinkingBudget === "number" && preset.thinkingBudget > 0 ? Math.round(preset.thinkingBudget) : 0;
+  const tags = preset && isObj(preset.reasoningTags) && str(preset.reasoningTags.open) && str(preset.reasoningTags.close) ? { open: preset.reasoningTags.open, close: preset.reasoningTags.close } : null;
+  return {
+    ...(reasoning ? { reasoning } : {}),
+    ...(budget ? { thinkingBudget: budget } : {}),
+    ...(tags ? { reasoningTags: tags } : {}),
+    presetParams: { temperature, max_tokens: maxTokensOf(cfg) + budget },
+  };
+}
+
 function askSoul(host, cfg, cardId, meta, key, opts) {
   const fsx = host.fs;
   const o = isObj(opts) ? opts : {};
@@ -2530,15 +2573,27 @@ function askSoul(host, cfg, cardId, meta, key, opts) {
     ...(model ? { model } : {}),
     systemPrompt: soulSystem(cfg, loadVocab(fsx)),
     messages: [{ role: "user", content: soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName, rateNames }) }],
-    presetParams: { temperature: 0.3, max_tokens: maxTokensOf(cfg) },
+    ...callParams(fsx, cfg, meta, 0.3),
   });
+}
+
+/**
+ * Why a reply gave nothing to read. A thinking model that ran out of room leaves its thoughts
+ * and no answer: say so, with what to change, instead of "returned nothing".
+ */
+function emptyReplyError(r, what) {
+  if (r.error) return String(r.error);
+  if (str(r.reasoning)) {
+    return what + " spent its whole reply limit thinking and wrote no answer. Give the chat's preset a thinking budget, turn thinking off for this model, or raise the dashboard's reply limit.";
+  }
+  return what + " returned nothing";
 }
 
 /** The reply of the rating call as a proposal; a failure becomes a proposal with an error. */
 function draftFromReply(reply) {
   const r = isObj(reply) ? reply : {};
   const fail = (message) => normalizeDraft({ v: 1, at: Date.now(), by: "auto", characters: {}, error: message });
-  if (r.error || !str(r.text)) return fail(r.error ? String(r.error) : "the model returned nothing");
+  if (r.error || !str(r.text)) return fail(emptyReplyError(r, "the model"));
   const out = parseSensorText(r.text);
   if (!out) return fail("the reply was not JSON");
   if (!isObj(out.characters)) return fail("the reply had no characters");
@@ -2640,7 +2695,7 @@ function askSensor(host, ctx, key) {
     ...(model ? { model } : {}),
     systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),
     messages: [{ role: "user", content: sensorUser(ctx) }],
-    presetParams: { temperature: 0.2, max_tokens: maxTokensOf(ctx.cfg) },
+    ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0.2),
   });
 }
 
@@ -2663,7 +2718,7 @@ const isRateLimit = (r) => /429|rate.?limit/i.test(String(r.error || ""));
 
 /** The reply is in: parse it, build the snapshot, write once. */
 function commitUpdate(fsx, ctx, r) {
-  if (r.error || !str(r.text)) return failUpdate(fsx, ctx, r.error ? String(r.error) : "the sensor returned nothing", { raw: String(r.text || "") });
+  if (r.error || !str(r.text)) return failUpdate(fsx, ctx, emptyReplyError(r, "the sensor"), { raw: String(r.text || "") });
   const out = parseSensorText(r.text);
   if (!out) return failUpdate(fsx, ctx, "sensor reply was not JSON", { raw: String(r.text) });
   const unknownIds = [];
@@ -2830,7 +2885,7 @@ export function onTick(ctx, host) {
 // The first live run read the insert as text to retell and walked through every
 // listed character each turn, so the story stood still: say what it is for.
 const CLOSING =
-  "This is background for the next reply, not text to retell: do not restate it, and do not walk through every character each turn. Others present may still act on their own when it fits. Move the story forward; the open threads are there to pull on. Show the state only through behavior, body language, and voice. Never mention numbers, scores, or these notes.";
+  "This is background for the next reply, not text to retell: do not restate it, and do not walk through every character each turn. Others present may still act on their own when it fits. Move the story forward; the open threads are there to pull on. Show the state only through behavior, body language, and voice. Never mention numbers, scores, or these notes. The notes are in English for the app: write the reply in the language the story is written in.";
 const PRONOUNS = {
   she: { their: "her", them: "her", self: "herself" },
   he: { their: "his", them: "him", self: "himself" },

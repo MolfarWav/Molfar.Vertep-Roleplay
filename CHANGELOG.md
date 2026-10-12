@@ -4,6 +4,11 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Dashboard: its sensor and soul rating calls think the way the chat's preset says (level, thinking budget, thinking tags), and a thinking budget adds to the dashboard's reply limit. Before, a thinking model got no budget there, spent the whole limit thinking and gave an empty answer.
+- Dashboard: an answer that is all thinking says so, with what to change, instead of "the sensor returned nothing"; a thinking block written inline before the JSON no longer breaks reading it.
+- Dashboard: importing many cards at once no longer rates each one with a model call; a single imported card is still rated, the rest when first played.
+- Dashboard: the note before each reply, and fast mode's state instruction, say the reply stays in the story's language (the notes are in English, and small models followed them into English).
+
 ## 4.35.0
 
 Group chats: a group has its own card and editor, a narrator mode that voices every member in one reply, and each member's dialogue in its own colour. Works on Molfar Vertep 0.9.7 and later.
