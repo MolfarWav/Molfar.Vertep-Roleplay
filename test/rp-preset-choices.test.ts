@@ -301,7 +301,30 @@ describe("built-in FRANKENX", () => {
     sys = prompt(meta.id);
     expect(sys).not.toContain("# Reasoning Rules");
     expect(sys).toContain('<span style="color:#HEX">');
-    expect(sys).toContain("Write Ukrainian prose");
+    expect(sys).toContain("Write prose in Ukrainian,");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { Prose_Language: "match_user" } });
+    sys = prompt(meta.id);
+    expect(sys).toMatch(/Write prose in the same language as [^{]+'s latest message,/);
+  });
+  it("Prose language is a pick of the 14 interface languages plus the user's own, English by default", () => {
+    const p = JSON.parse(fs.readFileSync(path.join(shipped, "frankenx.json"), "utf8"));
+    const v = p.studio.variables.find((x: { id: string }) => x.id === "var_prose_language");
+    expect(v.type).toBe("choice");
+    expect(v.choices.length).toBe(15);
+    expect(v.choices[0].id).toBe("match_user");
+    expect(v.defaults).toEqual(["English"]);
+  });
+  it("an update from before 4.37.0 turns the old free-text Prose language into the pick, once", () => {
+    const p = JSON.parse(fs.readFileSync(path.join(shipped, "frankenx.json"), "utf8"));
+    const at = p.studio.variables.findIndex((x: { id: string }) => x.id === "var_prose_language");
+    p.studio.variables[at] = { id: "var_prose_language", name: "Prose_Language", label: "Prose language", type: "text", defaultValue: "English", question: "The language replies are written in." };
+    const old = JSON.stringify(p).split("Write prose in {{Prose_Language}}, in the").join("Write {{Prose_Language}} prose in the");
+    fs.writeFileSync(path.join(root, "presets", "mycopy.json"), old);
+    expect(eng.onAppUpdate({ from: "4.36.0", to: "4.37.0" }, h()).upgraded).toContain("presets/mycopy.json prose language");
+    const after = fs.readFileSync(path.join(root, "presets", "mycopy.json"), "utf8");
+    expect(after).not.toContain("Write {{Prose_Language}} prose");
+    expect(JSON.parse(after).studio.variables[at].type).toBe("choice");
+    expect(eng.onAppUpdate({ from: "4.36.0", to: "4.37.0" }, h()).upgraded).not.toContain("presets/mycopy.json prose language");
   });
 });
 

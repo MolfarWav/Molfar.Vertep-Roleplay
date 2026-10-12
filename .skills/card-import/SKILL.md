@@ -19,6 +19,11 @@ Without this skill, imported cards carry platform-specific syntax that this app 
    - New lorebook: one write_file of `apps/roleplay/data/lorebooks/<id>.json` with `"entries": []`, then ONE json_set appending every entry, then append the book id to the card's `/studio/linkedLorebookIds`.
    - Existing card or book: ONE json_set with all edits.
 8. Keep unknown top-level fields and `extensions` of an imported card. Never strip them.
+   Structured sources (a JanitorAI sheet, a plain-text sheet with "Eyes:", "Fears:" lines) map best into the
+   Profile tab's fields (`extensions.molfar_profile`, DATA-FORMATS "The profile"): fill the fields, put prose
+   that fits none in `notes.description` / `notes.personality`, leave `compiled` out and the two texts empty;
+   the app writes them on its next load. A prose card stays prose: the user can press "Structure it" later.
+   A source's talkativeness goes to `extensions.talkativeness` (0..1).
 9. Tell the user what changed, what to try, and what could not be carried over.
 
 ## Core craft rules
@@ -62,6 +67,7 @@ Run in the head, not with tools:
 
 - Every source field has a destination; nothing important silently dropped.
 - Unknown top-level fields and `extensions` kept.
+- A structured source landed in profile fields, not in one text block.
 - Platform syntax removed or converted to plain meaning.
 - The card text is in the language of the source or the language the user asked for.
 - Lorebook entries one topic each; keys in base forms (word forms match on their own).

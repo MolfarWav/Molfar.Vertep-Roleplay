@@ -1959,7 +1959,7 @@ function groupCardOverrides(g, mid, card) {
   if (typeof g.scenario === "string" && g.scenario.trim()) out = { ...out, scenario: g.scenario };
   const ms = g.memberSettings && typeof g.memberSettings === "object" ? g.memberSettings[mid] : null;
   const t = ms ? Number(ms.talkativeness) : NaN;
-  if (ms && ms.talkativeness != null && Number.isFinite(t)) out = { ...out, extensions: { ...(out.extensions || {}), talkativeness: Math.min(1, Math.max(0, t)) } };
+  if (ms && ms.talkativeness != null && Number.isFinite(t)) out = { ...out, extensions: { ...(out.extensions || {}), talkativeness: Math.min(1, Math.max(0, t)) }, __talkSet: true };
   return out;
 }
 /** Book ids a group chat must NOT scan: the group's memberBooks choice ("all" = default, "speaker" =
@@ -2849,12 +2849,35 @@ function promptFormatOf(preset) {
   return pf.custom && typeof pf.custom === "object" ? { promptFormat: pf.custom } : {};
 }
 
-/** How readily a member speaks up unprompted, 0..1 (the card's
- *  talkativeness; 0.5 when the card doesn't say). */
-function talkativeness(card) {
+// Same rule as src/lib/talkativeness.ts (the group editor shows it): keep the two in step.
+const TALK_UP = [
+  "talkative", "chatty", "outgoing", "extrovert", "loud", "bubbly", "energetic", "cheerful", "boisterous", "sociable",
+  "gossip", "witty", "playful", "flirt", "bold", "brash", "confident", "impulsive", "hyperactive", "enthusiastic",
+  "балакуч", "говірк", "галасл", "весел", "енергійн", "товариськ", "комунікабел", "зухвал", "жартівлив", "грайлив", "запальн",
+  "болтлив", "разговорчив", "общительн", "громк", "шумн", "энергичн", "жизнерадост", "дерзк", "кокетлив", "игрив", "вспыльчив",
+];
+const TALK_DOWN = [
+  "shy", "quiet", "reserved", "introvert", "silent", "taciturn", "timid", "aloof", "stoic", "withdrawn", "laconic",
+  "reticent", "unsociable", "soft-spoken", "mute", "brooding", "cold",
+  "мовчазн", "сором", "тих", "стриман", "замкнут", "небагатослів", "лаконічн", "нетовариськ", "відсторонен", "похмур",
+  "застенчив", "молчалив", "сдержан", "нелюдим", "робк", "неразговорчив", "необщительн", "отстранен", "угрюм", "немногослов",
+];
+/** How talkative the card's text makes a character, 0.15..0.9. */
+export function guessTalkativeness(text) {
+  const words = String(text ?? "").toLowerCase().replace(/[’ʼ']/g, "").split(/[^\p{L}\p{N}-]+/u).filter(Boolean);
+  const hits = (stems) => new Set(stems.filter((s) => words.some((w) => w.startsWith(s.replace(/'/g, ""))))).size;
+  const n = 0.5 + 0.1 * (hits(TALK_UP) - hits(TALK_DOWN));
+  return Math.round(Math.min(0.9, Math.max(0.15, n)) * 100) / 100;
+}
+/** How readily a member speaks up unprompted, 0..1: the group's setting for this member, else the
+ *  card's talkativeness, else a guess from the card's text. A card's 0.5 counts as unset: SillyTavern
+ *  writes it into every card, so every member used to weigh the same. */
+export function talkativeness(card) {
+  if (card && card.__talkSet && Number.isFinite(Number(card.extensions && card.extensions.talkativeness))) return Number(card.extensions.talkativeness);
   const raw = card && ((card.extensions && card.extensions.talkativeness) ?? card.talkativeness);
   const n = Number(raw);
-  return raw == null || raw === "" || !Number.isFinite(n) ? 0.5 : Math.min(1, Math.max(0, n));
+  if (raw != null && raw !== "" && Number.isFinite(n) && n !== 0.5) return Math.min(1, Math.max(0, n));
+  return guessTalkativeness(card ? [card.description, card.personality].filter((x) => typeof x === "string").join("\n") : "");
 }
 /** Does the text address this member? The whole name, or any word of it
  *  with 3+ letters, matched as a whole word. Returns the first position, or -1. */
@@ -3186,6 +3209,25 @@ function allTriggersWhereNormalOnly(preset) {
   return { ...preset, studio: { ...preset.studio, sections: sections.map((s) => ({ ...s, injectionTriggers: all })) } };
 }
 
+/** 4.37.0: FRANKENX's "Prose language" was free text; it becomes a pick of the 14 interface languages
+ *  plus "Same as my messages". Old answers that name a language in English ("Ukrainian") stay valid:
+ *  each option's id is that name. Only a preset that still has the old text variable changes. */
+const PROSE_LANGUAGE_VAR = {"id": "var_prose_language", "name": "Prose_Language", "label": "Prose language", "type": "choice", "defaultValue": "", "question": "The language replies are written in. \"Same as my messages\" follows the language you write in.", "choices": [{"id": "match_user", "label": "Same as my messages", "value": "the same language as {{user}}'s latest message"}, {"id": "English", "label": "English", "value": "English"}, {"id": "Ukrainian", "label": "Українська (Ukrainian)", "value": "Ukrainian"}, {"id": "Russian", "label": "Русский (Russian)", "value": "Russian"}, {"id": "German", "label": "Deutsch (German)", "value": "German"}, {"id": "Spanish", "label": "Español (Spanish)", "value": "Spanish"}, {"id": "French", "label": "Français (French)", "value": "French"}, {"id": "Italian", "label": "Italiano (Italian)", "value": "Italian"}, {"id": "Japanese", "label": "日本語 (Japanese)", "value": "Japanese"}, {"id": "Korean", "label": "한국어 (Korean)", "value": "Korean"}, {"id": "Dutch", "label": "Nederlands (Dutch)", "value": "Dutch"}, {"id": "Polish", "label": "Polski (Polish)", "value": "Polish"}, {"id": "Portuguese", "label": "Português (Portuguese)", "value": "Portuguese"}, {"id": "Turkish", "label": "Türkçe (Turkish)", "value": "Turkish"}, {"id": "Chinese", "label": "中文 (Chinese)", "value": "Chinese"}], "defaults": ["English"]};
+function proseLanguageChoice(preset) {
+  const vars = preset && preset.studio && Array.isArray(preset.studio.variables) ? preset.studio.variables : null;
+  const at = vars ? vars.findIndex((v) => v && v.id === "var_prose_language" && v.type === "text") : -1;
+  if (at < 0) return null;
+  const swap = (x) => {
+    if (typeof x === "string") return x.split("Write {{Prose_Language}} prose in the").join("Write prose in {{Prose_Language}}, in the");
+    if (Array.isArray(x)) return x.map(swap);
+    if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, swap(v)]));
+    return x;
+  };
+  const out = swap(preset);
+  out.studio.variables[at] = { ...PROSE_LANGUAGE_VAR, choices: PROSE_LANGUAGE_VAR.choices.map((c) => ({ ...c })), defaults: [...PROSE_LANGUAGE_VAR.defaults] };
+  return out;
+}
+
 /** Run once by the engine after this app's code moved from `from` to `to`.
  *  Every step is idempotent and only reads data an older version wrote. */
 export function onAppUpdate(ctx, host) {
@@ -3197,6 +3239,16 @@ export function onAppUpdate(ctx, host) {
   if (olderThan(from, "4.31.0") && !readJsonFile(fsx, "presets/frankenx.json")) {
     const tpl = readJsonFile(fsx, "presets/_frankenx.json");
     if (tpl) { writeJsonFile(fsx, "presets/frankenx.json", tpl); done.push("presets/frankenx.json"); }
+  }
+  if (olderThan(from, "4.37.0")) {
+    let files = [];
+    try { files = fsx.list("presets").filter((f) => f.endsWith(".json")); } catch { files = []; }
+    for (const f of files) {
+      const out = proseLanguageChoice(readJsonFile(fsx, "presets/" + f));
+      if (!out) continue;
+      writeJsonFile(fsx, "presets/" + f, out);
+      done.push("presets/" + f + " prose language");
+    }
   }
   if (olderThan(from, "4.18.2")) {
     let files = [];

@@ -2,7 +2,12 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## Unreleased (manifest at 4.37.0)
+
+- Characters page: the Characters / Groups switch is two separate tabs with icons and counts; groups have their own colour (violet), also on group tiles, the Group button and group chats in the Chats list (a ring and a small group mark on the picture).
+- FRANKENX: Prose language is a pick instead of free text: the 14 interface languages plus "Same as my messages" (replies follow the language you write in). English stays the default. An update turns the old text field into the pick in every preset that still has it; an old answer written as the English name of a language ("Ukrainian") keeps working.
+- Group chats: talkativeness differs per member. A card without its own value, or with SillyTavern's usual 0.5 (written into nearly every card), gets a guess from its personality (shy, quiet, reserved... versus chatty, loud, outgoing..., in English, Ukrainian and Russian). The group editor shows each member's value on the row, says whether it is the card's or a guess, and its slider starts from that value instead of 50%.
+- Profile tab: a profile written outside the tab (by Molfar) without `compiled` is turned into the card's text on the next load, the old text kept as a version. Molfar's card skills (card-craft, card-import, edit-large-card) now write new and structured cards into the profile fields and set talkativeness.
 
 ## 4.36.0
 

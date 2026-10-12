@@ -26,6 +26,7 @@ import {
 } from './seed'
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
+import { compileIfWrittenElsewhere } from './profile'
 import { shellLocale } from './shell-bridge'
 import {
   j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
@@ -669,6 +670,13 @@ export const useApp = create<AppState>()(
             boot: 'ready', hydrated: true, bootError: null,
             // engine-side UI settings (agent-editable, data/settings.json `ui`)
           })
+          // a profile Molfar (or a hand edit) wrote without `compiled`: write the card's text from it
+          // now, so the prompt carries the new fields (DATA-FORMATS, "The profile"); quiet like the
+          // other hydrate-time repairs, and the old text lands in the card's versions
+          for (const c of solo) {
+            const patch = compileIfWrittenElsewhere(c)
+            if (patch) get().updateCharacter(c.id, patch)
+          }
           if (settings.ui) {
             const ui = settings.ui as Record<string, unknown>
             // Object-valued bags (tts, translation, …) merge ONE level deep:

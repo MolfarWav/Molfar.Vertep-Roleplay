@@ -34,7 +34,7 @@ the top level, not under `data`.
 | `character_version` | Version string of the card. |
 | `tags` | Array of strings. |
 | `avatar` | The portrait as a base64 data URL or a stored media URL. Tens of KB: never print or send it. |
-| `extensions` | Free object for other tools. Known keys: `molfar_card_type` (`narrator`, `single`, `group`, `assistant`, `other`), `molfar_soul` (the dashboard's Soul tab, `docs/SOUL.md`: leave it to that tab). `molfar_profile` (the editor's Profile tab, below). `molfar_translation` (written by Translate: `{ target, provider, at, original: { <field>: <text before the translation> } }`, used by "Restore original"; leave it alone). Imported cards carry others (`world`, `talkativeness`, `fav`, `chub`…): keep them. |
+| `extensions` | Free object for other tools. Known keys: `molfar_card_type` (`narrator`, `single`, `group`, `assistant`, `other`), `molfar_soul` (the dashboard's Soul tab, `docs/SOUL.md`: leave it to that tab). `molfar_profile` (the editor's Profile tab, below). `molfar_translation` (written by Translate: `{ target, provider, at, original: { <field>: <text before the translation> } }`, used by "Restore original"; leave it alone). `talkativeness` (0..1, how readily the character speaks up in a group; missing or SillyTavern's usual 0.5 means unset, and groups then guess it from `description` + `personality`). Imported cards carry others (`world`, `fav`, `chub`…): keep them. |
 | `studio` | The app's own bag, below. |
 
 Unknown top-level fields from an imported card are kept as they are and written back.
@@ -91,8 +91,10 @@ text. Every key is optional; unknown keys are kept. Code: `src/lib/profile.ts`.
 | `compiled` | When the profile last wrote the card and an FNV-1a hash of `description` + `personality` as written. A different hash means the text was edited by hand; the tab then offers to keep the additions, rewrite, or switch to Free write. |
 
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
-alone (the next save in the app would rewrite them), or set `free: true` first. Writing the profile
-does not recompile by itself: the app does that on the next edit in the tab.
+alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
+outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the
+app loads, it writes `description` and `personality` from the profile and keeps the old text as a
+version. A profile that would write nothing is left alone.
 "Structure it" (button in the tab) asks the model to split the card's text into fields and files a
 proposal in `data/profile-drafts/<id>.json` (`kind: "structure"`); accepting it replaces the profile's
 sections, puts the text that fit no field in `notes`, and saves the old text as a version.

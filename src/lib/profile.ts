@@ -227,6 +227,17 @@ export function applyProfile(c: Pick<Character, 'cardExtras'>, profile: Profile,
   return { ...withProfile(c, next), description, personality }
 }
 
+/** A profile written outside the Profile tab (Molfar, a hand edit) leaves `compiled` out: the app
+ *  then writes `description` / `personality` from it on the next load. Returns that patch, or null
+ *  when there is nothing to do (no profile, Free write, already compiled, or it would write nothing). */
+export function compileIfWrittenElsewhere(c: Pick<Character, 'cardExtras'>, now = Date.now()): Partial<Character> | null {
+  const p = profileOf(c)
+  if (!p || p.free || p.compiled) return null
+  const { description, personality } = compileProfile(p)
+  if (!description.trim() && !personality.trim()) return null
+  return applyProfile(c, p, now)
+}
+
 /** A first profile for a card that has none: the card's current text moves into
  *  the notes, so compiling it changes nothing until fields are filled. */
 export function startProfile(c: Pick<Character, 'description' | 'personality'>): Profile {

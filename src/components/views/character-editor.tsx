@@ -41,6 +41,7 @@ import { saveFile } from '@/lib/export'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { Character } from '@/lib/types'
 import { copyText, DEFAULT_AVATAR } from '@/lib/utils'
+import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
 
 function TokenBadge({ text }: { text: string }) {
   return <Badge variant="outline" className="text-[10px] text-muted-foreground">{formatTokens(estimateTokens(text))} tok</Badge>
@@ -422,6 +423,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               </Collapsible>
               <TalkativenessField
                 value={(c.cardExtras?.extensions as { talkativeness?: unknown } | undefined)?.talkativeness}
+                guessFrom={`${c.description}\n${c.personality}`}
                 onChange={(v) => up({ cardExtras: { ...c.cardExtras, extensions: { ...(c.cardExtras?.extensions as Record<string, unknown> | undefined), talkativeness: String(v) } } })}
               />
               <div className="grid grid-cols-2 gap-3">
@@ -815,13 +817,14 @@ function Field({ label, hint, value, onChange, rows = 3, mono = false }: {
 }
 
 /** How readily this character speaks up in a group when nobody names them
- *  (stored where portable cards keep it; 0.5 when a card doesn't say). */
-function TalkativenessField({ value, onChange }: { value: unknown; onChange: (v: number) => void }) {
-  const n = Number(value)
-  const current = value == null || value === '' || !Number.isFinite(n) ? 0.5 : Math.min(1, Math.max(0, n))
+ *  (stored where portable cards keep it). Unset, or SillyTavern's usual 0.5: the groups
+ *  guess it from the card's text, and the slider shows that guess. */
+function TalkativenessField({ value, guessFrom, onChange }: { value: unknown; guessFrom: string; onChange: (v: number) => void }) {
+  const own = cardTalkativeness(value)
+  const current = own ?? guessTalkativeness(guessFrom)
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-xs">Talkativeness in groups: {Math.round(current * 100)}%</Label>
+      <Label className="text-xs">Talkativeness in groups: {Math.round(current * 100)}%{own == null && <span className="font-normal text-muted-foreground"> (guessed from the card)</span>}</Label>
       <Slider value={[current]} min={0} max={1} step={0.05} onValueChange={(v) => onChange(Array.isArray(v) ? v[0]! : (v as number))} aria-label="Talkativeness" />
     </div>
   )

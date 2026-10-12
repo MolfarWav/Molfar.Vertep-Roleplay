@@ -1,6 +1,6 @@
 
 import { useMemo, useState } from 'react'
-import { MagnifyingGlass, Trash, DownloadSimple, GitBranch, Chats, PencilSimple, Plus, X, Folder as FolderIcon, DotsThree } from '@phosphor-icons/react'
+import { MagnifyingGlass, Trash, DownloadSimple, GitBranch, Chats, PencilSimple, Users, Plus, X, Folder as FolderIcon, DotsThree } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -24,7 +24,7 @@ import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { timeAgo } from '@/lib/tokens'
 import { exportChatJSONL, exportChatTxt } from '@/lib/export'
 import { toast } from 'sonner'
-import { DEFAULT_AVATAR } from '@/lib/utils'
+import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 
 export function ChatsView() {
   const chats = useApp((s) => s.chats)
@@ -179,13 +179,21 @@ export function ChatsView() {
               return (
                 <li key={chat.id} className="group flex items-center gap-3 px-4 py-2 hover:bg-accent/50">
                   <button type="button" onClick={() => openChat(chat.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                    <Avatar className="size-9 rounded-md">
-                      <AvatarImage src={char?.avatar || DEFAULT_AVATAR} alt="" />
-                      <AvatarFallback>{char?.name.slice(0, 2)}</AvatarFallback>
-                    </Avatar>
+                    <span className="relative shrink-0">
+                      <Avatar className={cn('size-9 rounded-md', char?.isGroup && 'ring-2 ring-group/70')}>
+                        <AvatarImage src={char?.avatar || DEFAULT_AVATAR} alt="" />
+                        <AvatarFallback>{char?.name.slice(0, 2)}</AvatarFallback>
+                      </Avatar>
+                      {char?.isGroup && (
+                        <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-group text-group-foreground" aria-hidden="true">
+                          <Users className="size-2.5" weight="bold" />
+                        </span>
+                      )}
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2 text-sm font-medium">
-                        {char?.name}
+                        <span className={cn('shrink-0', char?.isGroup && 'text-group')}>{char?.name}</span>
+                        {char?.isGroup && <span className="sr-only">(group chat)</span>}
                         <span className="text-muted-foreground">·</span>
                         <span className="truncate text-muted-foreground">{chat.title}</span>
                         {chat.branches.length > 0 && (

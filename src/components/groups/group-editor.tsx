@@ -60,6 +60,7 @@ import {
 import { useApp } from '@/lib/store'
 import { fileToDataUrl } from '@/lib/engine'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
+import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
 import { useT } from '@/hooks/use-t'
 import { CharacterBooks } from '@/components/character/character-books'
 import type { Character, Chat, GroupConfig, GroupMemberSettings } from '@/lib/types'
@@ -417,6 +418,10 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 const muted = (g.mutedIds ?? []).includes(id)
                 const ms = g.memberSettings?.[id] ?? {}
                 const color = ms.color
+                // the weight the engine really uses: this group's, else the card's, else a guess from its text
+                const ownTalk = cardTalkativeness((m.cardExtras?.extensions as { talkativeness?: unknown } | undefined)?.talkativeness)
+                const baseTalk = ownTalk ?? guessTalkativeness(`${m.description}\n${m.personality}`)
+                const talk = ms.talkativeness ?? baseTalk
                 const isOpen = expanded[id]
 
                 const openingOptions = [
@@ -446,7 +451,12 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                         className="size-10 rounded-md object-cover"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{m.name}</p>
+                        <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                          <span className="truncate">{m.name}</span>
+                          <span className="shrink-0 rounded-full bg-group/15 px-1.5 text-[10px] font-medium tabular-nums text-group" title={t('group.ed.talkativeness')}>
+                            <span className="sr-only">{t('group.ed.talkativeness')}: </span>{Math.round(talk * 100)}%
+                          </span>
+                        </p>
                         {color ? (
                           <div
                             className="mt-1 h-1.5 w-4 rounded-full"
@@ -524,7 +534,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                             <Label>{t('group.ed.talkativeness')}</Label>
                             {ms.talkativeness == null ? (
                               <span className="text-xs text-muted-foreground">
-                                {t('group.ed.cardValue')}
+                                {t(ownTalk == null ? 'group.ed.guessedValue' : 'group.ed.cardValue')}: <span className="tabular-nums text-foreground">{Math.round(baseTalk * 100)}%</span>
                               </span>
                             ) : (
                               <span className="text-xs tabular-nums">
@@ -534,12 +544,14 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                           </div>
                           <TalkSlider
                             key={`${id}-${ms.talkativeness ?? 'card'}`}
-                            value={ms.talkativeness ?? 0.5}
+                            value={talk}
                             onCommit={(val) => patchMemberSetting(id, { talkativeness: val })}
                           />
+                          <p className="text-[11px] leading-snug text-muted-foreground">{t('group.ed.talkHint')}</p>
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={ms.talkativeness == null}
                             onClick={() => resetMemberKey(id, 'talkativeness')}
                           >
                             {t('group.ed.useCardValue')}

@@ -37,6 +37,8 @@
   --color-primary: var(--primary);
   --color-cta-foreground: var(--cta-foreground);
   --color-cta: var(--cta);
+  --color-group: var(--group);
+  --color-group-foreground: var(--group-foreground);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -69,6 +71,9 @@
   /* second accent (primary button, active nav icon): follows the primary unless a theme sets it */
   --cta: var(--primary);
   --cta-foreground: var(--primary-foreground);
+  /* group chats and groups: one hue no theme sets, so a group never looks like a single character */
+  --group: #7c4dde;
+  --group-foreground: #ffffff;
   --secondary: #f1f1f2;
   --secondary-foreground: #161616;
   --muted: #f1f1f2;
@@ -109,6 +114,8 @@
   --primary-foreground: #0d1f14;
   --cta: var(--primary);
   --cta-foreground: var(--primary-foreground);
+  --group: #a58bf5;
+  --group-foreground: #16102a;
   --secondary: #202020;
   --secondary-foreground: #e6e6e6;
   --muted: #1f1f1f;

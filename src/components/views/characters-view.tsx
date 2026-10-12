@@ -211,12 +211,32 @@ export function CharactersView() {
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
         <PaneTitle section="characters" count={shownCount} />
-        <div role="group" aria-label={t('groups.switch')} className="flex rounded-md border border-border p-0.5">
-          {(['characters', 'groups'] as const).map((m) => (
-            <Button key={m} variant={mode === m ? 'secondary' : 'ghost'} size="sm" className="h-6 px-2.5 text-xs" aria-pressed={mode === m} onClick={() => setMode(m)}>
-              {t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}
-            </Button>
-          ))}
+        {/* two clearly separate tabs, each in its own colour: characters take the
+            theme's accent, groups the group hue the group tiles and group chats share */}
+        <div role="group" aria-label={t('groups.switch')} className="flex gap-1">
+          {(['characters', 'groups'] as const).map((m) => {
+            const on = mode === m
+            const Icon = m === 'groups' ? Users : UserCircle
+            const n = m === 'groups' ? groupCards.length : soloCards.length
+            return (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={on}
+                onClick={() => { setMode(m); setPage(0) }}
+                className={cn(
+                  'flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors max-md:h-10',
+                  on
+                    ? m === 'groups' ? 'border-group/60 bg-group/15 text-group' : 'border-primary/60 bg-primary/15 text-primary'
+                    : 'border-border text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                )}
+              >
+                <Icon className="size-4" weight={on ? 'fill' : 'regular'} aria-hidden="true" />
+                {t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}
+                <span className={cn('rounded-full px-1.5 text-[10px] tabular-nums', on ? 'bg-background/60' : 'bg-muted')}>{n}</span>
+              </button>
+            )
+          })}
         </div>
         <div className="relative order-last w-full md:order-none md:w-64">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -270,7 +290,7 @@ export function CharactersView() {
             </DropdownMenuContent>
           </DropdownMenu>
           </>)}
-          <Button variant={mode === 'groups' ? 'default' : 'outline'} size="sm" onClick={() => setGroupOpen(true)}>
+          <Button variant="outline" size="sm" className={cn(mode === 'groups' ? 'border-transparent bg-group text-group-foreground hover:bg-group/85 hover:text-group-foreground' : 'border-group/50 text-group hover:bg-group/10 hover:text-group')} onClick={() => setGroupOpen(true)}>
             <Users className="size-4" aria-hidden="true" />{mode === 'groups' ? t('groups.create') : 'Group'}
           </Button>
           {mode === 'characters' && (
@@ -377,7 +397,7 @@ export function CharactersView() {
                       <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: readableNameColor(c.colors.name) }}>
                         {c.name}
                         {c.favorite && <Star weight="fill" className="size-3 text-primary" aria-hidden="true" />}
-                        {c.isGroup && <Badge variant="outline" className="text-[10px]">group</Badge>}
+                        {c.isGroup && <Badge variant="outline" className="border-group/50 text-[10px] text-group">group</Badge>}
                       </span>
                       <CardKindBadge type={cardTypeOf(c)} className="w-fit" />
                       <span className="text-[11px] text-muted-foreground">
@@ -585,7 +605,7 @@ function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
         const members = (c.group?.memberIds ?? []).map((id) => characters.find((m) => m.id === id)).filter((m): m is Character => !!m)
         const chatCount = chats.filter((ch) => ch.characterId === c.id).length
         return (
-          <div key={c.id} className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50">
+          <div key={c.id} className="group relative flex flex-col overflow-hidden rounded-lg border border-group/35 bg-card transition-colors hover:border-group">
             <button type="button" className="flex flex-col text-left" onClick={() => openCharacter(c.id)}>
               {c.group?.avatar ? (
                 <img src={c.group.avatar} alt="" className="aspect-square w-full object-cover" />
@@ -602,7 +622,7 @@ function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
                   {c.favorite && <Star weight="fill" className="size-3 shrink-0 text-primary" aria-hidden="true" />}
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-0.5"><Users className="size-3" aria-hidden="true" />{members.length}</span>
+                  <span className="flex items-center gap-0.5 font-medium text-group"><Users className="size-3" weight="fill" aria-hidden="true" />{members.length}</span>
                   <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount}</span>
                 </span>
               </span>
