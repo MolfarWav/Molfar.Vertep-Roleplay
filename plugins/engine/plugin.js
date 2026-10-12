@@ -2001,13 +2001,49 @@ function chatVoices(g, members, groupId) {
   return isNarratorGroup(g) && groupId ? [...members, narratorVoice(g, groupId)] : members;
 }
 
+/** A chat's own turn settings (meta.turns): any of these keys overrides the
+ *  group's default for that chat only; a missing key follows the group. */
+const TURN_MODES = ["natural", "list", "manual"];
+const TURN_GEN_MODES = ["narrator", "swap", "append"];
+function cleanTurns(t) {
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const out = {};
+  if (TURN_GEN_MODES.includes(t.generationMode)) out.generationMode = t.generationMode;
+  if (TURN_MODES.includes(t.mode)) out.mode = t.mode;
+  if (typeof t.allowSelfResponses === "boolean") out.allowSelfResponses = t.allowSelfResponses;
+  if (typeof t.autoMode === "boolean") out.autoMode = t.autoMode;
+  if (Number.isFinite(t.autoDelaySec)) out.autoDelaySec = Math.min(120, Math.max(1, Math.round(t.autoDelaySec)));
+  if (Array.isArray(t.mutedIds)) out.mutedIds = [...new Set(t.mutedIds.filter((x) => typeof x === "string" && x))];
+  if (Array.isArray(t.order)) out.order = [...new Set(t.order.filter((x) => typeof x === "string" && x))];
+  return Object.keys(out).length ? out : null;
+}
+/** The group as this chat plays it: the group file with the chat's own turn
+ *  settings on top. The order override keeps only current members and puts
+ *  members added since at the end. */
+function withChatTurns(g, meta) {
+  const t = g && meta ? cleanTurns(meta.turns) : null;
+  if (!t) return g;
+  const { order, ...rest } = t;
+  const out = { ...g, ...rest };
+  if (order) {
+    const ids = Array.isArray(g.memberIds) ? g.memberIds : [];
+    out.memberIds = [...order.filter((id) => ids.includes(id)), ...ids.filter((id) => !order.includes(id))];
+  }
+  return out;
+}
+function chatGroup(fsx, meta) {
+  if (!meta || !meta.groupId) return null;
+  let g = null;
+  try { g = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {}
+  return g ? withChatTurns(g, meta) : null;
+}
+
 function chatMembers(fsx, meta) {
   // returns [{id, name, card}] the bots participating in this chat, each card
   // resolved through the chat's own field-variant selection
   const sel = meta.fieldVariantSelection;
   if (meta.groupId) {
-    let g = null;
-    try { g = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {}
+    const g = chatGroup(fsx, meta);
     if (!g) return [];
     const out = [];
     for (const mid of g.memberIds || []) {
@@ -2200,7 +2236,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
-      excludeBookIds: meta.groupId ? groupExcludedBookIds(readJsonFile(fsx, "groups/" + meta.groupId + ".json"), members, (!narrating && speaker && speaker.id) || null) : [],
+      excludeBookIds: meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [],
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -2230,8 +2266,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // card's system_prompt (when present) wins over it.
   // generationMode "append": every member's card joins the prompt (labeled),
   // not just the speaker's — muted members stay out unless they're speaking.
-  let groupCfg = null;
-  if (meta.groupId) { try { groupCfg = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {} }
+  const groupCfg = chatGroup(fsx, meta);
   // narrator mode joins the cards the same way; there {{char}} in a card means that card
   const rosterMembers = isGroup && groupCfg && (groupCfg.generationMode === "append" || narrating)
     ? members.filter((m) => !((groupCfg.mutedIds || []).includes(m.id)) || (speaker && m.id === speaker.id))
@@ -3582,7 +3617,7 @@ export function handleRoute(req, host) {
     const scanVecPeek = host.llm.embedResults && Array.isArray(host.llm.embedResults.scan) && host.llm.embedResults.scan[0] ? host.llm.embedResults.scan[0] : null;
     // the speaker a real generation from this point would use: the peeked
     // reply's own author, else the group's next in rotation
-    const peekGroup = chat.meta.groupId ? readJson("groups/" + chat.meta.groupId + ".json", null) : null;
+    const peekGroup = chatGroup(fsx, chat.meta);
     const peeked = b.messageId ? chat.msgs.find((m) => m.id === b.messageId) : null;
     const lastReply = [...msgs].reverse().find((m) => m.role === "char" && !m.picture);
     const peekVoices = chatVoices(peekGroup, members, chat.meta.groupId);
@@ -3630,7 +3665,7 @@ export function handleRoute(req, host) {
     const lead = members[0] || null;
     // the scope the app sends before each generation (global books + the
     // cards' own and linked ones): a chat with no send yet has none stored
-    const peekGroupCfg = chat.meta.groupId ? readJson("groups/" + chat.meta.groupId + ".json", null) : null;
+    const peekGroupCfg = chatGroup(fsx, chat.meta);
     const globalIds = (() => {
       try {
         return fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
@@ -4157,6 +4192,8 @@ export function handleRoute(req, host) {
         userName,
         authorNote: null,
         lorebookIds: [],
+        // a group chat's own turn settings, picked when it was started
+        ...(b.groupId && cleanTurns(b.turns) ? { turns: cleanTurns(b.turns) } : {}),
         createdAt: Date.now(), updatedAt: Date.now(),
       };
       // seed the greeting (all greetings as swipes → swipe chevrons rotate them)
@@ -4173,7 +4210,7 @@ export function handleRoute(req, host) {
         }
       }
       if (meta.groupId) {
-        const g = readJson("groups/" + meta.groupId + ".json", null);
+        const g = chatGroup(fsx, meta);
         if (g) {
           meta.title = g.name;
           if (b.openingMessage && String(b.openingMessage).trim()) {
@@ -4222,7 +4259,7 @@ export function handleRoute(req, host) {
     if (!chat) return err(404, "chat not found");
     const meta = chat.meta;
     const members = chatMembers(fsx, meta);
-    const group = meta.groupId ? readJson("groups/" + meta.groupId + ".json", null) : null;
+    const group = chatGroup(fsx, meta);
     // who a reply can come from: the members, and the narrator in narrator mode
     const voices = chatVoices(group, members, meta.groupId);
     const modelOf = () => (body().model != null ? body().model : meta.model);
@@ -4325,7 +4362,14 @@ const toolX = (r) => ({
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
         "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "temporary",
         "fieldVariantSelection", "parentChatId", "parentMessageId"];
-      if (keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      // turns: the chat's own turn settings, replaced whole; null or {} = follow the group
+      const turns = "turns" in b ? cleanTurns(b.turns) : undefined;
+      const turnsSame = turns === undefined || same(turns, meta.turns);
+      if (turnsSame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      if (!turnsSame) {
+        if (turns) meta.turns = turns;
+        else delete meta.turns;
+      }
       const prevPersonaId = meta.personaId;
       for (const k of keys) {
         if (k in b) meta[k] = b[k];
@@ -4428,7 +4472,8 @@ const toolX = (r) => ({
         ...(Array.isArray(body().attachments) && body().attachments.length ? { attachments: body().attachments } : {}),
       } : null;
       // manual-trigger groups: user message only, no generation
-      if (group && group.mode === "manual") {
+      // (the narrator voices everyone, so it answers whatever "who answers" says)
+      if (group && group.mode === "manual" && !isNarratorGroup(group)) {
         if (!userMsg) return err(400, "nothing to send");
         chat.msgs.push(userMsg);
         applyStashVars(req, meta);

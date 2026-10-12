@@ -7,7 +7,7 @@ import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/c
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { formatTokens } from '@/lib/tokens'
-import type { ID, PresetMemory } from '@/lib/types'
+import type { ChatTurns, ID, PresetMemory } from '@/lib/types'
 
 /**
  * The short step before a chat starts: pick the preset and its options for this chat. It opens with the
@@ -35,6 +35,9 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [presetId, setPresetId] = useState<ID>(defaultId)
   const [values, setValues] = useState<PresetValues>({})
   const [dontAsk, setDontAsk] = useState(false)
+  // a group chat: how its members answer, the group's default unless changed here
+  const groupMode = character?.group?.generationMode ?? 'swap'
+  const [genMode, setGenMode] = useState<NonNullable<ChatTurns['generationMode']>>(groupMode)
 
   // the character's memory (single characters only)
   useEffect(() => {
@@ -62,7 +65,10 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
     if (!preset || !ready) return
     if (dontAsk) updateSettings({ askPresetOnNewChat: false })
     closeNewChatStep()
-    void startChatWith(charId, greetingIndex, { presetId: preset.id, presetVars: values })
+    void startChatWith(charId, greetingIndex, {
+      presetId: preset.id, presetVars: values,
+      ...(character?.isGroup && genMode !== groupMode ? { turns: { generationMode: genMode } } : {}),
+    })
   }
 
   const pickPreset = (id: ID) => {
@@ -101,6 +107,24 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
             <p className="text-[11px] text-muted-foreground">
               {costs ? t('pc.total', { n: formatTokens(costs.total) }) : t('pc.totalCounting')}
             </p>
+          </div>
+        )}
+        {character?.isGroup && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium" id="new-chat-turns">{t('turns.step')}</span>
+            <Select value={genMode} onValueChange={(v) => v && setGenMode(v as typeof genMode)}>
+              <SelectTrigger className="h-8 w-full text-xs" aria-labelledby="new-chat-turns" data-testid="new-chat-turns">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(['narrator', 'swap', 'append'] as const).map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {t(v === 'narrator' ? 'group.ed.generationModeNarrator' : v === 'swap' ? 'group.ed.generationModeSwap' : 'group.ed.generationModeAppend')}
+                    {groupMode === v ? ` · ${t('turns.groupDefault')}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-0.5">

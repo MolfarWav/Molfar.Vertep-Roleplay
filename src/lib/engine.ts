@@ -9,7 +9,7 @@
 // cookie auth — the page itself is behind the same session).
 import type {
   Character, Chat, Message, Persona, Preset, Lorebook, LoreEntry, RegexScript,
-  Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig,
+  Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
@@ -92,6 +92,7 @@ export interface EngineChatMeta {
   temporary?: boolean
   litopysCut?: { count: number; upTo: string | null }
   fieldVariantSelection?: Chat['fieldVariantSelection']
+  turns?: ChatTurns
   parentChatId?: string | null
   parentMessageId?: string | null
   createdAt: number
@@ -891,6 +892,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     temporary: meta.temporary === true,
     folderId: meta.folderId ?? null,
     ...(meta.pinned === true ? { pinned: true } : {}),
+    ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
     fieldVariantSelection: meta.fieldVariantSelection ?? {},
@@ -916,7 +918,43 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('chatTags' in p) out.chatTags = p.chatTags
   if ('backgroundId' in p) out.backgroundId = p.backgroundId
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection
+  if ('turns' in p) out.turns = p.turns && Object.keys(p.turns).length ? p.turns : null
   return out
+}
+
+/** How a group chat plays: the group's defaults with the chat's own turns on
+ *  top (the engine's withChatTurns does the same). The order keeps only
+ *  current members; members added since go last. */
+export function chatGroupSettings(g: GroupConfig, turns?: ChatTurns): NonNullable<Chat['groupSettings']> {
+  const t = turns ?? {}
+  const ids = g.memberIds ?? []
+  const order = t.order ? [...t.order.filter((id) => ids.includes(id)), ...ids.filter((id) => !t.order!.includes(id))] : ids
+  return {
+    activation: t.mode ?? g.mode ?? 'natural',
+    generationMode: t.generationMode ?? g.generationMode ?? 'swap',
+    autoMode: t.autoMode ?? g.autoMode ?? false,
+    autoDelaySec: t.autoDelaySec ?? g.autoDelaySec ?? 5,
+    allowSelfResponses: t.allowSelfResponses ?? g.allowSelfResponses ?? false,
+    muted: t.mutedIds ?? g.mutedIds ?? [],
+    order,
+  }
+}
+
+/** The chat's turns with `patch` merged in, dropping keys that now equal the
+ *  group's default, so a chat set back to the group's values follows the
+ *  group again. Empty result = undefined. */
+export function mergeChatTurns(g: GroupConfig, turns: ChatTurns | undefined, patch: ChatTurns): ChatTurns | undefined {
+  const next: ChatTurns = { ...(turns ?? {}), ...patch }
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+  const dflt = chatGroupSettings(g)
+  if (next.generationMode !== undefined && next.generationMode === dflt.generationMode) delete next.generationMode
+  if (next.mode !== undefined && next.mode === dflt.activation) delete next.mode
+  if (next.allowSelfResponses !== undefined && next.allowSelfResponses === dflt.allowSelfResponses) delete next.allowSelfResponses
+  if (next.autoMode !== undefined && next.autoMode === dflt.autoMode) delete next.autoMode
+  if (next.autoDelaySec !== undefined && next.autoDelaySec === dflt.autoDelaySec) delete next.autoDelaySec
+  if (next.mutedIds !== undefined && same([...next.mutedIds].sort(), [...dflt.muted].sort())) delete next.mutedIds
+  if (next.order !== undefined && same(chatGroupSettings(g, { order: next.order }).order, dflt.order)) delete next.order
+  return Object.keys(next).length ? next : undefined
 }
 
 export interface PromptSourcePart { kind: string; label: string; detail?: string; text: string; located: boolean }

@@ -755,6 +755,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
           </TabsContent>
 
           <TabsContent value="turns" className="space-y-5 max-w-3xl px-3 pb-6">
+            <p className="text-xs text-muted-foreground">{t('group.ed.turnsDefaults')}</p>
             <div className="space-y-1.5">
               <Label htmlFor="generation-mode">{t('group.ed.generationMode')}</Label>
               <Select
@@ -804,6 +805,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               </Select>
             </div>
 
+            {(g.mode ?? 'natural') === 'natural' && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
               <Label htmlFor="self-responses" className="mb-0">
                 {t('group.ed.allowSelfResponses')}
@@ -814,6 +816,8 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 onCheckedChange={(v) => updateGroup(group.id, { allowSelfResponses: v })}
               />
             </div>
+            )}
+            {g.mode === 'manual' && <p className="text-xs text-muted-foreground">{t('turns.manualHint')}</p>}
             </>)}
 
             <div className="space-y-3 rounded-lg border border-border p-3">

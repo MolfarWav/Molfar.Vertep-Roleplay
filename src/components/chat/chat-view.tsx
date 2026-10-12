@@ -34,7 +34,7 @@ import { cssAttrValue, scopeCss } from '@/lib/scope-css'
 import { toast } from 'sonner'
 import { MessageRow } from './message-row'
 import { Composer } from './composer'
-import { GroupMemberBar } from './group-member-bar'
+import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { HelpDialog } from './help-dialog'
 import { ExpressionPanel } from './expression-panel'
@@ -975,7 +975,10 @@ export function ChatView() {
             </div>
           </div>
         ) : (
-          <Composer chatId={chat.id} />
+          <>
+            {character.isGroup && <GroupPicker chat={chat} group={character} />}
+            <Composer chatId={chat.id} />
+          </>
         )}
       </div>
       </div>

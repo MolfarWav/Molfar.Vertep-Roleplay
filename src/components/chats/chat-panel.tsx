@@ -327,7 +327,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
               </dd>
             </div>
             {isGroup ? (
-              <Detail label={t('chats.panel.turns')}>{t(owner?.group?.generationMode === 'narrator' ? 'chats.panel.turnsNarrator' : 'chats.panel.turnsEach')}</Detail>
+              <Detail label={t('chats.panel.turns')}>{t((chat.groupSettings?.generationMode ?? owner?.group?.generationMode) === 'narrator' ? 'chats.panel.turnsNarrator' : 'chats.panel.turnsEach')}</Detail>
             ) : (
               <Detail label={t('chats.panel.branches')}>{chat.branches.length || '—'}</Detail>
             )}

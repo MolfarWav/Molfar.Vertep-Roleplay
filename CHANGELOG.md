@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Group chats: turn settings belong to the chat. The group keeps its settings as the default; each chat can change its own from the new "Turns" button above it (generation mode, who answers, self responses, auto mode, who is silent and the members' order), and go back with "Use the group's settings". A new group chat can pick its generation mode in the new-chat step. One group can now run as Narrator in one chat and turn by turn in another.
+- "Only the member you pick" (was "Only when you trigger a member"): a "Who answers?" row above the message box makes a member speak in one tap. Before, the only way was a member's chip, then "Trigger reply", and the send looked like a reply that vanished.
+- Fixed: a group set to "only the member you pick" and then switched to Narrator never answered (the hidden "Who answers" stayed manual). A narrator now always answers.
+- Fixed: right after a reply, a group chat could briefly lose its turn settings (auto mode read as off, the popover showed the defaults) until the next refresh.
+- "Allow self responses" shows only where it does something (who answers: Natural).
+
 ## 4.39.0
 
 The Chats panel opens what it names, and the small fixes from the UX audit. Works on Molfar Vertep 1.0.0 and later.
