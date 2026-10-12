@@ -60,14 +60,14 @@ function Proposal({ title, text, onUse, useLabel, onAgain, onDiscard, busy }: {
       </p>
       <Textarea rows={6} value={value} onChange={(e) => setValue(e.target.value)} aria-label={title} />
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => onUse(value)} disabled={!value.trim() || busy}>
+        <Button size="sm" className="max-sm:h-10" onClick={() => onUse(value)} disabled={!value.trim() || busy}>
           <Check className="size-3.5" aria-hidden="true" />{useLabel}
         </Button>
-        <Button size="sm" variant="secondary" onClick={onAgain} disabled={busy}>
+        <Button size="sm" className="max-sm:h-10" variant="secondary" onClick={onAgain} disabled={busy}>
           {busy ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <ArrowClockwise className="size-3.5" aria-hidden="true" />}
           {t('group.gen.again')}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onDiscard} disabled={busy}>
+        <Button size="sm" className="max-sm:h-10" variant="ghost" onClick={onDiscard} disabled={busy}>
           <X className="size-3.5" aria-hidden="true" />{t('group.gen.discard')}
         </Button>
       </div>
@@ -103,7 +103,7 @@ export function ScenarioGenerator({ s, hasScenario, onAccept }: { s: SceneDraftS
               aria-checked={on}
               onClick={() => setMode(m.id)}
               className={cn(
-                'flex items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
+                'flex min-h-11 items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
                 on ? 'border-group/60 bg-group/10' : 'border-border hover:bg-accent/60',
               )}
             >
@@ -131,7 +131,7 @@ export function ScenarioGenerator({ s, hasScenario, onAccept }: { s: SceneDraftS
         />
         <p className="text-xs text-muted-foreground">{t('group.gen.wishHint')}</p>
       </div>
-      <Button onClick={go} disabled={!!s.busy}>
+      <Button onClick={go} disabled={!!s.busy} className="max-sm:h-10">
         {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
         {busy ? t('group.gen.busy') : t('group.gen.run')}
       </Button>
@@ -159,7 +159,7 @@ export function OpeningGenerator({ s, scenario, onAccept }: { s: SceneDraftState
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="secondary" onClick={go} disabled={!ready || !!s.busy}>
+        <Button size="sm" className="max-sm:h-10" variant="secondary" onClick={go} disabled={!ready || !!s.busy}>
           {busy ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <MagicWand className="size-3.5" aria-hidden="true" />}
           {busy ? t('group.gen.busy') : t('group.gen.opening')}
         </Button>
