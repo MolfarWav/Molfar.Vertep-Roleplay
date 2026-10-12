@@ -290,7 +290,7 @@ export function CharactersView() {
             </DropdownMenuContent>
           </DropdownMenu>
           </>)}
-          <Button variant="outline" size="sm" className={cn(mode === 'groups' ? 'border-transparent bg-group text-group-foreground hover:bg-group/85 hover:text-group-foreground' : 'border-group/50 text-group hover:bg-group/10 hover:text-group')} onClick={() => setGroupOpen(true)}>
+          <Button variant={mode === 'groups' ? 'default' : 'outline'} size="sm" className={cn(mode === 'groups' ? 'bg-group text-group-foreground hover:bg-group/85' : 'border-group/50 text-group hover:bg-group/10 hover:text-group dark:border-group/50 dark:hover:bg-group/10')} onClick={() => setGroupOpen(true)}>
             <Users className="size-4" aria-hidden="true" />{mode === 'groups' ? t('groups.create') : 'Group'}
           </Button>
           {mode === 'characters' && (
