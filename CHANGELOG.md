@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.39.0
+
+The Chats panel opens what it names, and the small fixes from the UX audit. Works on Molfar Vertep 1.0.0 and later.
+
 - Chats page: the chat's details open their sections. A member chip opens that card, the group name or portrait opens the group editor, and the persona, preset and each lorebook open in their own section. A target that no longer exists stays plain text.
 - UX audit, the small fixes:
   - Plain words instead of developer text: dashboard errors say what happened, with the raw reason under "Details"; a soul rating that failed on unreadable JSON says so; the marketplace says it could not be reached, with the detail behind an info button.
