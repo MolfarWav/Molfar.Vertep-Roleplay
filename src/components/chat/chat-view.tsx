@@ -163,7 +163,9 @@ export function ChatView() {
   // group auto mode: keep the scene moving while this chat is open — a bare
   // send (continue) fires every N seconds when nothing is generating and the
   // user isn't typing; any activity re-arms the timer
-  const autoMode = chat?.groupSettings?.autoMode ?? false
+  // (not when only the user picks who speaks: a bare send would make nobody answer)
+  const gsNow = chat?.groupSettings
+  const autoMode = (gsNow?.autoMode ?? false) && !(gsNow?.activation === 'manual' && gsNow.generationMode !== 'narrator')
   const autoDelaySec = Math.max(2, chat?.groupSettings?.autoDelaySec ?? 5)
   const msgCount = chat?.messages.length ?? 0
   const sendMessage = useApp((s) => s.sendMessage)

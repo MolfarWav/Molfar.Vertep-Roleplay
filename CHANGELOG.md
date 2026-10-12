@@ -8,7 +8,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 - "Only the member you pick" (was "Only when you trigger a member"): a "Who answers?" row above the message box makes a member speak in one tap. Before, the only way was a member's chip, then "Trigger reply", and the send looked like a reply that vanished.
 - Fixed: a group set to "only the member you pick" and then switched to Narrator never answered (the hidden "Who answers" stayed manual). A narrator now always answers.
 - Fixed: right after a reply, a group chat could briefly lose its turn settings (auto mode read as off, the popover showed the defaults) until the next refresh.
-- "Allow self responses" shows only where it does something (who answers: Natural).
+- Plain names with a line of help: "Allow self responses" is "The same member may answer twice in a row" and shows only where it does something (who answers: Natural); "Auto mode" is "Keep the scene going on its own". Auto mode is hidden and paused while only you pick who speaks (a bare send there made nobody answer).
 
 ## 4.39.0
 

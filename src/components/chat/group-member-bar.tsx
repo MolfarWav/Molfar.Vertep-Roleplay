@@ -184,16 +184,14 @@ function TurnsButton({ chat, gs, onChange, onOpenGroup }: {
             </Field>
           )}
           {!narrator && gs.activation === 'natural' && (
-            <Field orientation="horizontal">
-              <FieldLabel htmlFor="gs-self">{t('group.ed.allowSelfResponses')}</FieldLabel>
-              <Switch id="gs-self" checked={gs.allowSelfResponses} onCheckedChange={(v) => onChange({ allowSelfResponses: v })} />
-            </Field>
+            <SwitchRow id="gs-self" label={t('group.ed.allowSelfResponses')} hint={t('group.ed.allowSelfResponsesHint')}
+              checked={gs.allowSelfResponses} onChange={(v) => onChange({ allowSelfResponses: v })} />
           )}
-          <Field orientation="horizontal">
-            <FieldLabel htmlFor="gs-auto">{t('group.ed.autoMode')}</FieldLabel>
-            <Switch id="gs-auto" checked={gs.autoMode} onCheckedChange={(v) => onChange({ autoMode: v })} />
-          </Field>
-          {gs.autoMode && (
+          {!waitsForPick(gs) && (
+            <SwitchRow id="gs-auto" label={t('group.ed.autoMode')} hint={t('group.ed.autoModeHint')}
+              checked={gs.autoMode} onChange={(v) => onChange({ autoMode: v })} />
+          )}
+          {gs.autoMode && !waitsForPick(gs) && (
             <Field>
               <FieldLabel>{t('turns.autoDelay', { n: gs.autoDelaySec })}</FieldLabel>
               <Slider
@@ -218,6 +216,18 @@ function TurnsButton({ chat, gs, onChange, onOpenGroup }: {
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function SwitchRow({ id, label, hint, checked, onChange }: { id: string; label: string; hint: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Switch id={id} className="mt-0.5 shrink-0" checked={checked} onCheckedChange={onChange} />
+    </div>
   )
 }
 

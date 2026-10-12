@@ -807,9 +807,12 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
 
             {(g.mode ?? 'natural') === 'natural' && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-              <Label htmlFor="self-responses" className="mb-0">
-                {t('group.ed.allowSelfResponses')}
-              </Label>
+              <div className="min-w-0">
+                <Label htmlFor="self-responses" className="mb-0">
+                  {t('group.ed.allowSelfResponses')}
+                </Label>
+                <p className="text-xs text-muted-foreground">{t('group.ed.allowSelfResponsesHint')}</p>
+              </div>
               <Switch
                 id="self-responses"
                 checked={g.allowSelfResponses ?? false}
@@ -820,11 +823,15 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
             {g.mode === 'manual' && <p className="text-xs text-muted-foreground">{t('turns.manualHint')}</p>}
             </>)}
 
+            {!(g.mode === 'manual' && g.generationMode !== 'narrator') && (
             <div className="space-y-3 rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="auto-mode" className="mb-0">
-                  {t('group.ed.autoMode')}
-                </Label>
+                <div className="min-w-0">
+                  <Label htmlFor="auto-mode" className="mb-0">
+                    {t('group.ed.autoMode')}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{t('group.ed.autoModeHint')}</p>
+                </div>
                 <Switch
                   id="auto-mode"
                   checked={g.autoMode ?? false}
@@ -851,6 +858,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 </div>
               )}
             </div>
+            )}
           </TabsContent>
 
           <TabsContent value="lore" className="space-y-5 max-w-3xl px-3 pb-6">
