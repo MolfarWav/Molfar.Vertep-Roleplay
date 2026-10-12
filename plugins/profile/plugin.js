@@ -356,8 +356,19 @@ function loadGroup(req, fsx) {
   return { id, group, cards, b };
 }
 
-/** The chat model writes scenes (the dashboard's sensor model only when there is none). */
-function sceneModel(fsx) {
+/** The model that writes this group's prose writes its scene: the model set on the group's
+ *  latest chat, else the app's chat model (what a new chat uses), else the dashboard's. */
+export function sceneModel(fsx, groupId) {
+  let best = null;
+  try {
+    for (const f of fsx.list("chats")) {
+      if (!f.endsWith(".meta.json")) continue;
+      const m = readJson(fsx, "chats/" + f, null);
+      if (!isObj(m) || m.groupId !== groupId || m.temporary || !str(m.model)) continue;
+      if (!best || (m.updatedAt || 0) > (best.updatedAt || 0)) best = m;
+    }
+  } catch { /* no chats folder yet */ }
+  if (best) return str(best.model);
   const settings = readJson(fsx, "settings.json", null);
   const dash = readJson(fsx, "dashboard/config.json", null);
   return str(isObj(settings) ? settings.model : "") || str(isObj(dash) ? dash.sensorModel : "");
@@ -382,7 +393,7 @@ function sceneRoute(req, host) {
   const mode = SCENE_MODES.includes(b.mode) ? b.mode : "cards";
   const r = host.llm.results.scene;
   if (!r) {
-    const model = sceneModel(fsx);
+    const model = sceneModel(fsx, id);
     const wish = cut(str(b.wish), 600);
     host.llm.request("scene", {
       ...(model ? { model } : {}),
@@ -404,7 +415,7 @@ function openingRoute(req, host) {
   if (!scenario) return ok({ error: "the group has no scenario yet" }, 400);
   const r = host.llm.results.opening;
   if (!r) {
-    const model = sceneModel(fsx);
+    const model = sceneModel(fsx, id);
     const wish = cut(str(b.wish), 600);
     const taken = (Array.isArray(group.openings) ? group.openings : []).map(str).filter(Boolean).slice(0, 5);
     const content = [

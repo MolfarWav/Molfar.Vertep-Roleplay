@@ -3,7 +3,7 @@
  * one model call each, filed as a draft; the group file is never written here.
  */
 import { describe, expect, it } from "bun:test";
-import { cleanSceneText, handleRoute, membersText } from "../plugins/profile/plugin.js";
+import { cleanSceneText, handleRoute, membersText, sceneModel } from "../plugins/profile/plugin.js";
 
 function memHost(files: Record<string, string> = {}) {
   const results: Record<string, unknown> = {};
@@ -16,6 +16,7 @@ function memHost(files: Record<string, string> = {}) {
       },
       write: (p: string, s: string) => { files[p] = s; },
       remove: (p: string) => { delete files[p]; },
+      list: (dir: string) => Object.keys(files).filter((k) => k.startsWith(dir + "/")).map((k) => k.slice(dir.length + 1)),
     },
     llm: { request: (key: string, spec: Record<string, any>) => { requests.push({ key, spec }); }, results },
   };
@@ -133,5 +134,18 @@ describe("scene text helpers", () => {
     const six = membersText(Array.from({ length: 6 }, (_, i) => ({ name: "M" + i, description: long })));
     expect(two.length).toBeLessThan(6500);
     expect(six.length).toBeLessThan(6800);
+  });
+});
+
+describe("which model writes the scene", () => {
+  it("the group's latest chat with its own model, else the app's chat model", () => {
+    const files: Record<string, string> = seed();
+    const m = memHost(files);
+    expect(sceneModel(m.host.fs, "spring")).toBe("c/chat");
+    files["chats/a.meta.json"] = JSON.stringify({ groupId: "spring", model: "c/old", updatedAt: 1 });
+    files["chats/b.meta.json"] = JSON.stringify({ groupId: "spring", model: "c/prose", updatedAt: 5 });
+    files["chats/c.meta.json"] = JSON.stringify({ groupId: "other", model: "c/else", updatedAt: 9 });
+    files["chats/d.meta.json"] = JSON.stringify({ groupId: "spring", updatedAt: 9 });
+    expect(sceneModel(m.host.fs, "spring")).toBe("c/prose");
   });
 });
