@@ -137,6 +137,7 @@ interface Chat {
   compactions: number
   temporary: boolean
   folderId: string | null
+  pinned?: boolean          // pinned to the top of the Chats page
   chatTags: string[]
   backgroundId: string | 'none' | null
   fieldVariantSelection: { desc?: string; personality?: string; scenario?: string }

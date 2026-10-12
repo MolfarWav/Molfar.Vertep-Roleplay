@@ -12,7 +12,7 @@
  *   {id, name, charId, role: "user"|"char", text, at, swipes:[], swipe,
  *    extra?: {model, usage}}
  * Chat meta: {id, title, characterId, groupId, presetId, personaId, model,
- *   authorNote, lorebookIds, createdAt, updatedAt, tainted}
+ *   authorNote, lorebookIds, folderId, pinned, createdAt, updatedAt, tainted}
  *
  * Presets keep the import/export shape users already have: prompts[] +
  * prompt_order[] with markers (main, charDescription, chatHistory, ...) and
@@ -4323,7 +4323,7 @@ const toolX = (r) => ({
       // bubble mid-generation. Nothing changed → no write, no event.
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
-        "authorNoteObject", "folderId", "chatTags", "backgroundId", "temporary",
+        "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "temporary",
         "fieldVariantSelection", "parentChatId", "parentMessageId"];
       if (keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
       const prevPersonaId = meta.personaId;

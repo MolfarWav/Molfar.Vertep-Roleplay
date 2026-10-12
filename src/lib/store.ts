@@ -65,7 +65,7 @@ export type BootState = 'loading' | 'ready' | 'error'
 /** Books the engine should scan for a chat: every global book plus the ones
  *  of the chat's character (its own book and the linked ones; in a group, every
  *  member's). The engine honors meta.lorebookIds as the scope. */
-function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characters: Character[]): string[] {
+export function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characters: Character[]): string[] {
   if (!chat) return []
   const exists = new Set(books.map((b) => b.id))
   const ids = new Set(books.filter((b) => b.globalActive).map((b) => b.id))

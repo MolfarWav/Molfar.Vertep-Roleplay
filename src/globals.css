@@ -39,6 +39,10 @@
   --color-cta: var(--cta);
   --color-group: var(--group);
   --color-group-foreground: var(--group-foreground);
+  --color-when-pinned: var(--when-pinned);
+  --color-when-today: var(--when-today);
+  --color-when-week: var(--when-week);
+  --color-when-earlier: var(--when-earlier);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -74,6 +78,11 @@
   /* group chats and groups: one hue no theme sets, so a group never looks like a single character */
   --group: #7c4dde;
   --group-foreground: #ffffff;
+  /* the Chats page's time groups: each period its own hue, none of them the group violet */
+  --when-pinned: #b26a00;
+  --when-today: #0b7f8c;
+  --when-week: #2f64b8;
+  --when-earlier: #6e675e;
   --secondary: #f1f1f2;
   --secondary-foreground: #161616;
   --muted: #f1f1f2;
@@ -116,6 +125,10 @@
   --cta-foreground: var(--primary-foreground);
   --group: #a58bf5;
   --group-foreground: #16102a;
+  --when-pinned: #f2b45a;
+  --when-today: #57c9d6;
+  --when-week: #86b3f2;
+  --when-earlier: #b9b2a7;
   --secondary: #202020;
   --secondary-foreground: #e6e6e6;
   --muted: #1f1f1f;

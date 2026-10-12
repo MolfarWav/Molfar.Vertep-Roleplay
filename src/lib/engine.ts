@@ -86,6 +86,7 @@ export interface EngineChatMeta {
   authorNoteObject?: Chat['authorNote']
   lorebookIds?: string[]
   folderId?: string | null
+  pinned?: boolean
   chatTags?: string[]
   backgroundId?: string | 'none' | null
   temporary?: boolean
@@ -889,6 +890,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     litopysCut: meta.litopysCut,
     temporary: meta.temporary === true,
     folderId: meta.folderId ?? null,
+    ...(meta.pinned === true ? { pinned: true } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
     fieldVariantSelection: meta.fieldVariantSelection ?? {},
@@ -910,6 +912,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('authorNote' in p && p.authorNote) { out.authorNote = p.authorNote.text; out.authorNoteObject = p.authorNote }
   if ('temporary' in p) out.temporary = p.temporary
   if ('folderId' in p) out.folderId = p.folderId
+  if ('pinned' in p) out.pinned = p.pinned === true
   if ('chatTags' in p) out.chatTags = p.chatTags
   if ('backgroundId' in p) out.backgroundId = p.backgroundId
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection

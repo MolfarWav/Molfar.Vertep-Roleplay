@@ -272,7 +272,7 @@ data/
 │                       favorites, colors, stats, sprites, gallery, versions,
 │                       descVariants/personalityVariants/scenarioVariants)
 ├─ chats/<id>.jsonl     one message per line; <id>.meta.json holds title,
-│                       folderId, personaId, presetId, model, branch
+│                       folderId, pinned, personaId, presetId, model, branch
 │                       parentage (parentChatId/parentMessageId), summary,
 │                       fieldVariantSelection (which card alternate this chat sends)
 ├─ groups/<id>.json     { memberIds, mode, mutedIds }

@@ -226,6 +226,8 @@ export interface Chat {
   litopysCut?: { count: number; upTo: string | null }
   temporary: boolean
   folderId: ID | null
+  /** pinned to the top of the Chats page */
+  pinned?: boolean
   chatTags: string[]
   backgroundId: ID | 'none' | null
   fieldVariantSelection: { desc?: ID; personality?: ID; scenario?: ID }
