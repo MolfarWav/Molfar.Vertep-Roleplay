@@ -31,7 +31,7 @@ const storage = {
 }
 
 const TOAST_KEY: Record<string, MsgKey> = {
-  connect: 'canvas.connect', disconnect: 'canvas.disconnect', move: 'canvas.move', remove: 'canvas.removed', insert: 'canvas.insert',
+  tidy: 'canvas.tidy', connect: 'canvas.connect', disconnect: 'canvas.disconnect', move: 'canvas.move', remove: 'canvas.removed', insert: 'canvas.insert',
 }
 
 const POSITIONS_KEY = 'rp.canvas.chatLinks.positions'
@@ -54,7 +54,15 @@ export function CanvasView() {
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
     storage.get(POSITIONS_KEY, {})
   )
+  // the phone flag can arrive after the first render: phones start in View mode with the List
+  useEffect(() => {
+    if (isMobile) {
+      setEditable(false)
+      setPhoneList(true)
+    }
+  }, [isMobile])
   const loadedRef = useRef(false)
+  const undoRef = useRef<() => void>(() => {})
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const allChats = useMemo(() => chats || [], [chats])
@@ -75,6 +83,10 @@ export function CanvasView() {
     [t]
   )
 
+  // `t` is a new function on every render; the loader reads it through a ref so it stays stable
+  const tRef = useRef(t)
+  tRef.current = t
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -83,17 +95,18 @@ export function CanvasView() {
       setChats(items)
       const pos = storage.get<Record<string, { x: number; y: number }>>(POSITIONS_KEY, {})
       setPositions(pos)
-      const g = boardFromChats(items, pos)
+      const hidden = new Set(storage.get<string[]>(HIDDEN_KEY, []))
+      const g = boardFromChats(items.filter((c) => !hidden.has(c.id)), pos)
       setGraph(g)
       setHistory(historyOf(g))
       loadedRef.current = true
       setFitSignal((s) => s + 1)
     } catch (e) {
-      setError(t('canvas.loadFailed'))
+      setError(tRef.current('canvas.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -106,19 +119,11 @@ export function CanvasView() {
         for (const ch of changes) {
           await setLitLink(ch.chatId, ch.from)
         }
-        if (toastLabel) {
-          toast(t(TOAST_KEY[toastLabel] ?? 'canvas.connect'), {
+        if (toastLabel && TOAST_KEY[toastLabel]) {
+          toast(t(TOAST_KEY[toastLabel]), {
             action: {
               label: t('canvas.undo'),
-              onClick: () => {
-                const undone = undoHistory(history)
-                setHistory(undone)
-                setGraph(undone.present)
-                const undoChanges = linkChanges(next, undone.present)
-                Promise.all(undoChanges.map((c) => setLitLink(c.chatId, c.from))).catch(() => {
-                  toast(t('canvas.saveFailed'))
-                })
-              },
+              onClick: () => undoRef.current(),
             },
           })
         }
@@ -128,7 +133,7 @@ export function CanvasView() {
         toast(t('canvas.saveFailed'))
       }
     },
-    [history, t]
+    [t]
   )
 
   const handleChange = useCallback(
@@ -178,6 +183,8 @@ export function CanvasView() {
       toast(t('canvas.saveFailed'))
     })
   }, [history, t])
+
+  undoRef.current = handleUndo
 
   const handleRedo = useCallback(() => {
     const next = redoHistory(history)
@@ -358,7 +365,7 @@ export function CanvasView() {
 
         <div className="flex-1" />
 
-        <div className="flex rounded-lg bg-muted p-0.5">
+        <div className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
           <button
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',

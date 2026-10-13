@@ -72,25 +72,27 @@ export function CanvasBoard({
     return { x: (cx - r.left - view.x) / view.k, y: (cy - r.top - view.y) / view.k }
   }, [view])
 
-  const portPos = (el: Element | null) => {
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    const wr = worldRef.current!.getBoundingClientRect()
-    return { x: (r.left + r.width / 2 - wr.left) / view.k, y: (r.top + r.height / 2 - wr.top) / view.k }
+  // A card being dragged shows at its live position; the graph changes on release.
+  const [live, setLive] = useState<{ id: string; x: number; y: number } | null>(null)
+  const posOf = (n: CanvasNode) => (live && live.id === n.id ? { x: live.x, y: live.y } : { x: n.x, y: n.y })
+  const outPos = (id: string) => {
+    const n = nodeById(id)
+    if (!n) return null
+    const p = posOf(n)
+    return { x: p.x + CARD_W / 2, y: p.y + CARD_H }
   }
+  const inPos = (id: string) => {
+    const n = nodeById(id)
+    if (!n) return null
+    const p = posOf(n)
+    return { x: p.x + CARD_W / 2, y: p.y }
+  }
+  const portId = (n: CanvasNode, side: 'in' | 'out') => board.types[n.type]?.ports.find((p) => p.side === side)?.id ?? side
 
-  const outPort = (id: string) => worldRef.current?.querySelector(`[data-node="${id}"] [data-port-out]`)
-  const inPort = (id: string) => worldRef.current?.querySelector(`[data-node="${id}"] [data-port-in]`)
-
+  // Wires leave a card downwards and enter the next one from above.
   const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5)
-    return `M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}`
-  }
-
-  const applyView = (v: ViewState) => {
-    if (worldRef.current) {
-      worldRef.current.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.k})`
-    }
+    const dy = Math.max(40, Math.abs(b.y - a.y) * 0.5)
+    return `M${a.x},${a.y} C${a.x},${a.y + dy} ${b.x},${b.y - dy} ${b.x},${b.y}`
   }
 
   const fitAll = useCallback(() => {
@@ -103,8 +105,9 @@ export function CanvasBoard({
       x2 = Math.max(x2, n.x + CARD_W)
       y2 = Math.max(y2, n.y + CARD_H)
     })
-    const sw = stageRef.current!.clientWidth
-    const sh = stageRef.current!.clientHeight
+    const sw = stageRef.current?.clientWidth || 0
+    const sh = stageRef.current?.clientHeight || 0
+    if (!sw || !sh) return
     const k = Math.min(1.2, Math.max(0.35, Math.min((sw - 80) / (x2 - x1), (sh - 80) / (y2 - y1))))
     const v = {
       k,
@@ -117,10 +120,6 @@ export function CanvasBoard({
   useEffect(() => {
     if (fitSignal !== undefined) fitAll()
   }, [fitSignal, fitAll])
-
-  useEffect(() => {
-    applyView(view)
-  }, [view])
 
   const zoomAt = (f: number, cx?: number, cy?: number) => {
     const stage = stageRef.current!
@@ -152,8 +151,9 @@ export function CanvasBoard({
 
     if (port && editable) {
       const nodeId = (port.closest('[data-node]') as HTMLElement).dataset.node!
-      const sp = portPos(port)
+      const sp = outPos(nodeId)
       if (sp) {
+        e.preventDefault()
         setDrag({ type: 'wire', pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, from: nodeId, startPort: sp })
         stageRef.current!.setPointerCapture(e.pointerId)
       }
@@ -185,6 +185,13 @@ export function CanvasBoard({
     stageRef.current!.setPointerCapture(e.pointerId)
   }
 
+  const verdictFor = (fromId: string, toId: string): Verdict => {
+    const fromN = nodeById(fromId)
+    const toN = nodeById(toId)
+    if (!fromN || !toN) return { ok: false, reason: 'Unknown port' }
+    return canConnect(board, graph, `${fromId}:${portId(fromN, 'out')}`, `${toId}:${portId(toN, 'in')}`)
+  }
+
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!drag || e.pointerId !== drag.pointerId) return
 
@@ -200,8 +207,10 @@ export function CanvasBoard({
       if (n) {
         const nx = Math.round(w.x - (drag.dx || 0))
         const ny = Math.round(w.y - (drag.dy || 0))
-        setDrag(d => ({ ...d!, moved: true }))
-        // Optimistic move: don't commit until pointer up
+        if (drag.moved || Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) {
+          if (!drag.moved) setDrag(d => (d ? { ...d, moved: true } : d))
+          setLive({ id: n.id, x: nx, y: ny })
+        }
       }
       return
     }
@@ -210,11 +219,11 @@ export function CanvasBoard({
       const w = toWorld(e.clientX, e.clientY)
       setDragEnd(w)
       const el = document.elementFromPoint(e.clientX, e.clientY)
-      const inP = el?.closest('[data-port-in]')
+      const inP = el?.closest('[data-port-in]') ?? el?.closest('[data-node]')
       if (inP) {
         const toNode = (inP.closest('[data-node]') as HTMLElement)?.dataset.node
         if (toNode && drag.from) {
-          const verdict = canConnect(board, graph, `${drag.from}:out`, `${toNode}:in`)
+          const verdict = verdictFor(drag.from, toNode)
           if (verdict.ok) {
             showReason(verdict.replaces ? reasonText('Already connected') : '', e.clientX, e.clientY)
           } else {
@@ -231,6 +240,7 @@ export function CanvasBoard({
     if (!drag || e.pointerId !== drag.pointerId) return
     setDrag(null)
     setDragEnd(null)
+    setLive(null)
     clearReason()
     setHotEdge(null)
     setInsertTarget(null)
@@ -246,11 +256,14 @@ export function CanvasBoard({
 
     if (drag.type === 'wire' && drag.from) {
       const el = document.elementFromPoint(e.clientX, e.clientY)
-      const inP = el?.closest('[data-port-in]')
+      const inP = el?.closest('[data-port-in]') ?? el?.closest('[data-node]')
       if (inP) {
         const toNode = (inP.closest('[data-node]') as HTMLElement)?.dataset.node
         if (toNode) {
-          const result = connect(board, graph, `${drag.from}:out`, `${toNode}:in`, `e${Date.now()}`)
+          const fromN = nodeById(drag.from)
+          const toN = nodeById(toNode)
+          if (!fromN || !toN) return
+          const result = connect(board, graph, `${drag.from}:${portId(fromN, 'out')}`, `${toNode}:${portId(toN, 'in')}`, `e${Date.now()}`)
           if (result.verdict.ok) {
             onChange(result.graph, 'connect')
           } else {
@@ -305,11 +318,8 @@ export function CanvasBoard({
   const edgePath = (e: CanvasEdge) => {
     const [fromNodeId] = splitEnd(e.from)
     const [toNodeId] = splitEnd(e.to)
-    const op = outPort(fromNodeId)
-    const ip = inPort(toNodeId)
-    if (!op || !ip) return null
-    const a = portPos(op)
-    const b = portPos(ip)
+    const a = outPos(fromNodeId)
+    const b = inPos(toNodeId)
     if (!a || !b) return null
     return { d: curve(a, b), a, b }
   }
@@ -319,7 +329,7 @@ export function CanvasBoard({
   return (
     <div
       ref={stageRef}
-      className="relative h-full w-full overflow-hidden bg-background touch-none select-none"
+      className="relative h-full w-full overflow-hidden bg-background touch-none select-none outline-none"
       style={{ backgroundImage: 'radial-gradient(var(--border) 1px, transparent 1px)', backgroundSize: '22px 22px' }}
       role="application"
       aria-label="Canvas board"
@@ -330,7 +340,7 @@ export function CanvasBoard({
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      <div ref={worldRef} className="absolute left-0 top-0" style={{ transformOrigin: '0 0' }}>
+      <div ref={worldRef} className="absolute left-0 top-0" style={{ transformOrigin: '0 0', transform: `translate(${view.x}px,${view.y}px) scale(${view.k})` }}>
         <svg className="absolute left-0 top-0 h-px w-px overflow-visible pointer-events-none">
           {graph.edges.map(e => {
             const p = edgePath(e)
@@ -344,16 +354,23 @@ export function CanvasBoard({
                   fill="none"
                   stroke="transparent"
                   strokeWidth={16}
-                  className="cursor-pointer pointer-events-stroke"
+                  className="cursor-pointer"
+                  style={{ pointerEvents: 'stroke' }}
                   data-edge-hit={e.id}
                 />
               </g>
             )
           })}
+          {drag?.type === 'wire' && drag.startPort && dragEnd && (
+            <path d={curve(drag.startPort, dragEnd)} fill="none" stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 4" />
+          )}
         </svg>
         {graph.nodes.map(n => {
           const def = nodeDefs(n)
           const selected = selectedId === n.id
+          const pos = posOf(n)
+          const wireFrom = drag?.type === 'wire' ? drag.from : undefined
+          const glow = wireFrom && wireFrom !== n.id ? (verdictFor(wireFrom, n.id).ok ? 'ok' : 'bad') : undefined
           const color = `var(--${def.colorVar})`
           return (
             <button
@@ -363,8 +380,7 @@ export function CanvasBoard({
                 'absolute flex flex-col rounded-lg border bg-card shadow-md',
                 selected && 'ring-2 ring-ring'
               )}
-              style={{ left: n.x, top: n.y, width: CARD_W, height: CARD_H }}
-              onPointerDown={e => e.stopPropagation()}
+              style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
               onDoubleClick={e => handleDoubleClick(e, n.id)}
             >
               <div className="h-1 rounded-t-lg" style={{ background: color }} />
@@ -388,7 +404,11 @@ export function CanvasBoard({
               </div>
               <div
                 data-port-in
-                className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 bg-card"
+                className={cn(
+                  'absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 bg-card',
+                  glow === 'ok' && 'scale-150 ring-4 ring-primary/50',
+                  glow === 'bad' && 'ring-2 ring-destructive/60'
+                )}
                 style={{ borderColor: color }}
               />
               <div
