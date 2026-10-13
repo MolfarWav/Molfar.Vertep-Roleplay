@@ -42,6 +42,13 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
   // before the browser fires that click, so the chip asks this one instead
   const movedRef = useRef(false)
   const boxRef = useRef<HTMLDivElement>(null)
+  // the sprite URL that finished loading, and the ones that failed. Until its
+  // image loads the panel is not hit-testable: an invisible box (opacity 0)
+  // over the lower half of the log swallowed touch scrolling on Chromium,
+  // and a sprite that never loads (a dead URL) left it there for good
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null)
+  const [brokenUrls, setBrokenUrls] = useState<ReadonlySet<string>>(() => new Set())
+  const markBroken = (url: string) => setBrokenUrls((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))
 
   // memoized: this panel sits over the scrolling log and re-renders with the
   // chat view — detection (a regex pass per rule) + the reverse-copy only re-run
@@ -98,7 +105,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     }
   }, [])
 
-  if (!show || !sprite || !speaker) return null
+  if (!show || !sprite || !speaker || brokenUrls.has(sprite.url)) return null
 
   const style: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
@@ -124,18 +131,19 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
           aria-label={`Show ${label}`}
           title={`${label} (click to show, drag to move)`}
         >
-          <img src={sprite.url} alt="" draggable={false} className="size-full object-cover object-top" />
+          <img src={sprite.url} alt="" draggable={false} onError={() => markBroken(sprite.url)} className="size-full object-cover object-top" />
         </button>
       </div>
     )
   }
 
   const h = height ?? Math.round(window.innerHeight * 0.42)
+  const loaded = loadedUrl === sprite.url
   return (
     <div
       ref={boxRef}
       className="group fixed z-30 cursor-grab touch-none select-none active:cursor-grabbing"
-      style={style}
+      style={{ ...style, visibility: loaded ? undefined : 'hidden' }}
       onPointerDown={startDrag}
       role="img"
       aria-label={label}
@@ -146,7 +154,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
         src={sprite.url}
         alt={`${speaker.name} ${sprite.name}`}
         draggable={false}
-        onLoad={(e) => { e.currentTarget.style.opacity = '1' }}
+        onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
+        onError={() => markBroken(sprite.url)}
         style={{ height: h, maxHeight: '90dvh' }}
         className="w-auto rounded-lg border border-border/40 bg-card/60 shadow-lg [opacity:0] transition-opacity duration-200"
       />
