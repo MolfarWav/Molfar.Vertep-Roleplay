@@ -22,6 +22,7 @@ import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { useDragList } from '@/lib/drag-list'
 import { presetExport, downloadJson } from '@/lib/interop'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
+import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
 import { DEFAULT_UTILITY_PROMPTS } from '@/lib/seed'
 import type { Preset, PromptSection, SectionGroup, ID } from '@/lib/types'
@@ -287,14 +288,8 @@ export function PresetsView() {
 
           {/* scrollable strip: padding lives INSIDE the scroller so the
               first/last tabs stop short of the walls instead of clipping */}
-            <div
-              className="mt-2 overflow-x-auto overscroll-x-contain px-4 no-scrollbar"
-              onWheel={(e) => {
-                if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                  e.currentTarget.scrollLeft += e.deltaY
-                }
-              }}
-            >
+            <div className="mt-2">
+            <ScrollStrip className="px-4">
               <TabsList className="h-8 w-max flex-nowrap md:h-auto md:w-full md:flex-wrap md:gap-y-1">
                 <TabsTrigger value="prompts" className="flex-none px-2.5 text-xs">Prompt manager</TabsTrigger>
                 <TabsTrigger value="samplers" className="flex-none px-2.5 text-xs">Samplers</TabsTrigger>
@@ -303,6 +298,7 @@ export function PresetsView() {
                 <TabsTrigger value="variables" className="flex-none px-2.5 text-xs">Variables</TabsTrigger>
                 <TabsTrigger value="regex" className="flex-none px-2.5 text-xs">{t('preset.regexTab')}</TabsTrigger>
               </TabsList>
+            </ScrollStrip>
             </div>
             <div className={cn('p-4', preset.readOnly && 'pointer-events-none opacity-60')}>
                 {preset.readOnly && (

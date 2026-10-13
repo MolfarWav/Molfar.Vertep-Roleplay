@@ -15,6 +15,7 @@ import { useT } from '@/hooks/use-t'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import { modelLimits } from '@/lib/model-params'
 import { defaultSamplers } from '@/lib/seed'
+import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
 import type { Preset, SamplerSettings } from '@/lib/types'
 
@@ -86,20 +87,15 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
       <Tabs defaultValue="core">
         {/* same scrollable strip as Tools/Presets: flex-none triggers
             overflow, touch on mobile, wheel→horizontal on desktop */}
-        <div
-          className="-mx-1 overflow-x-auto overscroll-x-contain px-1 no-scrollbar"
-          onWheel={(e) => {
-            if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-              e.currentTarget.scrollLeft += e.deltaY
-            }
-          }}
-        >
+        <div className="-mx-1">
+        <ScrollStrip className="px-1">
           <TabsList className="h-8 w-max flex-nowrap @min-[28rem]:h-auto @min-[28rem]:w-full @min-[28rem]:flex-wrap @min-[28rem]:gap-y-1">
             <TabsTrigger value="core" className="flex-none px-2.5 text-xs">Core</TabsTrigger>
             <TabsTrigger value="tokensctx" className="flex-none px-2.5 text-xs">Tokens & bias</TabsTrigger>
             <TabsTrigger value="extra" className="flex-none px-2.5 text-xs">Extra params</TabsTrigger>
             <TabsTrigger value="reasoning" className="flex-none px-2.5 text-xs">Reasoning</TabsTrigger>
           </TabsList>
+        </ScrollStrip>
         </div>
 
         <TabsContent value="core" className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 @min-[32rem]:grid-cols-2">

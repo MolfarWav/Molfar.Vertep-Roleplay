@@ -24,6 +24,7 @@ import { useApp } from '@/lib/store'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
+import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
@@ -292,14 +293,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </div>
       </header>
 
-        <div
-          className="mt-2 max-w-full overflow-x-auto overscroll-x-contain px-4 no-scrollbar"
-          onWheel={(e) => {
-            if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-              e.currentTarget.scrollLeft += e.deltaY
-            }
-          }}
-        >
+        <div className="mt-2 max-w-full">
+        <ScrollStrip className="px-4">
           <TabsList className="h-8 w-max flex-nowrap">
             {TAB_GROUPS.map((group, gi) => {
               const names = group.filter((name) => !(c.isGroup && (name === 'profile' || name === 'soul')))
@@ -324,6 +319,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               ]
             })}
           </TabsList>
+        </ScrollStrip>
         </div>
           <fieldset disabled={!!preview} className={`mx-auto flex w-full min-w-0 flex-col gap-4 border-0 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'} ${preview ? 'bg-sky-500/5 ring-1 ring-sky-500/40' : ''}`}>
             <TabsContent value="core" className="flex flex-col gap-4">

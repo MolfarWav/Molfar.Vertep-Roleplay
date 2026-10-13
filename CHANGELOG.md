@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Phones: tab rows that run off the screen say so. The side with hidden tabs fades and shows an arrow that pages the row, and the open tab stays in view (card editor, group editor, preset editor, samplers). Tools wraps its tabs onto a second line instead of hiding them past the edge.
+- Fixed: on Chrome and Brave for Android the lower part of a chat would not scroll by touch when a character's expression sprite had not loaded (an invisible sprite panel caught the finger). The panel now ignores touches until its picture loads and hides when the picture fails.
+
 ## 4.40.0
 
 Turn settings per chat in groups, and a clear way to pick who speaks. Works on Molfar Vertep 1.0.0 and later.

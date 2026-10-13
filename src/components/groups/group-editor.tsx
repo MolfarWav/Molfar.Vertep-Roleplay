@@ -60,6 +60,7 @@ import {
 } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
 import { fileToDataUrl } from '@/lib/engine'
+import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
 import { useT } from '@/hooks/use-t'
@@ -337,7 +338,8 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
       </header>
 
       <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
-        <div className="max-w-full overflow-x-auto overscroll-x-contain px-3 py-2 no-scrollbar">
+        <div className="max-w-full py-2">
+        <ScrollStrip className="px-3">
           <TabsList className="h-8 w-max flex-nowrap">
             {tabs.map(({ id, icon: Icon, label }) => (
               <TabsTrigger key={id} value={id} className="flex-none gap-1.5 px-2.5 text-xs">
@@ -346,6 +348,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               </TabsTrigger>
             ))}
           </TabsList>
+        </ScrollStrip>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
