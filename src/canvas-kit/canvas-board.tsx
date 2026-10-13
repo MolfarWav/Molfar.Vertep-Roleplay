@@ -150,6 +150,9 @@ export function CanvasBoard({
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
     const target = e.target as HTMLElement
+    // zoom buttons and the wire's delete button: pointer capture on the stage would swallow their click
+    const ctl = target.closest('button')
+    if (ctl && !ctl.hasAttribute('data-node')) return
     const port = target.closest('[data-port-out]')
     const nodeEl = target.closest('[data-node]')
     const edgeHit = target.closest('[data-edge-hit]')
@@ -347,7 +350,7 @@ export function CanvasBoard({
     }
   }
 
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = (e: WheelEvent) => {
     e.preventDefault()
     const r = stageRef.current!.getBoundingClientRect()
     if (e.ctrlKey || e.metaKey) {
@@ -356,6 +359,17 @@ export function CanvasBoard({
       setView(v => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }))
     }
   }
+
+  // React registers wheel listeners as passive, where preventDefault is ignored: attach it by hand.
+  const wheelRef = useRef(handleWheel)
+  wheelRef.current = handleWheel
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const on = (e: WheelEvent) => wheelRef.current(e)
+    el.addEventListener('wheel', on, { passive: false })
+    return () => el.removeEventListener('wheel', on)
+  }, [])
 
   const nodeDefs = (n: CanvasNode) => board.types[n.type]
 
@@ -380,7 +394,6 @@ export function CanvasBoard({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onWheel={handleWheel}
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
