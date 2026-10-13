@@ -85,7 +85,7 @@ function SwitchField({ label, checked, onChange, hint }: { label: string; checke
   return (
     <div className="flex flex-col gap-0.5">
       <label className="flex items-center gap-2 text-xs">
-        <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+        <Switch tone="cta" checked={checked} onCheckedChange={onChange} aria-label={label} />
         {label}
       </label>
       {hint && <Hint>{hint}</Hint>}
@@ -227,7 +227,7 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
         <div className="flex items-center justify-between gap-2">
           <Label className="text-[11px]">{t('lore.ed.keys')}</Label>
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Switch checked={e.keysRegex} onCheckedChange={(v) => onChange({ keysRegex: v })} aria-label={t('lore.ed.regex')} />
+            <Switch tone="cta" checked={e.keysRegex} onCheckedChange={(v) => onChange({ keysRegex: v })} aria-label={t('lore.ed.regex')} />
             {t('lore.ed.regex')}
           </label>
         </div>

@@ -273,14 +273,14 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
   if (dash.status === 'empty') {
     const hasMessages = (dash.data?.messages ?? 0) > 0
     return (
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-sm lg:hidden">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-sm lg:hidden">
         <span className="min-w-0 flex-1 truncate text-muted-foreground">{t('dash.empty.title')}</span>
         {hasMessages && (
-          <Button size="xs" variant="outline" className="rounded-none" disabled={dash.refreshing} onClick={() => { void dash.refresh() }}>
+          <Button size="sm" variant="outline" className="h-10 rounded-none" disabled={dash.refreshing} onClick={() => { void dash.refresh() }}>
             {dash.refreshing ? t('dash.refreshing') : t('dash.empty.build')}
           </Button>
         )}
-        <Button variant="ghost" size="icon-xs" onClick={() => setSettings(true)} aria-label={t('dash.set.title')} title={t('dash.set.title')} className="rounded-none">
+        <Button variant="ghost" size="icon-xs" onClick={() => setSettings(true)} aria-label={t('dash.set.title')} title={t('dash.set.title')} className="size-10 rounded-none">
           <GearSix />
         </Button>
         <EmptySettingsSheet chatId={chatId} open={settings} onClose={() => setSettings(false)} side="bottom" />

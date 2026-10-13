@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { InfoTip } from '@/components/ui/info-tip'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useApp } from '@/lib/store'
@@ -791,7 +792,7 @@ export function MarketplaceView() {
             )}
             {source === 'risurealm' && (
               <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
-                <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort RisuRealm results">
+                <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort RisuRealm results">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -812,7 +813,7 @@ export function MarketplaceView() {
                   </SelectContent>
                 </Select>
                 <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
-                  <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort CharaVault results">
+                  <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort CharaVault results">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -823,7 +824,7 @@ export function MarketplaceView() {
             )}
             {source === 'wyvern' && (
               <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
-                <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort Wyvern results">
+                <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort Wyvern results">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -833,7 +834,7 @@ export function MarketplaceView() {
             )}
             {source === 'pygmalion' && (
               <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
-                <SelectTrigger className="h-8 w-36 text-xs" aria-label="Sort Pygmalion results">
+                <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort Pygmalion results">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -876,7 +877,7 @@ export function MarketplaceView() {
                   Trending
                 </Button>
                 <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })} disabled={trending}>
-                  <SelectTrigger className="h-8 w-32 text-xs" aria-label="Sort marketplace results">
+                  <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort marketplace results">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1053,7 +1054,11 @@ export function MarketplaceView() {
             <EmptyHeader>
               <EmptyMedia variant="icon"><Storefront aria-hidden="true" /></EmptyMedia>
               <EmptyTitle>Couldn&apos;t reach {sourceName(source)}</EmptyTitle>
-              <EmptyDescription>{error}</EmptyDescription>
+              <EmptyDescription>Could not reach the marketplace. Check your connection and try again.</EmptyDescription>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="market-error-detail">
+                Technical detail
+                <InfoTip label="Technical detail"><code className="break-all font-mono text-[11px]">{error}</code></InfoTip>
+              </div>
             </EmptyHeader>
           </Empty>
         ) : items.length === 0 ? (

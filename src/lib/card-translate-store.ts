@@ -2,7 +2,7 @@ import { toast } from 'sonner'
 import { create } from 'zustand'
 import { j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
-import { applyPendingTranslation, translateInstalled, type PendingTranslation, type Translator } from '@/lib/card-translate'
+import { applyPendingTranslation, translateBook, translateInstalled, type PendingTranslation, type Translator } from '@/lib/card-translate'
 import type { AppSettings } from '@/lib/types'
 
 /** The glue between card-translate.ts and the running app: one request to the
@@ -58,6 +58,39 @@ export async function translateCharacter(
     toast.error(`Couldn't translate ${name}`, { id: tid, description: `${String((e as Error).message ?? e)} The card is kept as it was.` })
   } finally {
     running.delete(id)
+  }
+}
+
+/** Translate a lorebook in the library, optionally keeping a copy of it as it
+ *  was first (the copy is not active and is linked to nothing). Never throws. */
+export async function translateLorebook(
+  bookId: string,
+  name: string,
+  opts: { target: string; translation: TranslationSettings; keepCopy: boolean },
+): Promise<void> {
+  if (running.has(bookId)) return
+  running.add(bookId)
+  const tid = toast.loading(`Translating ${name}…`)
+  const st = () => useApp.getState()
+  try {
+    if (opts.keepCopy) {
+      const copyId = st().duplicateLorebook(bookId)
+      st().updateLorebook(copyId, { name: `${name} (original)` })
+    }
+    const res = await translateBook(bookId, {
+      translate: makeTranslator(opts.target, opts.translation),
+      getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
+      updateBook: (bid, patch) => st().updateLorebook(bid, patch),
+      progress: (done, total) => { toast.loading(`Translating ${name}: ${done}/${total}`, { id: tid }) },
+    })
+    if (!res.total) toast.info(`${name} has no text to translate`, { id: tid })
+    else if (res.unchanged) toast.warning(`${name} is already in ${opts.target}`, { id: tid })
+    else if (res.missed) toast.warning(`${name} is only partly translated`, { id: tid, description: `${res.missed} entr${res.missed === 1 ? 'y' : 'ies'} stayed as they were. What was translated is saved.` })
+    else toast.success(`${name} translated to ${opts.target}`, { id: tid })
+  } catch (e) {
+    toast.error(`Couldn't translate ${name}`, { id: tid, description: String((e as Error).message ?? e) })
+  } finally {
+    running.delete(bookId)
   }
 }
 

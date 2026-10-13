@@ -278,6 +278,39 @@ export function applyBookResults(
   return { entries, changed, skipped }
 }
 
+/** Translate one lorebook in place: entry texts and comments are replaced,
+ *  translated key words are added next to the original keys (so entries fire
+ *  in both languages). Stops after TRANSLATE_MAX_FAILURES failed requests;
+ *  whatever was translated is saved. */
+export async function translateBook(
+  bookId: string,
+  deps: Pick<InstallTranslateDeps, 'translate' | 'getBook' | 'updateBook' | 'progress'>,
+): Promise<{ total: number; done: number; missed: number; unchanged: boolean }> {
+  const book = deps.getBook(bookId)
+  if (!book) return { total: 0, done: 0, missed: 0, unchanged: false }
+  const jobs = planBookJobs(book)
+  const answers: (string | null)[] = jobs.map(() => null)
+  let done = 0
+  let failures = 0
+  await runLimited(jobs, TRANSLATE_CONCURRENCY, async (job, i) => {
+    try {
+      answers[i] = clean(await deps.translate(job.text))
+      if (!answers[i]) failures++
+    } catch {
+      failures++
+    }
+    deps.progress(++done, jobs.length)
+  }, () => failures >= TRANSLATE_MAX_FAILURES)
+  const missed = new Set(jobs.filter((_, i) => !answers[i]).map((j) => j.entry)).size
+  const unchanged = answers.some(Boolean) && answers.every((a, i) => a == null || a.trim() === jobs[i]!.text.trim())
+  const now = deps.getBook(bookId)
+  if (now && !unchanged) {
+    const r = applyBookResults(now, jobs, answers)
+    if (r.changed) deps.updateBook(bookId, { entries: r.entries })
+  }
+  return { total: jobs.length, done, missed, unchanged }
+}
+
 // ── the whole pass over an installed card ─────────────────────────────────
 
 export interface InstallTranslateDeps {

@@ -173,7 +173,7 @@ export function defaultSettings(): AppSettings {
   return {
     themeMode: 'dark', activeThemeId: 'theme_vertep', displayMode: 'bubbles',
     chatWidth: 'comfortable', chatWidthCustom: 760, fontScale: 100, lineSpacing: 180, paragraphSpacing: 14, proseFont: 'noto-serif', lookVersion: 2, uiScale: 100,
-    avatarScale: 100, streamingFps: 30,
+    avatarScale: 100, streamingFps: 30, replyDisplay: 'live',
     avatarShape: 'rounded', avatarStyle: 'thumb', messageSpacing: 'roomy', hideAvatars: false,
     showTimestamps: true, showMessageIds: false, showEdited: false, showTokens: true, showCost: true, reasoningAutoExpand: false, italicNarration: false, showModelIcons: true, showGenTimer: true, showExpressionSprites: true, showCache: true,
     expandMessageActions: false, reducedMotion: false,

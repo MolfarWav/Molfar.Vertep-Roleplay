@@ -57,7 +57,7 @@ function FilterSelect({ label, allLabel, value, options, onChange }: {
     <Select value={value} onValueChange={(v) => v && onChange(v)}>
       <SelectTrigger
         aria-label={label}
-        className={cn('h-8 w-auto min-w-0 max-w-[11rem] gap-1.5 font-heading text-[13px]', active && 'border-primary/60 text-foreground')}
+        className={cn('h-8 w-auto min-w-0 max-w-[11rem] gap-1.5 font-heading text-[13px] max-sm:h-10', active && 'border-primary/60 text-foreground')}
       >
         <span className="text-muted-foreground">{label}:</span>
         <SelectValue />

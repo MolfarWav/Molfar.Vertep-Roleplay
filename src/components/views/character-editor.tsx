@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pager, clampPage } from '@/components/ui/pager'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
+import { FieldDescription } from '@/components/ui/field'
+import { FieldTranslateButton } from '@/components/character/field-translate-button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -23,10 +25,12 @@ import { useApp } from '@/lib/store'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
+import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
 import { ProfileTab } from '@/components/character/profile-tab'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
 import { TranslateMenu } from '@/components/character/translate-menu'
@@ -184,11 +188,22 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     if (n) { up({ gallery: items }); toast.success(`Added ${n} item${n > 1 ? 's' : ''}`) }
   }
 
-  const up = (patch: Partial<Character>) => { if (!preview) updateCharacter(c.id, patch) }
+  // every edit is written at once; "Saved" shows for a moment so the user knows there is no Save button to find
+  const [savedFlash, setSavedFlash] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
+  const up = (patch: Partial<Character>) => {
+    if (preview) return
+    updateCharacter(c.id, patch)
+    setSavedFlash(true)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    savedTimer.current = setTimeout(() => setSavedFlash(false), 2500)
+  }
   const lightboxIndex = c.gallery.findIndex((g) => g.id === lightboxId)
   const lightboxItem = lightboxIndex >= 0 ? c.gallery[lightboxIndex]! : null
   const totalTokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue + c.systemPromptOverride + c.postHistoryInstructions)
   const permanentTokens = estimateTokens(c.description + c.personality)
+  const chatCount = chats.filter((ch) => ch.characterId === c.id).length
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -210,9 +225,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         <img src={c.avatar || DEFAULT_AVATAR} alt="" className="size-8 rounded-md object-cover" />
         <h1 className="text-sm font-semibold" style={{ color: c.colors.name || undefined }}>{c.name}</h1>
         {!c.isGroup && <CardKindMenu c={c} />}
-        <Badge variant="secondary">{formatTokens(totalTokens)} tok</Badge>
-        <Badge variant="outline">{formatTokens(permanentTokens)} permanent</Badge>
-        <Badge variant="outline">{chats.filter((ch) => ch.characterId === c.id).length} chats</Badge>
+        <Badge variant="secondary" title="Estimated size of the whole card">{formatTokens(totalTokens)} tokens</Badge>
+        <Badge variant="outline" title="Description and personality: sent with every reply">{formatTokens(permanentTokens)} permanent tokens</Badge>
+        <Badge variant="outline">{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</Badge>
         {/* the id is the card's folder: what to give Molfar so it edits this
             card and not one with a similar name */}
         <button
@@ -239,6 +254,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.versionsShort')}</span>
           </Button>
+          <span role="status" aria-live="polite" className="flex min-w-16 items-center gap-1 text-[11px] text-muted-foreground">
+            {savedFlash && !preview && <><Check className="size-3.5 text-primary" aria-hidden="true" />Saved</>}
+          </span>
           <Button variant="ghost" size="sm" onClick={() => setTokenReportOpen(true)}>Token report</Button>
           {/* a group is not a card: no copy, no card export */}
           {!c.isGroup && (
@@ -277,14 +295,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </div>
       </header>
 
-        <div
-          className="mt-2 max-w-full overflow-x-auto overscroll-x-contain px-4 no-scrollbar"
-          onWheel={(e) => {
-            if (e.deltaY !== 0 && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-              e.currentTarget.scrollLeft += e.deltaY
-            }
-          }}
-        >
+        <div className="mt-2 max-w-full">
+        <ScrollStrip className="px-4">
           <TabsList className="h-8 w-max flex-nowrap">
             {TAB_GROUPS.map((group, gi) => {
               const names = group.filter((name) => !(c.isGroup && (name === 'profile' || name === 'soul')))
@@ -309,6 +321,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               ]
             })}
           </TabsList>
+        </ScrollStrip>
         </div>
           <fieldset disabled={!!preview} className={`mx-auto flex w-full min-w-0 flex-col gap-4 border-0 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'} ${preview ? 'bg-sky-500/5 ring-1 ring-sky-500/40' : ''}`}>
             <TabsContent value="core" className="flex flex-col gap-4">
@@ -336,16 +349,20 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 variants={c.descVariants}
                 onVariantsChange={(descVariants) => up({ descVariants })}
                 rows={5}
+                translate
               />
-              <Field label="First message" value={c.firstMessage} onChange={(v) => up({ firstMessage: v })} rows={4} />
+              <Field label="First message" value={c.firstMessage} onChange={(v) => up({ firstMessage: v })} rows={4} translate />
               <div className="flex flex-col gap-2">
                 <Label className="text-xs">Alternate greetings <span className="text-muted-foreground">(rendered as greeting swipes)</span></Label>
                 {c.altGreetings.map((g, i) => (
                   <div key={i} className="flex gap-2">
                     <Textarea value={g} rows={2} onChange={(e) => up({ altGreetings: c.altGreetings.map((x, j) => j === i ? e.target.value : x) })} aria-label={`Alternate greeting ${i + 1}`} className="text-sm" />
-                    <Button variant="ghost" size="sm" onClick={() => up({ altGreetings: c.altGreetings.filter((_, j) => j !== i) })} aria-label={`Delete greeting ${i + 1}`}>
-                      <Trash className="size-4" aria-hidden="true" />
-                    </Button>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => up({ altGreetings: c.altGreetings.filter((_, j) => j !== i) })} aria-label={`Delete greeting ${i + 1}`}>
+                        <Trash className="size-4" aria-hidden="true" />
+                      </Button>
+                      <FieldTranslateButton label={`Alternate greeting ${i + 1}`} value={g} onChange={(v) => up({ altGreetings: useApp.getState().characters.find((x) => x.id === c.id)?.altGreetings.map((x, j) => j === i ? v : x) ?? c.altGreetings })} />
+                    </div>
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-fit" onClick={() => up({ altGreetings: [...c.altGreetings, ''] })}>
@@ -357,9 +374,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 {c.groupGreetings.map((g, i) => (
                   <div key={i} className="flex gap-2">
                     <Textarea value={g} rows={2} onChange={(e) => up({ groupGreetings: c.groupGreetings.map((x, j) => j === i ? e.target.value : x) })} aria-label={`Group greeting ${i + 1}`} className="text-sm" />
-                    <Button variant="ghost" size="sm" onClick={() => up({ groupGreetings: c.groupGreetings.filter((_, j) => j !== i) })} aria-label={`Delete group greeting ${i + 1}`}>
-                      <Trash className="size-4" aria-hidden="true" />
-                    </Button>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => up({ groupGreetings: c.groupGreetings.filter((_, j) => j !== i) })} aria-label={`Delete group greeting ${i + 1}`}>
+                        <Trash className="size-4" aria-hidden="true" />
+                      </Button>
+                      <FieldTranslateButton label={`Group greeting ${i + 1}`} value={g} onChange={(v) => up({ groupGreetings: useApp.getState().characters.find((x) => x.id === c.id)?.groupGreetings.map((x, j) => j === i ? v : x) ?? c.groupGreetings })} />
+                    </div>
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-fit" onClick={() => up({ groupGreetings: [...c.groupGreetings, ''] })}>
@@ -370,22 +390,25 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
             {!c.isGroup && (
               <TabsContent value="profile" className="flex flex-col gap-4">
-                <ProfileTab c={c} up={up} />
+                <ErrorBoundary resetKey={c.id} what="The profile">
+                  <ProfileTab c={c} up={up} />
+                </ErrorBoundary>
               </TabsContent>
             )}
 
             <TabsContent value="dialogue">
-              <Field label="Example dialogue" hint="Use <START> to separate example chats. {{user}} / {{char}} macros supported." value={c.exampleDialogue} onChange={(v) => up({ exampleDialogue: v })} rows={12} mono />
+              <Field label="Example dialogue" hint="Use <START> to separate example chats. {{user}} / {{char}} macros supported." value={c.exampleDialogue} onChange={(v) => up({ exampleDialogue: v })} rows={12} mono translate />
             </TabsContent>
 
             <TabsContent value="advanced" className="flex flex-col gap-4">
               <Field label="System prompt override" value={c.systemPromptOverride} onChange={(v) => up({ systemPromptOverride: v })} rows={3} />
-              <Field label="Post-history instructions" value={c.postHistoryInstructions} onChange={(v) => up({ postHistoryInstructions: v })} rows={3} />
+              <Field label="Post-history instructions" description="Sent after the chat history, right before the reply. Good for reminders the model must not forget." value={c.postHistoryInstructions} onChange={(v) => up({ postHistoryInstructions: v })} rows={3} />
               <div className="grid gap-3 sm:grid-cols-[1fr_100px_140px]">
-                <Field label="Depth prompt" value={c.depthPrompt.text} onChange={(v) => up({ depthPrompt: { ...c.depthPrompt, text: v } })} rows={2} />
+                <Field label="Depth prompt" description="A note placed inside the chat history instead of at the top." value={c.depthPrompt.text} onChange={(v) => up({ depthPrompt: { ...c.depthPrompt, text: v } })} rows={2} />
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">@ depth</Label>
                   <Input type="number" value={c.depthPrompt.depth} onChange={(e) => up({ depthPrompt: { ...c.depthPrompt, depth: Number(e.target.value) } })} aria-label="Depth" />
+                  <FieldDescription className="text-[11px]">Messages from the end (0 = last).</FieldDescription>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">Role</Label>
@@ -397,6 +420,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       <SelectItem value="assistant">assistant</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldDescription className="text-[11px]">Who the note speaks as. “system” is usual.</FieldDescription>
                 </div>
               </div>
               <VariantField
@@ -406,6 +430,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 variants={c.scenarioVariants}
                 onVariantsChange={(scenarioVariants) => up({ scenarioVariants })}
                 rows={2}
+                translate
               />
               <VariantField
                 label="Personality summary"
@@ -414,6 +439,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 variants={c.personalityVariants}
                 onVariantsChange={(personalityVariants) => up({ personalityVariants })}
                 rows={2}
+                translate
               />
               <Collapsible>
                 <CollapsibleTrigger render={<Button variant="outline" size="sm" className="text-xs">Creator notes (spoiler)</Button>} />
@@ -441,7 +467,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {/* stays mounted behind the other tabs: an unsaved working copy must not vanish on a tab switch */}
             {!c.isGroup && (
               <TabsContent value="soul" keepMounted className="min-w-0">
-                <SoulTab key={c.id} c={c} active={tab === 'soul'} onStatus={setSoulStatus} />
+                <ErrorBoundary resetKey={c.id} what="The soul">
+                  <SoulTab key={c.id} c={c} active={tab === 'soul'} onStatus={setSoulStatus} />
+                </ErrorBoundary>
               </TabsContent>
             )}
 
@@ -801,8 +829,10 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   )
 }
 
-function Field({ label, hint, value, onChange, rows = 3, mono = false }: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void; rows?: number; mono?: boolean
+function Field({ label, hint, description, value, onChange, rows = 3, mono = false, translate = false }: {
+  label: string; hint?: string; description?: string; value: string; onChange: (v: string) => void; rows?: number; mono?: boolean
+  /** a Translate button for this text (story texts; not prompts, which break when translated) */
+  translate?: boolean
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -810,8 +840,10 @@ function Field({ label, hint, value, onChange, rows = 3, mono = false }: {
         {label}
         <TokenBadge text={value} />
         {hint && <span className="font-normal text-muted-foreground">{hint}</span>}
+        {translate && <FieldTranslateButton label={label} value={value} onChange={onChange} />}
       </Label>
       <Textarea value={value} rows={rows} onChange={(e) => onChange(e.target.value)} aria-label={label} className={mono ? 'font-mono text-xs' : 'text-sm'} />
+      {description && <FieldDescription className="text-[11px]">{description}</FieldDescription>}
     </div>
   )
 }

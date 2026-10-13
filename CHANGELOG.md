@@ -2,7 +2,72 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.41.1
+
+A card edited outside the app no longer takes the app down, and menus scroll on Android again. Works on Molfar Vertep 1.0.0 and later.
+
+- Fixed: on Chrome and Brave for Android, the lower part of a sheet or menu (the chat menu, Dashboard settings) would not scroll by touch while a character's expression sprite was shown under it. The sprite now steps aside while a sheet or menu is open on a touch screen.
+- Fixed: a card edited outside the app (by Molfar, a script or by hand) could take the whole app down when its editor opened, with only "Script error" on screen. A list written as one line (`"strengths": "brave, kind"`), a number where text goes, or an object where a list goes is now read as the app expects, in the card and in its Profile.
+- A page that still fails to draw shows what went wrong, with "Copy details" and "Try again", and the rest of the app keeps working. The character editor's Profile and Soul tabs fail on their own, without the editor.
+
+## 4.41.0
+
+A new chat header and menu on phones, replies that survive a locked phone, your own default preset choices, regenerate with a hint, and translation per field and per lorebook. Works on Molfar Vertep 1.0.0 and later.
+
+- Preset choices: "Save as my default" in the chat's preset choices (stock presets too). New chats with that preset start with these choices; a character that already has a chat still starts from the choices of its last one. "Use my default" and "Forget my default" sit next to it. Stored in `data/preset-defaults.json`.
+- "Regenerate with a hint…" in the "+" menu: write what the new reply should do differently. The hint goes to the model for that one reply, as the last instruction, and is not saved in the chat. It always makes a new variant.
+- Card editor: a "Translate" button on Description, Personality, Scenario, First message, Example dialogue and each alternate and group greeting. It translates that one field into the card's translation language, with Undo in the notice.
+- Lorebooks: a translate button in the book's header translates every entry. Translated keywords are added next to the original ones, so entries fire in both languages. By default it keeps a copy of the book as it was.
+- Settings, Streaming (and the chat's Display sheet): "Show replies" as the model writes them (default) or only when they are finished.
+- Translation without a model: Google, Lingva and DeepL are in Tools, Translation. The new translate buttons use whatever is chosen there.
+- Fixed: after switching away from the browser mid-reply (common on phones), the chat could show "…" forever until a reload. On return the app now checks whether the reply was already saved and shows it.
+- While the model works, the empty reply shows moving dots and, after a few seconds, how long it has been writing.
+- Streamed text keeps up with fast models: the typewriter speeds up when it falls behind.
+- Fixed: after Stop and regenerate, switching variants with the arrows could show the same text on every variant. Each variant now keeps its own thinking and tool steps.
+- Dashboard: a reply with no text (only thinking, or cut off) no longer starts a dashboard update, so no tokens are spent on it.
+- New chat step: picking options before the character's remembered choices load no longer gets undone by them.
+- Stock presets: the Samplers page tabs can be opened to read the other pages. The Groups block in the prompt manager says in plain words what a group does.
+- Phones: a new chat header. It shows the character's portrait and name (a long name scrolls slowly), the chat's title, a ring with how full the context is, and one "Menu" button. The portrait opens the card, the soul and the full picture. The ring opens the chat's details: model, tokens, context.
+- Phones: "Menu" slides in from the side. On top: who you play as (opens the persona), then big Preset and Model buttons that unfold their choices in place. Below: everything you do with this chat (find, next chat, author's note, lore activity, story record, branches, bookmarks, display, new chat, delete messages, chat files). The other sections sit at the bottom under "Go to". The preset, persona and model strip under the header is gone.
+- The "+" next to the message box keeps only quick actions: regenerate, continue, impersonate, and the compose tools. New chat, delete messages and chat files moved to the chat menu ("⋮" on wide screens).
+- Phones: the scene strip shows a small dashboard chip, so it is clear that a tap opens the dashboard.
+- Phones: tab rows that run off the screen say so. The side with hidden tabs fades and shows an arrow that pages the row, and the open tab stays in view (card editor, group editor, preset editor, samplers). Tools wraps its tabs onto a second line instead of hiding them past the edge.
+- Fixed: on Chrome and Brave for Android the lower part of a chat would not scroll by touch when a character's expression sprite had not loaded (an invisible sprite panel caught the finger). The panel now ignores touches until its picture loads and hides when the picture fails.
+
+## 4.40.0
+
+Turn settings per chat in groups, and a clear way to pick who speaks. Works on Molfar Vertep 1.0.0 and later.
+
+- Group chats: turn settings belong to the chat. The group keeps its settings as the default; each chat can change its own from the new "Turns" button above it (generation mode, who answers, self responses, auto mode, who is silent and the members' order), and go back with "Use the group's settings". A new group chat can pick its generation mode in the new-chat step. One group can now run as Narrator in one chat and turn by turn in another.
+- "Only the member you pick" (was "Only when you trigger a member"): a "Who answers?" row above the message box makes a member speak in one tap. Before, the only way was a member's chip, then "Trigger reply", and the send looked like a reply that vanished.
+- Fixed: a group set to "only the member you pick" and then switched to Narrator never answered (the hidden "Who answers" stayed manual). A narrator now always answers.
+- Fixed: right after a reply, a group chat could briefly lose its turn settings (auto mode read as off, the popover showed the defaults) until the next refresh.
+- Plain names with a line of help: "Allow self responses" is "The same member may answer twice in a row" and shows only where it does something (who answers: Natural); "Auto mode" is "Keep the scene going on its own". Auto mode is hidden and paused while only you pick who speaks (a bare send there made nobody answer).
+
+## 4.39.0
+
+The Chats panel opens what it names, and the small fixes from the UX audit. Works on Molfar Vertep 1.0.0 and later.
+
+- Chats page: the chat's details open their sections. A member chip opens that card, the group name or portrait opens the group editor, and the persona, preset and each lorebook open in their own section. A target that no longer exists stays plain text.
+- UX audit, the small fixes:
+  - Plain words instead of developer text: dashboard errors say what happened, with the raw reason under "Details"; a soul rating that failed on unreadable JSON says so; the marketplace says it could not be reached, with the detail behind an info button.
+  - Labels: the Groups tab's title says "Groups"; "Single" / "Narrator" instead of capitals; "tokens", "permanent tokens" and "1 chat" instead of "tok" and "1 chats"; a silhouette and "No portrait" instead of the "?" image.
+  - One of each: the stock preset shows one neutral notice and one "Create editable copy"; read-only prompt rows show a lock instead of a pencil; the Soul tab has one rating button and "Delete soul" moved into a "⋯" menu; Home hides the Create card while the hero shows the same three buttons.
+  - Hints: one line under Post-history instructions, Depth prompt, @ depth and Role; under the soul's Class and start values; "Story, move" says what it does (and shows it on a tap). Lorebooks, Personas and Shortcuts get info buttons that open on click or tap (a new `ui/info-tip`). "Test keys" is "Test triggers".
+  - Switches are "on" in the theme's second accent (cyan in Vertep, green in Daylight) instead of red, which now means destructive only.
+  - The card editor shows "Saved" after an edit. The Chats list has a "New chat" button. A chat titled with the character's name shows its last line instead of the name twice.
+  - Library: one name for the section; Litopys is introduced once as the chronicler; one empty state that says what appears and when.
+  - Settings, Appearance: split into Text, Layout and Motion, with "Restore defaults" for those controls.
+  - Group chats in narrator mode show the group's portrait next to the narrator's replies.
+  - Phones: the "no model" chip shows and opens Settings (a toast explains when the app may not); list rows that open a page have a chevron; message actions and info buttons are 40 px targets; the Daylight Home hero text sits on a scrim.
+
+## 4.38.0
+
+Groups write their own scene, and the Chats page shows what each chat is about. Works on Molfar Vertep 1.0.0 and later.
+
+- Group editor, Scene tab: "Generate the scenario" writes the shared scenario, either from the members' cards or as something wild, with an optional wish (its language sets the scenario's language). "Generate opening" then writes openings from that scenario, one at a time and unlike the ones the group already has. Each result is a draft you can edit, use, retry or discard; nothing on the group changes until you accept it. The model of the group's latest chat writes it (else the app's chat model). Muted members are left out.
+- Chats page: the list sits on the left, grouped into Pinned, Today, This week and Earlier, each heading in its own colour, with One-on-one / Groups filters, three sorts and Select for moving or deleting several chats at once. The right side shows the picked chat: Continue, Pin, New chat, the story so far from Litopys, the last three messages in each speaker's colour, and its persona, preset, model, history size, lorebooks and turns. On a phone the panel opens after a tap.
+- Chats can be pinned to the top of the Chats page (a `pinned` flag on the chat; pinning does not count as activity).
 
 A new Canvas tab: the links between Library chats as a board you edit with the mouse. No engine change needed.
 

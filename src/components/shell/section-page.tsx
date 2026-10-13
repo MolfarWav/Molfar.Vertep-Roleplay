@@ -28,9 +28,11 @@ function useSectionTitle(section: ViewKey): string {
  * hideOnPhone drops the title on phones while a detail pane is open: the
  * detail already has its own back row there and the room is better spent.
  */
-export function SectionPage({ section, count, hideOnPhone, actions, children }: {
+export function SectionPage({ section, count, title: titleOverride, hideOnPhone, actions, children }: {
   section: ViewKey
   count?: number | string
+  /** replaces the section's name when the count belongs to a sub-list (Characters > Groups) */
+  title?: string
   hideOnPhone?: boolean
   /** shown at the right end of the title row */
   actions?: ReactNode
@@ -38,7 +40,8 @@ export function SectionPage({ section, count, hideOnPhone, actions, children }: 
 }) {
   const host = useSectionHost()
   const isMobile = useIsMobile()
-  const title = useSectionTitle(section)
+  const sectionTitle = useSectionTitle(section)
+  const title = titleOverride ?? sectionTitle
   if (host === 'drawer') return <>{children}</>
   const showTitle = !(hideOnPhone && isMobile)
   return (
@@ -60,9 +63,10 @@ export function SectionPage({ section, count, hideOnPhone, actions, children }: 
  * compact heading (with its count); as a page the big title above already says
  * it, so this keeps only a screen-reader heading.
  */
-export function PaneTitle({ section, count, icon }: { section: ViewKey; count?: number | string; icon?: ReactNode }) {
+export function PaneTitle({ section, count, icon, title: titleOverride }: { section: ViewKey; count?: number | string; icon?: ReactNode; title?: string }) {
   const host = useSectionHost()
-  const title = useSectionTitle(section)
+  const sectionTitle = useSectionTitle(section)
+  const title = titleOverride ?? sectionTitle
   if (host === 'page') return <h2 className="sr-only">{title}</h2>
   return (
     <>

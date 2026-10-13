@@ -60,10 +60,12 @@ import {
 } from '@/components/ui/dialog'
 import { useApp } from '@/lib/store'
 import { fileToDataUrl } from '@/lib/engine'
+import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
 import { useT } from '@/hooks/use-t'
 import { CharacterBooks } from '@/components/character/character-books'
+import { OpeningGenerator, ScenarioGenerator, useSceneDraft } from '@/components/groups/scene-generate'
 import type { Character, Chat, GroupConfig, GroupMemberSettings } from '@/lib/types'
 
 const COLORS = ['#e06c75', '#e5c07b', '#98c379', '#56b6c2', '#61afef', '#c678dd', '#d19a66', '#abb2bf']
@@ -139,6 +141,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
   const [draftNote, setDraftNote] = useState(g.note ?? '')
   const [draftScenario, setDraftScenario] = useState(g.scenario ?? '')
   const [draftOpenings, setDraftOpenings] = useState<string[]>(g.openings ?? [])
+  const scene = useSceneDraft(group.id)
 
   const [draftDelay, setDraftDelay] = useState(String(g.autoDelaySec ?? 5))
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -335,7 +338,8 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
       </header>
 
       <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
-        <div className="max-w-full overflow-x-auto overscroll-x-contain px-3 py-2 no-scrollbar">
+        <div className="max-w-full py-2">
+        <ScrollStrip className="px-3">
           <TabsList className="h-8 w-max flex-nowrap">
             {tabs.map(({ id, icon: Icon, label }) => (
               <TabsTrigger key={id} value={id} className="flex-none gap-1.5 px-2.5 text-xs">
@@ -344,6 +348,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               </TabsTrigger>
             ))}
           </TabsList>
+        </ScrollStrip>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
@@ -701,6 +706,12 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               <p className="text-xs text-muted-foreground">{t('group.ed.scenarioHint')}</p>
             </div>
 
+            <ScenarioGenerator
+              s={scene}
+              hasScenario={!!draftScenario.trim()}
+              onAccept={(text) => { setDraftScenario(text); updateGroup(group.id, { scenario: text }) }}
+            />
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>{t('group.ed.openings')}</Label>
@@ -710,6 +721,15 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">{t('group.ed.openingsHint')}</p>
+              <OpeningGenerator
+                s={scene}
+                scenario={draftScenario}
+                onAccept={(text) => {
+                  const drafts = [...draftOpenings.filter((o) => o.trim()), text]
+                  setDraftOpenings(drafts)
+                  persistOpenings(drafts)
+                }}
+              />
 
               <div className="space-y-2">
                 {draftOpenings.map((text, i) => (
@@ -735,15 +755,10 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button disabled>
-                {t('group.ed.generateScene')}
-              </Button>
-              <Badge variant="outline">{t('group.ed.soon')}</Badge>
-            </div>
           </TabsContent>
 
           <TabsContent value="turns" className="space-y-5 max-w-3xl px-3 pb-6">
+            <p className="text-xs text-muted-foreground">{t('group.ed.turnsDefaults')}</p>
             <div className="space-y-1.5">
               <Label htmlFor="generation-mode">{t('group.ed.generationMode')}</Label>
               <Select
@@ -793,23 +808,33 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               </Select>
             </div>
 
+            {(g.mode ?? 'natural') === 'natural' && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-              <Label htmlFor="self-responses" className="mb-0">
-                {t('group.ed.allowSelfResponses')}
-              </Label>
+              <div className="min-w-0">
+                <Label htmlFor="self-responses" className="mb-0">
+                  {t('group.ed.allowSelfResponses')}
+                </Label>
+                <p className="text-xs text-muted-foreground">{t('group.ed.allowSelfResponsesHint')}</p>
+              </div>
               <Switch
                 id="self-responses"
                 checked={g.allowSelfResponses ?? false}
                 onCheckedChange={(v) => updateGroup(group.id, { allowSelfResponses: v })}
               />
             </div>
+            )}
+            {g.mode === 'manual' && <p className="text-xs text-muted-foreground">{t('turns.manualHint')}</p>}
             </>)}
 
+            {!(g.mode === 'manual' && g.generationMode !== 'narrator') && (
             <div className="space-y-3 rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="auto-mode" className="mb-0">
-                  {t('group.ed.autoMode')}
-                </Label>
+                <div className="min-w-0">
+                  <Label htmlFor="auto-mode" className="mb-0">
+                    {t('group.ed.autoMode')}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{t('group.ed.autoModeHint')}</p>
+                </div>
                 <Switch
                   id="auto-mode"
                   checked={g.autoMode ?? false}
@@ -836,6 +861,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 </div>
               )}
             </div>
+            )}
           </TabsContent>
 
           <TabsContent value="lore" className="space-y-5 max-w-3xl px-3 pb-6">

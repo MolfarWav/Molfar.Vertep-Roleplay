@@ -39,6 +39,10 @@
   --color-cta: var(--cta);
   --color-group: var(--group);
   --color-group-foreground: var(--group-foreground);
+  --color-when-pinned: var(--when-pinned);
+  --color-when-today: var(--when-today);
+  --color-when-week: var(--when-week);
+  --color-when-earlier: var(--when-earlier);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -74,6 +78,11 @@
   /* group chats and groups: one hue no theme sets, so a group never looks like a single character */
   --group: #7c4dde;
   --group-foreground: #ffffff;
+  /* the Chats page's time groups: each period its own hue, none of them the group violet */
+  --when-pinned: #b26a00;
+  --when-today: #0b7f8c;
+  --when-week: #2f64b8;
+  --when-earlier: #6e675e;
   --secondary: #f1f1f2;
   --secondary-foreground: #161616;
   --muted: #f1f1f2;
@@ -116,6 +125,10 @@
   --cta-foreground: var(--primary-foreground);
   --group: #a58bf5;
   --group-foreground: #16102a;
+  --when-pinned: #f2b45a;
+  --when-today: #57c9d6;
+  --when-week: #86b3f2;
+  --when-earlier: #b9b2a7;
   --secondary: #202020;
   --secondary-foreground: #e6e6e6;
   --muted: #1f1f1f;
@@ -577,8 +590,8 @@ h1 {
   height: 15px;
 }
 .look-stage .ls-acts.is-touch .ls-act {
-  min-width: 36px;
-  height: 36px;
+  min-width: 40px;
+  height: 40px;
   padding: 0 8px;
 }
 .look-stage .ls-acts.is-touch .ls-act-label {
@@ -679,7 +692,8 @@ h1 {
     display: none;
   }
   .look-stage .ls-act {
-    min-width: 32px;
+    min-width: 40px;
+    height: 40px;
     padding: 0 6px;
   }
   .look-stage .ls-scene b {
@@ -730,4 +744,29 @@ h1 {
   opacity: 0.45;
   -webkit-mask-image: var(--stitch-b-url);
   mask-image: var(--stitch-b-url);
+}
+
+/* MarqueeText: a line too long for its box drifts to its end and back */
+@keyframes marquee-x {
+  0%, 20% { transform: translateX(0); }
+  80%, 100% { transform: translateX(var(--marquee-shift, 0)); }
+}
+.marquee-x { animation: marquee-x var(--marquee-time, 6s) ease-in-out 1.5s infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .marquee-x { animation: none; } }
+
+/* PendingReply: three dots that rise in turn while the model works */
+@keyframes pending-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.pending-dot { animation: pending-dot 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pending-dot { animation: none; opacity: 0.7; } }
+
+/* The expression sprite is touch-action: none (it drags). A Chrome for
+   Android user could not scroll the lower part of sheets and menus, right
+   where the sprite sits under them (reported 2026-10-13; the link to the
+   sprite is inferred from that spot). While one is open on a touch screen
+   the sprite steps out of the way; the sheet covers it anyway. */
+@media (pointer: coarse) {
+  body:has([role="dialog"], [role="menu"], [role="listbox"]) [data-expression-panel] { visibility: hidden; }
 }

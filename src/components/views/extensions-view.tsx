@@ -23,7 +23,7 @@ const PANEL_ICONS: Record<string, typeof DiceFive> = {
 
 function ToolGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex min-w-0 max-w-full items-center gap-1.5">
       <span className="shrink-0 px-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80">{label}</span>
       {children}
     </div>
@@ -31,6 +31,10 @@ function ToolGroup({ label, children }: { label: string; children: React.ReactNo
 }
 
 const TRIGGER_CLS = "flex-none gap-1.5"
+// a group's tabs wrap onto a second line on a narrow screen instead of
+// running off the edge (the strip's own h-8 is a variant class, so h-auto
+// has to name the same variant to win)
+const LIST_CLS = "h-auto min-w-0 flex-wrap justify-start group-data-horizontal/tabs:h-auto"
 
 export function ExtensionsView() {
   const [tab, setTab] = useState('regex')
@@ -71,7 +75,7 @@ export function ExtensionsView() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             {panels.length > 0 && (
               <ToolGroup label="Panels">
-                <TabsList className="h-auto">
+                <TabsList className={LIST_CLS}>
                   {panels.map((p) => {
                     const Icon = PANEL_ICONS[p.icon ?? ''] ?? PuzzlePiece
                     const value = `panel:${p.label}`
@@ -85,7 +89,7 @@ export function ExtensionsView() {
               </ToolGroup>
             )}
             <ToolGroup label="Text & voice">
-              <TabsList className="h-auto">
+              <TabsList className={LIST_CLS}>
                 <TabsTrigger value="regex" className={TRIGGER_CLS}><Asterisk className="size-3.5" aria-hidden="true" /> Regex</TabsTrigger>
                 <TabsTrigger value="translation" className={TRIGGER_CLS}><Translate className="size-3.5" aria-hidden="true" /> Translation</TabsTrigger>
                 <TabsTrigger value="image-gen" className={TRIGGER_CLS}><Image className="size-3.5" aria-hidden="true" /> Image Generation</TabsTrigger>
@@ -94,7 +98,7 @@ export function ExtensionsView() {
               </TabsList>
             </ToolGroup>
             <ToolGroup label="System">
-              <TabsList className="h-auto">
+              <TabsList className={LIST_CLS}>
                 <TabsTrigger value="backgrounds" className={TRIGGER_CLS}><Image className="size-3.5" aria-hidden="true" /> Backgrounds</TabsTrigger>
                 <TabsTrigger value="mcp" className={TRIGGER_CLS}><Plug className="size-3.5" aria-hidden="true" /> MCP</TabsTrigger>
                 <TabsTrigger value="plugins" className={TRIGGER_CLS}><SquaresFour className="size-3.5" aria-hidden="true" /> Plugins</TabsTrigger>

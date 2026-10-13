@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, Lightning, Storefront, ArrowRight } from '@phosphor-icons/react'
+import { ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -34,7 +34,7 @@ import { cssAttrValue, scopeCss } from '@/lib/scope-css'
 import { toast } from 'sonner'
 import { MessageRow } from './message-row'
 import { Composer } from './composer'
-import { GroupMemberBar } from './group-member-bar'
+import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { HelpDialog } from './help-dialog'
 import { ExpressionPanel } from './expression-panel'
@@ -45,18 +45,19 @@ import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
+import { ManageChatsDialog } from './manage-chats-dialog'
+import { MarqueeText } from '@/components/ui/marquee-text'
 import { ChatDetailsButton } from './chat-details'
 import { SceneBefore } from './scene-heading'
 
 /** The chat look. Only 'stage' exists today; a later 'vn' look switches the class and the markup here. */
 const look: 'stage' | 'vn' = 'stage'
 
-/** The mobile chat's section bar. The header's preset · persona · model switch
- *  sits in it, icons only, in place of the Presets and Personas icons (its menu
- *  opens both editors): with no Connections section (0.9.2) it is where a phone
- *  switches the chat's model. Shortcuts and Marketplace ride in the chat menu
- *  to keep the icons at a thumb's width. */
-const PHONE_BAR_SECTIONS = sectionsFor(['characters', 'lorebooks', 'extensions', 'settings'])
+/** Sections the phone chat menu links to, at its foot: the menu itself is
+ *  about this chat, so leaving it for another section comes last. */
+const PHONE_MENU_SECTIONS = sectionsFor(['characters', 'lorebooks', 'extensions', 'settings', 'quickreplies', 'marketplace'])
+
+interface ChatAction { key: string; icon: PhosphorIcon; label: string; onSelect: () => void; disabled?: boolean }
 
 /** Where the reader is: the topmost message still in view and how far its top
  *  sits above the fold. The log is measured from the top and opts out of the
@@ -160,10 +161,16 @@ export function ChatView() {
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
+  const [portraitOpen, setPortraitOpen] = useState(false)
+  const startChatAndOpen = useApp((s) => s.startChatAndOpen)
   // group auto mode: keep the scene moving while this chat is open — a bare
   // send (continue) fires every N seconds when nothing is generating and the
   // user isn't typing; any activity re-arms the timer
-  const autoMode = chat?.groupSettings?.autoMode ?? false
+  // (not when only the user picks who speaks: a bare send would make nobody answer)
+  const gsNow = chat?.groupSettings
+  const autoMode = (gsNow?.autoMode ?? false) && !(gsNow?.activation === 'manual' && gsNow.generationMode !== 'narrator')
   const autoDelaySec = Math.max(2, chat?.groupSettings?.autoDelaySec ?? 5)
   const msgCount = chat?.messages.length ?? 0
   const sendMessage = useApp((s) => s.sendMessage)
@@ -573,34 +580,48 @@ export function ChatView() {
     settings.chatWidth === 'compact' ? '36rem' :
     `${settings.chatWidthCustom}px`
 
-  // one set of chat tools for the desktop kebab and the mobile chat menu
+  // one set of chat tools for the desktop kebab and the phone chat menu
+  const chatActions: ChatAction[] = [
+    { key: 'note', icon: Note, label: "Author's note", onSelect: () => setNotesOpen(true) },
+    { key: 'lore', icon: BookOpenText, label: t('lore.activity.title'), onSelect: () => setLoreOpen(true) },
+    { key: 'record', icon: Brain, label: t('lit.recordTitle'), onSelect: () => setSummaryOpen(true) },
+    ...(!character.isGroup ? [{ key: 'convert', icon: UserPlus, label: 'Convert to group', onSelect: () => setConvertOpen(true) }] : []),
+    { key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },
+    { key: 'bookmarks', icon: BookmarkSimple, label: 'Bookmarks', onSelect: () => setBookmarksOpen(true) },
+    { key: 'display', icon: GearSix, label: 'Display settings', onSelect: () => setDisplayOpen(true) },
+  ]
+  // the chat as a whole (were in the composer's plus menu)
+  const chatManage: ChatAction[] = [
+    { key: 'new', icon: ChatCenteredText, label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming },
+    { key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },
+    { key: 'files', icon: FolderOpen, label: 'Manage chat files', onSelect: () => setManageOpen(true) },
+  ]
+  const menuItem = (a: ChatAction) => (
+    <DropdownMenuItem key={a.key} onClick={a.onSelect} disabled={a.disabled}>
+      <a.icon className="size-4" aria-hidden="true" /> {a.label}
+    </DropdownMenuItem>
+  )
   const chatTools = (
     <>
-      <DropdownMenuItem onClick={() => setNotesOpen(true)}>
-        <Note className="size-4" aria-hidden="true" /> Author&apos;s note
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => setLoreOpen(true)}>
-        <BookOpenText className="size-4" aria-hidden="true" /> {t('lore.activity.title')}
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => setSummaryOpen(true)}>
-        <Brain className="size-4" aria-hidden="true" /> {t('lit.recordTitle')}
-      </DropdownMenuItem>
-      {!character.isGroup && (
-        <DropdownMenuItem onClick={() => setConvertOpen(true)}>
-          <UserPlus className="size-4" aria-hidden="true" /> Convert to group
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem onClick={() => setBranchesOpen(true)}>
-        <GitBranch className="size-4" aria-hidden="true" /> Branches
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => setBookmarksOpen(true)}>
-        <BookmarkSimple className="size-4" aria-hidden="true" /> Bookmarks
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => setDisplayOpen(true)}>
-        <GearSix className="size-4" aria-hidden="true" /> Display settings
-      </DropdownMenuItem>
+      {chatActions.map(menuItem)}
+      <DropdownMenuSeparator />
+      {chatManage.map(menuItem)}
     </>
   )
+  // a row of the phone menu: closes the menu, then acts
+  const sheetRow = (a: ChatAction) => (
+    <button
+      key={a.key}
+      type="button"
+      disabled={a.disabled}
+      onClick={() => { setMenuOpen(false); a.onSelect() }}
+      className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm hover:bg-accent disabled:opacity-50"
+    >
+      <a.icon className="size-4.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      {a.label}
+    </button>
+  )
+  const chatContext = lastInput != null && contextSize ? { used: lastInput, total: contextSize } : null
 
   return (
     <DashProvider chatId={chat.id}>
@@ -625,7 +646,7 @@ export function ChatView() {
           <Button variant="ghost" size="icon-sm" onClick={closeChat} aria-label="Back to chats">
             <ArrowLeft aria-hidden="true" />
           </Button>
-          <AvatarMenu characterId={character.id} align="start">
+          <AvatarMenu characterId={character.id} align="start" onViewPortrait={() => setPortraitOpen(true)}>
             <button type="button" className="shrink-0 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Avatar className="size-8 rounded-md">
                 <AvatarImage src={character.avatar || DEFAULT_AVATAR} alt="" />
@@ -663,7 +684,7 @@ export function ChatView() {
               costMsgs={costMsgs}
               tokensIn={tokensIn}
               tokensOut={tokensOut}
-              context={lastInput != null && contextSize ? { used: lastInput, total: contextSize } : null}
+              context={chatContext}
             />
             <HeaderIcon label="Find in chat (Ctrl+F)" onClick={() => setFindOpen((o) => !o)}>
               <MagnifyingGlass aria-hidden="true" />
@@ -678,7 +699,7 @@ export function ChatView() {
                     </Button>
                   }
                 />
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-60">
                   {chatTools}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -686,85 +707,88 @@ export function ChatView() {
           </div>
       </header>
 
-      {/* Mobile: one row of sections instead of the header. Each opens as a
-          drawer over the chat, just below this bar, and tapping it again
-          closes it; who and which chat moves into the chat menu. Its height
-          is the drawer's top offset in SectionDrawer (top-11). */}
-      <nav aria-label="Sections" className="relative z-10 flex h-11 shrink-0 items-center border-b border-border bg-card px-1 md:hidden">
-        <Button variant="ghost" size="icon-sm" onClick={() => { closeDrawer(); closeChat() }} aria-label="Back to chats">
+      {/* Phone header: who and which chat, how full the context is, and one
+          labelled Menu. The preset, persona and model switch, the chat's
+          tools and the other sections live in the menu (a sheet from the
+          right). The portrait opens the card, the soul and the full picture. */}
+      <nav aria-label="Chat header" className="relative z-10 flex h-12 shrink-0 items-center gap-1 border-b border-border bg-card px-1 md:hidden">
+        <Button variant="ghost" size="icon" className="size-10 shrink-0" onClick={() => { closeDrawer(); closeChat() }} aria-label="Back to chats">
           <ArrowLeft aria-hidden="true" />
         </Button>
-        <AvatarMenu characterId={character.id} align="start">
-          <button type="button" className="mx-0.5 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Avatar className="size-7 rounded-full">
+        <AvatarMenu characterId={character.id} align="start" onViewPortrait={() => setPortraitOpen(true)}>
+          <button type="button" className="shrink-0 rounded-full p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Avatar className="size-9 rounded-full">
               <AvatarImage src={character.avatar || DEFAULT_AVATAR} alt="" />
               <AvatarFallback>{character.name.slice(0, 2)}</AvatarFallback>
             </Avatar>
           </button>
         </AvatarMenu>
-        <div className="shrink-0" data-testid="phone-quick-switch">
-          <ChatQuickSwitch chatId={chat.id} />
+        <div className="min-w-0 flex-1 pl-1">
+          <MarqueeText className="font-heading text-[15px] leading-tight" style={{ color: readableNameColor(character.colors.name) }}>
+            {character.name}
+          </MarqueeText>
+          <p className="truncate text-[11px] leading-tight text-muted-foreground">
+            {chat.title} · {t('details.chat', { n: chatIndex + 1, m: charChats.length })}
+          </p>
         </div>
-        <div className="flex min-w-0 flex-1 items-center justify-around overflow-x-auto">
-          {PHONE_BAR_SECTIONS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => (drawer === item.key ? closeDrawer() : setView(item.key))}
-              aria-label={t(item.labelKey)}
-              aria-pressed={drawer === item.key}
-              className={cn(
-                'flex size-9 shrink-0 items-center justify-center rounded-md transition-colors',
-                drawer === item.key ? 'bg-accent text-cta' : 'text-muted-foreground active:bg-accent',
-              )}
-            >
-              <item.icon className="size-4.5" aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" aria-label="Chat menu">
-                <DotsThreeVertical aria-hidden="true" />
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuGroup>
-            <DropdownMenuLabel className="flex flex-col gap-0.5">
-              <span className="truncate text-sm text-foreground" style={{ color: readableNameColor(character.colors.name) }}>{character.name}</span>
-              <span className="truncate font-normal">
-                {chat.title} · chat {chatIndex + 1} of {charChats.length}
-                {settings.showCost && chatCost !== null ? ` · ${formatCost(chatCost)}` : ''}
-              </span>
-            </DropdownMenuLabel>
-            {charChats.length > 1 && (
-              <DropdownMenuItem
-                onClick={() => {
-                  const next = charChats[(chatIndex + 1) % charChats.length]
-                  if (next) openChat(next.id)
-                }}
-              >
-                <ArrowRight className="size-4" aria-hidden="true" /> Next chat
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => setFindOpen((o) => !o)}>
-              <MagnifyingGlass className="size-4" aria-hidden="true" /> Find in chat
-            </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            {chatTools}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setView('quickreplies')}>
-              <Lightning className="size-4" aria-hidden="true" /> Shortcuts
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView('marketplace')}>
-              <Storefront className="size-4" aria-hidden="true" /> Marketplace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ChatDetailsButton
+          ring
+          title={chat.title}
+          chatIndex={chatIndex}
+          chatCount={charChats.length}
+          model={chatModel || defaultModel || null}
+          cost={chatCost}
+          costMsgs={costMsgs}
+          tokensIn={tokensIn}
+          tokensOut={tokensOut}
+          context={chatContext}
+        />
+        <Button variant="outline" className="h-10 shrink-0 gap-1.5 px-3" onClick={() => { closeDrawer(); setMenuOpen(true) }} aria-haspopup="dialog">
+          <List className="size-4.5" aria-hidden="true" /> Menu
+        </Button>
       </nav>
+
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side="right" className="w-[min(320px,88vw)] gap-0 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Chat menu</SheetTitle>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <div className="border-b border-border p-3 pr-12">
+              <ChatQuickSwitch chatId={chat.id} variant="rows" onNavigate={() => setMenuOpen(false)} />
+            </div>
+            <div className="flex flex-col p-2">
+              <p className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">This chat</p>
+              {sheetRow({ key: 'find', icon: MagnifyingGlass, label: 'Find in chat', onSelect: () => setFindOpen(true) })}
+              {charChats.length > 1 && sheetRow({
+                key: 'next',
+                icon: ArrowRight,
+                label: `Next chat (${((chatIndex + 1) % charChats.length) + 1} of ${charChats.length})`,
+                onSelect: () => { const next = charChats[(chatIndex + 1) % charChats.length]; if (next) openChat(next.id) },
+              })}
+              {chatActions.map(sheetRow)}
+              <div className="my-1 h-px bg-border" />
+              {chatManage.map(sheetRow)}
+            </div>
+            <div className="mt-auto border-t border-border p-2">
+              <p className="px-1 pt-1 pb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">Go to</p>
+              <div className="grid grid-cols-3 gap-1">
+                {PHONE_MENU_SECTIONS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => { setMenuOpen(false); setView(item.key) }}
+                    className="flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <item.icon className="size-4.5" aria-hidden="true" />
+                    {t(item.labelKey)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* relationship dashboard, below 1024 px: one bar that opens a bottom sheet */}
       <DashPhoneMount chatId={chat.id} />
@@ -975,12 +999,27 @@ export function ChatView() {
             </div>
           </div>
         ) : (
-          <Composer chatId={chat.id} />
+          <>
+            {character.isGroup && <GroupPicker chat={chat} group={character} />}
+            <Composer chatId={chat.id} />
+          </>
         )}
       </div>
       </div>
       <DashStripMount chatId={chat.id} />
       </div>
+
+      {chat.characterId && (
+        <ManageChatsDialog open={manageOpen} onOpenChange={setManageOpen} characterId={chat.characterId} currentChatId={chat.id} />
+      )}
+      <Dialog open={portraitOpen} onOpenChange={setPortraitOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{character.name}</DialogTitle>
+          </DialogHeader>
+          <img src={character.avatar || DEFAULT_AVATAR} alt={character.name} className="max-h-[75dvh] w-full rounded-md object-contain" />
+        </DialogContent>
+      </Dialog>
 
       {/* Author's note sheet */}
       <Sheet open={notesOpen} onOpenChange={setNotesOpen}>
@@ -1338,6 +1377,18 @@ function DisplaySettings() {
         <Field>
           <FieldLabel>Background opacity: {settings.backgroundOpacity}%</FieldLabel>
           <Slider value={[settings.backgroundOpacity]} min={0} max={100} step={2} onValueChange={(v) => updateSettings({ backgroundOpacity: (Array.isArray(v) ? v[0] : (v as number)) })} />
+        </Field>
+        <Field>
+          <FieldLabel>Show replies</FieldLabel>
+          <Select value={settings.replyDisplay ?? 'live'} onValueChange={(v) => v && updateSettings({ replyDisplay: v as 'live' | 'whole' })}>
+            <SelectTrigger className="w-full" aria-label="Show replies">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="live">As the model writes them</SelectItem>
+              <SelectItem value="whole">When they are finished</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
         <Field>
           <FieldLabel>Streaming FPS: {settings.streamingFps}</FieldLabel>

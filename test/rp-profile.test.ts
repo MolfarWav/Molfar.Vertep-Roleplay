@@ -273,3 +273,80 @@ describe("a replacing fill", () => {
     expect(mergeFill({ appearance: { eyes: "grey" } }, { appearance: { eyes: "violet" } }).appearance).toEqual({ eyes: "grey" })
   })
 })
+
+// Discord report: after the built-in agent edited a card, its editor showed only
+// "Script error" and the app froze. Hand- or model-written card.json may hold a
+// list as one string, a number for a text, an object for a list: every screen
+// reads a card through cardToCharacter and profileOf, so those two must hand
+// out the types the form expects.
+describe("cards written outside the app", () => {
+  it("profileOf coerces wrong shapes instead of passing them to the form", () => {
+    const card = {
+      ...baseCard(),
+      extensions: {
+        molfar_profile: {
+          identity: { first: "Kit", age: 19, nicknames: "Kitty, K" },
+          lists: { strengths: "brave, kind\nloyal", flaws: [1, null, "rash"], fears: { a: 1 } },
+          appearance: { eyes: ["green", "sharp"], hair: { color: "red" } },
+          background: { affiliations: "the Guild" },
+          sexuality: { turnOns: "rain" },
+          sections: { trauma: "yes", appearance: true },
+          relationships: { Mira: "sister", Bo: { relation: "friend", notes: 3 } },
+          futureField: { keep: "me" },
+        },
+      },
+    }
+    const p = profileOf(cardToCharacter(card as never, "kit"))!
+    expect(p.identity).toEqual({ first: "Kit", age: "19", nicknames: ["Kitty", "K"] })
+    expect(p.lists).toEqual({ strengths: ["brave", "kind", "loyal"], flaws: ["1", "rash"] })
+    expect(p.appearance).toEqual({ eyes: "green, sharp" })
+    expect(p.background).toEqual({ affiliations: ["the Guild"] })
+    expect(p.sexuality).toEqual({ turnOns: ["rain"] })
+    expect(p.sections).toEqual({ appearance: true })
+    expect(p.relationships).toEqual([
+      { name: "Mira", relation: "sister", notes: "" },
+      { name: "Bo", relation: "friend", notes: "3" },
+    ])
+    expect(p.futureField).toEqual({ keep: "me" })
+    expect(compileProfile(p).personality).toContain("Strengths: brave, kind, loyal")
+  })
+
+  it("cardToCharacter hands out strings and lists whatever the file holds", () => {
+    const c = cardToCharacter(
+      {
+        name: 42,
+        description: ["not", "text"],
+        tags: "elf, mage",
+        alternate_greetings: "Hello there",
+        first_mes: null,
+        studio: {
+          versions: "none",
+          descVariants: [{ label: "Short", content: 7 }, "junk"],
+          stats: [{ name: "Trust", initial: "5" }],
+          depthPrompt: { text: "note", depth: "2", role: "narrator" },
+          colors: "red",
+          gallery: [{ url: "" }, { url: "data:image/png;base64,AA", type: "gif" }],
+          expressions: [{ name: "joy" }, { url: "x" }],
+          linkedLorebookIds: "book1",
+          favorite: "yes",
+        },
+      } as never,
+      "kit",
+    )
+    expect(c.name).toBe("42")
+    expect(c.description).toBe("")
+    expect(c.tags).toEqual(["elf", "mage"])
+    expect(c.altGreetings).toEqual(["Hello there"])
+    expect(c.firstMessage).toBe("")
+    expect(c.versions).toEqual([])
+    expect(c.descVariants).toEqual([{ id: "v0", label: "Short", content: "7" }])
+    expect(c.stats).toEqual([{ id: "s0", name: "Trust", initial: 5, max: 100, color: "" }])
+    expect(c.depthPrompt).toEqual({ text: "note", depth: 2, role: "system" })
+    expect(c.colors).toEqual({ name: "", dialogue: "", bubble: "" })
+    expect(c.gallery).toHaveLength(1)
+    expect(c.gallery[0]!.type).toBe("image")
+    expect(c.expressions).toEqual([{ name: "joy", url: null }])
+    expect(c.linkedLorebookIds).toEqual(["book1"])
+    expect(c.favorite).toBe(false)
+  })
+})

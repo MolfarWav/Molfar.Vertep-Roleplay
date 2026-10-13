@@ -66,6 +66,19 @@ export interface GroupConfig {
   memberBooks?: 'all' | 'speaker' | 'off'
 }
 
+/** A group chat's own turn settings (chat meta `turns`): each key set here
+ *  overrides the group's default for this chat only; a missing key follows
+ *  the group. `order` is the members' order in this chat. */
+export interface ChatTurns {
+  generationMode?: 'swap' | 'append' | 'narrator'
+  mode?: 'manual' | 'list' | 'natural'
+  allowSelfResponses?: boolean
+  autoMode?: boolean
+  autoDelaySec?: number
+  mutedIds?: string[]
+  order?: string[]
+}
+
 export interface Character {
   id: ID
   name: string
@@ -226,6 +239,8 @@ export interface Chat {
   litopysCut?: { count: number; upTo: string | null }
   temporary: boolean
   folderId: ID | null
+  /** pinned to the top of the Chats page */
+  pinned?: boolean
   chatTags: string[]
   backgroundId: ID | 'none' | null
   fieldVariantSelection: { desc?: ID; personality?: ID; scenario?: ID }
@@ -237,6 +252,9 @@ export interface Chat {
   /** did the user ever speak here? From the meta, so it is known without
    *  loading the transcript (the boot sweep and Home both need it). */
   hasUser?: boolean
+  /** this chat's own turn settings; absent = the group's */
+  turns?: ChatTurns
+  /** how this group chat plays: the group's defaults with `turns` on top (derived, never saved) */
   groupSettings?: {
     activation: 'natural' | 'list' | 'manual'
     generationMode?: 'swap' | 'append' | 'narrator' // swap = individual character turns, append = merged card
@@ -244,6 +262,8 @@ export interface Chat {
     autoDelaySec: number
     allowSelfResponses: boolean
     muted: ID[]
+    /** the members in this chat's order */
+    order: ID[]
   }
 }
 
@@ -738,6 +758,8 @@ export interface AppSettings {
   uiScale: number
   avatarScale: number
   streamingFps: number
+  /** 'live': a reply shows as the model writes it; 'whole': it appears once finished */
+  replyDisplay?: 'live' | 'whole'
   /** 'rect' = tall rounded-rectangle portrait crop; the rest are corner
    *  radii on a square crop. */
   avatarShape: 'circle' | 'square' | 'rounded' | 'rect'

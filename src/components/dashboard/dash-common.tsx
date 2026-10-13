@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { PencilSimple } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
@@ -155,6 +155,30 @@ export function NameChip({ char, onClick }: { char: DashChar; onClick?: () => vo
   )
 }
 
+/** A failed update in plain words; the raw reason (what the plugin stored) sits behind "Details". */
+export function plainDashError(t: ReturnType<typeof useT>, raw: string): string {
+  if (/not JSON|had no characters|could not apply/i.test(raw)) return t('dash.err.unreadable')
+  if (/429|rate.?limit/i.test(raw)) return t('dash.err.busy')
+  if (/whole reply limit thinking/i.test(raw)) return t('dash.err.thinking')
+  return t('dash.err.generic')
+}
+
+export function DashError({ message, className }: { message: string; className?: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return (
+    <span className={cn('min-w-0 break-words', className)}>
+      {plainDashError(t, message)}{' '}
+      {message && (
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="rounded-none underline underline-offset-2 hover:text-foreground">
+          {t('dash.err.details')}
+        </button>
+      )}
+      {open && <code className="mt-1 block break-words font-mono text-[10.5px] opacity-80">{message}</code>}
+    </span>
+  )
+}
+
 export function Notices({ view, className }: { view: DashView; className?: string }) {
   const t = useT()
   if (!view.stale && !view.partial && !view.lastError) return null
@@ -162,7 +186,7 @@ export function Notices({ view, className }: { view: DashView; className?: strin
     <div className={cn('flex flex-col gap-1 text-[11px] text-muted-foreground', className)}>
       {view.stale && <span>{t('dash.stale')}</span>}
       {view.partial && <span>{t('dash.partial')}</span>}
-      {view.lastError && <span className="break-words">{t('dash.error', { message: view.lastError.message })}</span>}
+      {view.lastError && <DashError message={view.lastError.message} />}
     </div>
   )
 }

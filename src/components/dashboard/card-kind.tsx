@@ -13,7 +13,7 @@ import type { Character } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { mk } from './effect-text'
 
-const BADGE = 'inline-flex shrink-0 items-center gap-1 border px-2 py-0.5 text-xs font-bold uppercase tracking-wider'
+const BADGE = 'inline-flex shrink-0 items-center gap-1 border px-2 py-0.5 text-xs font-semibold'
 
 // one colour per kind (full class names, so Tailwind sees them); `hover` is for the editor's menu trigger
 const KIND_COLOR: Record<CardType, { badge: string; hover: string }> = {

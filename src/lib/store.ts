@@ -18,7 +18,7 @@ import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
   ConnectionProfile, DataBankFile, ID, ModelInfo, ChatBranch, ToolPart,
-  PresetChoiceBody, PresetCosts, PresetMemory, GroupConfig,
+  PresetChoiceBody, PresetCosts, PresetMemory, GroupConfig, ChatTurns,
 } from './types'
 import {
   seedThemes, defaultSettings, withBuiltinThemes,
@@ -31,7 +31,7 @@ import { shellLocale } from './shell-bridge'
 import {
   j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
-  engineChatToUI, chatPatchOf,
+  engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
@@ -65,7 +65,7 @@ export type BootState = 'loading' | 'ready' | 'error'
 /** Books the engine should scan for a chat: every global book plus the ones
  *  of the chat's character (its own book and the linked ones; in a group, every
  *  member's). The engine honors meta.lorebookIds as the scope. */
-function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characters: Character[]): string[] {
+export function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characters: Character[]): string[] {
   if (!chat) return []
   const exists = new Set(books.map((b) => b.id))
   const ids = new Set(books.filter((b) => b.globalActive).map((b) => b.id))
@@ -192,7 +192,8 @@ interface AppState {
   sendMessage: (chatId: ID, content: string, opts?: { attachments?: Message['attachments']; noEmptySend?: boolean }) => void
   stopStreaming: () => void
   tickStream: () => void
-  regenerate: (chatId: ID, messageId?: ID) => void
+  /** `guidance`: a direction for this one reply (Regenerate with a hint); never saved */
+  regenerate: (chatId: ID, messageId?: ID, guidance?: string) => void
   setComposerDraft: (text: string | null) => void
   addSwipe: (chatId: ID) => void
   setSwipe: (chatId: ID, messageId: ID, index: number) => void
@@ -215,23 +216,32 @@ interface AppState {
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
   /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
-  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]> }) => Promise<ID>
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns }) => Promise<ID>
   startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
   /** the open new-chat step (preset and choices before a chat starts); null = none */
   newChatStep: { charId: ID; greetingIndex?: number } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]> }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
   fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null>; only?: 'total' }) => Promise<PresetCosts>
   fetchPresetMemory: (characterId: ID) => Promise<PresetMemory>
+  /** the user's own default choices per preset (null until loaded) */
+  presetDefaults: Record<ID, Record<string, string | string[]>> | null
+  loadPresetDefaults: () => Promise<Record<ID, Record<string, string | string[]>>>
+  /** save these choices as the user's default for the preset; null forgets it */
+  setPresetDefault: (presetId: ID, vars: Record<string, string | string[]> | null) => Promise<void>
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
   convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<ID | null>
   reorderGroupMember: (groupId: ID, memberId: ID, dir: -1 | 1) => void
   /** Change a group's file (the group editor). Arrays and memberSettings go whole. */
   updateGroup: (groupId: ID, patch: Partial<GroupConfig>) => void
+  /** change this group chat's own turn settings (merged in); null = follow the group again */
+  setChatTurns: (chatId: ID, patch: ChatTurns | null) => void
+  /** move a member earlier or later in this chat's order */
+  moveChatMember: (chatId: ID, memberId: ID, dir: -1 | 1) => void
   triggerMember: (chatId: ID, memberId: ID) => void
   deleteChat: (chatId: ID) => void
   pushInputHistory: (s: string) => void
@@ -384,7 +394,9 @@ export async function checkSoulProposals(chatId: ID) {
       try { localStorage.setItem(key, String(at)) } catch { /* storage unavailable */ }
       const card = st.characters.find((c) => c.id === cardId)?.name ?? ''
       if (failed) {
-        const reason = String(draft.error).replace(/\s+/g, ' ').slice(0, 120)
+        const raw = String(draft.error).replace(/\s+/g, ' ').slice(0, 120)
+        // the model's answer was not readable JSON: say that in plain words, not the parser's
+        const reason = /not JSON/i.test(raw) ? t('soul.reasonUnreadable', lang) : raw
         toast.warning(t('soul.noticeFailed', lang, { card, reason }), {
           duration: 15_000,
           action: { label: t('soul.open', lang), onClick: () => useApp.getState().openCharacterOnTab(cardId, 'soul') },
@@ -627,21 +639,13 @@ export const useApp = create<AppState>()(
               }
             }
           }
-          // group settings hydrate from the group entity so activation, mutes,
-          // card mode, self responses and auto delay survive reloads (a group
-          // chat's characterId IS the group id)
+          // how each group chat plays: the group's defaults with the chat's
+          // own turns on top (a group chat's characterId IS the group id)
           const groupCfgById = new Map(boot.groups.map((g) => [String(g.id ?? ''), g]))
           for (const c of withBranches) {
             const g = groupCfgById.get(c.characterId)
             if (!g) continue
-            c.groupSettings = {
-              activation: g.mode ?? 'natural',
-              generationMode: g.generationMode ?? 'swap',
-              autoMode: g.autoMode ?? false,
-              autoDelaySec: g.autoDelaySec ?? 5,
-              allowSelfResponses: g.allowSelfResponses ?? false,
-              muted: g.mutedIds ?? [],
-            }
+            c.groupSettings = chatGroupSettings(g, c.turns)
           }
           // a local optimistic mutation landed while we were fetching — this
           // snapshot is stale; applying it would revert the mutation until
@@ -779,6 +783,8 @@ export const useApp = create<AppState>()(
             const chat = get().chats.find((c) => c.id === chatId)
             const preset = chat ? get().presets.find((p) => p.id === chat.presetId) : null
             if (preset && preset.samplers?.streaming === false) return
+            // the user's own choice: replies appear only when finished
+            if (get().settings.replyDisplay === 'whole') return
             const full = st.full + delta
             // first text token ends the thinking phase — freeze its span so the
             // live block can say "Thought for Xs" WHILE the reply streams
@@ -967,7 +973,7 @@ export const useApp = create<AppState>()(
         try {
           const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
           if (mutateSeq !== seqAtStart) return
-          set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? engineChatToUI(r.meta, r.messages ?? []) : c)) }))
+          set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? uiChat(get, r.meta, r.messages ?? []) : c)) }))
         } catch { /* the list payload already gave us what it could */ }
       },
       closeChat: () => {
@@ -1104,9 +1110,12 @@ export const useApp = create<AppState>()(
         const st = get().streaming
         if (!st) return
         if (st.shown >= st.full.length) return
-        set({ streaming: { ...st, shown: Math.min(st.full.length, st.shown + 3) } })
+        // a steady typewriter, but never far behind the model: a backlog drains
+        // in about a dozen ticks (a fast model or a slow phone's timers)
+        const step = Math.max(3, Math.ceil((st.full.length - st.shown) / 12))
+        set({ streaming: { ...st, shown: Math.min(st.full.length, st.shown + step) } })
       },
-      regenerate: (chatId, messageId) => {
+      regenerate: (chatId, messageId, guidance) => {
         const chat = get().chats.find((c) => c.id === chatId)
         if (!chat || get().streaming?.chatId === chatId) return
         const lastChar = [...chat.messages].reverse().find((m) => m.role === 'assistant' && !m.picture)
@@ -1115,7 +1124,8 @@ export const useApp = create<AppState>()(
           return
         }
         if (!lastChar) return
-        void runGeneration(set, get, chatId, 'swipe', { dir: 1 }, { regenerateInto: lastChar.id })
+        const hint = guidance?.trim()
+        void runGeneration(set, get, chatId, 'swipe', { dir: 1, ...(hint ? { guidance: hint } : {}) }, { regenerateInto: lastChar.id })
       },
       addSwipe: (chatId) => get().regenerate(chatId),
       setSwipe: (chatId, messageId, index) => {
@@ -1337,7 +1347,7 @@ export const useApp = create<AppState>()(
           method: 'POST', body: JSON.stringify({ messageId }),
         })
         bumpMutate()
-        const forked = engineChatToUI(r.meta, r.messages ?? [])
+        const forked = uiChat(get, r.meta, r.messages ?? [])
         set((s) => ({ chats: attachBranches([forked, ...s.chats]) }))
         toast.success('Forked into a new chat')
         return forked.id
@@ -1349,34 +1359,11 @@ export const useApp = create<AppState>()(
       updateChat: (chatId, patch) => {
         bumpMutate()
         set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...c, ...patch } : c)) }))
-        const chat = get().chats.find((c) => c.id === chatId)
         const body = chatPatchOf(patch)
         void (async () => {
           try {
             if (Object.keys(body).length) {
               await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify(body) })
-            }
-            // group settings live on the group entity (activation strategy,
-            // mutes, card mode, self responses, auto delay) — PATCH-merge so
-            // no read-modify-write window exists
-            if (patch.groupSettings && chat) {
-              // the group editor reads the group file: keep its copy in step
-              const gs = patch.groupSettings
-              set((s) => ({ characters: s.characters.map((c) => (c.id === chat.characterId && c.group ? { ...c, group: {
-                ...c.group, mode: gs.activation, mutedIds: gs.muted, generationMode: gs.generationMode ?? 'swap',
-                allowSelfResponses: gs.allowSelfResponses ?? false,
-                ...(gs.autoMode != null ? { autoMode: gs.autoMode, autoDelaySec: gs.autoDelaySec ?? 5 } : {}),
-              } } : c)) }))
-              await j(`/groups/${encodeURIComponent(chat.characterId)}`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                  mode: patch.groupSettings.activation,
-                  mutedIds: patch.groupSettings.muted,
-                  generationMode: patch.groupSettings.generationMode ?? 'swap',
-                  allowSelfResponses: patch.groupSettings.allowSelfResponses ?? false,
-                  ...(patch.groupSettings.autoMode != null ? { autoMode: patch.groupSettings.autoMode, autoDelaySec: patch.groupSettings.autoDelaySec ?? 5 } : {}),
-                }),
-              })
             }
           } catch (e) { toast.error(String((e as Error).message ?? e)) }
         })()
@@ -1418,6 +1405,24 @@ export const useApp = create<AppState>()(
         try { return await j<PresetMemory>(`/preset-memory/${encodeURIComponent(characterId)}`) }
         catch { return { presetId: null, vars: {} } }
       },
+      presetDefaults: null,
+      loadPresetDefaults: async () => {
+        const have = get().presetDefaults
+        if (have) return have
+        try {
+          const all = await j<Record<ID, Record<string, string | string[]>>>('/preset-defaults')
+          set({ presetDefaults: all ?? {} })
+          return all ?? {}
+        } catch { return {} }
+      },
+      setPresetDefault: async (presetId, vars) => {
+        try {
+          const all = await j<Record<ID, Record<string, string | string[]>>>(`/preset-defaults/${encodeURIComponent(presetId)}`, { method: 'PUT', body: JSON.stringify({ vars }) })
+          set({ presetDefaults: all ?? {} })
+        } catch (e) {
+          toast.error(String((e as Error).message ?? e))
+        }
+      },
       newChat: async (charId, greetingIndex = 0, opts) => {
         const { personas, model } = get()
         const char = get().characters.find((c) => c.id === charId)
@@ -1433,9 +1438,10 @@ export const useApp = create<AppState>()(
             ...(personaId ? { personaId } : {}),
             ...(model ? { model } : {}),
             ...(opts?.presetId ? { presetId: opts.presetId, presetVars: opts.presetVars ?? {} } : {}),
+            ...(char?.isGroup && opts?.turns ? { turns: opts.turns } : {}),
           }),
         })
-        let chat = engineChatToUI(r.meta, r.messages ?? [])
+        let chat = uiChat(get, r.meta, r.messages ?? [])
         // greeting picker: rotate the seeded greeting swipes to the chosen one
         if (greetingIndex > 0) {
           const mid = chat.messages[0]?.id
@@ -1445,7 +1451,7 @@ export const useApp = create<AppState>()(
                 method: 'POST', body: JSON.stringify({ index: greetingIndex }),
               })
               const fresh = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chat.id)}`)
-              chat = engineChatToUI(fresh.meta, fresh.messages ?? [])
+              chat = uiChat(get, fresh.meta, fresh.messages ?? [])
             } catch { /* greeting rotation is best-effort */ }
           }
         }
@@ -1500,7 +1506,7 @@ export const useApp = create<AppState>()(
         bumpMutate()
         set((s) => ({
           characters: [...s.characters, groupToCharacter({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, members)],
-          chats: s.chats.map((c) => (c.id === chatId ? { ...c, characterId: gid } : c)),
+          chats: s.chats.map((c) => (c.id === chatId ? { ...c, characterId: gid, groupSettings: chatGroupSettings({ name: '', memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, c.turns) } : c)),
           activeCharacterId: s.activeCharacterId === solo.id ? gid : s.activeCharacterId,
         }))
         return gid
@@ -1513,15 +1519,8 @@ export const useApp = create<AppState>()(
         bumpMutate()
         set((s) => ({
           characters: s.characters.map((c) => (c.id === groupId ? groupToCharacter(next, solo) : c)),
-          // the chat's reply settings mirror the group file (hydrate does the same)
-          chats: s.chats.map((c) => (c.characterId !== groupId ? c : {
-            ...c,
-            groupSettings: {
-              activation: next.mode ?? 'natural', generationMode: next.generationMode ?? 'swap',
-              autoMode: next.autoMode ?? false, autoDelaySec: next.autoDelaySec ?? 5,
-              allowSelfResponses: next.allowSelfResponses ?? false, muted: next.mutedIds ?? [],
-            },
-          })),
+          // chats follow the group's defaults wherever they have no turns of their own
+          chats: s.chats.map((c) => (c.characterId !== groupId ? c : { ...c, groupSettings: chatGroupSettings(next, c.turns) })),
         }))
         writeThrough('the group', j(`/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', body: JSON.stringify(patch) }))
       },
@@ -1536,6 +1535,24 @@ export const useApp = create<AppState>()(
         members[to] = memberId
         // PATCH-merge just the member order (a GET-then-PUT here once raced the look_changed echo)
         get().updateGroup(groupId, { memberIds: members })
+      },
+      setChatTurns: (chatId, patch) => {
+        const chat = get().chats.find((c) => c.id === chatId)
+        const g = chat && get().characters.find((c) => c.id === chat.characterId)?.group
+        if (!chat || !g) return
+        const turns = patch === null ? undefined : mergeChatTurns(g, chat.turns, patch)
+        bumpMutate()
+        set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...c, turns, groupSettings: chatGroupSettings(g, turns) } : c)) }))
+        writeThrough('this chat\'s turns', j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ turns: turns ?? null }) }))
+      },
+      moveChatMember: (chatId, memberId, dir) => {
+        const order = [...(get().chats.find((c) => c.id === chatId)?.groupSettings?.order ?? [])]
+        const idx = order.indexOf(memberId)
+        const to = idx + dir
+        if (idx < 0 || to < 0 || to >= order.length) return
+        order[idx] = order[to]!
+        order[to] = memberId
+        get().setChatTurns(chatId, { order })
       },
       triggerMember: (chatId, memberId) => {
         void runGeneration(set, get, chatId, 'next', { charId: memberId })
@@ -2155,17 +2172,26 @@ function freezeCancelledStream(
   return { keep, text, parts, isStaged: isStagedOut, expectedSwipes: expectedSwipesOut, genMs }
 }
 
+/** A chat from the engine, with how it plays when it is a group chat (the
+ *  group's defaults and the chat's own turns): the meta alone does not say. */
+function uiChat(get: GetFn, meta: EngineChatMeta, msgs: EngineMessage[]): Chat {
+  const chat = engineChatToUI(meta, msgs)
+  const g = get().characters.find((c) => c.id === chat.characterId)?.group
+  if (g) chat.groupSettings = chatGroupSettings(g, chat.turns)
+  return chat
+}
+
 async function refreshChat(set: SetFn, get: GetFn, chatId: ID) {
   const seqAtStart = mutateSeq
   try {
     const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
     if (mutateSeq !== seqAtStart) return // an optimistic mutation is ahead of this snapshot
-    set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? engineChatToUI(r.meta, r.messages ?? []) : c)) }))
+    set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? uiChat(get, r.meta, r.messages ?? []) : c)) }))
   } catch { /* chat may be gone */ }
   void refreshLists(set, get)
 }
 
-async function refreshLists(set: SetFn, _get: GetFn) {
+async function refreshLists(set: SetFn, get: GetFn) {
   const seqAtStart = mutateSeq
   try {
     const metas = await j<{ chats: EngineChatMeta[] }>('/chats')
@@ -2176,7 +2202,7 @@ async function refreshLists(set: SetFn, _get: GetFn) {
       const merged = metas.chats.map((m) => {
         const existing = byId.get(m.id)
         if (existing && existing.messages.length > 0) return { ...existing, updatedAt: m.updatedAt ?? existing.updatedAt, title: m.title }
-        return engineChatToUI(m, [])
+        return uiChat(get, m, [])
       })
       const added = s.chats.filter((c) => !metas.chats.some((m) => m.id === c.id))
       return { chats: attachBranches([...merged, ...added]) }
@@ -2251,15 +2277,76 @@ async function runGeneration(
     swipes: [{ id: uid('sw'), content: '', model: '', genTimeMs: 0, timestamp: Date.now() }],
     activeSwipe: 0, timestamp: Date.now(), edited: false, hidden: false, bookmarked: false,
   }
+  // a group where only the user picks who speaks: the send stores the user's
+  // message and nobody answers, so no reply bubble is staged
+  const gs = chat.groupSettings
+  const waitsForPick = op === 'send' && gs?.activation === 'manual' && gs.generationMode !== 'narrator'
   bumpMutate() // staged bubbles must survive any in-flight hydrate
   set((s) => ({
     streaming: { chatId, messageId: pendingId, full: '', shown: 0, startedAt: Date.now() },
     chats: s.chats.map((c) => (c.id === chatId ? {
       ...c,
-      messages: [...c.messages, ...(stageUser ? [stageUser] : []), pendingMsg],
+      messages: [...c.messages, ...(stageUser ? [stageUser] : []), ...(waitsForPick ? [] : [pendingMsg])],
     } : c)),
   }))
   return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
+}
+
+const LANDED = Symbol('landed')
+
+/** The transcript before a generation: a committed reply differs from it.
+ *  `inPlaceId` is the message a swipe, regenerate or continue writes into. */
+function commitBaseline(chat: Chat, inPlaceId: ID | null) {
+  const target = inPlaceId ? chat.messages.find((m) => m.id === inPlaceId) : undefined
+  return {
+    ids: new Set(chat.messages.map((m) => m.id)),
+    target: target ? { id: target.id, swipes: target.swipes.length, active: target.activeSwipe, text: target.swipes[target.activeSwipe]?.content ?? '' } : null,
+  }
+}
+
+function hasLanded(base: ReturnType<typeof commitBaseline>, msgs: EngineMessage[]): boolean {
+  const t = base.target
+  if (t) {
+    const m = msgs.find((x) => x.id === t.id)
+    if (!m) return false
+    // read the way engineMessageToUI reads it, so an untouched message compares equal
+    const raw = m.swipes?.length ? m.swipes : [m.text]
+    const active = Math.min(m.swipe ?? 0, raw.length - 1)
+    return raw.length !== t.swipes || active !== t.active || (m.text || raw[active]) !== t.text
+  }
+  return msgs.some((m) => m.role === 'char' && !base.ids.has(m.id))
+}
+
+/** After the page was hidden or offline mid-generation, look at the stored
+ *  transcript on return and every few seconds after: a phone often leaves the
+ *  open request hanging while the engine has long saved the reply. */
+function watchForCommit(chatId: ID, base: ReturnType<typeof commitBaseline>, onLanded: () => void): () => void {
+  let lost = document.visibilityState === 'hidden'
+  let stopped = false
+  let timer: ReturnType<typeof setInterval> | null = null
+  const check = async () => {
+    if (stopped || document.visibilityState !== 'visible') return
+    try {
+      const r = await j<{ messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
+      if (!stopped && hasLanded(base, r.messages ?? [])) onLanded()
+    } catch { /* offline still: the next tick tries again */ }
+  }
+  const onChange = () => {
+    if (document.visibilityState === 'hidden' || !navigator.onLine) { lost = true; return }
+    if (!lost) return
+    void check()
+    timer ??= setInterval(() => void check(), 5000)
+  }
+  document.addEventListener('visibilitychange', onChange)
+  window.addEventListener('online', onChange)
+  window.addEventListener('offline', onChange)
+  return () => {
+    stopped = true
+    if (timer) clearInterval(timer)
+    document.removeEventListener('visibilitychange', onChange)
+    window.removeEventListener('online', onChange)
+    window.removeEventListener('offline', onChange)
+  }
 }
 
 /** Fetch + commit half of a generation; the staging half decided where the
@@ -2276,12 +2363,31 @@ async function runStream(
     // engine skips the write when nothing changed
     await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ lorebookIds: bookIds }), signal: ctrl.signal })
     const model = get().modelFor(chatId)
-    const res = await j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
+    // the POST can hang after the phone suspends the page (the engine still
+    // commits the reply): a watcher that sees the commit ends the wait
+    const inner = new AbortController()
+    ctrl.signal.addEventListener('abort', () => inner.abort(), { once: true })
+    const post = j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
       method: 'POST',
       // the model's context window and max output budget the prompt (engine plugin limitsOf)
       body: JSON.stringify({ ...body, ...(model ? { model } : {}), ...modelLimits(model, get().models, get().modelParams) }),
-      signal: ctrl.signal,
+      signal: inner.signal,
     })
+    let stopWatch = () => {}
+    const landedLate = new Promise<typeof LANDED>((resolve) => {
+      stopWatch = watchForCommit(chatId, commitBaseline(chat, get().streaming?.chatId === chatId ? get().streaming!.messageId : null), () => resolve(LANDED))
+    })
+    let res: Record<string, unknown> | typeof LANDED
+    try {
+      res = await Promise.race([post, landedLate])
+    } finally {
+      stopWatch()
+    }
+    if (res === LANDED) {
+      post.catch(() => {}) // the abandoned request rejects on abort
+      inner.abort()
+      res = {}
+    }
     // Fast local models can beat the fetch: if the runtime answered with the
     // pending marker (shouldn't normally escape), poll once for the commit.
     if (res && res.__llmPending === true) {

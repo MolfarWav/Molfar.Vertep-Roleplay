@@ -211,3 +211,78 @@ describe("narrator mode", () => {
     }
   });
 });
+
+describe("a chat's own turn settings", () => {
+  const llm = host.llm as { request: (k: string, r: unknown) => void; results: Record<string, unknown> };
+  /** pass A of a send: who the engine plans to answer, or the manual reply:null */
+  const send = (id: string, text = "Hello.") => {
+    const requests: { stream?: { name?: string } }[] = [];
+    const prev = llm.request;
+    llm.request = (_k, r) => { requests.push(r as never); };
+    try {
+      const out = E.handleRoute({ method: "POST", path: `/chats/${id}/send`, query: {}, body: { text } }, host) as { json?: Record<string, any>; stash?: { plan?: string[] } };
+      return { requests, json: out.json, plan: out.stash?.plan ?? (out.json as any)?.plan };
+    } finally {
+      llm.request = prev;
+    }
+  };
+  const group = (g: Record<string, unknown>) =>
+    fs.writeFileSync(path.join(root, "groups", "duo.json"), JSON.stringify({ id: "duo", name: "Duo", memberIds: ["aria", "bo"], mutedIds: [], ...g }));
+  const meta = (id: string) => JSON.parse(fs.readFileSync(path.join(root, "chats", `${id}.meta.json`), "utf8"));
+
+  it("two chats of one group play it differently", () => {
+    group({ mode: "list", generationMode: "swap" });
+    const both = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    const narrated = call("POST", "/chats", { groupId: "duo", turns: { generationMode: "narrator" } }).json.meta.id as string;
+    expect(meta(narrated).turns).toEqual({ generationMode: "narrator" });
+    expect(meta(both).turns).toBeUndefined();
+    expect(send(both).requests[0]?.stream?.name).toBe("Aria");
+    expect(send(narrated).requests[0]?.stream?.name).toBe("Duo");
+    // the group file is untouched
+    expect(JSON.parse(fs.readFileSync(path.join(root, "groups", "duo.json"), "utf8")).generationMode).toBe("swap");
+  });
+
+  it("PATCH sets, cleans and clears the chat's turns", () => {
+    group({ mode: "list", generationMode: "swap" });
+    const id = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    call("PATCH", `/chats/${id}`, { turns: { mode: "manual", bogus: 1, autoDelaySec: 999, order: ["bo", "bo", 3] } });
+    expect(meta(id).turns).toEqual({ mode: "manual", autoDelaySec: 120, order: ["bo"] });
+    call("PATCH", `/chats/${id}`, { turns: null });
+    expect(meta(id).turns).toBeUndefined();
+  });
+
+  it("the chat's order and mutes decide a list turn", () => {
+    group({ mode: "list", generationMode: "swap" });
+    const id = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    call("PATCH", `/chats/${id}`, { turns: { order: ["bo"] } });
+    expect(send(id).requests[0]?.stream?.name).toBe("Bo");
+    call("PATCH", `/chats/${id}`, { turns: { mutedIds: ["aria"] } });
+    expect(send(id).requests[0]?.stream?.name).toBe("Bo");
+  });
+
+  it("manual: the send stores the user's message and nobody answers until triggered", () => {
+    group({ mode: "manual", generationMode: "swap", allowSelfResponses: true });
+    const id = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    const r = send(id);
+    expect(r.requests.length).toBe(0);
+    expect(r.json?.reply).toBeNull();
+    expect(r.json?.user?.text).toBe("Hello.");
+  });
+
+  it("manual left over under narrator: the narrator still answers", () => {
+    group({ mode: "manual", generationMode: "narrator" });
+    const id = call("POST", "/chats", { groupId: "duo" }).json.meta.id as string;
+    expect(send(id).requests[0]?.stream?.name).toBe("Duo");
+  });
+});
+
+describe("chatGroupSettings / mergeChatTurns", () => {
+  it("the chat's turns win, a value equal to the group's drops out", async () => {
+    const { chatGroupSettings, mergeChatTurns } = await import("../src/lib/engine");
+    const g = { name: "Duo", memberIds: ["aria", "bo", "cy"], mode: "natural" as const, generationMode: "swap" as const };
+    expect(chatGroupSettings(g, { mode: "manual", order: ["cy", "gone"] })).toMatchObject({ activation: "manual", generationMode: "swap", order: ["cy", "aria", "bo"] });
+    expect(mergeChatTurns(g, { mode: "manual" }, { generationMode: "narrator" })).toEqual({ mode: "manual", generationMode: "narrator" });
+    expect(mergeChatTurns(g, { mode: "manual" }, { mode: "natural" })).toBeUndefined();
+    expect(mergeChatTurns(g, undefined, { order: ["aria", "bo", "cy"] })).toBeUndefined();
+  });
+});

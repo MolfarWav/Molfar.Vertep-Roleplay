@@ -7,12 +7,13 @@
  *   groups/<id>.json                 lorebooks/<id>.json
  *   chats/<id>.jsonl + <id>.meta.json
  *   settings.json {model, personaId}
+ *   preset-defaults.json {presetId: picks}   the user's own default choices per preset
  *
  * Messages are a FLAT list with per-message swipes (classic studio shape):
  *   {id, name, charId, role: "user"|"char", text, at, swipes:[], swipe,
  *    extra?: {model, usage}}
  * Chat meta: {id, title, characterId, groupId, presetId, personaId, model,
- *   authorNote, lorebookIds, createdAt, updatedAt, tainted}
+ *   authorNote, lorebookIds, folderId, pinned, createdAt, updatedAt, tainted}
  *
  * Presets keep the import/export shape users already have: prompts[] +
  * prompt_order[] with markers (main, charDescription, chatHistory, ...) and
@@ -2001,13 +2002,49 @@ function chatVoices(g, members, groupId) {
   return isNarratorGroup(g) && groupId ? [...members, narratorVoice(g, groupId)] : members;
 }
 
+/** A chat's own turn settings (meta.turns): any of these keys overrides the
+ *  group's default for that chat only; a missing key follows the group. */
+const TURN_MODES = ["natural", "list", "manual"];
+const TURN_GEN_MODES = ["narrator", "swap", "append"];
+function cleanTurns(t) {
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const out = {};
+  if (TURN_GEN_MODES.includes(t.generationMode)) out.generationMode = t.generationMode;
+  if (TURN_MODES.includes(t.mode)) out.mode = t.mode;
+  if (typeof t.allowSelfResponses === "boolean") out.allowSelfResponses = t.allowSelfResponses;
+  if (typeof t.autoMode === "boolean") out.autoMode = t.autoMode;
+  if (Number.isFinite(t.autoDelaySec)) out.autoDelaySec = Math.min(120, Math.max(1, Math.round(t.autoDelaySec)));
+  if (Array.isArray(t.mutedIds)) out.mutedIds = [...new Set(t.mutedIds.filter((x) => typeof x === "string" && x))];
+  if (Array.isArray(t.order)) out.order = [...new Set(t.order.filter((x) => typeof x === "string" && x))];
+  return Object.keys(out).length ? out : null;
+}
+/** The group as this chat plays it: the group file with the chat's own turn
+ *  settings on top. The order override keeps only current members and puts
+ *  members added since at the end. */
+function withChatTurns(g, meta) {
+  const t = g && meta ? cleanTurns(meta.turns) : null;
+  if (!t) return g;
+  const { order, ...rest } = t;
+  const out = { ...g, ...rest };
+  if (order) {
+    const ids = Array.isArray(g.memberIds) ? g.memberIds : [];
+    out.memberIds = [...order.filter((id) => ids.includes(id)), ...ids.filter((id) => !order.includes(id))];
+  }
+  return out;
+}
+function chatGroup(fsx, meta) {
+  if (!meta || !meta.groupId) return null;
+  let g = null;
+  try { g = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {}
+  return g ? withChatTurns(g, meta) : null;
+}
+
 function chatMembers(fsx, meta) {
   // returns [{id, name, card}] the bots participating in this chat, each card
   // resolved through the chat's own field-variant selection
   const sel = meta.fieldVariantSelection;
   if (meta.groupId) {
-    let g = null;
-    try { g = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {}
+    const g = chatGroup(fsx, meta);
     if (!g) return [];
     const out = [];
     for (const mid of g.memberIds || []) {
@@ -2200,7 +2237,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
-      excludeBookIds: meta.groupId ? groupExcludedBookIds(readJsonFile(fsx, "groups/" + meta.groupId + ".json"), members, (!narrating && speaker && speaker.id) || null) : [],
+      excludeBookIds: meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [],
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -2230,8 +2267,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // card's system_prompt (when present) wins over it.
   // generationMode "append": every member's card joins the prompt (labeled),
   // not just the speaker's — muted members stay out unless they're speaking.
-  let groupCfg = null;
-  if (meta.groupId) { try { groupCfg = JSON.parse(fsx.read("groups/" + meta.groupId + ".json")); } catch {} }
+  const groupCfg = chatGroup(fsx, meta);
   // narrator mode joins the cards the same way; there {{char}} in a card means that card
   const rosterMembers = isGroup && groupCfg && (groupCfg.generationMode === "append" || narrating)
     ? members.filter((m) => !((groupCfg.mutedIds || []).includes(m.id)) || (speaker && m.id === speaker.id))
@@ -2657,6 +2693,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     const nudgeContent = sub(groupNudgeTxt).replace(/\{\{name\}\}/g, charName);
     depthInj.push({ depth: 0, role: "system", content: nudgeContent });
     addPart("group", "Group nudge", nudgeContent);
+  }
+  // Regenerate with a hint: a direction for this one reply, read last, never saved
+  const hint = opts && typeof opts.guidance === "string" ? opts.guidance.trim().slice(0, 2000) : "";
+  if (hint) {
+    const hintContent = "[Direction for this reply only: " + hint + "]";
+    depthInj.push({ depth: 0, role: "system", content: hintContent });
+    addPart("utility", "Hint for this reply", hintContent);
   }
 
   // Depth injections (author's note, world info at a depth, the group nudge,
@@ -3524,6 +3567,22 @@ export function handleRoute(req, host) {
   }
 
   // ---------- peek: assembled prompt ----------
+  // the user's own default choices per preset (presetId -> picks), for chats a
+  // character has no memory for; a stock preset can have them too
+  if (head === "preset-defaults") {
+    const all = readJson("preset-defaults.json", {});
+    if (!id && req.method === "GET") return ok(all && typeof all === "object" ? all : {});
+    if (id && req.method === "PUT") {
+      if (!readJson("presets/" + id + ".json", null)) return err(404, "preset not found");
+      const b = body();
+      const next = { ...(all && typeof all === "object" ? all : {}) };
+      const vars = b.vars && typeof b.vars === "object" && !Array.isArray(b.vars) ? cleanPresetVars(b.vars) : null;
+      if (vars) next[id] = vars;
+      else delete next[id];
+      writeJson("preset-defaults.json", next);
+      return ok(next);
+    }
+  }
   // per-character memory for the new-chat step: { presetId, vars } or nulls
   if (head === "preset-memory" && id && req.method === "GET") {
     return ok(presetMemory(fsx, id) || { presetId: null, vars: {} });
@@ -3582,7 +3641,7 @@ export function handleRoute(req, host) {
     const scanVecPeek = host.llm.embedResults && Array.isArray(host.llm.embedResults.scan) && host.llm.embedResults.scan[0] ? host.llm.embedResults.scan[0] : null;
     // the speaker a real generation from this point would use: the peeked
     // reply's own author, else the group's next in rotation
-    const peekGroup = chat.meta.groupId ? readJson("groups/" + chat.meta.groupId + ".json", null) : null;
+    const peekGroup = chatGroup(fsx, chat.meta);
     const peeked = b.messageId ? chat.msgs.find((m) => m.id === b.messageId) : null;
     const lastReply = [...msgs].reverse().find((m) => m.role === "char" && !m.picture);
     const peekVoices = chatVoices(peekGroup, members, chat.meta.groupId);
@@ -3630,7 +3689,7 @@ export function handleRoute(req, host) {
     const lead = members[0] || null;
     // the scope the app sends before each generation (global books + the
     // cards' own and linked ones): a chat with no send yet has none stored
-    const peekGroupCfg = chat.meta.groupId ? readJson("groups/" + chat.meta.groupId + ".json", null) : null;
+    const peekGroupCfg = chatGroup(fsx, chat.meta);
     const globalIds = (() => {
       try {
         return fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
@@ -4142,7 +4201,9 @@ export function handleRoute(req, host) {
       const mem = !b.presetId && b.characterId && !b.groupId ? presetMemory(fsx, b.characterId) : null;
       const presetId = b.presetId || (mem && mem.presetId) || defaultPresetId(fsx);
       const stepVars = b.presetVars && typeof b.presetVars === "object" && !Array.isArray(b.presetVars) ? cleanPresetVars(b.presetVars) : null;
-      const picks = stepVars || (mem && !b.presetId ? cleanPresetVars(mem.vars) : null);
+      // no step and no memory: the user's own default choices for that preset
+      const mine = (() => { const d = readJson("preset-defaults.json", {}); return d && typeof d === "object" && d[presetId] ? cleanPresetVars(d[presetId]) : null; })();
+      const picks = stepVars || (mem && !b.presetId ? cleanPresetVars(mem.vars) : null) || mine;
       const meta = {
         id: cid,
         title: b.title || "New chat",
@@ -4157,6 +4218,8 @@ export function handleRoute(req, host) {
         userName,
         authorNote: null,
         lorebookIds: [],
+        // a group chat's own turn settings, picked when it was started
+        ...(b.groupId && cleanTurns(b.turns) ? { turns: cleanTurns(b.turns) } : {}),
         createdAt: Date.now(), updatedAt: Date.now(),
       };
       // seed the greeting (all greetings as swipes → swipe chevrons rotate them)
@@ -4173,7 +4236,7 @@ export function handleRoute(req, host) {
         }
       }
       if (meta.groupId) {
-        const g = readJson("groups/" + meta.groupId + ".json", null);
+        const g = chatGroup(fsx, meta);
         if (g) {
           meta.title = g.name;
           if (b.openingMessage && String(b.openingMessage).trim()) {
@@ -4222,7 +4285,7 @@ export function handleRoute(req, host) {
     if (!chat) return err(404, "chat not found");
     const meta = chat.meta;
     const members = chatMembers(fsx, meta);
-    const group = meta.groupId ? readJson("groups/" + meta.groupId + ".json", null) : null;
+    const group = chatGroup(fsx, meta);
     // who a reply can come from: the members, and the narrator in narrator mode
     const voices = chatVoices(group, members, meta.groupId);
     const modelOf = () => (body().model != null ? body().model : meta.model);
@@ -4275,14 +4338,32 @@ const forkTitle = (fsx, title) => {
   return n === 1 ? base + " fork" : base + " fork " + n;
 };
 const swipeMetaEntry = (reply) => ({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0 });
-const pushSwipeMeta = (extra, swipesLen, entry) => {
-  // pad unknown/misaligned history with nulls so indices always match swipes
-  const base = Array.isArray(extra?.swipeMeta) && extra.swipeMeta.length === swipesLen - 1
-    ? extra.swipeMeta.slice()
-    : Array.from({ length: Math.max(0, swipesLen - 1) }, () => null);
-  base.push(entry ?? null);
-  return { ...extra, swipeMeta: base };
+// A message's extra describes its ACTIVE swipe. Each swipe keeps its own facts,
+// the body ones too (thinking, tool parts), in its swipeMeta slot; moving to
+// another swipe swaps them, so one swipe's parts never paint over another's text.
+const SWIPE_FACTS = ["model", "usage", "genMs", "params", "continued", "reasoning", "reasoningMs", "tools", "parts"];
+const swipeFactsOf = (extra) => {
+  const o = {};
+  for (const k of SWIPE_FACTS) if (extra && extra[k] !== undefined) o[k] = extra[k];
+  return o;
 };
+// slots aligned with `len` swipes, with the active swipe's facts saved into its own slot
+const syncedSlots = (extra, len, active) => {
+  const slots = Array.isArray(extra?.swipeMeta) && extra.swipeMeta.length === len
+    ? extra.swipeMeta.slice()
+    : Array.from({ length: len }, () => null);
+  if (extra && active >= 0 && active < len) slots[active] = swipeFactsOf(extra);
+  return slots;
+};
+// the extra once swipe `to` is active: its facts come out of its slot
+const extraFromSlots = (extra, slots, to) => {
+  const out = { ...(extra || {}), swipeMeta: slots };
+  const own = slots[to] || {};
+  for (const k of SWIPE_FACTS) out[k] = own[k];
+  return out;
+};
+// navigation: same swipes, another one active (a message with no extra stays without)
+const moveSwipe = (msg, len, to) => msg.extra ? extraFromSlots(msg.extra, syncedSlots(msg.extra, len, msg.swipe || 0), to) : msg.extra;
 // models echo the speaker's own name at the start of a reply ("Aria:"). Strip that
 // echo whether or not names ride the prompt: only at the very start, once,
 // case-insensitive, as Name: / Name : / **Name:** / **Name**: / *Name:* / *Name*: /
@@ -4323,9 +4404,16 @@ const toolX = (r) => ({
       // bubble mid-generation. Nothing changed → no write, no event.
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
-        "authorNoteObject", "folderId", "chatTags", "backgroundId", "temporary",
+        "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "temporary",
         "fieldVariantSelection", "parentChatId", "parentMessageId"];
-      if (keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      // turns: the chat's own turn settings, replaced whole; null or {} = follow the group
+      const turns = "turns" in b ? cleanTurns(b.turns) : undefined;
+      const turnsSame = turns === undefined || same(turns, meta.turns);
+      if (turnsSame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      if (!turnsSame) {
+        if (turns) meta.turns = turns;
+        else delete meta.turns;
+      }
       const prevPersonaId = meta.personaId;
       for (const k of keys) {
         if (k in b) meta[k] = b[k];
@@ -4428,7 +4516,8 @@ const toolX = (r) => ({
         ...(Array.isArray(body().attachments) && body().attachments.length ? { attachments: body().attachments } : {}),
       } : null;
       // manual-trigger groups: user message only, no generation
-      if (group && group.mode === "manual") {
+      // (the narrator voices everyone, so it answers whatever "who answers" says)
+      if (group && group.mode === "manual" && !isNarratorGroup(group)) {
         if (!userMsg) return err(400, "nothing to send");
         chat.msgs.push(userMsg);
         applyStashVars(req, meta);
@@ -4590,16 +4679,18 @@ const toolX = (r) => ({
       const next = cur + dir;
       // navigate existing swipes (greeting rotation wraps on pristine chats)
       const pristineGreeting = !meta.tainted && chat.msgs.length === 1 && msg.greeting === true;
-      if (next >= 0 && next < swipes.length) {
+      // a hinted regenerate always writes a new swipe
+      const hinted = typeof body().guidance === "string" && body().guidance.trim() !== "";
+      if (!hinted && next >= 0 && next < swipes.length) {
         const text = expandMacros(String(swipes[next]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
-        chat.msgs[idx] = { ...msg, text, swipe: next, swipes, translation: undefined };
+        chat.msgs[idx] = { ...msg, text, swipe: next, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, next) };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: next, count: swipes.length });
       }
-      if (pristineGreeting && (next < 0 || next >= swipes.length)) {
+      if (!hinted && pristineGreeting && (next < 0 || next >= swipes.length)) {
         const wrapped = ((next % swipes.length) + swipes.length) % swipes.length;
         const text = expandMacros(String(swipes[wrapped]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
-        chat.msgs[idx] = { ...msg, text, swipe: wrapped, swipes, translation: undefined };
+        chat.msgs[idx] = { ...msg, text, swipe: wrapped, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, wrapped) };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: wrapped, count: swipes.length });
       }
@@ -4612,7 +4703,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, before, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "swipe" });
+        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "swipe", guidance: body().guidance });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -4642,8 +4733,10 @@ const toolX = (r) => ({
       fresh = onSave(fresh, "ai_output", speaker);
       // a thinking model may draft the state tag in its reasoning too
       if (reply.reasoning) reply.reasoning = onSave(cutStateTag(reply.reasoning).text, "reasoning", speaker);
+      const genSlots = syncedSlots(msg.extra, swipes.length, msg.swipe || 0);
       swipes.push(fresh);
-      chat.msgs[idx] = { ...msg, text: fresh, swipe: swipes.length - 1, swipes, translation: undefined, extra: pushSwipeMeta({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) }, swipes.length, swipeMetaEntry(reply)) };
+      genSlots.push(swipeFactsOf({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) }));
+      chat.msgs[idx] = { ...msg, text: fresh, swipe: swipes.length - 1, swipes, translation: undefined, extra: extraFromSlots(msg.extra, genSlots, swipes.length - 1) };
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
       saveFastState(fsx, id, msg.id + "#" + (swipes.length - 1), stateTag, reply.model);
@@ -4672,13 +4765,15 @@ const toolX = (r) => ({
         const msg = chat.msgs[idx];
         const swipes = msg.swipes && msg.swipes.length ? msg.swipes : [msg.text];
         if (b.expectedSwipes != null && swipes.length !== b.expectedSwipes) return err(409, "a generation already committed");
+        const cancelSlots = syncedSlots(msg.extra, swipes.length, msg.swipe || 0);
         swipes.push(text);
         const cancelledMs = Number(b.genMs) || 0;
         const cancelledModel = typeof b.model === "string" && b.model ? b.model : "";
         // the cancelled partial owns its own facts; the message-level extra
         // describes the ACTIVE swipe, so the replaced generation's
         // usage/timing/reasoning must not leak onto it
-        chat.msgs[idx] = { ...msg, text, swipe: swipes.length - 1, swipes, translation: undefined, extra: pushSwipeMeta({ ...msg.extra, model: cancelledModel, genMs: cancelledMs, usage: undefined, params: undefined, reasoning: undefined, reasoningMs: undefined, tools: undefined, ...(parts && parts.length ? { parts } : {}) }, swipes.length, { genMs: cancelledMs, ...(cancelledModel ? { model: cancelledModel } : {}) }) };
+        cancelSlots.push({ genMs: cancelledMs, ...(cancelledModel ? { model: cancelledModel } : {}), ...(parts && parts.length ? { parts } : {}) });
+        chat.msgs[idx] = { ...msg, text, swipe: swipes.length - 1, swipes, translation: undefined, extra: extraFromSlots(msg.extra, cancelSlots, swipes.length - 1) };
       } else {
         const userText = typeof b.userText === "string" ? onSave(b.userText.trim(), "user_input", members[0] || null).trim() : "";
         if (userText) {
@@ -4763,10 +4858,8 @@ const toolX = (r) => ({
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];
       swipes[msg.swipe || 0] = merged;
       const contExtra = { ...msg.extra, model: reply.model, continued: true, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) };
-      if (Array.isArray(msg.extra?.swipeMeta) && msg.extra.swipeMeta.length === swipes.length) {
-        contExtra.swipeMeta = msg.extra.swipeMeta.slice();
-        contExtra.swipeMeta[msg.swipe || 0] = swipeMetaEntry(reply);
-      }
+      contExtra.swipeMeta = syncedSlots(msg.extra, swipes.length, msg.swipe || 0);
+      contExtra.swipeMeta[msg.swipe || 0] = { ...swipeFactsOf(contExtra), ...swipeMetaEntry(reply) };
       chat.msgs[idx] = { ...msg, text: merged, swipes, translation: undefined, extra: contExtra };
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
@@ -4951,7 +5044,7 @@ const toolX = (r) => ({
       const want = Math.floor(Number(body().index));
       if (!(want >= 0 && want < swipes.length)) return err(400, "swipe index out of range");
       const text = expandMacros(String(swipes[want]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
-      chat.msgs[idx] = { ...msg, text, swipe: want, swipes, translation: undefined };
+      chat.msgs[idx] = { ...msg, text, swipe: want, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, want) };
       saveChat(fsx, id, touch(meta), chat.msgs);
       return ok({ message: chat.msgs[idx], swipe: want, count: swipes.length });
     }
@@ -4966,11 +5059,11 @@ const toolX = (r) => ({
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];
       if (swipes.length <= 1) return err(400, "cannot delete the only swipe");
       if (!(sidx >= 0 && sidx < swipes.length)) return err(400, "swipe index out of range");
+      const slotsLeft = msg.extra ? syncedSlots(msg.extra, swipes.length, msg.swipe || 0) : null;
       swipes.splice(sidx, 1);
+      if (slotsLeft) slotsLeft.splice(sidx, 1);
       const swipe = Math.min(msg.swipe || 0, swipes.length - 1);
-      const metaLeft = Array.isArray(msg.extra?.swipeMeta) && msg.extra.swipeMeta.length === swipes.length + 1 ? msg.extra.swipeMeta.slice() : null;
-      if (metaLeft) metaLeft.splice(sidx, 1);
-      chat.msgs[idx] = { ...msg, swipes, swipe, text: swipes[swipe], translation: undefined, extra: metaLeft ? { ...msg.extra, swipeMeta: metaLeft } : msg.extra };
+      chat.msgs[idx] = { ...msg, swipes, swipe, text: swipes[swipe], translation: undefined, extra: slotsLeft ? extraFromSlots(msg.extra, slotsLeft, swipe) : msg.extra };
       saveChat(fsx, id, touch(meta), chat.msgs);
       return ok({ message: chat.msgs[idx], swipe, count: swipes.length });
     }

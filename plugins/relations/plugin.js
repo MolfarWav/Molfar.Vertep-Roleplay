@@ -2675,6 +2675,8 @@ function planUpdate(fsx, chatId, op) {
   const unchanged = () => ({ final: ok({ ok: true, state: existed ? state : null, unchanged: true }) });
   const line = activeLine(chat.msgs);
   if (!line.length) return unchanged();
+  // a reply with no text (only reasoning, or a cut-off stream) has nothing to read: no sensor call
+  if (!str(line[line.length - 1].msg.text)) return { final: ok({ ok: true, state: existed ? state : null, unchanged: true, skipped: "empty" }) };
   const K = line[line.length - 1].key;
   const existing = state.snapshots[K];
   // a snapshot made before sigs existed is never re-sensed

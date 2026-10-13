@@ -272,7 +272,7 @@ data/
 │                       favorites, colors, stats, sprites, gallery, versions,
 │                       descVariants/personalityVariants/scenarioVariants)
 ├─ chats/<id>.jsonl     one message per line; <id>.meta.json holds title,
-│                       folderId, personaId, presetId, model, branch
+│                       folderId, pinned, personaId, presetId, model, branch
 │                       parentage (parentChatId/parentMessageId), summary,
 │                       fieldVariantSelection (which card alternate this chat sends)
 ├─ groups/<id>.json     { memberIds, mode, mutedIds }
@@ -281,7 +281,7 @@ data/
 ├─ lorebooks/<id>.json  world-info books (entries[], settings, vectorized)
 ├─ regex/<id>.json      regex scripts (find/replace/placements/flags)
 ├─ databank/<id>.json   { name, scope, enabled, size, chunks: [{i, text}] }
-├─ profile-drafts/      profile plugin: <characterId>.json, a "Structure it" proposal
+├─ profile-drafts/      profile plugin: <characterId>.json, a "Structure it" proposal; group-<id>.json, a scene proposal
 ├─ dashboard/           relations plugin: state/<chatId>.json, soul-drafts/<characterId>.json, config.json, events.json
 ├─ litopys/             litopys plugin (shadow mode, nothing reaches the prompt yet): chats/<chatId>.json (chapters, facts,
 │                       proposals, worker state), vectors/<chatId>.json, config.json; store.json = the 1.x backup.

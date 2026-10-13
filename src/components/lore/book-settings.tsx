@@ -44,7 +44,7 @@ function SwitchRow({ label, hint, checked, onChange }: { label: string; hint: st
     <div className="flex flex-col gap-1">
       <label className="flex items-center justify-between gap-2 text-xs font-medium">
         {label}
-        <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+        <Switch tone="cta" checked={checked} onCheckedChange={onChange} aria-label={label} />
       </label>
       <p className="text-[11px] text-muted-foreground">{hint}</p>
     </div>

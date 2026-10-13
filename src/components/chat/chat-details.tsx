@@ -7,8 +7,32 @@ import { useT } from '@/hooks/use-t'
 import { formatCost, formatTokens } from '@/lib/tokens'
 import { shortModel } from '@/lib/utils'
 
-/** The header's "i": what used to be two badges (model, spend) plus the chat's numbers. */
-export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, costMsgs, tokensIn, tokensOut, context }: {
+/** A ring that fills as the context does: the phone header's trigger. */
+function ContextRing({ pct, known }: { pct: number; known: boolean }) {
+  const r = 10.5
+  const c = 2 * Math.PI * r
+  // amber past three quarters, red when nearly full: the next reply may cut old messages
+  const tone = pct >= 90 ? 'text-destructive' : pct >= 75 ? 'text-amber-500' : 'text-cta'
+  // the number in the middle keeps a nearly empty ring from reading as a spinner
+  return (
+    <span className="relative flex size-7 items-center justify-center" aria-hidden="true">
+      <svg viewBox="0 0 28 28" className="absolute inset-0 size-7! -rotate-90">
+        <circle cx="14" cy="14" r={r} fill="none" strokeWidth="2.5" stroke="currentColor" className="text-muted-foreground/35" />
+        {known && (
+          <circle cx="14" cy="14" r={r} fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"
+            strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} className={tone} />
+        )}
+      </svg>
+      <span className="font-mono text-[9px] leading-none font-semibold tabular-nums text-foreground">
+        {known ? Math.round(pct) : 'i'}
+      </span>
+    </span>
+  )
+}
+
+/** The header's "i": what used to be two badges (model, spend) plus the chat's numbers.
+ *  `ring` shows how full the context is instead of the "i" (the phone header). */
+export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, costMsgs, tokensIn, tokensOut, context, ring = false }: {
   title: string
   /** 0-based */
   chatIndex: number
@@ -19,6 +43,7 @@ export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, co
   tokensIn: number | null
   tokensOut: number | null
   context: { used: number; total: number } | null
+  ring?: boolean
 }) {
   const t = useT()
   const none = <span className="text-muted-foreground">{t('details.none')}</span>
@@ -31,9 +56,15 @@ export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, co
           render={
             <PopoverTrigger
               render={
-                <Button variant="ghost" size="icon-sm" aria-label={t('details.open')}>
-                  <Info aria-hidden="true" />
-                </Button>
+                ring ? (
+                  <Button variant="ghost" size="icon" className="size-10" aria-label={context ? t('details.ring', { n: Math.round(pct) }) : t('details.open')}>
+                    <ContextRing pct={pct} known={!!context && context.total > 0} />
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon-sm" aria-label={t('details.open')}>
+                    <Info aria-hidden="true" />
+                  </Button>
+                )
               }
             />
           }

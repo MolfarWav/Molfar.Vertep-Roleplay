@@ -1,5 +1,6 @@
 import { useT } from '@/hooks/use-t'
 import { Button } from '@/components/ui/button'
+import { DashError } from './dash-common'
 
 export function DashEmpty({ hasMessages, onBuild, building, error }: {
   hasMessages: boolean
@@ -19,7 +20,7 @@ export function DashEmpty({ hasMessages, onBuild, building, error }: {
       ) : (
         <p className="text-sm text-muted-foreground">{t('dash.empty.noMessages')}</p>
       )}
-      {error && <p className="text-sm text-destructive break-words">{t('dash.error', { message: error })}</p>}
+      {error && <p className="text-sm text-destructive"><DashError message={error} /></p>}
     </div>
   )
 }

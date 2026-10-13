@@ -7,7 +7,7 @@
 import { describe, it, expect } from "bun:test";
 import {
   runLimited, planPreview, buildPreview, planCardJobs, applyCardResults, planBookJobs, applyBookResults,
-  splitKeys, mergeKeys, translateInstalled, applyPendingTranslation, previewPendingTranslation, TRANSLATE_LANGUAGES, restoreOriginal, hasTranslationRecord,
+  splitKeys, mergeKeys, translateInstalled, translateBook, applyPendingTranslation, previewPendingTranslation, TRANSLATE_LANGUAGES, restoreOriginal, hasTranslationRecord,
 } from "../src/lib/card-translate";
 import type { Character, LoreEntry, Lorebook } from "../src/lib/types";
 
@@ -123,6 +123,21 @@ describe("lorebook", () => {
     expect(e.secondaryKeys).toEqual(["ніч", "night"]);
     expect(changed).toBe(4);
     expect(b.entries[0]!.content).toBe("Велике місто"); // the input is not mutated
+  });
+  it("translateBook translates a library book in place and says what stayed", async () => {
+    let cur = book([entry({ secondaryKeys: ["ніч"] }), entry({ id: "e2", content: "Ліс", memo: "" , keys: ["ліс"] })]);
+    const map: Record<string, string> = { "Велике місто": "Big city", "Місто": "City", "місто, Київ": "city, Kyiv", "ніч": "night", "Ліс": "Forest" };
+    const res = await translateBook(cur.id, {
+      translate: async (text) => { if (text === "ліс") throw new Error("down"); return map[text] ?? text; },
+      getBook: () => cur,
+      updateBook: (_id, patch) => { cur = { ...cur, ...patch }; },
+      progress: () => {},
+    });
+    expect(res).toMatchObject({ total: 6, done: 6, missed: 1, unchanged: false });
+    expect(cur.entries[0]!.content).toBe("Big city");
+    expect(cur.entries[0]!.keys).toEqual(["місто", "Київ", "city", "Kyiv"]);
+    expect(cur.entries[1]!.content).toBe("Forest");
+    expect(cur.entries[1]!.keys).toEqual(["ліс"]);
   });
   it("keeps a title that was its own", () => {
     const b = book([entry({ title: "Entry 1", memo: "Місто" })]);

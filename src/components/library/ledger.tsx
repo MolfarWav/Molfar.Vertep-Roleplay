@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { Scroll } from '@phosphor-icons/react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { fetchLitChat, type LitChat } from './litopys-api'
+import { distinctName, fetchLitChat, type LitChat } from './litopys-api'
 import { WorkerLine } from './worker-line'
 import { ArcNotice } from './arcs'
 import { FactsTab } from './ledger-facts'
@@ -127,14 +129,14 @@ export function LedgerChat({
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <h2 className="min-w-0 break-words font-heading text-lg leading-tight">{chat.title}</h2>
-            {chat.name && <span className="text-sm text-muted-foreground">{chat.name}</span>}
+            {distinctName(chat.title, chat.name) && <span className="text-sm text-muted-foreground">{chat.name}</span>}
           </div>
           <div className="text-xs text-muted-foreground">
             {t('lit.counts', { chapters: chat.chapters.length, facts: activeFacts, proposals: pending })}
           </div>
         </div>
 
-        <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />
+        {(chat.hasData || chat.worker || chat.rebuilding) && <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />}
         <ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />
 
         {chat.cut.count > 0 && (
@@ -156,9 +158,15 @@ export function LedgerChat({
         )}
 
         {!chat.hasData ? (
-          <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-            {t('lit.noData')}
-          </div>
+          <Empty className="flex-none border" data-testid="lit-empty">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Scroll aria-hidden="true" />
+              </EmptyMedia>
+              <EmptyTitle>{t('lit.empty.title')}</EmptyTitle>
+              <EmptyDescription>{t('lit.empty.body')}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : mode === 'overview' ? (
           <OverviewBody chat={chat} onChat={onChat} onRefresh={refresh} />
         ) : (

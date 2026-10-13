@@ -135,6 +135,14 @@ Edit groups in the app's group editor (Characters, Groups); every field below is
 | `memberBooks` | Members' books in this group: `all` (default), `speaker` (only the current speaker's), `off`. Global and persona books always stay. |
 | `openingMessage` | Older field: a system line at the start of a new chat. |
 
+`mode`, `generationMode`, `mutedIds`, `allowSelfResponses`, `autoMode`, `autoDelaySec` and the order of `memberIds`
+are the defaults for the group's chats. A chat can override any of them in its meta, `chats/<id>.meta.json`:
+`turns: { generationMode?, mode?, allowSelfResponses?, autoMode?, autoDelaySec?, mutedIds?, order? }`. A key set
+there wins for that chat only; a missing key follows the group, so a change to the group reaches every chat that
+did not change that key. `order` lists member ids in this chat's speaking order (members it does not name go
+last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = follow the group again) or at creation,
+`POST /chats` `{ groupId, turns }`. A narrator always answers, whatever `mode` says.
+
 ## Lorebooks: `data/lorebooks/<id>.json`
 
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with

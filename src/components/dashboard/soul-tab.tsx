@@ -5,10 +5,11 @@
 // unsaved copy survives a tab switch.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CircleNotch, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
+import { CircleNotch, DotsThree, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import { ApiError, j } from '@/lib/engine'
@@ -549,11 +550,20 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   const hide = (name: string) => updateCharacter(c.id, withMinor(c, [...minor, name]))
   const unhide = (name: string) => updateCharacter(c.id, withMinor(c, minor.filter((m) => m !== name)))
 
+  // ONE rating button; the state decides what it runs: a saved soul is rated again, else the card's unrated characters
+  const again = !!selName && has(saved, selName) && !blank.has(selName)
+  const rateBusy = again ? ratingName === selName : rating
   const rateButtons = (
     <>
-      <Button variant="outline" size="sm" className="rounded-none" disabled={rating || unavailable} onClick={() => void rateNow()}>
-        {rating && <CircleNotch className="animate-spin" aria-hidden="true" />}
-        {rating ? t('soul.rating') : t('soul.rateNow')}
+      <Button
+        variant="outline"
+        size="sm"
+        className="rounded-none"
+        disabled={rating || ratingName !== null || unavailable}
+        onClick={() => void (again && selName ? rateAgain(selName) : rateNow())}
+      >
+        {rateBusy && <CircleNotch className="animate-spin" aria-hidden="true" />}
+        {rateBusy ? t('soul.rating') : t(again ? 'soul.rateAgain' : 'soul.rateNow')}
       </Button>
       <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateAllWithMolfar()}>{t('soul.rateAllMolfar')}</Button>
     </>
@@ -708,16 +718,19 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
             {lockedNow && (
               <Button variant="outline" size="sm" className="rounded-none" onClick={() => void unlock()}>{t('soul.edit')}</Button>
             )}
-            {selName && has(saved, selName) && !blank.has(selName) && (
-              <Button variant="outline" size="sm" className="rounded-none" disabled={rating || ratingName !== null || unavailable} onClick={() => void rateAgain(selName)}>
-                {ratingName === selName && <CircleNotch className="animate-spin" aria-hidden="true" />}
-                {ratingName === selName ? t('soul.rating') : t('soul.rateAgain')}
-              </Button>
-            )}
             {selName && (
-              <Button variant="ghost" size="sm" className="rounded-none text-destructive" onClick={() => void removeSoul()}>
-                <Trash aria-hidden="true" />{t('soul.delete')}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={
+                  <Button variant="ghost" size="sm" className="size-8 rounded-none p-0 max-md:size-10" aria-label={t('soul.moreActions')} title={t('soul.moreActions')}>
+                    <DotsThree className="size-5" weight="bold" aria-hidden="true" />
+                  </Button>
+                } />
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem variant="destructive" onClick={() => void removeSoul()}>
+                    <Trash className="size-4" aria-hidden="true" />{t('soul.delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {selDirty && <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"><span aria-hidden="true">●</span>{t('soul.unsaved')}</span>}
             <Button size="sm" className="rounded-none" disabled={!selDirty} onClick={() => void saveOne()}>{t('soul.save')}</Button>

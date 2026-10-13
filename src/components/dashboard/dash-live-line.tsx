@@ -7,7 +7,7 @@ import { useT } from '@/hooks/use-t'
 import { useDashLive } from '@/lib/dash-live'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { ageLabel, liveError } from './dash-common'
+import { ageLabel, DashError, liveError } from './dash-common'
 import { useDashMaybe } from './dash-mount'
 
 const LINE = 'ls-live flex min-w-0 flex-wrap items-center gap-x-1.5 px-1 text-[11px] leading-snug text-muted-foreground'
@@ -53,7 +53,7 @@ export function DashLiveLine({ chatId }: { chatId: string }) {
   if (error !== null) {
     return (
       <Follow className={cn(LINE, 'text-amber-600 dark:text-amber-400')}>
-        <span className="min-w-0 break-words">{t('dash.live.error', { message: error.length > 80 ? `${error.slice(0, 80)}…` : error })}</span>
+        <DashError message={error} />
         <button type="button" onClick={() => { void refresh() }} disabled={refreshing} className={LINK}>{t('dash.live.retry')}</button>
       </Follow>
     )

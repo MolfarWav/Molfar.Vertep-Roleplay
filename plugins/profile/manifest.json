@@ -1,7 +1,11 @@
 {
   "name": "Card profile",
-  "version": "1.0.0",
-  "description": "\"Structure it\" for the character editor's Profile tab: one model call splits a card's free text into profile fields and files the result as a draft the user accepts or discards. Nothing on the card changes here. The draft lives in data/profile-drafts/<characterId>.json.",
+  "version": "1.1.0",
+  "description": "\"Structure it\" and \"Fill empty\" for the Profile tab, and the group editor's scene generation: one model call proposes profile fields, a group's shared scenario or one of its openings, filed as a draft the user accepts or discards. Nothing on a card or a group changes here. Drafts live in data/profile-drafts/ (<characterId>.json, persona-<id>.json, group-<groupId>.json).",
   "origin": "local",
-  "permissions": ["routes", "llm", "fs"]
+  "permissions": [
+    "routes",
+    "llm",
+    "fs"
+  ]
 }

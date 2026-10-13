@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 import type { AltVariant } from '@/lib/types'
+import { FieldTranslateButton } from '@/components/character/field-translate-button'
 
 /** Which variant tab each field last had open. The tab only picks WHICH text
  *  you are editing (the chat's picker is what equips a variant), but losing it
@@ -31,6 +32,7 @@ export function VariantField({
   variants,
   onVariantsChange,
   rows = 3,
+  translate = false,
 }: {
   label: string
   hint?: string
@@ -39,6 +41,8 @@ export function VariantField({
   variants: AltVariant[]
   onVariantsChange: (next: AltVariant[]) => void
   rows?: number
+  /** a Translate button for the text being edited */
+  translate?: boolean
 }) {
   // -1 addresses the base field; >= 0 indexes into `variants`.
   const [active, setActiveState] = useState(() => {
@@ -94,6 +98,7 @@ export function VariantField({
           </span>
         )}
         {hint && <span className="font-normal text-muted-foreground">{hint}</span>}
+        {translate && <FieldTranslateButton label={label} value={current} onChange={setCurrent} />}
       </Label>
 
       {/* Variant chips — the base value is always the first, unremovable one. */}

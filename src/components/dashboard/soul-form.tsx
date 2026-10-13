@@ -5,6 +5,7 @@
 import { Plus, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldDescription } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/hooks/use-t'
@@ -76,6 +77,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
               wasLabel={savedCls ? t('soul.was', { n: t(mk(`soul.class.${savedCls}`)) }) : undefined}
               options={CLASSES.map((id) => ({ id, label: t(mk(`soul.class.${id}`)) }))}
             />
+            <FieldDescription className="text-[11px]">{t('soul.classHint')}</FieldDescription>
           </div>
           <div className="flex flex-col gap-1.5">
             <SubLabel>{t('soul.pronouns')}</SubLabel>
@@ -90,6 +92,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
           </div>
           <div className="flex flex-col gap-1">
             <SubLabel>{t('soul.startValues')}</SubLabel>
+            <FieldDescription className="mb-0.5 text-[11px]">{t('soul.startHint')}</FieldDescription>
             {DISPOSITION.map((stat) => {
               const v = soul.start?.[stat] ?? 0
               return (

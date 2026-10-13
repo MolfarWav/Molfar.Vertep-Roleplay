@@ -8,8 +8,8 @@
 // the app's own API lives at /v1/apps/roleplay/* (same origin, session
 // cookie auth — the page itself is behind the same session).
 import type {
-  Character, Chat, Message, Persona, Preset, Lorebook, LoreEntry, RegexScript,
-  Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig,
+  AltVariant, Character, Chat, Message, Persona, Preset, Lorebook, LoreEntry, RegexScript,
+  Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
@@ -86,11 +86,13 @@ export interface EngineChatMeta {
   authorNoteObject?: Chat['authorNote']
   lorebookIds?: string[]
   folderId?: string | null
+  pinned?: boolean
   chatTags?: string[]
   backgroundId?: string | 'none' | null
   temporary?: boolean
   litopysCut?: { count: number; upTo: string | null }
   fieldVariantSelection?: Chat['fieldVariantSelection']
+  turns?: ChatTurns
   parentChatId?: string | null
   parentMessageId?: string | null
   createdAt: number
@@ -602,55 +604,89 @@ function cardExtrasOf(card: EngineCard): Record<string, unknown> {
   return out
 }
 
+// card.json is a plain file: the built-in agent, a script or another tool may
+// write a list as one string, a number for a text, an object where a list goes.
+// The adapter is the one door every screen reads a card through, so it hands
+// them the types they expect; a wrong shape must never take a page down.
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+const text = (v: unknown, fallback = ''): string =>
+  typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : fallback
+/** Strings of a list; one string is one item (a greeting), or split (`sep`: tags). */
+const texts = (v: unknown, sep?: RegExp): string[] =>
+  Array.isArray(v)
+    ? v.flatMap((x) => (typeof x === 'string' ? [x] : typeof x === 'number' ? [String(x)] : []))
+    : typeof v === 'string' && v.trim()
+      ? (sep ? v.split(sep).map((x) => x.trim()).filter(Boolean) : [v])
+      : []
+const records = <T,>(v: unknown, fix: (r: Record<string, unknown>, i: number) => T | null): T[] =>
+  Array.isArray(v) ? v.flatMap((r, i) => { const out = isRecord(r) ? fix(r, i) : null; return out ? [out] : [] }) : []
+const num = (v: unknown, fallback: number): number => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : Number.NaN
+  return Number.isFinite(n) ? n : fallback
+}
+const variants = (v: unknown): AltVariant[] =>
+  records(v, (r, i) => ({ ...r, id: text(r.id) || `v${i}`, label: text(r.label), content: text(r.content) }))
+
 export function cardToCharacter(card: EngineCard, id: string, lastChatAt = 0): Character {
-  const studio = (card.studio ?? {}) as Partial<Character>
+  const studio = (isRecord(card.studio) ? card.studio : {}) as Record<string, unknown>
+  const depth = isRecord(studio.depthPrompt) ? studio.depthPrompt : {}
+  const colors = isRecord(studio.colors) ? studio.colors : {}
+  const role = depth.role === 'user' || depth.role === 'assistant' ? depth.role : 'system'
+  const extensions = card.extensions as { group_greetings?: unknown } | undefined
   return {
     id,
-    name: card.name ?? 'Unnamed',
-    avatar: storedMediaUrl(card.avatar || studio.avatar || PLACEHOLDER),
-    altAvatars: (studio.altAvatars ?? []).map(storedMediaUrl),
-    description: card.description ?? '',
-    personality: card.personality ?? '',
-    scenario: card.scenario ?? '',
-    firstMessage: card.first_mes ?? '',
-    altGreetings: card.alternate_greetings ?? [],
+    name: text(card.name) || 'Unnamed',
+    avatar: storedMediaUrl(text(card.avatar) || text(studio.avatar) || PLACEHOLDER),
+    altAvatars: texts(studio.altAvatars).map(storedMediaUrl),
+    description: text(card.description),
+    personality: text(card.personality),
+    scenario: text(card.scenario),
+    firstMessage: text(card.first_mes),
+    altGreetings: texts(card.alternate_greetings),
     // v3 group-only greetings; the legacy extension spelling also reads
     groupGreetings: Array.isArray(card.group_only_greetings)
-      ? card.group_only_greetings.map(String)
-      : Array.isArray((card.extensions as { group_greetings?: unknown[] } | undefined)?.group_greetings)
-        ? ((card.extensions as { group_greetings: unknown[] }).group_greetings).map(String)
-        : [],
-    exampleDialogue: card.mes_example ?? '',
-    systemPromptOverride: card.system_prompt ?? '',
-    postHistoryInstructions: card.post_history_instructions ?? '',
-    depthPrompt: studio.depthPrompt ?? { text: '', depth: 4, role: 'system' },
-    creatorNotes: card.creator_notes ?? '',
-    creator: card.creator ?? '',
-    version: card.character_version ?? '',
-    tags: card.tags ?? [],
-    favorite: studio.favorite ?? false,
-    folderId: studio.folderId ?? null,
-    createdAt: studio.createdAt ?? 0,
-    lastChatAt: studio.lastChatAt ?? lastChatAt,
-    embeddedLorebookId: studio.embeddedLorebookId ?? null,
-    linkedLorebookIds: studio.linkedLorebookIds ?? [],
-    colors: studio.colors ?? { name: '', dialogue: '', bubble: '' },
-    stats: studio.stats ?? [],
+      ? texts(card.group_only_greetings)
+      : texts(isRecord(extensions) ? extensions.group_greetings : undefined),
+    exampleDialogue: text(card.mes_example),
+    systemPromptOverride: text(card.system_prompt),
+    postHistoryInstructions: text(card.post_history_instructions),
+    depthPrompt: { text: text(depth.text), depth: num(depth.depth, 4), role },
+    creatorNotes: text(card.creator_notes),
+    creator: text(card.creator),
+    version: text(card.character_version),
+    tags: texts(card.tags, /[,;\n]/),
+    favorite: studio.favorite === true,
+    folderId: typeof studio.folderId === 'string' ? studio.folderId : null,
+    createdAt: num(studio.createdAt, 0),
+    lastChatAt: num(studio.lastChatAt, lastChatAt),
+    embeddedLorebookId: typeof studio.embeddedLorebookId === 'string' ? studio.embeddedLorebookId : null,
+    linkedLorebookIds: texts(studio.linkedLorebookIds),
+    colors: { name: text(colors.name), dialogue: text(colors.dialogue), bubble: text(colors.bubble) },
+    stats: records(studio.stats, (r, i) => ({ ...r, id: text(r.id) || `s${i}`, name: text(r.name), initial: num(r.initial, 0), max: num(r.max, 100), color: text(r.color) })),
     isGroup: false,
-    descVariants: studio.descVariants ?? [],
-    personalityVariants: studio.personalityVariants ?? [],
-    scenarioVariants: studio.scenarioVariants ?? [],
-    versions: studio.versions ?? [],
-    voiceProvider: studio.voiceProvider ?? '',
-    voiceId: studio.voiceId ?? '',
+    descVariants: variants(studio.descVariants),
+    personalityVariants: variants(studio.personalityVariants),
+    scenarioVariants: variants(studio.scenarioVariants),
+    versions: records(studio.versions, (r, i) => ({
+      ...r, id: text(r.id) || `ver${i}`, label: text(r.label), savedAt: num(r.savedAt, 0), snapshot: (isRecord(r.snapshot) ? r.snapshot : {}) as Partial<Character>,
+    })),
+    voiceProvider: text(studio.voiceProvider),
+    voiceId: text(studio.voiceId),
     // unknown card fields (v3 extras + the spec extensions bag) ride the
     // character so edits can write them back — imports must not destroy data
     cardExtras: Object.keys(cardExtrasOf(card)).length ? cardExtrasOf(card) : undefined,
-    gallery: (studio.gallery ?? []).map((g) => ({ ...g, url: storedMediaUrl(g.url) })),
-    expressions: (studio.expressions ?? []).map((e) => ({ ...e, url: e.url ? storedMediaUrl(e.url) : e.url })),
-    defaultExpression: studio.defaultExpression ?? 'neutral',
-    characterRegexIds: studio.characterRegexIds ?? [],
-    css: studio.css ?? '',
+    gallery: records(studio.gallery, (g, i) => {
+      const url = text(g.url)
+      return url ? { ...g, id: text(g.id) || `g${i}`, url: storedMediaUrl(url), type: g.type === 'video' ? 'video' as const : 'image' as const, caption: text(g.caption) } : null
+    }),
+    expressions: records(studio.expressions, (e) => {
+      const name = text(e.name)
+      const url = text(e.url)
+      return name ? { ...e, name, url: url ? storedMediaUrl(url) : null } : null
+    }),
+    defaultExpression: text(studio.defaultExpression) || 'neutral',
+    characterRegexIds: texts(studio.characterRegexIds),
+    css: text(studio.css),
   }
 }
 
@@ -889,6 +925,8 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     litopysCut: meta.litopysCut,
     temporary: meta.temporary === true,
     folderId: meta.folderId ?? null,
+    ...(meta.pinned === true ? { pinned: true } : {}),
+    ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
     fieldVariantSelection: meta.fieldVariantSelection ?? {},
@@ -910,10 +948,47 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('authorNote' in p && p.authorNote) { out.authorNote = p.authorNote.text; out.authorNoteObject = p.authorNote }
   if ('temporary' in p) out.temporary = p.temporary
   if ('folderId' in p) out.folderId = p.folderId
+  if ('pinned' in p) out.pinned = p.pinned === true
   if ('chatTags' in p) out.chatTags = p.chatTags
   if ('backgroundId' in p) out.backgroundId = p.backgroundId
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection
+  if ('turns' in p) out.turns = p.turns && Object.keys(p.turns).length ? p.turns : null
   return out
+}
+
+/** How a group chat plays: the group's defaults with the chat's own turns on
+ *  top (the engine's withChatTurns does the same). The order keeps only
+ *  current members; members added since go last. */
+export function chatGroupSettings(g: GroupConfig, turns?: ChatTurns): NonNullable<Chat['groupSettings']> {
+  const t = turns ?? {}
+  const ids = g.memberIds ?? []
+  const order = t.order ? [...t.order.filter((id) => ids.includes(id)), ...ids.filter((id) => !t.order!.includes(id))] : ids
+  return {
+    activation: t.mode ?? g.mode ?? 'natural',
+    generationMode: t.generationMode ?? g.generationMode ?? 'swap',
+    autoMode: t.autoMode ?? g.autoMode ?? false,
+    autoDelaySec: t.autoDelaySec ?? g.autoDelaySec ?? 5,
+    allowSelfResponses: t.allowSelfResponses ?? g.allowSelfResponses ?? false,
+    muted: t.mutedIds ?? g.mutedIds ?? [],
+    order,
+  }
+}
+
+/** The chat's turns with `patch` merged in, dropping keys that now equal the
+ *  group's default, so a chat set back to the group's values follows the
+ *  group again. Empty result = undefined. */
+export function mergeChatTurns(g: GroupConfig, turns: ChatTurns | undefined, patch: ChatTurns): ChatTurns | undefined {
+  const next: ChatTurns = { ...(turns ?? {}), ...patch }
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+  const dflt = chatGroupSettings(g)
+  if (next.generationMode !== undefined && next.generationMode === dflt.generationMode) delete next.generationMode
+  if (next.mode !== undefined && next.mode === dflt.activation) delete next.mode
+  if (next.allowSelfResponses !== undefined && next.allowSelfResponses === dflt.allowSelfResponses) delete next.allowSelfResponses
+  if (next.autoMode !== undefined && next.autoMode === dflt.autoMode) delete next.autoMode
+  if (next.autoDelaySec !== undefined && next.autoDelaySec === dflt.autoDelaySec) delete next.autoDelaySec
+  if (next.mutedIds !== undefined && same([...next.mutedIds].sort(), [...dflt.muted].sort())) delete next.mutedIds
+  if (next.order !== undefined && same(chatGroupSettings(g, { order: next.order }).order, dflt.order)) delete next.order
+  return Object.keys(next).length ? next : undefined
 }
 
 export interface PromptSourcePart { kind: string; label: string; detail?: string; text: string; located: boolean }

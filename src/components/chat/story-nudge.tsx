@@ -79,6 +79,8 @@ export function StoryNudgeButton({ chatId, isStreaming }: {
       void dash.reload()
       return
     }
+    // the meaning, in words, for anyone who never saw the tooltip (a phone has none)
+    toast.info(t('dash.nudge.tooltip'))
     void dash.reload()
   }
 
