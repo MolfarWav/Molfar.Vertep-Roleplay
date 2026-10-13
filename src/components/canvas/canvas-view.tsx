@@ -4,9 +4,9 @@ import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
 import { fetchLitChats, setLitLink, type LitChatItem } from '@/components/library/litopys-api'
 import { historyOf, commit, undo as undoHistory, redo as redoHistory, layoutForest, canConnect, connect as applyConnect, removeEdge, removeNode, moveNode } from '@/canvas-kit/graph'
-import type { Graph, History } from '@/canvas-kit/graph'
+import type { CanvasNode, Graph, History } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
-import { useT } from '@/hooks/use-t'
+import { useRelativeTime, useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -69,6 +69,16 @@ export function CanvasView() {
   const visibleChats = useMemo(
     () => allChats.filter((c) => !hiddenIds.has(c.id)),
     [allChats, hiddenIds]
+  )
+
+  const rel = useRelativeTime()
+  const nodeMeta = useCallback(
+    (n: CanvasNode) => {
+      const chat = allChats.find((c) => c.id === n.id)
+      if (!chat) return ''
+      return [chat.facts ? t('canvas.facts', { n: chat.facts }) : '', chat.updatedAt ? rel(chat.updatedAt) : ''].filter(Boolean).join(' · ')
+    },
+    [allChats, rel, t]
   )
 
   const reasonText = useCallback(
@@ -313,7 +323,6 @@ export function CanvasView() {
   return (
     <div className="flex h-full flex-col" role="application" aria-label={t('canvas.title')}>
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
-        <span className="mr-1 text-sm font-bold">{t('canvas.title')}</span>
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {t('canvas.boards')}
         </span>
@@ -457,13 +466,15 @@ export function CanvasView() {
                   (c) => c.id !== chat.id && !hiddenIds.has(c.id) && canBeParent(chat.id, c.id)
                 )
                 return (
-                  <div key={chat.id} className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card p-3">
-                    <div className="min-w-0 flex-1">
+                  <div key={chat.id} className="mb-2 flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
+                    <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{chat.title}</div>
-                      <div className="truncate text-xs text-muted-foreground">{chat.name}</div>
+                      {chat.name && <div className="truncate text-xs text-muted-foreground">{chat.name}</div>}
                     </div>
+                    <label className="text-xs font-medium text-muted-foreground" htmlFor={`continues-${chat.id}`}>{t('canvas.continues')}</label>
                     <select
-                      className="max-w-[150px] rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                      id={`continues-${chat.id}`}
+                      className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm"
                       value={parentId || ''}
                       onChange={(e) => handleListChange(chat.id, e.target.value || null)}
                       aria-label={`${t('canvas.continues')} ${chat.title}`}
@@ -491,6 +502,7 @@ export function CanvasView() {
               selectedId={selectedId}
               onSelect={setSelectedId}
               fitSignal={fitSignal}
+              nodeMeta={nodeMeta}
             />
           )}
         </div>

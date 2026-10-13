@@ -19,6 +19,8 @@ export interface CanvasBoardProps {
   selectedId: string | null
   onSelect: (id: string | null) => void
   fitSignal?: number
+  /** a short third line on a card (counts, last activity) */
+  nodeMeta?: (node: CanvasNode) => string
 }
 
 interface ViewState {
@@ -53,6 +55,7 @@ export function CanvasBoard({
   selectedId,
   onSelect,
   fitSignal,
+  nodeMeta,
 }: CanvasBoardProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
@@ -108,11 +111,13 @@ export function CanvasBoard({
     const sw = stageRef.current?.clientWidth || 0
     const sh = stageRef.current?.clientHeight || 0
     if (!sw || !sh) return
-    const k = Math.min(1.2, Math.max(0.35, Math.min((sw - 80) / (x2 - x1), (sh - 80) / (y2 - y1))))
+    const minK = sw < 600 ? 0.75 : 0.35
+    const k = Math.min(1.2, Math.max(minK, Math.min((sw - 80) / (x2 - x1), (sh - 80) / (y2 - y1))))
+    const fits = (x2 - x1) * k <= sw - 40
     const v = {
       k,
-      x: (sw - (x2 - x1) * k) / 2 - x1 * k,
-      y: (sh - (y2 - y1) * k) / 2 - y1 * k,
+      x: fits ? (sw - (x2 - x1) * k) / 2 - x1 * k : 20 - x1 * k,
+      y: (y2 - y1) * k <= sh - 40 ? (sh - (y2 - y1) * k) / 2 - y1 * k : 20 - y1 * k,
     }
     setView(v)
   }, [graph.nodes])
@@ -388,6 +393,7 @@ export function CanvasBoard({
                 <div className="flex-1 min-w-0">
                   <div className="truncate text-sm font-semibold">{n.title}</div>
                   {n.subtitle && <div className="truncate text-xs text-muted-foreground">{n.subtitle}</div>}
+                  {nodeMeta && <div className="truncate text-[11px] text-muted-foreground/80">{nodeMeta(n)}</div>}
                 </div>
                 {editable && (
                   <span
