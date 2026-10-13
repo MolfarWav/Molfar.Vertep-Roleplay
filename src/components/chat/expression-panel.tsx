@@ -122,7 +122,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
 
   if (minimized) {
     return (
-      <div ref={boxRef} className="fixed z-30 touch-none select-none" style={style} onPointerDown={startDrag}>
+      <div ref={boxRef} data-expression-panel className="fixed z-30 touch-none select-none" style={style} onPointerDown={startDrag}>
         <button
           type="button"
           onClick={() => { if (movedRef.current) { movedRef.current = false; return } setFolded(false) }}
@@ -142,6 +142,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
   return (
     <div
       ref={boxRef}
+      data-expression-panel
       className="group fixed z-30 cursor-grab touch-none select-none active:cursor-grabbing"
       style={{ ...style, visibility: loaded ? undefined : 'hidden' }}
       onPointerDown={startDrag}

@@ -761,3 +761,12 @@ h1 {
 }
 .pending-dot { animation: pending-dot 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .pending-dot { animation: none; opacity: 0.7; } }
+
+/* The expression sprite is touch-action: none (it drags). A Chrome for
+   Android user could not scroll the lower part of sheets and menus, right
+   where the sprite sits under them (reported 2026-10-13; the link to the
+   sprite is inferred from that spot). While one is open on a touch screen
+   the sprite steps out of the way; the sheet covers it anyway. */
+@media (pointer: coarse) {
+  body:has([role="dialog"], [role="menu"], [role="listbox"]) [data-expression-panel] { visibility: hidden; }
+}
