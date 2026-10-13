@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Phones: a new chat header. It shows the character's portrait and name (a long name scrolls slowly), the chat's title, a ring with how full the context is, and one "Menu" button. The portrait opens the card, the soul and the full picture. The ring opens the chat's details: model, tokens, context.
+- Phones: "Menu" slides in from the side. On top: who you play as (opens the persona), then big Preset and Model buttons that unfold their choices in place. Below: everything you do with this chat (find, next chat, author's note, lore activity, story record, branches, bookmarks, display, new chat, delete messages, chat files). The other sections sit at the bottom under "Go to". The preset, persona and model strip under the header is gone.
+- The "+" next to the message box keeps only quick actions: regenerate, continue, impersonate, and the compose tools. New chat, delete messages and chat files moved to the chat menu ("⋮" on wide screens).
+- Phones: the scene strip shows a small dashboard chip, so it is clear that a tap opens the dashboard.
 - Phones: tab rows that run off the screen say so. The side with hidden tabs fades and shows an arrow that pages the row, and the open tab stays in view (card editor, group editor, preset editor, samplers). Tools wraps its tabs onto a second line instead of hiding them past the edge.
 - Fixed: on Chrome and Brave for Android the lower part of a chat would not scroll by touch when a character's expression sprite had not loaded (an invisible sprite panel caught the finger). The panel now ignores touches until its picture loads and hides when the picture fails.
 

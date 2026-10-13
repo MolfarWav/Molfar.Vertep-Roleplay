@@ -69,7 +69,11 @@ function presetMeta(p: { sections: { enabled: boolean }[]; samplers: { temperatu
   return `${on}/${p.sections.length} on${temp}${ctx}`
 }
 
-export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
+/** `pill` is the header's compact trigger with the palette in a popover.
+ *  `rows` is the phone menu's: your persona (opens its page), then Preset and
+ *  Model as two large buttons that unfold the same palette in place.
+ *  `onNavigate` runs when a choice leaves the chat for another page. */
+export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chatId: ID; variant?: 'pill' | 'rows'; onNavigate?: () => void }) {
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
   const presets = useApp((s) => s.presets)
   const personas = useApp((s) => s.personas)
@@ -119,52 +123,14 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
     fn()
     setOpen(false)
   }
+  // a choice that opens another page also closes the menu the rows sit in
+  const go = (fn: () => void) => pick(() => { fn(); onNavigate?.() })
 
   const searchPlaceholder =
     tab === 'preset' ? 'Search presets…' : tab === 'persona' ? 'Search personas…' : 'Search models…'
 
-  return (
+  const body = (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
-          className={cn(
-            'flex h-8 min-w-0 max-w-full items-center rounded-lg border border-border bg-card/60 text-[11px]',
-            'overflow-hidden hover:bg-accent/70 hover:text-foreground',
-          )}
-          aria-label={`Switch context: preset ${preset?.name ?? 'none'}, persona ${persona?.name ?? 'none'}, model ${modelLabel}`}
-          title={`Preset: ${preset?.name ?? '—'}\nPersona: ${persona?.name ?? '—'}\nModel: ${current ? `${current.provider} · ${current.id}` : modelLabel}`}
-        >
-          {/* labels: the preset from md, persona and model from xl (the header must not be cut off) */}
-          {/* preset segment */}
-          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
-            <SlidersHorizontal className="size-3.5 shrink-0 text-amber-500/90" aria-hidden="true" />
-            <span className="hidden max-w-24 truncate font-medium text-foreground/90 md:inline">{preset?.name ?? '—'}</span>
-          </span>
-          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-          {/* persona segment */}
-          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
-            {persona?.avatar ? (
-              <img
-                src={storedMediaUrl(persona.avatar) || DEFAULT_AVATAR}
-                alt=""
-                className="size-4 shrink-0 rounded-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
-              />
-            ) : (
-              <User className="size-3.5 shrink-0 text-sky-500/90" aria-hidden="true" />
-            )}
-            <span className="hidden max-w-20 truncate text-muted-foreground xl:inline">{persona?.name ?? '—'}</span>
-          </span>
-          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-          {/* model segment */}
-          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
-            <ModelMark model={chat ? (current?.ref ?? model ?? '') : ''} className="size-3.5 shrink-0 text-emerald-500/90" />
-            <span className="hidden max-w-28 truncate font-mono text-muted-foreground xl:inline">{modelLabel}</span>
-          </span>
-          <CaretDown className="mr-1.5 size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </PopoverTrigger>
-
-        <PopoverContent align="end" className="w-[min(340px,calc(100vw-16px))] overflow-hidden p-0">
           {/* tab bar */}
           <div className="flex items-center gap-1 border-b border-border bg-muted/40 p-1.5" role="tablist" aria-label="Switch what to change">
             {TABS.map((t) => (
@@ -187,11 +153,11 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
 
           {/* live context line for the active tab */}
           {tab === 'preset' && (
-            <div className="flex w-full items-center gap-1 border-b border-border bg-card pr-2 hover:bg-accent/30">
+            <div className="flex w-full flex-wrap items-center gap-1 border-b border-border bg-card pr-2 pb-1 hover:bg-accent/30">
               <button
                 type="button"
                 onClick={() => pick(() => setPanelOpen(true))}
-                className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left"
+                className="flex min-w-[9rem] flex-1 items-center gap-2 px-3 py-2 text-left"
                 title={t('pc.openTip')}
                 data-testid="preset-panel-open"
               >
@@ -215,7 +181,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
               </button>
               <button
                 type="button"
-                onClick={() => { if (preset) pick(() => focusPreset(preset.id)) }}
+                onClick={() => { if (preset) go(() => focusPreset(preset.id)) }}
                 className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:border-primary/60 hover:bg-accent"
                 title="Open preset editor"
               >
@@ -226,7 +192,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
           {tab === 'persona' && (
             <button
               type="button"
-              onClick={() => { if (persona) pick(() => focusPersona(persona.id)) }}
+              onClick={() => { if (persona) go(() => focusPersona(persona.id)) }}
               className="flex w-full items-center gap-2 border-b border-border bg-card px-3 py-2 text-left hover:bg-accent/50"
               title="Open persona editor"
             >
@@ -261,7 +227,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
               </span>
               <button
                 type="button"
-                onClick={() => pick(() => setUp(current?.ref ?? model))}
+                onClick={() => go(() => setUp(current?.ref ?? model))}
                 className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
                 title="Context, prices and parameters of this model, in Settings"
               >
@@ -330,7 +296,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
                   })}
                   {personas.length > GROUP_CAP && <GroupCapHint hidden={personas.length - GROUP_CAP} />}
                   <CommandSeparator className="my-1.5" />
-                  <CommandItem value="edit personas" onSelect={() => { if (persona) pick(() => focusPersona(persona.id)) }}
+                  <CommandItem value="edit personas" onSelect={() => { if (persona) go(() => focusPersona(persona.id)) }}
                     className={actionCls}>
                     <PencilSimple className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                     <span className="flex-1 text-xs">Edit personas…</span>
@@ -378,7 +344,7 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
                     </CommandGroup>
                   )}
                   <CommandSeparator className="my-1.5" />
-                  <CommandItem value="choose models in settings" onSelect={() => pick(() => setUp(null))} className={actionCls}>
+                  <CommandItem value="choose models in settings" onSelect={() => go(() => setUp(null))} className={actionCls}>
                     <GearSix className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                     <span className="flex-1 text-xs">Choose models and the quick switch in Settings…</span>
                   </CommandItem>
@@ -386,6 +352,97 @@ export function ChatQuickSwitch({ chatId }: { chatId: ID }) {
               )}
             </CommandList>
           </Command>
+    </>
+  )
+
+  if (variant === 'rows') {
+    const unfold = (next: Tab) => {
+      if (open && tab === next) { setOpen(false); return }
+      setTab(next)
+      setOpen(true)
+    }
+    const rowCls = 'flex min-h-11 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-1.5 text-left transition-colors'
+    return (
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => { if (persona) { focusPersona(persona.id); onNavigate?.() } }}
+          className="flex min-h-12 w-full items-center gap-3 rounded-lg px-1 text-left hover:bg-accent/50"
+          title="Open your persona"
+        >
+          <img
+            src={(persona?.avatar && storedMediaUrl(persona.avatar)) || DEFAULT_AVATAR}
+            alt=""
+            className="size-11 shrink-0 rounded-lg object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">You play as</span>
+            <span className="block truncate font-heading text-base">{persona?.name ?? 'No persona'}</span>
+          </span>
+          <PencilSimple className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => unfold('preset')} aria-expanded={open && tab === 'preset'}
+            className={cn(rowCls, open && tab === 'preset' ? 'border-amber-500/60 bg-accent' : 'border-border hover:bg-accent/50')}>
+            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-500"><SlidersHorizontal className="size-3" aria-hidden="true" />Preset</span>
+            <span className="w-full truncate text-sm">{preset?.name ?? '—'}</span>
+          </button>
+          <button type="button" onClick={() => unfold('profile')} aria-expanded={open && tab === 'profile'}
+            className={cn(rowCls, open && tab === 'profile' ? 'border-emerald-500/60 bg-accent' : 'border-border hover:bg-accent/50')}>
+            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-emerald-500"><Cpu className="size-3" aria-hidden="true" />Model</span>
+            <span className="w-full truncate font-mono text-xs">{modelLabel}</span>
+          </button>
+        </div>
+        {open && <div className="overflow-hidden rounded-lg border border-border">{body}</div>}
+        <PresetPanel chatId={chatId} open={panelOpen} onOpenChange={setPanelOpen} />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          className={cn(
+            'flex h-8 min-w-0 max-w-full items-center rounded-lg border border-border bg-card/60 text-[11px]',
+            'overflow-hidden hover:bg-accent/70 hover:text-foreground',
+          )}
+          aria-label={`Switch context: preset ${preset?.name ?? 'none'}, persona ${persona?.name ?? 'none'}, model ${modelLabel}`}
+          title={`Preset: ${preset?.name ?? '—'}\nPersona: ${persona?.name ?? '—'}\nModel: ${current ? `${current.provider} · ${current.id}` : modelLabel}`}
+        >
+          {/* labels: the preset from md, persona and model from xl (the header must not be cut off) */}
+          {/* preset segment */}
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
+            <SlidersHorizontal className="size-3.5 shrink-0 text-amber-500/90" aria-hidden="true" />
+            <span className="hidden max-w-24 truncate font-medium text-foreground/90 md:inline">{preset?.name ?? '—'}</span>
+          </span>
+          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+          {/* persona segment */}
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
+            {persona?.avatar ? (
+              <img
+                src={storedMediaUrl(persona.avatar) || DEFAULT_AVATAR}
+                alt=""
+                className="size-4 shrink-0 rounded-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
+              />
+            ) : (
+              <User className="size-3.5 shrink-0 text-sky-500/90" aria-hidden="true" />
+            )}
+            <span className="hidden max-w-20 truncate text-muted-foreground xl:inline">{persona?.name ?? '—'}</span>
+          </span>
+          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+          {/* model segment */}
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
+            <ModelMark model={chat ? (current?.ref ?? model ?? '') : ''} className="size-3.5 shrink-0 text-emerald-500/90" />
+            <span className="hidden max-w-28 truncate font-mono text-muted-foreground xl:inline">{modelLabel}</span>
+          </span>
+          <CaretDown className="mr-1.5 size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </PopoverTrigger>
+
+        <PopoverContent align="end" className="w-[min(340px,calc(100vw-16px))] overflow-hidden p-0">
+          {body}
         </PopoverContent>
       </Popover>
 

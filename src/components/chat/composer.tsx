@@ -1,13 +1,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, FolderOpen, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, UserCircle, Check, Trash, MagicWand, CircleNotch, ChatCenteredText } from '@phosphor-icons/react'
+import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu"
-import { ManageChatsDialog } from "@/components/chat/manage-chats-dialog"
 import { QuickReplyBar } from "@/components/chat/qr-bar"
 import { StoryNudgeButton, StoryNudgeChip } from "@/components/chat/story-nudge"
 import { useDashMaybe } from "@/components/dashboard/dash-context"
@@ -69,18 +68,12 @@ export function Composer({ chatId }: { chatId: ID }) {
   const setComposerDraft = useApp((s) => s.setComposerDraft)
   const qrSets = useApp((s) => s.qrSets)
   const characters = useApp((s) => s.characters)
-  const personas = useApp((s) => s.personas)
-  const updateChat = useApp((s) => s.updateChat)
-  const setView = useApp((s) => s.setView)
-  const setDeleteMode = useApp((s) => s.setDeleteMode)
-  const startChatAndOpen = useApp((s) => s.startChatAndOpen)
   const setHelpOpen = useApp((s) => s.setHelpOpen)
   const imageGen = useApp((s) => s.settings.imageGen)
   const postPicture = useApp((s) => s.postPicture)
   const chatModel = useApp((s) => s.modelFor(chatId))
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
   const characterId = chat?.characterId ?? null
-  const activePersonaId = chat?.personaId ?? personas.find((p) => p.isDefault)?.id ?? null
   const character = characters.find((c) => c.id === characterId)
   const isGroup = !!character?.isGroup
 
@@ -94,7 +87,6 @@ export function Composer({ chatId }: { chatId: ID }) {
     setDraft({ chatId, text })
   }, [chatId])
   const [historyIdx, setHistoryIdx] = useState(-1)
-  const [manageOpen, setManageOpen] = useState(false)
   const [expandOpen, setExpandOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -474,54 +466,18 @@ export function Composer({ chatId }: { chatId: ID }) {
             <DropdownMenuItem onClick={() => setQrOpen((v) => !v)}>
               <Lightning className="size-4" /> {qrOpen ? "Hide shortcuts" : "Shortcuts"}
             </DropdownMenuItem>
-            {/* Personas are listed inline so switching is one hop, rather than
-                toggling an extra row above the composer. */}
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <UserCircle className="size-4" /> Speak as…
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-72 w-56 overflow-y-auto">
-                {personas.map((p) => (
-                  <DropdownMenuItem
-                    key={p.id}
-                    onClick={() => {
-                      updateChat(chatId, { personaId: p.id })
-                      toast.success(`Speaking as ${p.name}`)
-                    }}
-                  >
-                    <img src={p.avatar || DEFAULT_AVATAR} alt="" className="size-5 shrink-0 rounded-full object-cover" />
-                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                    {p.id === activePersonaId && <Check className="size-3.5 shrink-0 text-primary" />}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setView("personas")}>
-                  <User className="size-4" /> Manage personas
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
             {/* Dictate (STT) and draft translation need engine-side services
                 that don't exist yet — the menu doesn't offer them rather than
                 fake them. */}
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            {characterId && (
-              <DropdownMenuItem onClick={() => void startChatAndOpen(characterId)} disabled={isStreaming}>
-                <ChatCenteredText className="size-4" /> Start new chat
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => setDeleteMode(true)} disabled={isStreaming}>
-              <Trash className="size-4" /> Delete messages…
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setManageOpen(true)}>
-              <FolderOpen className="size-4" /> Manage chat files
-            </DropdownMenuItem>
+            {/* Start a new chat, delete messages, manage chat files and the
+                persona live in the chat menu: this menu keeps the quick
+                actions on the message being written or the next reply. */}
           </DropdownMenuContent>
         </DropdownMenu>
 
         {characterId && (
           <>
-            <ManageChatsDialog open={manageOpen} onOpenChange={setManageOpen} characterId={characterId} currentChatId={chatId} />
             <GalleryDialog
               open={galleryOpen}
               onOpenChange={setGalleryOpen}

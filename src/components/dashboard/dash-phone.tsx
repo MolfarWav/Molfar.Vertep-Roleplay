@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowClockwise, CaretDown } from '@phosphor-icons/react'
+import { ArrowClockwise, CaretDown, Gauge } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Constellation } from './constellation'
@@ -19,6 +19,7 @@ export function DashPhoneBar({ view, focus, onOpen }: {
   focus: string
   onOpen: () => void
 }) {
+  const t = useT()
   const tx = useTx()
   const char = view.chars[focus]
   if (!char) return null
@@ -28,6 +29,7 @@ export function DashPhoneBar({ view, focus, onOpen }: {
     <button
       type="button"
       onClick={onOpen}
+      aria-label={`${t('dash.open')}: ${tx('dash.const', char.constellation)}`}
       className="flex h-9 w-full shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-left text-sm"
     >
       {clock?.time ? <span className="shrink-0 font-mono text-[13px] tabular-nums">{clock.time}</span> : null}
@@ -41,7 +43,11 @@ export function DashPhoneBar({ view, focus, onOpen }: {
       <span className={cn('truncate font-heading', GOLD_TEXT, clock?.place ? 'max-w-[40%]' : 'ml-auto')}>
         {tx('dash.const', char.constellation)}
       </span>
-      <CaretDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      {/* the whole bar opens the dashboard; this chip is what says so */}
+      <span className="flex shrink-0 items-center gap-0.5 rounded-md border border-border bg-background/60 px-1.5 py-0.5 text-muted-foreground" aria-hidden="true">
+        <Gauge className="size-3.5" />
+        <CaretDown className="size-3" />
+      </span>
     </button>
   )
 }
