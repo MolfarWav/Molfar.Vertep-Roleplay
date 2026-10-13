@@ -22,6 +22,7 @@ import { NewChatStep } from '@/components/chat/new-chat-step'
 import { PersonasView } from '@/components/views/personas-view'
 import { PresetsView } from '@/components/views/presets-view'
 import { LorebooksView } from '@/components/views/lorebooks-view'
+import { CanvasView } from '@/components/canvas/canvas-view'
 import { LitopysView } from '@/components/library/litopys-view'
 import { QuickRepliesView } from '@/components/views/quickreplies-view'
 import { ExtensionsView } from '@/components/views/extensions-view'
@@ -163,6 +164,7 @@ function renderView(v: ViewKey) {
     case 'presets': return <PresetsView />
     case 'lorebooks': return <LorebooksView />
     case 'litopys': return <LitopysView />
+    case 'canvas': return <CanvasView />
     case 'quickreplies': return <QuickRepliesView />
     case 'extensions': return <ExtensionsView />
     // 0.9.2: models are chosen and set up in the shell's Settings; a view saved before lands on Home
@@ -210,7 +212,7 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
                 // full screen: everything right of the rail
                 // the rest: 980px holds the character editor's whole tab row (720 cut it off)
                 full ? (wide ? 'data-[side=left]:w-[calc(100vw-206px)]' : 'data-[side=left]:w-[calc(100vw-48px)]')
-                : drawer === 'litopys' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : (wide ? 'data-[side=left]:w-[min(980px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(980px,calc(100vw-48px-16px))]'),
+                : drawer === 'litopys' || drawer === 'canvas' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : (wide ? 'data-[side=left]:w-[min(980px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(980px,calc(100vw-48px-16px))]'),
                 'data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
                 wide ? 'data-[side=left]:left-[206px]' : 'data-[side=left]:left-12',
               )

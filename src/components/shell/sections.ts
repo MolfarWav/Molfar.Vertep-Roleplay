@@ -1,4 +1,4 @@
-import { House, Chats, Users, UserCircle, SlidersHorizontal, BookOpenText, Scroll, Lightning, PuzzlePiece, Gear, Storefront } from '@phosphor-icons/react'
+import { House, Chats, Users, UserCircle, SlidersHorizontal, BookOpenText, Scroll, Lightning, PuzzlePiece, Gear, Storefront, Graph } from '@phosphor-icons/react'
 import type { ViewKey } from '@/lib/store'
 import type { MsgKey } from '@/lib/i18n'
 
@@ -23,6 +23,7 @@ export const SECTIONS: SectionItem[] = [
   { key: 'personas', label: 'Personas', labelKey: 'nav.personas', icon: UserCircle, group: 1 },
   { key: 'lorebooks', label: 'Lorebooks', labelKey: 'nav.lorebooks', icon: BookOpenText, group: 1 },
   { key: 'litopys', label: 'Library', labelKey: 'nav.litopys', icon: Scroll, group: 1 },
+  { key: 'canvas', label: 'Canvas', labelKey: 'nav.canvas', icon: Graph, group: 1 },
   { key: 'presets', label: 'Presets', labelKey: 'nav.presets', icon: SlidersHorizontal, group: 2 },
   { key: 'quickreplies', label: 'Shortcuts', labelKey: 'nav.quickreplies', icon: Lightning, group: 3 },
   { key: 'extensions', label: 'Tools', labelKey: 'nav.extensions', icon: PuzzlePiece, group: 3 },
