@@ -192,7 +192,8 @@ interface AppState {
   sendMessage: (chatId: ID, content: string, opts?: { attachments?: Message['attachments']; noEmptySend?: boolean }) => void
   stopStreaming: () => void
   tickStream: () => void
-  regenerate: (chatId: ID, messageId?: ID) => void
+  /** `guidance`: a direction for this one reply (Regenerate with a hint); never saved */
+  regenerate: (chatId: ID, messageId?: ID, guidance?: string) => void
   setComposerDraft: (text: string | null) => void
   addSwipe: (chatId: ID) => void
   setSwipe: (chatId: ID, messageId: ID, index: number) => void
@@ -227,6 +228,11 @@ interface AppState {
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
   fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null>; only?: 'total' }) => Promise<PresetCosts>
   fetchPresetMemory: (characterId: ID) => Promise<PresetMemory>
+  /** the user's own default choices per preset (null until loaded) */
+  presetDefaults: Record<ID, Record<string, string | string[]>> | null
+  loadPresetDefaults: () => Promise<Record<ID, Record<string, string | string[]>>>
+  /** save these choices as the user's default for the preset; null forgets it */
+  setPresetDefault: (presetId: ID, vars: Record<string, string | string[]> | null) => Promise<void>
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
   convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<ID | null>
   reorderGroupMember: (groupId: ID, memberId: ID, dir: -1 | 1) => void
@@ -777,6 +783,8 @@ export const useApp = create<AppState>()(
             const chat = get().chats.find((c) => c.id === chatId)
             const preset = chat ? get().presets.find((p) => p.id === chat.presetId) : null
             if (preset && preset.samplers?.streaming === false) return
+            // the user's own choice: replies appear only when finished
+            if (get().settings.replyDisplay === 'whole') return
             const full = st.full + delta
             // first text token ends the thinking phase — freeze its span so the
             // live block can say "Thought for Xs" WHILE the reply streams
@@ -1107,7 +1115,7 @@ export const useApp = create<AppState>()(
         const step = Math.max(3, Math.ceil((st.full.length - st.shown) / 12))
         set({ streaming: { ...st, shown: Math.min(st.full.length, st.shown + step) } })
       },
-      regenerate: (chatId, messageId) => {
+      regenerate: (chatId, messageId, guidance) => {
         const chat = get().chats.find((c) => c.id === chatId)
         if (!chat || get().streaming?.chatId === chatId) return
         const lastChar = [...chat.messages].reverse().find((m) => m.role === 'assistant' && !m.picture)
@@ -1116,7 +1124,8 @@ export const useApp = create<AppState>()(
           return
         }
         if (!lastChar) return
-        void runGeneration(set, get, chatId, 'swipe', { dir: 1 }, { regenerateInto: lastChar.id })
+        const hint = guidance?.trim()
+        void runGeneration(set, get, chatId, 'swipe', { dir: 1, ...(hint ? { guidance: hint } : {}) }, { regenerateInto: lastChar.id })
       },
       addSwipe: (chatId) => get().regenerate(chatId),
       setSwipe: (chatId, messageId, index) => {
@@ -1395,6 +1404,24 @@ export const useApp = create<AppState>()(
       fetchPresetMemory: async (characterId) => {
         try { return await j<PresetMemory>(`/preset-memory/${encodeURIComponent(characterId)}`) }
         catch { return { presetId: null, vars: {} } }
+      },
+      presetDefaults: null,
+      loadPresetDefaults: async () => {
+        const have = get().presetDefaults
+        if (have) return have
+        try {
+          const all = await j<Record<ID, Record<string, string | string[]>>>('/preset-defaults')
+          set({ presetDefaults: all ?? {} })
+          return all ?? {}
+        } catch { return {} }
+      },
+      setPresetDefault: async (presetId, vars) => {
+        try {
+          const all = await j<Record<ID, Record<string, string | string[]>>>(`/preset-defaults/${encodeURIComponent(presetId)}`, { method: 'PUT', body: JSON.stringify({ vars }) })
+          set({ presetDefaults: all ?? {} })
+        } catch (e) {
+          toast.error(String((e as Error).message ?? e))
+        }
       },
       newChat: async (charId, greetingIndex = 0, opts) => {
         const { personas, model } = get()

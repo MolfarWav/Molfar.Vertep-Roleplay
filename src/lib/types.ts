@@ -758,6 +758,8 @@ export interface AppSettings {
   uiScale: number
   avatarScale: number
   streamingFps: number
+  /** 'live': a reply shows as the model writes it; 'whole': it appears once finished */
+  replyDisplay?: 'live' | 'whole'
   /** 'rect' = tall rounded-rectangle portrait crop; the rest are corner
    *  radii on a square crop. */
   avatarShape: 'circle' | 'square' | 'rounded' | 'rect'

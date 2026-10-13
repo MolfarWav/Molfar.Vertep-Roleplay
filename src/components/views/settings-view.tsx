@@ -98,6 +98,7 @@ const SECTIONS: SectionDef[] = [
     id: "streaming",
     label: "Streaming",
     controls: [
+      { kind: "select", key: "replyDisplay", label: "Show Replies", options: [["live", "As the model writes them"], ["whole", "When they are finished"]] },
       { kind: "slider", key: "streamingFps", label: "Streaming FPS", min: 10, max: 120, step: 5 },
       { kind: "switch", key: "reasoningAutoExpand", label: "Auto-expand Thinking" },
     ],

@@ -15,6 +15,7 @@ import { Pager, clampPage } from '@/components/ui/pager'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { FieldDescription } from '@/components/ui/field'
+import { FieldTranslateButton } from '@/components/character/field-translate-button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -347,16 +348,20 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 variants={c.descVariants}
                 onVariantsChange={(descVariants) => up({ descVariants })}
                 rows={5}
+                translate
               />
-              <Field label="First message" value={c.firstMessage} onChange={(v) => up({ firstMessage: v })} rows={4} />
+              <Field label="First message" value={c.firstMessage} onChange={(v) => up({ firstMessage: v })} rows={4} translate />
               <div className="flex flex-col gap-2">
                 <Label className="text-xs">Alternate greetings <span className="text-muted-foreground">(rendered as greeting swipes)</span></Label>
                 {c.altGreetings.map((g, i) => (
                   <div key={i} className="flex gap-2">
                     <Textarea value={g} rows={2} onChange={(e) => up({ altGreetings: c.altGreetings.map((x, j) => j === i ? e.target.value : x) })} aria-label={`Alternate greeting ${i + 1}`} className="text-sm" />
-                    <Button variant="ghost" size="sm" onClick={() => up({ altGreetings: c.altGreetings.filter((_, j) => j !== i) })} aria-label={`Delete greeting ${i + 1}`}>
-                      <Trash className="size-4" aria-hidden="true" />
-                    </Button>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => up({ altGreetings: c.altGreetings.filter((_, j) => j !== i) })} aria-label={`Delete greeting ${i + 1}`}>
+                        <Trash className="size-4" aria-hidden="true" />
+                      </Button>
+                      <FieldTranslateButton label={`Alternate greeting ${i + 1}`} value={g} onChange={(v) => up({ altGreetings: useApp.getState().characters.find((x) => x.id === c.id)?.altGreetings.map((x, j) => j === i ? v : x) ?? c.altGreetings })} />
+                    </div>
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-fit" onClick={() => up({ altGreetings: [...c.altGreetings, ''] })}>
@@ -368,9 +373,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 {c.groupGreetings.map((g, i) => (
                   <div key={i} className="flex gap-2">
                     <Textarea value={g} rows={2} onChange={(e) => up({ groupGreetings: c.groupGreetings.map((x, j) => j === i ? e.target.value : x) })} aria-label={`Group greeting ${i + 1}`} className="text-sm" />
-                    <Button variant="ghost" size="sm" onClick={() => up({ groupGreetings: c.groupGreetings.filter((_, j) => j !== i) })} aria-label={`Delete group greeting ${i + 1}`}>
-                      <Trash className="size-4" aria-hidden="true" />
-                    </Button>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => up({ groupGreetings: c.groupGreetings.filter((_, j) => j !== i) })} aria-label={`Delete group greeting ${i + 1}`}>
+                        <Trash className="size-4" aria-hidden="true" />
+                      </Button>
+                      <FieldTranslateButton label={`Group greeting ${i + 1}`} value={g} onChange={(v) => up({ groupGreetings: useApp.getState().characters.find((x) => x.id === c.id)?.groupGreetings.map((x, j) => j === i ? v : x) ?? c.groupGreetings })} />
+                    </div>
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-fit" onClick={() => up({ groupGreetings: [...c.groupGreetings, ''] })}>
@@ -386,7 +394,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             )}
 
             <TabsContent value="dialogue">
-              <Field label="Example dialogue" hint="Use <START> to separate example chats. {{user}} / {{char}} macros supported." value={c.exampleDialogue} onChange={(v) => up({ exampleDialogue: v })} rows={12} mono />
+              <Field label="Example dialogue" hint="Use <START> to separate example chats. {{user}} / {{char}} macros supported." value={c.exampleDialogue} onChange={(v) => up({ exampleDialogue: v })} rows={12} mono translate />
             </TabsContent>
 
             <TabsContent value="advanced" className="flex flex-col gap-4">
@@ -419,6 +427,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 variants={c.scenarioVariants}
                 onVariantsChange={(scenarioVariants) => up({ scenarioVariants })}
                 rows={2}
+                translate
               />
               <VariantField
                 label="Personality summary"
@@ -427,6 +436,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 variants={c.personalityVariants}
                 onVariantsChange={(personalityVariants) => up({ personalityVariants })}
                 rows={2}
+                translate
               />
               <Collapsible>
                 <CollapsibleTrigger render={<Button variant="outline" size="sm" className="text-xs">Creator notes (spoiler)</Button>} />
@@ -814,8 +824,10 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   )
 }
 
-function Field({ label, hint, description, value, onChange, rows = 3, mono = false }: {
+function Field({ label, hint, description, value, onChange, rows = 3, mono = false, translate = false }: {
   label: string; hint?: string; description?: string; value: string; onChange: (v: string) => void; rows?: number; mono?: boolean
+  /** a Translate button for this text (story texts; not prompts, which break when translated) */
+  translate?: boolean
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -823,6 +835,7 @@ function Field({ label, hint, description, value, onChange, rows = 3, mono = fal
         {label}
         <TokenBadge text={value} />
         {hint && <span className="font-normal text-muted-foreground">{hint}</span>}
+        {translate && <FieldTranslateButton label={label} value={value} onChange={onChange} />}
       </Label>
       <Textarea value={value} rows={rows} onChange={(e) => onChange(e.target.value)} aria-label={label} className={mono ? 'font-mono text-xs' : 'text-sm'} />
       {description && <FieldDescription className="text-[11px]">{description}</FieldDescription>}

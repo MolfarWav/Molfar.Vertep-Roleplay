@@ -7,6 +7,7 @@
  *   groups/<id>.json                 lorebooks/<id>.json
  *   chats/<id>.jsonl + <id>.meta.json
  *   settings.json {model, personaId}
+ *   preset-defaults.json {presetId: picks}   the user's own default choices per preset
  *
  * Messages are a FLAT list with per-message swipes (classic studio shape):
  *   {id, name, charId, role: "user"|"char", text, at, swipes:[], swipe,
@@ -2693,6 +2694,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     depthInj.push({ depth: 0, role: "system", content: nudgeContent });
     addPart("group", "Group nudge", nudgeContent);
   }
+  // Regenerate with a hint: a direction for this one reply, read last, never saved
+  const hint = opts && typeof opts.guidance === "string" ? opts.guidance.trim().slice(0, 2000) : "";
+  if (hint) {
+    const hintContent = "[Direction for this reply only: " + hint + "]";
+    depthInj.push({ depth: 0, role: "system", content: hintContent });
+    addPart("utility", "Hint for this reply", hintContent);
+  }
 
   // Depth injections (author's note, world info at a depth, the group nudge,
   // absolute-position sections) live INSIDE the chat history: depth N means
@@ -3559,6 +3567,22 @@ export function handleRoute(req, host) {
   }
 
   // ---------- peek: assembled prompt ----------
+  // the user's own default choices per preset (presetId -> picks), for chats a
+  // character has no memory for; a stock preset can have them too
+  if (head === "preset-defaults") {
+    const all = readJson("preset-defaults.json", {});
+    if (!id && req.method === "GET") return ok(all && typeof all === "object" ? all : {});
+    if (id && req.method === "PUT") {
+      if (!readJson("presets/" + id + ".json", null)) return err(404, "preset not found");
+      const b = body();
+      const next = { ...(all && typeof all === "object" ? all : {}) };
+      const vars = b.vars && typeof b.vars === "object" && !Array.isArray(b.vars) ? cleanPresetVars(b.vars) : null;
+      if (vars) next[id] = vars;
+      else delete next[id];
+      writeJson("preset-defaults.json", next);
+      return ok(next);
+    }
+  }
   // per-character memory for the new-chat step: { presetId, vars } or nulls
   if (head === "preset-memory" && id && req.method === "GET") {
     return ok(presetMemory(fsx, id) || { presetId: null, vars: {} });
@@ -4177,7 +4201,9 @@ export function handleRoute(req, host) {
       const mem = !b.presetId && b.characterId && !b.groupId ? presetMemory(fsx, b.characterId) : null;
       const presetId = b.presetId || (mem && mem.presetId) || defaultPresetId(fsx);
       const stepVars = b.presetVars && typeof b.presetVars === "object" && !Array.isArray(b.presetVars) ? cleanPresetVars(b.presetVars) : null;
-      const picks = stepVars || (mem && !b.presetId ? cleanPresetVars(mem.vars) : null);
+      // no step and no memory: the user's own default choices for that preset
+      const mine = (() => { const d = readJson("preset-defaults.json", {}); return d && typeof d === "object" && d[presetId] ? cleanPresetVars(d[presetId]) : null; })();
+      const picks = stepVars || (mem && !b.presetId ? cleanPresetVars(mem.vars) : null) || mine;
       const meta = {
         id: cid,
         title: b.title || "New chat",
@@ -4653,13 +4679,15 @@ const toolX = (r) => ({
       const next = cur + dir;
       // navigate existing swipes (greeting rotation wraps on pristine chats)
       const pristineGreeting = !meta.tainted && chat.msgs.length === 1 && msg.greeting === true;
-      if (next >= 0 && next < swipes.length) {
+      // a hinted regenerate always writes a new swipe
+      const hinted = typeof body().guidance === "string" && body().guidance.trim() !== "";
+      if (!hinted && next >= 0 && next < swipes.length) {
         const text = expandMacros(String(swipes[next]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
         chat.msgs[idx] = { ...msg, text, swipe: next, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, next) };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: next, count: swipes.length });
       }
-      if (pristineGreeting && (next < 0 || next >= swipes.length)) {
+      if (!hinted && pristineGreeting && (next < 0 || next >= swipes.length)) {
         const wrapped = ((next % swipes.length) + swipes.length) % swipes.length;
         const text = expandMacros(String(swipes[wrapped]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
         chat.msgs[idx] = { ...msg, text, swipe: wrapped, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, wrapped) };
@@ -4675,7 +4703,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, before, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "swipe" });
+        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "swipe", guidance: body().guidance });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,

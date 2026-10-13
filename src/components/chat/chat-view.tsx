@@ -1379,6 +1379,18 @@ function DisplaySettings() {
           <Slider value={[settings.backgroundOpacity]} min={0} max={100} step={2} onValueChange={(v) => updateSettings({ backgroundOpacity: (Array.isArray(v) ? v[0] : (v as number)) })} />
         </Field>
         <Field>
+          <FieldLabel>Show replies</FieldLabel>
+          <Select value={settings.replyDisplay ?? 'live'} onValueChange={(v) => v && updateSettings({ replyDisplay: v as 'live' | 'whole' })}>
+            <SelectTrigger className="w-full" aria-label="Show replies">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="live">As the model writes them</SelectItem>
+              <SelectItem value="whole">When they are finished</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
           <FieldLabel>Streaming FPS: {settings.streamingFps}</FieldLabel>
           <Slider value={[settings.streamingFps]} min={5} max={60} step={5} onValueChange={(v) => updateSettings({ streamingFps: (Array.isArray(v) ? v[0] : (v as number)) })} />
         </Field>

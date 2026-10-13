@@ -29,6 +29,8 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const startChatWith = useApp((s) => s.startChatWith)
   const closeNewChatStep = useApp((s) => s.closeNewChatStep)
   const updateSettings = useApp((s) => s.updateSettings)
+  const loadPresetDefaults = useApp((s) => s.loadPresetDefaults)
+  const presetDefaults = useApp((s) => s.presetDefaults)
   const defaultId = (presets.find((p) => p.isDefault) ?? presets[0])?.id ?? ''
   const [memory, setMemory] = useState<PresetMemory | null>(null)
   const [ready, setReady] = useState(false)
@@ -44,17 +46,21 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   // the character's memory (single characters only)
   useEffect(() => {
     let live = true
-    const done = (m: PresetMemory | null) => {
+    const done = (m: PresetMemory | null, mine: Record<ID, PresetValues>) => {
       if (!live) return
       setMemory(m)
-      if (!touched.current && m?.presetId && presets.some((p) => p.id === m.presetId)) {
-        setPresetId(m.presetId)
-        setValues(m.vars ?? {})
+      if (!touched.current) {
+        // the character's last choices first, else the user's own default for the preset
+        if (m?.presetId && presets.some((p) => p.id === m.presetId)) {
+          setPresetId(m.presetId)
+          setValues(m.vars ?? {})
+        } else {
+          setValues(mine[defaultId] ?? {})
+        }
       }
       setReady(true)
     }
-    if (character?.isGroup) done(null)
-    else void fetchPresetMemory(charId).then(done)
+    void Promise.all([character?.isGroup ? null : fetchPresetMemory(charId), loadPresetDefaults()]).then(([m, mine]) => done(m, mine))
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [charId])
@@ -76,7 +82,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const pickPreset = (id: ID) => {
     touched.current = true
     setPresetId(id)
-    setValues(memory?.presetId === id ? memory.vars ?? {} : {})
+    setValues(memory?.presetId === id ? memory.vars ?? {} : presetDefaults?.[id] ?? {})
   }
 
   return (

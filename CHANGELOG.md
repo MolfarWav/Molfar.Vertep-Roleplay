@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Preset choices: "Save as my default" in the chat's preset choices (stock presets too). New chats with that preset start with these choices; a character that already has a chat still starts from the choices of its last one. "Use my default" and "Forget my default" sit next to it. Stored in `data/preset-defaults.json`.
+- "Regenerate with a hint…" in the "+" menu: write what the new reply should do differently. The hint goes to the model for that one reply, as the last instruction, and is not saved in the chat. It always makes a new variant.
+- Card editor: a "Translate" button on Description, Personality, Scenario, First message, Example dialogue and each alternate and group greeting. It translates that one field into the card's translation language, with Undo in the notice.
+- Lorebooks: a translate button in the book's header translates every entry. Translated keywords are added next to the original ones, so entries fire in both languages. By default it keeps a copy of the book as it was.
+- Settings, Streaming (and the chat's Display sheet): "Show replies" as the model writes them (default) or only when they are finished.
+- Translation without a model: Google, Lingva and DeepL are in Tools, Translation. The new translate buttons use whatever is chosen there.
 - Fixed: after switching away from the browser mid-reply (common on phones), the chat could show "…" forever until a reload. On return the app now checks whether the reply was already saved and shows it.
 - While the model works, the empty reply shows moving dots and, after a few seconds, how long it has been writing.
 - Streamed text keeps up with fast models: the typewriter speeds up when it falls behind.

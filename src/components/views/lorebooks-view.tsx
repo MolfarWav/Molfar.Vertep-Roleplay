@@ -28,6 +28,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import { bookUsage } from '@/lib/lore-usage'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
+import { BookTranslateMenu } from '@/components/lore/book-translate-menu'
 import { BookSettings } from '@/components/lore/book-settings'
 import { EntryEditor } from '@/components/lore/entry-editor'
 import { KeywordTest } from '@/components/lore/keyword-test'
@@ -348,6 +349,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
               )}
             </PopoverContent>
           </Popover>
+          <BookTranslateMenu book={book} />
           <Button variant="ghost" size="sm" onClick={onDuplicate} aria-label="Duplicate book" title="Duplicate book"><Copy className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete} aria-label="Delete book" title="Delete book"><Trash className="size-4" aria-hidden="true" /></Button>
         </div>

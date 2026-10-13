@@ -266,6 +266,25 @@ describe("rp studio engine: chats + swipes", () => {
     expect((picked.json.meta as Record<string, unknown>).presetId).toBe("default");
   }, 30_000);
 
+  it("the user's own default choices start a chat the character has no memory for; step picks and memory win", async () => {
+    const m = mockHost();
+    const saved = await drive(engineUrl, { method: "PUT", path: "/preset-defaults/default", body: { vars: { narration: "opt_b", bad$name: "x" } } }, m);
+    expect(saved.json).toEqual({ default: { narration: "opt_b" } });
+    expect((await drive(engineUrl, { method: "PUT", path: "/preset-defaults/nope", body: { vars: {} } }, m)).status).toBe(404);
+    const fresh = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    expect((fresh.json.meta as { presetVars?: unknown }).presetVars).toEqual({ default: { narration: "opt_b" } });
+    // the step's own picks win over the default
+    const step = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria", presetId: "default", presetVars: { narration: "opt_c" } } }, m);
+    expect((step.json.meta as { presetVars?: unknown }).presetVars).toEqual({ default: { narration: "opt_c" } });
+    // now the character remembers its last step: memory wins over the default
+    const remembered = await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    expect((remembered.json.meta as { presetVars?: unknown }).presetVars).toEqual({ default: { narration: "opt_c" } });
+    // forgetting the default
+    const gone = await drive(engineUrl, { method: "PUT", path: "/preset-defaults/default", body: { vars: null } }, m);
+    expect(gone.json).toEqual({});
+    expect((await drive(engineUrl, { method: "GET", path: "/preset-defaults" }, m)).json).toEqual({});
+  }, 30_000);
+
   it("swipes the pristine greeting WITHOUT calling the model (wraps)", async () => {
     const m = mockHost();
     await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
@@ -897,6 +916,26 @@ describe("rp studio engine: export + regex + prompt preview", () => {
     const chat3 = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
     const reply3 = [...(chat3.json.messages as { id: string; role: string; extra?: { swipeMeta?: unknown[] } }[])].reverse().find((x) => x.role === "char")!;
     expect(reply3.extra?.swipeMeta).toHaveLength(3);
+  }, 30_000);
+
+  it("regenerate with a hint: the hint is read last for that reply, always makes a new swipe, and is not saved", async () => {
+    const m = mockHost();
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hi" } }, m);
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/swipe`, body: { dir: 1 } }, m);
+    // back on the first swipe: a plain regenerate would only step to the second one
+    type Msg = { id: string; role: string; swipes?: string[] }
+    const reply = [...((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.messages as Msg[])].reverse().find((x) => x.role === "char")!;
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/messages/${reply.id}/swipe`, body: { index: 0 } }, m);
+    const before = m.requests.length;
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/swipe`, body: { dir: 1, guidance: "Answer in one line." } }, m);
+    expect(m.requests.length).toBe(before + 1);
+    const msgs = (m.requests.at(-1)!.req as { messages: { role: string; content: string }[] }).messages;
+    expect(msgs.at(-1)).toEqual({ role: "system", content: "[Direction for this reply only: Answer in one line.]" });
+    expect(((r.json.message as Msg).swipes ?? []).length).toBe(3);
+    const saved = fs.readFileSync(path.join(root, "chats", id + ".jsonl"), "utf8") + fs.readFileSync(path.join(root, "chats", id + ".meta.json"), "utf8");
+    expect(saved).not.toContain("Answer in one line.");
   }, 30_000);
 
   it("a swipe's tool parts stay with that swipe: Stop, then moving between swipes", async () => {

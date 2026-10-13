@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch } from '@phosphor-icons/react'
+import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -18,6 +18,8 @@ import {
   AutocompletePopup, detectTrigger, fuzzy, getSlashCommands, MACROS,
   type AcItem, type Trigger,
 } from "@/components/chat/composer-autocomplete"
+import { useT } from '@/hooks/use-t'
+import { RegenerateHintDialog } from '@/components/chat/regenerate-hint-dialog'
 import { useApp } from "@/lib/store"
 import { useFinePointer, useLastPointer, useTouchUi } from "@/hooks/use-touch-ui"
 import { uid } from "@/lib/tokens"
@@ -72,6 +74,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   const imageGen = useApp((s) => s.settings.imageGen)
   const postPicture = useApp((s) => s.postPicture)
   const chatModel = useApp((s) => s.modelFor(chatId))
+  const t = useT()
   const chat = useApp((s) => s.chats.find((c) => c.id === chatId))
   const characterId = chat?.characterId ?? null
   const character = characters.find((c) => c.id === characterId)
@@ -88,6 +91,9 @@ export function Composer({ chatId }: { chatId: ID }) {
   }, [chatId])
   const [historyIdx, setHistoryIdx] = useState(-1)
   const [expandOpen, setExpandOpen] = useState(false)
+  const [hintOpen, setHintOpen] = useState(false)
+  // a hint regenerates the newest reply, so there must be one
+  const hasReply = !!chat?.messages.some((m) => m.role === 'assistant' && !m.picture)
   const [qrOpen, setQrOpen] = useState(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [acIndex, setAcIndex] = useState(0)
@@ -425,6 +431,9 @@ export function Composer({ chatId }: { chatId: ID }) {
               <DropdownMenuItem onClick={() => regenerate(chatId)} disabled={isStreaming}>
                 <ArrowsClockwise className="size-4" /> Regenerate
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setHintOpen(true)} disabled={isStreaming || !hasReply}>
+                <ChatTeardropText className="size-4" /> {t('regen.hint.menu')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => continueReply(chatId)} disabled={isStreaming}>
                 <CaretDoubleRight className="size-4" /> Continue
               </DropdownMenuItem>
@@ -562,6 +571,7 @@ export function Composer({ chatId }: { chatId: ID }) {
         canSend={canSend}
         placeholder="Write as much as you like. Shift+Tab collapses, Ctrl+Enter sends."
       />
+      <RegenerateHintDialog chatId={chatId} open={hintOpen} onOpenChange={setHintOpen} />
 
       {imageGen?.enabled && (
         <ImageGenDialog
