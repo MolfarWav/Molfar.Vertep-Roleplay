@@ -2,7 +2,9 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.41.1
+
+A card edited outside the app no longer takes the app down. Works on Molfar Vertep 1.0.0 and later.
 
 - Fixed: a card edited outside the app (by Molfar, a script or by hand) could take the whole app down when its editor opened, with only "Script error" on screen. A list written as one line (`"strengths": "brave, kind"`), a number where text goes, or an object where a list goes is now read as the app expects, in the card and in its Profile.
 - A page that still fails to draw shows what went wrong, with "Copy details" and "Try again", and the rest of the app keeps working. The character editor's Profile and Soul tabs fail on their own, without the editor.
