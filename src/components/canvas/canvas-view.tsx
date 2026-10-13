@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, EyeSlash, Eye as EyeIcon, ArrowsClockwise, Plus } from '@phosphor-icons/react'
+import { takeCanvasFocus } from './canvas-focus'
 import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
 import { fetchLitChats, setLitLink, type LitChatItem } from '@/components/library/litopys-api'
@@ -103,6 +104,8 @@ export function CanvasView() {
     try {
       const { items } = await fetchLitChats()
       setChats(items)
+      const focus = takeCanvasFocus()
+      if (focus && items.some((c) => c.id === focus)) setSelectedId(focus)
       const pos = storage.get<Record<string, { x: number; y: number }>>(POSITIONS_KEY, {})
       setPositions(pos)
       const hidden = new Set(storage.get<string[]>(HIDDEN_KEY, []))
