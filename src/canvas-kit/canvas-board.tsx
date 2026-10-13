@@ -190,6 +190,33 @@ export function CanvasBoard({
     stageRef.current!.setPointerCapture(e.pointerId)
   }
 
+  /** The wire (not touching `nodeId`) that passes closest to the card's centre, within reach, or null. */
+  const edgeUnder = (nodeId: string, cx: number, cy: number): string | null => {
+    let best: string | null = null
+    let bestD = 60
+    for (const e of graph.edges) {
+      const [fa] = splitEnd(e.from)
+      const [ta] = splitEnd(e.to)
+      if (fa === nodeId || ta === nodeId) continue
+      const a = outPos(fa)
+      const b = inPos(ta)
+      if (!a || !b) continue
+      const dy = Math.max(40, Math.abs(b.y - a.y) * 0.5)
+      for (let i = 0; i <= 24; i++) {
+        const u = i / 24
+        const m = 1 - u
+        const x = m ** 3 * a.x + 3 * m * m * u * a.x + 3 * m * u * u * b.x + u ** 3 * b.x
+        const y = m ** 3 * a.y + 3 * m * m * u * (a.y + dy) + 3 * m * u * u * (b.y - dy) + u ** 3 * b.y
+        const d = Math.hypot(x - cx, y - cy)
+        if (d < bestD) {
+          bestD = d
+          best = e.id
+        }
+      }
+    }
+    return best
+  }
+
   const verdictFor = (fromId: string, toId: string): Verdict => {
     const fromN = nodeById(fromId)
     const toN = nodeById(toId)
@@ -215,6 +242,7 @@ export function CanvasBoard({
         if (drag.moved || Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) {
           if (!drag.moved) setDrag(d => (d ? { ...d, moved: true } : d))
           setLive({ id: n.id, x: nx, y: ny })
+          setInsertTarget(editable ? edgeUnder(n.id, nx + CARD_W / 2, ny + CARD_H / 2) : null)
         }
       }
       return
@@ -254,8 +282,18 @@ export function CanvasBoard({
       const w = toWorld(e.clientX, e.clientY)
       const nx = Math.round(w.x - (drag.dx || 0))
       const ny = Math.round(w.y - (drag.dy || 0))
-      const next = moveNode(graph, drag.nodeId, nx, ny)
-      onChange(next, 'move')
+      const moved = moveNode(graph, drag.nodeId, nx, ny)
+      const target = editable ? edgeUnder(drag.nodeId, nx + CARD_W / 2, ny + CARD_H / 2) : null
+      if (target) {
+        const ins = insertOnEdge(board, moved, target, drag.nodeId)
+        if (ins.ok) {
+          onChange(ins.graph, 'insert')
+          return
+        }
+        showReason(reasonText(ins.reason ?? ''), e.clientX, e.clientY, true)
+        setTimeout(clearReason, 2500)
+      }
+      onChange(moved, 'move')
       return
     }
 
@@ -351,9 +389,10 @@ export function CanvasBoard({
             const p = edgePath(e)
             if (!p) return null
             const selected = selectedId === e.id
+            const hot = insertTarget === e.id
             return (
               <g key={e.id}>
-                <path d={p.d} fill="none" stroke={selected ? 'var(--primary)' : 'var(--muted-foreground)'} strokeWidth={selected ? 3 : 2} />
+                <path d={p.d} fill="none" stroke={selected || hot ? 'var(--primary)' : 'var(--muted-foreground)'} strokeWidth={selected || hot ? 3 : 2} strokeDasharray={hot ? '6 4' : undefined} />
                 <path
                   d={p.d}
                   fill="none"
@@ -412,7 +451,7 @@ export function CanvasBoard({
                 data-port-in
                 className={cn(
                   'absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 bg-card',
-                  glow === 'ok' && 'scale-150 ring-4 ring-primary/50',
+                  glow === 'ok' && 'scale-150 ring-4 ring-emerald-500/70',
                   glow === 'bad' && 'ring-2 ring-destructive/60'
                 )}
                 style={{ borderColor: color }}

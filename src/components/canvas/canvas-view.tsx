@@ -215,12 +215,12 @@ export function CanvasView() {
     handleChange(next, 'tidy')
   }, [graph, handleChange])
 
+  // Reload from the server: the saved links are the truth, and hidden chats bring theirs back with them.
   const handleShowHidden = useCallback(() => {
     setHiddenIds(new Set())
     storage.set(HIDDEN_KEY, [])
-    const next = boardFromChats(allChats, positions)
-    handleChange(next, 'showHidden')
-  }, [allChats, positions, handleChange])
+    void loadData()
+  }, [loadData])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -282,16 +282,14 @@ export function CanvasView() {
     [graph, handleChange]
   )
 
+  // A chat may continue any other chat that does not create a loop, judged on the board as it is now
+  // without this chat's own current link; its current parent always stays in the list.
   const canBeParent = useCallback(
     (chatId: string, parentId: string): boolean => {
-      const chat = allChats.find((c) => c.id === chatId)
-      const parent = allChats.find((c) => c.id === parentId)
-      if (!chat || !parent) return false
-      const g = boardFromChats(allChats)
-      const verdict = canConnect(CHAT_LINKS, g, `${parentId}:next`, `${chatId}:prev`)
-      return verdict.ok
+      const base: Graph = { nodes: graph.nodes, edges: graph.edges.filter((e) => e.to !== `${chatId}:prev`) }
+      return canConnect(CHAT_LINKS, base, `${parentId}:next`, `${chatId}:prev`).ok
     },
-    [allChats]
+    [graph]
   )
 
   if (loading) {
@@ -421,6 +419,7 @@ export function CanvasView() {
         <Button
           variant="ghost"
           size="icon"
+          className={isMobile ? 'hidden' : undefined}
           onClick={() => setInfoOpen((v) => !v)}
           title={t('canvas.info')}
         >
