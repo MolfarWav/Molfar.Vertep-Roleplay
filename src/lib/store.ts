@@ -1102,7 +1102,10 @@ export const useApp = create<AppState>()(
         const st = get().streaming
         if (!st) return
         if (st.shown >= st.full.length) return
-        set({ streaming: { ...st, shown: Math.min(st.full.length, st.shown + 3) } })
+        // a steady typewriter, but never far behind the model: a backlog drains
+        // in about a dozen ticks (a fast model or a slow phone's timers)
+        const step = Math.max(3, Math.ceil((st.full.length - st.shown) / 12))
+        set({ streaming: { ...st, shown: Math.min(st.full.length, st.shown + step) } })
       },
       regenerate: (chatId, messageId) => {
         const chat = get().chats.find((c) => c.id === chatId)
@@ -2262,6 +2265,63 @@ async function runGeneration(
   return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
 }
 
+const LANDED = Symbol('landed')
+
+/** The transcript before a generation: a committed reply differs from it.
+ *  `inPlaceId` is the message a swipe, regenerate or continue writes into. */
+function commitBaseline(chat: Chat, inPlaceId: ID | null) {
+  const target = inPlaceId ? chat.messages.find((m) => m.id === inPlaceId) : undefined
+  return {
+    ids: new Set(chat.messages.map((m) => m.id)),
+    target: target ? { id: target.id, swipes: target.swipes.length, active: target.activeSwipe, text: target.swipes[target.activeSwipe]?.content ?? '' } : null,
+  }
+}
+
+function hasLanded(base: ReturnType<typeof commitBaseline>, msgs: EngineMessage[]): boolean {
+  const t = base.target
+  if (t) {
+    const m = msgs.find((x) => x.id === t.id)
+    if (!m) return false
+    // read the way engineMessageToUI reads it, so an untouched message compares equal
+    const raw = m.swipes?.length ? m.swipes : [m.text]
+    const active = Math.min(m.swipe ?? 0, raw.length - 1)
+    return raw.length !== t.swipes || active !== t.active || (m.text || raw[active]) !== t.text
+  }
+  return msgs.some((m) => m.role === 'char' && !base.ids.has(m.id))
+}
+
+/** After the page was hidden or offline mid-generation, look at the stored
+ *  transcript on return and every few seconds after: a phone often leaves the
+ *  open request hanging while the engine has long saved the reply. */
+function watchForCommit(chatId: ID, base: ReturnType<typeof commitBaseline>, onLanded: () => void): () => void {
+  let lost = document.visibilityState === 'hidden'
+  let stopped = false
+  let timer: ReturnType<typeof setInterval> | null = null
+  const check = async () => {
+    if (stopped || document.visibilityState !== 'visible') return
+    try {
+      const r = await j<{ messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
+      if (!stopped && hasLanded(base, r.messages ?? [])) onLanded()
+    } catch { /* offline still: the next tick tries again */ }
+  }
+  const onChange = () => {
+    if (document.visibilityState === 'hidden' || !navigator.onLine) { lost = true; return }
+    if (!lost) return
+    void check()
+    timer ??= setInterval(() => void check(), 5000)
+  }
+  document.addEventListener('visibilitychange', onChange)
+  window.addEventListener('online', onChange)
+  window.addEventListener('offline', onChange)
+  return () => {
+    stopped = true
+    if (timer) clearInterval(timer)
+    document.removeEventListener('visibilitychange', onChange)
+    window.removeEventListener('online', onChange)
+    window.removeEventListener('offline', onChange)
+  }
+}
+
 /** Fetch + commit half of a generation; the staging half decided where the
  *  stream renders (in-place for swipe/regenerate, staged bubble for sends). */
 async function runStream(
@@ -2276,12 +2336,31 @@ async function runStream(
     // engine skips the write when nothing changed
     await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ lorebookIds: bookIds }), signal: ctrl.signal })
     const model = get().modelFor(chatId)
-    const res = await j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
+    // the POST can hang after the phone suspends the page (the engine still
+    // commits the reply): a watcher that sees the commit ends the wait
+    const inner = new AbortController()
+    ctrl.signal.addEventListener('abort', () => inner.abort(), { once: true })
+    const post = j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
       method: 'POST',
       // the model's context window and max output budget the prompt (engine plugin limitsOf)
       body: JSON.stringify({ ...body, ...(model ? { model } : {}), ...modelLimits(model, get().models, get().modelParams) }),
-      signal: ctrl.signal,
+      signal: inner.signal,
     })
+    let stopWatch = () => {}
+    const landedLate = new Promise<typeof LANDED>((resolve) => {
+      stopWatch = watchForCommit(chatId, commitBaseline(chat, get().streaming?.chatId === chatId ? get().streaming!.messageId : null), () => resolve(LANDED))
+    })
+    let res: Record<string, unknown> | typeof LANDED
+    try {
+      res = await Promise.race([post, landedLate])
+    } finally {
+      stopWatch()
+    }
+    if (res === LANDED) {
+      post.catch(() => {}) // the abandoned request rejects on abort
+      inner.abort()
+      res = {}
+    }
     // Fast local models can beat the fetch: if the runtime answered with the
     // pending marker (shouldn't normally escape), poll once for the commit.
     if (res && res.__llmPending === true) {

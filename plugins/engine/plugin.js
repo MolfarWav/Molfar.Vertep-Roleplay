@@ -4312,14 +4312,32 @@ const forkTitle = (fsx, title) => {
   return n === 1 ? base + " fork" : base + " fork " + n;
 };
 const swipeMetaEntry = (reply) => ({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0 });
-const pushSwipeMeta = (extra, swipesLen, entry) => {
-  // pad unknown/misaligned history with nulls so indices always match swipes
-  const base = Array.isArray(extra?.swipeMeta) && extra.swipeMeta.length === swipesLen - 1
-    ? extra.swipeMeta.slice()
-    : Array.from({ length: Math.max(0, swipesLen - 1) }, () => null);
-  base.push(entry ?? null);
-  return { ...extra, swipeMeta: base };
+// A message's extra describes its ACTIVE swipe. Each swipe keeps its own facts,
+// the body ones too (thinking, tool parts), in its swipeMeta slot; moving to
+// another swipe swaps them, so one swipe's parts never paint over another's text.
+const SWIPE_FACTS = ["model", "usage", "genMs", "params", "continued", "reasoning", "reasoningMs", "tools", "parts"];
+const swipeFactsOf = (extra) => {
+  const o = {};
+  for (const k of SWIPE_FACTS) if (extra && extra[k] !== undefined) o[k] = extra[k];
+  return o;
 };
+// slots aligned with `len` swipes, with the active swipe's facts saved into its own slot
+const syncedSlots = (extra, len, active) => {
+  const slots = Array.isArray(extra?.swipeMeta) && extra.swipeMeta.length === len
+    ? extra.swipeMeta.slice()
+    : Array.from({ length: len }, () => null);
+  if (extra && active >= 0 && active < len) slots[active] = swipeFactsOf(extra);
+  return slots;
+};
+// the extra once swipe `to` is active: its facts come out of its slot
+const extraFromSlots = (extra, slots, to) => {
+  const out = { ...(extra || {}), swipeMeta: slots };
+  const own = slots[to] || {};
+  for (const k of SWIPE_FACTS) out[k] = own[k];
+  return out;
+};
+// navigation: same swipes, another one active (a message with no extra stays without)
+const moveSwipe = (msg, len, to) => msg.extra ? extraFromSlots(msg.extra, syncedSlots(msg.extra, len, msg.swipe || 0), to) : msg.extra;
 // models echo the speaker's own name at the start of a reply ("Aria:"). Strip that
 // echo whether or not names ride the prompt: only at the very start, once,
 // case-insensitive, as Name: / Name : / **Name:** / **Name**: / *Name:* / *Name*: /
@@ -4637,14 +4655,14 @@ const toolX = (r) => ({
       const pristineGreeting = !meta.tainted && chat.msgs.length === 1 && msg.greeting === true;
       if (next >= 0 && next < swipes.length) {
         const text = expandMacros(String(swipes[next]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
-        chat.msgs[idx] = { ...msg, text, swipe: next, swipes, translation: undefined };
+        chat.msgs[idx] = { ...msg, text, swipe: next, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, next) };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: next, count: swipes.length });
       }
       if (pristineGreeting && (next < 0 || next >= swipes.length)) {
         const wrapped = ((next % swipes.length) + swipes.length) % swipes.length;
         const text = expandMacros(String(swipes[wrapped]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
-        chat.msgs[idx] = { ...msg, text, swipe: wrapped, swipes, translation: undefined };
+        chat.msgs[idx] = { ...msg, text, swipe: wrapped, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, wrapped) };
         saveChat(fsx, id, touch(meta), chat.msgs);
         return ok({ message: chat.msgs[idx], swipe: wrapped, count: swipes.length });
       }
@@ -4687,8 +4705,10 @@ const toolX = (r) => ({
       fresh = onSave(fresh, "ai_output", speaker);
       // a thinking model may draft the state tag in its reasoning too
       if (reply.reasoning) reply.reasoning = onSave(cutStateTag(reply.reasoning).text, "reasoning", speaker);
+      const genSlots = syncedSlots(msg.extra, swipes.length, msg.swipe || 0);
       swipes.push(fresh);
-      chat.msgs[idx] = { ...msg, text: fresh, swipe: swipes.length - 1, swipes, translation: undefined, extra: pushSwipeMeta({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) }, swipes.length, swipeMetaEntry(reply)) };
+      genSlots.push(swipeFactsOf({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) }));
+      chat.msgs[idx] = { ...msg, text: fresh, swipe: swipes.length - 1, swipes, translation: undefined, extra: extraFromSlots(msg.extra, genSlots, swipes.length - 1) };
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
       saveFastState(fsx, id, msg.id + "#" + (swipes.length - 1), stateTag, reply.model);
@@ -4717,13 +4737,15 @@ const toolX = (r) => ({
         const msg = chat.msgs[idx];
         const swipes = msg.swipes && msg.swipes.length ? msg.swipes : [msg.text];
         if (b.expectedSwipes != null && swipes.length !== b.expectedSwipes) return err(409, "a generation already committed");
+        const cancelSlots = syncedSlots(msg.extra, swipes.length, msg.swipe || 0);
         swipes.push(text);
         const cancelledMs = Number(b.genMs) || 0;
         const cancelledModel = typeof b.model === "string" && b.model ? b.model : "";
         // the cancelled partial owns its own facts; the message-level extra
         // describes the ACTIVE swipe, so the replaced generation's
         // usage/timing/reasoning must not leak onto it
-        chat.msgs[idx] = { ...msg, text, swipe: swipes.length - 1, swipes, translation: undefined, extra: pushSwipeMeta({ ...msg.extra, model: cancelledModel, genMs: cancelledMs, usage: undefined, params: undefined, reasoning: undefined, reasoningMs: undefined, tools: undefined, ...(parts && parts.length ? { parts } : {}) }, swipes.length, { genMs: cancelledMs, ...(cancelledModel ? { model: cancelledModel } : {}) }) };
+        cancelSlots.push({ genMs: cancelledMs, ...(cancelledModel ? { model: cancelledModel } : {}), ...(parts && parts.length ? { parts } : {}) });
+        chat.msgs[idx] = { ...msg, text, swipe: swipes.length - 1, swipes, translation: undefined, extra: extraFromSlots(msg.extra, cancelSlots, swipes.length - 1) };
       } else {
         const userText = typeof b.userText === "string" ? onSave(b.userText.trim(), "user_input", members[0] || null).trim() : "";
         if (userText) {
@@ -4808,10 +4830,8 @@ const toolX = (r) => ({
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];
       swipes[msg.swipe || 0] = merged;
       const contExtra = { ...msg.extra, model: reply.model, continued: true, params: reply.requestParams ?? undefined, ...toolX(reply), ...(reply.reasoning ? { reasoning: reply.reasoning } : {}), ...(reply.reasoningTimeMs ? { reasoningMs: reply.reasoningTimeMs } : {}) };
-      if (Array.isArray(msg.extra?.swipeMeta) && msg.extra.swipeMeta.length === swipes.length) {
-        contExtra.swipeMeta = msg.extra.swipeMeta.slice();
-        contExtra.swipeMeta[msg.swipe || 0] = swipeMetaEntry(reply);
-      }
+      contExtra.swipeMeta = syncedSlots(msg.extra, swipes.length, msg.swipe || 0);
+      contExtra.swipeMeta[msg.swipe || 0] = { ...swipeFactsOf(contExtra), ...swipeMetaEntry(reply) };
       chat.msgs[idx] = { ...msg, text: merged, swipes, translation: undefined, extra: contExtra };
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
@@ -4996,7 +5016,7 @@ const toolX = (r) => ({
       const want = Math.floor(Number(body().index));
       if (!(want >= 0 && want < swipes.length)) return err(400, "swipe index out of range");
       const text = expandMacros(String(swipes[want]), transcriptMacros(chat.msgs, { userName: chatUserName(fsx, meta), charName: msg.name, personaText: "", chatId: id, vars: meta.chatVars || (meta.chatVars = {}) }));
-      chat.msgs[idx] = { ...msg, text, swipe: want, swipes, translation: undefined };
+      chat.msgs[idx] = { ...msg, text, swipe: want, swipes, translation: undefined, extra: moveSwipe(msg, swipes.length, want) };
       saveChat(fsx, id, touch(meta), chat.msgs);
       return ok({ message: chat.msgs[idx], swipe: want, count: swipes.length });
     }
@@ -5011,11 +5031,11 @@ const toolX = (r) => ({
       const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];
       if (swipes.length <= 1) return err(400, "cannot delete the only swipe");
       if (!(sidx >= 0 && sidx < swipes.length)) return err(400, "swipe index out of range");
+      const slotsLeft = msg.extra ? syncedSlots(msg.extra, swipes.length, msg.swipe || 0) : null;
       swipes.splice(sidx, 1);
+      if (slotsLeft) slotsLeft.splice(sidx, 1);
       const swipe = Math.min(msg.swipe || 0, swipes.length - 1);
-      const metaLeft = Array.isArray(msg.extra?.swipeMeta) && msg.extra.swipeMeta.length === swipes.length + 1 ? msg.extra.swipeMeta.slice() : null;
-      if (metaLeft) metaLeft.splice(sidx, 1);
-      chat.msgs[idx] = { ...msg, swipes, swipe, text: swipes[swipe], translation: undefined, extra: metaLeft ? { ...msg.extra, swipeMeta: metaLeft } : msg.extra };
+      chat.msgs[idx] = { ...msg, swipes, swipe, text: swipes[swipe], translation: undefined, extra: slotsLeft ? extraFromSlots(msg.extra, slotsLeft, swipe) : msg.extra };
       saveChat(fsx, id, touch(meta), chat.msgs);
       return ok({ message: chat.msgs[idx], swipe, count: swipes.length });
     }

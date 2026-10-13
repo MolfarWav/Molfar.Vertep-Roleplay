@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -35,6 +35,8 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [presetId, setPresetId] = useState<ID>(defaultId)
   const [values, setValues] = useState<PresetValues>({})
   const [dontAsk, setDontAsk] = useState(false)
+  // the options can be clicked before the memory arrives: a late answer must not undo those clicks
+  const touched = useRef(false)
   // a group chat: how its members answer, the group's default unless changed here
   const groupMode = character?.group?.generationMode ?? 'swap'
   const [genMode, setGenMode] = useState<NonNullable<ChatTurns['generationMode']>>(groupMode)
@@ -45,7 +47,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
     const done = (m: PresetMemory | null) => {
       if (!live) return
       setMemory(m)
-      if (m?.presetId && presets.some((p) => p.id === m.presetId)) {
+      if (!touched.current && m?.presetId && presets.some((p) => p.id === m.presetId)) {
         setPresetId(m.presetId)
         setValues(m.vars ?? {})
       }
@@ -72,6 +74,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   }
 
   const pickPreset = (id: ID) => {
+    touched.current = true
     setPresetId(id)
     setValues(memory?.presetId === id ? memory.vars ?? {} : {})
   }
@@ -133,12 +136,12 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
               preset={preset}
               values={values}
               costs={costs}
-              onChange={(name, value) => setValues((cur) => {
+              onChange={(name, value) => { touched.current = true; setValues((cur) => {
                 const next = { ...cur }
                 if (value === null) delete next[name]
                 else next[name] = value
                 return next
-              })}
+              }) }}
             />
           )}
         </div>

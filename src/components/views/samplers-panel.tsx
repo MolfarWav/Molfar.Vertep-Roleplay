@@ -86,8 +86,10 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
 
       <Tabs defaultValue="core">
         {/* same scrollable strip as Tools/Presets: flex-none triggers
-            overflow, touch on mobile, wheel→horizontal on desktop */}
-        <div className="-mx-1">
+            overflow, touch on mobile, wheel→horizontal on desktop. It stays
+            clickable on a read-only preset (its page turns pointer events off)
+            so the other sampler pages can still be read */}
+        <div className="pointer-events-auto -mx-1">
         <ScrollStrip className="px-1">
           <TabsList className="h-8 w-max flex-nowrap @min-[28rem]:h-auto @min-[28rem]:w-full @min-[28rem]:flex-wrap @min-[28rem]:gap-y-1">
             <TabsTrigger value="core" className="flex-none px-2.5 text-xs">Core</TabsTrigger>

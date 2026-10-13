@@ -753,3 +753,11 @@ h1 {
 }
 .marquee-x { animation: marquee-x var(--marquee-time, 6s) ease-in-out 1.5s infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .marquee-x { animation: none; } }
+
+/* PendingReply: three dots that rise in turn while the model works */
+@keyframes pending-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.pending-dot { animation: pending-dot 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pending-dot { animation: none; opacity: 0.7; } }

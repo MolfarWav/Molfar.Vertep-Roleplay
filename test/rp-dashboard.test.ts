@@ -408,6 +408,15 @@ describe("update route", () => {
     expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene)");
   });
 
+  it("a newest reply with no text (only reasoning) asks no sensor and writes nothing", () => {
+    writeChat("c1", [...three(), A("m4", "")]);
+    const mock = mockHost();
+    const out = drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c1", op: "send" } });
+    expect(out.json).toMatchObject({ ok: true, unchanged: true, skipped: "empty" });
+    expect(mock.requests.length).toBe(0);
+    expect(fs.existsSync(stateFile("c1"))).toBe(false);
+  });
+
   it("writes nothing on pass A", () => {
     writeChat("c1", three());
     const mock = mockHost();

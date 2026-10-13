@@ -24,6 +24,7 @@ import { hideEchoedName } from '@/lib/echo-name'
 import { useT } from '@/hooks/use-t'
 import { useTouchUi } from '@/hooks/use-touch-ui'
 import { useApp } from '@/lib/store'
+import { PendingReply } from '@/components/chat/pending-reply'
 import { useDisplayTexts, type DisplayScript } from '@/hooks/use-display-texts'
 import { cssAttrValue } from '@/lib/scope-css'
 import { balanceStreamingMarkdown } from '@/lib/rich-parts'
@@ -470,7 +471,9 @@ export const MessageRow = memo(function MessageRow({
   // committed segments: messages whose generation used tools render thinking,
   // text and tool rows interleaved (same message, same id, agent-style top to
   // bottom, in the exact order the model produced them)
-  const parts: ToolPart[] | null = !isStreamingThis && activeSwipeData?.parts?.length ? activeSwipeData.parts : null
+  // parts stored before each swipe kept its own could belong to another swipe:
+  // show them only when they open the way this swipe's text does
+  const parts: ToolPart[] | null = !isStreamingThis && activeSwipeData?.parts?.length && partsFitText(activeSwipeData.parts, activeSwipeData.content) ? activeSwipeData.parts : null
   // live timeline: the stream split at each mark's anchor — thinking blocks
   // and tool rows appear exactly where they interrupted the text
   const liveTimeline = useMemo<LiveNode[] | null>(() => {
@@ -905,7 +908,9 @@ export const MessageRow = memo(function MessageRow({
                       })
                     })()}
                   </div>
-                ) : message.picture && !content ? null : (
+                ) : message.picture && !content ? null : isStreamingThis && !content ? (
+                  <PendingReply />
+                ) : (
                   <RichText
                     content={content || '…'}
                     scope={cssScope}
@@ -1106,4 +1111,11 @@ function SwipeCard({ chatId, messageId, index, active, content, model, onPick }:
       <p className="mt-1 line-clamp-3 text-xs">{cleanPreview(content)}</p>
     </div>
   )
+}
+
+function partsFitText(parts: ToolPart[], text: string): boolean {
+  const first = parts.find((p) => p.type === 'text' && p.text.trim())
+  if (!first || first.type !== 'text') return true
+  const squash = (v: string) => v.replace(/\s+/g, '')
+  return squash(text).includes(squash(first.text).slice(0, 24))
 }

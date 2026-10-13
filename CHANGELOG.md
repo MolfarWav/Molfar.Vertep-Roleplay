@@ -4,6 +4,13 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: after switching away from the browser mid-reply (common on phones), the chat could show "…" forever until a reload. On return the app now checks whether the reply was already saved and shows it.
+- While the model works, the empty reply shows moving dots and, after a few seconds, how long it has been writing.
+- Streamed text keeps up with fast models: the typewriter speeds up when it falls behind.
+- Fixed: after Stop and regenerate, switching variants with the arrows could show the same text on every variant. Each variant now keeps its own thinking and tool steps.
+- Dashboard: a reply with no text (only thinking, or cut off) no longer starts a dashboard update, so no tokens are spent on it.
+- New chat step: picking options before the character's remembered choices load no longer gets undone by them.
+- Stock presets: the Samplers page tabs can be opened to read the other pages. The Groups block in the prompt manager says in plain words what a group does.
 - Phones: a new chat header. It shows the character's portrait and name (a long name scrolls slowly), the chat's title, a ring with how full the context is, and one "Menu" button. The portrait opens the card, the soul and the full picture. The ring opens the chat's details: model, tokens, context.
 - Phones: "Menu" slides in from the side. On top: who you play as (opens the persona), then big Preset and Model buttons that unfold their choices in place. Below: everything you do with this chat (find, next chat, author's note, lore activity, story record, branches, bookmarks, display, new chat, delete messages, chat files). The other sections sit at the bottom under "Go to". The preset, persona and model strip under the header is gone.
 - The "+" next to the message box keeps only quick actions: regenerate, continue, impersonate, and the compose tools. New chat, delete messages and chat files moved to the chat menu ("⋮" on wide screens).

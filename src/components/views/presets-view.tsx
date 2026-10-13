@@ -384,6 +384,7 @@ const MACRO_HINTS = [
   '{{random:a,b}}', '{{pick:a,b}}', '{{roll:d20}}', '{{lastMessage}}', '{{getvar::name}}', '{{setvar::name::value}}',
 ]
 function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: string) => void }) {
+  const t = useT()
   const updatePreset = useApp((s) => s.updatePreset)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [maximizedId, setMaximizedId] = useState<string | null>(null)
@@ -448,7 +449,7 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
           (xml tags or a markdown heading) at assembly */}
       {!ro && (preset.groups ?? []).length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-md border border-border px-2.5 py-2">
-          <p className="text-[11px] text-muted-foreground">Groups — neighboring sections in the same group render as one wrapped block.</p>
+          <p className="text-[11px] text-muted-foreground">{t('preset.groups.help')}</p>
           {(preset.groups ?? []).map((g) => (
             <div key={g.id} className="flex flex-wrap items-center gap-1.5">
               <Input

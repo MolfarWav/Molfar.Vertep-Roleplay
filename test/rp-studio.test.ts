@@ -899,6 +899,30 @@ describe("rp studio engine: export + regex + prompt preview", () => {
     expect(reply3.extra?.swipeMeta).toHaveLength(3);
   }, 30_000);
 
+  it("a swipe's tool parts stay with that swipe: Stop, then moving between swipes", async () => {
+    const parts = [{ type: "thinking", text: "Hm." }, { type: "text", text: "First answer." }];
+    const m = mockHost({ text: "First answer.", parts } as { text: string });
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hi" } }, m);
+    type Msg = { id: string; role: string; text: string; swipe?: number; extra?: { parts?: unknown[]; swipeMeta?: unknown[] } }
+    const last = async () => [...((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.messages as Msg[])].reverse().find((x) => x.role === "char")!;
+    const reply = await last();
+    expect(reply.extra?.parts).toEqual(parts);
+    // Stop keeps a plain partial: it must not inherit the first answer's parts
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Second, cut off", targetMessageId: reply.id, expectedSwipes: 1 } }, m);
+    const cut = await last();
+    expect(cut.text).toBe("Second, cut off");
+    expect(cut.extra?.parts).toBeUndefined();
+    // back to the first swipe: its parts come back; forward again: gone
+    const back = await drive(engineUrl, { method: "POST", path: `/chats/${id}/messages/${reply.id}/swipe`, body: { index: 0 } }, m);
+    expect((back.json.message as Msg).extra?.parts).toEqual(parts);
+    const fwd = await drive(engineUrl, { method: "POST", path: `/chats/${id}/swipe`, body: { dir: 1 } }, m);
+    expect((fwd.json.message as Msg).text).toBe("Second, cut off");
+    expect((fwd.json.message as Msg).extra?.parts).toBeUndefined();
+    expect((fwd.json.message as Msg).extra?.swipeMeta).toHaveLength(2);
+  }, 30_000);
+
   it("thinking is editable on its own, separate from the reply text", async () => {
     const m = mockHost();
     await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
