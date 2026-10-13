@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.41.0
+
+A new chat header and menu on phones, replies that survive a locked phone, your own default preset choices, regenerate with a hint, and translation per field and per lorebook. Works on Molfar Vertep 1.0.0 and later.
+
 - Preset choices: "Save as my default" in the chat's preset choices (stock presets too). New chats with that preset start with these choices; a character that already has a chat still starts from the choices of its last one. "Use my default" and "Forget my default" sit next to it. Stored in `data/preset-defaults.json`.
 - "Regenerate with a hint…" in the "+" menu: write what the new reply should do differently. The hint goes to the model for that one reply, as the last instruction, and is not saved in the chat. It always makes a new variant.
 - Card editor: a "Translate" button on Description, Personality, Scenario, First message, Example dialogue and each alternate and group greeting. It translates that one field into the card's translation language, with Undo in the notice.
