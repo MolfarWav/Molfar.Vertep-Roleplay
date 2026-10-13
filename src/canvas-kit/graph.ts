@@ -1,7 +1,8 @@
 export interface PortDef { id: string; side: 'in' | 'out'; type: string; label?: string; max?: number } // max: max wires on this port (undefined = unlimited)
 export interface NodeTypeDef { type: string; label: string; colorVar: string; hint: string; ports: PortDef[]; deletable?: boolean }
 export interface CanvasNode { id: string; type: string; x: number; y: number; title: string; subtitle?: string; params?: Record<string, unknown>; note?: string }
-export interface CanvasEdge { id: string; from: string; to: string } // "nodeId:portId"
+/** from/to: "nodeId:portId". locked: shown for information (dashed), never selected, removed or counted against a port's max. */
+export interface CanvasEdge { id: string; from: string; to: string; locked?: boolean }
 export interface Graph { nodes: CanvasNode[]; edges: CanvasEdge[] }
 export type Verdict = { ok: true; replaces?: string[] } | { ok: false; reason: string } // replaces = edge ids that the new wire would replace
 export interface BoardKind {
@@ -36,11 +37,11 @@ export const canConnect = (board: BoardKind, g: Graph, from: string, to: string)
   const [toNode] = splitEnd(to)
   if (fromNode === toNode) return { ok: false, reason: 'A card cannot connect to itself' }
   if (fp.type !== tp.type) return { ok: false, reason: 'These ports do not fit together' }
-  if (g.edges.some((e) => e.from === from && e.to === to)) return { ok: false, reason: 'Already connected' }
+  if (g.edges.some((e) => !e.locked && e.from === from && e.to === to)) return { ok: false, reason: 'Already connected' }
   const replaces: string[] = []
   const consider = (port: PortDef, end: string, side: 'from' | 'to'): void => {
     if (port.max === undefined) return
-    const ids = g.edges.filter((e) => e[side] === end).map((e) => e.id)
+    const ids = g.edges.filter((e) => !e.locked && e[side] === end).map((e) => e.id)
     const excess = ids.length + 1 - port.max
     for (let i = 0; i < excess && i < ids.length; i++) replaces.push(ids[i])
   }
@@ -173,7 +174,7 @@ export const fromFile = (raw: unknown): { file: CanvasFile } | { error: string }
     const [f] = splitEnd(e.from)
     const [t] = splitEnd(e.to)
     if (!ids.has(f) || !ids.has(t)) return { error: `Edge ${e.id} references an unknown node` }
-    edges.push({ id: e.id, from: e.from, to: e.to })
+    edges.push(e.locked === true ? { id: e.id, from: e.from, to: e.to, locked: true } : { id: e.id, from: e.from, to: e.to })
   }
   return { file: { format: 'vertep-canvas', version: 1, kind: raw.kind, title: raw.title, nodes, edges } }
 }

@@ -195,6 +195,7 @@ export function CanvasBoard({
     let best: string | null = null
     let bestD = 60
     for (const e of graph.edges) {
+      if (e.locked) continue
       const [fa] = splitEnd(e.from)
       const [ta] = splitEnd(e.to)
       if (fa === nodeId || ta === nodeId) continue
@@ -388,6 +389,7 @@ export function CanvasBoard({
           {graph.edges.map(e => {
             const p = edgePath(e)
             if (!p) return null
+            if (e.locked) return <path key={e.id} d={p.d} fill="none" stroke="var(--muted-foreground)" strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="5 4" />
             const selected = selectedId === e.id
             const hot = insertTarget === e.id
             return (

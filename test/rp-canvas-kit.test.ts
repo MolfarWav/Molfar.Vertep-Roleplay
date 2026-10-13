@@ -320,7 +320,7 @@ describe("toFile / fromFile", () => {
 });
 
 describe("boardFromChats", () => {
-  it("links continuations, ignores forks and missing chats", () => {
+  it("links continuations, shows forks as locked wires, skips missing chats", () => {
     const g = boardFromChats([
       item("a", null),
       item("b", "a"),
@@ -331,9 +331,18 @@ describe("boardFromChats", () => {
     expect(g.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "c", "d", "e"]);
     expect(g.nodes.find((n) => n.id === "a")?.title).toBe("Title a");
     expect([...g.edges].sort((x, y) => x.id.localeCompare(y.id))).toEqual([
+      { id: "f:e", from: "a:next", to: "e:prev", locked: true },
       { id: "l:b", from: "a:next", to: "b:prev" },
       { id: "l:c", from: "a:next", to: "c:prev" },
     ]);
+  });
+
+  it("a locked fork wire neither blocks a link nor counts as one", () => {
+    const g = boardFromChats([item("a", null), item("b", null), item("e", null, "a")]);
+    expect(canConnect(CHAT_LINKS, g, "b:next", "e:prev")).toEqual({ ok: true, replaces: [] });
+    const linked = connect(CHAT_LINKS, g, "b:next", "e:prev", "n1").graph;
+    expect(linked.edges.some((e) => e.id === "f:e")).toBe(true);
+    expect(linkChanges(g, linked)).toEqual([{ chatId: "e", from: "b" }]);
   });
 
   it("overrides positions for known ids", () => {

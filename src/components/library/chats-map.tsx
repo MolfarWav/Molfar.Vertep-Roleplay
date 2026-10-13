@@ -1,28 +1,13 @@
 import { useMemo } from 'react'
-import type { KeyboardEvent } from 'react'
 import { Graph } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
-import { useRelativeTime, useT } from '@/hooks/use-t'
-import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-t'
 import type { LitChatItem } from './litopys-api'
 import { openOnCanvas } from '@/components/canvas/canvas-focus'
 import { StitchHeading } from './stitch'
 import { layoutChatMap } from './chats-graph'
-
-const LABEL_MAX = 18
-
-function buildLinePath(cx1: number, cy1: number, cx2: number, cy2: number): string {
-  const midY = (cy1 + cy2) / 2
-  return `M ${cx1} ${cy1} C ${cx1} ${midY}, ${cx2} ${midY}, ${cx2} ${cy2}`
-}
-
-function truncateLabel(label: string): string {
-  return label.length > LABEL_MAX ? label.slice(0, LABEL_MAX - 1) + '…' : label
-}
-
-function nodeRadius(facts: number): number {
-  return Math.min(10 + 3 * Math.sqrt(facts), 26)
-}
+import { CanvasBoard } from '@/canvas-kit/canvas-board'
+import { CHAT_LINKS, boardFromChats } from '@/canvas-kit/boards/chat-links'
 
 export function ChatsMap(props: {
   items: LitChatItem[]
@@ -33,7 +18,6 @@ export function ChatsMap(props: {
 }) {
   const { items, chatId, onFocus, onOpen, onLinked } = props
   const t = useT()
-  const rel = useRelativeTime()
   const chat = chatId ? items.find((i) => i.id === chatId) ?? null : null
   const linked = chat?.continues ? items.find((i) => i.id === chat.continues) ?? null : null
 
@@ -42,13 +26,14 @@ export function ChatsMap(props: {
     return layoutChatMap(chat, items)
   }, [chat, items])
 
-  const handleKeyDown = (e: KeyboardEvent<SVGGElement>, id: string) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      if (id === chatId) onOpen(id)
-      else onFocus(id)
-    }
-  }
+  // the map's own tidy layout (the chain above, the descendants below), spread out for cards
+  const board = useMemo(() => {
+    if (!layout) return null
+    const positions: Record<string, { x: number; y: number }> = {}
+    for (const n of layout.nodes) positions[n.item.id] = { x: n.x * 1.75, y: n.y * 1.35 }
+    return boardFromChats(layout.nodes.map((n) => n.item), positions)
+  }, [layout])
+  const fitKey = useMemo(() => (chat ? chat.id.length + items.length + Date.now() : 0), [chat?.id, items.length])
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,83 +70,24 @@ export function ChatsMap(props: {
             <p className="text-xs text-muted-foreground">{t('lit.map.backstoryNote')}</p>
           </div>
 
-          {/* SVG map */}
-          {layout && (
-            <div className="border border-border rounded-lg bg-card overflow-hidden">
-              <svg
-                viewBox={`0 0 ${layout.width} ${layout.height}`}
-                width="100%"
-                preserveAspectRatio="xMidYMin meet"
-                style={{ maxWidth: `${layout.width}px` }}
-                data-testid="map-svg"
-              >
-                {layout.nodes.map((node) =>
-                  node.children.map((child) => (
-                    <path
-                      key={`${node.item.id}-${child.item.id}`}
-                      // from under the parent's two label lines to the top of the child's circle
-                      d={buildLinePath(node.x, node.y + nodeRadius(node.item.facts) + 34, child.x, child.y - nodeRadius(child.item.facts) - 2)}
-                      className={child.kind === 'link' ? 'stroke-primary' : 'stroke-muted-foreground'}
-                      strokeWidth={child.kind === 'link' ? 2 : 1.5}
-                      strokeDasharray={child.kind === 'fork' ? '5 4' : undefined}
-                      fill="none"
-                    />
-                  ))
-                )}
-
-                {layout.nodes.map((node) => {
-                  const selected = node.item.id === chatId
-                  const r = nodeRadius(node.item.facts)
-
-                  return (
-                    <g
-                      key={node.item.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={node.item.title}
-                      onClick={() => selected ? onOpen(node.item.id) : onFocus(node.item.id)}
-                      onKeyDown={(e) => handleKeyDown(e, node.item.id)}
-                      data-testid="map-node"
-                      className="cursor-pointer group"
-                    >
-                      <circle
-                        cx={node.x}
-                        cy={node.y}
-                        r={r}
-                        className={cn(
-                          node.item.hasData === false ? 'fill-muted-foreground/15 stroke-muted-foreground' : 'fill-primary/15 stroke-primary',
-                          selected ? 'stroke-[3]' : 'stroke-2 group-hover:stroke-[3]'
-                        )}
-                        strokeDasharray={node.item.hasData === false ? '4 3' : undefined}
-                      />
-                      {selected && (
-                        <circle
-                          cx={node.x}
-                          cy={node.y}
-                          r={r + 3}
-                          className="fill-none stroke-primary stroke-2"
-                        />
-                      )}
-                      <text
-                        x={node.x}
-                        y={node.y + r + 16}
-                        textAnchor="middle"
-                        className="text-[11px] fill-foreground"
-                      >
-                        {truncateLabel(node.item.title)}
-                      </text>
-                      <text
-                        x={node.x}
-                        y={node.y + r + 28}
-                        textAnchor="middle"
-                        className="text-[11px] fill-muted-foreground"
-                      >
-                        {t('lit.map.counts', { chapters: node.item.chapters, facts: node.item.facts })}
-                      </text>
-                    </g>
-                  )
-                })}
-              </svg>
+          {/* The same canvas as the Canvas tab, in View mode: pan, zoom, pick a chat */}
+          {board && (
+            <div className="relative h-[360px] overflow-hidden rounded-lg border border-border bg-card" data-testid="map-canvas">
+              <CanvasBoard
+                board={CHAT_LINKS}
+                graph={board}
+                editable={false}
+                onChange={() => {}}
+                onOpenNode={onOpen}
+                reasonText={(r) => r}
+                selectedId={chat.id}
+                onSelect={(id) => { if (id && id !== chat.id && items.some((i) => i.id === id)) onFocus(id) }}
+                fitSignal={fitKey}
+                nodeMeta={(n) => {
+                  const it = items.find((i) => i.id === n.id)
+                  return it ? t('lit.map.counts', { chapters: it.chapters, facts: it.facts }) : ''
+                }}
+              />
             </div>
           )}
 

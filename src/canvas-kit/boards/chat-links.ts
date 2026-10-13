@@ -17,7 +17,7 @@ export const CHAT_LINKS: BoardKind = {
     },
   },
   canConnect: (g: Graph, from: string, to: string) => {
-    if (wouldCycle(g, from, to)) {
+    if (wouldCycle({ nodes: g.nodes, edges: g.edges.filter((e) => !e.locked) }, from, to)) {
       return { ok: false, reason: 'That would make a loop: a chat cannot continue its own continuation' }
     }
     return { ok: true }
@@ -38,6 +38,12 @@ export const boardFromChats = (items: LitChatItem[], positions?: Record<string, 
   for (const i of items) {
     if (i.continues && ids.has(i.continues)) {
       edges.push({ id: `l:${i.id}`, from: `${i.continues}:next`, to: `${i.id}:prev` })
+    }
+  }
+  // forks (a chat branched from a message of another) are shown, not edited: the link editor never owns them
+  for (const i of items) {
+    if (i.parentChatId && i.parentChatId !== i.continues && ids.has(i.parentChatId)) {
+      edges.push({ id: `f:${i.id}`, from: `${i.parentChatId}:next`, to: `${i.id}:prev`, locked: true })
     }
   }
   let g: Graph = { nodes, edges }
@@ -62,6 +68,7 @@ export const linkChanges = (before: Graph, after: Graph): Array<{ chatId: string
   const prevOf = (g: Graph): Map<string, string> => {
     const m = new Map<string, string>()
     for (const e of g.edges) {
+      if (e.locked) continue
       const [dst, port] = splitEnd(e.to)
       if (port === 'prev' && !m.has(dst)) m.set(dst, splitEnd(e.from)[0])
     }
