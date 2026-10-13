@@ -82,16 +82,79 @@ const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is st
 const filled = (v: unknown): string => s(v).trim()
 const joined = (v: unknown): string => list(v).map((x) => x.trim()).filter(Boolean).join(', ')
 
-/** A tolerant read: wrong types become empty, unknown keys stay. */
+/** Where a list lives: section bag -> its list fields. Every other known
+ *  field of those bags is one text. */
+const LIST_FIELDS: Record<string, readonly string[]> = {
+  identity: ['nicknames'],
+  lists: LISTS.map(([k]) => k),
+  background: ['affiliations'],
+  trauma: ['experiences', 'triggers'],
+  sexuality: ['turnOns', 'turnOffs', 'kinks'],
+}
+const TEXT_FIELDS: Record<string, readonly string[]> = {
+  identity: ['first', 'family', 'title', 'occupation', 'age', 'birthday', 'gender', 'pronouns', 'comment'],
+  appearance: APPEARANCE.map(([k]) => k),
+  behaviors: BEHAVIORS.map(([k]) => k),
+  goals: GOALS.map(([k]) => k),
+  background: [...BACKGROUND.map(([k]) => k), ...CIRCLES.map(([k]) => k), 'summary'],
+  trauma: ['coping'],
+  sexuality: [...SEXUALITY.map(([k]) => k), 'boundaries', 'notes'],
+  notes: ['description', 'personality'],
+}
+
+/** A hand- or model-written list: one string ("brave, kind") splits, numbers stay. */
+function asList(v: unknown): string[] | undefined {
+  if (Array.isArray(v)) return v.flatMap((x) => (typeof x === 'string' ? [x] : typeof x === 'number' ? [String(x)] : []))
+  if (typeof v === 'string') return v.split(/[\n,;]/).map((x) => x.trim()).filter(Boolean)
+  if (typeof v === 'number') return [String(v)]
+  return undefined
+}
+
+/** A text field written as a number or a list reads as text; anything else is dropped. */
+function asText(v: unknown): string | undefined {
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (Array.isArray(v)) return asList(v)?.join(', ')
+  return undefined
+}
+
+/** A tolerant read: the form must never meet a wrong type (a list as one
+ *  string, a number for an age, an object for a text: what an agent or another
+ *  tool may write), so known fields are coerced or dropped; unknown keys stay. */
 export function normalizeProfile(raw: unknown): Profile {
   const p: Profile = isObj(raw) ? { ...raw } : {}
   for (const k of ['identity', 'appearance', 'lists', 'behaviors', 'goals', 'background', 'trauma', 'sexuality', 'sections', 'notes', 'compiled'] as const) {
     if (k in p && !isObj(p[k])) delete p[k]
   }
+  for (const k of new Set([...Object.keys(LIST_FIELDS), ...Object.keys(TEXT_FIELDS)])) {
+    if (!isObj(p[k])) continue
+    const bag: Record<string, unknown> = { ...(p[k] as Record<string, unknown>) }
+    for (const f of LIST_FIELDS[k] ?? []) {
+      if (!(f in bag)) continue
+      const v = asList(bag[f])
+      if (v) bag[f] = v
+      else delete bag[f]
+    }
+    for (const f of TEXT_FIELDS[k] ?? []) {
+      if (!(f in bag)) continue
+      const v = asText(bag[f])
+      if (v !== undefined) bag[f] = v
+      else delete bag[f]
+    }
+    p[k] = bag
+  }
+  if (isObj(p.sections)) p.sections = Object.fromEntries(Object.entries(p.sections).filter(([, v]) => typeof v === 'boolean'))
+  if ('free' in p && typeof p.free !== 'boolean') p.free = !!p.free
   if ('relationships' in p) {
-    p.relationships = (Array.isArray(p.relationships) ? p.relationships : [])
+    // an object keyed by name ({ "Mira": "sister" }) is a list of relationships too
+    const rows: unknown[] = Array.isArray(p.relationships)
+      ? p.relationships
+      : isObj(p.relationships)
+        ? Object.entries(p.relationships).map(([name, r]) => (isObj(r) ? { name, ...r } : { name, relation: asText(r) ?? '' }))
+        : []
+    p.relationships = rows
       .filter(isObj)
-      .map((r) => ({ ...r, name: s(r.name), relation: s(r.relation), notes: s(r.notes) }))
+      .map((r) => ({ ...r, name: asText(r.name) ?? '', relation: asText(r.relation) ?? '', notes: asText(r.notes) ?? '' }))
   }
   return p
 }

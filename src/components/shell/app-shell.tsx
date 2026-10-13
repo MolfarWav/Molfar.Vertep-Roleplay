@@ -11,6 +11,7 @@ import { useT } from '@/hooks/use-t'
 import { SectionHostProvider } from '@/components/shell/section-page'
 import { useBackClose } from '@/hooks/use-back-close'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { HomeView } from '@/components/views/home-view'
@@ -130,7 +131,7 @@ export function AppShell() {
       <div className="flex min-h-0 flex-1">
         <IconRail />
         <main className="min-w-0 flex-1 overflow-hidden">
-          {renderView(view)}
+          <ErrorBoundary resetKey={view}>{renderView(view)}</ErrorBoundary>
         </main>
       </div>
       {view !== 'chat' && !keyboardOpen && <MobileTabBar />}
@@ -235,7 +236,7 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-hidden">
-          <SectionHostProvider value="drawer">{drawer && renderView(drawer)}</SectionHostProvider>
+          <SectionHostProvider value="drawer"><ErrorBoundary resetKey={drawer}>{drawer && renderView(drawer)}</ErrorBoundary></SectionHostProvider>
         </div>
       </SheetContent>
     </Sheet>

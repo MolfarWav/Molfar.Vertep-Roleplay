@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
 import { ProfileTab } from '@/components/character/profile-tab'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
 import { TranslateMenu } from '@/components/character/translate-menu'
@@ -389,7 +390,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
             {!c.isGroup && (
               <TabsContent value="profile" className="flex flex-col gap-4">
-                <ProfileTab c={c} up={up} />
+                <ErrorBoundary resetKey={c.id} what="The profile">
+                  <ProfileTab c={c} up={up} />
+                </ErrorBoundary>
               </TabsContent>
             )}
 
@@ -464,7 +467,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {/* stays mounted behind the other tabs: an unsaved working copy must not vanish on a tab switch */}
             {!c.isGroup && (
               <TabsContent value="soul" keepMounted className="min-w-0">
-                <SoulTab key={c.id} c={c} active={tab === 'soul'} onStatus={setSoulStatus} />
+                <ErrorBoundary resetKey={c.id} what="The soul">
+                  <SoulTab key={c.id} c={c} active={tab === 'soul'} onStatus={setSoulStatus} />
+                </ErrorBoundary>
               </TabsContent>
             )}
 
