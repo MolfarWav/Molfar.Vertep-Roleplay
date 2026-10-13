@@ -2,6 +2,14 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.42.0
+
+A new Canvas tab: the links between Library chats as a board you edit with the mouse. No engine change needed.
+
+- Canvas (left rail): every Library chat is a card; drag a wire from one chat's bottom dot to another's top dot and the second continues the first (it gets the earlier story as backstory). A wire that would make a loop is refused with the reason at the pointer; click a wire to select it and delete it; drop a card on a wire to put it between two chats; Undo from the toast or Ctrl+Z, Redo, Tidy, Fit, Edit/View. Branches forked from a message show as dashed wires you cannot edit. Remove only hides a chat from the board.
+- Phones: the Canvas opens in View mode with a list where each chat's "Continues" is a pick.
+- Library: the chat map is the same board in View mode, and "Edit links on the canvas" replaces the map's own search-and-link box (one place to edit links).
+
 ## 4.41.1
 
 A card edited outside the app no longer takes the app down, and menus scroll on Android again. Works on Molfar Vertep 1.0.0 and later.
@@ -68,12 +76,6 @@ Groups write their own scene, and the Chats page shows what each chat is about. 
 - Group editor, Scene tab: "Generate the scenario" writes the shared scenario, either from the members' cards or as something wild, with an optional wish (its language sets the scenario's language). "Generate opening" then writes openings from that scenario, one at a time and unlike the ones the group already has. Each result is a draft you can edit, use, retry or discard; nothing on the group changes until you accept it. The model of the group's latest chat writes it (else the app's chat model). Muted members are left out.
 - Chats page: the list sits on the left, grouped into Pinned, Today, This week and Earlier, each heading in its own colour, with One-on-one / Groups filters, three sorts and Select for moving or deleting several chats at once. The right side shows the picked chat: Continue, Pin, New chat, the story so far from Litopys, the last three messages in each speaker's colour, and its persona, preset, model, history size, lorebooks and turns. On a phone the panel opens after a tap.
 - Chats can be pinned to the top of the Chats page (a `pinned` flag on the chat; pinning does not count as activity).
-
-A new Canvas tab: the links between Library chats as a board you edit with the mouse. No engine change needed.
-
-- Canvas (left rail): every Library chat is a card; drag a wire from one chat's bottom dot to another's top dot and the second continues the first (it gets the earlier story as backstory). A wire that would make a loop is refused with the reason at the pointer; click a wire to select it and delete it; drop a card on a wire to put it between two chats; Undo from the toast or Ctrl+Z, Redo, Tidy, Fit, Edit/View. Branches forked from a message show as dashed wires you cannot edit. Remove only hides a chat from the board.
-- Phones: the Canvas opens in View mode with a list where each chat's "Continues" is a pick.
-- Library: the chat map is the same board in View mode, and "Edit links on the canvas" replaces the map's own search-and-link box (one place to edit links).
 
 ## 4.37.0
 
