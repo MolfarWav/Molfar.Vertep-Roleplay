@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+A new Canvas tab: the links between Library chats as a board you edit with the mouse. No engine change needed.
+
+- Canvas (left rail): every Library chat is a card; drag a wire from one chat's bottom dot to another's top dot and the second continues the first (it gets the earlier story as backstory). A wire that would make a loop is refused with the reason at the pointer; click a wire to select it and delete it; drop a card on a wire to put it between two chats; Undo from the toast or Ctrl+Z, Redo, Tidy, Fit, Edit/View. Branches forked from a message show as dashed wires you cannot edit. Remove only hides a chat from the board.
+- Phones: the Canvas opens in View mode with a list where each chat's "Continues" is a pick.
+- Library: the chat map is the same board in View mode, and "Edit links on the canvas" replaces the map's own search-and-link box (one place to edit links).
+
 ## 4.37.0
 
 A UI round: groups get their own colour, FRANKENX's prose language is a pick, group members differ in how much they talk, and Molfar writes cards into the Profile tab's fields. No engine change needed.
