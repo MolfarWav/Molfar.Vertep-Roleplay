@@ -21,6 +21,14 @@ export interface CanvasBoardProps {
   fitSignal?: number
   /** a short third line on a card (counts, last activity) */
   nodeMeta?: (node: CanvasNode) => string
+  /** something dragged in from outside the board (HTML drag and drop) whose dataTransfer has this type */
+  externalDropType?: string
+  /** a drop of `externalDropType` data, at board (world) coordinates of the drop point */
+  onExternalDrop?: (data: string, at: { x: number; y: number }) => void
+  /** a card is being dragged: the pointer's screen position */
+  onNodeDragMove?: (id: string, clientX: number, clientY: number) => void
+  /** a card was dropped outside the board; return true to take it (the move is then dropped) */
+  onNodeDropOutside?: (id: string, clientX: number, clientY: number) => boolean
 }
 
 interface ViewState {
@@ -56,6 +64,10 @@ export function CanvasBoard({
   onSelect,
   fitSignal,
   nodeMeta,
+  externalDropType,
+  onExternalDrop,
+  onNodeDragMove,
+  onNodeDropOutside,
 }: CanvasBoardProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
@@ -122,9 +134,12 @@ export function CanvasBoard({
     setView(v)
   }, [graph.nodes])
 
+  // fit only when asked (load, the Fit button): a card put on the board or moved keeps the view where it is
+  const fitRef = useRef(fitAll)
+  fitRef.current = fitAll
   useEffect(() => {
-    if (fitSignal !== undefined) fitAll()
-  }, [fitSignal, fitAll])
+    if (fitSignal !== undefined) fitRef.current()
+  }, [fitSignal])
 
   const zoomAt = (f: number, cx?: number, cy?: number) => {
     const stage = stageRef.current!
@@ -246,6 +261,7 @@ export function CanvasBoard({
         if (drag.moved || Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) {
           if (!drag.moved) setDrag(d => (d ? { ...d, moved: true } : d))
           setLive({ id: n.id, x: nx, y: ny })
+          onNodeDragMove?.(n.id, e.clientX, e.clientY)
           setInsertTarget(editable ? edgeUnder(n.id, nx + CARD_W / 2, ny + CARD_H / 2) : null)
         }
       }
@@ -283,6 +299,9 @@ export function CanvasBoard({
     setInsertTarget(null)
 
     if (drag.type === 'node' && drag.nodeId && drag.moved) {
+      const r = stageRef.current?.getBoundingClientRect()
+      const outside = !!r && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)
+      if (outside && onNodeDropOutside?.(drag.nodeId, e.clientX, e.clientY)) return
       const w = toWorld(e.clientX, e.clientY)
       const nx = Math.round(w.x - (drag.dx || 0))
       const ny = Math.round(w.y - (drag.dy || 0))
@@ -394,6 +413,19 @@ export function CanvasBoard({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDragOver={(e) => {
+        if (editable && externalDropType && onExternalDrop && e.dataTransfer.types.includes(externalDropType)) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        }
+      }}
+      onDrop={(e) => {
+        if (!editable || !externalDropType || !onExternalDrop) return
+        const data = e.dataTransfer.getData(externalDropType)
+        if (!data) return
+        e.preventDefault()
+        onExternalDrop(data, toWorld(e.clientX, e.clientY))
+      }}
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >

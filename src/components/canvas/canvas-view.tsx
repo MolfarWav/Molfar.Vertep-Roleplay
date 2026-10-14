@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, EyeSlash, Eye as EyeIcon, ArrowsClockwise, Plus } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, ArrowsClockwise } from '@phosphor-icons/react'
 import { takeCanvasFocus } from './canvas-focus'
 import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
@@ -12,6 +12,7 @@ import type { MsgKey } from '@/lib/i18n'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { ChatShelf } from './chat-shelf'
 
 type ChatInfo = LitChatItem
 
@@ -36,7 +37,34 @@ const TOAST_KEY: Record<string, MsgKey> = {
 }
 
 const POSITIONS_KEY = 'rp.canvas.chatLinks.positions'
-const HIDDEN_KEY = 'rp.canvas.chatLinks.hidden'
+const PLACED_KEY = 'rp.canvas.chatLinks.placed'
+const DRAG_TYPE = 'application/x-vertep-chat'
+const SHELF_COLLAPSED_KEY = 'rp.canvas.shelf.collapsed'
+
+/** Every chat linked to `id` through "continues" or "forked from", in either direction (`id` first). */
+const chainIn = (chats: LitChatItem[], id: string): string[] => {
+  const near = new Map<string, string[]>()
+  const tie = (a: string, b: string) => {
+    near.set(a, [...(near.get(a) ?? []), b])
+    near.set(b, [...(near.get(b) ?? []), a])
+  }
+  const ids = new Set(chats.map((c) => c.id))
+  for (const c of chats) {
+    if (c.continues && ids.has(c.continues)) tie(c.id, c.continues)
+    if (c.parentChatId && ids.has(c.parentChatId)) tie(c.id, c.parentChatId)
+  }
+  const seen = new Set([id])
+  const queue = [id]
+  while (queue.length) {
+    for (const n of near.get(queue.shift() as string) ?? []) {
+      if (!seen.has(n)) {
+        seen.add(n)
+        queue.push(n)
+      }
+    }
+  }
+  return [...seen]
+}
 
 export function CanvasView() {
   const t = useT()
@@ -51,10 +79,14 @@ export function CanvasView() {
   const [phoneList, setPhoneList] = useState(isMobile)
   const [infoOpen, setInfoOpen] = useState(true)
   const [fitSignal, setFitSignal] = useState(0)
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set(storage.get<string[]>(HIDDEN_KEY, [])))
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
     storage.get(POSITIONS_KEY, {})
   )
+  const [shelfCollapsed, setShelfCollapsed] = useState(
+    storage.get<boolean>(SHELF_COLLAPSED_KEY, false)
+  )
+  const [shelfDropActive, setShelfDropActive] = useState(false)
+  const shelfRef = useRef<HTMLDivElement>(null)
   // the phone flag can arrive after the first render: phones start in View mode with the List
   useEffect(() => {
     if (isMobile) {
@@ -67,9 +99,10 @@ export function CanvasView() {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const allChats = useMemo(() => chats || [], [chats])
-  const visibleChats = useMemo(
-    () => allChats.filter((c) => !hiddenIds.has(c.id)),
-    [allChats, hiddenIds]
+  const onBoard = useMemo(() => new Set(graph.nodes.map((n) => n.id)), [graph])
+  const shelfChats = useMemo(
+    () => allChats.filter((c) => !onBoard.has(c.id)),
+    [allChats, onBoard]
   )
 
   const rel = useRelativeTime()
@@ -98,6 +131,14 @@ export function CanvasView() {
   const tRef = useRef(t)
   tRef.current = t
 
+  const chainOf = useCallback((id: string) => chainIn(allChats, id), [allChats])
+  // a chat has a chain when another chat continues it or forks from it, or it does so itself
+  const hasChain = useCallback(
+    (id: string) => allChats.some((c) => (c.id === id && (c.continues || c.parentChatId)) || c.continues === id || c.parentChatId === id),
+    [allChats]
+  )
+
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -105,11 +146,14 @@ export function CanvasView() {
       const { items } = await fetchLitChats()
       setChats(items)
       const focus = takeCanvasFocus()
-      if (focus && items.some((c) => c.id === focus)) setSelectedId(focus)
+      const known = items.some((c) => c.id === focus)
+      if (focus && known) setSelectedId(focus)
       const pos = storage.get<Record<string, { x: number; y: number }>>(POSITIONS_KEY, {})
       setPositions(pos)
-      const hidden = new Set(storage.get<string[]>(HIDDEN_KEY, []))
-      const g = boardFromChats(items.filter((c) => !hidden.has(c.id)), pos)
+      const placedIds = new Set(storage.get<string[]>(PLACED_KEY, []).filter((id) => items.some((c) => c.id === id)))
+      // the Library's "Edit links on the canvas" lands on its chat: one not on the board comes with its chain
+      if (focus && known && !placedIds.has(focus)) for (const id of chainIn(items, focus)) placedIds.add(id)
+      const g = boardFromChats(items.filter((c) => placedIds.has(c.id)), pos)
       setGraph(g)
       setHistory(historyOf(g))
       loadedRef.current = true
@@ -125,13 +169,32 @@ export function CanvasView() {
     loadData()
   }, [loadData])
 
+  // Persist placed ids whenever graph changes after load
+  useEffect(() => {
+    if (loadedRef.current) {
+      const placedIds = graph.nodes.map((n) => n.id)
+      storage.set(PLACED_KEY, placedIds)
+    }
+  }, [graph])
+
+  // Write the links that differ from what is stored (putting a chat on the board brings its stored
+  // links back, which are no change), and keep the stored copy current for the next comparison.
+  const writeLinks = useCallback(
+    async (prev: Graph, next: Graph) => {
+      const stored = new Map(allChats.map((c) => [c.id, c.continues ?? null]))
+      for (const ch of linkChanges(prev, next)) {
+        if (!stored.has(ch.chatId) || stored.get(ch.chatId) === ch.from) continue
+        await setLitLink(ch.chatId, ch.from)
+        setChats((cs) => (cs ? cs.map((c) => (c.id === ch.chatId ? { ...c, continues: ch.from } : c)) : cs))
+      }
+    },
+    [allChats]
+  )
+
   const persistGraph = useCallback(
     async (prev: Graph, next: Graph, toastLabel?: string) => {
-      const changes = linkChanges(prev, next)
       try {
-        for (const ch of changes) {
-          await setLitLink(ch.chatId, ch.from)
-        }
+        await writeLinks(prev, next)
         if (toastLabel && TOAST_KEY[toastLabel]) {
           toast(t(TOAST_KEY[toastLabel]), {
             action: {
@@ -146,7 +209,7 @@ export function CanvasView() {
         toast(t('canvas.saveFailed'))
       }
     },
-    [t]
+    [t, writeLinks]
   )
 
   const handleChange = useCallback(
@@ -165,20 +228,54 @@ export function CanvasView() {
     },
     [graph, history, persistGraph]
   )
+  const placeChats = useCallback(
+    (ids: string[], at?: { x: number; y: number }) => {
+      const validIds = ids.filter((id) => allChats.some((c) => c.id === id) && !onBoard.has(id))
+      if (validIds.length === 0) return
+      // the new cards keep their own tree shape (laid out alone), set beside the cards already there:
+      // a dropped card goes under the pointer, a "+" or a chain to the right of the right-most card
+      const own = boardFromChats(allChats.filter((c) => validIds.includes(c.id)))
+      const minX = Math.min(...own.nodes.map((n) => n.x))
+      const minY = Math.min(...own.nodes.map((n) => n.y))
+      const first = own.nodes.find((n) => n.id === validIds[0])
+      let dx: number
+      let dy: number
+      if (at && first) {
+        dx = at.x - 100 - first.x
+        dy = at.y - 37 - first.y
+      } else {
+        const rightMost = graph.nodes.reduce((max, n) => Math.max(max, n.x), -Infinity)
+        const top = graph.nodes.reduce((min, n) => Math.min(min, n.y), Infinity)
+        dx = (rightMost === -Infinity ? 0 : rightMost + 260) - minX
+        dy = (top === Infinity ? 0 : top) - minY
+      }
+      const newPositions: Record<string, { x: number; y: number }> = {}
+      for (const n of own.nodes) newPositions[n.id] = { x: Math.round(n.x + dx), y: Math.round(n.y + dy) }
+      const positionsWithNew = { ...positions, ...newPositions }
+      setPositions(positionsWithNew)
+      storage.set(POSITIONS_KEY, positionsWithNew)
+      const newOnBoard = new Set([...onBoard, ...validIds])
+      const next = boardFromChats(
+        allChats.filter((c) => newOnBoard.has(c.id)),
+        positionsWithNew
+      )
+      handleChange(next, 'add')
+      setSelectedId(validIds[0])
+      // a card dropped by hand is where the user looks; one added by a button may be off screen
+      if (!at) setFitSignal((s) => s + 1)
+    },
+    [allChats, onBoard, positions, graph, handleChange]
+  )
 
   const handleRemoveNode = useCallback(
     (id: string) => {
       const chat = allChats.find((c) => c.id === id)
       if (!chat) return
-      const newHidden = new Set(hiddenIds)
-      newHidden.add(id)
-      setHiddenIds(newHidden)
-      storage.set(HIDDEN_KEY, Array.from(newHidden))
       const next = removeNode(graph, id)
       handleChange(next, 'remove')
       if (selectedId === id) setSelectedId(null)
     },
-    [allChats, hiddenIds, graph, handleChange, selectedId]
+    [allChats, graph, handleChange, selectedId]
   )
 
   const handleOpenNode = useCallback((id: string) => {
@@ -191,11 +288,10 @@ export function CanvasView() {
     if (next.present === history.present) return
     setHistory(next)
     setGraph(next.present)
-    const changes = linkChanges(history.present, next.present)
-    Promise.all(changes.map((c) => setLitLink(c.chatId, c.from))).catch(() => {
+    writeLinks(history.present, next.present).catch(() => {
       toast(t('canvas.saveFailed'))
     })
-  }, [history, t])
+  }, [history, t, writeLinks])
 
   undoRef.current = handleUndo
 
@@ -204,23 +300,66 @@ export function CanvasView() {
     if (next.present === history.present) return
     setHistory(next)
     setGraph(next.present)
-    const changes = linkChanges(history.present, next.present)
-    Promise.all(changes.map((c) => setLitLink(c.chatId, c.from))).catch(() => {
+    writeLinks(history.present, next.present).catch(() => {
       toast(t('canvas.saveFailed'))
     })
-  }, [history, t])
+  }, [history, t, writeLinks])
 
   const handleTidy = useCallback(() => {
     const next = layoutForest(graph)
     handleChange(next, 'tidy')
   }, [graph, handleChange])
 
-  // Reload from the server: the saved links are the truth, and hidden chats bring theirs back with them.
-  const handleShowHidden = useCallback(() => {
-    setHiddenIds(new Set())
-    storage.set(HIDDEN_KEY, [])
-    void loadData()
-  }, [loadData])
+  const handleExternalDrop = useCallback(
+    (data: string, at: { x: number; y: number }) => {
+      if (allChats.some((c) => c.id === data) && !onBoard.has(data)) {
+        placeChats([data], at)
+      }
+    },
+    [allChats, onBoard, placeChats]
+  )
+
+  const handleNodeDragMove = useCallback(
+    (id: string, clientX: number, clientY: number) => {
+      if (shelfRef.current) {
+        const rect = shelfRef.current.getBoundingClientRect()
+        const inside =
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        setShelfDropActive(inside)
+      }
+    },
+    []
+  )
+
+  const handleNodeDropOutside = useCallback(
+    (id: string, clientX: number, clientY: number) => {
+      if (shelfRef.current) {
+        const rect = shelfRef.current.getBoundingClientRect()
+        const inside =
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        if (inside) {
+          handleRemoveNode(id)
+          setShelfDropActive(false)
+          return true
+        }
+      }
+      setShelfDropActive(false)
+      return false
+    },
+    [handleRemoveNode]
+  )
+
+  useEffect(() => {
+    const onPointerUp = () => setShelfDropActive(false)
+    window.addEventListener('pointerup', onPointerUp)
+    return () => window.removeEventListener('pointerup', onPointerUp)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -265,31 +404,42 @@ export function CanvasView() {
     handleChange(next, 'disconnect')
   }, [selectedId, graph, handleChange])
 
+  // The list shows every chat, placed or not, so it reads and edits the stored links of all of them;
+  // the board then shows the change for the chats it holds.
+  const fullGraph = useMemo(() => boardFromChats(allChats), [allChats])
+
   const handleListChange = useCallback(
     (chatId: string, fromId: string | null) => {
       const from = fromId ? `${fromId}:next` : null
       const to = `${chatId}:prev`
-      const existing = graph.edges.find((e) => e.to === to)
-      let next = existing ? removeEdge(graph, existing.id) : graph
+      const existing = fullGraph.edges.find((e) => e.to === to && !e.locked)
+      let next = existing ? removeEdge(fullGraph, existing.id) : fullGraph
       if (from) {
         const verdict = canConnect(CHAT_LINKS, next, from, to)
         if (verdict.ok) {
           next = applyConnect(CHAT_LINKS, next, from, to, `e-${Date.now()}`).graph
         }
       }
-      handleChange(next, 'connect')
+      writeLinks(fullGraph, next)
+        .then(() => {
+          const items = allChats.map((c) => (c.id === chatId ? { ...c, continues: fromId } : c))
+          const g = boardFromChats(items.filter((c) => onBoard.has(c.id)), positions)
+          setGraph(g)
+          setHistory(historyOf(g))
+        })
+        .catch(() => toast(t('canvas.saveFailed')))
     },
-    [graph, handleChange]
+    [fullGraph, writeLinks, allChats, onBoard, positions, t]
   )
 
-  // A chat may continue any other chat that does not create a loop, judged on the board as it is now
+  // A chat may continue any other chat that does not create a loop, judged over all stored links
   // without this chat's own current link; its current parent always stays in the list.
   const canBeParent = useCallback(
     (chatId: string, parentId: string): boolean => {
-      const base: Graph = { nodes: graph.nodes, edges: graph.edges.filter((e) => e.to !== `${chatId}:prev`) }
+      const base: Graph = { nodes: fullGraph.nodes, edges: fullGraph.edges.filter((e) => e.to !== `${chatId}:prev`) }
       return canConnect(CHAT_LINKS, base, `${parentId}:next`, `${chatId}:prev`).ok
     },
-    [graph]
+    [fullGraph]
   )
 
   if (loading) {
@@ -400,13 +550,6 @@ export function CanvasView() {
           </button>
         </div>
 
-        {hiddenIds.size > 0 && (
-          <Button variant="outline" size="sm" onClick={handleShowHidden} title={t('canvas.showHidden', { n: hiddenIds.size })}>
-            <EyeSlash className="mr-1.5 h-4 w-4" />
-            {t('canvas.showHidden', { n: hiddenIds.size })}
-          </Button>
-        )}
-
         <Button
           variant="ghost"
           size="icon"
@@ -458,14 +601,45 @@ export function CanvasView() {
       )}
 
       <div className="flex min-h-0 flex-1">
+        {!isMobile && editable && !phoneList && !shelfCollapsed && (
+          <ChatShelf
+            ref={shelfRef}
+            chats={shelfChats}
+            total={allChats.length}
+            dragType={DRAG_TYPE}
+            dropActive={shelfDropActive}
+            onAdd={(id) => placeChats([id])}
+            onAddChain={(id) => placeChats(chainOf(id).filter((c) => !onBoard.has(c)))}
+            hasChain={hasChain}
+            onCollapse={() => {
+              setShelfCollapsed(true)
+              storage.set(SHELF_COLLAPSED_KEY, true)
+            }}
+          />
+        )}
+        {!isMobile && editable && !phoneList && shelfCollapsed && (
+          <div className="w-8 shrink-0 border-r border-border bg-card flex items-center justify-center">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => {
+                setShelfCollapsed(false)
+                storage.set(SHELF_COLLAPSED_KEY, false)
+              }}
+              title={t('canvas.shelf.expand')}
+            >
+              <CaretRight className="h-4 w-4" />
+              <span className="sr-only">{t('canvas.shelf.expand')}</span>
+            </Button>
+          </div>
+        )}
         <div className={cn('min-w-0 flex-1', !isMobile && infoOpen && 'pr-0')}>
           {isMobile && phoneList ? (
             <div className="h-full overflow-auto p-3">
-              {visibleChats.map((chat) => {
-                const parentEdge = graph.edges.find((e) => e.to === `${chat.id}:prev`)
-                const parentId = parentEdge ? parentEdge.from.split(':')[0] : null
+              {allChats.map((chat) => {
+                const parentId = chat.continues && allChats.some((c) => c.id === chat.continues) ? chat.continues : null
                 const validParents = allChats.filter(
-                  (c) => c.id !== chat.id && !hiddenIds.has(c.id) && canBeParent(chat.id, c.id)
+                  (c) => c.id !== chat.id && canBeParent(chat.id, c.id)
                 )
                 return (
                   <div key={chat.id} className="mb-2 flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
@@ -493,19 +667,30 @@ export function CanvasView() {
               })}
             </div>
           ) : (
-            <CanvasBoard
-              board={CHAT_LINKS}
-              graph={graph}
-              editable={!isMobile && editable}
-              onChange={handleChange}
-              onRemoveNode={handleRemoveNode}
-              onOpenNode={handleOpenNode}
-              reasonText={reasonText}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              fitSignal={fitSignal}
-              nodeMeta={nodeMeta}
-            />
+            <div className="relative h-full">
+              <CanvasBoard
+                board={CHAT_LINKS}
+                graph={graph}
+                editable={!isMobile && editable}
+                onChange={handleChange}
+                onRemoveNode={handleRemoveNode}
+                onOpenNode={handleOpenNode}
+                reasonText={reasonText}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                fitSignal={fitSignal}
+                nodeMeta={nodeMeta}
+                externalDropType={DRAG_TYPE}
+                onExternalDrop={handleExternalDrop}
+                onNodeDragMove={handleNodeDragMove}
+                onNodeDropOutside={handleNodeDropOutside}
+              />
+              {graph.nodes.length === 0 && !isMobile && editable && !phoneList && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">{t('canvas.shelf.emptyBoard')}</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
