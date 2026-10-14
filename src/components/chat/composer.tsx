@@ -27,6 +27,7 @@ import { fileToRawDataUrl } from "@/lib/engine"
 import { cn } from "@/lib/utils"
 import type { ID, Message, QuickReply } from "@/lib/types"
 import { toast } from "sonner"
+import { useGuidePlace } from '@/components/guide/place'
 import { DEFAULT_AVATAR } from '../../lib/utils'
 
 type Attachment = NonNullable<Message["attachments"]>[number]
@@ -52,6 +53,7 @@ const readDraft = (chatId: ID): string => {
  * quick replies / chat files) lives inside the menu so the row never clutters.
  */
 export function Composer({ chatId }: { chatId: ID }) {
+  useGuidePlace('chat') // the composer tour starts here
   const touchUi = useTouchUi()
   const finePointer = useFinePointer()
   const lastPointer = useLastPointer()
@@ -439,7 +441,7 @@ export function Composer({ chatId }: { chatId: ID }) {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="ghost" size="icon" className="size-9 shrink-0" aria-label="Message options">
+              <Button data-guide="composer.options" variant="ghost" size="icon" className="size-9 shrink-0" aria-label="Message options">
                 <Plus className="size-4.5" />
               </Button>
             }
@@ -527,6 +529,7 @@ export function Composer({ chatId }: { chatId: ID }) {
             rows={1}
             placeholder="Type a message…"
             aria-label="Message input"
+            data-guide="composer.input"
             aria-keyshortcuts="Shift+Tab"
             // mobile keyboards compose/highlight the word being typed and
             // fight asterisks/quotes/macros — off keeps plain text entry plain
@@ -595,6 +598,7 @@ export function Composer({ chatId }: { chatId: ID }) {
             onClick={handleSend}
             disabled={!canSend}
             aria-label="Send message"
+            data-guide="composer.send"
           >
             <PaperPlaneRight className="size-4" />
           </Button>

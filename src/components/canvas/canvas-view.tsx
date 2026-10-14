@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ChatShelf } from './chat-shelf'
 import { PromptBoard } from './prompt-board'
+import { useGuidePlace } from '@/components/guide/place'
 
 type ChatInfo = LitChatItem
 
@@ -41,7 +42,7 @@ const POSITIONS_KEY = 'rp.canvas.chatLinks.positions'
 const PLACED_KEY = 'rp.canvas.chatLinks.placed'
 const DRAG_TYPE = 'application/x-vertep-chat'
 const SHELF_COLLAPSED_KEY = 'rp.canvas.shelf.collapsed'
-const BOARD_KEY = 'rp.canvas.board'
+export const BOARD_KEY = 'rp.canvas.board'
 const PROMPT_CHAT_KEY = 'rp.canvas.prompt.chatId'
 
 /** Every chat linked to `id` through "continues" or "forked from", in either direction (`id` first). */
@@ -108,6 +109,15 @@ export function CanvasView() {
     setBoard(b)
     storage.set(BOARD_KEY, b)
   }, [])
+  // the guide's tours follow the board on screen; "Show me" can switch it
+  useEffect(() => {
+    const onBoard = (e: Event) => {
+      const b = (e as CustomEvent).detail
+      if (b === 'links' || b === 'prompt') pickBoard(b)
+    }
+    window.addEventListener('rp-guide-board', onBoard)
+    return () => window.removeEventListener('rp-guide-board', onBoard)
+  }, [pickBoard])
   const [promptChatPick, setPromptChatPick] = useState<string | null>(storage.get<string | null>(PROMPT_CHAT_KEY, null))
   const pickPromptChat = useCallback((id: string) => {
     setPromptChatPick(id)
@@ -463,6 +473,8 @@ export function CanvasView() {
     [fullGraph]
   )
 
+  useGuidePlace(board === 'prompt' ? 'canvas.prompt' : 'canvas.links', !loading && !error && allChats.length > 0)
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -498,7 +510,7 @@ export function CanvasView() {
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {t('canvas.boards')}
         </span>
-        <div className="flex rounded-lg bg-muted p-0.5">
+        <div data-guide="canvas.boards" className="flex rounded-lg bg-muted p-0.5">
           <button
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
@@ -511,6 +523,7 @@ export function CanvasView() {
             {t('canvas.board.links')}
           </button>
           <button
+            data-guide="canvas.board-prompt"
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
               board === 'prompt' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
@@ -551,7 +564,7 @@ export function CanvasView() {
 
         <div className="flex-1" />
 
-        <div className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
+        <div data-guide="canvas.mode" className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
           <button
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
@@ -709,7 +722,7 @@ export function CanvasView() {
               })}
             </div>
           ) : (
-            <div className="relative h-full">
+            <div data-guide="canvas.board" className="relative h-full">
               <CanvasBoard
                 board={CHAT_LINKS}
                 graph={graph}

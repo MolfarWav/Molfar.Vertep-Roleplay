@@ -29,6 +29,7 @@ import { QuickRepliesView } from '@/components/views/quickreplies-view'
 import { ExtensionsView } from '@/components/views/extensions-view'
 import { SettingsView } from '@/components/views/settings-view'
 import { ThemeApplier } from '@/components/theme-applier'
+import { GuideHost } from '@/components/guide/guide-host'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
 
@@ -146,6 +147,7 @@ export function AppShell() {
           generating…
         </span>
       )}
+      <GuideHost />
       <Toaster position={isDesktop ? "bottom-right" : "top-center"} visibleToasts={isDesktop ? 3 : 1} closeButton />
     </div>
   )
@@ -309,6 +311,7 @@ function IconRail() {
           {group.map((item) => (
             <RailItem
               key={item.key}
+              data-guide={`nav.${item.key}`}
               item={item}
               wide={wide}
               label={t(item.labelKey)}
@@ -345,7 +348,8 @@ function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
   )
 }
 
-function RailItem({ item, wide, label, active, onClick }: {
+function RailItem({ item, wide, label, active, onClick, 'data-guide': guide }: {
+  'data-guide': string
   item: SectionItem
   wide: boolean
   label: string
@@ -355,6 +359,7 @@ function RailItem({ item, wide, label, active, onClick }: {
   const button = (
     <button
       type="button"
+      data-guide={guide}
       onClick={onClick}
       aria-label={label}
       aria-current={active ? 'page' : undefined}

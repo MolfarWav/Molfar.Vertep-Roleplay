@@ -30,6 +30,7 @@ export function MobileTabBar() {
             <button
               key={item.key}
               type="button"
+              data-guide={`nav.${item.key}`}
               onClick={() => navigate(item.key)}
               aria-label={t(item.labelKey)}
               aria-current={active ? 'page' : undefined}
@@ -67,6 +68,7 @@ export function MobileTabBar() {
               <button
                 key={item.key}
                 type="button"
+                data-guide={`nav.${item.key}`}
                 onClick={() => { navigate(item.key); setMoreOpen(false) }}
                 className={cn(
                   'flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border font-heading text-[12px]',
