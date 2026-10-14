@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react"
-import { TextB, TextItalic, Code, Quotes, ArrowsIn, PaperPlaneRight } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from "react"
+import { TextB, TextItalic, Code, Quotes, ArrowsIn, PaperPlaneRight, ArrowsOutLineVertical, ArrowsInLineVertical } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { estimateTokens } from "@/lib/tokens"
 
+
+const SIZE_KEY = "rp.composer.expandSize"
 
 /**
  * Full-height writing surface for long-form replies — the Shift+Tab
@@ -28,6 +30,15 @@ export function ExpandedEditor({
   canSend: boolean
   placeholder?: string
 }) {
+  // full height or half: half keeps the chat above in view (remembered on this device)
+  const [half, setHalf] = useState(() => {
+    try { return localStorage.getItem(SIZE_KEY) === "half" } catch { return false }
+  })
+  const toggleHalf = () => {
+    const next = !half
+    setHalf(next)
+    try { localStorage.setItem(SIZE_KEY, next ? "half" : "full") } catch { /* storage unavailable */ }
+  }
   const ref = useRef<HTMLTextAreaElement>(null)
 
   // Land the caret at the end of the existing draft when the surface opens.
@@ -93,7 +104,7 @@ export function ExpandedEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-[92dvh] max-h-none w-[calc(100vw-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100vw-4rem)]"
+        className={`flex ${half ? "h-[55dvh]" : "h-[92dvh]"} max-h-none w-[calc(100vw-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100vw-4rem)]`}
       >
         <DialogHeader className="flex-row items-center gap-1 space-y-0 border-b border-border px-2 py-1.5">
           <DialogTitle className="mr-1 pl-1 text-xs font-medium text-muted-foreground">Compose</DialogTitle>
@@ -103,8 +114,18 @@ export function ExpandedEditor({
           <MdBtn label="Blockquote" onClick={() => prefixLine("> ")}><Quotes aria-hidden="true" /></MdBtn>
           <Button
             variant="ghost"
+            size="sm"
+            className="ml-auto h-7 gap-1 px-2 text-xs"
+            onClick={toggleHalf}
+            aria-label={half ? "Use the whole screen" : "Use half the screen"}
+            title={half ? "Use the whole screen" : "Use half the screen"}
+          >
+            {half ? <ArrowsOutLineVertical aria-hidden="true" /> : <ArrowsInLineVertical aria-hidden="true" />}
+            {half ? "Full" : "Half"}
+          </Button>
+          <Button
+            variant="ghost"
             size="icon-sm"
-            className="ml-auto"
             onClick={() => onOpenChange(false)}
             aria-label="Collapse editor (Shift+Tab)"
           >
