@@ -545,13 +545,13 @@ export const DEFAULT_PROMPTS = {
     "Scene:",
     "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
     "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
-    "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.",
+    "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
-    "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.",
+    "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact: how they are in touch with the user's character when not in the same place: \"text\", \"call\", \"video\" or \"letter\"; \"in person\" once they meet; only when the text shows it or it changes.",
     "",
     "Knowledge:",
-    "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.",
+    "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").",
     "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
@@ -591,8 +591,13 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The eighth sensor prompt (before a character in touch by text, call or letter counted as present, #16).
+const SENSOR_PROMPT_8 = DEFAULT_PROMPTS.sensor
+  .replace("- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.", "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.")
+  .replace("- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact: how they are in touch with the user's character when not in the same place: \"text\", \"call\", \"video\" or \"letter\"; \"in person\" once they meet; only when the text shows it or it changes.", "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.")
+  .replace("- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").", "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.");
 // The defaults before every text value went English (2026-10-07): the story's language.
-const SENSOR_PROMPT_7 = DEFAULT_PROMPTS.sensor
+const SENSOR_PROMPT_7 = SENSOR_PROMPT_8
   .replace("Write every text value in English, whatever language the story is written in. Keep every name exactly as the story spells it, in its own script: never translate or transliterate a name. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given.", "Write every text value in the language the story is written in. Keep ids, keys and enum values (\"saw\", \"heard\", \"guess\", \"routine\", \"significant\", \"pivotal\", \"user\") exactly as given. Keep every name as the story spells it.")
   .replace("label: 2 to 5 words in English naming the new scene; only when new is true.", "label: 2 to 5 words naming the new scene, in the language of the story; only when new is true.");
 // The fast note before it said the story keeps its own language (2026-10-12): a small model wrote the story in English too.
@@ -632,7 +637,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -641,7 +646,7 @@ const OUTPUT_SHAPE = [
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": \"text\", \"holding\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\" } },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": \"text\", \"holding\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\" } },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
   "  \"retire\": [\"entry id\"],",
@@ -2019,6 +2024,16 @@ export function parseSensorText(text) {
 
 // ---------- applying the sensor's report: the snapshot ----------
 const TEXT_FIELDS = ["mood", "condition", "outfit", "holding", "goal", "leads"];
+/** The sensor's word for remote contact, or null for in person (or a word it does not know). */
+export function contactOf(v) {
+  const t = str(v).toLowerCase();
+  if (/video/.test(t)) return "video";
+  if (/text|messag|sms|chat|dm\b/.test(t)) return "text";
+  if (/call|phone/.test(t)) return "call";
+  if (/letter|mail|note/.test(t)) return "letter";
+  return null;
+}
+const CONTACT_WORDS = { text: "by text messages", call: "on a call", video: "on a video call", letter: "by letters" };
 const BAND_WORDS = ["dawn", "morning", "late morning", "day", "evening", "night"];
 
 function bandOfHour(h) {
@@ -2150,6 +2165,10 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   for (const f of TEXT_FIELDS) entry[f] = (isObj(sensorChar) && str(sensorChar[f]) ? cut(str(sensorChar[f]), 300) : old ? old[f] : null) ?? null;
   // what the sensor saw THIS turn; carried values are stale for the prompt insert
   entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
+  // how they reach the user's character from elsewhere (#16); carried like the place, but only
+  // while they stay in the scene: someone who comes back is in person unless the sensor says not
+  const stayed = !!(B && arr(B.present).includes(name));
+  entry.contact = isObj(sensorChar) && str(sensorChar.contact) ? contactOf(sensorChar.contact) : stayed && old ? old.contact ?? null : null;
   const oldC = old ? old.constellation : null;
   entry.constellation = constellationOf(turn.stats, cls).id;
   entry.prevConstellation = old ? (oldC !== entry.constellation ? oldC : old.prevConstellation ?? null) : null;
@@ -3012,7 +3031,12 @@ function feelingsLine(c, user, who) {
 /** Day, place and who is there: once, above the characters. */
 function sceneLine(snap, user) {
   const where = [snap.clock && snap.clock.place, snap.clock && snap.clock.weather].filter(Boolean).join("; ");
-  return "[Background, the scene: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...arr(snap.present)].join(", ") + ".]";
+  const away = (n) => snap.chars && snap.chars[n] && CONTACT_WORDS[snap.chars[n].contact];
+  const here = arr(snap.present).filter((n) => !away(n));
+  const far = arr(snap.present).filter(away).map((n) => n + " " + away(n));
+  // a texting scene used to send nothing at all, and the model forgot the talk was remote (#16)
+  const remote = far.length ? " Not in the same place as " + user + ", in touch from elsewhere: " + far.join(", ") + "." : "";
+  return "[Background, the scene: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
 }
 
 /** Notes young enough for the insert: older ones are Litopys's now (pinned ones always stay). */
@@ -3039,6 +3063,7 @@ function characterBlock(ctx, name, withNotes, limit) {
   const pr = pronounsOf(soul);
   const who = { user, their: pr.their, self: pr.self };
   const lines = ["[How " + name + " is right now:"];
+  if (CONTACT_WORDS[c.contact]) lines.push("Not in the same place as " + user + ": they talk " + CONTACT_WORDS[c.contact] + ".");
   const hostile = hostilityWords(c.hostility);
   lines.push("Toward " + user + ": " + feelingsLine(c, user, who) + (hostile ? "; " + hostile : "") + ".");
   const bases = pulseBases(soul);

@@ -1131,6 +1131,19 @@ describe("prompt insert", () => {
     expect(ask(mock, "c1")).not.toBeNull();
   });
 
+  it("a character in touch by text stays in the scene and the insert says the talk is remote (#16)", () => {
+    const mock = withState(reply({ present: ["Aria"], minutes: 5, chars: { Aria: { mood: "teasing", contact: "text messages" } } }));
+    expect(readStateFile("c1").snapshots[Object.keys(readStateFile("c1").snapshots)[0]].chars.Aria.contact).toBe("text");
+    const text = insertOf(ask(mock, "c1"));
+    expect(text).toContain("in touch from elsewhere: Aria by text messages");
+    expect(text).toContain("Not in the same place as");
+    expect(text).not.toMatch(/Present: [^.]*Aria/);
+    // they meet: in person again
+    expect(P.contactOf("in person")).toBeNull();
+    expect(P.contactOf("video call")).toBe("video");
+    expect(P.contactOf("phone call")).toBe("call");
+  });
+
   it("2. the insert is the last leading system message; only messages are patched", () => {
     const mock = withState();
     const msgs = [SYS("A"), SYS("B"), { role: "user", content: "X" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }];
@@ -3058,7 +3071,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(7);
+    expect(past.length).toBe(8);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limit given in the input");
     expect(text).not.toContain("three open threads");
@@ -4546,7 +4559,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-2)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-3)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
