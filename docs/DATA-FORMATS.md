@@ -147,10 +147,16 @@ last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = foll
 A chat's meta can have a `promptBoard` object, `{ v: 1, off?: string[], history? }`, listing prompt parts this
 chat leaves out. Absent = everything on (today's behaviour). Keys in `off` are `section:<id>` (a preset section),
 `book:<lorebookId>`, `databank`, `authorNote`, `plugin:litopys`, `plugin:relations`. `section:chatHistory` is
-never allowed. `history` is reserved for a later task and stored as `{ lastN, only, thinking }` with defaults
-`{ lastN: 0, only: "all", thinking: true }`; the engine does not yet apply it. Forks inherit it (`fork` copies
-the whole meta). Plugins honour their own key. Set with `PATCH /chats/<id>` `{ promptBoard }` (`null` = back to
-everything on).
+never allowed. `history` filters the chat history sent with every request, `{ lastN, only, thinking }`
+(defaults `{ lastN: 0, only: "all", thinking: true }`, stored only when it differs): `only` keeps the
+player's (`user`) or the character's (`char`) messages, `lastN > 0` keeps the last N of those, and
+`thinking: false` strips `<think>`/`<thinking>` blocks (and the preset's reasoning tags) from the text;
+it applies after the Litopys cut and before the context-budget trim. Forks inherit `promptBoard` (`fork`
+copies the whole meta). Plugins honour their own key. Set with `PATCH /chats/<id>` `{ promptBoard }`
+(`null` = back to everything on). The prompt preview (`POST /prompt/preview`) returns `sources.board`,
+the ordered list of switchable things (`{ key, label, kind, state }`, state `on`, `off`, `preset-off`,
+`condition`, `not-this-generation` or `empty`), and every part and omitted row carries the `key` it
+belongs to.
 
 ## Lorebooks: `data/lorebooks/<id>.json`
 

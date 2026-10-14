@@ -13,11 +13,13 @@ const engineUrl = new URL("../plugins/engine/plugin.js", import.meta.url).href;
 type Engine = typeof import("../plugins/engine/plugin.js");
 const eng = (await import(engineUrl)) as Engine;
 
-type Part = { kind: string; label: string; detail?: string; text: string; located: boolean };
+type Part = { kind: string; label: string; detail?: string; text: string; located: boolean; key?: string };
+type Omitted = { kind: string; label: string; reason: string; detail?: string; key?: string };
+type BoardItem = { key: string; label: string; kind: string; state: string };
 type Preview = {
   messages: { role: string; content: string }[];
   systemPrompt?: string;
-  sources: { parts: Part[]; omitted: { kind: string; label: string; reason: string; detail?: string }[]; vars: { name: string; value: string }[] };
+  sources: { parts: Part[]; omitted: Omitted[]; vars: { name: string; value: string }[]; board: BoardItem[] };
   sourceSpans: { msg: number; start: number; end: number; part: number }[];
 };
 
@@ -94,11 +96,16 @@ const call = (method: string, p: string, body?: unknown) =>
   (eng.handleRoute({ method, path: p, query: {}, body }, host()) as { json: Record<string, any> }).json;
 
 // like the chat() helper in the sources test, but the meta may also carry a promptBoard
-function chat(promptBoard?: unknown): string {
+function chat(promptBoard?: unknown, messages?: { role: string; content: string }[]): string {
   const meta = call("POST", "/chats", { characterId: "aria", presetId: "fx" }).meta as { id: string };
   const file = path.join(root, "chats", meta.id + ".meta.json");
   const extra = promptBoard === undefined ? {} : { promptBoard };
-  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), lorebookIds: ["b"], ...extra }));
+  const chatData = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (messages) {
+    const lines = messages.map((m, i) => JSON.stringify({ id: "m" + i, role: m.role, name: m.role === "user" ? "Taras" : "Aria", text: m.content }));
+    fs.writeFileSync(path.join(root, "chats", meta.id + ".jsonl"), lines.join("\n") + "\n");
+  }
+  fs.writeFileSync(file, JSON.stringify({ ...chatData, lorebookIds: ["b"], ...extra }));
   return meta.id;
 }
 const preview = (chatId: string, userText: string) => call("POST", "/prompt/preview", { chatId, userText }) as unknown as Preview;
@@ -132,6 +139,7 @@ describe("prompt board", () => {
     expect(allText(p)).not.toContain("Write in");
     const off = p.sources.omitted.find((x) => x.label === "FX · Style")!;
     expect([off.kind, off.reason]).toEqual(["preset", "off for this chat"]);
+    expect(off.key).toBe("section:style");
     // same request as without a board, minus the Style part
     expect(p.sources.parts.map((x) => [x.kind, x.label, x.text]))
       .toEqual(base.sources.parts.map((x) => [x.kind, x.label, x.text]).filter((x) => x[1] !== "FX · Style"));
@@ -142,6 +150,7 @@ describe("prompt board", () => {
     expect(allText(p)).not.toContain("A barista who hums.");
     const off = p.sources.omitted.find((x) => x.label === "FX · Char")!;
     expect([off.kind, off.reason]).toEqual(["preset", "off for this chat"]);
+    expect(off.key).toBe("section:charDescription");
     // the persona and the greeting still arrive
     expect(allText(p)).toContain("A tired courier.");
     expect(allText(p)).toContain("Hi.");
@@ -161,13 +170,166 @@ describe("prompt board", () => {
     expect(allText(p)).not.toContain("The tower is old.");
     expect(p.sources.parts.some((x) => x.kind === "lorebook")).toBe(false);
     const off = p.sources.omitted.find((x) => x.reason === "off for this chat")!;
-    expect([off.kind, off.label]).toEqual(["lorebook", "b"]);
+    expect([off.kind, off.label, off.key]).toEqual(["lorebook", "City", "book:b"]);
   });
 
   it("the chat history marker itself stays on", () => {
     const p = preview(chat({ v: 1, off: ["section:chatHistory"] }), "Hello.");
     expect(p.sources.parts.some((x) => x.kind === "history")).toBe(true);
     expect(allText(p)).toContain("Hello.");
+  });
+});
+
+describe("prompt board: keys, board list, history filter", () => {
+  it("every part has a key except utility kinds; preset sections, lorebook, history are keyed", () => {
+    const p = preview(chat(), "Look at the tower.");
+    const parts = p.sources.parts;
+    // sections
+    for (const part of parts.filter((x) => x.kind === "preset")) {
+      expect(part.key).toBeString();
+      expect(part.key.startsWith("section:")).toBe(true);
+    }
+    // lorebook
+    for (const part of parts.filter((x) => x.kind === "lorebook")) {
+      expect(part.key).toBe("book:b");
+    }
+    // history
+    for (const part of parts.filter((x) => x.kind === "history")) {
+      expect(part.key).toBe("history");
+    }
+    // utility kinds have no key
+    for (const part of parts.filter((x) => ["newChatMarker", "groupNudge", "hint", "prefill"].includes(x.kind))) {
+      expect(part.key).toBeUndefined();
+    }
+  });
+
+  it("sources.board lists all sections in order with states, lorebook, and the four fixed keys", () => {
+    const p = preview(chat(), "Hello.");
+    const board = p.sources.board;
+    expect(board).toBeArray();
+    // preset order: main, worldInfoBefore, charDescription, personaDescription, style, gated, off, chatHistory
+    const presetKeys = board.filter((x) => x.key.startsWith("section:") || x.key === "history").map((x) => x.key);
+    expect(presetKeys).toEqual([
+      "section:main",
+      "section:worldInfoBefore",
+      "section:charDescription",
+      "section:personaDescription",
+      "section:style",
+      "section:gated",
+      "section:off",
+      "history",
+    ]);
+    // check states
+    const main = board.find((x) => x.key === "section:main")!;
+    expect(main.state).toBe("on");
+    const off = board.find((x) => x.key === "section:off")!;
+    expect(off.state).toBe("preset-off");
+    const gated = board.find((x) => x.key === "section:gated")!;
+    expect(gated.state).toBe("condition");
+    const history = board.find((x) => x.key === "history")!;
+    expect(history.kind).toBe("history");
+    expect(history.state).toBe("on");
+
+    // lorebook
+    const book = board.find((x) => x.key === "book:b")!;
+    expect(book).toEqual({ key: "book:b", label: "City", kind: "lorebook", state: "on" });
+
+    // last four fixed keys
+    const fixed = board.slice(-4).map((x) => x.key);
+    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations"]);
+    const authorNote = board.find((x) => x.key === "authorNote")!;
+    expect(authorNote.state).toBe("empty");
+  });
+
+  it("a section switched off by chat has state off", () => {
+    const p = preview(chat({ v: 1, off: ["section:style"] }), "Hello.");
+    const style = p.sources.board.find((x) => x.key === "section:style")!;
+    expect(style.state).toBe("off");
+  });
+
+  it("history filter lastN:2 sends only last 2 and omits the rest", () => {
+    const chatId = chat(
+      { v: 1, history: { lastN: 2 } },
+      [
+        { role: "user", content: "First user" },
+        { role: "char", content: "First char" },
+        { role: "user", content: "Second user" },
+        { role: "char", content: "Second char" },
+        { role: "user", content: "Third user" },
+        { role: "char", content: "Third char" },
+      ]
+    );
+    const p = preview(chatId, "Final user");
+    // the last 2 of the history: the last reply and the turn being previewed
+    expect(p.sources.parts.filter((x) => x.kind === "history").length).toBe(2);
+    const text = allText(p);
+    for (const gone of ["First user", "First char", "Second user", "Second char", "Third user"]) expect(text).not.toContain(gone);
+    expect(text).toContain("Third char");
+    expect(text).toContain("Final user");
+
+    const omitted = p.sources.omitted.find((x) => x.key === "history")!;
+    expect(omitted).toBeDefined();
+    expect(omitted.reason).toContain("history filter: last 2");
+  });
+
+  it("history filter only:user sends no character replies", () => {
+    const chatId = chat(
+      { v: 1, history: { only: "user" } },
+      [
+        { role: "user", content: "User one" },
+        { role: "char", content: "Char one" },
+        { role: "user", content: "User two" },
+        { role: "char", content: "Char two" },
+      ]
+    );
+    const p = preview(chatId, "User three");
+    const text = allText(p);
+    expect(text).toContain("User one");
+    expect(text).toContain("User two");
+    expect(text).not.toContain("Char one");
+    expect(text).not.toContain("Char two");
+    const omitted = p.sources.omitted.find((x) => x.key === "history")!;
+    expect(omitted.reason).toContain("only the player");
+  });
+
+  it("history filter thinking:false removes think blocks but keeps the rest", () => {
+    const chatId = chat(
+      { v: 1, history: { thinking: false } },
+      [
+        { role: "user", content: "User one" },
+        { role: "char", content: "Before <think>secret stuff\nmore</think> After <THINKING>also secret</THINKING>" },
+        { role: "user", content: "User two" },
+        { role: "char", content: "Char two" },
+      ]
+    );
+    const p = preview(chatId, "User three");
+    const text = allText(p);
+    expect(text).toMatch(/Before\s+After/);
+    expect(text).not.toContain("secret");
+    expect(text).not.toContain("<think");
+    // no omitted row for stripped thinking
+    const omitted = p.sources.omitted.find((x) => x.key === "history");
+    expect(omitted).toBeUndefined();
+  });
+
+  it("without promptBoard.history all messages are sent", () => {
+    const chatId = chat(
+      undefined,
+      [
+        { role: "user", content: "User one" },
+        { role: "char", content: "Char one" },
+        { role: "user", content: "User two" },
+        { role: "char", content: "Char two" },
+      ]
+    );
+    const p = preview(chatId, "User three");
+    const text = allText(p);
+    expect(text).toContain("User one");
+    expect(text).toContain("Char one");
+    expect(text).toContain("User two");
+    expect(text).toContain("Char two");
+    const omitted = p.sources.omitted.find((x) => x.key === "history");
+    expect(omitted).toBeUndefined();
   });
 });
 

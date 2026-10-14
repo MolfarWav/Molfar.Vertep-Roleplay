@@ -1443,6 +1443,8 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const cfg = options.config && typeof options.config === "object" ? options.config : {};
   let budget = budgetChars && budgetChars > 0 ? budgetChars : 8192;
   let books = [];
+  // the books in this chat's scope, those switched off included (the prompt board lists them)
+  let scope = null;
   if (Array.isArray(options.books)) {
     // the keyword test hands its books in (an unsaved edit included): no scope filter
     books = options.books.filter((b) => b && typeof b === "object");
@@ -1452,7 +1454,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
         .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
         .filter(Boolean);
     } catch {
-      return { before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [], trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: 0 };
+      return { before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [], trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: 0, scope: [] };
     }
     // A book scans only when it is in THIS chat's scope — bound
     // to the chat, embedded in / linked to the character, or global (the app
@@ -1462,7 +1464,10 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     // a group can leave members' books out (opts.excludeBookIds); a global or persona book stays
     const extra = new Set(extraBookIds || []);
     const excluded = new Set(Array.isArray(opts && opts.excludeBookIds) ? opts.excludeBookIds : []);
+    const offBookIds = new Set(Array.isArray(opts && opts.offBookIds) ? opts.offBookIds : []);
     books = books.filter((b) => bound.has(b.id || b.name) && !(excluded.has(b.id) && b.globalActive !== true && !extra.has(b.id)));
+    scope = books.map((b) => ({ id: b.id || b.name, name: b.name || b.id }));
+    books = books.filter((b) => !offBookIds.has(b.id || b.name));
   }
   // budget knobs live on the books: contextPercent rescales the caller's
   // budget (which is the 25% figure), budgetCap is an absolute ceiling —
@@ -1527,7 +1532,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     entries.forEach((entry, i) => {
       if (entry.enabled === false) return;
       items.push({
-        entry, book: book.name || book.id || "", bookSettings: bs, vec: book.vectorized, id: (book.id || book.name) + "#" + (entry.uid ?? i),
+        entry, book: book.name || book.id || "", bookId: book.id || book.name, bookSettings: bs, vec: book.vectorized, id: (book.id || book.name) + "#" + (entry.uid ?? i),
         fmt: typeof book.formatTemplate === "string" ? book.formatTemplate : "",
         rank: strategy === "character_first" ? (charBooks.has(book.id) ? 0 : 1) : strategy === "global_first" ? (book.globalActive === true ? 0 : 1) : 0,
         groupScoring: typeof entry.groupScoringOverride === "boolean" ? entry.groupScoringOverride : bs.groupScoring === true,
@@ -1735,6 +1740,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const out = {
     before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [],
     trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: depthNow,
+    scope: scope || books.map((b) => ({ id: b.id || b.name, name: b.name || b.id })),
   };
   const textOf = (x) => wiFormat(x.fmt, String(x.entry.content || "").trim());
   // The budget is claimed in order-DESCENDING priority (higher
@@ -1777,7 +1783,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       return why.via || "";
     })();
     const outKey = position === "at_depth" ? "depth" : WI_POSITIONS[position];
-    out.placed.push({ text: c, book, entry: wiTitle(entry), position: outKey, why: whyText });
+    out.placed.push({ text: c, book, bookId: x.bookId, entry: wiTitle(entry), position: outKey, why: whyText });
     if (position === "at_depth") out.depth.push({ depth: Math.max(0, Math.floor(entry.depth ?? 4)), role: entry.role === "assistant" ? "assistant" : entry.role === "user" ? "user" : "system", content: c });
     else out[WI_POSITIONS[position]].push(c);
   }
@@ -2023,6 +2029,10 @@ function cleanTurns(t) {
 const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
+/** A literal string inside a RegExp. */
+function escapeRegExp(s) {
+  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 export function cleanPromptBoard(x) {
   if (!x || typeof x !== "object" || Array.isArray(x)) return null;
   const out = { v: 1 };
@@ -2262,7 +2272,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
-      excludeBookIds: [...(meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : []), ...[...pbOff].filter((k) => k.startsWith("book:")).map((k) => k.slice(5))],
+      excludeBookIds: [...(meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [])],
+      offBookIds: [...pbOff].filter((k) => k.startsWith("book:")).map((k) => k.slice(5)),
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -2301,15 +2312,20 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const joined = (pick) => rosterMembers.map((m) => (m.card && pick(m.card) ? "[" + m.card.name + "]\n" + ownChar(m.card, pick(m.card)) : null)).filter(Boolean).join("\n\n");
 
   const src = { v: 1, parts: [], omitted: [], vars: [] };
-  const addPart = (kind, label, text, detail) => {
+  let partKey = null;
+  const addPart = (kind, label, text, detail, key) => {
     const s = String(text || "").trim();
-    if (s) src.parts.push({ kind, label, text: s, ...(detail ? { detail } : {}) });
+    if (s) src.parts.push({ kind, label, text: s, ...(detail ? { detail } : {}), ...(key || partKey ? { key: key || partKey } : {}) });
   };
-  const omit = (kind, label, reason, tokens) => {
-    src.omitted.push({ kind, label, reason, ...(tokens != null ? { tokens } : {}) });
+  const omit = (kind, label, reason, tokens, key) => {
+    src.omitted.push({ kind, label, reason, ...(tokens != null ? { tokens } : {}), ...(key || partKey ? { key: key || partKey } : {}) });
   };
   // lorebooks switched off for this chat were never scanned
-  for (const k of pbOff) if (k.startsWith("book:")) omit("lorebook", k.slice(5), "off for this chat");
+  for (const k of pbOff) if (k.startsWith("book:")) {
+    const id = k.slice(5);
+    const scoped = (wi.scope || []).find((s) => s.id === id);
+    omit("lorebook", scoped ? scoped.name : id, "off for this chat", undefined, k);
+  }
   const addGroupCardPart = (fieldLabel, getter, kind) => {
     for (const m of rosterMembers) {
       if (!m.card) continue;
@@ -2403,7 +2419,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // where a section's text came from (prompt inspector): the card, the persona,
   // the preset's own text, or lorebook entries one by one
   const placedWI = (pos) => {
-    for (const e of wi.placed.filter((x) => x.position === pos)) addPart("lorebook", e.book + " · " + e.entry, subWI(e.text), e.why);
+    for (const e of wi.placed.filter((x) => x.position === pos)) addPart("lorebook", e.book + " · " + e.entry, subWI(e.text), e.why, "book:" + e.bookId);
   };
   const recordPresetSources = (p, t, secName, bagSec) => {
     const own = String(p.content || "").trim();
@@ -2449,9 +2465,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const rows = [];
   for (const { p, enabled } of orderedPrompts(preset)) {
     const secName = p.name || p.identifier;
-    if (p.marker && p.identifier === "chatHistory") { if (enabled) sawHistory = true; continue; }
+    const secKey = "section:" + p.identifier;
+    partKey = secKey;
+    if (p.marker && p.identifier === "chatHistory") { if (enabled) sawHistory = true; partKey = null; continue; }
     if (!enabled) { omit("preset", presetName + " · " + secName, "switched off"); continue; }
-    if (isOff("section:" + p.identifier)) { omit("preset", presetName + " · " + secName, "off for this chat"); continue; }
+    if (isOff(secKey)) { omit("preset", presetName + " · " + secName, "off for this chat"); continue; }
     const bagSec = bagSections.get(p.identifier) || null;
     if (!condPasses(bagSec ? bagSec.condition : null)) { omit("preset", presetName + " · " + secName, "condition: " + String(bagSec.condition)); continue; }
     // a section can gate itself to generation types (imported trigger lists;
@@ -2487,6 +2505,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       rows.push({ role: normRole(p.role), content: t, groupId: bagSec ? (bagSec.groupId || null) : null, afterHistory: sawHistory });
     }
   }
+  partKey = null;
   // merge consecutive rows of the same group into one wrapped block
   for (let i = 0; i < rows.length; ) {
     const g = rows[i].groupId;
@@ -2509,7 +2528,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       const pos = id === "worldInfoBefore" ? "before" : "after";
       for (const e of wi.placed.filter((x) => x.position === pos)) {
         const et = subWI(e.text);
-        if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+        if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why, "book:" + e.bookId);
       }
     }
   }
@@ -2519,7 +2538,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       before.push({ role: "system", content: subWI(em.join("\n")) });
       for (const e of wi.placed.filter((x) => x.position === "emBefore" || x.position === "emAfter")) {
         const et = subWI(e.text);
-        if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+        if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why, "book:" + e.bookId);
       }
     }
   }
@@ -2530,7 +2549,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const extras = [];
   const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: members.map((m) => m.id) });
   if (isOff("databank")) {
-    omit("databank", "Data bank", "off for this chat");
+    omit("databank", "Data bank", "off for this chat", undefined, "databank");
   } else if (dbHits.length) {
     // about 8% of the context (chars ~ tokens x 4), never under ~200 tokens:
     // small windows keep room for the story
@@ -2546,11 +2565,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     if (chunks.length) {
       const parts = chunks.map((c) => "[" + c.fileName + " #" + c.n + "]\n" + c.text);
       extras.push({ role: "system", content: "[Data bank — retrieved reference material]\n" + parts.join("\n---\n") });
-      for (const c of chunks) addPart("databank", c.fileName + " #" + c.n, c.text);
+      for (const c of chunks) addPart("databank", c.fileName + " #" + c.n, c.text, undefined, "databank");
     }
     for (let i = chunks.length; i < dbHits.length; i++) {
       const h = dbHits[i];
-      omit("databank", h.fileName + " #" + (h.chunkIndex + 1), "over the data bank room");
+      omit("databank", h.fileName + " #" + (h.chunkIndex + 1), "over the data bank room", undefined, "databank");
     }
   }
 
@@ -2562,7 +2581,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     ? meta.authorNoteObject
     : (meta.authorNote && String(meta.authorNote).trim() ? { text: String(meta.authorNote), position: "in-chat", depth: 4, role: "user" } : null);
   if (isOff("authorNote") && (meta.authorNoteObject || (meta.authorNote && String(meta.authorNote).trim()))) {
-    omit("note", "Author's note", "off for this chat");
+    omit("note", "Author's note", "off for this chat", undefined, "authorNote");
   }
   // insertion frequency: every N messages (1 = every generation)
   const anFreq = Math.max(1, Math.floor(Number(an && an.frequency)) || 1);
@@ -2578,28 +2597,28 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     else extras.push({ role: anRole, content: anContent });
     for (const e of wi.placed.filter((x) => x.position === "anTop")) {
       const et = subWI(e.text);
-      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why, "book:" + e.bookId);
     }
-    addPart("note", "Author's note", anText);
+    addPart("note", "Author's note", anText, undefined, "authorNote");
     for (const e of wi.placed.filter((x) => x.position === "anBottom")) {
       const et = subWI(e.text);
-      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why, "book:" + e.bookId);
     }
   }
   if (!anPlaced && (anWI[0] || anWI[1])) {
     depthInj.push({ depth: injDepth(an && an.depth, 4), role: "system", content: anWI.filter(Boolean).join("\n") });
     for (const e of wi.placed.filter((x) => x.position === "anTop" || x.position === "anBottom")) {
       const et = subWI(e.text);
-      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+      if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why, "book:" + e.bookId);
     }
   }
   if (an && String(an.text || "").trim() && !(msgs.length % anFreq === 0 || an.position !== "in-chat")) {
-    omit("note", "Author's note", "every " + anFreq + " messages");
+    omit("note", "Author's note", "every " + anFreq + " messages", undefined, "authorNote");
   }
   for (const w of wi.depth) depthInj.push({ depth: w.depth, role: w.role, content: subWI(w.content) });
   for (const e of wi.placed.filter((x) => x.position === "depth")) {
     const et = subWI(e.text);
-    if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why);
+    if (et.trim()) addPart("lorebook", e.book + " · " + e.entry, et, e.why, "book:" + e.bookId);
   }
 
   // preset variables in effect
@@ -2618,7 +2637,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   for (const x of wiOmitted) {
     const entry = x.title || "entry";
     const detail = x.detail ? " (" + x.detail + ")" : "";
-    omit("lorebook", x.book + " · " + entry, (x.reason || "unknown") + detail);
+    omit("lorebook", x.book + " · " + entry, (x.reason || "unknown") + detail, undefined, x.bookId ? "book:" + x.bookId : undefined);
   }
 
   // history → model messages. Names follow the preset's names-behavior:
@@ -2637,12 +2656,39 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const litLine = litopysLine(msgs);
   const litCut = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
   if (isOff("plugin:litopys")) {
-    omit("memory", "Litopys", "off for this chat");
+    omit("memory", "Litopys", "off for this chat", undefined, "plugin:litopys");
   } else if (litCut > 0) {
     const gone = new Set(litLine.slice(0, litCut).map((m) => m.id));
     histMsgs = msgs.filter((m) => !gone.has(m.id));
   }
-  const visibleHist = histMsgs.filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true);
+  let visibleHist = histMsgs.filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true);
+  const boardHistory = (cleanPromptBoard(meta.promptBoard) || {}).history || null;
+  if (boardHistory) {
+    const rules = [];
+    const beforeFilter = visibleHist.length;
+    if (boardHistory.only === "user") { visibleHist = visibleHist.filter((m) => m.role === "user"); rules.push("only the player"); }
+    else if (boardHistory.only === "char") { visibleHist = visibleHist.filter((m) => m.role === "char"); rules.push("only the character"); }
+    if (boardHistory.lastN > 0) { visibleHist = visibleHist.slice(-boardHistory.lastN); rules.push("last " + boardHistory.lastN); }
+    if (boardHistory.thinking === false) {
+      const tagPairs = [["<think>", "</think>"], ["<thinking>", "</thinking>"]];
+      if (preset && preset.reasoningTags && preset.reasoningTags.open && preset.reasoningTags.close) {
+        tagPairs.push([preset.reasoningTags.open, preset.reasoningTags.close]);
+      }
+      visibleHist = visibleHist.map((m) => {
+        let text = m.text;
+        let changed = false;
+        for (const [open, close] of tagPairs) {
+          const re = new RegExp(escapeRegExp(open) + "[\\s\\S]*?" + escapeRegExp(close), "gi");
+          if (re.test(text)) { text = text.replace(re, ""); changed = true; }
+        }
+        if (!changed) return m;
+        return { ...m, text: text.trim() };
+      });
+    }
+    if (visibleHist.length < beforeFilter) {
+      omit("history", beforeFilter - visibleHist.length + " messages", "history filter: " + rules.join(", "), undefined, "history");
+    }
+  }
   const histRegex = [];
   const history = visibleHist
     .map((m, i) => {
@@ -2662,13 +2708,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     const m = visibleHist[i];
     const name = m.name || (m.role === "user" ? userName : charName);
     const hits = histRegex[i] && histRegex[i].length ? "regex: " + histRegex[i].join(", ") : undefined;
-    return ["history", name + " · #" + (msgNo.get(m) || i + 1), h.content, hits];
+    return ["history", name + " · #" + (msgNo.get(m) || i + 1), h.content, hits, "history"];
   });
   if (isOff("plugin:relations")) {
-    omit("dashboard", "Relationship dashboard", "off for this chat");
+    omit("dashboard", "Relationship dashboard", "off for this chat", undefined, "plugin:relations");
   }
   if (litCut > 0) {
-    omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them");
+    omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them", undefined, "history");
   }
 
   // compact chat history: the visible chat collapses into ONE message of the
@@ -2709,7 +2755,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     history.splice(0, 1);
     trimmed++;
   }
-  if (trimmed > 0) omit("history", trimmed + " oldest messages", "over the context budget", removedTokens);
+  if (trimmed > 0) omit("history", trimmed + " oldest messages", "over the context budget", removedTokens, "history");
   // a compacted history is one message: its turns stay substrings of it and nothing was trimmed
   for (const hp of histParts.slice(compactOn ? 0 : trimmed)) addPart(...hp);
 
@@ -2800,6 +2846,38 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // same-role entries, semi also forces mid-prompt system entries to user,
   // strict adds a leading user turn after the system block, single folds
   // everything into one user message. No model, no rewrite — structure only.
+  // prompt board: the ordered list of things a chat can switch
+  const board = [];
+  for (const { p, enabled } of orderedPrompts(preset)) {
+    if (p.marker && p.identifier === "chatHistory") {
+      board.push({ key: "history", label: "Chat history", kind: "history", state: isOff("history") ? "off" : "on" });
+      continue;
+    }
+    const secKey = "section:" + p.identifier;
+    const bagSec = bagSections.get(p.identifier) || null;
+    const trig = bagSec && Array.isArray(bagSec.injectionTriggers) && bagSec.injectionTriggers.length ? bagSec.injectionTriggers : null;
+    let state = "on";
+    if (isOff(secKey)) state = "off";
+    else if (!enabled) state = "preset-off";
+    else if (!condPasses(bagSec ? bagSec.condition : null)) state = "condition";
+    else if (trig && genTypes && !genTypes.some((g) => trig.includes(g))) state = "not-this-generation";
+    const kind = p.identifier === "main" ? "main"
+      : ["charDescription", "charPersonality", "scenario", "postHistory"].includes(p.identifier) ? "card"
+      : p.identifier === "personaDescription" ? "persona"
+      : ["worldInfoBefore", "worldInfoAfter"].includes(p.identifier) ? "lorebook"
+      : p.identifier === "dialogueExamples" ? "example" : "preset";
+    board.push({ key: secKey, label: p.name || p.identifier, kind, state });
+  }
+  for (const b of wi.scope || []) {
+    board.push({ key: "book:" + b.id, label: b.name, kind: "lorebook", state: isOff("book:" + b.id) ? "off" : "on" });
+  }
+  const anHas = !!(meta.authorNoteObject || (meta.authorNote && String(meta.authorNote).trim()));
+  board.push({ key: "databank", label: "Data bank", kind: "databank", state: isOff("databank") ? "off" : "on" });
+  board.push({ key: "authorNote", label: "Author's note", kind: "note", state: isOff("authorNote") ? "off" : anHas ? "on" : "empty" });
+  board.push({ key: "plugin:litopys", label: "Litopys", kind: "memory", state: isOff("plugin:litopys") ? "off" : "on" });
+  board.push({ key: "plugin:relations", label: "Relationship dashboard", kind: "dashboard", state: isOff("plugin:relations") ? "off" : "on" });
+  src.board = board;
+
   const pp = preset && preset.studio && preset.studio.promptPostProcessing;
   if (pp && pp.enabled === true && pp.mode && pp.mode !== "none") {
     let list = messages.slice();
