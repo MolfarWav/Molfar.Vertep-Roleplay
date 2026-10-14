@@ -415,7 +415,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             </TabsContent>
 
             <TabsContent value="advanced" className="flex flex-col gap-4">
-              <Field label="System prompt override" value={c.systemPromptOverride} onChange={(v) => up({ systemPromptOverride: v })} rows={3} />
+              <Field label="System prompt override" description="Replaces the preset's main prompt in this character's chats. Empty = the preset's own." value={c.systemPromptOverride} onChange={(v) => up({ systemPromptOverride: v })} rows={3} />
               <Field label="Post-history instructions" description="Sent after the chat history, right before the reply. Good for reminders the model must not forget." value={c.postHistoryInstructions} onChange={(v) => up({ postHistoryInstructions: v })} rows={3} />
               <div className="grid gap-3 sm:grid-cols-[1fr_100px_140px]">
                 <Field label="Depth prompt" description="A note placed inside the chat history instead of at the top." value={c.depthPrompt.text} onChange={(v) => up({ depthPrompt: { ...c.depthPrompt, text: v } })} rows={2} />
@@ -439,6 +439,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               </div>
               <VariantField
                 label="Scenario"
+                hint="where and when the story starts"
                 value={c.scenario}
                 onChange={(v) => up({ scenario: v })}
                 variants={c.scenarioVariants}
@@ -448,6 +449,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               />
               <VariantField
                 label="Personality summary"
+                hint="a few words; the description says the rest"
                 value={c.personality}
                 onChange={(v) => up({ personality: v })}
                 variants={c.personalityVariants}

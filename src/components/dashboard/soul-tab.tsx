@@ -14,16 +14,15 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import { ApiError, j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
-import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
 import { PortraitDialog } from '@/components/library/portrait-dialog'
 import {
-  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, finalizeSoul, isCardType, isNarratorSelf, minorOf, molfarCandidates, molfarDraftText, overlaySoul, refreshOverlays,
+  MAX_ALIASES, cardTypeOf, clampSoul, cleanNames, finalizeSoul, isCardType, isNarratorSelf, minorOf, overlaySoul, refreshOverlays,
   soulsOf, stableJson, validSoulName, withCardType, withMinor, withSouls,
   type Soul, type SoulClass, type SoulDraft, type SoulMap,
 } from '@/lib/soul'
 import type { Character } from '@/lib/types'
-import { cn, copyText } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { AvatarImg } from './dash-common'
 import { SoulForm, type VocabEvent } from './soul-form'
 import { SoulGuests } from './soul-guests'
@@ -34,7 +33,6 @@ const CLASS_COLORS: Record<SoulClass, string> = {
   romantic: '#d4577f', ally: '#5fae86', neutral: '#8b8478', hostile: '#c9545a',
 }
 const POLL_MS = 5000
-const MOLFAR_WINDOW_MS = 10 * 60_000
 
 const has = (o: object, k: string) => Object.hasOwn(o, k)
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -97,7 +95,6 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   const [unavailable, setUnavailable] = useState(false)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [rating, setRating] = useState(false)
-  const [askedUntil, setAskedUntil] = useState(0)
   const [effects, setEffects] = useState<Effect[] | null>(null)
   const effectsReq = useRef(0)
 
@@ -167,17 +164,17 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   // looking at the tab again: the proposal may have arrived meanwhile
   useEffect(() => { if (active) { void loadDraft(); void loadGuests() } }, [active, loadDraft, loadGuests])
 
-  // poll the proposal while a rating runs, or within 10 minutes of "Rate with Molfar"
+  // poll the proposal while a rating runs
   useEffect(() => {
     if (!active || unavailable) return
-    if (!rating && Date.now() >= askedUntil) return
+    if (!rating) return
     const id = setInterval(() => {
       if (document.visibilityState !== 'visible') return
-      if (!rating && Date.now() >= askedUntil) { clearInterval(id); return }
+      if (!rating) { clearInterval(id); return }
       void loadDraft()
     }, POLL_MS)
     return () => clearInterval(id)
-  }, [active, unavailable, rating, askedUntil, loadDraft])
+  }, [active, unavailable, rating, loadDraft])
 
   // a proposal may arrive from Molfar or from the plugin at any time: look now and then while the tab is open
   useEffect(() => {
@@ -489,47 +486,6 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
     await rateNow()
   }
 
-  /** Asks Molfar to rate exactly these names (none = the card's main characters). */
-  const rateWithMolfar = async (names: string[]) => {
-    // chats carry no lorebook list in the store: the card's own books plus the global ones
-    // are what the engine scans for every chat of this card
-    const books = [...new Set([
-      ...(c.embeddedLorebookId ? [c.embeddedLorebookId] : []),
-      ...c.linkedLorebookIds,
-      ...lorebooks.filter((b) => b.globalActive).map((b) => b.id),
-    ])]
-    const chatIds = chats
-      .filter((ch) => ch.characterId === c.id)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 3)
-      .map((ch) => ch.id)
-    const text = molfarDraftText({ character: c, names, lorebookIds: books, chatIds })
-    try {
-      if (canAskMolfar()) {
-        await askMolfar(text)
-      } else {
-        if (!(await copyText(text))) throw new Error(t('msg.copyFailed'))
-        toast.success(t('soul.copied'))
-      }
-      setAskedUntil(Date.now() + MOLFAR_WINDOW_MS)
-    } catch (e) {
-      toast.error(errMsg(e))
-    }
-  }
-
-  /** The top button: shows which names go to Molfar and asks first. */
-  const rateAllWithMolfar = async () => {
-    const rated = Object.fromEntries(Object.entries(work).filter(([n]) => !blank.has(n))) // a name without a soul still waits for one
-    const names = molfarCandidates({ cardName: c.name, cardType: cardTypeOf(c), guests, seen, souls: [saved, rated], minor, draft })
-    if (!names.length && Object.keys(saved).length) { toast.info(t('soul.molfarNobody')); return }
-    const yes = await confirm({
-      title: t('soul.molfarConfirmTitle'),
-      description: names.length ? t('soul.molfarConfirmBody', { names: names.join(', ') }) : t('soul.molfarConfirmMain'),
-      actionLabel: t('soul.molfarSend'),
-      destructive: false,
-    })
-    if (yes) await rateWithMolfar(names)
-  }
 
   const taken = new Set([
     ...Object.keys(work), ...pendingNames, ...minor,
@@ -565,7 +521,6 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
         {rateBusy && <CircleNotch className="animate-spin" aria-hidden="true" />}
         {rateBusy ? t('soul.rating') : t(again ? 'soul.rateAgain' : 'soul.rateNow')}
       </Button>
-      <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateAllWithMolfar()}>{t('soul.rateAllMolfar')}</Button>
     </>
   )
 
@@ -747,7 +702,6 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
               {ratingName === selName && <CircleNotch className="animate-spin" aria-hidden="true" />}
               {ratingName === selName ? t('soul.rating') : t('soul.rateThis')}
             </Button>
-            <Button variant="outline" size="sm" className="rounded-none" onClick={() => void rateWithMolfar([selName])}>{t('soul.rateMolfar')}</Button>
             <Button variant="outline" size="sm" className="rounded-none" onClick={() => setByHand((h) => new Set(h).add(selName))}>{t('soul.fillByHand')}</Button>
           </div>
         </div>

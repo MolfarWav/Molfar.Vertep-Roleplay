@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Scroll } from '@phosphor-icons/react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Button } from '@/components/ui/button'
 import { useT } from '@/hooks/use-t'
+import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { distinctName, fetchLitChat, type LitChat } from './litopys-api'
 import { WorkerLine } from './worker-line'
@@ -47,6 +49,7 @@ export function LedgerChat({
   mode?: 'ledger' | 'overview'
 }) {
   const t = useT()
+  const openChat = useApp((s) => s.openChat)
   const [chat, setChat] = useState<LitChat | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<TabId>(readStoredTab)
@@ -115,6 +118,8 @@ export function LedgerChat({
 
   const pending = chat.proposals.filter((p) => p.status === 'pending').length
   const activeFacts = chat.facts.filter((f) => f.status === 'active').length
+  // a record file with nothing in it yet reads as empty: one explanation instead of three "none yet" lines
+  const empty = !chat.hasData || (chat.chapters.length === 0 && activeFacts === 0 && pending === 0)
 
   const tabs: { id: TabId; count: number }[] = [
     { id: 'chapters', count: chat.chapters.length },
@@ -136,7 +141,8 @@ export function LedgerChat({
           </div>
         </div>
 
-        {(chat.hasData || chat.worker || chat.rebuilding) && <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />}
+        {/* with no record yet, an idle chronicler's "Up to date" would contradict the empty state below */}
+        {(!empty || chat.rebuilding || (chat.worker && chat.worker.state !== 'idle')) && <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />}
         <ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />
 
         {chat.cut.count > 0 && (
@@ -157,7 +163,7 @@ export function LedgerChat({
           </div>
         )}
 
-        {!chat.hasData ? (
+        {empty ? (
           <Empty className="flex-none border" data-testid="lit-empty">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -166,6 +172,9 @@ export function LedgerChat({
               <EmptyTitle>{t('lit.empty.title')}</EmptyTitle>
               <EmptyDescription>{t('lit.empty.body')}</EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => openChat(chat.chatId)}>{t('lit.empty.openChat')}</Button>
+            </EmptyContent>
           </Empty>
         ) : mode === 'overview' ? (
           <OverviewBody chat={chat} onChat={onChat} onRefresh={refresh} />
