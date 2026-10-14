@@ -2,6 +2,21 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.45.0
+
+Quick moves under a long draft, tidier phone pages for Characters and Lorebooks, and a clearer empty Library. Works with any engine.
+
+- Composer: once a draft wraps, three coloured buttons sit under it: Continue, Write for me and Another (they were only in the "+" menu), plus a button for the big editor. On phones they take their own row. Write for me replaces the draft with a written message, and Undo in the notice brings your draft back.
+- The big editor can take half the screen (the chat stays in view) or all of it; your choice is remembered on the device.
+- Characters on a phone: the Characters / Groups switch and New on top; search, Filter and a More menu under it. Filter opens a sheet with the sort and every tag, wrapped, instead of a long row you swipe sideways; active tags show under the search, each with an ×. Import, a new group, selecting several and grid or list are in More. Desktop is unchanged.
+- Lorebooks: a filter next to the search (all, global, on a card, not linked). Import and "Active in the open chat" moved from the bottom bar into a More menu.
+- Library: a chat whose record has nothing in it yet shows one explanation of when the first chapter comes, with Open the chat, instead of "Up to date" over two "none yet" lines.
+- Soul: Rate now / Rate again rates on the spot; the "Rate with Molfar" buttons are gone.
+- Advanced (character editor): the system prompt override, scenario and personality summary say what they do.
+- Groups: dialogue colours are readable on light themes (the pale yellow is gone); dark themes are unchanged. The group editor's tabs show their names on phones.
+- Dashboard: five more events the sensor can name, seen as "other" on real chats: introducing oneself, inviting to meet, standing one's ground, an ultimatum, a veiled hold over someone.
+- The browser tab and a few texts say Molfar Vertep instead of Chrysalis.
+
 ## 4.44.0
 
 The Canvas gets a Prompt board: see what goes into a chat's request and switch parts off for that chat. The chat-links board fills one chat at a time. Works with any engine.
