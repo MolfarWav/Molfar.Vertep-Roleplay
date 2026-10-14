@@ -10,7 +10,8 @@ import { findTarget } from './target'
 interface Rect { top: number; left: number; width: number; height: number }
 
 export interface SpotlightProps {
-  target: string
+  /** Absent = no element to point at: the text alone, centred. */
+  target?: string
   title: string
   body: string
   /** Dots under the text; hidden for one step. */
@@ -36,7 +37,7 @@ const sameRect = (a: Rect | null, b: Rect | null) =>
 /** The target's box, looked for again until `waitMs` has passed (a drawer or a board may
  *  still be opening when "Show me" asks). `settled` = looked long enough; a null rect
  *  after that means the target is absent. */
-function useTargetRect(target: string, waitMs: number): { rect: Rect | null; settled: boolean } {
+function useTargetRect(target: string | undefined, waitMs: number): { rect: Rect | null; settled: boolean } {
   const [state, setState] = useState<{ rect: Rect | null; settled: boolean }>({ rect: null, settled: false })
   useEffect(() => {
     const started = Date.now()
@@ -49,7 +50,7 @@ function useTargetRect(target: string, waitMs: number): { rect: Rect | null; set
       }
       const r = el?.getBoundingClientRect()
       const rect = r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null
-      const settled = !!rect || Date.now() - started >= waitMs
+      const settled = !!rect || !target || Date.now() - started >= waitMs
       setState((prev) => (prev.settled === settled && sameRect(prev.rect, rect) ? prev : { rect, settled }))
     }
     measure()

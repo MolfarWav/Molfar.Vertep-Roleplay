@@ -22,8 +22,9 @@ export interface GuideOpen {
 
 export interface Tip {
   id: string
-  /** The `data-guide` value of the element the tip points at. */
-  target: string
+  /** The `data-guide` value of the element the tip points at. Absent = the text alone
+   *  (the thing lives outside the app, in the shell around it). */
+  target?: string
   title: Text
   body: Text
   /** The app version that brought the feature: What's new shows it once to anyone

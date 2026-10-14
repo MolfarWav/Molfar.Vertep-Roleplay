@@ -75,8 +75,8 @@ describe("guide registry", () => {
     for (const t of TIPS) if (t.since) expect(compareVersions(t.since, APP_VERSION), t.id).toBeLessThanOrEqual(0);
   });
 
-  it("What's new tips can be opened", () => {
-    for (const t of TIPS) if (t.since) expect(t.open, t.id).toBeTruthy();
+  it("What's new tips that point at something can be opened", () => {
+    for (const t of TIPS) if (t.since && t.target) expect(t.open, t.id).toBeTruthy();
   });
 
   it("every target is marked somewhere in the UI", () => {
@@ -91,6 +91,6 @@ describe("guide registry", () => {
       // a card marked only while it is the first / the history one: data-guide={cond ? 'target' : ...}
       src.includes(`data-guide={`) && new RegExp(`data-guide=\{[^}\n]*'${target.replace(".", "\.")}'`).test(src) ||
       (target.startsWith("nav.") && src.includes("data-guide={`nav.${"));
-    for (const t of TIPS) expect(marked(t.target), t.target).toBe(true);
+    for (const t of TIPS) if (t.target) expect(marked(t.target), t.target).toBe(true);
   });
 });

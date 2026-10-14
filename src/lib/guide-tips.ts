@@ -66,6 +66,18 @@ export const TIPS: Tip[] = [
     },
   },
 
+  {
+    // The report form is the shell's, outside this frame: no element to point at. The
+    // shell's own tour (guide step 3) highlights it.
+    id: 'new.report-bug',
+    since: '4.46.0',
+    title: { en: 'Something broke?', uk: 'Щось зламалося?' },
+    body: {
+      en: 'Report a bug from the account menu (your name, top right) or the link at the bottom of the start page where you pick an app. The report carries what the developers need to fix it.',
+      uk: 'Повідомте про помилку з меню акаунта (ваше ім’я праворуч угорі) або за посиланням унизу стартової сторінки, де вибирають застосунок. У звіті буде все, що потрібно розробникам, щоб її виправити.',
+    },
+  },
+
   // Canvas, chat links
   {
     id: 'tour.canvas.boards',

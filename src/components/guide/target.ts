@@ -9,7 +9,8 @@ const visible = (el: HTMLElement): boolean => {
   return cs.visibility !== 'hidden' && cs.display !== 'none'
 }
 
-export function findTarget(target: string): HTMLElement | null {
+export function findTarget(target: string | undefined): HTMLElement | null {
+  if (!target) return null
   const all = document.querySelectorAll<HTMLElement>(`[data-guide="${target}"]`)
   for (const el of all) if (visible(el)) return el
   return null
