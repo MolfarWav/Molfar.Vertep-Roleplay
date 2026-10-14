@@ -136,7 +136,7 @@ interface AppState {
   branchTreeFor: ID | null
   openBranchTree: (chatId: ID) => void
   selectedSettingsSection: string
-  streaming: { chatId: ID; messageId: ID; full: string; shown: number; startedAt: number; thinking?: string; thinkingT0?: number; thinkingMs?: number; marks?: Array<{ kind: 'tool'; at: number; name: string; args: Record<string, unknown>; done?: boolean; resultText?: string; isError?: boolean } | { kind: 'think'; at: number; text: string; t0: number; ms?: number }> } | null
+  streaming: { chatId: ID; messageId: ID; full: string; shown: number; startedAt: number; adopted?: boolean; thinking?: string; thinkingT0?: number; thinkingMs?: number; marks?: Array<{ kind: 'tool'; at: number; name: string; args: Record<string, unknown>; done?: boolean; resultText?: string; isError?: boolean } | { kind: 'think'; at: number; text: string; t0: number; ms?: number }> } | null
   /** one-shot: suppress the swipe animation for this messageId:swipeIndex
    *  (set when a cancelled regen appends its frozen swipe) */
   swipeFxSkip: string | null
@@ -674,6 +674,9 @@ export const useApp = create<AppState>()(
             boot: 'ready', hydrated: true, bootError: null,
             // engine-side UI settings (agent-editable, data/settings.json `ui`)
           })
+          // a reload mid-reply lands back in the chat: show the reply the engine is still writing (#13)
+          const openId = get().view === 'chat' ? get().activeChatId : null
+          if (openId) void adoptRunningGeneration(set, get, openId)
           // a profile Molfar (or a hand edit) wrote without `compiled`: write the card's text from it
           // now, so the prompt carries the new fields (DATA-FORMATS, "The profile"); quiet like the
           // other hydrate-time repairs, and the old text lands in the card's versions
@@ -964,7 +967,10 @@ export const useApp = create<AppState>()(
         sessionOpenedChats.add(chatId)
         const chat = get().chats.find((c) => c.id === chatId)
         set({ view: 'chat', activeChatId: chatId, activeCharacterId: chat?.characterId ?? null, drawer: null })
-        void get().ensureChatMessages(chatId).then(() => get().runAutoExecutes('onChatChange', chatId))
+        void get().ensureChatMessages(chatId).then(() => {
+          void adoptRunningGeneration(set, get, chatId)
+          return get().runAutoExecutes('onChatChange', chatId)
+        })
       },
       ensureChatMessages: async (chatId) => {
         const chat = get().chats.find((c) => c.id === chatId)
@@ -1068,6 +1074,13 @@ export const useApp = create<AppState>()(
         flushStreamDeltas?.()
         const st = get().streaming
         if (!st) return
+        if (st.adopted) {
+          // a run this page did not start (it was reloaded mid-reply): we cannot cancel it the
+          // client-authoritative way (the user's message is not stored yet), so stop waiting only
+          dropAdopted(set, get, st.chatId, st.messageId)
+          toast.info('Stopped waiting. The server is still writing this reply; it shows up when it is saved.')
+          return
+        }
         activeGens.get(st.chatId)?.abort()
         // cancel is CLIENT-AUTHORITATIVE: freeze NOW on the bytes on screen
         // (the fetch abort clears streaming moments later, so there is
@@ -2294,6 +2307,64 @@ async function runGeneration(
 
 const LANDED = Symbol('landed')
 
+/** Is the engine generating for this chat right now? null = cannot tell (an engine before 1.0.7
+ *  has no such route, or the request failed). */
+async function engineGenerating(chatId: ID): Promise<boolean | null> {
+  try {
+    const r = await j<{ generating?: unknown }>(`/__generating?chatId=${encodeURIComponent(chatId)}`)
+    return r.generating === true
+  } catch {
+    return null
+  }
+}
+
+function dropAdopted(set: SetFn, get: GetFn, chatId: ID, messageId: ID) {
+  set((s) => ({
+    ...(s.streaming?.messageId === messageId ? { streaming: null } : {}),
+    chats: s.chats.map((c) => (c.id === chatId ? { ...c, messages: c.messages.filter((m) => m.id !== messageId) } : c)),
+  }))
+}
+
+/** The engine is still writing a reply no request of this page waits for (the page was reloaded
+ *  mid-reply, or opened while another tab sent): show "Writing" with the live text, and pick up
+ *  the commit once the run ends. Before, the reply looked lost and popped up later (GitHub #13). */
+const adopting = new Set<ID>()
+async function adoptRunningGeneration(set: SetFn, get: GetFn, chatId: ID) {
+  if (adopting.has(chatId) || activeGens.has(chatId) || get().streaming) return
+  adopting.add(chatId)
+  try {
+    if ((await engineGenerating(chatId)) !== true) return
+    const chat = get().chats.find((c) => c.id === chatId)
+    if (!chat || activeGens.has(chatId) || get().streaming) return
+    const pendingId = `pending-${uid('reply')}`
+    const pendingMsg: Message = {
+      id: pendingId, role: 'assistant', characterId: chat.characterId,
+      swipes: [{ id: uid('sw'), content: '', model: '', genTimeMs: 0, timestamp: Date.now() }],
+      activeSwipe: 0, timestamp: Date.now(), edited: false, hidden: false, bookmarked: false,
+    }
+    bumpMutate()
+    set((s) => ({
+      streaming: { chatId, messageId: pendingId, full: '', shown: 0, startedAt: Date.now(), adopted: true },
+      chats: s.chats.map((c) => (c.id === chatId ? { ...c, messages: [...c.messages, pendingMsg] } : c)),
+    }))
+    // the live text arrives over the socket as for any reply; this loop only waits for the end
+    const until = Date.now() + 15 * 60_000
+    let unknown = 0
+    while (Date.now() < until && get().streaming?.messageId === pendingId) {
+      await new Promise((r) => setTimeout(r, 2000))
+      const g = await engineGenerating(chatId)
+      if (g === false || (g === null && ++unknown >= 5)) break
+    }
+    if (get().streaming?.messageId !== pendingId) return // Stop, or something else took over
+    // the commit lands right after the model call ends
+    await new Promise((r) => setTimeout(r, 800))
+    dropAdopted(set, get, chatId, pendingId)
+    await refreshChat(set, get, chatId)
+  } finally {
+    adopting.delete(chatId)
+  }
+}
+
 /** The transcript before a generation: a committed reply differs from it.
  *  `inPlaceId` is the message a swipe, regenerate or continue writes into. */
 function commitBaseline(chat: Chat, inPlaceId: ID | null) {
@@ -2320,15 +2391,23 @@ function hasLanded(base: ReturnType<typeof commitBaseline>, msgs: EngineMessage[
 /** After the page was hidden or offline mid-generation, look at the stored
  *  transcript on return and every few seconds after: a phone often leaves the
  *  open request hanging while the engine has long saved the reply. */
-function watchForCommit(chatId: ID, base: ReturnType<typeof commitBaseline>, onLanded: () => void): () => void {
+function watchForCommit(chatId: ID, base: ReturnType<typeof commitBaseline>, onLanded: () => void, onGone: () => void): () => void {
   let lost = document.visibilityState === 'hidden'
   let stopped = false
   let timer: ReturnType<typeof setInterval> | null = null
+  // checks in a row that found no reply saved and no generation running on the engine
+  let idle = 0
   const check = async () => {
     if (stopped || document.visibilityState !== 'visible') return
     try {
       const r = await j<{ messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
-      if (!stopped && hasLanded(base, r.messages ?? [])) onLanded()
+      if (stopped) return
+      if (hasLanded(base, r.messages ?? [])) return onLanded()
+      // the run ended without a reply (failed, or the server restarted): "Writing" used to
+      // count forever (GitHub #13). Twice, since the commit lands just after the run ends.
+      const running = await engineGenerating(chatId)
+      if (stopped) return
+      if (running === false) { if (++idle >= 2) onGone() } else idle = 0
     } catch { /* offline still: the next tick tries again */ }
   }
   const onChange = () => {
@@ -2374,14 +2453,25 @@ async function runStream(
       signal: inner.signal,
     })
     let stopWatch = () => {}
-    const landedLate = new Promise<typeof LANDED>((resolve) => {
-      stopWatch = watchForCommit(chatId, commitBaseline(chat, get().streaming?.chatId === chatId ? get().streaming!.messageId : null), () => resolve(LANDED))
+    const landedLate = new Promise<typeof LANDED>((resolve, reject) => {
+      stopWatch = watchForCommit(
+        chatId,
+        commitBaseline(chat, get().streaming?.chatId === chatId ? get().streaming!.messageId : null),
+        () => resolve(LANDED),
+        () => reject(new Error('The reply was lost on the way: the server finished without saving one. Try again.')),
+      )
     })
     let res: Record<string, unknown> | typeof LANDED
     try {
       res = await Promise.race([post, landedLate])
+    } catch (e) {
+      // the watcher gave up on a run that ended without a reply: drop the hung request
+      post.catch(() => {})
+      inner.abort()
+      throw e
     } finally {
       stopWatch()
+      landedLate.catch(() => {})
     }
     if (res === LANDED) {
       post.catch(() => {}) // the abandoned request rejects on abort
