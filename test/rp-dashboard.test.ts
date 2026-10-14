@@ -198,7 +198,7 @@ describe("vocabulary", () => {
     expect(v.novelty.family).toBe("knowledge");
     expect(v.other.deltas).toEqual({});
     for (const id of ["learned_about_user", "heard_user_name", "heard_rumor"]) expect(v[id]).toBeUndefined();
-    expect(Object.keys(v).length).toBe(54);
+    expect(Object.keys(v).length).toBe(59);
   });
 
   it("every default row is valid: a known family, short meaning, known stats, user-file round trip", () => {
@@ -887,7 +887,7 @@ describe("config", () => {
     expect(c).toMatchObject({ sensorModel: "", mode: "sensor", catchUp: true, debug: false, injection: { enabled: true, maxTokens: 300 }, custom: [] });
     expect(c.families.body).toBe(true);
     expect(c.sensor).toBe(P.DEFAULT_PROMPTS.sensor);
-    expect(c.events.length).toBe(54);
+    expect(c.events.length).toBe(59);
   });
 
   it("PUT of the default prompt (or whitespace changes of it) stores nothing", () => {
@@ -2733,7 +2733,7 @@ describe("the event vocabulary editor", () => {
     // `other` is the fallback and stays
     expect(v.other).toBeDefined();
     expect(P.buildVocab([{ id: "kept_promise", off: true }, { id: "kept_promise", family: "trust", meaning: "back", deltas: { trust: 1 } }]).kept_promise.meaning).toBe("back");
-    expect(Object.keys(v).length).toBe(53);
+    expect(Object.keys(v).length).toBe(58);
     fs.writeFileSync(eventsFile(), JSON.stringify({ events: [{ id: "kept_promise", off: true }] }));
     writeChat("c1", three());
     const mock = mockHost([keptPromise]);
@@ -2759,14 +2759,14 @@ describe("the event vocabulary editor", () => {
     const ids = rows.map((r: any) => r.id);
     expect(ids.slice(0, 3)).toEqual(["kept_promise", "broke_promise", "told_truth"]);
     expect(ids.at(-1)).toBe("dance");
-    expect(ids.length).toBe(55);
+    expect(ids.length).toBe(60);
     const by = (id: string) => rows.find((r: any) => r.id === id);
     expect(by("kept_promise")).toMatchObject({ source: "changed", off: false, meaning: "mine", deltas: { trust: 5 } });
     expect(by("broke_promise")).toMatchObject({ source: "default", off: false });
     expect(by("gift")).toMatchObject({ source: "default", off: true, family: "warmth", meaning: "gave something meant for them" });
     expect(by("dance")).toMatchObject({ source: "custom", off: true, family: "play", deltas: { affection: 1 } });
     expect(by("told_truth")).toMatchObject({ source: "default", off: false });
-    expect(P.vocabRows([]).length).toBe(54);
+    expect(P.vocabRows([]).length).toBe(59);
   });
 
   it("GET /dashboard/config carries the rows, the delta keys and the family order", () => {
