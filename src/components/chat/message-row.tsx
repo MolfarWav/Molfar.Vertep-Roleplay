@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RichText } from '@/components/rich-blocks'
 import { DialogueVoices, Markdown } from '@/components/markdown'
-import { groupVoices, memberColor, type DialogueVoice } from '@/lib/dialogue-voices'
+import { groupVoices, memberColor, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
@@ -852,7 +852,7 @@ export const MessageRow = memo(function MessageRow({
                 !isUser && (character?.colors.name || memberQuoteColor)
                   ? ({
                       ...(character?.colors.name ? { '--tap-italics': `color-mix(in oklab, ${character.colors.name} 55%, var(--muted-foreground))` } : {}),
-                      ...(memberQuoteColor ? { '--tap-quotes': memberQuoteColor } : {}),
+                      ...(memberQuoteColor ? { '--tap-quotes': voiceInk(memberQuoteColor) } : {}),
                     } as React.CSSProperties)
                   : undefined
               }

@@ -10,7 +10,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { cn } from '@/lib/utils'
 import { scopeCss } from '@/lib/scope-css'
-import { firstVoiceIn, type DialogueVoice } from '@/lib/dialogue-voices'
+import { firstVoiceIn, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -127,7 +127,7 @@ type VoiceState = { speaker: DialogueVoice | null; carry: DialogueVoice | null; 
  *  named in its line (a line ends at a hard break). A line that names nobody keeps the
  *  previous line's speaker; before anyone is named, the theme's colour stays. */
 function voiceQuotes(children: ReactNode, voices: DialogueVoice[], st: VoiceState, depth = 0): ReactNode[] {
-  const paint = (style: Record<string, string>, v: DialogueVoice) => { style['--tap-quotes'] = v.color }
+  const paint = (style: Record<string, string>, v: DialogueVoice) => { style['--tap-quotes'] = voiceInk(v.color) }
   const name = (text: string) => {
     if (st.speaker) return
     const v = firstVoiceIn(text, voices)

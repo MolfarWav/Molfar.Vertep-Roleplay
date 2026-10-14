@@ -108,11 +108,14 @@
   --sidebar-accent-foreground: #161616;
   --sidebar-border: rgb(0 0 0 / 11%);
   --sidebar-ring: #2eaf5a;
+  /* group dialogue colours keep this much of their own colour (see voiceInk) */
+  --voice-keep: 62%;
 }
 
 /* ── Dark: true-neutral, base surface at rgb(20,20,20). No blue/purple tint. ── */
 .dark {
   color-scheme: dark;
+  --voice-keep: 100%;
   --background: #141414;
   --foreground: #e6e6e6;
   --card: #191919;

@@ -52,3 +52,8 @@ export function groupVoices(group: Character, characters: Character[]): Dialogue
   }
   return out
 }
+
+/** A member's colour as dialogue ink: the palette is made for dark backgrounds, so on a light
+ *  theme it is mixed toward the theme's text colour (`--voice-keep` in globals.css) and a
+ *  pale yellow stays readable; the hue is kept. */
+export const voiceInk = (color: string) => `color-mix(in oklab, ${color} var(--voice-keep, 100%), var(--foreground))`

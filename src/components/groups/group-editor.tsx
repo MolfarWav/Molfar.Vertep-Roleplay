@@ -344,7 +344,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
             {tabs.map(({ id, icon: Icon, label }) => (
               <TabsTrigger key={id} value={id} className="flex-none gap-1.5 px-2.5 text-xs">
                 <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="hidden sm:inline">{label}</span>
+                <span>{label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
