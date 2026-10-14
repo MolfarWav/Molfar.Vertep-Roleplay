@@ -991,10 +991,37 @@ export function mergeChatTurns(g: GroupConfig, turns: ChatTurns | undefined, pat
   return Object.keys(next).length ? next : undefined
 }
 
-export interface PromptSourcePart { kind: string; label: string; detail?: string; text: string; located: boolean }
-export interface PromptSourceOmitted { kind: string; label: string; detail?: string; reason: string; tokens?: number }
+/** `key`: the prompt-board switch a part or omitted row belongs to (`section:<id>`, `book:<id>`, `history`, ...). */
+export interface PromptSourcePart { kind: string; label: string; detail?: string; text: string; located: boolean; key?: string }
+export interface PromptSourceOmitted { kind: string; label: string; detail?: string; reason: string; tokens?: number; key?: string }
 export interface PromptSourceVar { name: string; value: string; label?: string }
-export interface PromptSources { v: number; parts: PromptSourcePart[]; omitted: PromptSourceOmitted[]; vars: PromptSourceVar[] }
+/** One thing a chat can switch on the prompt board, in request order. */
+export interface PromptBoardItem {
+  key: string
+  label: string
+  kind: 'main' | 'card' | 'persona' | 'lorebook' | 'example' | 'preset' | 'history' | 'databank' | 'note' | 'memory' | 'dashboard'
+  state: 'on' | 'off' | 'preset-off' | 'condition' | 'not-this-generation' | 'empty'
+}
+export interface PromptSources { v: number; parts: PromptSourcePart[]; omitted: PromptSourceOmitted[]; vars: PromptSourceVar[]; board?: PromptBoardItem[] }
+
+/** A chat's prompt switches (chat meta `promptBoard`); absent = everything on. */
+export interface PromptBoardHistory { lastN: number; only: 'all' | 'user' | 'char'; thinking: boolean }
+export interface PromptBoardConfig { v: 1; off?: string[]; history?: PromptBoardHistory }
+export const DEFAULT_PROMPT_HISTORY: PromptBoardHistory = { lastN: 0, only: 'all', thinking: true }
+
+export async function getChatPromptBoard(chatId: string): Promise<PromptBoardConfig | null> {
+  const r = await j<{ meta: { promptBoard?: PromptBoardConfig } }>(`/chats/${encodeURIComponent(chatId)}`)
+  return r.meta.promptBoard ?? null
+}
+
+/** Replaces the chat's switches whole; the engine cleans them (null = everything on again). */
+export async function setChatPromptBoard(chatId: string, board: PromptBoardConfig | null): Promise<PromptBoardConfig | null> {
+  const meta = await j<{ promptBoard?: PromptBoardConfig }>(`/chats/${encodeURIComponent(chatId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ promptBoard: board }),
+  })
+  return meta.promptBoard ?? null
+}
 export interface PromptSourceSpan { msg: number; start: number; end: number; part: number }
 
 /** The EXACT prompt the engine would send for this chat right now (macros

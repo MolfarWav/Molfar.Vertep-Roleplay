@@ -13,6 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ChatShelf } from './chat-shelf'
+import { PromptBoard } from './prompt-board'
 
 type ChatInfo = LitChatItem
 
@@ -40,6 +41,8 @@ const POSITIONS_KEY = 'rp.canvas.chatLinks.positions'
 const PLACED_KEY = 'rp.canvas.chatLinks.placed'
 const DRAG_TYPE = 'application/x-vertep-chat'
 const SHELF_COLLAPSED_KEY = 'rp.canvas.shelf.collapsed'
+const BOARD_KEY = 'rp.canvas.board'
+const PROMPT_CHAT_KEY = 'rp.canvas.prompt.chatId'
 
 /** Every chat linked to `id` through "continues" or "forked from", in either direction (`id` first). */
 const chainIn = (chats: LitChatItem[], id: string): string[] => {
@@ -99,6 +102,22 @@ export function CanvasView() {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const allChats = useMemo(() => chats || [], [chats])
+
+  const [board, setBoard] = useState<'links' | 'prompt'>(storage.get<string>(BOARD_KEY, 'links') === 'prompt' ? 'prompt' : 'links')
+  const pickBoard = useCallback((b: 'links' | 'prompt') => {
+    setBoard(b)
+    storage.set(BOARD_KEY, b)
+  }, [])
+  const [promptChatPick, setPromptChatPick] = useState<string | null>(storage.get<string | null>(PROMPT_CHAT_KEY, null))
+  const pickPromptChat = useCallback((id: string) => {
+    setPromptChatPick(id)
+    storage.set(PROMPT_CHAT_KEY, id)
+  }, [])
+  // the picked chat while it exists, else the most recently active one
+  const promptChatId = useMemo(() => {
+    if (promptChatPick && allChats.some((c) => c.id === promptChatPick)) return promptChatPick
+    return allChats.reduce<LitChatItem | null>((a, c) => (!a || c.updatedAt > a.updatedAt ? c : a), null)?.id ?? null
+  }, [promptChatPick, allChats])
   const onBoard = useMemo(() => new Set(graph.nodes.map((n) => n.id)), [graph])
   const shelfChats = useMemo(
     () => allChats.filter((c) => !onBoard.has(c.id)),
@@ -363,6 +382,8 @@ export function CanvasView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // the prompt board keeps its own undo
+      if (board !== 'links') return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -378,7 +399,7 @@ export function CanvasView() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [handleUndo, handleRedo])
+  }, [handleUndo, handleRedo, board])
 
   const selectedChat = useMemo(
     () => (selectedId ? allChats.find((c) => c.id === selectedId) : null),
@@ -480,28 +501,33 @@ export function CanvasView() {
         <div className="flex rounded-lg bg-muted p-0.5">
           <button
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold text-foreground',
-              'bg-primary text-primary-foreground shadow-sm'
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              board === 'links' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
-            aria-pressed="true"
+            aria-pressed={board === 'links'}
+            onClick={() => pickBoard('links')}
           >
             <LinkBreak className="h-4 w-4" />
             {t('canvas.board.links')}
           </button>
           <button
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold text-muted-foreground"
-            aria-pressed="false"
-            title={t('canvas.board.promptSoon')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              board === 'prompt' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
+            )}
+            aria-pressed={board === 'prompt'}
+            onClick={() => {
+              // the chat selected on the links board is the one whose prompt the user wants to see
+              if (selectedId) pickPromptChat(selectedId)
+              pickBoard('prompt')
+            }}
           >
             <GraphIcon className="h-4 w-4" />
             {t('canvas.board.prompt')}
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {t('canvas.soon')}
-            </span>
           </button>
         </div>
 
-        {!isMobile && (
+        {!isMobile && board === 'links' && (
           <>
             <div className="mx-1 h-5 w-px bg-border" />
             <Button variant="ghost" size="icon" onClick={handleUndo} title={t('canvas.undo')}>
@@ -550,24 +576,28 @@ export function CanvasView() {
           </button>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setFitSignal((s) => s + 1)}
-          title={t('canvas.fit')}
-        >
-          <FrameCorners className="h-4 w-4" />
-        </Button>
+        {board === 'links' && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setFitSignal((s) => s + 1)}
+              title={t('canvas.fit')}
+            >
+              <FrameCorners className="h-4 w-4" />
+            </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className={isMobile ? 'hidden' : undefined}
-          onClick={() => setInfoOpen((v) => !v)}
-          title={t('canvas.info')}
-        >
-          <Info className="h-4 w-4" />
-        </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={isMobile ? 'hidden' : undefined}
+              onClick={() => setInfoOpen((v) => !v)}
+              title={t('canvas.info')}
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </header>
 
       {isMobile && (
@@ -600,6 +630,18 @@ export function CanvasView() {
         </div>
       )}
 
+      {board === 'prompt' ? (
+        <div className="min-h-0 flex-1">
+          <PromptBoard
+            chatId={promptChatId}
+            chats={allChats}
+            onPickChat={pickPromptChat}
+            // on a phone the list is where switches are used; the graph there is for looking
+            editable={isMobile ? phoneList : editable}
+            phoneList={isMobile && phoneList}
+          />
+        </div>
+      ) : (
       <div className="flex min-h-0 flex-1">
         {!isMobile && editable && !phoneList && !shelfCollapsed && (
           <ChatShelf
@@ -750,6 +792,7 @@ export function CanvasView() {
           </aside>
         )}
       </div>
+      )}
     </div>
   )
 }
