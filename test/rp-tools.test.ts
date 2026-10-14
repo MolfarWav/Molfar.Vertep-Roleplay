@@ -154,6 +154,17 @@ describe("agentic tools plugin", () => {
     await drive("PUT", "/tools/toy", { enabled: true, values: {} }, m.host);
     expect(mod.handleTool("roll_dice", { count: 2, sides: 6 }, m.host).text).toMatch(/^2d6 → \[\d+, \d+\] = \d+$/);
     expect(mod.handleTool("roll_dice", { count: 999, sides: "wat" }, m.host).text).toMatch(/^20d6 → /);
+    // the reason and the difficulty ride the result line (#14)
+    expect(mod.handleTool("roll_dice", { reason: "leap over the gap", count: 1, sides: 20, dc: 1 }, m.host).text).toMatch(/^Leap over the gap: 1d20 → \d+ vs 1, success$/);
+    expect(mod.handleTool("roll_dice", { reason: "lift the gate", sides: 6, dc: 99 }, m.host).text).toMatch(/^Lift the gate: 1d6 → \d vs 99, failure$/);
+    expect(mod.appTools(null, m.host).tools.find((t: { name: string }) => t.name === "roll_dice").parameters.required).toEqual(["reason"]);
+    // a stored copy from before, never edited, follows the new default; an edited one is kept
+    const old = { type: "object", properties: { count: { type: "number", description: "How many dice to roll (default 1, max 20)" }, sides: { type: "number", description: "Sides per die (default 6, max 1000)" }, modifier: { type: "number", description: "Flat bonus or penalty added to the total (default 0)" } }, additionalProperties: false };
+    const stored = JSON.parse(fs.readFileSync(path.join(root, "tools/dice.json"), "utf8"));
+    fs.writeFileSync(path.join(root, "tools/dice.json"), JSON.stringify({ ...stored, tool: { ...stored.tool, parameters: old } }));
+    expect(mod.appTools(null, m.host).tools.find((t: { name: string }) => t.name === "roll_dice").parameters.properties.reason).toBeDefined();
+    fs.writeFileSync(path.join(root, "tools/dice.json"), JSON.stringify({ ...stored, tool: { ...stored.tool, parameters: { ...old, additionalProperties: true } } }));
+    expect(mod.appTools(null, m.host).tools.find((t: { name: string }) => t.name === "roll_dice").parameters.properties.reason).toBeUndefined();
     expect(mod.handleTool("nope", {}, m.host).isError).toBe(true);
 
     const lv = (args: Record<string, unknown>, results: Record<string, unknown> = {}) =>

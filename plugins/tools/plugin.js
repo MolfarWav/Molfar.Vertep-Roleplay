@@ -19,6 +19,31 @@
  */
 
 // ---------- built-in definitions ----------
+// The dice parameters before the reason and the difficulty (GitHub #14): a stored copy still
+// equal to them is a default nobody edited, so it follows the new one.
+const DICE_PARAMS_1 = {
+  type: "object",
+  properties: {
+    count: { type: "number", description: "How many dice to roll (default 1, max 20)" },
+    sides: { type: "number", description: "Sides per die (default 6, max 1000)" },
+    modifier: { type: "number", description: "Flat bonus or penalty added to the total (default 0)" },
+  },
+  additionalProperties: false,
+};
+const DICE_DESCRIPTION_1 =
+  "Roll dice. Call this whenever the outcome of a chance event (an attack, a gamble, a leap, whether someone notices) should be left to chance instead of decided by you. Using it keeps the story fair and unpredictable.";
+const DICE_PARAMS = {
+  type: "object",
+  properties: {
+    reason: { type: "string", description: "What the roll decides, in a few words (\"leap over the gap\")" },
+    count: DICE_PARAMS_1.properties.count,
+    sides: DICE_PARAMS_1.properties.sides,
+    modifier: DICE_PARAMS_1.properties.modifier,
+    dc: { type: "number", description: "Difficulty: the total needed to succeed. Leave it out when there is no pass or fail." },
+  },
+  required: ["reason"],
+  additionalProperties: false,
+};
 const BUILTINS = {
   dice: {
     name: "Dice Roller",
@@ -27,16 +52,8 @@ const BUILTINS = {
     tool: {
       name: "roll_dice",
       description:
-        "Roll dice. Call this whenever the outcome of a chance event (an attack, a gamble, a leap, whether someone notices) should be left to chance instead of decided by you. Using it keeps the story fair and unpredictable.",
-      parameters: {
-        type: "object",
-        properties: {
-          count: { type: "number", description: "How many dice to roll (default 1, max 20)" },
-          sides: { type: "number", description: "Sides per die (default 6, max 1000)" },
-          modifier: { type: "number", description: "Flat bonus or penalty added to the total (default 0)" },
-        },
-        additionalProperties: false,
-      },
+        "Roll dice. Call this whenever the outcome of a chance event (an attack, a gamble, a leap, whether someone notices) should be left to chance instead of decided by you. Using it keeps the story fair and unpredictable. Say what the roll decides, and give a difficulty when there is a pass or fail: the result says which.",
+      parameters: DICE_PARAMS,
     },
   },
   image: {
@@ -102,6 +119,7 @@ function listTools(fsx) {
   // built-ins are code-owned: seeded on first read and re-seeded after a
   // delete (delete = reset to defaults, not removal)
   const ids = new Set(files.map((f) => f.replace(/\.json$/, "")));
+  if (ids.has("dice")) upgradeDice(fsx);
   for (const id of Object.keys(BUILTINS)) {
     if (!ids.has(id)) {
       writeTool(fsx, { id, builtin: id, ...BUILTINS[id] });
@@ -114,6 +132,16 @@ function listTools(fsx) {
     if (t) out.push(t);
   }
   return out;
+}
+
+/** A stored dice tool the user never edited gets the reason and the difficulty (#14). */
+function upgradeDice(fsx) {
+  const t = readTool(fsx, "dice");
+  if (!t || t.builtin !== "dice" || !t.tool) return;
+  if (JSON.stringify(t.tool.parameters) !== JSON.stringify(DICE_PARAMS_1)) return;
+  const tool = { ...t.tool, parameters: DICE_PARAMS };
+  if (tool.description === DICE_DESCRIPTION_1) tool.description = BUILTINS.dice.tool.description;
+  writeTool(fsx, { ...t, tool });
 }
 
 // ---------- tool implementations ----------
@@ -130,7 +158,13 @@ function rollDice(args) {
   for (let i = 0; i < count; i++) rolls.push(1 + Math.floor(Math.random() * sides));
   const total = rolls.reduce((s, r) => s + r, 0) + mod;
   const expr = count + "d" + sides + (mod ? (mod > 0 ? "+" + mod : String(mod)) : "");
-  return { text: expr + " → " + (count > 1 ? "[" + rolls.join(", ") + "] = " + total : String(total)) };
+  const reason = typeof a.reason === "string" ? a.reason.trim().slice(0, 120) : "";
+  const dc = Number(a.dc);
+  const hasDc = a.dc != null && a.dc !== "" && Number.isFinite(dc);
+  // "Leap over the gap: 1d20 → 14 vs 12, success": the reason and the outcome in one line
+  const roll = expr + " → " + (count > 1 ? "[" + rolls.join(", ") + "] = " + total : String(total));
+  const verdict = hasDc ? " vs " + Math.round(dc) + ", " + (total >= dc ? "success" : "failure") : "";
+  return { text: (reason ? reason.charAt(0).toUpperCase() + reason.slice(1) + ": " : "") + roll + verdict };
 }
 
 /** Register a net request on pass A; read the result on pass B (the host
