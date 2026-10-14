@@ -888,7 +888,7 @@ export const useApp = create<AppState>()(
           void get().refreshModelParams()
         } catch (e) {
           const msg = e instanceof ApiError && e.status === 401
-            ? 'Session expired, log in again from the Chrysalis client.'
+            ? 'Session expired, log in to Molfar Vertep again.'
             : String((e as Error).message ?? e)
           // a failed REFRESH keeps the data already on screen: only the first
           // boot has nothing to show but the error

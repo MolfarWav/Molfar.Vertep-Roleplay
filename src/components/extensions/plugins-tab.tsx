@@ -26,8 +26,8 @@ export function PluginsTab() {
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           Plugins run inside the engine. Import from git, enable or disable
-          them with the Plugins button on this app's tab in the Chrysalis
-          engine.
+          them with the Plugins button on this app's tab in Molfar
+          Vertep.
         </p>
         <Button variant="ghost" size="icon-sm" aria-label="Refresh plugins" onClick={() => void load()} disabled={busy}>
           {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <ArrowsClockwise className="size-4" aria-hidden="true" />}

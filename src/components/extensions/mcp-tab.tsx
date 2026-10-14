@@ -31,14 +31,14 @@ export function McpTab() {
         <Plugs className="size-4 text-muted-foreground" />
         <div>
           <p className="text-sm font-medium">MCP servers</p>
-          <p className="text-xs text-muted-foreground">Servers the engine shares with apps. Switch one on to let the model call its tools here; add or share servers in Chrysalis settings.</p>
+          <p className="text-xs text-muted-foreground">Servers the engine shares with apps. Switch one on to let the model call its tools here; add or share servers in the Molfar Vertep settings.</p>
         </div>
       </div>
 
       {servers === null ? (
         <p className="text-xs text-muted-foreground">Connecting to servers…</p>
       ) : servers.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">No servers are shared with apps yet. Add one in Chrysalis settings.</p>
+        <p className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">No servers are shared with apps yet. Add one in the Molfar Vertep settings.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {servers.map((s) => (
