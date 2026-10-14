@@ -2,6 +2,16 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.44.0
+
+The Canvas gets a Prompt board: see what goes into a chat's request and switch parts off for that chat. The chat-links board fills one chat at a time. Works with any engine.
+
+- Canvas, Prompt: pick a chat and see every part of its request in order (main prompt, preset sections, card fields, persona, each lorebook, chat history, data bank, author's note, Litopys, Dashboard), each with its tokens, wired into "Request to the model" with the total. A part can be switched off for this chat only; the preset and the card do not change. Parts the preset, a condition or the reply type leave out say so on their card. Details list what was taken and why something was left out, and show the text. Changes save at once; Ctrl+Z undoes them. On a phone the List view has the switches.
+- History filter (on the Chat history card): send only the last N messages, only the player's or only the character's, and without thinking blocks. It applies before older messages are cut to fit the context.
+- A Litopys or Dashboard switched off for a chat does no work for it at all; a lorebook switched off is not scanned, even a global one or one bound to the persona.
+- Canvas, Chat links: the board starts empty and a list on the left holds the chats that are not on it, with search and sort. Drag a chat onto the board, or use "+", or put it there with all its linked chats; drag a card back onto the list (or Remove) to take it off. The view stays where it is after a drop or a move.
+- The switches live in the chat's meta (`promptBoard`, see `docs/DATA-FORMATS.md`); a forked chat keeps them.
+
 ## 4.43.0
 
 Fixes from the Tuesday bug batch (2026-10-14). Works with any engine; the reply pick-up after a reload needs engine 1.0.7.
