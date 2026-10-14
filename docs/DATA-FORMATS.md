@@ -53,7 +53,7 @@ An imported card may have no `studio` yet; json_set creates it when you set a ke
 | `stats` | Tracked bars: `[{ id, name, initial, max, color }]`. |
 | `colors` | `{ name, dialogue, bubble }` CSS colors for this character's messages. |
 | `expressions`, `defaultExpression` | Sprite images per emotion: `[{ name, url }]` (`url` is a data URL inside card.json; imports downscale them so the file stays under the 4 MB a plugin may write), and the one shown by default. |
-| `gallery` | `[{ id, url, type: "image" | "video", caption }]`. |
+| `gallery` | `[{ id, url, type: "image" \| "video", caption }]`. `url` is `/v1/assets/<id>` (the engine's asset store; images added since Roleplay 4.43.0 and generated pictures) or a data URL (older items; they move to the asset store on the next gallery add). |
 | `voiceProvider`, `voiceId` | Text-to-speech voice. |
 | `characterRegexIds` | Regex scripts that apply only to this character. |
 | `css` | Custom CSS for this character's chat. |

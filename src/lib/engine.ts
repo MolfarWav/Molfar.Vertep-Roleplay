@@ -195,7 +195,7 @@ export async function j<T>(path: string, init?: RequestInit & { body?: string; s
     })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
-    throw new ApiError(0, 'Connection lost. Is the Chrysalis engine running?')
+    throw new ApiError(0, 'Connection lost. Is the Molfar Vertep engine running?')
   }
   if (!res.ok) {
     const e = (await res.json().catch(() => ({}))) as { error?: string }
@@ -1564,6 +1564,28 @@ export function fileToDataUrl(file: File | Blob, max = 192, opts: { alpha?: bool
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')) }
     img.src = url
   })
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl)
+  if (!m) throw new Error('not a data URL')
+  const raw = m[2] ? atob(m[3]!) : decodeURIComponent(m[3]!)
+  const bytes = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+  return new Blob([bytes], { type: m[1] || 'application/octet-stream' })
+}
+
+/** Put an image (a file, or an image already held as a data URL) into the engine's asset store
+ *  and return its URL, `/v1/assets/<id>`. A gallery item keeps only that URL: as data URLs inside
+ *  card.json eight images passed the size limit of one save and vanished (GitHub #17). */
+export async function storeImageAsset(src: File | Blob | string, max = 1024, name?: string): Promise<string> {
+  const blob = typeof src === 'string' ? dataUrlToBlob(src) : dataUrlToBlob(await fileToDataUrl(src, max))
+  const r = await fetch(`/v1/assets${name ? `?name=${encodeURIComponent(name.slice(0, 120))}` : ''}`, {
+    method: 'PUT', headers: { 'content-type': blob.type }, body: blob,
+  })
+  const out = (await r.json().catch(() => ({}))) as { id?: string; error?: string }
+  if (!r.ok || !out.id) throw new Error(out.error || `could not store the image (${r.status})`)
+  return `/v1/assets/${out.id}`
 }
 
 /** The app's image route for remote art: same-origin and host-allowlisted

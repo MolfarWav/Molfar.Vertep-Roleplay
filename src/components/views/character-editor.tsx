@@ -35,7 +35,7 @@ import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
 import { TranslateMenu } from '@/components/character/translate-menu'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
-import { characterToExportCard, fileToDataUrl, fetchEdgeVoices } from '@/lib/engine'
+import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
 import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
@@ -180,12 +180,22 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
   const addGallery = async (files: FileList | null) => {
     if (!files?.length) return
-    const items = [...c.gallery]
+    // images go to the engine's asset store and the card keeps their URLs (GitHub #17); older
+    // items held as data URLs move there in the same save
+    const items = await Promise.all(c.gallery.map(async (g) => {
+      if (!g.url.startsWith('data:')) return g
+      try { return { ...g, url: await storeImageAsset(g.url, 1024, g.caption) } } catch { return g }
+    }))
     let n = 0
+    let failed = ''
     for (const file of Array.from(files)) {
-      try { items.push({ id: uid('gal'), url: await fileToDataUrl(file, 1024), type: file.type.startsWith('video') ? 'video' : 'image', caption: file.name.replace(/\.[^.]+$/, '') }); n++ } catch { /* not an image */ }
+      // only images decode here: a video was skipped silently before, now it says so
+      if (!file.type.startsWith('image/')) { failed = `${file.name}: only images can be added`; continue }
+      const caption = file.name.replace(/\.[^.]+$/, '')
+      try { items.push({ id: uid('gal'), url: await storeImageAsset(file, 1024, file.name), type: 'image', caption }); n++ } catch (e) { failed = `${file.name}: ${(e as Error).message}` }
     }
     if (n) { up({ gallery: items }); toast.success(`Added ${n} item${n > 1 ? 's' : ''}`) }
+    if (failed) toast.error(`Not added: ${failed}`)
   }
 
   // every edit is written at once; "Saved" shows for a moment so the user knows there is no Save button to find
@@ -615,7 +625,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               {c.gallery.length === 0 && (
                 <p className="text-xs text-muted-foreground">No gallery items yet. Add images of this character.</p>
               )}
-              <input ref={galleryInput} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => { void addGallery(e.target.files); e.target.value = '' }} />
+              <input ref={galleryInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { void addGallery(e.target.files); e.target.value = '' }} />
 
               {/* Lightbox: full item + caption + set-as-avatar + delete */}
               <Dialog open={!!lightboxItem} onOpenChange={(o) => !o && setLightboxId(null)}>

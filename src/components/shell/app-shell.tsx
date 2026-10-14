@@ -119,7 +119,7 @@ export function AppShell() {
   if (boot === 'error') {
     return (
       <div className="flex flex-col items-center justify-center gap-3 bg-background px-6 text-center" style={{ height: 'var(--vvh, 100dvh)' }}>
-        <p className="text-sm font-medium text-foreground">Can&apos;t reach the Chrysalis engine</p>
+        <p className="text-sm font-medium text-foreground">Can&apos;t reach the Molfar Vertep engine</p>
         <p className="max-w-sm text-xs text-muted-foreground">{bootError}</p>
         <Button variant="outline" size="sm" onClick={() => void hydrate()}>Retry</Button>
       </div>

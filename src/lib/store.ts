@@ -1691,10 +1691,29 @@ export const useApp = create<AppState>()(
         // passes the engine's 1 MB cap on app requests
         const diff = before ? cardPatch(characterToCard(before), characterToCard(c)) : null
         if (before && !diff) return
-        const req = diff
-          ? j(`/characters/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(diff) })
-          : j(`/characters/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(characterToCard(c)) })
-        void req.catch((e) => toast.error(String((e as Error).message ?? e)))
+        const body = JSON.stringify(diff ?? characterToCard(c))
+        // a failed save must not leave the change on screen: it vanished on the next refresh and
+        // looked saved until then (GitHub #17). Put back what this edit changed, unless a later
+        // edit changed it again.
+        const saved = c
+        const rollBack = (msg: string) => {
+          toast.error(msg)
+          if (!before) return
+          set((s) => ({ characters: s.characters.map((x) => {
+            if (x.id !== id) return x
+            const back: Partial<Character> = {}
+            for (const k of Object.keys(patch) as (keyof Character)[]) if (x[k] === saved[k]) (back as Record<string, unknown>)[k] = before[k]
+            return { ...x, ...back }
+          }) }))
+        }
+        // the engine answers an oversized body by closing the connection, which reads as
+        // "connection lost": say the real reason before sending
+        if (body.length > APP_BODY_CAP) {
+          rollBack(`Not saved: this change is ${(body.length / 1048576).toFixed(1)} MB, more than the ${APP_BODY_CAP / 1048576} MB a save can carry.`)
+          return
+        }
+        const req = j(`/characters/${encodeURIComponent(id)}`, { method: diff ? 'PATCH' : 'PUT', body })
+        void req.catch((e) => rollBack(String((e as Error).message ?? e)))
       },
       newCharacter: () => {
         bumpMutate()
@@ -2304,6 +2323,9 @@ async function runGeneration(
   }))
   return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
 }
+
+/** The engine's limit on one app request body (1.0.7: 8 MB; 1 MB before). */
+const APP_BODY_CAP = 8 * 1024 * 1024
 
 const LANDED = Symbol('landed')
 
