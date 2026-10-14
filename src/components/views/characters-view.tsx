@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, UploadSimple, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, UploadSimple, Chats, Copy, Trash, Tag, DotsThree, DotsThreeVertical, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
@@ -43,6 +45,10 @@ import { GroupEditor } from '@/components/groups/group-editor'
 let lastMode: 'characters' | 'groups' = 'characters'
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
+const SORT_OPTIONS: [SortKey, string][] = [
+  ['recent', 'Recent'], ['az', 'A–Z'], ['newest', 'Newest'], ['oldest', 'Oldest'],
+  ['favorites', 'Favorites'], ['chats', 'Most chats'], ['tokens', 'Most tokens'], ['random', 'Random'],
+]
 
 export function CharactersView() {
   const characters = useApp((s) => s.characters)
@@ -67,6 +73,9 @@ export function CharactersView() {
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [tagQuery, setTagQuery] = useState('')
+  const isMobile = useIsMobile()
   const [urlOpen, setUrlOpen] = useState(false)
   const [urlValue, setUrlValue] = useState('')
   const [urlBusy, setUrlBusy] = useState(false)
@@ -203,41 +212,169 @@ export function CharactersView() {
     return <CharacterEditor character={active} onClose={() => openCharacter(null)} />
   }
 
+  // two clearly separate tabs, each in its own colour: characters take the
+  // theme's accent, groups the group hue the group tiles and group chats share
+  const modeSwitch = (
+    <div role="group" aria-label={t('groups.switch')} className="flex gap-1 max-md:min-w-0 max-md:flex-1">
+      {(['characters', 'groups'] as const).map((m) => {
+        const on = mode === m
+        const Icon = m === 'groups' ? Users : UserCircle
+        const n = m === 'groups' ? groupCards.length : soloCards.length
+        return (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={on}
+            onClick={() => { setMode(m); setPage(0) }}
+            className={cn(
+              'flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors max-md:h-10 max-md:min-w-0 max-md:flex-1 max-md:justify-center',
+              on
+                ? m === 'groups' ? 'border-group/60 bg-group/15 text-group' : 'border-primary/60 bg-primary/15 text-primary'
+                : 'border-border text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+            )}
+          >
+            <Icon className="size-4 shrink-0" weight={on ? 'fill' : 'regular'} aria-hidden="true" />
+            <span className="truncate">{t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}</span>
+            <span className={cn('rounded-full px-1.5 text-[10px] tabular-nums', on ? 'bg-background/60' : 'bg-muted')}>{n}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  const batchActions = (
+    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">{selected.length} selected</span>
+      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => {
+        const picked = characters.filter((c) => selected.includes(c.id) && !c.isGroup)
+        downloadJson(picked.map((c) => characterToExportCard(c, useApp.getState().lorebooks)), `characters-${picked.length}`)
+        setSelected([])
+        toast.success(`Exported ${picked.length} card${picked.length === 1 ? '' : 's'} as JSON`)
+      }}>
+        <DownloadSimple className="size-3.5" aria-hidden="true" />Export
+      </Button>
+      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => setConfirmBatch(true)}>
+        <Trash className="size-3.5" aria-hidden="true" />Delete
+      </Button>
+    </div>
+  )
+
+  const tagChip = (name: string, tag: (typeof tagChips)[number]['tag'], big?: boolean) => {
+    const n = soloCards.filter((c) => c.tags.includes(name)).length
+    const active = tagFilter.includes(name)
+    return (
+      <button
+        key={name}
+        type="button"
+        aria-pressed={active}
+        onClick={() => { setTagFilter((f) => f.includes(name) ? f.filter((x) => x !== name) : [...f, name]); setPage(0) }}
+        style={tag ? { backgroundColor: tag.color, color: tag.textColor, borderColor: 'transparent' } : undefined}
+        className={cn(
+          'shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] transition-colors',
+          big && 'h-8 px-3 text-xs',
+          active ? 'font-medium' : 'hover:text-foreground',
+          !tag && (active ? 'border-transparent bg-accent text-accent-foreground' : 'border-border text-muted-foreground'),
+          tag && !active && 'opacity-75 hover:opacity-100',
+          tag && active && big && 'ring-2 ring-primary',
+        )}
+      >
+        {name} <span className="opacity-60">{n}</span>
+      </button>
+    )
+  }
+
   return (
     <SectionPage section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tag filter + favorites scroll WITH the grid — a pinned
           toolbar eats the viewport on mobile once the keyboard opens */}
       <ScrollArea className="min-h-0 flex-1">
+      <input
+        ref={importRef}
+        type="file"
+        accept=".png,.json"
+        multiple
+        className="sr-only"
+        onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }}
+        aria-label="Import character cards"
+      />
+      {isMobile ? (
+        // phone: the switch and one primary button, then search, Filter and More; the rest is in the menus
+        <header className="flex flex-col gap-2 border-b border-border px-3 py-2">
+          <div className="flex items-center gap-2">
+            {modeSwitch}
+            {mode === 'characters' ? (
+              <Button className="h-10 shrink-0" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
+                <Plus className="size-4" aria-hidden="true" />New
+              </Button>
+            ) : (
+              <Button className="h-10 shrink-0 bg-group text-group-foreground hover:bg-group/85" onClick={() => setGroupOpen(true)}>
+                <Users className="size-4" aria-hidden="true" />{t('groups.create')}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="relative min-w-0 flex-1">
+              <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-10 pl-8 text-sm" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
+            </div>
+            {mode === 'characters' && (
+              <Button variant="outline" className="h-10 shrink-0" onClick={() => setFilterOpen(true)}>
+                <Funnel className="size-4" aria-hidden="true" />Filter
+                {tagFilter.length > 0 && <Badge className="h-5 min-w-5 px-1 text-[10px]">{tagFilter.length}</Badge>}
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button variant="outline" className="size-10 shrink-0 p-0" aria-label="More">
+                  <DotsThreeVertical className="size-5" aria-hidden="true" />
+                </Button>
+              } />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => importRef.current?.click()}>
+                  <FileCode className="size-4" aria-hidden="true" />Import from files…
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setUrlOpen(true)}>
+                  <LinkSimple className="size-4" aria-hidden="true" />Import from URL (chub)…
+                </DropdownMenuItem>
+                {mode === 'characters' && (<>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setGroupOpen(true)}>
+                    <Users className="size-4" aria-hidden="true" />New group
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setBatchMode(!batchMode); setSelected([]) }}>
+                    <CheckSquare className="size-4" weight={batchMode ? 'fill' : 'regular'} aria-hidden="true" />{batchMode ? 'Stop selecting' : 'Select several'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setGrid(!grid)}>
+                    {grid ? <List className="size-4" aria-hidden="true" /> : <SquaresFour className="size-4" aria-hidden="true" />}{grid ? 'List view' : 'Grid view'}
+                  </DropdownMenuItem>
+                </>)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {/* only the tags in use, each with its own way out */}
+          {mode === 'characters' && tagFilter.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {tagFilter.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { setTagFilter((f) => f.filter((x) => x !== name)); setPage(0) }}
+                  className="flex h-8 items-center gap-1 rounded-full bg-accent px-2.5 text-xs text-accent-foreground"
+                  aria-label={`Remove the ${name} filter`}
+                >
+                  {name}<X className="size-3" aria-hidden="true" />
+                </button>
+              ))}
+              <Button variant="ghost" className="h-8 px-2 text-xs" onClick={() => { setTagFilter([]); setPage(0) }}>Clear</Button>
+            </div>
+          )}
+          {mode === 'characters' && batchMode && selected.length > 0 && batchActions}
+        </header>
+      ) : (
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
         <PaneTitle section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined} />
-        {/* two clearly separate tabs, each in its own colour: characters take the
-            theme's accent, groups the group hue the group tiles and group chats share */}
-        <div role="group" aria-label={t('groups.switch')} className="flex gap-1">
-          {(['characters', 'groups'] as const).map((m) => {
-            const on = mode === m
-            const Icon = m === 'groups' ? Users : UserCircle
-            const n = m === 'groups' ? groupCards.length : soloCards.length
-            return (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={on}
-                onClick={() => { setMode(m); setPage(0) }}
-                className={cn(
-                  'flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors max-md:h-10',
-                  on
-                    ? m === 'groups' ? 'border-group/60 bg-group/15 text-group' : 'border-primary/60 bg-primary/15 text-primary'
-                    : 'border-border text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                )}
-              >
-                <Icon className="size-4" weight={on ? 'fill' : 'regular'} aria-hidden="true" />
-                {t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}
-                <span className={cn('rounded-full px-1.5 text-[10px] tabular-nums', on ? 'bg-background/60' : 'bg-muted')}>{n}</span>
-              </button>
-            )
-          })}
-        </div>
+        {modeSwitch}
         <div className="relative order-last w-full md:order-none md:w-64">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-8 pl-8 text-sm" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
@@ -249,14 +386,7 @@ export function CharactersView() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="recent">Recent</SelectItem>
-              <SelectItem value="az">A–Z</SelectItem>
-              <SelectItem value="newest">Newest</SelectItem>
-              <SelectItem value="oldest">Oldest</SelectItem>
-              <SelectItem value="favorites">Favorites</SelectItem>
-              <SelectItem value="chats">Most chats</SelectItem>
-              <SelectItem value="tokens">Most tokens</SelectItem>
-              <SelectItem value="random">Random</SelectItem>
+              {SORT_OPTIONS.map(([v, label]) => <SelectItem key={v} value={v}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button variant={batchMode ? 'secondary' : 'ghost'} size="sm" onClick={() => { setBatchMode(!batchMode); setSelected([]) }} aria-label="Batch select mode">
@@ -265,15 +395,6 @@ export function CharactersView() {
           <Button variant="ghost" size="sm" onClick={() => setGrid(!grid)} aria-label={grid ? 'List view' : 'Grid view'}>
             {grid ? <List className="size-4" aria-hidden="true" /> : <SquaresFour className="size-4" aria-hidden="true" />}
           </Button>
-          <input
-            ref={importRef}
-            type="file"
-            accept=".png,.json"
-            multiple
-            className="sr-only"
-            onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }}
-            aria-label="Import character cards"
-          />
           <DropdownMenu>
             <DropdownMenuTrigger render={
               <Button variant="outline" size="sm">
@@ -300,54 +421,21 @@ export function CharactersView() {
           )}
         </div>
       </header>
+      )}
 
       <CreateGroupDialog open={groupOpen} onOpenChange={setGroupOpen} />
 
-      {/* tag filter row — tags IN USE on existing cards, horizontally
-          scrollable so it never wraps into a wall of chips on mobile */}
-      {mode === 'characters' && (
+      {/* tag filter row (desktop) — tags IN USE on existing cards, horizontally
+          scrollable; on a phone they live in the Filter sheet */}
+      {mode === 'characters' && !isMobile && (
       <div className="flex items-center gap-1.5 border-b border-border px-4 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-          {tagChips.map(({ name, tag }) => {
-            const n = soloCards.filter((c) => c.tags.includes(name)).length
-            const active = tagFilter.includes(name)
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => { setTagFilter((f) => f.includes(name) ? f.filter((x) => x !== name) : [...f, name]); setPage(0) }}
-                style={tag ? { backgroundColor: tag.color, color: tag.textColor, borderColor: 'transparent' } : undefined}
-                className={cn(
-                  'shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] transition-colors',
-                  active ? 'font-medium' : 'hover:text-foreground',
-                  !tag && (active ? 'border-transparent bg-accent text-accent-foreground' : 'border-border text-muted-foreground'),
-                  tag && !active && 'opacity-75 hover:opacity-100',
-                )}
-              >
-                {name} <span className="opacity-60">{n}</span>
-              </button>
-            )
-          })}
+          {tagChips.map(({ name, tag }) => tagChip(name, tag))}
         </div>
         <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={() => setTagManagerOpen(true)}>
           <Tag className="size-3.5" aria-hidden="true" />Manage
         </Button>
-        {batchMode && selected.length > 0 && (
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">{selected.length} selected</span>
-            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => {
-              const picked = characters.filter((c) => selected.includes(c.id) && !c.isGroup)
-              downloadJson(picked.map((c) => characterToExportCard(c, useApp.getState().lorebooks)), `characters-${picked.length}`)
-              setSelected([])
-              toast.success(`Exported ${picked.length} card${picked.length === 1 ? '' : 's'} as JSON`)
-            }}>
-              <DownloadSimple className="size-3.5" aria-hidden="true" />Export
-            </Button>
-            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setConfirmBatch(true)}>
-              <Trash className="size-3.5" aria-hidden="true" />Delete
-            </Button>
-          </div>
-        )}
+        {batchMode && selected.length > 0 && batchActions}
       </div>
       )}
 
@@ -512,6 +600,43 @@ export function CharactersView() {
       </Dialog>
 
       <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} />
+      {/* phone: sort and every tag, wrapped, instead of a row you swipe sideways */}
+      <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
+        <SheetContent side="bottom" className="max-h-[80dvh]">
+          <SheetHeader>
+            <SheetTitle>Filter and sort</SheetTitle>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Sort</span>
+              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                <SelectTrigger className="h-10 w-44 text-sm" aria-label="Sort characters">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map(([v, label]) => <SelectItem key={v} value={v}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {tagChips.length > 12 && (
+              <Input value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} placeholder="Find a tag" className="h-10 text-sm" aria-label="Find a tag" />
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {tagChips.filter(({ name }) => !tagQuery.trim() || name.toLowerCase().includes(tagQuery.trim().toLowerCase())).map(({ name, tag }) => tagChip(name, tag, true))}
+              {tagChips.length === 0 && <span className="text-xs text-muted-foreground">No tags on your cards yet.</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" className="h-10" onClick={() => setTagManagerOpen(true)}>
+                <Tag className="size-4" aria-hidden="true" />Manage tags
+              </Button>
+              {tagFilter.length > 0 && (
+                <Button variant="ghost" className="h-10" onClick={() => { setTagFilter([]); setPage(0) }}>Clear</Button>
+              )}
+              <Button className="ml-auto h-10" onClick={() => setFilterOpen(false)}>Done</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>

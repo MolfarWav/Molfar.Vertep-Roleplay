@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenText, Plus, Trash, Copy, MagnifyingGlass, Globe, Flask, Pulse, CaretDown, CaretRight, Funnel,
-  PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut, Sparkle,
+  PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut, Sparkle, DotsThreeVertical, UploadSimple,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { InfoTip } from '@/components/ui/info-tip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pager, clampPage } from '@/components/ui/pager'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -50,6 +51,7 @@ export function LorebooksView() {
   const [confirm, confirmDialog] = useConfirm()
   const [activeViewerOpen, setActiveViewerOpen] = useState(false)
   const [bookQuery, setBookQuery] = useState('')
+  const [bookFilter, setBookFilter] = useState<'all' | 'global' | 'used' | 'unused'>('all')
   const importInput = useRef<HTMLInputElement>(null)
   const refreshLorebooks = useApp((s) => s.refreshLorebooks)
   const hydrate = useApp((s) => s.hydrate)
@@ -90,7 +92,14 @@ export function LorebooksView() {
   const BOOK_PAGE = 100
   const [bookPage, setBookPage] = useState(0)
   const bq = bookQuery.trim().toLowerCase()
-  const shownBooks = bq ? lorebooks.filter((b) => b.name.toLowerCase().includes(bq)) : lorebooks
+  const shownBooks = lorebooks.filter((b) => {
+    if (bq && !b.name.toLowerCase().includes(bq)) return false
+    if (bookFilter === 'global') return b.globalActive
+    const usage = bookUsage(characters, b.id)
+    if (bookFilter === 'used') return usage.users.length > 0
+    if (bookFilter === 'unused') return usage.users.length === 0
+    return true
+  })
   const safeBookPage = clampPage(bookPage, shownBooks.length, BOOK_PAGE)
   const pagedBooks = shownBooks.slice(safeBookPage * BOOK_PAGE, (safeBookPage + 1) * BOOK_PAGE)
 
@@ -128,17 +137,49 @@ export function LorebooksView() {
                 <Sparkle className="size-3.5" aria-hidden="true" />{t('lore.molfar')}
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="size-7 p-0" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" aria-label="More" title="More">
+                  <DotsThreeVertical className="size-4" aria-hidden="true" />
+                </Button>
+              } />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => importInput.current?.click()}>
+                  <UploadSimple className="size-4" aria-hidden="true" />
+                  Import…
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveViewerOpen(true)}>
+                  <Pulse className="size-4 self-start mt-0.5" aria-hidden="true" />
+                  <span className="flex max-w-64 flex-col">
+                    Active in the open chat
+                    <span className="text-xs text-muted-foreground">{t('lore.active.info')}</span>
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
               <Plus className="size-4" aria-hidden="true" />
             </Button>
           </div>
         </div>
-        {lorebooks.length > 8 && (
-          <div className="relative border-b border-border px-2 py-1.5">
-            <MagnifyingGlass className="absolute left-4.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input value={bookQuery} onChange={(e) => { setBookQuery(e.target.value); setBookPage(0) }} placeholder={t('lore.books.search')} className="h-7 pl-7 text-xs" aria-label={t('lore.books.search')} />
+        <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
+          <div className="relative flex-1">
+            <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input value={bookQuery} onChange={(e) => { setBookQuery(e.target.value); setBookPage(0) }} placeholder={t('lore.books.search')} className="h-7 pl-7 text-xs max-md:h-10" aria-label={t('lore.books.search')} />
           </div>
-        )}
+          <Select value={bookFilter} onValueChange={(v) => { setBookFilter(v as typeof bookFilter); setBookPage(0) }}>
+            <SelectTrigger className="h-7 w-28 text-xs max-md:h-10" aria-label="Filter books">
+              <SelectValue>{(v: string) => v === 'all' ? 'All' : v === 'global' ? 'Global' : v === 'used' ? 'On a card' : 'Not linked'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="global">Global</SelectItem>
+              <SelectItem value="used">On a card</SelectItem>
+              <SelectItem value="unused">Not linked</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <input ref={importInput} type="file" accept="application/json" multiple className="hidden" onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }} />
         <ScrollArea className="min-h-0 flex-1">
           <ul className="flex flex-col p-1.5">
             {pagedBooks.map((b) => {
@@ -172,14 +213,6 @@ export function LorebooksView() {
           </ul>
           <Pager total={shownBooks.length} page={safeBookPage} pageSize={BOOK_PAGE} onPage={setBookPage} />
         </ScrollArea>
-        <div className="flex gap-1 border-t border-border p-1.5">
-          <input ref={importInput} type="file" accept="application/json" multiple className="hidden" onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }} />
-          <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => importInput.current?.click()}>Import</Button>
-          <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setActiveViewerOpen(true)}>
-            <Pulse className="size-3.5" aria-hidden="true" />{t('lore.active')}
-          </Button>
-          <InfoTip label={t('lore.active')} className="self-center">{t('lore.active.info')}</InfoTip>
-        </div>
       </aside>
       }
       detail={
