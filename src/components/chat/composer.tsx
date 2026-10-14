@@ -103,8 +103,9 @@ export function Composer({ chatId }: { chatId: ID }) {
   const [imgStart, setImgStart] = useState<ImageGenStart>({ mode: 'scene' })
   const [imgBusy, setImgBusy] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // On a phone a draft that wrapped gets the whole row and the buttons move
-  // under it: beside it they left about four words per line (GitHub #20).
+  // A draft that wrapped gets the whole row and the buttons move under it:
+  // beside it they left about four words per line on a phone and empty
+  // columns down both sides on desktop (GitHub #20).
   // It goes back only when the box is empty: the wider box would fit the text
   // on fewer lines and flip the layout back and forth while typing.
   const [wide, setWide] = useState(false)
@@ -503,7 +504,7 @@ export function Composer({ chatId }: { chatId: ID }) {
           </>
         )}
 
-        <div className={cn("relative min-w-0 flex-1", wide && "max-sm:order-first max-sm:basis-full")}>
+        <div className={cn("relative min-w-0 flex-1", wide && "order-first basis-full")}>
           {trigger && acItems.length > 0 && (
             <AutocompletePopup items={acItems} activeIndex={acIndex} onSelect={applyAcItem} onHover={setAcIndex} />
           )}
@@ -549,8 +550,8 @@ export function Composer({ chatId }: { chatId: ID }) {
           onChange={(e) => { handleFiles(e.target.files); e.target.value = "" }}
         />
 
-        {/* in the two-row phone layout this pair sits at the right end */}
-        {wide && <span aria-hidden className="hidden max-sm:block max-sm:flex-1" />}
+        {/* in the two-row layout this pair sits at the right end */}
+        {wide && <span aria-hidden className="flex-1" />}
         <StoryNudgeButton chatId={chatId} isStreaming={isStreaming} />
 
         {isStreaming ? (

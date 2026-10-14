@@ -8,7 +8,7 @@ Fixes from the Tuesday bug batch (2026-10-14). Works with any engine; the reply 
 
 - Dashboard: a character you text, call or write to stays in the scene. The insert says they are not in the same place and how you talk, so the model no longer forgets a conversation is by message (GitHub #16).
 - Chat: reloading while a reply is being written no longer loses it. The chat shows "Writing" with the live text and picks up the reply when it is saved. A reply that never arrives ends "Writing" with an error instead of counting forever (GitHub #13; needs engine 1.0.7, older engines behave as before).
-- Phones: once a draft wraps, the message box takes the whole width and the buttons move under it (GitHub #20).
+- Composer: once a draft wraps, the message box takes the whole width and the buttons move under it, on phones and desktop (GitHub #20).
 - Dice: roll_dice takes what the roll decides and an optional difficulty; the result reads "Leap over the gap: 1d20 → 14 vs 12, success". A dice tool you never edited picks this up by itself (GitHub #14).
 - Gallery: new images are stored in the engine's asset store and the card keeps only their link, so adding many images no longer fails; older images move there on the next add. Only images can be added (videos were skipped silently). A character save that fails is undone on screen and says why (GitHub #17).
 - Error texts name Molfar Vertep, not Chrysalis.
