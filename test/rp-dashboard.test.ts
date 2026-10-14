@@ -1138,6 +1138,12 @@ describe("prompt insert", () => {
     expect(text).toContain("in touch from elsewhere: Aria by text messages");
     expect(text).toContain("Not in the same place as");
     expect(text).not.toMatch(/Present: [^.]*Aria/);
+    // a new scene without a contact word starts in person
+    writeChat("c1", [...three(), A("m4", "Later."), U("m5", "Hi again.")])
+    const mock2 = mockHost([reply({ present: ["Aria"], minutes: 60, scene: { new: true, label: "Cafe" }, chars: { Aria: { mood: "calm" } } })])
+    expect(update(mock2, "c1").json.ok).toBe(true)
+    const snaps = Object.values(readStateFile("c1").snapshots) as { at: number; chars: Record<string, { contact: unknown }> }[]
+    expect(snaps.sort((x, y) => y.at - x.at)[0]!.chars.Aria!.contact).toBeNull()
     // they meet: in person again
     expect(P.contactOf("in person")).toBeNull();
     expect(P.contactOf("video call")).toBe("video");

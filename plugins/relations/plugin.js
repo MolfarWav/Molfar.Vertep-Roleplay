@@ -548,7 +548,7 @@ export const DEFAULT_PROMPTS = {
     "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
-    "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact: how they are in touch with the user's character when not in the same place: \"text\", \"call\", \"video\" or \"letter\"; \"in person\" once they meet; only when the text shows it or it changes.",
+    "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
     "",
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").",
@@ -594,7 +594,7 @@ export const DEFAULT_PROMPTS = {
 // The eighth sensor prompt (before a character in touch by text, call or letter counted as present, #16).
 const SENSOR_PROMPT_8 = DEFAULT_PROMPTS.sensor
   .replace("- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.", "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.")
-  .replace("- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact: how they are in touch with the user's character when not in the same place: \"text\", \"call\", \"video\" or \"letter\"; \"in person\" once they meet; only when the text shows it or it changes.", "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.")
+  .replace("- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".", "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.")
   .replace("- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").", "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.");
 // The defaults before every text value went English (2026-10-07): the story's language.
 const SENSOR_PROMPT_7 = SENSOR_PROMPT_8
@@ -2167,7 +2167,9 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
   // how they reach the user's character from elsewhere (#16); carried like the place, but only
   // while they stay in the scene: someone who comes back is in person unless the sensor says not
-  const stayed = !!(B && arr(B.present).includes(name));
+  // a new scene starts in person unless the sensor says otherwise: a stale "text" would tell the
+  // model a character is away while they stand in the room
+  const stayed = !!(B && arr(B.present).includes(name)) && !(isObj(ctx.outScene) && ctx.outScene.new === true);
   entry.contact = isObj(sensorChar) && str(sensorChar.contact) ? contactOf(sensorChar.contact) : stayed && old ? old.contact ?? null : null;
   const oldC = old ? old.constellation : null;
   entry.constellation = constellationOf(turn.stats, cls).id;
@@ -2359,6 +2361,7 @@ function applyEdges(B, out, known) {
 /** Make the snapshot of key K from the parsed sensor report; mutates ctx.state. */
 function applySensor(ctx, out, op, model, unknownIds) {
   const { state, K } = ctx;
+  ctx.outScene = isObj(out.scene) ? out.scene : null; // charEntry: a new scene drops a carried contact
   const B = ctx.base && ctx.base.snap;
   const turn = (B ? B.turn || 0 : 0) + 1;
   const known0 = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]);

@@ -180,21 +180,25 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
   const addGallery = async (files: FileList | null) => {
     if (!files?.length) return
-    // images go to the engine's asset store and the card keeps their URLs (GitHub #17); older
-    // items held as data URLs move there in the same save
-    const items = await Promise.all(c.gallery.map(async (g) => {
-      if (!g.url.startsWith('data:')) return g
-      try { return { ...g, url: await storeImageAsset(g.url, 1024, g.caption) } } catch { return g }
-    }))
-    let n = 0
+    // images go to the engine's asset store and the card keeps their URLs (GitHub #17)
+    const added: typeof c.gallery = []
     let failed = ''
     for (const file of Array.from(files)) {
       // only images decode here: a video was skipped silently before, now it says so
       if (!file.type.startsWith('image/')) { failed = `${file.name}: only images can be added`; continue }
       const caption = file.name.replace(/\.[^.]+$/, '')
-      try { items.push({ id: uid('gal'), url: await storeImageAsset(file, 1024, file.name), type: 'image', caption }); n++ } catch (e) { failed = `${file.name}: ${(e as Error).message}` }
+      try { added.push({ id: uid('gal'), url: await storeImageAsset(file, 1024, file.name), type: 'image', caption }) } catch (e) { failed = `${file.name}: ${(e as Error).message}` }
     }
-    if (n) { up({ gallery: items }); toast.success(`Added ${n} item${n > 1 ? 's' : ''}`) }
+    const n = added.length
+    if (n) {
+      // older items held as data URLs move to the store in the same save
+      const kept = await Promise.all(c.gallery.map(async (g) => {
+        if (!g.url.startsWith('data:')) return g
+        try { return { ...g, url: await storeImageAsset(g.url, 1024, g.caption) } } catch { return g }
+      }))
+      up({ gallery: [...kept, ...added] })
+      toast.success(`Added ${n} item${n > 1 ? 's' : ''}`)
+    }
     if (failed) toast.error(`Not added: ${failed}`)
   }
 

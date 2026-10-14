@@ -2370,17 +2370,16 @@ async function adoptRunningGeneration(set: SetFn, get: GetFn, chatId: ID) {
       chats: s.chats.map((c) => (c.id === chatId ? { ...c, messages: [...c.messages, pendingMsg] } : c)),
     }))
     // the live text arrives over the socket as for any reply; this loop only waits for the end
+    // waits on after a Stop too (Stop only hides the bubble), so the saved reply still shows up
     const until = Date.now() + 15 * 60_000
     let unknown = 0
-    while (Date.now() < until && get().streaming?.messageId === pendingId) {
+    while (Date.now() < until) {
       await new Promise((r) => setTimeout(r, 2000))
       const g = await engineGenerating(chatId)
       if (g === false || (g === null && ++unknown >= 5)) break
     }
-    if (get().streaming?.messageId !== pendingId) return // Stop, or something else took over
-    // the commit lands right after the model call ends
-    await new Promise((r) => setTimeout(r, 800))
-    dropAdopted(set, get, chatId, pendingId)
+    // the engine counts a run until its route ends, so the reply is saved by now
+    if (get().streaming?.messageId === pendingId) dropAdopted(set, get, chatId, pendingId)
     await refreshChat(set, get, chatId)
   } finally {
     adopting.delete(chatId)
