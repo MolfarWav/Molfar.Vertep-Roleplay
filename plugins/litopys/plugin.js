@@ -960,6 +960,12 @@ export function llmRequest(ctx, host) {
   if (!Array.isArray(req.messages)) return null;
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return null;
+  const offForChat = (fsx, chatId, key) => {
+    const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+    const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
+    return off.includes(key);
+  };
+  if (offForChat(fsx, chatId, "plugin:litopys")) return null;
   try {
     const cfg = loadConfig(fsx);
     if (cfg.enabled === false || cfg.insert === false) return null;

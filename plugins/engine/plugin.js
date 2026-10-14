@@ -2018,6 +2018,29 @@ function cleanTurns(t) {
   if (Array.isArray(t.order)) out.order = [...new Set(t.order.filter((x) => typeof x === "string" && x))];
   return Object.keys(out).length ? out : null;
 }
+/** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
+ *  leaves out. Absent = everything on. */
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations"];
+const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
+const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
+export function cleanPromptBoard(x) {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+  const out = { v: 1 };
+  if (Array.isArray(x.off)) {
+    const off = [...new Set(x.off.filter((k) => typeof k === "string" && k !== "section:chatHistory"
+      && (PROMPT_BOARD_OFF_KEYS.includes(k) || PROMPT_BOARD_OFF_RE.test(k))))].slice(0, 500);
+    if (off.length) out.off = off;
+  }
+  if (x.history && typeof x.history === "object" && !Array.isArray(x.history)) {
+    const h = x.history;
+    const lastN = Number.isInteger(h.lastN) && h.lastN >= 0 && h.lastN <= 100000 ? h.lastN : 0;
+    const only = ["all", "user", "char"].includes(h.only) ? h.only : "all";
+    const thinking = typeof h.thinking === "boolean" ? h.thinking : true;
+    const history = { lastN, only, thinking };
+    if (JSON.stringify(history) !== JSON.stringify(PROMPT_BOARD_DEFAULT_HISTORY)) out.history = history;
+  }
+  return out.off || out.history ? out : null;
+}
 /** The group as this chat plays it: the group file with the chat's own turn
  *  settings on top. The order override keeps only current members and puts
  *  members added since at the end. */
@@ -2191,6 +2214,8 @@ export function presetCosts(preset, meta, totalOnly) {
 }
 
 function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
+  const pbOff = new Set((cleanPromptBoard(meta.promptBoard) || {}).off || []);
+  const isOff = (k) => pbOff.has(k);
   const members = chatMembers(fsx, meta);
   const speakerCard = (speaker && speaker.card) || (members[0] && members[0].card) || null;
   const isGroup = !!meta.groupId && members.length > 0;
@@ -2227,7 +2252,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const scanMsgs = pendingUserText ? msgs.concat([{ text: pendingUserText }]) : msgs;
   const wiScanBase = scanMsgs.filter((m) => m.role !== "system" && m.hidden !== true);
   // the author's note can feed world-info keys too (its scan flag)
-  const anScan = meta.authorNoteObject && meta.authorNoteObject.includeInWIScan === true ? [String(meta.authorNoteObject.text || "")] : [];
+  const anScan = isOff("authorNote") ? [] : meta.authorNoteObject && meta.authorNoteObject.includeInWIScan === true ? [String(meta.authorNoteObject.text || "")] : [];
   const wi = activateWorldInfo(fsx, meta, anScan.length && anScan[0] ? wiScanBase.concat([{ text: anScan[0] }]) : wiScanBase, persona?.lorebookIds || [], wiBudgetChars(preset),
     // dry runs (peek) read timed effects but never consume them; the speaker
     // card fields + persona text feed entries with matchSources
@@ -2237,7 +2262,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
-      excludeBookIds: meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [],
+      excludeBookIds: [...(meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : []), ...[...pbOff].filter((k) => k.startsWith("book:")).map((k) => k.slice(5))],
       sources: {
         description: speakerCard ? speakerCard.description : null,
         personality: speakerCard ? speakerCard.personality : null,
@@ -2283,6 +2308,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const omit = (kind, label, reason, tokens) => {
     src.omitted.push({ kind, label, reason, ...(tokens != null ? { tokens } : {}) });
   };
+  // lorebooks switched off for this chat were never scanned
+  for (const k of pbOff) if (k.startsWith("book:")) omit("lorebook", k.slice(5), "off for this chat");
   const addGroupCardPart = (fieldLabel, getter, kind) => {
     for (const m of rosterMembers) {
       if (!m.card) continue;
@@ -2424,6 +2451,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     const secName = p.name || p.identifier;
     if (p.marker && p.identifier === "chatHistory") { if (enabled) sawHistory = true; continue; }
     if (!enabled) { omit("preset", presetName + " · " + secName, "switched off"); continue; }
+    if (isOff("section:" + p.identifier)) { omit("preset", presetName + " · " + secName, "off for this chat"); continue; }
     const bagSec = bagSections.get(p.identifier) || null;
     if (!condPasses(bagSec ? bagSec.condition : null)) { omit("preset", presetName + " · " + secName, "condition: " + String(bagSec.condition)); continue; }
     // a section can gate itself to generation types (imported trigger lists;
@@ -2500,8 +2528,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // (term-scored retrieval over enabled files — basic RAG)
   const dbScan = (pendingUserText ? pendingUserText + "\n" : "") + msgs.slice(-4).map((m) => m.text || "").join("\n");
   const extras = [];
-  const dbHits = searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: members.map((m) => m.id) });
-  if (dbHits.length) {
+  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: members.map((m) => m.id) });
+  if (isOff("databank")) {
+    omit("databank", "Data bank", "off for this chat");
+  } else if (dbHits.length) {
     // about 8% of the context (chars ~ tokens x 4), never under ~200 tokens:
     // small windows keep room for the story
     const ctxTokens = presetMaxCtx(preset) || 8192;
@@ -2527,9 +2557,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // author's note: the object form carries position/depth/role
   // (before-system / after-system / in-chat @ depth); the legacy string form
   // keeps its historical behavior (in-chat depth 4, user role)
-  const an = meta.authorNoteObject && typeof meta.authorNoteObject === "object"
+  const an = isOff("authorNote") ? null
+    : meta.authorNoteObject && typeof meta.authorNoteObject === "object"
     ? meta.authorNoteObject
     : (meta.authorNote && String(meta.authorNote).trim() ? { text: String(meta.authorNote), position: "in-chat", depth: 4, role: "user" } : null);
+  if (isOff("authorNote") && (meta.authorNoteObject || (meta.authorNote && String(meta.authorNote).trim()))) {
+    omit("note", "Author's note", "off for this chat");
+  }
   // insertion frequency: every N messages (1 = every generation)
   const anFreq = Math.max(1, Math.floor(Number(an && an.frequency)) || 1);
   const anWI = [wi.anTop.length ? subWI(wi.anTop.join("\n")) : "", wi.anBottom.length ? subWI(wi.anBottom.join("\n")) : ""];
@@ -2601,8 +2635,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // than its recent window; its insert (the Litopys plugin's llmRequest hook) carries them
   let histMsgs = msgs;
   const litLine = litopysLine(msgs);
-  const litCut = litopysCut(fsx, meta.id, litLine);
-  if (litCut > 0) {
+  const litCut = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
+  if (isOff("plugin:litopys")) {
+    omit("memory", "Litopys", "off for this chat");
+  } else if (litCut > 0) {
     const gone = new Set(litLine.slice(0, litCut).map((m) => m.id));
     histMsgs = msgs.filter((m) => !gone.has(m.id));
   }
@@ -2628,6 +2664,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     const hits = histRegex[i] && histRegex[i].length ? "regex: " + histRegex[i].join(", ") : undefined;
     return ["history", name + " · #" + (msgNo.get(m) || i + 1), h.content, hits];
   });
+  if (isOff("plugin:relations")) {
+    omit("dashboard", "Relationship dashboard", "off for this chat");
+  }
   if (litCut > 0) {
     omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them");
   }
@@ -4409,10 +4448,17 @@ const toolX = (r) => ({
       // turns: the chat's own turn settings, replaced whole; null or {} = follow the group
       const turns = "turns" in b ? cleanTurns(b.turns) : undefined;
       const turnsSame = turns === undefined || same(turns, meta.turns);
-      if (turnsSame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      // promptBoard: per-chat prompt switches, cleaned like turns
+      const promptBoard = "promptBoard" in b ? cleanPromptBoard(b.promptBoard) : undefined;
+      const promptBoardSame = promptBoard === undefined || same(promptBoard, meta.promptBoard);
+      if (turnsSame && promptBoardSame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
       if (!turnsSame) {
         if (turns) meta.turns = turns;
         else delete meta.turns;
+      }
+      if (!promptBoardSame) {
+        if (promptBoard) meta.promptBoard = promptBoard;
+        else delete meta.promptBoard;
       }
       const prevPersonaId = meta.personaId;
       for (const k of keys) {

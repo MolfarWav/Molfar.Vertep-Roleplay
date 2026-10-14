@@ -143,6 +143,15 @@ did not change that key. `order` lists member ids in this chat's speaking order 
 last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = follow the group again) or at creation,
 `POST /chats` `{ groupId, turns }`. A narrator always answers, whatever `mode` says.
 
+### Per-chat prompt switches
+A chat's meta can have a `promptBoard` object, `{ v: 1, off?: string[], history? }`, listing prompt parts this
+chat leaves out. Absent = everything on (today's behaviour). Keys in `off` are `section:<id>` (a preset section),
+`book:<lorebookId>`, `databank`, `authorNote`, `plugin:litopys`, `plugin:relations`. `section:chatHistory` is
+never allowed. `history` is reserved for a later task and stored as `{ lastN, only, thinking }` with defaults
+`{ lastN: 0, only: "all", thinking: true }`; the engine does not yet apply it. Forks inherit it (`fork` copies
+the whole meta). Plugins honour their own key. Set with `PATCH /chats/<id>` `{ promptBoard }` (`null` = back to
+everything on).
+
 ## Lorebooks: `data/lorebooks/<id>.json`
 
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with

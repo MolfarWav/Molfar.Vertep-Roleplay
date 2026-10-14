@@ -3191,6 +3191,12 @@ export function llmRequest(ctx, host) {
   if (!CHAT_ID.test(chatId) || !Array.isArray(req.messages)) return null;
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return null;
+  const offForChat = (fsx, chatId, key) => {
+    const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+    const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
+    return off.includes(key);
+  };
+  if (offForChat(fsx, chatId, "plugin:relations")) return null;
   const fail = (what, e) => {
     try {
       host.log("dashboard " + what + ": " + (e && e.message ? e.message : String(e)));
