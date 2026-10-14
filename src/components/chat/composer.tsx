@@ -103,6 +103,11 @@ export function Composer({ chatId }: { chatId: ID }) {
   const [imgStart, setImgStart] = useState<ImageGenStart>({ mode: 'scene' })
   const [imgBusy, setImgBusy] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // On a phone a draft that wrapped gets the whole row and the buttons move
+  // under it: beside it they left about four words per line (GitHub #20).
+  // It goes back only when the box is empty: the wider box would fit the text
+  // on fewer lines and flip the layout back and forth while typing.
+  const [wide, setWide] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
 
@@ -127,6 +132,8 @@ export function Composer({ chatId }: { chatId: ID }) {
     el.style.height = '1px'
     el.style.height = `${el.scrollHeight}px`
     const after = el.offsetHeight
+    if (!el.value) setWide(false)
+    else if (after > 44) setWide(true)
     // Most keystrokes do not change the box height at all; when nothing moved
     // there is nothing to compensate, and the chat log is never measured.
     if (after === before) return
@@ -140,7 +147,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   // Re-fit whenever the text changes from anywhere (typing, drafts, slash
   // insertions, quick replies, clearing after send). Layout effect, not a
   // passive one: resizing after paint shows a frame at the old height.
-  useLayoutEffect(autoFit, [value])
+  useLayoutEffect(autoFit, [value, wide])
 
   // Consume drafts pushed by impersonate
   useEffect(() => {
@@ -416,7 +423,7 @@ export function Composer({ chatId }: { chatId: ID }) {
       <StoryNudgeChip chatId={chatId} />
 
       {/* Menu · input · "Story, move" (only with the dashboard plugin) · send. */}
-      <div className="flex items-end gap-1.5">
+      <div className="flex flex-wrap items-end gap-1.5">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -496,7 +503,7 @@ export function Composer({ chatId }: { chatId: ID }) {
           </>
         )}
 
-        <div className="relative min-w-0 flex-1">
+        <div className={cn("relative min-w-0 flex-1", wide && "max-sm:order-first max-sm:basis-full")}>
           {trigger && acItems.length > 0 && (
             <AutocompletePopup items={acItems} activeIndex={acIndex} onSelect={applyAcItem} onHover={setAcIndex} />
           )}
@@ -542,6 +549,8 @@ export function Composer({ chatId }: { chatId: ID }) {
           onChange={(e) => { handleFiles(e.target.files); e.target.value = "" }}
         />
 
+        {/* in the two-row phone layout this pair sits at the right end */}
+        {wide && <span aria-hidden className="hidden max-sm:block max-sm:flex-1" />}
         <StoryNudgeButton chatId={chatId} isStreaming={isStreaming} />
 
         {isStreaming ? (
