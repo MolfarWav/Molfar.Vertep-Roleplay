@@ -779,7 +779,7 @@ const WORD_STOP_M3B = new Set(
 function normTextM3b(s) {
   return String(s).normalize("NFD").replace(/\u0301/g, "").normalize("NFC").toLowerCase().replace(WORD_APOS_M3B, "'").replace(/\u0451/g, "\u0435");
 }
-function wordTokensM3b(s) {
+export function wordTokensM3b(s) {
   return normTextM3b(s)
     .split(/[^\p{L}\p{N}']+/u)
     .map((t) => t.replace(/^'+|'+$/g, ""))
@@ -792,7 +792,7 @@ function wordStemM3b(t) {
   return r.length >= 3 ? r : t;
 }
 /** Two words are the same: short ones exactly, longer ones by stem (ported from relations). */
-function sameWordM3b(a, b) {
+export function sameWordM3b(a, b) {
   if (a.length <= 3 || b.length <= 3) return a === b;
   const x = wordStemM3b(a);
   const y = wordStemM3b(b);
@@ -800,15 +800,36 @@ function sameWordM3b(a, b) {
   const [sh, lg] = x.length <= y.length ? [x, y] : [y, x];
   return sh.length >= 4 && lg.startsWith(sh) && lg.length - sh.length <= 2;
 }
+/**
+ * `(word) => scan.some((w) => sameWordM3b(word, w))` with the scan indexed once (as relations
+ * sceneMatcher): many facts against a long scan ran the insert hook past the script time limit.
+ */
+export function scanMatcherM3b(scanWords) {
+  const exact = new Set(scanWords);
+  const stems = new Set();
+  const prefixes = new Set();
+  for (const w of exact) {
+    if (w.length <= 3) continue;
+    const y = wordStemM3b(w);
+    stems.add(y);
+    for (const cut of [1, 2]) if (y.length - cut >= 4) prefixes.add(y.slice(0, y.length - cut));
+  }
+  return (word) => {
+    if (word.length <= 3) return exact.has(word);
+    const x = wordStemM3b(word);
+    if (stems.has(x) || prefixes.has(x)) return true;
+    for (const cut of [1, 2]) if (x.length - cut >= 4 && stems.has(x.slice(0, x.length - cut))) return true;
+    return false;
+  };
+}
 const weightBonus = (f) => (f && f.weight === "key" ? 6 : f && f.weight === "important" ? 3 : 0);
 /** A fact's lexical score against the scan text (ported from relations rankNotes plus weight bonus). */
-function factScore(f, scanText, df, n) {
+function factScore(f, scan, inScan, df, n) {
   const keys = wordTokensM3b(str(f.text));
   let score = weightBonus(f);
-  const scan = wordTokensM3b(scanText || "");
   if (scan.length) {
     for (const k of keys) {
-      if (scan.some((w) => sameWordM3b(k, w))) {
+      if (inScan(k)) {
         score += 10 * Math.log(1 + n / (df.get(wordStemM3b(k)) || 1));
       }
     }
@@ -826,8 +847,10 @@ export function rankFacts(facts, scanText) {
     for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
   }
   const n = Math.max(1, list.length);
+  const scan = wordTokensM3b(scanText || "");
+  const inScan = scanMatcherM3b(scan);
   return list
-    .map((f) => ({ f, score: factScore(f, scanText, df, n) }))
+    .map((f) => ({ f, score: factScore(f, scan, inScan, df, n) }))
     .sort((a, b) => b.score - a.score || (b.f.updatedAt || 0) - (a.f.updatedAt || 0))
     .map((x) => x.f);
 }
@@ -843,11 +866,12 @@ export function rankChapters(chapters, scanText) {
   }
   const n = Math.max(1, list.length);
   const scan = wordTokensM3b(scanText || "");
+  const inScan = scanMatcherM3b(scan);
   const score = (ch) => {
     let s = 0;
     if (scan.length) {
       for (const k of keysMap.get(ch)) {
-        if (scan.some((w) => sameWordM3b(k, w))) {
+        if (inScan(k)) {
           s += 10 * Math.log(1 + n / (df.get(wordStemM3b(k)) || 1));
         }
       }

@@ -1481,9 +1481,10 @@ describe("prompt insert", () => {
     expect(notice.trimmed).toEqual(["others", "notebooks"]);
     expect(notice.wanted).toBeGreaterThan(notice.budget);
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { values: { insertTokens: "2000" } } });
-    const at = notice.at;
-    ask(mock, "c1");
-    expect(drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice.at).toBe(at);
+    // settings alone keep the notice; the next reply that fits drops it (it no longer describes the latest reply)
+    expect(drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice.at).toBe(notice.at);
+    expect(ask(mock, "c1")).not.toBeNull();
+    expect(drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice).toBeNull();
     const roomy = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Aria" } }).json;
     expect(roomy.insert.trimmed).toEqual([]);
     expect(roomy.insert.text).toContain("long letter");

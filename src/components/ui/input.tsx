@@ -3,7 +3,34 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "@/lib/utils"
 
+/** A number field keeps what is typed while it has focus: callers turn the
+ *  text into Number(...), so an emptied field came back as 0 and the next
+ *  digit was typed after it ("07500", above all on a phone keypad). An empty
+ *  field now reports nothing until a number is typed, leading zeros go, and
+ *  on blur the field shows the stored value again. */
+function useNumberDraft(type: string | undefined, props: React.ComponentProps<"input">) {
+  const [draft, setDraft] = React.useState<string | null>(null)
+  if (type !== "number" || props.value === undefined || !props.onChange) return null
+  const { onChange, onBlur } = props
+  return {
+    value: draft ?? props.value,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value
+      const clean = raw.replace(/^(-?)0+(?=\d)/, "$1")
+      setDraft(clean)
+      if (clean === "" || clean === "-") return
+      if (clean !== raw) e.target.value = clean
+      onChange(e)
+    },
+    onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
+      setDraft(null)
+      onBlur?.(e)
+    },
+  }
+}
+
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  const numberDraft = useNumberDraft(type, props)
   return (
     <InputPrimitive
       type={type}
@@ -13,6 +40,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         className
       )}
       {...props}
+      {...numberDraft}
     />
   )
 }

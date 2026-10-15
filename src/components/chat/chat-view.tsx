@@ -19,6 +19,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { estimateTokens, formatCost, knownCost } from '@/lib/tokens'
+import { modelLimits } from '@/lib/model-params'
 import { fileToRawDataUrl } from '@/lib/engine'
 import { WiStatusView } from '@/components/lore/wi-status-view'
 import { useApp, useChat, useCharacter, checkSoulProposals } from '@/lib/store'
@@ -508,11 +509,20 @@ export function ChatView() {
     ? undefined
     : backgrounds.find((b) => b.id === (chat?.backgroundId ?? settings.activeBackgroundId))
 
-  // memory cutoff: walk from newest message backwards, accumulate token estimate against the preset's context size
+  // the window the reply request budgets with: the model's when the engine
+  // knows it (as the Samplers panel shows), else the preset's Context size
+  const defaultModel = useApp((s) => s.modelFor(chat?.id))
+  const models = useApp((s) => s.models)
+  const modelParams = useApp((s) => s.modelParams)
+  const chatPreset = presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
+  const limits = modelLimits(defaultModel || null, models, modelParams)
+  const contextSize = limits.contextWindow ?? chatPreset?.samplers.contextSize ?? null
+  const replyMax = (!chatPreset?.samplersOverrideModel && limits.maxOutput) || (chatPreset?.samplers.maxTokens ?? 512)
+
+  // memory cutoff: walk from newest message backwards, accumulate token estimate against the context size
   const cutoffIndex = useMemo(() => {
     if (!chat) return -1
-    const preset = presets.find((p) => p.id === chat.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
-    const budget = (preset?.samplers.contextSize ?? 8192) - (preset?.samplers.maxTokens ?? 512) - 800 // reserve for system/response
+    const budget = (contextSize ?? 8192) - replyMax - 800 // reserve for system/response
     let used = 0
     // messages covered by Litopys leave the prompt; the record stands in for
     // them, so only the stretch below can fall out of context
@@ -524,13 +534,12 @@ export function ChatView() {
       if (used > budget) return i // messages at index <= i are out of context
     }
     return -1
-  }, [chat, presets])
+  }, [chat, contextSize, replyMax])
 
   // Actual spend: sum the REAL per-generation costs the engine reported on
   // each swipe. No pricing table is guessed client-side — messages generated
   // before usage tracking simply don't contribute, and if nothing reported
   // cost the badge stays hidden rather than claiming "free".
-  const defaultModel = useApp((s) => s.modelFor(chat?.id))
   const { chatCost, costMsgs, chatModel, tokensIn, tokensOut, lastInput } = useMemo(() => {
     if (!chat) return { chatCost: null as number | null, costMsgs: 0, chatModel: '', tokensIn: null as number | null, tokensOut: null as number | null, lastInput: null as number | null }
     // the ACTIVE swipe of the last reply — swipes can come from different
@@ -552,7 +561,6 @@ export function ChatView() {
     return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: lastUsage ? lastUsage.input : null }
   }, [chat])
 
-  const contextSize = (presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0])?.samplers.contextSize ?? null
   const startIdx = chat ? Math.max(0, chat.messages.length - visibleCount) : 0
   // the newest real turn owns the swipe controls; a picture posted after a
   // reply does not take them over
