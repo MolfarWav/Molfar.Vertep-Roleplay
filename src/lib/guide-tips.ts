@@ -83,8 +83,8 @@ export const TIPS: Tip[] = [
     keywords: { en: 'bug problem error broken crash feedback issue', uk: 'баг помилка проблема зламалось збій відгук' },
     title: { en: 'Something broke?', uk: 'Щось зламалося?' },
     body: {
-      en: 'Report a bug from the account menu (your name, top right) or the link at the bottom of the start page where you pick an app. The report carries what the developers need to fix it.',
-      uk: 'Повідомте про помилку з меню акаунта (ваше ім’я праворуч угорі) або за посиланням унизу стартової сторінки, де вибирають застосунок. У звіті буде все, що потрібно розробникам, щоб її виправити.',
+      en: 'Report a bug is in the account menu (top right) and at the bottom of the start page where you pick an app. With “Ask Molfar first” in it, Molfar looks for the cause and tries a fix you can test; a fix that works can go to GitHub when you send it.',
+      uk: '«Повідомити про помилку» є в меню облікового запису (праворуч угорі) і внизу стартової сторінки, де вибирають застосунок. Кнопка «Спершу спитайте Мольфара» там передає опис Мольфару: він шукає причину й пробує виправлення, яке ви перевіряєте; робоче виправлення можна надіслати на GitHub.',
     },
   },
 
