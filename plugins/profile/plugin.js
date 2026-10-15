@@ -194,18 +194,40 @@ function modelOf(fsx) {
 
 /** The first JSON object in a reply (fenced or not); null when there is none. */
 export function parseReply(text) {
-  let s = String(text || "").trim();
+  // thinking models may leave their notes inline, braces and all
+  let s = String(text || "").replace(/<think(?:ing)?>[\s\S]*?(?:<\/think(?:ing)?>|$)/gi, "").trim();
   const fence = /```(?:json)?\s*([\s\S]*?)(?:```|$)/i.exec(s);
-  if (fence) s = fence[1];
-  const start = s.indexOf("{");
+  if (fence && fence[1].includes("{")) s = fence[1];
   const end = s.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    const v = JSON.parse(s.slice(start, end + 1));
-    return isObj(v) ? v : null;
-  } catch {
-    return null;
+  // a "{" in prose before the object must not hide it: try each start in turn
+  for (let start = s.indexOf("{"); start >= 0 && start < end; start = s.indexOf("{", start + 1)) {
+    try {
+      const v = JSON.parse(s.slice(start, end + 1));
+      if (isObj(v)) return v;
+    } catch {
+      /* the next "{" */
+    }
   }
+  return null;
+}
+
+/** A reply that opened a JSON object and never closed it: cut by the reply limit. */
+export function looksCut(text) {
+  const s = String(text || "");
+  const start = s.indexOf("{");
+  if (start < 0) return false;
+  let depth = 0;
+  let inStr = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return false;
+  }
+  return depth > 0;
 }
 
 /** The draft filed for a reply; a failure is a draft with an error and no fields. */
@@ -214,7 +236,15 @@ export function draftFromReply(reply, now) {
   const at = now || Date.now();
   if (r.error || !str(r.text)) return { v: 1, at, error: r.error ? String(r.error) : "the model returned nothing" };
   const out = parseReply(r.text);
-  if (!out) return { v: 1, at, error: "the reply was not JSON" };
+  if (!out) {
+    return {
+      v: 1,
+      at,
+      error: looksCut(r.text)
+        ? "the reply was cut off before its end: the card is long for one reply. Try again, or pick a model that writes longer replies"
+        : "the model did not answer in the expected format (JSON). Try again, or pick another model",
+    };
+  }
   const profile = cleanProfile(out.profile);
   const lo = isObj(out.leftover) ? out.leftover : {};
   const leftover = { description: cut(str(lo.description), LEFTOVER_MAX), personality: cut(str(lo.personality), LEFTOVER_MAX) };
@@ -242,7 +272,7 @@ function structureRoute(req, host) {
       ...(model ? { model } : {}),
       systemPrompt: SYSTEM,
       messages: [{ role: "user", content: t.kind === "persona" ? personaText(src) : userText(src) }],
-      presetParams: { temperature: 0.2, max_tokens: 4000 },
+      presetParams: { temperature: 0.2, max_tokens: 12000 },
     });
     return { __llmPending: true, stash: {} };
   }
@@ -274,7 +304,7 @@ function fillRoute(req, host) {
       systemPrompt: FILL_SYSTEM,
       messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : userText(src)) + head + ask }],
       ...(img ? { images: [img] } : {}),
-      presetParams: { temperature: 0.7, max_tokens: 3000 },
+      presetParams: { temperature: 0.7, max_tokens: 8000 },
     });
     return { __llmPending: true, stash: { replace: b.replace === true && !!img } };
   }
