@@ -1614,6 +1614,21 @@ const en = {
   'guide.settings.toursReset': 'Tours will start again',
   'guide.settings.resetNew': "Show what's new again",
   'guide.settings.newReset': "What's new will show again",
+  'guide.help': 'Help',
+  'guide.help.title': 'Help',
+  'guide.help.desc': 'Short answers about what the app can do. Search, or press Show me to see the place.',
+  'guide.help.search': 'Search the help',
+  'guide.help.empty': 'Nothing found',
+  'guide.help.emptyHint': 'Try other words, for example what the same feature is called in another app.',
+  'guide.backToHelp': 'Back to help',
+  'guide.help.reference': 'All commands and macros',
+  'guide.group.chat': 'In a chat',
+  'guide.group.story': 'Story and memory',
+  'guide.group.characters': 'Characters and groups',
+  'guide.group.world': 'World and lorebooks',
+  'guide.group.canvas': 'Canvas',
+  'guide.group.setup': 'Setup',
+  'guide.group.help': 'Help and tours',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -3224,6 +3239,21 @@ const uk: Record<MsgKey, string> = {
   'guide.settings.toursReset': 'Тури почнуться знову',
   'guide.settings.resetNew': 'Показати «Що нового» знову',
   'guide.settings.newReset': '«Що нового» з’явиться знову',
+  'guide.help': 'Довідка',
+  'guide.help.title': 'Довідка',
+  'guide.help.desc': 'Короткі відповіді про те, що вміє застосунок. Шукайте або натисніть «Показати», щоб побачити місце.',
+  'guide.help.search': 'Шукати в довідці',
+  'guide.help.empty': 'Нічого не знайдено',
+  'guide.help.emptyHint': 'Спробуйте інші слова, наприклад як ту саму функцію називають в іншому застосунку.',
+  'guide.backToHelp': 'Назад до довідки',
+  'guide.help.reference': 'Усі команди й макроси',
+  'guide.group.chat': 'У чаті',
+  'guide.group.story': 'Історія та пам’ять',
+  'guide.group.characters': 'Персонажі та групи',
+  'guide.group.world': 'Світ і лорбуки',
+  'guide.group.canvas': 'Canvas',
+  'guide.group.setup': 'Налаштування',
+  'guide.group.help': 'Довідка й тури',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }

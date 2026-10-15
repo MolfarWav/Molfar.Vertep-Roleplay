@@ -45,7 +45,10 @@ function useTargetRect(target: string | undefined, waitMs: number): { rect: Rect
     const measure = () => {
       const el = findTarget(target)
       if (el && el !== scrolled) {
+        scrolled?.removeAttribute('data-guide-shown')
         scrolled = el
+        // the page's CSS may show a hover-only target while it is the one being pointed at
+        el.setAttribute('data-guide-shown', '')
         el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       }
       const r = el?.getBoundingClientRect()
@@ -58,6 +61,7 @@ function useTargetRect(target: string | undefined, waitMs: number): { rect: Rect
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, true)
     return () => {
+      scrolled?.removeAttribute('data-guide-shown')
       window.clearInterval(id)
       window.removeEventListener('resize', measure)
       window.removeEventListener('scroll', measure, true)
@@ -90,6 +94,7 @@ export function Spotlight(p: SpotlightProps) {
   const t = useT()
   // a tour step is on screen already; "Show me" may wait for a view that is still opening
   const { rect, settled } = useTargetRect(p.target, 1800)
+  const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 320, h: 160 })
   const titleId = 'guide-step-title'
@@ -98,6 +103,21 @@ export function Spotlight(p: SpotlightProps) {
     const el = panelRef.current
     if (el && (el.offsetWidth !== size.w || el.offsetHeight !== size.h)) setSize({ w: el.offsetWidth, h: el.offsetHeight })
   })
+
+  // A modal sheet or dialog that opens under the guide (Show me into the dashboard) marks everything
+  // outside itself aria-hidden, the guide included: keep it readable by screen readers.
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const keep = () => {
+      if (el.hasAttribute('aria-hidden')) el.removeAttribute('aria-hidden')
+      if (el.hasAttribute('inert')) el.removeAttribute('inert')
+    }
+    keep()
+    const observer = new MutationObserver(keep)
+    observer.observe(el, { attributes: true, attributeFilter: ['aria-hidden', 'inert'] })
+    return () => observer.disconnect()
+  }, [])
 
   // focus moves into the panel for each step; Esc skips (before a drawer underneath sees it)
   const shown = settled || !!rect
@@ -147,7 +167,7 @@ export function Spotlight(p: SpotlightProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[70]" data-guide-overlay>
+    <div ref={rootRef} className="fixed inset-0 z-[70]" data-guide-overlay>
       {/* swallows clicks: nothing under the guide is reachable, and nothing ends it by accident */}
       <div className="absolute inset-0" />
       {hole && (

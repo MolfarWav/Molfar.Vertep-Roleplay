@@ -13,6 +13,7 @@ import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { AvatarButton, BandMark, bandTextClass, CharFields, Label, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
+import { useGuidePlace } from '@/components/guide/place'
 
 export function DashPhoneBar({ view, focus, onOpen }: {
   view: DashView
@@ -68,6 +69,7 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
   const tx = useTx()
   const char = view.chars[focus]
   const [chartStat, setChartStat] = useState<DispositionStat>('trust')
+  useGuidePlace('dashboard')
   if (!char) return null
 
   const fullChars = view.order.filter((n) => view.chars[n] && !view.chars[n].compact)
@@ -99,8 +101,8 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
       <Tabs defaultValue="scene">
         <TabsList variant="line" className="w-full rounded-none border-b border-border">
           <TabsTrigger value="scene">{t('dash.tab.scene')}</TabsTrigger>
-          <TabsTrigger value="constellation">{t('dash.tab.constellation')}</TabsTrigger>
-          <TabsTrigger value="notebook">{t('dash.tab.notebook')}</TabsTrigger>
+          <TabsTrigger value="constellation" data-guide="dash.constellation">{t('dash.tab.constellation')}</TabsTrigger>
+          <TabsTrigger value="notebook" data-guide="dash.notebook">{t('dash.tab.notebook')}</TabsTrigger>
           <TabsTrigger value="history">{t('dash.tab.history')}</TabsTrigger>
         </TabsList>
 
@@ -114,7 +116,7 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
                 ))}
               </div>
             )}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5" data-guide="dash.threads">
               <Label>{t('dash.threads')}</Label>
               <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
             </div>

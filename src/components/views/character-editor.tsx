@@ -22,6 +22,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useApp } from '@/lib/store'
+import { useGuidePlace } from '@/components/guide/place'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
@@ -68,6 +69,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   useBackClose(true, onClose)
   const t = useT()
   const [tab, setTab] = useState('core')
+  // the Soul tab stays mounted while hidden: only its own visit counts for the tour
+  useGuidePlace('soul', tab === 'soul')
   const [soulStatus, setSoulStatus] = useState<SoulStatus>(null)
   // opened on a given tab (the chat's "souls proposed" toast)
   const wantTab = useApp((s) => s.characterEditorTab)
@@ -311,7 +314,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
 
         <div className="mt-2 max-w-full">
         <ScrollStrip className="px-4">
-          <TabsList className="h-8 w-max flex-nowrap">
+          <TabsList data-guide="editor.tabs" className="h-8 w-max flex-nowrap">
             {TAB_GROUPS.map((group, gi) => {
               const names = group.filter((name) => !(c.isGroup && (name === 'profile' || name === 'soul')))
               return [

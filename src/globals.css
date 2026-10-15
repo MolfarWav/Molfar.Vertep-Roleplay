@@ -576,7 +576,8 @@ h1 {
 .look-stage .ls-row:hover .ls-acts,
 .look-stage .ls-row:focus-within .ls-acts,
 .look-stage .ls-acts.is-pinned,
-.look-stage .ls-acts:has([aria-expanded="true"]) {
+.look-stage .ls-acts:has([aria-expanded="true"]),
+.look-stage .ls-acts[data-guide-shown] {
   opacity: 1;
   pointer-events: auto;
 }

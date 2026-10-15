@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useApp } from '@/lib/store'
+import { useGuidePlace } from '@/components/guide/place'
+import { GUIDE_DETAIL_EVENT } from '@/components/guide/events'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { importLorebookFiles } from '@/lib/engine'
@@ -47,6 +49,7 @@ export function LorebooksView() {
   const focusLorebookId = useApp((s) => s.focusLorebookId)
   const [selectedId, setSelectedId] = useState(lorebooks[0]?.id ?? null)
   const [detailOpen, setDetailOpen] = useState(false)
+  useGuidePlace('lorebooks', lorebooks.length > 0)
   const [testOpen, setTestOpen] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
   const [activeViewerOpen, setActiveViewerOpen] = useState(false)
@@ -88,6 +91,16 @@ export function LorebooksView() {
     useApp.setState({ focusLorebookId: null })
   }, [focusLorebookId])
 
+  // the guide's "Show me" wants an open book (a phone shows the list first)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const first = useApp.getState().lorebooks[0]
+      if ((e as CustomEvent<string>).detail === 'lorebooks' && first) select(selectedId || first.id)
+    }
+    window.addEventListener(GUIDE_DETAIL_EVENT, on)
+    return () => window.removeEventListener(GUIDE_DETAIL_EVENT, on)
+  }, [selectedId])
+
   // lorebooks grow for years: the sidebar pages through them
   const BOOK_PAGE = 100
   const [bookPage, setBookPage] = useState(0)
@@ -128,7 +141,7 @@ export function LorebooksView() {
       detailTitle={book?.name}
       masterWidth="w-60"
       master={
-        <aside className="flex h-full min-h-0 flex-col">
+        <aside data-guide="lore.list" className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <PaneTitle section="lorebooks" icon={<BookOpenText className="size-4 text-primary" aria-hidden="true" />} />
           <div className="ml-auto flex items-center gap-1">
@@ -157,7 +170,7 @@ export function LorebooksView() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
+            <Button data-guide="lore.new" variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
               <Plus className="size-4" aria-hidden="true" />
             </Button>
           </div>
@@ -349,14 +362,14 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <Input value={book.name} onChange={(e) => onUpdate({ name: e.target.value })} className="h-8 w-full min-w-0 text-sm font-medium md:w-auto md:max-w-md md:min-w-56 md:flex-1" aria-label="Book name" />
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title={t('lore.global.tip')}>
+        <label data-guide="lore.global" className="flex items-center gap-1.5 text-xs text-muted-foreground" title={t('lore.global.tip')}>
           <Switch tone="cta" checked={book.globalActive} onCheckedChange={(v) => onUpdate({ globalActive: v })} aria-label={t('lore.global.label')} />
           {t('lore.global.label')}
         </label>
         <InfoTip label={t('lore.global.label')}>{t('lore.global.info')}</InfoTip>
         <Badge variant="outline" className="text-[10px]">{formatTokens(book.entries.reduce((a, e) => a + estimateTokens(e.content), 0))} tok total</Badge>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <Button variant="outline" size="sm" className="text-xs" onClick={onTest}>
+          <Button data-guide="lore.test" variant="outline" size="sm" className="text-xs" onClick={onTest}>
             <Flask className="size-3.5" aria-hidden="true" />{t('lore.testKeys')}
           </Button>
           <Button variant={showSettings ? 'secondary' : 'outline'} size="sm" className="text-xs" aria-expanded={showSettings} onClick={() => setShowSettings(!showSettings)}>

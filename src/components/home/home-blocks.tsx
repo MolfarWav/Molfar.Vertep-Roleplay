@@ -103,7 +103,7 @@ export function AskMolfarBlock() {
   return (
     <Block label={t('home.ask')}>
       <p className="text-sm text-muted-foreground">{t('home.askText')}</p>
-      <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void send() }}>
+      <form data-guide="home.ask" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void send() }}>
         <Input
           value={text}
           maxLength={ASK_MOLFAR_MAX}

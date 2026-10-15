@@ -6,6 +6,8 @@ const visible = (el: HTMLElement): boolean => {
   const r = el.getBoundingClientRect()
   if (r.width <= 0 || r.height <= 0) return false
   const cs = getComputedStyle(el)
+  // a toolbar that only shows on hover is no target, unless the guide can show it (data-guide-reveal)
+  if (cs.opacity === '0' && !el.hasAttribute('data-guide-reveal')) return false
   return cs.visibility !== 'hidden' && cs.display !== 'none'
 }
 

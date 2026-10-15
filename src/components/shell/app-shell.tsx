@@ -1,6 +1,6 @@
 
 import { Fragment, useEffect, useState } from 'react'
-import { ArrowsIn, ArrowsOut, CircleNotch, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { ArrowsIn, ArrowsOut, CircleNotch, CaretLeft, CaretRight, Question } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -30,6 +30,7 @@ import { ExtensionsView } from '@/components/views/extensions-view'
 import { SettingsView } from '@/components/views/settings-view'
 import { ThemeApplier } from '@/components/theme-applier'
 import { GuideHost } from '@/components/guide/guide-host'
+import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
 
@@ -147,6 +148,8 @@ export function AppShell() {
           generating…
         </span>
       )}
+      {/* the /help reference (commands + macros): also reachable from the help list, with no chat open */}
+      <HelpDialog />
       <GuideHost />
       <Toaster position={isDesktop ? "bottom-right" : "top-center"} visibleToasts={isDesktop ? 3 : 1} closeButton />
     </div>
@@ -225,7 +228,7 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
         showCloseButton={isDesktop}
       >
         {isDesktop && (
-          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border pr-12 pl-4 font-heading text-[17px]">
+          <div data-guide={drawer ? `${drawer}.title` : undefined} className="flex h-11 shrink-0 items-center gap-2 border-b border-border pr-12 pl-4 font-heading text-[17px]">
             <span className="min-w-0 flex-1 truncate">{label}</span>
             <Button
               variant="ghost"
@@ -260,6 +263,8 @@ function IconRail() {
   const drawer = useApp((s) => s.drawer)
   const navigate = useApp((s) => s.navigate)
   const closeDrawer = useApp((s) => s.closeDrawer)
+  const guideHelpOpen = useApp((s) => s.guideHelpOpen)
+  const setGuideHelpOpen = useApp((s) => s.setGuideHelpOpen)
   const railCollapsed = useApp((s) => s.railCollapsed)
   const setRailCollapsed = useApp((s) => s.setRailCollapsed)
   // the toggle exists only where a labeled rail fits; a slim rail has nothing to hide
@@ -308,6 +313,17 @@ function IconRail() {
       {sectionGroups().map((group, gi) => (
         <Fragment key={String(group[0]!.group)}>
           {gi > 0 && <RailDivider wide={wide} pinned={group[0]!.group === 'end'} />}
+          {/* the help list is an action, not a view: it sits just above Settings */}
+          {group[0]?.group === 'end' && (
+            <RailItem
+              data-guide="nav.help"
+              item={{ icon: Question }}
+              wide={wide}
+              label={t('guide.help')}
+              active={guideHelpOpen}
+              onClick={() => setGuideHelpOpen(true)}
+            />
+          )}
           {group.map((item) => (
             <RailItem
               key={item.key}
@@ -350,7 +366,7 @@ function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
 
 function RailItem({ item, wide, label, active, onClick, 'data-guide': guide }: {
   'data-guide': string
-  item: SectionItem
+  item: Pick<SectionItem, 'icon'>
   wide: boolean
   label: string
   active: boolean

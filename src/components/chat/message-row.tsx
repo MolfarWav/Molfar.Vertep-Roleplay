@@ -937,7 +937,7 @@ export const MessageRow = memo(function MessageRow({
           {(showSwipes || canAct || (isSpeaking && !slidePhase)) && (
             <div className="ls-tools">
               {showSwipes && (
-                <div className="ls-swipes">
+                <div className="ls-swipes" data-guide="chat.swipes">
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -970,7 +970,7 @@ export const MessageRow = memo(function MessageRow({
                 </Button>
               )}
               {canAct && (
-                <div className={cn('ls-acts', pinned && 'is-pinned', coarsePointer && 'is-touch')}>
+                <div data-guide={isLast ? 'chat.actions' : undefined} data-guide-reveal className={cn('ls-acts', pinned && 'is-pinned', coarsePointer && 'is-touch')}>
                   <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.edit')} onClick={startEdit}>
                     <PencilSimple aria-hidden="true" />
                     <span className="ls-act-label">{t('msg.edit')}</span>

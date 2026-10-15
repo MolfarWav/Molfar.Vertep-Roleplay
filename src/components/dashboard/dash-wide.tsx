@@ -13,6 +13,7 @@ import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
+import { useGuidePlace } from '@/components/guide/place'
 
 export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, onPortrait, userName }: {
   chatId: string
@@ -35,6 +36,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
   const tx = useTx()
   const char = view.chars[focus]
   const [chartStat, setChartStat] = useState<DispositionStat>('trust')
+  useGuidePlace('dashboard')
   useEffect(() => {
     if (!notebookSignal) return
     const el = document.getElementById('dash-notebook')
@@ -76,7 +78,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={refreshing} aria-label={t('dash.refresh')} title={t('dash.refresh')} className="rounded-none">
           <ArrowClockwise className={cn(refreshing && 'animate-spin')} />
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={onSettings} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
+        <Button data-guide="dash.settings" variant="ghost" size="icon-sm" onClick={onSettings} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
           <GearSix />
         </Button>
         <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('dash.close')} title={t('dash.close')} className="rounded-none">
@@ -119,7 +121,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         )}
 
         <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
-          <Box title={t('dash.tab.constellation')}>
+          <Box data-guide="dash.constellation" title={t('dash.tab.constellation')}>
             <div className="flex flex-col items-center gap-1 px-10 pt-2">
               <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={250} labels />
               <div className={cn('font-heading text-xl', GOLD_TEXT)}>{constName}</div>
@@ -131,7 +133,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
             </div>
           </Box>
 
-          <Box title={t('dash.attitude')}>
+          <Box data-guide="dash.attitude" title={t('dash.attitude')}>
             <div className="flex flex-col gap-2.5">
               <div>
                 <Badge variant="outline" className="rounded-none text-[10px]">{t(`soul.class.${char.cls}`)}</Badge>
@@ -166,7 +168,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
           <Notebook id="dash-notebook" compact className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
-            <Box title={t('dash.threads')}>
+            <Box data-guide="dash.threads" title={t('dash.threads')}>
               <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
             </Box>
 

@@ -322,7 +322,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
             <>
               <SheetHeader className="shrink-0 flex-row items-center gap-2 px-4 pt-4 pr-12 pb-2">
                 <SheetTitle className="min-w-0 flex-1 font-heading">{t('dash.title')}</SheetTitle>
-                <Button variant="ghost" size="icon-sm" onClick={() => setSettings(true)} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
+                <Button data-guide="dash.settings" variant="ghost" size="icon-sm" onClick={() => setSettings(true)} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
                   <GearSix />
                 </Button>
               </SheetHeader>

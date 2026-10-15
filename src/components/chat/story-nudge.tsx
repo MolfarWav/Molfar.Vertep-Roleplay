@@ -86,7 +86,7 @@ export function StoryNudgeButton({ chatId, isStreaming }: {
 
   const variant = nudge ? 'default' : 'ghost'
   return (
-    <div className="flex shrink-0 items-center" data-testid="nudge-split">
+    <div className="flex shrink-0 items-center" data-testid="nudge-split" data-guide="story.nudge">
       <Button
         variant={variant}
         className={cn('h-9 gap-1.5 rounded-r-none px-2.5', !nudge && 'border-border border-r-0')}

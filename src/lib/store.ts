@@ -153,6 +153,9 @@ interface AppState {
   /** /help reference dialog (commands + macros) */
   helpOpen: boolean
   setHelpOpen: (v: boolean) => void
+  /** the guide's searchable help list ("?" in the rail) */
+  guideHelpOpen: boolean
+  setGuideHelpOpen: (v: boolean) => void
   /** the user collapsed the labeled nav rail to its slim icon form (wide
    *  windows only); persisted between sessions */
   railCollapsed: boolean
@@ -484,6 +487,7 @@ export const useApp = create<AppState>()(
       newChatStep: null,
       closeNewChatStep: () => set({ newChatStep: null }),
       helpOpen: false,
+      guideHelpOpen: false,
       railCollapsed: false,
       setRailCollapsed: (v) => set({ railCollapsed: v }),
       drawerFull: false,
@@ -1283,6 +1287,7 @@ export const useApp = create<AppState>()(
       },
       setDeleteMode: (on) => set({ deleteMode: on }),
       setHelpOpen: (v) => set({ helpOpen: v }),
+      setGuideHelpOpen: (v) => set({ guideHelpOpen: v }),
       toggleHidden: (chatId, messageId) => {
         const chat = get().chats.find((c) => c.id === chatId)
         const msg = chat?.messages.find((m) => m.id === messageId)

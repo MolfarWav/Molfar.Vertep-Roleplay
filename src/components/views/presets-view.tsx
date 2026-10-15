@@ -17,6 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/components/ui/confirm'
 import { useApp } from '@/lib/store'
+import { useGuidePlace } from '@/components/guide/place'
+import { GUIDE_DETAIL_EVENT } from '@/components/guide/events'
 import { useT } from '@/hooks/use-t'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { useDragList } from '@/lib/drag-list'
@@ -98,6 +100,7 @@ export function PresetsView() {
     toast.success(t('pc.madeDefault', { name: p.name }))
   }
   const [detailOpen, setDetailOpen] = useState(false)
+  useGuidePlace('presets', presets.length > 0)
   const [peekOpen, setPeekOpen] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
   const [diffOpen, setDiffOpen] = useState(false)
@@ -109,6 +112,15 @@ export function PresetsView() {
     setSelectedId(id)
     setDetailOpen(true)
   }
+  // the guide's "Show me" wants an open preset (a phone shows the list first)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const id = selectedId ?? useApp.getState().presets[0]?.id
+      if ((e as CustomEvent<string>).detail === 'presets' && id) select(id)
+    }
+    window.addEventListener(GUIDE_DETAIL_EVENT, on)
+    return () => window.removeEventListener(GUIDE_DETAIL_EVENT, on)
+  }, [selectedId])
 
   const importPreset = useApp((st) => st.importPreset)
   const handleImport = async (files: FileList | null) => {
@@ -136,7 +148,7 @@ export function PresetsView() {
       detailTitle={preset?.name}
       masterWidth="w-56"
       master={
-        <aside className="flex h-full min-h-0 flex-col">
+        <aside data-guide="presets.list" className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <PaneTitle section="presets" icon={<SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />} />
           {/* import lives here so mobile can import without opening a preset */}
@@ -234,7 +246,7 @@ export function PresetsView() {
             {preset.readOnly && <Badge variant="outline">stock · read-only</Badge>}
             {preset.id === activeId && <Badge variant="secondary">currently using</Badge>}
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-              <Button variant="outline" size="sm" className="text-xs" onClick={() => setPeekOpen(true)}>
+              <Button data-guide="presets.peek" variant="outline" size="sm" className="text-xs" onClick={() => setPeekOpen(true)}>
                 <Eye className="size-3.5" aria-hidden="true" />Prompt peek
               </Button>
               <Button
@@ -290,7 +302,7 @@ export function PresetsView() {
               first/last tabs stop short of the walls instead of clipping */}
             <div className="mt-2">
             <ScrollStrip className="px-4">
-              <TabsList className="h-8 w-max flex-nowrap md:h-auto md:w-full md:flex-wrap md:gap-y-1">
+              <TabsList data-guide="presets.tabs" className="h-8 w-max flex-nowrap md:h-auto md:w-full md:flex-wrap md:gap-y-1">
                 <TabsTrigger value="prompts" className="flex-none px-2.5 text-xs">Prompt manager</TabsTrigger>
                 <TabsTrigger value="samplers" className="flex-none px-2.5 text-xs">Samplers</TabsTrigger>
                 <TabsTrigger value="shaping" className="flex-none px-2.5 text-xs">Shaping</TabsTrigger>

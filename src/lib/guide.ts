@@ -15,10 +15,25 @@ export type Text = Record<Lang, string>
 /** Where "Show me" takes the user before the tip is drawn. */
 export interface GuideOpen {
   /** A rail section, or 'chat' for the last open chat. */
-  view: 'canvas' | 'chat' | 'settings' | 'home'
+  view: 'home' | 'chats' | 'chat' | 'characters' | 'lorebooks' | 'litopys' | 'canvas' | 'presets' | 'quickreplies' | 'extensions' | 'settings' | 'personas' | 'marketplace'
   /** On the Canvas: which board. */
   board?: 'links' | 'prompt'
+  /** Something to open on top of the view: a panel of the open chat, the character
+   *  editor (of the open chat's character) on a tab, the commands reference. */
+  panel?: 'dashboard' | 'chat-menu' | 'editor' | 'reference'
+  /** With panel 'editor': the tab, by the editor's own tab key. */
+  tab?: string
+  /** With view 'characters': the Characters or the Groups list. */
+  list?: 'characters' | 'groups'
+  /** The panel to open instead of `panel` on a narrow screen (< 768 px). */
+  narrowPanel?: 'chat-menu'
+  /** With view 'lorebooks' or 'presets': open the first entry, since phones show the list first. */
+  detail?: boolean
 }
+
+/** The help list's groups, in the order the list shows them. */
+export const HELP_GROUPS = ['chat', 'story', 'characters', 'world', 'canvas', 'setup', 'help'] as const
+export type HelpGroup = (typeof HELP_GROUPS)[number]
 
 export interface Tip {
   id: string
@@ -30,11 +45,17 @@ export interface Tip {
   /** The app version that brought the feature: What's new shows it once to anyone
    *  who last saw an older version. Tour-only tips leave it out. */
   since?: string
-  /** For "Show me" from What's new. */
+  /** For "Show me" (What's new and the help list). */
   open?: GuideOpen
+  /** The help list's group: a tip with one is listed under "?", searchable. */
+  help?: HelpGroup
+  /** Extra words the help search matches (synonyms, other apps' names for it). */
+  keywords?: Text
 }
 
-export type Place = 'canvas.links' | 'canvas.prompt' | 'chat'
+export type Place =
+  | 'canvas.links' | 'canvas.prompt' | 'chat' | 'chat.menu' | 'dashboard' | 'soul' | 'litopys'
+  | 'characters' | 'groups' | 'lorebooks' | 'presets'
 
 export interface Tour {
   id: string
@@ -137,3 +158,20 @@ export function resetTours(state: GuideState | undefined): GuideState {
 
 /** The tip's text in the user's language (English when a translation is missing). */
 export const tipText = (text: Text, lang: Lang): string => text[lang] || text.en
+
+/** The help list for a search: tips with a group whose title, body or keywords contain
+ *  every word of the query (either language, so a mixed query still finds), in group
+ *  order, then registry order. An empty query lists everything. */
+export function searchHelp(tips: Tip[], query: string): Tip[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const hay = (tip: Tip) =>
+    [tip.title.en, tip.title.uk, tip.body.en, tip.body.uk, tip.keywords?.en ?? '', tip.keywords?.uk ?? '']
+      .join(' ')
+      .toLowerCase()
+  const order = (tip: Tip) => HELP_GROUPS.indexOf(tip.help as HelpGroup)
+  return tips
+    .map((tip, i) => ({ tip, i }))
+    .filter(({ tip }) => tip.help && words.every((w) => hay(tip).includes(w)))
+    .sort((a, b) => order(a.tip) - order(b.tip) || a.i - b.i)
+    .map(({ tip }) => tip)
+}

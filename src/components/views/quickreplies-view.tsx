@@ -36,7 +36,7 @@ export function QuickRepliesView() {
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         <PaneTitle section="quickreplies" count={`${qrSets.length} sets`} icon={<Lightning className="size-4 text-primary" aria-hidden="true" />} />
-        <Button size="sm" className="ml-auto" onClick={() => { addQRSet(); toast.success('New shortcut set created') }}>
+        <Button data-guide="shortcuts.new" size="sm" className="ml-auto" onClick={() => { addQRSet(); toast.success('New shortcut set created') }}>
           <Plus className="size-4" aria-hidden="true" />New set
         </Button>
       </header>

@@ -230,9 +230,9 @@ export function Label({ children, className }: { children: ReactNode; className?
 }
 
 /** A titled box of the wide view and the phone sheet. */
-export function Box({ title, children, className, id }: { title?: ReactNode; children: ReactNode; className?: string; id?: string }) {
+export function Box({ title, children, className, id, 'data-guide': guide }: { title?: ReactNode; children: ReactNode; className?: string; id?: string; 'data-guide'?: string }) {
   return (
-    <section id={id} tabIndex={id ? -1 : undefined} className={cn('min-w-0 border border-border bg-card p-3 outline-none', className)}>
+    <section id={id} data-guide={guide} tabIndex={id ? -1 : undefined} className={cn('min-w-0 border border-border bg-card p-3 outline-none', className)}>
       {title ? <Label className="mb-2">{title}</Label> : null}
       {children}
     </section>

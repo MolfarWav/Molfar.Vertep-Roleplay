@@ -66,7 +66,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
   return (
     <div className="grid min-w-0 gap-3 min-[641px]:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-3">
-        <SoulCard title={t('soul.attitude')} hint={t('soul.attitudeHint')}>
+        <SoulCard data-guide="soul.attitude" title={t('soul.attitude')} hint={t('soul.attitudeHint')}>
           <div className="flex flex-col gap-1.5">
             <SubLabel>{t('soul.class')}</SubLabel>
             <Segmented
@@ -113,7 +113,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
           </div>
         </SoulCard>
 
-        <SoulCard title={t('soul.traits')} hint={t('soul.traitsHint')}>
+        <SoulCard data-guide="soul.traits" title={t('soul.traits')} hint={t('soul.traitsHint')}>
           <div className="flex flex-col gap-1">
             {TRAITS.map((id) => {
               const v = soul.traits?.[id] ?? 50

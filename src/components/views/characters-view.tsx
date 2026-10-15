@@ -25,6 +25,8 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/lib/store'
+import { useGuidePlace } from '@/components/guide/place'
+import { GUIDE_LIST_EVENT } from '@/components/guide/events'
 import type { Character, Chat } from '@/lib/types'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
@@ -43,6 +45,13 @@ import { GroupEditor } from '@/components/groups/group-editor'
 
 /** Characters | Groups: kept per page session, so coming back from an editor lands on the same side. */
 let lastMode: 'characters' | 'groups' = 'characters'
+
+/** The guide's "Show me": a Characters view that is not mounted yet reads this when it
+ *  opens; one that is, listens for GUIDE_LIST_EVENT. */
+export function showCharactersList(m: 'characters' | 'groups') {
+  lastMode = m
+  window.dispatchEvent(new CustomEvent(GUIDE_LIST_EVENT, { detail: m }))
+}
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
 const SORT_OPTIONS: [SortKey, string][] = [
@@ -82,6 +91,15 @@ export function CharactersView() {
   const [page, setPage] = useState(0)
   const [mode, setModeState] = useState<'characters' | 'groups'>(lastMode)
   const setMode = (m: 'characters' | 'groups') => { lastMode = m; setModeState(m); setPage(0) }
+  useEffect(() => {
+    const on = (e: Event) => {
+      const m = (e as CustomEvent<string>).detail
+      if (m === 'characters' || m === 'groups') { lastMode = m; setModeState(m); setPage(0) }
+    }
+    window.addEventListener(GUIDE_LIST_EVENT, on)
+    return () => window.removeEventListener(GUIDE_LIST_EVENT, on)
+  }, [])
+  const hydrated = useApp((s) => s.hydrated)
   const importRef = useRef<HTMLInputElement>(null)
 
   /** Import cards from links: chub, RisuRealm, CharaVault or a direct file
@@ -205,6 +223,9 @@ export function CharactersView() {
   const PAGE_SIZE = 24
   const paged = useMemo(() => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE), [filtered, page])
 
+  // the list is a place of its own; an open editor is not
+  useGuidePlace(mode === 'groups' ? 'groups' : 'characters', hydrated && !active)
+
   if (active?.isGroup && active.group) {
     return <GroupEditor group={active} onClose={() => openCharacter(null)} />
   }
@@ -215,7 +236,7 @@ export function CharactersView() {
   // two clearly separate tabs, each in its own colour: characters take the
   // theme's accent, groups the group hue the group tiles and group chats share
   const modeSwitch = (
-    <div role="group" aria-label={t('groups.switch')} className="flex gap-1 max-md:min-w-0 max-md:flex-1">
+    <div data-guide="characters.switch" role="group" aria-label={t('groups.switch')} className="flex gap-1 max-md:min-w-0 max-md:flex-1">
       {(['characters', 'groups'] as const).map((m) => {
         const on = mode === m
         const Icon = m === 'groups' ? Users : UserCircle
@@ -308,7 +329,7 @@ export function CharactersView() {
                 <Plus className="size-4" aria-hidden="true" />New
               </Button>
             ) : (
-              <Button className="h-10 shrink-0 bg-group text-group-foreground hover:bg-group/85" onClick={() => setGroupOpen(true)}>
+              <Button data-guide="groups.create" className="h-10 shrink-0 bg-group text-group-foreground hover:bg-group/85" onClick={() => setGroupOpen(true)}>
                 <Users className="size-4" aria-hidden="true" />{t('groups.create')}
               </Button>
             )}
@@ -326,7 +347,7 @@ export function CharactersView() {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger render={
-                <Button variant="outline" className="size-10 shrink-0 p-0" aria-label="More">
+                <Button data-guide="characters.import" variant="outline" className="size-10 shrink-0 p-0" aria-label="More">
                   <DotsThreeVertical className="size-5" aria-hidden="true" />
                 </Button>
               } />
@@ -397,7 +418,7 @@ export function CharactersView() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger render={
-              <Button variant="outline" size="sm">
+              <Button data-guide="characters.import" variant="outline" size="sm">
                 <UploadSimple className="size-4" aria-hidden="true" />Import
               </Button>
             } />
@@ -411,7 +432,7 @@ export function CharactersView() {
             </DropdownMenuContent>
           </DropdownMenu>
           </>)}
-          <Button variant={mode === 'groups' ? 'default' : 'outline'} size="sm" className={cn(mode === 'groups' ? 'bg-group text-group-foreground hover:bg-group/85' : 'border-group/50 text-group hover:bg-group/10 hover:text-group dark:border-group/50 dark:hover:bg-group/10')} onClick={() => setGroupOpen(true)}>
+          <Button data-guide="groups.create" variant={mode === 'groups' ? 'default' : 'outline'} size="sm" className={cn(mode === 'groups' ? 'bg-group text-group-foreground hover:bg-group/85' : 'border-group/50 text-group hover:bg-group/10 hover:text-group dark:border-group/50 dark:hover:bg-group/10')} onClick={() => setGroupOpen(true)}>
             <Users className="size-4" aria-hidden="true" />{mode === 'groups' ? t('groups.create') : 'Group'}
           </Button>
           {mode === 'characters' && (
@@ -465,7 +486,7 @@ export function CharactersView() {
             </EmptyHeader>
           </Empty>
         ) : grid ? (
-          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div data-guide="characters.grid" className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {paged.map((c) => {
               const chatCount = chats.filter((ch) => ch.characterId === c.id).length
               const tokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue)
@@ -735,7 +756,7 @@ function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
     )
   }
   return (
-    <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div data-guide="groups.list" className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {groups.map((c) => {
         const members = (c.group?.memberIds ?? []).map((id) => characters.find((m) => m.id === id)).filter((m): m is Character => !!m)
         const chatCount = chats.filter((ch) => ch.characterId === c.id).length

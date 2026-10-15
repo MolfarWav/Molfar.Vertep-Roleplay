@@ -5,9 +5,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export function SoulCard({ title, hint, children, className }: { title: string; hint?: string; children: ReactNode; className?: string }) {
+export function SoulCard({ title, hint, children, className, 'data-guide': guide }: { title: string; hint?: string; children: ReactNode; className?: string; 'data-guide'?: string }) {
   return (
-    <section className={cn('border border-border bg-card', className)}>
+    <section data-guide={guide} className={cn('border border-border bg-card', className)}>
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2">
         <h2 className="text-sm font-semibold">{title}</h2>
         {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}

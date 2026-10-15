@@ -1,6 +1,6 @@
 
 import { useState } from 'react'
-import { List } from '@phosphor-icons/react'
+import { List, Question } from '@phosphor-icons/react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ const moreItems = SECTIONS.filter((s) => !PRIMARY.has(s.key))
 export function MobileTabBar() {
   const view = useApp((s) => s.view)
   const navigate = useApp((s) => s.navigate)
+  const setGuideHelpOpen = useApp((s) => s.setGuideHelpOpen)
   const t = useT()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = moreItems.some((i) => i.key === view)
@@ -81,6 +82,15 @@ export function MobileTabBar() {
                 {t(item.labelKey)}
               </button>
             ))}
+            <button
+              type="button"
+              data-guide="nav.help"
+              onClick={() => { setGuideHelpOpen(true); setMoreOpen(false) }}
+              className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-border font-heading text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <Question className="size-5" aria-hidden="true" />
+              {t('guide.help')}
+            </button>
           </div>
         </SheetContent>
       </Sheet>

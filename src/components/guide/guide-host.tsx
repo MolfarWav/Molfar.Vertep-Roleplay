@@ -12,6 +12,9 @@ import {
 } from '@/lib/guide'
 import { APP_VERSION, TIPS, TOURS } from '@/lib/guide-tips'
 import { BOARD_KEY } from '@/components/canvas/canvas-view'
+import { showCharactersList } from '@/components/views/characters-view'
+import { GUIDE_DETAIL_EVENT, GUIDE_MENU_EVENT } from './events'
+import { HelpList } from './help-list'
 import { useCurrentPlace } from './place'
 import { findTarget } from './target'
 import { Spotlight } from './spotlight'
@@ -20,7 +23,8 @@ import { WhatsNewCard } from './whats-new-card'
 interface CardState { tips: Tip[]; index: number; lastVersion: string }
 
 type Spot =
-  | { kind: 'single'; tip: Tip }
+  /** from: where "Show me" was pressed, so the button back goes there */
+  | { kind: 'single'; tip: Tip; from: 'card' | 'help' }
   | { kind: 'tour'; tourId: string; place: Place; steps: Tip[]; index: number }
 
 const TOUR_DELAY_MS = 600
@@ -29,15 +33,42 @@ const TOUR_TRIES = 5
 const guideNow = (): GuideState | undefined => useApp.getState().settings.guide
 const save = (next: GuideState) => useApp.getState().updateSettings({ guide: next })
 
-/** "Show me": take the user to the place a tip is about. */
+/** A panel that lives inside the open chat takes this long to mount after the chat opens. */
+const CHAT_MOUNT_MS = 450
+
+/** "Show me": take the user to the place a tip is about. A panel of a chat with no chat
+ *  to open is skipped: the spotlight then falls back to the centred bubble. */
 function openPlace(open: GuideOpen) {
+  const app = useApp.getState()
+  if (open.panel === 'reference') { app.setHelpOpen(true); return }
+  const narrow = window.matchMedia('(max-width: 767px)').matches
+  const panel = open.panel ?? (narrow ? open.narrowPanel : undefined)
+  if (panel) {
+    // the open chat, else the newest one
+    const chat = app.chats.find((c) => c.id === app.activeChatId) ?? [...app.chats].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    if (!chat) return
+    if (panel === 'editor') { app.openCharacterOnTab(chat.characterId, open.tab ?? 'core'); return }
+    if (app.view === 'chat' && app.activeChatId === chat.id) app.closeDrawer()
+    else app.openChat(chat.id)
+    setTimeout(() => {
+      if (panel === 'dashboard') useApp.getState().openDashboard()
+      else window.dispatchEvent(new CustomEvent(GUIDE_MENU_EVENT))
+    }, CHAT_MOUNT_MS)
+    return
+  }
   if (open.board) {
     // a Canvas that is not mounted yet reads the board from storage; one that is, from the event
     try { localStorage.setItem(BOARD_KEY, JSON.stringify(open.board)) } catch { /* the event still reaches a mounted Canvas */ }
     window.dispatchEvent(new CustomEvent('rp-guide-board', { detail: open.board }))
   }
+  if (open.list) {
+    // a card editor left open would hide the list
+    app.openCharacter(null)
+    showCharactersList(open.list)
+  }
   // 'chat' = the last open chat, which is what the Chats rail item does
-  useApp.getState().navigate(open.view === 'chat' ? 'chats' : open.view)
+  app.navigate(open.view === 'chat' ? 'chats' : open.view)
+  if (open.detail) setTimeout(() => window.dispatchEvent(new CustomEvent(GUIDE_DETAIL_EVENT, { detail: open.view })), CHAT_MOUNT_MS)
 }
 
 export function GuideHost() {
@@ -50,6 +81,10 @@ export function GuideHost() {
   const place = useCurrentPlace()
   const [card, setCard] = useState<CardState | null>(null)
   const [spot, setSpot] = useState<Spot | null>(null)
+  const helpOpen = useApp((s) => s.guideHelpOpen)
+  const setHelpOpen = useApp((s) => s.setGuideHelpOpen)
+  // kept while the user is away on "Show me", so "Back to help" lands on the same search
+  const [helpQuery, setHelpQuery] = useState('')
 
   // What's new: after the first load, and again whenever the stored state asks for it
   // (Settings → Show what's new again). A build with nothing new just records its version.
@@ -70,7 +105,7 @@ export function GuideHost() {
   // A tour starts on the first visit to its place, once nothing else of the guide is up.
   // Steps whose target is not on screen are left out; none on screen = no tour (and not done).
   useEffect(() => {
-    if (!hydrated || !place || card || spot) return
+    if (!hydrated || !place || card || spot || helpOpen) return
     let tries = 0
     let timer: ReturnType<typeof setTimeout>
     const attempt = () => {
@@ -83,16 +118,38 @@ export function GuideHost() {
     }
     timer = setTimeout(attempt, TOUR_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [hydrated, place, card, spot, guide])
+  }, [hydrated, place, card, spot, guide, helpOpen])
 
   // leaving the place ends its tour, without counting it as done
   useEffect(() => {
     if (spot?.kind === 'tour' && place !== spot.place) setSpot(null)
   }, [place, spot])
 
+  const showFromHelp = (tip: Tip) => {
+    setHelpOpen(false)
+    if (tip.open) openPlace(tip.open)
+    // an element to point at: spotlight it; otherwise the place itself is the answer
+    if (tip.target) setSpot({ kind: 'single', tip, from: 'help' })
+  }
+  const helpList = (
+    <HelpList
+      open={helpOpen}
+      onClose={() => setHelpOpen(false)}
+      query={helpQuery}
+      onQuery={setHelpQuery}
+      onShowMe={showFromHelp}
+      onReference={() => { setHelpOpen(false); useApp.getState().setHelpOpen(true) }}
+      lang={lang}
+      mobile={mobile}
+    />
+  )
+
   if (spot?.kind === 'single') {
-    const back = () => setSpot(null)
+    const fromHelp = spot.from === 'help'
+    const back = () => { setSpot(null); if (fromHelp) setHelpOpen(true) }
     return (
+      <>
+      {helpList}
       <Spotlight
         target={spot.tip.target}
         title={tipText(spot.tip.title, lang)}
@@ -100,10 +157,11 @@ export function GuideHost() {
         step={0}
         total={1}
         mobile={mobile}
-        primary={{ label: t('guide.backToCard'), onClick: back }}
-        secondary={{ label: t('guide.close'), onClick: closeCard }}
+        primary={{ label: t(fromHelp ? 'guide.backToHelp' : 'guide.backToCard'), onClick: back }}
+        secondary={{ label: t('guide.close'), onClick: fromHelp ? () => setSpot(null) : closeCard }}
         onEscape={back}
       />
+      </>
     )
   }
 
@@ -126,6 +184,8 @@ export function GuideHost() {
     const hasPrev = steps.slice(0, index).some((s) => findTarget(s.target))
     const isLast = !steps.slice(index + 1).some((s) => findTarget(s.target))
     return (
+      <>
+      {helpList}
       <Spotlight
         target={tip.target}
         title={tipText(tip.title, lang)}
@@ -138,22 +198,26 @@ export function GuideHost() {
         secondary={{ label: t('guide.skip'), onClick: finish }}
         onEscape={finish}
       />
+      </>
     )
   }
 
   if (card) {
     return (
+      <>
+      {helpList}
       <WhatsNewCard
         tips={card.tips}
         index={card.index}
         lang={lang}
         mobile={mobile}
-        onShowMe={(tip) => { if (tip.open) openPlace(tip.open); setSpot({ kind: 'single', tip }) }}
+        onShowMe={(tip) => { if (tip.open) openPlace(tip.open); setSpot({ kind: 'single', tip, from: 'card' }) }}
         onNext={() => setCard({ ...card, index: card.index + 1 })}
         onClose={closeCard}
       />
+      </>
     )
   }
 
-  return null
+  return helpList
 }

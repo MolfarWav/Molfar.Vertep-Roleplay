@@ -512,6 +512,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   const rateButtons = (
     <>
       <Button
+        data-guide="soul.rate"
         variant="outline"
         size="sm"
         className="rounded-none"
@@ -579,7 +580,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
       <SoulGuests guests={shownGuests} soulNames={Object.keys(work)} minor={minor} onGive={giveSoul} onSame={sameAs} onHide={hide} onUnhide={unhide} />
 
       {isEmpty ? (
-        <div className="flex flex-col items-start gap-2 border border-dashed border-border p-4">
+        <div data-guide="soul.chars" className="flex flex-col items-start gap-2 border border-dashed border-border p-4">
           <p className="max-w-prose text-xs text-muted-foreground">{t('soul.empty')}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {rateButtons}
@@ -591,7 +592,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('soul.chars')}>
+        <div data-guide="soul.chars" className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('soul.chars')}>
           {chipNames.map((name) => {
             const inWork = has(work, name)
             const inDraft = pendingNames.includes(name)
@@ -688,7 +689,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
               </DropdownMenu>
             )}
             {selDirty && <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"><span aria-hidden="true">●</span>{t('soul.unsaved')}</span>}
-            <Button size="sm" className="rounded-none" disabled={!selDirty} onClick={() => void saveOne()}>{t('soul.save')}</Button>
+            <Button data-guide="soul.save" size="sm" className="rounded-none" disabled={!selDirty} onClick={() => void saveOne()}>{t('soul.save')}</Button>
           </div>
         </div>
       )}

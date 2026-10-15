@@ -47,7 +47,7 @@ export function SectionPage({ section, count, title: titleOverride, hideOnPhone,
   return (
     <div className="flex h-full min-h-0 flex-col">
       {showTitle && (
-        <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 pt-3.5 pb-3 md:px-8 md:pt-5 md:pb-4">
+        <div data-guide={`${section}.title`} className="flex shrink-0 items-center gap-3 border-b border-border px-4 pt-3.5 pb-3 md:px-8 md:pt-5 md:pb-4">
           <h1 className="font-heading text-[25px] leading-none md:text-[40px]">{title}</h1>
           {count != null && <Badge variant="secondary">{count}</Badge>}
           {actions && <div className="ml-auto flex min-w-0 items-center gap-2">{actions}</div>}

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MemorySummarySection } from '@/components/settings/memory-summary-section'
 import { useApp } from '@/lib/store'
+import { useGuidePlace } from '@/components/guide/place'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
@@ -101,6 +102,7 @@ export function LitopysView() {
     )
   }, [])
   const withData = items ? items.filter((x) => x.hasData).length : undefined
+  useGuidePlace('litopys', !!items && items.length > 0)
   const current = items?.find((x) => x.id === selectedId)
 
   return (
@@ -162,7 +164,7 @@ function ModeSwitch({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void })
     </button>
   )
   return (
-    <div className="flex gap-1 rounded-md bg-muted p-0.5 text-xs" role="group" aria-label={t('lit.mode')}>
+    <div data-guide="lit.mode" className="flex gap-1 rounded-md bg-muted p-0.5 text-xs" role="group" aria-label={t('lit.mode')}>
       {item('overview', t('lit.mode.overview'))}
       {item('ledger', t('lit.mode.ledger'))}
     </div>
@@ -195,16 +197,16 @@ function ChatPicker({
   const t = useT()
   const rel = useRelativeTime()
   return (
-    <aside className="flex h-full min-h-0 flex-col" aria-label={t('lit.chat')}>
+    <aside data-guide="lit.chats" className="flex h-full min-h-0 flex-col" aria-label={t('lit.chat')}>
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <PaneTitle section="litopys" icon={<Scroll className="size-4 text-primary" aria-hidden="true" />} />
-        <Button variant="ghost" size="sm" className={cn('ml-auto size-9 p-0 md:size-7', mapOpen && 'bg-accent')} onClick={onMap} aria-label={t('lit.map.open')} title={t('lit.map.open')} aria-pressed={mapOpen} data-testid="map-open">
+        <Button variant="ghost" size="sm" className={cn('ml-auto size-9 p-0 md:size-7', mapOpen && 'bg-accent')} onClick={onMap} aria-label={t('lit.map.open')} title={t('lit.map.open')} aria-pressed={mapOpen} data-testid="map-open" data-guide="lit.map">
           <Graph className="size-4" aria-hidden="true" />
         </Button>
         <Button variant="ghost" size="sm" className="size-9 p-0 md:size-7" onClick={onRefresh} aria-label={t('lit.refresh')}>
           <ArrowsClockwise className="size-4" aria-hidden="true" />
         </Button>
-        <Button variant="ghost" size="sm" className="size-9 p-0 md:size-7" onClick={onSettings} aria-label={t('lit.settings.open')} title={t('lit.settings.open')}>
+        <Button data-guide="lit.settings" variant="ghost" size="sm" className="size-9 p-0 md:size-7" onClick={onSettings} aria-label={t('lit.settings.open')} title={t('lit.settings.open')}>
           <GearSix className="size-4" aria-hidden="true" />
         </Button>
       </div>

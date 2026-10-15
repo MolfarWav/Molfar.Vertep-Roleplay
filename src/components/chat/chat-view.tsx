@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -36,7 +36,8 @@ import { MessageRow } from './message-row'
 import { Composer } from './composer'
 import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
-import { HelpDialog } from './help-dialog'
+import { useGuidePlace } from '@/components/guide/place'
+import { GUIDE_MENU_EVENT, guideTarget } from '@/components/guide/events'
 import { ExpressionPanel } from './expression-panel'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
@@ -162,6 +163,17 @@ export function ChatView() {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  // the desktop kebab is controlled so the guide's "Show me" can open it
+  const [kebabOpen, setKebabOpen] = useState(false)
+  useGuidePlace('chat.menu', kebabOpen || menuOpen)
+  useEffect(() => {
+    const open = () => {
+      if (window.matchMedia('(min-width: 768px)').matches) setKebabOpen(true)
+      else setMenuOpen(true)
+    }
+    window.addEventListener(GUIDE_MENU_EVENT, open)
+    return () => window.removeEventListener(GUIDE_MENU_EVENT, open)
+  }, [])
   const [manageOpen, setManageOpen] = useState(false)
   const [portraitOpen, setPortraitOpen] = useState(false)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
@@ -603,9 +615,9 @@ export function ChatView() {
   )
   const chatTools = (
     <>
-      {chatActions.map(menuItem)}
+      <DropdownMenuGroup data-guide="menu.tools">{chatActions.map(menuItem)}</DropdownMenuGroup>
       <DropdownMenuSeparator />
-      {chatManage.map(menuItem)}
+      <DropdownMenuGroup data-guide="menu.manage">{chatManage.map(menuItem)}</DropdownMenuGroup>
     </>
   )
   // a row of the phone menu: closes the menu, then acts
@@ -674,7 +686,7 @@ export function ChatView() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <ChatQuickSwitch chatId={chat.id} />
+            <div data-guide="chat.switch" className="flex"><ChatQuickSwitch chatId={chat.id} /></div>
             <ChatDetailsButton
               title={chat.title}
               chatIndex={chatIndex}
@@ -691,10 +703,10 @@ export function ChatView() {
             </HeaderIcon>
             {/* All chat tools behind one kebab, every width */}
             <div>
-              <DropdownMenu>
+              <DropdownMenu open={kebabOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d.event)) return; setKebabOpen(o) }}>
                 <DropdownMenuTrigger
                   render={
-                    <Button variant="ghost" size="icon-sm" aria-label="Chat tools">
+                    <Button data-guide="chat.menu" variant="ghost" size="icon-sm" aria-label="Chat tools">
                       <DotsThreeVertical aria-hidden="true" />
                     </Button>
                   }
@@ -748,13 +760,13 @@ export function ChatView() {
         </Button>
       </nav>
 
-      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="right" className="w-[min(320px,88vw)] gap-0 p-0">
+      <Sheet open={menuOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d?.event)) return; setMenuOpen(o) }}>
+        <SheetContent data-guide="chat.menu" side="right" className="w-[min(320px,88vw)] gap-0 p-0">
           <SheetHeader className="sr-only">
             <SheetTitle>Chat menu</SheetTitle>
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-            <div className="border-b border-border p-3 pr-12">
+            <div data-guide="chat.switch" className="border-b border-border p-3 pr-12">
               <ChatQuickSwitch chatId={chat.id} variant="rows" onNavigate={() => setMenuOpen(false)} />
             </div>
             <div className="flex flex-col p-2">
@@ -766,9 +778,9 @@ export function ChatView() {
                 label: `Next chat (${((chatIndex + 1) % charChats.length) + 1} of ${charChats.length})`,
                 onSelect: () => { const next = charChats[(chatIndex + 1) % charChats.length]; if (next) openChat(next.id) },
               })}
-              {chatActions.map(sheetRow)}
+              <div data-guide="menu.tools" className="flex flex-col">{chatActions.map(sheetRow)}</div>
               <div className="my-1 h-px bg-border" />
-              {chatManage.map(sheetRow)}
+              <div data-guide="menu.manage" className="flex flex-col">{chatManage.map(sheetRow)}</div>
             </div>
             <div className="mt-auto border-t border-border p-2">
               <p className="px-1 pt-1 pb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">Go to</p>
@@ -784,6 +796,15 @@ export function ChatView() {
                     {t(item.labelKey)}
                   </button>
                 ))}
+                {/* the help list is reachable from a chat too: the phone tab bar is hidden here */}
+                <button
+                  type="button"
+                  onClick={() => { setMenuOpen(false); useApp.getState().setGuideHelpOpen(true) }}
+                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <Question className="size-4.5" aria-hidden="true" />
+                  {t('guide.help')}
+                </button>
               </div>
             </div>
           </div>
@@ -1309,9 +1330,6 @@ export function ChatView() {
 
       {/* Litopys record */}
       <ChatRecordSheet chat={chat} open={summaryOpen} onOpenChange={setSummaryOpen} />
-
-      {/* /help — commands + macros reference (UI only) */}
-      <HelpDialog />
 
       {/* expression sprite for the latest speaker (emotion-detected) */}
       <ExpressionPanel chat={chat} />

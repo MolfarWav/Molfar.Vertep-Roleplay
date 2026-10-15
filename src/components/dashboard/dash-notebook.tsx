@@ -178,7 +178,7 @@ export function Notebook({ name, char, userName, className, id, compact }: {
   const entries = sortedNotes(char.notebook)
   const removed = char.retired ?? []
   return (
-    <Box id={id} title={t('dash.notebook', { name })} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
+    <Box id={id} data-guide="dash.notebook" title={t('dash.notebook', { name })} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
       <div className="mb-2 min-w-0 text-sm break-words">
         {char.name?.knowsUserName ? t('dash.name.known') : t('dash.name.unknown')}
         {char.name?.calls ? <span className="text-muted-foreground"> · {t('dash.name.calls', { calls: char.name.calls })}</span> : null}

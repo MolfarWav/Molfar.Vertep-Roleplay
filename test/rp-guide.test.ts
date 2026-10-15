@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  compareVersions, GUIDE_BASELINE, markSeen, markTourDone, resetTours, tipText, tourFor, tourSteps, whatsNew,
+  compareVersions, GUIDE_BASELINE, HELP_GROUPS, markSeen, markTourDone, resetTours, searchHelp, tipText, tourFor, tourSteps, whatsNew,
   type Tip, type Tour,
 } from "../src/lib/guide";
 import { APP_VERSION, TIPS, TOURS } from "../src/lib/guide-tips";
@@ -49,6 +49,17 @@ describe("guide", () => {
     expect(s).toEqual({ seen: ["a", "b"], showTours: false, lastVersion: "4.46.0" });
   });
 
+  it("help search lists grouped tips, matches every word in either language, keeps group order", () => {
+    const h = (id: string, help: Tip["help"], en: string, uk: string, kw?: string): Tip => ({
+      id, help, title: { en, uk }, body: { en: "", uk: "" }, keywords: kw ? { en: kw, uk: "" } : undefined,
+    });
+    const tips = [h("w", "world", "Lorebooks", "Лорбуки", "world info"), h("c", "chat", "Swipes", "Свайпи"), tip("no-group")];
+    expect(searchHelp(tips, "").map((t) => t.id)).toEqual(["c", "w"]);
+    expect(searchHelp(tips, "world INFO").map((t) => t.id)).toEqual(["w"]);
+    expect(searchHelp(tips, "лорб").map((t) => t.id)).toEqual(["w"]);
+    expect(searchHelp(tips, "lore swipe")).toEqual([]);
+  });
+
   it("falls back to English when a translation is empty", () => {
     expect(tipText({ en: "Hi", uk: "" }, "uk")).toBe("Hi");
   });
@@ -79,6 +90,25 @@ describe("guide registry", () => {
     for (const t of TIPS) if (t.since && t.target) expect(t.open, t.id).toBeTruthy();
   });
 
+  it("help tips have a known group, can be shown, and there are enough of them", () => {
+    const help = TIPS.filter((t) => t.help);
+    expect(help.length).toBeGreaterThanOrEqual(30);
+    for (const t of help) {
+      expect(HELP_GROUPS, t.id).toContain(t.help!);
+      if (t.target) expect(t.open, t.id).toBeTruthy();
+    }
+    for (const g of HELP_GROUPS) expect(help.some((t) => t.help === g), g).toBe(true);
+  });
+
+  it("every tour place is reported by a screen", () => {
+    const glob = new Bun.Glob("src/components/**/*.tsx");
+    let src = "";
+    for (const f of glob.scanSync({ cwd: new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1") })) {
+      src += readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+    }
+    for (const tour of TOURS) expect(src.includes(`'${tour.place}'`) && src.includes("useGuidePlace("), tour.place).toBe(true);
+  });
+
   it("every target is marked somewhere in the UI", () => {
     const glob = new Bun.Glob("src/**/*.tsx");
     let src = "";
@@ -90,7 +120,9 @@ describe("guide registry", () => {
       src.includes(`data-guide="${target}"`) ||
       // a card marked only while it is the first / the history one: data-guide={cond ? 'target' : ...}
       src.includes(`data-guide={`) && new RegExp(`data-guide=\{[^}\n]*'${target.replace(".", "\.")}'`).test(src) ||
-      (target.startsWith("nav.") && src.includes("data-guide={`nav.${"));
+      (target.startsWith("nav.") && src.includes("data-guide={`nav.${")) ||
+      // section titles: data-guide={`${section}.title`} (page) and {`${drawer}.title`} (drawer)
+      (target.endsWith(".title") && src.includes("data-guide={`${section}.title`}"));
     for (const t of TIPS) if (t.target) expect(marked(t.target), t.target).toBe(true);
   });
 });
