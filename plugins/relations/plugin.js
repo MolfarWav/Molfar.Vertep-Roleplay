@@ -1516,7 +1516,7 @@ const WORD_STOP = new Set(
 function normText(s) {
   return String(s).normalize("NFD").replace(/\u0301/g, "").normalize("NFC").toLowerCase().replace(WORD_APOS, "'").replace(/\u0451/g, "\u0435");
 }
-function wordTokens(s) {
+export function wordTokens(s) {
   return normText(s)
     .split(/[^\p{L}\p{N}']+/u)
     .map((t) => t.replace(/^'+|'+$/g, ""))
@@ -1529,13 +1529,36 @@ function wordStem(t) {
   return r.length >= 3 ? r : t;
 }
 /** Two words are the same: short ones exactly, longer ones by stem. */
-function sameWord(a, b) {
+export function sameWord(a, b) {
   if (a.length <= 3 || b.length <= 3) return a === b;
   const x = wordStem(a);
   const y = wordStem(b);
   if (x === y) return true;
   const [sh, lg] = x.length <= y.length ? [x, y] : [y, x];
   return sh.length >= 4 && lg.startsWith(sh) && lg.length - sh.length <= 2;
+}
+/**
+ * `(word) => scene.some((w) => sameWord(word, w))` with the scene indexed once: whole words for the
+ * short ones, stems of the long ones, and those stems cut by one and two letters for the prefix rule.
+ * Scanning the scene per note word made a long backlog run past the script time limit.
+ */
+export function sceneMatcher(sceneWords) {
+  const exact = new Set(sceneWords);
+  const stems = new Set();
+  const prefixes = new Set();
+  for (const w of exact) {
+    if (w.length <= 3) continue;
+    const y = wordStem(w);
+    stems.add(y);
+    for (const cut of [1, 2]) if (y.length - cut >= 4) prefixes.add(y.slice(0, y.length - cut));
+  }
+  return (word) => {
+    if (word.length <= 3) return exact.has(word);
+    const x = wordStem(word);
+    if (stems.has(x) || prefixes.has(x)) return true;
+    for (const cut of [1, 2]) if (x.length - cut >= 4 && stems.has(x.slice(0, x.length - cut))) return true;
+    return false;
+  };
 }
 
 /** Character trigrams of a text, normalized; a text under 3 characters is its own gram. */
@@ -1573,6 +1596,7 @@ export function rankNotes(list, sceneText) {
   const pinned = all.filter((n) => noteRank(n) === 0).reverse();
   const rest = all.filter((n) => noteRank(n) !== 0);
   const scene = wordTokens(sceneText || "");
+  const inScene = sceneMatcher(scene);
   const keys = new Map();
   const df = new Map();
   for (const n of rest) {
@@ -1583,7 +1607,7 @@ export function rankNotes(list, sceneText) {
   const total = Math.max(1, rest.length);
   const scored = rest.map((n, i) => {
     let score = 0;
-    if (scene.length) for (const k of keys.get(n)) if (scene.some((w) => sameWord(k, w))) score += 10 * Math.log(1 + total / (df.get(wordStem(k)) || 1));
+    if (scene.length) for (const k of keys.get(n)) if (inScene(k)) score += 10 * Math.log(1 + total / (df.get(wordStem(k)) || 1));
     if (n.tag === "important") score += 5;
     else if (n.tag === "everyday") score -= 2;
     score += 3 * Math.max(0, (20 - (rest.length - 1 - i)) / 20);
