@@ -3245,6 +3245,11 @@ export function llmRequest(ctx, host) {
         try {
           fsx.write(NOTICE_DIR + chatId + ".json", JSON.stringify({ at: Date.now(), trimmed: insert.trimmed, wanted: insert.wanted, budget: insert.budget }));
         } catch {}
+      } else if (insert) {
+        // the notice speaks of the latest reply: one that fit drops an older cut's notice
+        try {
+          fsx.remove(NOTICE_DIR + chatId + ".json");
+        } catch {}
       }
       if (insert) {
         messages = withInsert(messages, insert.text);
