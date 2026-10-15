@@ -78,7 +78,6 @@ export function PresetsView() {
   const deletePreset = useApp((s) => s.deletePreset)
   const activeChatId = useApp((s) => s.activeChatId)
   const chats = useApp((s) => s.chats)
-  const composerDraft = useApp((s) => s.composerDraft)
   const __focus = useApp.getState().focusPresetId
   useEffect(() => { if (__focus) useApp.setState({ focusPresetId: null }) }, [])
   // the preset in use right now: the open chat's own, else the one new chats
@@ -362,7 +361,6 @@ export function PresetsView() {
             open={peekOpen}
             onOpenChange={setPeekOpen}
             chatId={activeChatId ?? chats[0]?.id ?? null}
-            userText={composerDraft ?? undefined}
             title={`Prompt peek: ${preset.name}`}
           />
           {confirmDialog}

@@ -10,7 +10,8 @@
 // while the kernel runs the model; text deltas stream in over the WS bus
 // (app_stream) and render live. Stop aborts the request.
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
+import { readDraft, unsavedKeys } from './drafts'
 import { toast } from 'sonner'
 import { resolveLanguage, t, type Lang } from './i18n'
 import { fetchModelParams, modelLimits, moveSamplersToModel, type ModelParams } from './model-params'
@@ -82,6 +83,11 @@ export function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characte
   return [...ids].filter((id) => exists.has(id))
 }
 
+
+/** Text waiting for a chat's composer (see AppState.composerDrafts). */
+export type ComposerFill = { id: string; chatId: ID; text: string; base: string; kind: 'impersonate' | 'unsent'; attachments?: Message['attachments'] }
+export type SendOutcome = 'sent' | 'not-sent' | 'stopped'
+
 interface AppState {
   boot: BootState
   bootError: string | null
@@ -148,7 +154,10 @@ interface AppState {
   thinkOpen: Record<ID, Record<number, boolean>>
   setThinkOpen: (messageId: ID, index: number, open: boolean) => void
   inputHistory: string[]
-  composerDraft: string | null
+  /** Text waiting for a chat's composer: a "Write for me" result or a message that was not sent,
+   *  keyed by its chat. The composer applies it only while that chat's draft still reads `base`;
+   *  otherwise it is offered, never forced (GitHub #29, #30). */
+  composerDrafts: Record<ID, ComposerFill>
   deleteMode: boolean
   /** /help reference dialog (commands + macros) */
   helpOpen: boolean
@@ -189,12 +198,15 @@ interface AppState {
   // chat actions
   /** noEmptySend: an empty send stays empty (the preset's send_if_empty text is not used), for
    *  "Story, move", which wants the character to continue with no user turn at all */
-  sendMessage: (chatId: ID, content: string, opts?: { attachments?: Message['attachments']; noEmptySend?: boolean }) => void
+  /** 'not-sent': the message is not in the chat (refused before sending, or the request failed
+   *  before the engine stored it): the composer gets the text back. */
+  sendMessage: (chatId: ID, content: string, opts?: { attachments?: Message['attachments']; noEmptySend?: boolean }) => Promise<SendOutcome>
   stopStreaming: () => void
   tickStream: () => void
   /** `guidance`: a direction for this one reply (Regenerate with a hint); never saved */
   regenerate: (chatId: ID, messageId?: ID, guidance?: string) => void
-  setComposerDraft: (text: string | null) => void
+  /** Drop a chat's waiting fill once its composer took it (only that fill: a newer one stays). */
+  dropComposerDraft: (chatId: ID, id: string) => void
   addSwipe: (chatId: ID) => void
   setSwipe: (chatId: ID, messageId: ID, index: number) => void
   deleteSwipe: (chatId: ID, messageId: ID, swipeIndex: number) => void
@@ -436,6 +448,19 @@ const swipeReqs = new Map<ID, number>()
 const lastVersionSnap = new Map<ID, number>()
 const SNAP_FIELDS = ['description', 'personality', 'scenario', 'firstMessage', 'exampleDialogue', 'systemPromptOverride', 'postHistoryInstructions'] as const
 
+/** Persist runs after every set(), stream ticks included: a value equal to the stored one is not
+ *  written again. In the shell each write is a message to the host and a URL rewrite, and stream
+ *  ticks used up the rewrites a reload needs (GitHub #25). A value the shell refused is written
+ *  again: it may fit now. */
+const quietStorage = {
+  getItem: (k: string) => localStorage.getItem(k),
+  setItem: (k: string, v: string) => {
+    if (localStorage.getItem(k) === v && !unsavedKeys().includes(k)) return
+    localStorage.setItem(k, v)
+  },
+  removeItem: (k: string) => localStorage.removeItem(k),
+}
+
 export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
@@ -479,7 +504,7 @@ export const useApp = create<AppState>()(
         thinkOpen: { ...s.thinkOpen, [messageId]: { ...s.thinkOpen[messageId], [index]: open } },
       })),
       inputHistory: [],
-      composerDraft: null,
+      composerDrafts: {},
       deleteMode: false,
       newChatStep: null,
       closeNewChatStep: () => set({ newChatStep: null }),
@@ -962,7 +987,12 @@ export const useApp = create<AppState>()(
         if (last) set({ view: 'chat', activeChatId: last.id, activeCharacterId: last.characterId, drawer: null })
         else set({ view: 'chats', activeChatId: null, drawer: null })
       },
-      setComposerDraft: (text) => set({ composerDraft: text }),
+      dropComposerDraft: (chatId, id) => set((s) => {
+        if (s.composerDrafts[chatId]?.id !== id) return {}
+        const next = { ...s.composerDrafts }
+        delete next[chatId]
+        return { composerDrafts: next }
+      }),
       openChat: (chatId) => {
         sessionOpenedChats.add(chatId)
         const chat = get().chats.find((c) => c.id === chatId)
@@ -1028,7 +1058,7 @@ export const useApp = create<AppState>()(
       sendMessage: async (chatId, content, opts) => {
         const { chats, presets } = get()
         const chat = chats.find((c) => c.id === chatId)
-        if (!chat || get().streaming?.chatId === chatId) return
+        if (!chat || get().streaming?.chatId === chatId) return 'not-sent'
         const activePreset =
           presets.find((p) => p.id === chat.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
         // `send_if_empty`: an empty box is replaced by this
@@ -1056,6 +1086,8 @@ export const useApp = create<AppState>()(
             }
           } catch { /* provider failed — send exactly what was typed */ }
         }
+        const before = new Set(chat.messages.map((m) => m.id))
+        stoppedRuns.delete(chatId)
         const run = runGeneration(set, get, chatId, 'send', {
           ...(sendText ? { text: sendText } : { text: '', allowEmpty: true }),
           ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
@@ -1069,6 +1101,14 @@ export const useApp = create<AppState>()(
           attach() // the staged bubble shows it immediately
           void run.then(attach, attach) // and again once the commit replaced the staged row
         }
+        const ok = await run.catch(() => false)
+        if (ok || !sendText.trim()) return 'sent'
+        // stopped by the user: the engine may have stored the turn already; leave the box alone
+        if (stoppedRuns.delete(chatId)) return 'stopped'
+        // the run failed: the transcript is refreshed by now; the turn either landed or it did not
+        const landed = get().chats.find((c) => c.id === chatId)?.messages.some((m) =>
+          m.role === 'user' && !before.has(m.id) && !m.id.startsWith('pending-') && m.swipes[m.activeSwipe]?.content === sendText)
+        return landed ? 'sent' : 'not-sent'
       },
       stopStreaming: () => {
         flushStreamDeltas?.()
@@ -1336,15 +1376,21 @@ export const useApp = create<AppState>()(
       },
       impersonate: (chatId) => {
         if (get().streaming?.chatId === chatId) return
-        set({ streaming: { chatId, messageId: '', full: '', shown: 0, startedAt: Date.now() } })
+        // the result belongs to this chat and to the draft as it reads now (GitHub #29): the
+        // composer applies it only while that draft is unchanged
+        const id = uid('fill')
+        const base = readDraft(chatId)
+        const marker = `impersonate-${id}`
+        const clear = (s: AppState) => (s.streaming?.messageId === marker ? { streaming: null } : {})
+        set({ streaming: { chatId, messageId: marker, full: '', shown: 0, startedAt: Date.now() } })
         void (async () => {
           try {
             const r = await j<{ text: string }>(`/chats/${encodeURIComponent(chatId)}/impersonate`, {
               method: 'POST', body: JSON.stringify(get().modelFor(chatId) ? { model: get().modelFor(chatId) } : {}),
             })
-            set({ composerDraft: r.text, streaming: null })
+            set((s) => ({ composerDrafts: { ...s.composerDrafts, [chatId]: { id, chatId, text: r.text, base, kind: 'impersonate' } }, ...clear(s) }))
           } catch (e) {
-            set({ streaming: null })
+            set(clear)
             toast.error(String((e as Error).message ?? e))
           }
         })()
@@ -2100,6 +2146,7 @@ export const useApp = create<AppState>()(
     {
       name: 'chrysalis-store-v2',
       version: 4,
+      storage: createJSONStorage(() => quietStorage),
       migrate: (persisted) => {
         // v1 → v2: the default chat font moved to the bundled Noto Sans; a
         // stored 'system' was the old default value, so it follows along
@@ -2139,6 +2186,8 @@ export const useApp = create<AppState>()(
 )
 
 // ── generation driver ────────────────────────────────────────────────────────
+/** Chats whose last run the user stopped (a stopped send is not "not sent": the turn may be stored). */
+const stoppedRuns = new Set<ID>()
 type SetFn = (partial: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void
 type GetFn = () => AppState
 
@@ -2508,7 +2557,10 @@ async function runStream(
     await refreshChat(set, get, chatId)
     committed = true
   } catch (e) {
-    if ((e as Error).name === 'AbortError') return false // stopped by the user
+    if ((e as Error).name === 'AbortError') {
+      stoppedRuns.add(chatId)
+      return false // stopped by the user
+    }
     toast.error(String((e as Error).message ?? e))
     await refreshChat(set, get, chatId)
   } finally {
