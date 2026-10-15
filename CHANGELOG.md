@@ -2,6 +2,16 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.47.0
+
+A help list with "Show me", and tours for seven more sections. Works with any engine.
+
+- Help: "?" in the left rail (on a phone in More, and in the chat menu) lists what the app can do, grouped, with a search in English and Ukrainian that also knows other apps' words ("world info", "swipes"). "Show me" opens the place and points at the button: the chat menu, the Dashboard, an editor tab, the Groups list, a lorebook, a preset, the commands reference.
+- Tours on the first visit to the chat menu, the Dashboard, Soul, the Library, Characters, Groups, Lorebooks and Presets. Settings → Guide turns them off or plays them again.
+- Message buttons that show on hover stay visible while the guide points at them.
+- The commands and macros reference opens without a chat.
+- The bug tip says that Report a bug can hand the problem to Molfar first.
+
 ## 4.46.0
 
 A short guide to what is new, safer drafts, and fixes from a day of testing on a phone. Works with any engine; the "not saved" warning needs engine 1.0.9.

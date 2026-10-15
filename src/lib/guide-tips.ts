@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.46.0'
+export const APP_VERSION = '4.47.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -56,8 +56,8 @@ export const TIPS: Tip[] = [
     keywords: { en: 'continue impersonate regenerate write for me another', uk: 'продовжити імперсонація перегенерувати написати за мене ще' },
     title: { en: 'Quick moves', uk: 'Швидкі дії' },
     body: {
-      en: 'Once a draft wraps, Continue, Write for me and Another sit right under it, with a button for the big editor. The same moves are always in this + menu (Continue, Impersonate, Regenerate).',
-      uk: 'Коли чернетка переноситься на новий рядок, під нею з’являються Continue, Write for me та Another і кнопка великого редактора. Ті самі дії завжди є в меню + (Continue, Impersonate, Regenerate).',
+      en: 'Once a draft wraps, Continue, Write for me and Another sit right under it, with a button for the big editor (on a phone only Write for me and the big editor). The same moves are always in this + menu (Continue, Impersonate, Regenerate).',
+      uk: 'Коли чернетка переноситься на новий рядок, під нею з’являються Continue, Write for me та Another і кнопка великого редактора (на телефоні лише Write for me і великий редактор). Ті самі дії завжди є в меню + (Continue, Impersonate, Regenerate).',
     },
   },
   {
@@ -201,7 +201,7 @@ export const TIPS: Tip[] = [
   // ── What's new: the help list itself
   {
     id: 'new.help',
-    since: '4.46.0',
+    since: '4.47.0',
     target: 'nav.help',
     open: { view: 'home' },
     title: { en: 'Help', uk: 'Довідка' },
