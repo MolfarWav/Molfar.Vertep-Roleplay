@@ -325,6 +325,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
             <select
+              data-guide="prompt.chat"
               className="h-8 rounded-md border border-border bg-background px-2 text-sm"
               value=""
               onChange={e => e.target.value && onPickChat(e.target.value)}
@@ -355,6 +356,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
         <label className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
           <select
+            data-guide="prompt.chat"
             className="h-8 rounded-md border border-border bg-background px-2 text-sm"
             value={chatId}
             onChange={e => onPickChat(e.target.value)}
@@ -383,6 +385,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
         {previewLoading && <span className="text-xs text-muted-foreground">{t('canvas.prompt.updating')}</span>}
         {!phoneList && (
           <Button
+            data-guide="prompt.details"
             variant="ghost"
             size="icon"
 
@@ -403,9 +406,10 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           <div className={cn('min-w-0 flex-1', phoneList && 'overflow-y-auto')}>
             {phoneList ? (
               <div className="flex flex-col gap-2 p-3">
-                {itemsWithMeta.map(m => (
+                {itemsWithMeta.map((m, mi) => (
                   <div key={m.item.key}>
                     <div
+                      data-guide={m.item.kind === 'history' ? 'prompt.history' : mi === 0 ? 'prompt.part' : undefined}
                       className={cn(
                         'flex min-h-[40px] items-center gap-2 rounded-lg border border-border bg-card p-3',
                         !m.on && 'opacity-60',
@@ -452,7 +456,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                     )}
                   </div>
                 ))}
-                <div className="flex items-center justify-between border-t border-border px-3 py-2 text-sm">
+                <div data-guide="prompt.total" className="flex items-center justify-between border-t border-border px-3 py-2 text-sm">
                   <span className="text-muted-foreground">{t('canvas.prompt.total')}</span>
                   <strong>{formatTokens(totalTokens)} {t('canvas.prompt.tokens')}</strong>
                 </div>
@@ -470,7 +474,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                 </svg>
                 <div className="relative z-10 flex items-start gap-24" style={{ minWidth: 700 }}>
                   <div className="flex flex-col gap-2" style={{ width: 260 }}>
-                    {itemsWithMeta.map(m => {
+                    {itemsWithMeta.map((m, mi) => {
                       const disabledReason = stateText(m.item, t)
                       const isHistory = m.item.kind === 'history'
                       const canToggle = !isHistory && editable && switchable(m.item)
@@ -478,6 +482,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                         <div
                           key={m.item.key}
                           ref={el => { if (el) cardRefs.current.set(m.item.key, el) }}
+                          data-guide={isHistory ? 'prompt.history' : mi === 0 ? 'prompt.part' : undefined}
                           className={cn(
                             'rounded-lg border border-border bg-card p-3 shadow-sm transition-all',
                             !m.on && 'opacity-60',
@@ -533,7 +538,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                     })}
                   </div>
                   <div className="w-[340px] shrink-0">
-                    <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+                    <div data-guide="prompt.total" className="rounded-lg border border-border bg-card p-3 shadow-sm">
                       <div className="text-sm font-semibold">{t('canvas.prompt.output')}</div>
                       <div className="text-xs text-muted-foreground">{chat?.title ?? ''}</div>
                       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">

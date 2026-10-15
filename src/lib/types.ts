@@ -807,6 +807,8 @@ export interface AppSettings {
   askPresetOnNewChat?: boolean
   /** 0.9.5: the user picked the language here; until then it follows the shell's (shell-bridge shellLocale). */
   languageChosen?: boolean
+  /** 4.46: what the in-app guide has shown (lib/guide.ts). Absent = nothing yet. */
+  guide?: import('./guide').GuideState
   customCss: string
   activeBackgroundId: ID | null
   backgroundOpacity: number

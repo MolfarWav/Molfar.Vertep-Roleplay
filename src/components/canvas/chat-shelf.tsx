@@ -68,6 +68,7 @@ export const ChatShelf = forwardRef<HTMLDivElement, ChatShelfProps>(({
   return (
     <div
       ref={ref}
+      data-guide="canvas.shelf"
       className={cn(
         'flex h-full w-[260px] flex-col border-r bg-card',
         dropActive && 'ring-2 ring-primary ring-offset-2 ring-offset-background'

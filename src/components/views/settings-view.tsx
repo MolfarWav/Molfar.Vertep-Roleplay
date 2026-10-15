@@ -30,6 +30,7 @@ import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/eng
 import { cn } from "@/lib/utils"
 import { useConfirm } from "@/components/ui/confirm"
 import { defaultSettings } from "@/lib/seed"
+import { GuideSection } from "@/components/guide/guide-settings"
 
 type ControlDef =
   | { kind: "switch"; key: keyof AppSettings; label: string; labelKey?: MsgKey; defaultOn?: boolean }
@@ -130,6 +131,7 @@ export function SettingsView() {
     { id: "custom-css", label: "Custom CSS" },
     { id: "studio-import", label: "Import" },
     { id: "data", label: "Data" },
+    { id: "guide", label: t("guide.settings.title", resolveLanguage(settings.language)) },
   ]
   const activeLabel = navItems.find((n) => n.id === section)?.label ?? "Settings"
 
@@ -343,6 +345,8 @@ export function SettingsView() {
               <STImportSection />
             ) : section === "data" ? (
               <DataSection />
+            ) : section === "guide" ? (
+              <GuideSection />
             ) : (
               renderSection(SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]!)
             ))}
