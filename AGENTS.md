@@ -237,6 +237,33 @@ destructive, muted), never hex; below MOBILE_BREAKPOINT (768 px,
 hooks/use-mobile.ts) tap targets of 40 px, nothing hover-only, no sideways
 scroll; rare options folded under "More" like the lorebook entry editor.
 
+## The in-app guide
+
+What's new after an update, a short tour on the first visit to a section, and
+the searchable help list ("?" in the rail). A feature a user decides with gets
+a tip in the same change; without one, nobody finds it.
+- Tips and tours are data: `TIPS` and `TOURS` in src/lib/guide-tips.ts. The
+  format and the logic: src/lib/guide.ts. The UI: src/components/guide/.
+- A tip: `id` (`help.<area>` or `new.<feature>`), `title` and `body` in `en`
+  and `uk` (plain words, one or two sentences, second person; UI labels exactly
+  as the UI shows them, English labels stay English in uk), `help` (the group
+  in `HELP_GROUPS`) to list it under "?", `keywords` for words people search
+  with, `target` + `open` when there is an element to show.
+- `target` is a `data-guide="<name>"` attribute you add on a stable element
+  (never a class or text). `open` says how "Show me" gets there (a view, the
+  chat menu, the dashboard, an editor tab...; see `GuideOpen`). An element shown
+  only on hover needs `data-guide-reveal` (see `.ls-acts`).
+- What's new: `since` = the version that will ship the feature. Local edits
+  are not a release, so leave `since` out unless the change is being
+  published; the tip still shows in the help list. Publishing bumps
+  `APP_VERSION` in guide-tips.ts together with manifest.json (a test checks).
+- A new section gets a tour: its component calls `useGuidePlace(place, ready)`
+  (`ready` false while it loads or is empty), the place goes into `Place` in
+  guide.ts, the tour into `TOURS` (2-4 steps, first step on the section title).
+- Texts must be true: read the code you describe. `bun test
+  test/rp-guide.test.ts` checks ids, both languages and that every target is
+  marked in the UI; open the help list and press Show me once.
+
 ## Engine contract (wired in v4.1)
 
 All app behavior (chats, swipes, presets, world info, characters, import)
