@@ -2,6 +2,19 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.46.0
+
+A short guide to what is new, safer drafts, and fixes from a day of testing on a phone. Works with any engine; the "not saved" warning needs engine 1.0.9.
+
+- Guide: after an update, What's new shows what changed since your last version, one tip at a time; short tours point out the Canvas links, the Prompt board and the composer on first visits. Settings → Guide turns tips off or shows them again. English and Ukrainian.
+- Drafts: a "Write for me" result that arrives late goes only into the chat it was asked for, and only over the draft it started from; otherwise it is offered, not pasted over what you typed. A message that could not be sent comes back into the composer with its attachments. When the browser refuses to save a draft, an amber line says so, with Copy.
+- Phone composer: two rows, not three. Write for me and the big editor sit beside "+" and Send; Continue and Another are in the "+" menu.
+- Number fields: an emptied field no longer turns into 0 with the next digits typed after it ("07500").
+- The context ring in the chat header and the "out of context" line count against the model's context window, as the request does; they used the preset's 8192 and could show over 100 %.
+- Profile, Structure it: a long card no longer fails with "not JSON" (the reply had been cut off). If it still fails, the message says whether the reply was cut off or not in the expected format.
+- Links to Settings or Molfar that the engine refuses now say why: a copy restored from a backup is not counted as official until it is checked (engine 1.0.9 checks it by itself).
+- Dashboard and Litopys: notes and facts are ranked against the scene indexed once, so a long chat with many entries no longer runs past the script time limit. A reply whose Dashboard insert fits clears the old "trimmed" notice.
+
 ## 4.45.0
 
 Quick moves under a long draft, tidier phone pages for Characters and Lorebooks, and a clearer empty Library. Works with any engine.
