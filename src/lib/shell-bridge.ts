@@ -39,7 +39,7 @@ export async function askMolfar(text: string): Promise<void> {
   try {
     await fn(draft)
   } catch (e) {
-    throw e instanceof Error ? e : new Error(typeof e === 'string' ? e : 'Rejected')
+    throw shellRefusal(e, 'Molfar')
   }
 }
 
@@ -58,7 +58,22 @@ export async function listOtherApps(selfId = 'roleplay'): Promise<ShellApp[]> {
 export async function openShellApp(id: string): Promise<void> {
   const fn = window.chrysalisShell?.openApp
   if (typeof fn !== 'function') throw new Error('Apps are not reachable from this engine')
-  await fn(id)
+  try {
+    await fn(id)
+  } catch (e) {
+    throw shellRefusal(e, 'other apps')
+  }
+}
+
+/** The engine refuses shell actions to a copy of Roleplay it does not count as
+ *  official (restored from a backup file, or installed from another source):
+ *  its bare "not allowed for this app" told the user nothing. */
+function shellRefusal(e: unknown, where: string): Error {
+  const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Rejected'
+  if (msg === 'not allowed for this app') {
+    return new Error(`This copy of Roleplay is not marked official (restored from a backup or installed from another source), so it cannot open ${where} for you. Open it from the top menu, or update Roleplay in My apps to make it official again.`)
+  }
+  return e instanceof Error ? e : new Error(msg)
 }
 
 /** The shell can open its Settings on one model (engine 0.9.2). */
@@ -69,7 +84,11 @@ export const canOpenModelSettings = (): boolean =>
 export async function openModelSettings(ref?: string | null): Promise<void> {
   const fn = (window.chrysalisShell as { openSettings?: (model?: string) => Promise<null> } | undefined)?.openSettings
   if (typeof fn !== 'function') throw new Error('This engine has no model settings yet')
-  await fn(ref ?? undefined)
+  try {
+    await fn(ref ?? undefined)
+  } catch (e) {
+    throw shellRefusal(e, 'Settings')
+  }
 }
 
 /** The shell's interface language (engine 0.9.5), e.g. "uk"; null on older engines or outside the shell. */
@@ -92,5 +111,9 @@ export const canOpenSettingsTab = (): boolean =>
 export async function openSettingsTab(tab: 'api' | 'models' | 'memory' | 'backup'): Promise<void> {
   const fn = (window.chrysalisShell as { openSettingsTab?: (tab: string) => Promise<null> } | undefined)?.openSettingsTab
   if (typeof fn !== 'function') throw new Error('This engine cannot open that part of Settings')
-  await fn(tab)
+  try {
+    await fn(tab)
+  } catch (e) {
+    throw shellRefusal(e, 'Settings')
+  }
 }

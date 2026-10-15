@@ -95,10 +95,14 @@ describe("keeping a reply to the profile", () => {
   });
 
   it("names what went wrong with a reply", () => {
-    expect(draftFromReply({ text: "no json here" }, 1)).toEqual({ v: 1, at: 1, error: "the reply was not JSON" });
+    expect(draftFromReply({ text: "no json here" }, 1).error).toContain("expected format");
+    expect(draftFromReply({ text: '{"profile":{"core":{"age":"30", "appearance":"tall and' }, 1).error).toContain("cut off");
     expect(draftFromReply({ text: '{"profile":{}}' }, 1)).toEqual({ v: 1, at: 1, error: "the reply filled no field" });
     expect(draftFromReply({ text: "" }, 1).error).toBe("the model returned nothing");
     expect(parseReply('Sure! {"a": {"b": 1}} done')).toEqual({ a: { b: 1 } });
+    // braces in prose or thinking before the object do not hide it
+    expect(parseReply('I map {name} first. {"a": 1}')).toEqual({ a: 1 });
+    expect(parseReply('<think>use {x}</think>\n```json\n{"a": 2}\n```')).toEqual({ a: 2 });
   });
 });
 

@@ -28,16 +28,12 @@ import { cn } from "@/lib/utils"
 import type { ID, Message, QuickReply } from "@/lib/types"
 import { toast } from "sonner"
 import { DEFAULT_AVATAR } from '../../lib/utils'
+import { draftKey, fillAction, readDraft, unsavedKeys } from '@/lib/drafts'
 
 type Attachment = NonNullable<Message["attachments"]>[number]
 
-/** Unsent composer text lives under a per-chat key so a reload, rebuild, or
- *  chat switch never eats a half-written thought. Attachments stay in memory
- *  only — data-URL bytes would blow the storage quota. */
-const draftKey = (chatId: ID) => `chrysalis.roleplay.draft.${chatId}`
-const readDraft = (chatId: ID): string => {
-  try { return localStorage.getItem(draftKey(chatId)) ?? "" } catch { return "" }
-}
+// Unsent text is saved per chat (lib/drafts). Attachments stay in memory
+// only — data-URL bytes would blow the storage quota.
 
 // Touch devices (phones, tablets): Enter inserts a newline — sending is the
 // send button, the mobile chat convention; "send on Enter" stays a desktop
@@ -66,8 +62,8 @@ export function Composer({ chatId }: { chatId: ID }) {
   const chatWidth = useApp((s) => s.settings.chatWidth)
   const pushInputHistory = useApp((s) => s.pushInputHistory)
   const inputHistory = useApp((s) => s.inputHistory)
-  const composerDraft = useApp((s) => s.composerDraft)
-  const setComposerDraft = useApp((s) => s.setComposerDraft)
+  const fill = useApp((s) => s.composerDrafts[chatId])
+  const dropComposerDraft = useApp((s) => s.dropComposerDraft)
   const qrSets = useApp((s) => s.qrSets)
   const characters = useApp((s) => s.characters)
   const setHelpOpen = useApp((s) => s.setHelpOpen)
@@ -150,24 +146,51 @@ export function Composer({ chatId }: { chatId: ID }) {
   // passive one: resizing after paint shows a frame at the old height.
   useLayoutEffect(autoFit, [value, wide])
 
-  // Consume drafts pushed by impersonate. A draft the user had written is
-  // kept for one Undo: "Write for me" sits right under a long draft.
-  const replacedDraft = useRef<string | null>(null)
+  // Text waiting for this chat: a "Write for me" result, or a message that was
+  // not sent. It goes in only while the draft still reads what it read when the
+  // request started; text typed since is never overwritten, the fill is offered
+  // instead (GitHub #29, #30). A replaced draft is kept for one Undo.
   useEffect(() => {
-    if (composerDraft != null) {
-      const before = replacedDraft.current
-      replacedDraft.current = null
-      setValue(composerDraft)
-      setComposerDraft(null)
+    if (!fill) return
+    dropComposerDraft(chatId, fill.id)
+    const now = readDraft(chatId)
+    const put = () => {
+      const before = readDraft(chatId)
+      setValue(fill.text)
+      if (fill.attachments?.length) setAttachments((prev) => [...prev, ...fill.attachments!])
       textareaRef.current?.focus()
-      if (before && before.trim() && before !== composerDraft) {
-        toast("Your draft was replaced", { action: { label: "Undo", onClick: () => setValue(before) } })
+      if (before.trim() && before !== fill.text) {
+        toast(t('composer.draftReplaced'), { action: { label: t('composer.undo'), onClick: () => setValue(before) } })
       }
     }
-  }, [composerDraft, setComposerDraft, setValue])
+    if (fillAction(fill.base, now) === 'put') {
+      put()
+      if (fill.kind === 'unsent') toast(t('composer.unsentBack'))
+    } else {
+      toast(t(fill.kind === 'unsent' ? 'composer.unsentOffer' : 'composer.writeForMeOffer'), {
+        duration: 20000,
+        action: { label: t('composer.putIn'), onClick: put },
+      })
+    }
+  }, [fill, chatId, dropComposerDraft, setValue, t])
   const writeForMe = () => {
-    replacedDraft.current = value
     void impersonate(chatId)
+  }
+
+  // The shell refused to store this chat's draft (its storage is full): the
+  // text is still here, but a reload of the whole page would lose it (GitHub #27).
+  const [unsavedList, setUnsavedList] = useState<string[]>(() => unsavedKeys())
+  useEffect(() => {
+    const on = () => setUnsavedList(unsavedKeys())
+    window.addEventListener('chrysalis:storage', on)
+    return () => window.removeEventListener('chrysalis:storage', on)
+  }, [])
+  const draftUnsaved = !!value && unsavedList.includes(draftKey(chatId))
+  const copyDraft = () => {
+    void navigator.clipboard?.writeText(value).then(
+      () => toast(t('composer.copied')),
+      () => toast.error(t('composer.copyFailed')),
+    )
   }
 
   const dropDraft = () => {
@@ -349,7 +372,12 @@ export function Composer({ chatId }: { chatId: ID }) {
     // an armed "Story, move" with an empty box: the character carries on with no user turn at
     // all, even when the preset turns an empty send into text (a send_if_empty of "..." left a
     // "..." turn the nudge then had nothing to stand on)
-    sendMessage(chatId, text, { attachments, ...(!text && nudgeArmed ? { noEmptySend: true } : {}) })
+    const sentAttachments = attachments
+    void sendMessage(chatId, text, { attachments, ...(!text && nudgeArmed ? { noEmptySend: true } : {}) }).then((outcome) => {
+      // not in the chat: the text and attachments come back (to an empty box, else offered)
+      if (outcome !== 'not-sent' || (!text && !sentAttachments.length)) return
+      useApp.setState((s) => ({ composerDrafts: { ...s.composerDrafts, [chatId]: { id: uid('fill'), chatId, text, base: '', kind: 'unsent', attachments: sentAttachments } } }))
+    })
     if (text) pushInputHistory(text)
     setValue("")
     dropDraft()
@@ -429,6 +457,15 @@ export function Composer({ chatId }: { chatId: ID }) {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {draftUnsaved && (
+        <div role="status" className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-foreground">
+          <span className="min-w-0 flex-1">{t('composer.unsaved')}</span>
+          <Button type="button" variant="outline" size="sm" className="h-7 shrink-0" onClick={copyDraft}>
+            {t('composer.copyDraft')}
+          </Button>
         </div>
       )}
 
@@ -562,17 +599,19 @@ export function Composer({ chatId }: { chatId: ID }) {
         />
 
         {/* in the two-row layout the space between "+" and send holds the moves
-            people use most, out of the "+" menu; this pair sits at the right end */}
+            people use most, out of the "+" menu; this pair sits at the right end.
+            On a phone only Write for me and the big editor: Continue and Another
+            stay in the "+" menu, so the composer keeps to two rows */}
         {wide && !isStreaming && (
-          <div className="flex min-w-0 items-center gap-1 max-sm:order-[-1] max-sm:basis-full" role="group" aria-label="Quick moves">
-            <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:flex-1 border-primary/50 bg-primary/15 px-2.5 text-xs font-semibold text-primary hover:bg-primary/25 hover:text-primary" onClick={() => continueReply(chatId)} title="Continue the last reply">
+          <div className="flex min-w-0 items-center gap-1" role="group" aria-label="Quick moves">
+            <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-primary/50 bg-primary/15 px-2.5 text-xs font-semibold text-primary hover:bg-primary/25 hover:text-primary" onClick={() => continueReply(chatId)} title="Continue the last reply">
               <CaretDoubleRight className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Continue</span>
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:flex-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title="Write your next message for you (your draft can be brought back)">
+            <Button variant="outline" size="sm" className="h-9 gap-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title="Write your next message for you (your draft can be brought back)">
               <User className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Write for me</span>
             </Button>
             {hasReply && (
-              <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:flex-1 border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300" onClick={() => regenerate(chatId)} title="Another version of the last reply">
+              <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300" onClick={() => regenerate(chatId)} title="Another version of the last reply">
                 <ArrowsClockwise className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Another</span>
               </Button>
             )}
