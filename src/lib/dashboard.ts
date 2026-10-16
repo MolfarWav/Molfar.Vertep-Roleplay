@@ -36,7 +36,7 @@ export interface DashEvent {
 }
 
 /** A thread; `by: 'user'` when the user added it (round 3 plugin). */
-export interface Thread { id: string; text: string; since: number; status: 'open' | 'resolved'; by?: 'user' }
+export interface Thread { id: string; text: string; since: number; status: 'open' | 'resolved'; by?: 'user'; /** the turn it closed on (resolved threads stay as history, the newest 20) */ resolvedAt?: number }
 export interface Edge { from: string; to: string; role: string; warmth: string }
 export type NoteTag = 'pinned' | 'important' | 'everyday'
 export const NOTE_TAGS: readonly NoteTag[] = ['pinned', 'important', 'everyday']

@@ -2351,12 +2351,17 @@ function applyNames(ctx, out, present, turn, K) {
 function applyThreads(ctx, out, turn) {
   const { state } = ctx;
   const B = ctx.base && ctx.base.snap;
-  const threads = arr(ctx.threads).filter((t) => t.status === "open").map((t) => ({ ...t }));
+  // A resolved thread stays in the snapshot, closed, with the turn it closed on. Dropped, a thread
+  // the user added came back open from the overlay on the next turn (#47), and the history of what
+  // the story settled was gone. Only open threads go to the sensor and into prompts.
+  const all = arr(ctx.threads).filter(isObj).map((t) => ({ ...t }));
+  const threads = all.filter((t) => t.status === "open");
+  const closed = all.filter((t) => t.status !== "open").map((t) => ({ ...t, status: "resolved", resolvedAt: Number.isFinite(num(t.resolvedAt)) ? num(t.resolvedAt) : turn }));
   const limit = maxThreadsOf(ctx.cfg);
   const spec = isObj(out.threads) ? out.threads : {};
   for (const id of arr(spec.resolved).map(str)) {
     const t = threads.find((x) => x.id === id);
-    if (t) t.status = "resolved";
+    if (t) { t.status = "resolved"; t.resolvedAt = turn; }
   }
   const openCount = () => threads.filter((t) => t.status === "open").length;
   for (const item of arr(spec.open)) {
@@ -2369,8 +2374,13 @@ function applyThreads(ctx, out, turn) {
       threads.push({ id: "t" + state.counters.thread, text, since: turn, status: "open" });
     }
   }
-  return threads;
+  // the newest resolved ones stay as history, a bounded number
+  const history = [...closed, ...threads.filter((t) => t.status !== "open")]
+    .sort((a, b) => (num(b.resolvedAt) || 0) - (num(a.resolvedAt) || 0))
+    .slice(0, RESOLVED_THREADS_KEPT);
+  return [...threads.filter((t) => t.status === "open"), ...history];
 }
+const RESOLVED_THREADS_KEPT = 20;
 
 function applyEdges(B, out, known) {
   const edges = arr(B && B.edges).map((e) => ({ ...e }));

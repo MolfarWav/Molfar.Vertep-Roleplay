@@ -750,18 +750,23 @@ describe("update route", () => {
     mock.push(reply({ threads: { open: [{ id: "t2", text: "two, reworded" }, { id: null, text: "five" }], resolved: ["t1"] } }));
     update(mock, "c1");
     t = readStateFile("c1").snapshots["m4#0"].threads;
+    const turn = readStateFile("c1").snapshots["m4#0"].turn;
     expect(t.map((x: any) => [x.id, x.text, x.status])).toEqual([
-      ["t1", "one", "resolved"],
       ["t2", "two, reworded", "open"],
       ["t3", "three", "open"],
       ["t4", "five", "open"],
+      ["t1", "one", "resolved"],
     ]);
-    // the resolved one is gone next turn, and a thread nobody mentions stays open
+    expect(t.find((x: any) => x.id === "t1").resolvedAt).toBe(turn);
+    // the resolved one stays as history (closed, with its turn) and is never offered again;
+    // a thread nobody mentions stays open
     writeChat("c1", [...three(), A("m4", "Go on."), U("m5", "Hm.")]);
     mock.push(reply({}));
     update(mock, "c1");
     t = readStateFile("c1").snapshots["m5#0"].threads;
-    expect(t.map((x: any) => x.id)).toEqual(["t2", "t3", "t4"]);
+    expect(t.map((x: any) => [x.id, x.status])).toEqual([["t2", "open"], ["t3", "open"], ["t4", "open"], ["t1", "resolved"]]);
+    expect(t.find((x: any) => x.id === "t1").resolvedAt).toBe(turn);
+    expect(mock.requests.at(-1)!.req.messages[0].content as string).not.toContain('t1 "one"');
   });
 
   it("only the newest 40 snapshots are kept, and unknown keys survive a rewrite", () => {
@@ -3429,9 +3434,19 @@ describe("the user's notes and threads (overlay)", () => {
     writeChat("c1", grow(4));
     mock.push(quiet);
     update(mock, "c1");
-    expect((mock.requests.at(-1)!.req.messages[0].content as string)).not.toContain('t1 "Who has the key?"');
+    const input2 = mock.requests.at(-1)!.req.messages[0].content as string;
+    expect(input2).not.toContain('t1 "Who has the key?"');
+    // #47: the thread of the user the sensor resolved stays resolved; it came back open here
+    expect(input2).not.toContain('ut1 "Find the missing letter"');
     const snap2 = readStateFile("c1").snapshots["x3#0"];
-    expect(snap2.threads.map((t: any) => t.id)).toEqual(["ut2"]);
+    expect(snap2.threads.map((t: any) => [t.id, t.status])).toEqual([["ut2", "open"], ["t1", "resolved"], ["ut1", "resolved"]]);
+    const shown = notes(mock, { op: "thread-edit", id: "ut2", text: "Second, still" }).json.view.threads;
+    expect(shown.find((t: any) => t.id === "ut1")).toMatchObject({ status: "resolved", by: "user" });
+    // and one turn more: still resolved, never offered to the sensor again
+    writeChat("c1", grow(6));
+    mock.push(quiet);
+    update(mock, "c1");
+    expect(mock.requests.at(-1)!.req.messages[0].content as string).not.toContain('ut1 "Find the missing letter"');
     // editing text, and reopening
     const ut = notes(mock, { op: "thread-edit", id: "ut1", status: "open", text: "Letter found?" }).json.view.threads;
     expect(ut.find((t: any) => t.id === "ut1")).toMatchObject({ text: "Letter found?", status: "open", by: "user" });

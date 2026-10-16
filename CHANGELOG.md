@@ -11,6 +11,7 @@ Large libraries (MolfarWav/Molfar.Vertep#46). With engine 1.1.2 the start stays 
 - Search on the Characters page covers names, tags and the first 1,000 characters of a description (until now the whole description); token counts on the tiles are estimates (marked ~) until the card is opened.
 - Importing many cards at once sends them in batches of 25: a few hundred in one request ran out of time halfway, with part of the cards written and an error on screen.
 - Characters page: counting chats per card no longer slows the page down with thousands of chats.
+- Dashboard threads: a resolved thread stays resolved. A thread you added came back open one turn after the sensor closed it (MolfarWav/Molfar.Vertep#47); resolved threads now stay in the list's Resolved part as history (the newest 20, with the turn they closed on) instead of vanishing after a turn.
 
 ## 4.48.0
 
