@@ -1,0 +1,21 @@
+{
+  "id": "molfar-plan-show-debug",
+  "scriptName": "Molfar Plan — show (debug)",
+  "findRegex": "<molfar_plan>([\\s\\S]*?)<\\/molfar_plan>\\s*",
+  "replaceString": "<div style=\"font-size:11px;opacity:.6;white-space:pre-wrap;margin:0 0 6px\">🧠 $1</div>\n\n",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": true,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "molfar",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "order": 105
+}

@@ -1,0 +1,173 @@
+{
+  "_note": "Regex scripts of the built-in Molfar preset. The app update writes each one to regex/<id>.json when it is missing (onAppUpdate, 4.48.0).",
+  "scripts": [
+    {
+      "id": "molfar-focus-log-drop-from-prompt-after-8-turns",
+      "scriptName": "Molfar Focus Log — drop from prompt after 8 turns",
+      "findRegex": "\\n{0,2}<focus_log>[^<\\n]{0,300}</focus_log>[ \\t]{0,4}",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 16,
+      "maxDepth": null,
+      "flags": "g",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 104
+    },
+    {
+      "id": "molfar-focus-log-hide-from-chat",
+      "scriptName": "Molfar Focus Log — hide from chat",
+      "findRegex": "\\n{0,2}<focus_log>[^<\\n]{0,300}</focus_log>[ \\t]{0,4}",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "g",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 103
+    },
+    {
+      "id": "molfar-focus-log-show-debug",
+      "scriptName": "Molfar Focus Log — show (debug)",
+      "findRegex": "<focus_log>([^<\\n]{0,300})</focus_log>",
+      "replaceString": "<div style=\"font-size:11px;opacity:.6;margin:6px 0 0\">🎛 $1</div>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": true,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "g",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 102
+    },
+    {
+      "id": "molfar-innervoice-hidedisplay",
+      "scriptName": "Molfar-InnerVoice-HideDisplay",
+      "findRegex": "<inner_voice\\b[^>]*>[\\s\\S]*?<\\/inner_voice>\\s*",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 100
+    },
+    {
+      "id": "molfar-innervoice-pruneold",
+      "scriptName": "Molfar-InnerVoice-PruneOld",
+      "findRegex": "<inner_voice\\b[^>]*>[\\s\\S]*?<\\/inner_voice>\\s*",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 10,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 101
+    },
+    {
+      "id": "molfar-plan-drop-from-prompt",
+      "scriptName": "Molfar Plan — drop from prompt",
+      "findRegex": "<molfar_plan>([\\s\\S]*?)<\\/molfar_plan>\\s*",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 1,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 107
+    },
+    {
+      "id": "molfar-plan-hide-from-chat",
+      "scriptName": "Molfar Plan — hide from chat",
+      "findRegex": "<molfar_plan>([\\s\\S]*?)<\\/molfar_plan>\\s*",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 106
+    },
+    {
+      "id": "molfar-plan-show-debug",
+      "scriptName": "Molfar Plan — show (debug)",
+      "findRegex": "<molfar_plan>([\\s\\S]*?)<\\/molfar_plan>\\s*",
+      "replaceString": "<div style=\"font-size:11px;opacity:.6;white-space:pre-wrap;margin:0 0 6px\">🧠 $1</div>\n\n",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": true,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "molfar",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "order": 105
+    }
+  ]
+}

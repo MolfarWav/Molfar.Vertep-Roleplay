@@ -1,0 +1,21 @@
+{
+  "id": "molfar-focus-log-show-debug",
+  "scriptName": "Molfar Focus Log — show (debug)",
+  "findRegex": "<focus_log>([^<\\n]{0,300})</focus_log>",
+  "replaceString": "<div style=\"font-size:11px;opacity:.6;margin:6px 0 0\">🎛 $1</div>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": true,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "g",
+  "scope": "preset",
+  "scopeTargetId": "molfar",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "order": 102
+}

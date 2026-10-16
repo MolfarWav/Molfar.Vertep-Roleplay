@@ -3400,6 +3400,21 @@ export function onAppUpdate(ctx, host) {
     const tpl = readJsonFile(fsx, "presets/_frankenx.json");
     if (tpl) { writeJsonFile(fsx, "presets/frankenx.json", tpl); done.push("presets/frankenx.json"); }
   }
+  // 4.48.0: the built-in Molfar preset and its regex scripts (they hide its plan, inner voice and
+  // focus log). Templates: _molfar.json and _molfar-regex.json; a copy the user already has stays.
+  if (olderThan(from, "4.48.0")) {
+    if (!readJsonFile(fsx, "presets/molfar.json")) {
+      const tpl = readJsonFile(fsx, "presets/_molfar.json");
+      if (tpl) { writeJsonFile(fsx, "presets/molfar.json", tpl); done.push("presets/molfar.json"); }
+    }
+    const bundle = readJsonFile(fsx, "_molfar-regex.json");
+    for (const s of bundle && Array.isArray(bundle.scripts) ? bundle.scripts : []) {
+      if (!s || typeof s.id !== "string" || !/^molfar-[a-z0-9-]+$/.test(s.id)) continue;
+      if (readJsonFile(fsx, "regex/" + s.id + ".json")) continue;
+      writeJsonFile(fsx, "regex/" + s.id + ".json", s);
+      done.push("regex/" + s.id + ".json");
+    }
+  }
   if (olderThan(from, "4.37.0")) {
     let files = [];
     try { files = fsx.list("presets").filter((f) => f.endsWith(".json")); } catch { files = []; }

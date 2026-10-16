@@ -257,7 +257,7 @@ single choice). Sections read a variable as `{{name}}` or `{{var:name}}`, in `{{
 (when the user last chose them: a new chat with the same character starts from that chat's preset
 and picks) and `presetNotes` (what changed after which message, shown in the chat, never sent to the
 model). Marinara presets (`type: "marinara_preset"`) import with their choice blocks as `choice`
-variables. `frankenx` is the built-in read-only example: copy it to change its text.
+variables. `frankenx` and `molfar` are the built-in read-only presets: copy one to change its text. Molfar's regex scripts (`data/regex/molfar-*.json`, scope `preset`) hide its `<molfar_plan>`, `<inner_voice>` and `<focus_log>` blocks; an update adds them from `data/_molfar-regex.json` when missing.
 
 ## Macros and regex scripts
 

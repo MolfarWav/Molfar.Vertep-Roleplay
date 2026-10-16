@@ -1,0 +1,21 @@
+{
+  "id": "molfar-focus-log-drop-from-prompt-after-8-turns",
+  "scriptName": "Molfar Focus Log — drop from prompt after 8 turns",
+  "findRegex": "\\n{0,2}<focus_log>[^<\\n]{0,300}</focus_log>[ \\t]{0,4}",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 16,
+  "maxDepth": null,
+  "flags": "g",
+  "scope": "preset",
+  "scopeTargetId": "molfar",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "order": 104
+}

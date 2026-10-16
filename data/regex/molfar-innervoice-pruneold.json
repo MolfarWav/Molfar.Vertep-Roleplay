@@ -1,0 +1,21 @@
+{
+  "id": "molfar-innervoice-pruneold",
+  "scriptName": "Molfar-InnerVoice-PruneOld",
+  "findRegex": "<inner_voice\\b[^>]*>[\\s\\S]*?<\\/inner_voice>\\s*",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 10,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "molfar",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "order": 101
+}

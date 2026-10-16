@@ -1,0 +1,21 @@
+{
+  "id": "molfar-plan-drop-from-prompt",
+  "scriptName": "Molfar Plan — drop from prompt",
+  "findRegex": "<molfar_plan>([\\s\\S]*?)<\\/molfar_plan>\\s*",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 1,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "molfar",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "order": 107
+}

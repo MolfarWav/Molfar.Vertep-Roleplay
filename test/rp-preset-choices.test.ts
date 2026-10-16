@@ -272,6 +272,57 @@ describe("Marinara import", () => {
   });
 });
 
+describe("built-in Molfar", () => {
+  const data = path.join(import.meta.dir, "..", "data");
+  const shipped = path.join(data, "presets");
+  it("ships as a preset and as the update template, identical and read-only", () => {
+    const a = fs.readFileSync(path.join(shipped, "molfar.json"), "utf8");
+    expect(fs.readFileSync(path.join(shipped, "_molfar.json"), "utf8")).toBe(a);
+    const p = JSON.parse(a);
+    expect(p.id).toBe("molfar");
+    expect(p.studio.readOnly).toBe(true);
+    expect(p.studio.isDefault).toBe(false);
+  });
+  it("ships its regex scripts bound to it, and the same ones in the update template", () => {
+    const files = fs.readdirSync(path.join(data, "regex")).filter((f) => f.startsWith("molfar-"));
+    const bundle = JSON.parse(fs.readFileSync(path.join(data, "_molfar-regex.json"), "utf8")).scripts;
+    expect(files.length).toBe(8);
+    expect(bundle.map((s: { id: string }) => `${s.id}.json`).sort()).toEqual(files.sort());
+    for (const s of bundle) {
+      expect(s).toMatchObject({ scope: "preset", scopeTargetId: "molfar" });
+      expect(JSON.parse(fs.readFileSync(path.join(data, "regex", `${s.id}.json`), "utf8"))).toEqual(s);
+    }
+  });
+  it("an update from before 4.48.0 adds the preset and its scripts once, and keeps a copy the user has", () => {
+    fs.copyFileSync(path.join(shipped, "_molfar.json"), path.join(root, "presets", "_molfar.json"));
+    fs.copyFileSync(path.join(data, "_molfar-regex.json"), path.join(root, "_molfar-regex.json"));
+    fs.mkdirSync(path.join(root, "regex"), { recursive: true });
+    fs.writeFileSync(path.join(root, "regex", "molfar-plan-hide-from-chat.json"), '{"id":"molfar-plan-hide-from-chat","mine":true}');
+    const first = eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded;
+    expect(first).toContain("presets/molfar.json");
+    expect(first.filter((x: string) => x.startsWith("regex/molfar-")).length).toBe(7);
+    expect(JSON.parse(fs.readFileSync(path.join(root, "regex", "molfar-plan-hide-from-chat.json"), "utf8")).mine).toBe(true);
+    const again = eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded;
+    expect(again.some((x: string) => x.includes("molfar"))).toBe(false);
+  });
+  it("renders with no macro left, and its picks switch blocks", () => {
+    fs.copyFileSync(path.join(shipped, "molfar.json"), path.join(root, "presets", "molfar.json"));
+    const meta = newChat({ presetId: "molfar" });
+    let sys = prompt(meta.id);
+    expect(sys.match(/\{\{(?!suggest:)[^}]*\}\}/g)).toBeNull();
+    expect(sys).toContain("### Length: Long");
+    expect(sys).not.toContain("Written Plan: Micro");
+    expect(sys).not.toContain("Modifier Rotation");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { length: "length_short", reasoning: "reasoning_micro", focus_mods: ["focus_mods_brutal"], custom_instructions: "No magic here." } });
+    sys = prompt(meta.id);
+    expect(sys).toContain("### Length: Short");
+    expect(sys).not.toContain("### Length: Long");
+    expect(sys).toContain("Written Plan: Micro");
+    expect(sys).toContain("Modifier Rotation");
+    expect(sys).toContain("No magic here.");
+  });
+});
+
 describe("built-in FRANKENX", () => {
   const shipped = path.join(import.meta.dir, "..", "data", "presets");
   it("ships as a preset and as the update template, identical and read-only", () => {
