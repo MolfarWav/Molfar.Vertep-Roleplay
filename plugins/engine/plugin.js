@@ -4135,7 +4135,9 @@ export function handleRoute(req, host) {
       }, null, 2),
     });
     files.push({ name: "library.json", text: JSON.stringify(readJson("library.json", {}), null, 2) });
-    return ok({ filename: "studio-backup-" + new Date().toISOString().slice(0, 10) + ".zip", base64: buildZip(files) });
+    // the engine packs it natively (1.1.0+): built here in JS, a few MB ran out the route time limit
+    const native = host.zip && typeof host.zip.build === "function" ? host.zip.build(files) : null;
+    return ok({ filename: "studio-backup-" + new Date().toISOString().slice(0, 10) + ".zip", base64: native || buildZip(files) });
   }
 
     // translate: LLM or provider-proxy translation (message menu, composer).
