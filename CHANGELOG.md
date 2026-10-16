@@ -2,7 +2,7 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased (4.48.0, ships with engine 1.1.0)
+## 4.48.0
 
 Molfar as a second built-in preset, option hints, and fixes. The faster export and the hidden Molfar blocks need engine 1.1.0; the rest works with any engine.
 
@@ -12,6 +12,7 @@ Molfar as a second built-in preset, option hints, and fixes. The faster export a
 - Canvas: the Prompt board's chat picker searches by character and title, lists recent chats first, marks groups and tells two chats of the same character apart.
 - Dashboard: the notice after a reply says how many notes about you were left out of that reply and that they stay in the notebook; it suggests a bigger limit only when even the pinned notes do not fit (MolfarWav/Molfar.Vertep#35).
 - Export Roleplay data: packed by the engine, about 1 s instead of a time-out on an 8 MB workspace (MolfarWav/Molfar.Vertep#37).
+- What's new: a tip points at Presets and Molfar after the update.
 
 ## 4.47.0
 

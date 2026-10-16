@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.47.0'
+export const APP_VERSION = '4.48.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -196,6 +196,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Press this to send. While a reply is being written, the same spot becomes a stop button.',
       uk: 'Натисніть, щоб надіслати. Поки відповідь пишеться, це місце стає кнопкою зупинки.',
+    },
+  },
+  // ── What's new: Molfar and option hints
+  {
+    id: 'new.molfar',
+    since: '4.48.0',
+    target: 'nav.presets',
+    open: { view: 'home' },
+    title: { en: 'A second built-in preset: Molfar', uk: 'Другий вбудований пресет: Molfar' },
+    body: {
+      en: 'Molfar sits next to FRANKENX in Presets: pick it for a chat and set its options in Choices. Every option of both now says what it does.',
+      uk: 'Molfar стоїть поруч із FRANKENX у Пресетах: оберіть його для чату й налаштуйте у «Вибір». Кожен варіант обох тепер пояснює, що робить.',
     },
   },
   // ── What's new: the help list itself
