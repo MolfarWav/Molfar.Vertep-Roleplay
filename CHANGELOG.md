@@ -2,6 +2,17 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased (4.48.0, ships with engine 1.1.0)
+
+Molfar as a second built-in preset, option hints, and fixes. The faster export and the hidden Molfar blocks need engine 1.1.0; the rest works with any engine.
+
+- Presets: Molfar ships next to FRANKENX, read-only, with eight regex scripts bound to it that hide its plan, inner voice and focus log. An update adds it when missing and keeps a copy you already have.
+- Every option in the Choices panel can carry a short hint saying what it does: under the option in a list, in a tooltip and a line under the group for chips. All options of FRANKENX and Molfar have one; the preset editor edits them; Marinara imports bring their descriptions.
+- The preset picker shows how many tokens each preset takes with this chat's picks, instead of the section count and temperature.
+- Canvas: the Prompt board's chat picker searches by character and title, lists recent chats first, marks groups and tells two chats of the same character apart.
+- Dashboard: the notice after a reply says how many notes about you were left out of that reply and that they stay in the notebook; it suggests a bigger limit only when even the pinned notes do not fit (MolfarWav/Molfar.Vertep#35).
+- Export Roleplay data: packed by the engine, about 1 s instead of a time-out on an 8 MB workspace (MolfarWav/Molfar.Vertep#37).
+
 ## 4.47.0
 
 A help list with "Show me", and tours for seven more sections. Works with any engine.
