@@ -244,7 +244,10 @@ function marinaraImport(json: unknown, name: string, base: Preset): Preset | nul
   const variables: Preset['variables'] = blocks.map((b) => {
     const varName = b.variableName as string
     const choices = parsed<Loose[]>(b.options, []).filter((o) => o && typeof o.value === 'string')
-      .map((o) => ({ id: typeof o.id === 'string' && o.id ? o.id : uid('opt'), label: String(o.label || o.value), value: String(o.value) }))
+      .map((o) => {
+        const hint = [o.hint, o.description].find((x): x is string => typeof x === 'string' && !!x.trim())?.trim().slice(0, 200)
+        return { id: typeof o.id === 'string' && o.id ? o.id : uid('opt'), label: String(o.label || o.value), value: String(o.value), ...(hint ? { hint } : {}) }
+      })
     const want = defaults[varName]
     const wanted = (Array.isArray(want) ? want : want == null ? [] : [want]).map((x) => String(x).trim())
     const picked = choices.filter((c) => wanted.includes(c.value.trim())).map((c) => c.id)

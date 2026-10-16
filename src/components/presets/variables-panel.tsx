@@ -220,6 +220,7 @@ function VariableCard({
                 </button>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <Input value={c.label} disabled={ro} aria-label={`Label of option ${i + 1}`} placeholder="Label" className="h-7 text-xs" onChange={(e) => updateChoice(c.id, { label: e.target.value })} />
+                  <Input value={c.hint ?? ''} disabled={ro} maxLength={200} aria-label={`Hint of option ${i + 1}`} placeholder="Hint: what this option does (shown to the player)" className="h-7 text-xs" onChange={(e) => updateChoice(c.id, { hint: e.target.value || undefined })} />
                   <Textarea value={c.value} disabled={ro} rows={2} aria-label={`Prompt text of option ${i + 1}`} placeholder="Prompt text (may use macros like {{char}})" className="text-xs" onChange={(e) => updateChoice(c.id, { value: e.target.value })} />
                 </div>
                 <div className="flex shrink-0 flex-col">

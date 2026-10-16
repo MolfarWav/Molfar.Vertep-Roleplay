@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
@@ -51,10 +52,12 @@ const LIST_MAX = 8
 
 const isMulti = (v: PromptVariable) => v.type === 'multi' || (v.type === 'choice' && v.multi === true)
 
-/** The options of a choice-like variable as {id,label}; null for free-form types.
+type Option = { id: ID; label: string; hint?: string }
+
+/** The options of a choice-like variable as {id,label,hint}; null for free-form types.
  *  Older dropdown/multi variables list plain strings: each is its own id and label. */
-function optionsOf(v: PromptVariable): { id: ID; label: string }[] | null {
-  if (v.type === 'choice') return (v.choices ?? []).filter((c) => c.id).map((c) => ({ id: c.id, label: c.label || c.value }))
+function optionsOf(v: PromptVariable): Option[] | null {
+  if (v.type === 'choice') return (v.choices ?? []).filter((c) => c.id).map((c) => ({ id: c.id, label: c.label || c.value, hint: c.hint?.trim() || undefined }))
   if (v.type === 'dropdown' || v.type === 'multi') return (v.options ?? []).filter(Boolean).map((o) => ({ id: o, label: o }))
   return null
 }
@@ -163,7 +166,7 @@ function OptionPicker({
   v, opts, ids, costs, onChange,
 }: {
   v: PromptVariable
-  opts: { id: ID; label: string }[]
+  opts: Option[]
   ids: ID[]
   costs: Record<ID, number> | undefined
   onChange: (value: string | string[] | null) => void
@@ -172,6 +175,8 @@ function OptionPicker({
   const multi = isMulti(v)
   const defaults = defaultIdsOf(v)
   const buttons = v.type === 'choice' && v.display === 'buttons'
+  // chips: the hint of the chip last hovered, focused or tapped, shown under the group (phones have no hover)
+  const [hintId, setHintId] = useState<ID | null>(null)
   const costTitle = (n: number | undefined) => (n ? t(n > 0 ? 'pc.costAdds' : 'pc.costSaves', { n: Math.abs(n) }) : undefined)
   // multi: toggle one id in the list; single: pick it
   const pick = (id: ID) => {
@@ -203,29 +208,46 @@ function OptionPicker({
   }
 
   if (buttons) {
+    const shown = opts.find((o) => o.id === hintId && o.hint)
     return (
-      <div className="flex flex-wrap gap-1.5" role={multi ? 'group' : 'radiogroup'} aria-label={v.label || v.name}>
-        {opts.map((o) => {
-          const on = ids.includes(o.id)
-          return (
-            <button
-              key={o.id}
-              type="button"
-              role={multi ? 'checkbox' : 'radio'}
-              aria-checked={on}
-              title={costTitle(costs?.[o.id])}
-              onClick={() => pick(o.id)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-left text-xs transition-colors',
-                on ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
-              )}
-            >
-              <span>{o.label}</span>
-              {defaults.includes(o.id) && <span className="text-[9px] uppercase tracking-wide text-muted-foreground/80">{t('pc.default')}</span>}
-              <CostMark n={costs?.[o.id]} />
-            </button>
-          )
-        })}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap gap-1.5" role={multi ? 'group' : 'radiogroup'} aria-label={v.label || v.name}>
+          {opts.map((o) => {
+            const on = ids.includes(o.id)
+            const cost = costTitle(costs?.[o.id])
+            const chip = (
+              <button
+                key={o.id}
+                type="button"
+                role={multi ? 'checkbox' : 'radio'}
+                aria-checked={on}
+                title={o.hint ? undefined : cost}
+                onClick={() => { setHintId(o.id); pick(o.id) }}
+                onMouseEnter={() => setHintId(o.id)}
+                onFocus={() => setHintId(o.id)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-left text-xs transition-colors',
+                  on ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
+                )}
+              >
+                <span>{o.label}</span>
+                {defaults.includes(o.id) && <span className="text-[9px] uppercase tracking-wide text-muted-foreground/80">{t('pc.default')}</span>}
+                <CostMark n={costs?.[o.id]} />
+              </button>
+            )
+            if (!o.hint) return chip
+            return (
+              <Tooltip key={o.id}>
+                <TooltipTrigger render={chip} />
+                <TooltipContent className="flex-col items-start gap-0.5">
+                  <span>{o.hint}</span>
+                  {cost && <span className="opacity-70">{cost}</span>}
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </div>
+        {shown && <p className="text-xs leading-snug text-muted-foreground" aria-live="polite">{shown.hint}</p>}
       </div>
     )
   }
@@ -257,7 +279,10 @@ function OptionPicker({
             >
               {on && (multi ? <Check className="size-3" weight="bold" /> : <span className="size-1.5 rounded-full bg-primary-foreground" />)}
             </span>
-            <span className="min-w-0 flex-1 break-words">{o.label}</span>
+            <span className="min-w-0 flex-1 break-words">
+              {o.label}
+              {o.hint && <span className="block text-xs font-normal leading-snug text-muted-foreground">{o.hint}</span>}
+            </span>
             {defaults.includes(o.id) && <span className="mt-0.5 shrink-0 text-[10px] text-muted-foreground">{t('pc.default')}</span>}
             <CostMark n={costs?.[o.id]} className="mt-0.5" />
           </button>

@@ -248,8 +248,9 @@ something risky, copy the preset to a new id first.
 ### Variables (options the user picks per chat)
 `studio.variables`: `[{ id, name, label, type, defaultValue, question? }]`. `type`: `choice`,
 `toggle` (`"true"`/`"false"`), `text`, `number`, `slider`, older `dropdown` / `multi` (`options`:
-strings). A `choice` has `choices: [{ id, label, value }]` (`label` is what the user sees, `value`
-the prompt text, which may hold macros), `multi` (several picks, values joined with `separator`,
+strings). A `choice` has `choices: [{ id, label, value, hint? }]` (`label` is what the user sees, `value`
+the prompt text, which may hold macros, `hint` an optional plain line, about 160 characters, shown to
+the player on the option and never sent to the model), `multi` (several picks, values joined with `separator`,
 default ", "), `display` (`list` or `buttons`), `defaults` (choice ids; none = the first option of a
 single choice). Sections read a variable as `{{name}}` or `{{var:name}}`, in `{{#if}}` blocks and in
 `condition`. Each chat keeps its own picks in `chats/<id>.meta.json`: `presetVars: { <presetId>:

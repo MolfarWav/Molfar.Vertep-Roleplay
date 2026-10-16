@@ -323,6 +323,9 @@ export interface PromptVariableChoice {
   id: ID
   label: string
   value: string
+  /** One plain-text line (about 160 characters, no markdown) saying what the option does. Shown to the
+   *  player on the option, never sent to the model. */
+  hint?: string
 }
 
 /**

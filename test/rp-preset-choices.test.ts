@@ -243,7 +243,7 @@ describe("Marinara import", () => {
         ],
         groups: [{ id: "g1", name: "Core Identity", enabled: "true" }],
         choiceBlocks: [
-          { variableName: "pov", question: "Whose eyes?", options: JSON.stringify([{ id: "o1", label: "Third", value: "third person" }, { id: "o2", label: "First", value: "first person" }]), multiSelect: "false", displayMode: "listbox", sortOrder: 0 },
+          { variableName: "pov", question: "Whose eyes?", options: JSON.stringify([{ id: "o1", label: "Third", value: "third person", description: "  The narrator stays outside her head.  " }, { id: "o2", label: "First", value: "first person" }]), multiSelect: "false", displayMode: "listbox", sortOrder: 0 },
           { variableName: "extras", question: "Extras", options: [{ id: "x1", label: "Dark", value: "dark" }, { id: "x2", label: "Humor", value: "humor" }], multiSelect: "true", separator: " & ", displayMode: "buttons", sortOrder: 1 },
         ],
       },
@@ -261,6 +261,8 @@ describe("Marinara import", () => {
     const pov = p.variables.find((v) => v.name === "pov")!;
     expect(pov.type).toBe("choice");
     expect(pov.defaults).toEqual(["o2"]);
+    expect(pov.choices?.[0].hint).toBe("The narrator stays outside her head.");
+    expect(pov.choices?.[1].hint).toBeUndefined();
     const extras = p.variables.find((v) => v.name === "extras")!;
     expect(extras.multi).toBe(true);
     expect(extras.separator).toBe(" & ");
