@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '@/lib/store'
 import type { ID } from '@/lib/types'
@@ -61,12 +61,46 @@ const actionCls =
   'data-selected:border-border data-selected:bg-accent data-selected:text-foreground ' +
   'hover:border-border hover:bg-accent'
 
-function presetMeta(p: { sections: { enabled: boolean }[]; samplers: { temperature: { value: number; enabled: boolean }; contextSize: number } } | undefined): string {
+/** 950 -> "950", 13640 -> "13.6k" */
+const compactTokens = (n: number) => (n < 1000 ? String(Math.round(n)) : `${(n / 1000).toFixed(1)}k`)
+
+/** What a preset takes with a chat's picks: undefined = still loading, null = could not be counted. */
+type PresetTotal = number | null | undefined
+
+// the token totals fetched this session, per chat + preset + that chat's picks for the preset
+const totalsCache = new Map<string, number | null>()
+
+/** Fetches (two at a time, cached) the token total of each preset with this chat's picks while `enabled`. */
+function usePresetTotals(presetIds: ID[], chatId: ID, picks: Record<ID, unknown> | undefined, enabled: boolean): (id: ID) => PresetTotal {
+  const fetchPresetCosts = useApp((s) => s.fetchPresetCosts)
+  const [, bump] = useState(0)
+  const keyOf = (id: ID) => `${chatId}|${id}|${JSON.stringify(picks?.[id] ?? null)}`
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keys are rebuilt from the same inputs
+  useEffect(() => {
+    if (!enabled) return
+    let live = true
+    const todo = presetIds.filter((id) => !totalsCache.has(keyOf(id)))
+    const worker = async () => {
+      for (let id = todo.shift(); id && live; id = todo.shift()) {
+        const key = keyOf(id)
+        let total: number | null = null
+        try { total = (await fetchPresetCosts(id, { chatId, only: 'total' })).total } catch { /* shown without a size */ }
+        totalsCache.set(key, total)
+        if (live) bump((n) => n + 1)
+      }
+    }
+    void Promise.all([worker(), worker()])
+    return () => { live = false }
+  }, [enabled, chatId, presetIds.join(','), JSON.stringify(picks ?? null), fetchPresetCosts])
+  return (id) => totalsCache.get(keyOf(id))
+}
+
+/** The second line of a preset in the picker: its size with this chat's picks, then its context window. */
+function presetMeta(p: { samplers: { contextSize: number } } | undefined, total: PresetTotal, t: ReturnType<typeof useT>): string {
   if (!p) return 'none'
-  const on = p.sections.filter((s) => s.enabled).length
-  const temp = p.samplers.temperature.enabled ? ` · ${p.samplers.temperature.value}` : ''
-  const ctx = p.samplers.contextSize >= 1000 ? ` · ${Math.round(p.samplers.contextSize / 1000)}k ctx` : ''
-  return `${on}/${p.sections.length} on${temp}${ctx}`
+  const size = total === undefined ? '…' : total === null ? '' : t('pq.presetTokens', { n: compactTokens(total) })
+  const ctx = p.samplers.contextSize >= 1000 ? `${Math.round(p.samplers.contextSize / 1000)}k ctx` : ''
+  return [size, ctx].filter(Boolean).join(' · ')
 }
 
 /** `pill` is the header's compact trigger with the palette in a popover.
@@ -89,6 +123,8 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
   const focusPersona = useApp((s) => s.focusPersona)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('preset')
+  const shownPresets = presets.slice(0, GROUP_CAP)
+  const totalOf = usePresetTotals([...new Set([chat?.presetId, presets.find((p) => p.isDefault)?.id, ...shownPresets.map((p) => p.id)].filter((x): x is ID => !!x))], chatId, chat?.presetVars, open && tab === 'preset')
   if (!chat) return null
   // 0.9.2: a chat runs on its own model, else the one chosen last
   const model = chat.model || lastModel
@@ -164,7 +200,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
                 <SlidersHorizontal className="size-4 shrink-0 text-amber-500" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold">{preset?.name ?? 'No preset'}</span>
-                  <span className="block break-words font-mono text-[10px] text-muted-foreground">{presetMeta(preset)}</span>
+                  <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(preset, preset ? totalOf(preset.id) : undefined, t)}</span>
                 </span>
               </button>
               {/* the two actions stand out: the fonts are alike, so color and shape carry the weight */}
@@ -244,7 +280,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
 
               {tab === 'preset' && (
                 <CommandGroup heading={`Presets · ${presets.length}`} className="flex flex-col gap-0.5">
-                  {presets.slice(0, GROUP_CAP).map((p) => {
+                  {shownPresets.map((p) => {
                     const active = p.id === preset?.id
                     return (
                       <CommandItem key={p.id} value={`preset ${p.name}`} onSelect={() => pick(() => { if (p.id !== preset?.id) void setChatPreset(chatId, { presetId: p.id }) })}
@@ -257,7 +293,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className={cn('block truncate text-xs', active && 'font-semibold')}>{p.name}</span>
-                          <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(p)}</span>
+                          <span className="block truncate font-mono text-[10px] text-muted-foreground">{presetMeta(p, totalOf(p.id), t)}</span>
                         </span>
                         {p.isDefault && (
                           <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">default</span>
