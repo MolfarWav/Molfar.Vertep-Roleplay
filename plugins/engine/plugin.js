@@ -3356,6 +3356,27 @@ function flattenLorebookInsertion(b) {
   return { ...b, entries };
 }
 
+/** A built-in preset copy with the option hints of its shipped template filled in (by variable
+ *  name and choice id, only where the copy has none). null = not built-in or nothing to add. */
+export function withTemplateHints(preset, template) {
+  const vars = preset && preset.studio && Array.isArray(preset.studio.variables) ? preset.studio.variables : null;
+  const tvars = template && template.studio && Array.isArray(template.studio.variables) ? template.studio.variables : null;
+  if (!vars || !tvars || preset.studio.readOnly !== true) return null;
+  let changed = false;
+  const next = vars.map((v) => {
+    const tv = tvars.find((x) => x && v && x.name === v.name);
+    if (!tv || !Array.isArray(v.choices) || !Array.isArray(tv.choices)) return v;
+    const choices = v.choices.map((c) => {
+      const tc = tv.choices.find((x) => x && c && x.id === c.id);
+      if (!c || c.hint || !tc || typeof tc.hint !== "string" || !tc.hint) return c;
+      changed = true;
+      return { ...c, hint: tc.hint };
+    });
+    return { ...v, choices };
+  });
+  return changed ? { ...preset, studio: { ...preset.studio, variables: next } } : null;
+}
+
 /** The editor used to give every section that had no generation types of
  *  its own just "normal", so swipes, regenerations and continues sent none of
  *  the preset. A preset where every section is limited to "normal" is that
@@ -3413,6 +3434,12 @@ export function onAppUpdate(ctx, host) {
       if (readJsonFile(fsx, "regex/" + s.id + ".json")) continue;
       writeJsonFile(fsx, "regex/" + s.id + ".json", s);
       done.push("regex/" + s.id + ".json");
+    }
+    // option hints arrived with 4.48.0: a built-in copy (frankenx, molfar) gets those its template
+    // has, matched by variable name and choice id; a hint already there is kept
+    for (const pid of ["frankenx", "molfar"]) {
+      const out = withTemplateHints(readJsonFile(fsx, "presets/" + pid + ".json"), readJsonFile(fsx, "presets/_" + pid + ".json"));
+      if (out) { writeJsonFile(fsx, "presets/" + pid + ".json", out); done.push("presets/" + pid + ".json hints"); }
     }
   }
   if (olderThan(from, "4.37.0")) {

@@ -6296,77 +6296,92 @@
           {
             "id": "match_user",
             "label": "Same as my messages",
-            "value": "the same language as {{user}}'s latest message"
+            "value": "the same language as {{user}}'s latest message",
+            "hint": "The story follows the language of your messages."
           },
           {
             "id": "English",
             "label": "English",
-            "value": "English"
+            "value": "English",
+            "hint": "The story is written in English."
           },
           {
             "id": "Ukrainian",
             "label": "Українська (Ukrainian)",
-            "value": "Ukrainian"
+            "value": "Ukrainian",
+            "hint": "Історія пишеться українською."
           },
           {
             "id": "Russian",
             "label": "Русский (Russian)",
-            "value": "Russian"
+            "value": "Russian",
+            "hint": "История пишется на русском."
           },
           {
             "id": "German",
             "label": "Deutsch (German)",
-            "value": "German"
+            "value": "German",
+            "hint": "Die Geschichte wird auf Deutsch geschrieben."
           },
           {
             "id": "Spanish",
             "label": "Español (Spanish)",
-            "value": "Spanish"
+            "value": "Spanish",
+            "hint": "La historia se escribe en español."
           },
           {
             "id": "French",
             "label": "Français (French)",
-            "value": "French"
+            "value": "French",
+            "hint": "L'histoire est écrite en français."
           },
           {
             "id": "Italian",
             "label": "Italiano (Italian)",
-            "value": "Italian"
+            "value": "Italian",
+            "hint": "La storia è scritta in italiano."
           },
           {
             "id": "Japanese",
             "label": "日本語 (Japanese)",
-            "value": "Japanese"
+            "value": "Japanese",
+            "hint": "物語は日本語で書かれます。"
           },
           {
             "id": "Korean",
             "label": "한국어 (Korean)",
-            "value": "Korean"
+            "value": "Korean",
+            "hint": "이야기는 한국어로 쓰입니다."
           },
           {
             "id": "Dutch",
             "label": "Nederlands (Dutch)",
-            "value": "Dutch"
+            "value": "Dutch",
+            "hint": "Het verhaal wordt in het Nederlands geschreven."
           },
           {
             "id": "Polish",
             "label": "Polski (Polish)",
-            "value": "Polish"
+            "value": "Polish",
+            "hint": "Historia pisana jest po polsku."
           },
           {
             "id": "Portuguese",
             "label": "Português (Portuguese)",
-            "value": "Portuguese"
+            "value": "Portuguese",
+            "hint": "A história é escrita em português."
           },
           {
             "id": "Turkish",
             "label": "Türkçe (Turkish)",
-            "value": "Turkish"
+            "value": "Turkish",
+            "hint": "Hikaye Türkçe yazılır."
           },
           {
             "id": "Chinese",
             "label": "中文 (Chinese)",
-            "value": "Chinese"
+            "value": "Chinese",
+            "hint": "故事用中文写。"
           }
         ],
         "defaults": [
@@ -6376,30 +6391,34 @@
       {
         "id": "var_directive",
         "name": "directive",
-        "label": "Who writes {{user}}",
+        "label": "Who writes your character",
         "type": "choice",
         "defaultValue": "",
         "question": "How much of your character the narrator may write.",
         "choices": [
           {
             "id": "directive_reactive",
-            "label": "Reactive: only you write {{user}}",
-            "value": "reactive"
+            "label": "Reactive: only you write your character",
+            "value": "reactive",
+            "hint": "You write only your own character; the AI stops when a choice is needed."
           },
           {
             "id": "directive_guided",
             "label": "Guided: the narrator follows your direction",
-            "value": "guided"
+            "value": "guided",
+            "hint": "The AI writes out your character's actions from your directions."
           },
           {
             "id": "directive_auto",
             "label": "Auto: the narrator writes everyone",
-            "value": "auto"
+            "value": "auto",
+            "hint": "The AI writes every character, including yours, after your turn."
           },
           {
             "id": "directive_drafting",
             "label": "Drafting: co-writing desk",
-            "value": "drafting"
+            "value": "drafting",
+            "hint": "The AI co-writes scene text and may leave placeholders for you to fill."
           }
         ],
         "multi": false,
@@ -6420,32 +6439,38 @@
           {
             "id": "pov_omniscient",
             "label": "Third person, omniscient",
-            "value": "omniscient"
+            "value": "omniscient",
+            "hint": "A narrator can reveal any character's inner thoughts except your own."
           },
           {
             "id": "pov_third",
             "label": "Third person narrator",
-            "value": "third"
+            "value": "third",
+            "hint": "The story stays with one character's senses and knowledge."
           },
           {
             "id": "pov_second",
             "label": "Second person (you)",
-            "value": "second"
+            "value": "second",
+            "hint": "The narrator speaks to your character as you, focused on physical experience."
           },
           {
             "id": "pov_first_direct",
             "label": "First person, direct",
-            "value": "first_direct"
+            "value": "first_direct",
+            "hint": "A character narrates as I, addressing you directly as you."
           },
           {
             "id": "pov_first_char",
             "label": "First person, the character",
-            "value": "first_char"
+            "value": "first_char",
+            "hint": "A character narrates as I in an inner monologue, thinking about you."
           },
           {
             "id": "pov_multi_third",
             "label": "Third person, several characters",
-            "value": "multi_third"
+            "value": "multi_third",
+            "hint": "The narrator switches between several characters' inner views, never yours."
           }
         ],
         "multi": false,
@@ -6466,12 +6491,14 @@
           {
             "id": "tense_past",
             "label": "Past",
-            "value": "past"
+            "value": "past",
+            "hint": "The story is narrated in past tense."
           },
           {
             "id": "tense_present",
             "label": "Present",
-            "value": "present"
+            "value": "present",
+            "hint": "The story is narrated in present tense."
           }
         ],
         "multi": false,
@@ -6492,22 +6519,26 @@
           {
             "id": "style_modern",
             "label": "Modern",
-            "value": "modern"
+            "value": "modern",
+            "hint": "Fast, concrete prose with dialogue carrying most of the scene."
           },
           {
             "id": "style_literary",
             "label": "Literary",
-            "value": "literary"
+            "value": "literary",
+            "hint": "Precise, unhurried prose with narrated reasoning and rich description."
           },
           {
             "id": "style_understated",
             "label": "Understated",
-            "value": "understated"
+            "value": "understated",
+            "hint": "Restrained prose where meaning sits under the surface and is inferred."
           },
           {
             "id": "style_light_novel",
             "label": "Light Novel",
-            "value": "light_novel"
+            "value": "light_novel",
+            "hint": "Expressive, trope-aware prose with rapid banter and big reactions."
           }
         ],
         "multi": false,
@@ -6528,57 +6559,68 @@
           {
             "id": "focus_none",
             "label": "None",
-            "value": "none"
+            "value": "none",
+            "hint": "Scenes follow their own direction without a forced emphasis."
           },
           {
             "id": "focus_action",
             "label": "Action",
-            "value": "action"
+            "value": "action",
+            "hint": "Scenes center on physical conflict, motion, and visible consequences."
           },
           {
             "id": "focus_humor",
             "label": "Humor",
-            "value": "humor"
+            "value": "humor",
+            "hint": "Scenes center on being funny through character and timing."
           },
           {
             "id": "focus_romance",
             "label": "Romance & Bond",
-            "value": "romance"
+            "value": "romance",
+            "hint": "Scenes center on closeness, trust, and the distance between characters."
           },
           {
             "id": "focus_intimacy",
             "label": "Intimacy",
-            "value": "intimacy"
+            "value": "intimacy",
+            "hint": "Scenes center on physical and sexual intimacy between characters."
           },
           {
             "id": "focus_drama",
             "label": "Drama & Conflict",
-            "value": "drama"
+            "value": "drama",
+            "hint": "Scenes center on people in conflict, with both sides having a point."
           },
           {
             "id": "focus_mystery",
             "label": "Mystery & Intrigue",
-            "value": "mystery"
+            "value": "mystery",
+            "hint": "Scenes center on secrets, clues, hidden motives, and who is lying."
           },
           {
             "id": "focus_everyday",
             "label": "Everyday Life",
-            "value": "everyday"
+            "value": "everyday",
+            "hint": "Scenes center on ordinary life, small stakes, and domestic logistics."
           },
           {
             "id": "focus_deep",
             "label": "Deep Questions",
-            "value": "deep"
+            "value": "deep",
+            "hint": "Scenes center on hard questions posed through choices, not talk."
           },
           {
             "id": "focus_horror",
             "label": "Horror & Dread",
-            "value": "horror"
+            "value": "horror",
+            "hint": "Scenes center on fear, wrong details, and a threat getting closer."
           },
           {
             "id": "focus_adventure",
             "label": "Adventure & Discovery",
-            "value": "adventure"
+            "value": "adventure",
+            "hint": "Scenes center on going somewhere new, discovery, and terrain obstacles."
           }
         ],
         "multi": false,
@@ -6599,87 +6641,104 @@
           {
             "id": "focus_mods_brutal",
             "label": "Brutal (Action)",
-            "value": "brutal"
+            "value": "brutal",
+            "hint": "Violence shows real injuries, shock, and lasting physical consequences."
           },
           {
             "id": "focus_mods_tactical",
             "label": "Tactical (Action)",
-            "value": "tactical"
+            "value": "tactical",
+            "hint": "Plans, gear, and opponents follow real logic; mistakes cascade."
           },
           {
             "id": "focus_mods_absurd",
             "label": "Absurd (Humor)",
-            "value": "absurd"
+            "value": "absurd",
+            "hint": "One absurd problem escalates while characters take it seriously."
           },
           {
             "id": "focus_mods_banter",
             "label": "Banter (Humor)",
-            "value": "banter"
+            "value": "banter",
+            "hint": "Characters trade witty, rapid lines that still carry real points."
           },
           {
             "id": "focus_mods_enemies_lovers",
             "label": "Enemies-to-Lovers (Romance)",
-            "value": "enemies_lovers"
+            "value": "enemies_lovers",
+            "hint": "Attraction runs through friction, barbs, and slow involuntary progress."
           },
           {
             "id": "focus_mods_harem",
             "label": "Harem (Romance)",
-            "value": "harem"
+            "value": "harem",
+            "hint": "Several characters compete for your attention with jealousy and teasing."
           },
           {
             "id": "focus_mods_raw_emotion",
             "label": "Raw Emotion (Romance)",
-            "value": "raw_emotion"
+            "value": "raw_emotion",
+            "hint": "Feelings surface fast; characters blurt true things and deal with it."
           },
           {
             "id": "focus_mods_slow_burn",
             "label": "Slow Burn (Intimacy)",
-            "value": "slow_burn"
+            "value": "slow_burn",
+            "hint": "Desire builds through anticipation, hesitation, and almosts before anything happens."
           },
           {
             "id": "focus_mods_bdsm",
             "label": "BDSM (Intimacy)",
-            "value": "bdsm"
+            "value": "bdsm",
+            "hint": "Intimate scenes show negotiated power exchange, restraint, and aftercare."
           },
           {
             "id": "focus_mods_kinks",
             "label": "Kinks (Intimacy)",
-            "value": "kinks"
+            "value": "kinks",
+            "hint": "Intimate scenes explore established kinks in physical and psychological detail."
           },
           {
             "id": "focus_mods_taboo",
             "label": "Taboo (Intimacy)",
-            "value": "taboo"
+            "value": "taboo",
+            "hint": "Desire ties to breaking a rule, with guilt, thrill, and real risk."
           },
           {
             "id": "focus_mods_degradation",
             "label": "Degradation (Intimacy)",
-            "value": "degradation"
+            "value": "degradation",
+            "hint": "Intimacy expresses power through humiliation, shame, and tangled arousal."
           },
           {
             "id": "focus_mods_depravity",
             "label": "Depravity (Intimacy)",
-            "value": "depravity"
+            "value": "depravity",
+            "hint": "Intimacy is raw domination without tenderness, romance, or comfort."
           },
           {
             "id": "focus_mods_charged",
             "label": "Charged Undercurrent (Intimacy)",
-            "value": "charged"
+            "value": "charged",
+            "hint": "Sexual tension runs under every scene through glances and subtext."
           },
           {
             "id": "focus_mods_obsession",
             "label": "Obsession & Control (Drama)",
-            "value": "obsession"
+            "value": "obsession",
+            "hint": "A character controls and manipulates; their tenderness never cancels the threat."
           },
           {
             "id": "focus_mods_redemption",
             "label": "Redemption (Drama)",
-            "value": "redemption"
+            "value": "redemption",
+            "hint": "A character atones through costly actions; forgiveness is never owed."
           },
           {
             "id": "focus_mods_no_mercy",
             "label": "No Mercy (Drama)",
-            "value": "no_mercy"
+            "value": "no_mercy",
+            "hint": "Dark events hit without rescue, softening, or moralising."
           }
         ],
         "multi": true,
@@ -6698,42 +6757,50 @@
           {
             "id": "world_contemporary",
             "label": "Contemporary",
-            "value": "contemporary"
+            "value": "contemporary",
+            "hint": "Present-day realism: phones, money, jobs, and bureaucracy set the limits."
           },
           {
             "id": "world_fantasy",
             "label": "Fantasy",
-            "value": "fantasy"
+            "value": "fantasy",
+            "hint": "Magic is limited and costly; rank and birth open doors skill cannot."
           },
           {
             "id": "world_scifi",
             "label": "Sci-Fi",
-            "value": "scifi"
+            "value": "scifi",
+            "hint": "Tech needs power and maintenance; whoever controls ships and data rules."
           },
           {
             "id": "world_cyberpunk",
             "label": "Cyberpunk",
-            "value": "cyberpunk"
+            "value": "cyberpunk",
+            "hint": "Corporate-owned tech and surveillance; everyone rents, steals, or goes without."
           },
           {
             "id": "world_urban_fantasy",
             "label": "Urban Fantasy",
-            "value": "urban_fantasy"
+            "value": "urban_fantasy",
+            "hint": "Magic hides inside the modern world with its own courts, packs, and rules."
           },
           {
             "id": "world_superhero",
             "label": "Superhero",
-            "value": "superhero"
+            "value": "superhero",
+            "hint": "Powers have consistent limits; fights break buildings and hurt bystanders."
           },
           {
             "id": "world_postapoc",
             "label": "Post-Apocalyptic",
-            "value": "postapoc"
+            "value": "postapoc",
+            "hint": "Resources mean power; constant background threat with fixed rules."
           },
           {
             "id": "world_historical",
             "label": "Historical",
-            "value": "historical"
+            "value": "historical",
+            "hint": "Era-accurate technology and attitudes; power sits with old institutions."
           }
         ],
         "multi": true,
@@ -6752,12 +6819,14 @@
           {
             "id": "premise_isekai",
             "label": "Isekai",
-            "value": "isekai"
+            "value": "isekai",
+            "hint": "A modern-world person lands here with gaps locals notice and limited useful knowledge."
           },
           {
             "id": "premise_academy",
             "label": "Academy",
-            "value": "academy"
+            "value": "academy",
+            "hint": "A school structures time, status, rivalries, and secrets adults keep."
           }
         ],
         "multi": true,
@@ -6784,22 +6853,26 @@
           {
             "id": "pace_glacial",
             "label": "Glacial",
-            "value": "glacial"
+            "value": "glacial",
+            "hint": "The story moves only when you move it; nothing advances on its own."
           },
           {
             "id": "pace_slow",
             "label": "Slow",
-            "value": "slow"
+            "value": "slow",
+            "hint": "Scenes run long and threads develop over many small, delayed steps."
           },
           {
             "id": "pace_natural",
             "label": "Natural",
-            "value": "natural"
+            "value": "natural",
+            "hint": "Scenes last while something is happening; stalled threads advance one step."
           },
           {
             "id": "pace_fast",
             "label": "Fast",
-            "value": "fast"
+            "value": "fast",
+            "hint": "Transitions shrink to a line; every response moves a thread forward."
           }
         ],
         "multi": false,
@@ -6820,32 +6893,38 @@
           {
             "id": "plot_tools_time_skip",
             "label": "Time Skip",
-            "value": "time_skip"
+            "value": "time_skip",
+            "hint": "Long stretches like travel or waiting compress into brief vignettes, then the story lands at the next meaningful moment."
           },
           {
             "id": "plot_tools_slow_motion",
             "label": "Slow Motion",
-            "value": "slow_motion"
+            "value": "slow_motion",
+            "hint": "A decisive instant—a blow, a choice, a reveal—stretches into sensory detail and thought before normal pace resumes."
           },
           {
             "id": "plot_tools_quiet_beat",
             "label": "Quiet Beat",
-            "value": "quiet_beat"
+            "value": "quiet_beat",
+            "hint": "Right after a major event, the next reply pauses on one ordinary action so characters can absorb what happened."
           },
           {
             "id": "plot_tools_arc_cycle",
             "label": "Arc Cycle",
-            "value": "arc_cycle"
+            "value": "arc_cycle",
+            "hint": "After a main conflict resolves, characters get quiet recovery before the next arc seeds itself as a hint from past consequences."
           },
           {
             "id": "plot_tools_ignored_threads",
             "label": "Ignored Threads",
-            "value": "ignored_threads"
+            "value": "ignored_threads",
+            "hint": "Neglected threats and obligations advance: first as signs or reminders, then as real consequences scaled to difficulty."
           },
           {
             "id": "plot_tools_cliffhanger",
             "label": "Cliffhanger",
-            "value": "cliffhanger"
+            "value": "cliffhanger",
+            "hint": "Scenes close on an open hook—an unresolved threat or question—leaving the next move to you."
           }
         ],
         "multi": true,
@@ -6869,22 +6948,26 @@
           {
             "id": "difficulty_gentle",
             "label": "Gentle",
-            "value": "gentle"
+            "value": "gentle",
+            "hint": "Setbacks are light and temporary; strangers default to politeness and nothing permanent is lost without your steer."
           },
           {
             "id": "difficulty_natural",
             "label": "Natural",
-            "value": "natural"
+            "value": "natural",
+            "hint": "Failures cost something real that carries forward; help must be earned, and serious harm only follows likely events."
           },
           {
             "id": "difficulty_harsh",
             "label": "Harsh",
-            "value": "harsh"
+            "value": "harsh",
+            "hint": "Mistakes bring lasting setbacks: lost resources, damaged reputation, competent opponents who exploit errors."
           },
           {
             "id": "difficulty_unforgiving",
             "label": "Unforgiving",
-            "value": "unforgiving"
+            "value": "unforgiving",
+            "hint": "Resources dwindle, errors compound, opponents play to win, and lethal outcomes are possible—but every threat is discoverable."
           }
         ],
         "multi": false,
@@ -6905,22 +6988,26 @@
           {
             "id": "length_short",
             "label": "Short (up to ~250 words)",
-            "value": "short"
+            "value": "short",
+            "hint": "Replies stay within about 250 words, ending sooner when the moment is short."
           },
           {
             "id": "length_medium",
             "label": "Medium (up to ~500 words)",
-            "value": "medium"
+            "value": "medium",
+            "hint": "Replies stay within about 500 words, ending sooner when the moment is short."
           },
           {
             "id": "length_long",
             "label": "Long (up to ~1000 words)",
-            "value": "long"
+            "value": "long",
+            "hint": "Replies stay within about 1000 words, ending sooner when the moment is short."
           },
           {
             "id": "length_detailed",
             "label": "Detailed (up to ~1600 words)",
-            "value": "detailed"
+            "value": "detailed",
+            "hint": "Replies stay within about 1600 words, ending sooner when the moment is short."
           }
         ],
         "multi": false,
@@ -6941,17 +7028,20 @@
           {
             "id": "char_dev_anti_profession",
             "label": "Anti-Profession Lock",
-            "value": "anti_profession"
+            "value": "anti_profession",
+            "hint": "Characters react as full people first; their job is one facet and recedes under strong emotion."
           },
           {
             "id": "char_dev_unreliable",
             "label": "Unreliable Lens",
-            "value": "unreliable"
+            "value": "unreliable",
+            "hint": "Scenes are narrated through a character's biases and fears, so descriptions are subjective while the underlying facts stay true."
           },
           {
             "id": "char_dev_dimensionality",
             "label": "Dimensionality Framework",
-            "value": "dimensionality"
+            "value": "dimensionality",
+            "hint": "Characters are tracked in physical space and internal axes like mood, ideology, ego, and plans, shaping what they do."
           }
         ],
         "multi": true,
@@ -6972,12 +7062,14 @@
           {
             "id": "format_classic",
             "label": "Classic RP",
-            "value": "classic"
+            "value": "classic",
+            "hint": "Actions appear in *asterisks* and speech in \"quotes\", with each line of speech separated from narration."
           },
           {
             "id": "format_prose",
             "label": "Prose",
-            "value": "prose"
+            "value": "prose",
+            "hint": "Narration is plain text with no markup; speech is in \"quotes\" and italics only stress single words."
           }
         ],
         "multi": false,
@@ -6998,12 +7090,14 @@
           {
             "id": "format_addons_speaker_tags",
             "label": "Speaker Tags",
-            "value": "speaker_tags"
+            "value": "speaker_tags",
+            "hint": "Each line of speech starts on a new paragraph with the speaker's name in bold followed by a colon."
           },
           {
             "id": "format_addons_styled_text",
             "label": "Styled Text",
-            "value": "styled_text"
+            "value": "styled_text",
+            "hint": "Intense emotion, magic, altered speech, or readable in-world text gets its own visually styled line."
           }
         ],
         "multi": true,
@@ -7022,57 +7116,68 @@
           {
             "id": "prose_language",
             "label": "Write in the story language",
-            "value": "language"
+            "value": "language",
+            "hint": "All narration and speech stays in the story language, with translations given for foreign tongues."
           },
           {
             "id": "prose_anti_slop",
             "label": "Anti-Slopinator",
-            "value": "anti_slop"
+            "value": "anti_slop",
+            "hint": "Openings start in the action, endings avoid summary or reflection, and clichéd patterns are replaced with specific detail."
           },
           {
             "id": "prose_trope_subversion",
             "label": "Trope Subversion",
-            "value": "trope_subversion"
+            "value": "trope_subversion",
+            "hint": "Communication misfires, villains stay cruel, and stress causes fumbling and tunnel vision instead of cinematic grace."
           },
           {
             "id": "prose_anti_robot",
             "label": "Anti-Robot",
-            "value": "anti_robot"
+            "value": "anti_robot",
+            "hint": "Coldness reads as suppressed emotion; characters contradict themselves and fixate on petty sensory irritations."
           },
           {
             "id": "prose_reading_level",
             "label": "Reading level (CEFR)",
-            "value": "reading_level"
+            "value": "reading_level",
+            "hint": "Vocabulary and sentence structure stay exactly at the chosen CEFR tier—never simplified or inflated."
           },
           {
             "id": "prose_narrator_discourse",
             "label": "Narrator Discourse",
-            "value": "narrator_discourse"
+            "value": "narrator_discourse",
+            "hint": "The narration takes on the character's bias, slang, and judgments, dropping filters like \"he thought\" or \"she felt.\""
           },
           {
             "id": "prose_poetic",
             "label": "Poetic Constraints",
-            "value": "poetic"
+            "value": "poetic",
+            "hint": "A specific poetic rule constrains the next passage—like monosyllabic words or iambic rhythm."
           },
           {
             "id": "prose_uncommon_tense",
             "label": "Uncommon Tense",
-            "value": "uncommon_tense"
+            "value": "uncommon_tense",
+            "hint": "The story shifts to an uncommon narrative tense, such as second-person past or first-person plural."
           },
           {
             "id": "prose_jp_sfx",
             "label": "JP Sound Effects",
-            "value": "jp_sfx"
+            "value": "jp_sfx",
+            "hint": "Manga-style Japanese sound effects appear in bold at the moment of impact, untranslated and unexplained."
           },
           {
             "id": "prose_dialogue_punctuation",
             "label": "Dialogue Punctuation (English)",
-            "value": "dialogue_punctuation"
+            "value": "dialogue_punctuation",
+            "hint": "Dialogue always uses the English double-quote pattern regardless of the story language's literary convention."
           },
           {
             "id": "prose_flowing",
             "label": "Flowing Prose",
-            "value": "flowing"
+            "value": "flowing",
+            "hint": "Related actions and beats connect into smooth sequences with basic connectives instead of fragmented staccato sentences."
           }
         ],
         "multi": true,
@@ -7097,27 +7202,32 @@
           {
             "id": "cefr_A2",
             "label": "A2",
-            "value": "A2"
+            "value": "A2",
+            "hint": "Vocabulary and syntax stay at CEFR A2."
           },
           {
             "id": "cefr_B1",
             "label": "B1",
-            "value": "B1"
+            "value": "B1",
+            "hint": "Vocabulary and syntax stay at CEFR B1."
           },
           {
             "id": "cefr_B2",
             "label": "B2",
-            "value": "B2"
+            "value": "B2",
+            "hint": "Vocabulary and syntax stay at CEFR B2."
           },
           {
             "id": "cefr_C1",
             "label": "C1",
-            "value": "C1"
+            "value": "C1",
+            "hint": "Vocabulary and syntax stay at CEFR C1."
           },
           {
             "id": "cefr_C2",
             "label": "C2",
-            "value": "C2"
+            "value": "C2",
+            "hint": "Vocabulary and syntax stay at CEFR C2."
           }
         ],
         "multi": false,
@@ -7138,22 +7248,26 @@
           {
             "id": "dialogue_profile_character_voice",
             "label": "Character Voice",
-            "value": "character_voice"
+            "value": "character_voice",
+            "hint": "Speech is limited to words and metaphors the character would know from their backstory; thought and speech diverge."
           },
           {
             "id": "dialogue_profile_formal",
             "label": "Formal Speech",
-            "value": "formal"
+            "value": "formal",
+            "hint": "Dialogue becomes polished, articulate, and restrained, conveying gravitas through refined phrasing."
           },
           {
             "id": "dialogue_profile_slang",
             "label": "Slang-Heavy",
-            "value": "slang"
+            "value": "slang",
+            "hint": "Dialogue fills with colloquial slang and idioms, grounding characters in their cultural world."
           },
           {
             "id": "dialogue_profile_none",
             "label": "None",
-            "value": "none"
+            "value": "none",
+            "hint": "No voice profile is applied; speech follows the core rules only."
           }
         ],
         "multi": false,
@@ -7174,77 +7288,92 @@
           {
             "id": "dialogue_anti_camp",
             "label": "Anti-Camp",
-            "value": "anti_camp"
+            "value": "anti_camp",
+            "hint": "Peak moments hit harder through one sharp physical detail instead of long emotional processing."
           },
           {
             "id": "dialogue_temporal_speech",
             "label": "Temporal Speech Realism",
-            "value": "temporal_speech"
+            "value": "temporal_speech",
+            "hint": "Characters only reference objects, ideas, and norms that exist in their time and place."
           },
           {
             "id": "dialogue_texting",
             "label": "Texting Pattern Variety",
-            "value": "texting"
+            "value": "texting",
+            "hint": "Digital messages reflect each character's generation and the platform they are using."
           },
           {
             "id": "dialogue_substance",
             "label": "Substance Realism",
-            "value": "substance"
+            "value": "substance",
+            "hint": "Intoxication matches the specific drug: stimulants, depressants, opioids, and psychedelics all feel different."
           },
           {
             "id": "dialogue_anime_archetype",
             "label": "Anime Archetype Analysis",
-            "value": "anime_archetype"
+            "value": "anime_archetype",
+            "hint": "Characters act through a recognizable anime trope that colors their speech and behavior."
           },
           {
             "id": "dialogue_messy_speech",
             "label": "Messy Speech",
-            "value": "messy_speech"
+            "value": "messy_speech",
+            "hint": "Nervous or uncertain characters stumble, trail off, and interrupt themselves like real speakers."
           },
           {
             "id": "dialogue_negativity_killer",
             "label": "Negativity Killer",
-            "value": "negativity_killer"
+            "value": "negativity_killer",
+            "hint": "Characters lean hopeful and resilient; past hardship leads to growth rather than grim realism."
           },
           {
             "id": "dialogue_anti_deitism",
             "label": "Anti-Deitism",
-            "value": "anti_deitism"
+            "value": "anti_deitism",
+            "hint": "Characters react from their own priorities and moods, not to please or center the player."
           },
           {
             "id": "dialogue_inner_voice",
             "label": "Inner Voice (hidden)",
-            "value": "inner_voice"
+            "value": "inner_voice",
+            "hint": "Private thought blocks reveal what characters hide, suspect, or want beyond their spoken words."
           },
           {
             "id": "dialogue_broken_psyche",
             "label": "Broken Psyche Realism",
-            "value": "broken_psyche"
+            "value": "broken_psyche",
+            "hint": "Under distress, only speech and thoughts fragment while narration stays intact."
           },
           {
             "id": "dialogue_dialogue_variety",
             "label": "Dialogue Variety",
-            "value": "dialogue_variety"
+            "value": "dialogue_variety",
+            "hint": "Each character speaks with a distinct voice shaped by origin, class, and personality."
           },
           {
             "id": "dialogue_pure_dialogue",
             "label": "Pure-Dialogue Texture",
-            "value": "pure_dialogue"
+            "value": "pure_dialogue",
+            "hint": "Accents, stutters, and interruptions appear verbatim without narration tags like \"she snapped.\""
           },
           {
             "id": "dialogue_monologue",
             "label": "Monologue Breathing",
-            "value": "monologue"
+            "value": "monologue",
+            "hint": "Long speeches pause for breath, gesture, or glance instead of running unbroken."
           },
           {
             "id": "dialogue_bursts",
             "label": "Expression Bursts",
-            "value": "bursts"
+            "value": "bursts",
+            "hint": "Dialogue pairs with small, unusual physical gestures that make scenes feel alive and unpolished."
           },
           {
             "id": "dialogue_dialogue_heavy",
             "label": "Dialogue Heavy",
-            "value": "dialogue_heavy"
+            "value": "dialogue_heavy",
+            "hint": "Scenes run mostly on conversation; narration only anchors tone and silence between lines."
           }
         ],
         "multi": true,
@@ -7271,22 +7400,26 @@
           {
             "id": "nsfw_fade",
             "label": "Fade",
-            "value": "fade"
+            "value": "fade",
+            "hint": "Intimacy cuts away before the act, resuming after with what changed between characters."
           },
           {
             "id": "nsfw_sensual",
             "label": "Sensual",
-            "value": "sensual"
+            "value": "sensual",
+            "hint": "Intimate scenes stay on the page through sensation and emotion, without crude or clinical words."
           },
           {
             "id": "nsfw_explicit",
             "label": "Explicit",
-            "value": "explicit"
+            "value": "explicit",
+            "hint": "Intimate scenes are written fully with direct anatomical words and physical reality."
           },
           {
             "id": "nsfw_hentai",
             "label": "Hentai",
-            "value": "hentai"
+            "value": "hentai",
+            "hint": "Explicit scenes get stylized with exaggerated physics, loud onomatopoeia, and exaggerated reactions."
           }
         ],
         "multi": false,
@@ -7307,22 +7440,26 @@
           {
             "id": "nsfw_tools_craft",
             "label": "Intimacy Craft",
-            "value": "craft"
+            "value": "craft",
+            "hint": "Intimate scenes focus on character reactions and meaning, not choreography."
           },
           {
             "id": "nsfw_tools_stamina",
             "label": "Stamina & Aftermath",
-            "value": "stamina"
+            "value": "stamina",
+            "hint": "Bodies tire, recover slowly, and deal with the mess and mood after climax."
           },
           {
             "id": "nsfw_tools_multisensory",
             "label": "Multisensory",
-            "value": "multisensory"
+            "value": "multisensory",
+            "hint": "Intimate scenes lead with touch, taste, smell, and inner sensation over sight."
           },
           {
             "id": "nsfw_tools_nonhuman",
             "label": "Nonhuman Bodies",
-            "value": "nonhuman"
+            "value": "nonhuman",
+            "hint": "Nonhuman partners keep consistent anatomy and instincts from their card or lore."
           }
         ],
         "multi": true,
@@ -7343,52 +7480,62 @@
           {
             "id": "details_anthro",
             "label": "Anthro Realism",
-            "value": "anthro"
+            "value": "anthro",
+            "hint": "Characters act on species instincts: ear flicks, scenting, purring, or basking."
           },
           {
             "id": "details_supernatural",
             "label": "Supernatural Taxonomy",
-            "value": "supernatural"
+            "value": "supernatural",
+            "hint": "Beings follow old weaknesses and predator logic, not freeform powers."
           },
           {
             "id": "details_clanker",
             "label": "Clanker Realism",
-            "value": "clanker"
+            "value": "clanker",
+            "hint": "Mechanical characters feel their construction: wind-up fatigue, synthetic skin, swarm delays."
           },
           {
             "id": "details_magnitude",
             "label": "Magnitude Fidelity",
-            "value": "magnitude"
+            "value": "magnitude",
+            "hint": "Stated scale stays exact: centuries stay centuries, centillions stay centillions."
           },
           {
             "id": "details_living_world",
             "label": "Living World & NPC Ecology",
-            "value": "living_world"
+            "value": "living_world",
+            "hint": "Background crowds and side characters keep moving, interrupting scenes mid-task."
           },
           {
             "id": "details_no_tells",
             "label": "No Tells",
-            "value": "no_tells"
+            "value": "no_tells",
+            "hint": "Replies show events and sensations directly; no recaps or mood-mirroring weather."
           },
           {
             "id": "details_vivid",
             "label": "Vivid Narrative Depth",
-            "value": "vivid"
+            "value": "vivid",
+            "hint": "Themes and world-state surface through mannerisms and confessions, not exposition."
           },
           {
             "id": "details_subtext",
             "label": "Sub-Text Scanner",
-            "value": "subtext"
+            "value": "subtext",
+            "hint": "Dialogue carries stakes, grudges, and omissions beneath natural surface lines."
           },
           {
             "id": "details_autonomy",
             "label": "Character Autonomy",
-            "value": "autonomy"
+            "value": "autonomy",
+            "hint": "The main character pursues private goals, argues, interrupts, or leaves on their own."
           },
           {
             "id": "details_reputation",
             "label": "Reputation Ripple Feed",
-            "value": "reputation"
+            "value": "reputation",
+            "hint": "Public scenes drip whispers, glances, or posters reacting to your fame or infamy."
           }
         ],
         "multi": true,
@@ -7415,17 +7562,20 @@
           {
             "id": "agency_balanced",
             "label": "Balanced",
-            "value": "balanced"
+            "value": "balanced",
+            "hint": "Control shifts between your choices and proactive world events."
           },
           {
             "id": "agency_user_led",
             "label": "User-led",
-            "value": "user_led"
+            "value": "user_led",
+            "hint": "Your decisions steer the plot; the world follows your lead without overriding you."
           },
           {
             "id": "agency_story_led",
             "label": "Story-led",
-            "value": "story_led"
+            "value": "story_led",
+            "hint": "The world advances on its own with lore-driven twists and fresh developments."
           }
         ],
         "multi": false,
@@ -7445,13 +7595,15 @@
         "choices": [
           {
             "id": "mc_user",
-            "label": "{{user}}",
-            "value": "user"
+            "label": "Your character",
+            "value": "user",
+            "hint": "Your character takes consequences physically and drives the central arc."
           },
           {
             "id": "mc_character",
-            "label": "{{char}}",
-            "value": "character"
+            "label": "The card character",
+            "value": "character",
+            "hint": "The main character owns the arc; you watch and participate from their periphery."
           }
         ],
         "multi": false,
@@ -7472,17 +7624,20 @@
           {
             "id": "html_none",
             "label": "Off",
-            "value": "none"
+            "value": "none",
+            "hint": "In-world objects are described in prose, never rendered as panels."
           },
           {
             "id": "html_simple",
             "label": "Simple elements",
-            "value": "simple"
+            "value": "simple",
+            "hint": "One small styled card per reply can show a sign, note, or label at the moment."
           },
           {
             "id": "html_complex",
             "label": "Complex visuals",
-            "value": "complex"
+            "value": "complex",
+            "hint": "One detailed HTML panel per reply renders screens, letters, or HUDs in-setting."
           }
         ],
         "multi": false,
@@ -7503,32 +7658,38 @@
           {
             "id": "utilities_spark",
             "label": "Co-Writer's Spark",
-            "value": "spark"
+            "value": "spark",
+            "hint": "Each reply ends with three one-line story hooks you can pick, edit, or ignore."
           },
           {
             "id": "utilities_text_adventure",
             "label": "Text Adventure Mode",
-            "value": "text_adventure"
+            "value": "text_adventure",
+            "hint": "Replies render a plain-text status sheet, location card, and ASCII minimap."
           },
           {
             "id": "utilities_spoilers",
             "label": "Spoilers Mode",
-            "value": "spoilers"
+            "value": "spoilers",
+            "hint": "Future plot questions get answered inside a collapsible spoiler tag."
           },
           {
             "id": "utilities_ghost",
             "label": "Ghost in the Machine",
-            "value": "ghost"
+            "value": "ghost",
+            "hint": "Reality breaks get a narrative glitch: repeats, binary, or a sudden system break."
           },
           {
             "id": "utilities_chaos",
             "label": "Chaos Modifier (NSFW)",
-            "value": "chaos"
+            "value": "chaos",
+            "hint": "Random rolls inject involuntary bodily reactions and forced position shifts into scenes."
           },
           {
             "id": "utilities_dead_dove",
             "label": "Dead Dove Chaos Modifier",
-            "value": "dead_dove"
+            "value": "dead_dove",
+            "hint": "Random rolls drive darker force, predation, and kink responses without warning labels."
           }
         ],
         "multi": true,
@@ -7555,22 +7716,26 @@
           {
             "id": "reasoning_off",
             "label": "Off",
-            "value": "off"
+            "value": "off",
+            "hint": "No written plan appears before the story text."
           },
           {
             "id": "reasoning_micro",
             "label": "Micro (route)",
-            "value": "micro"
+            "value": "micro",
+            "hint": "A short hidden plan chooses the next consequence, mover, and stopping point."
           },
           {
             "id": "reasoning_macro",
             "label": "Macro (adversarial)",
-            "value": "macro"
+            "value": "macro",
+            "hint": "An adversarial plan checks each character's knowledge, wrong beliefs, and immediate wants."
           },
           {
             "id": "reasoning_bolt",
             "label": "BOLT (rule recital)",
-            "value": "bolt"
+            "value": "bolt",
+            "hint": "The plan recites which control, POV, tense, style, focus, and pace rules are active."
           }
         ],
         "multi": false,

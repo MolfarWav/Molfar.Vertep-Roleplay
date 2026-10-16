@@ -307,6 +307,32 @@ describe("built-in Molfar", () => {
     const again = eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded;
     expect(again.some((x: string) => x.includes("molfar"))).toBe(false);
   });
+  it("every option of both built-in presets has a hint, and an older built-in copy gets them on update", () => {
+    for (const id of ["molfar", "frankenx"]) {
+      const p = JSON.parse(fs.readFileSync(path.join(shipped, `${id}.json`), "utf8"));
+      for (const v of p.studio.variables) for (const c of v.choices ?? []) {
+        expect(typeof c.hint).toBe("string");
+        expect(c.hint.length).toBeGreaterThan(5);
+        expect(c.hint.length).toBeLessThanOrEqual(200);
+        expect(c.label).not.toMatch(/\{\{/);
+      }
+    }
+    const tpl = JSON.parse(fs.readFileSync(path.join(shipped, "_frankenx.json"), "utf8"));
+    const old = structuredClone(tpl);
+    for (const v of old.studio.variables) for (const c of v.choices ?? []) delete c.hint;
+    old.studio.variables[0].choices[0].hint = "my own";
+    fs.writeFileSync(path.join(root, "presets", "frankenx.json"), JSON.stringify(old));
+    fs.copyFileSync(path.join(shipped, "_frankenx.json"), path.join(root, "presets", "_frankenx.json"));
+    expect(eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded).toContain("presets/frankenx.json hints");
+    const now = JSON.parse(fs.readFileSync(path.join(root, "presets", "frankenx.json"), "utf8"));
+    expect(now.studio.variables[0].choices[0].hint).toBe("my own");
+    expect(now.studio.variables[0].choices[1].hint).toBe(tpl.studio.variables[0].choices[1].hint);
+    // a copy the user made their own (not read-only) is left alone
+    now.studio.readOnly = false;
+    for (const v of now.studio.variables) for (const c of v.choices ?? []) delete c.hint;
+    fs.writeFileSync(path.join(root, "presets", "frankenx.json"), JSON.stringify(now));
+    expect(eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded).not.toContain("presets/frankenx.json hints");
+  });
   it("renders with no macro left, and its picks switch blocks", () => {
     fs.copyFileSync(path.join(shipped, "molfar.json"), path.join(root, "presets", "molfar.json"));
     const meta = newChat({ presetId: "molfar" });
