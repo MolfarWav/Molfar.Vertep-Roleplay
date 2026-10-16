@@ -2,6 +2,16 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased (4.49.0)
+
+Large libraries (MolfarWav/Molfar.Vertep#46). With engine 1.1.2 the start stays fast; an older engine works too, re-reading every card at each start.
+
+- The app starts from a short list of characters (name, portrait, tags, the start of the description, a token count) kept in an index under `data/.cache/`, and loads a whole card when it is opened, chatted with or exported. Before, every whole card was loaded at start: with about 700 characters the app no longer opened. Measured with 2,000 cards: the start takes about 2 s; the first start after the update builds the index in the background (about 25 s for 2,000 cards, the list fills in meanwhile).
+- Portraits kept inside the cards come when a list shows them: the characters with recent chats and favorites at start, the rest page by page on the Characters page. A tile shows a soft placeholder while its portrait comes, and the list says how many characters are still being loaded on that first start.
+- Search on the Characters page covers names, tags and the first 1,000 characters of a description (until now the whole description); token counts on the tiles are estimates (marked ~) until the card is opened.
+- Importing many cards at once sends them in batches of 25: a few hundred in one request ran out of time halfway, with part of the cards written and an error on screen.
+- Characters page: counting chats per card no longer slows the page down with thousands of chats.
+
 ## 4.48.0
 
 Molfar as a second built-in preset, option hints, and fixes. The faster export and the hidden Molfar blocks need engine 1.1.0; the rest works with any engine.

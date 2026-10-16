@@ -225,6 +225,25 @@ export interface EngineBootstrap {
   chats: EngineChatMeta[]
   /** The chat the client asked for, so opening the app is still one request. */
   activeChat: { meta: EngineChatMeta; messages: EngineMessage[] } | null
+  /** Characters not in the list yet (the index ran out of time): ask /characters/summaries again.
+   *  Absent before Roleplay 4.49.0's plugin. */
+  charactersPending?: number
+}
+
+/** The start-up list again (what /bootstrap left pending, or a refresh): summaries, not cards. */
+export function fetchCharacterSummaries(): Promise<{ characters: EngineCard[]; pending: number }> {
+  return j<{ characters: EngineCard[]; pending: number }>('/characters/summaries')
+}
+
+/** One character's whole card. */
+export function fetchCharacterCard(id: string): Promise<EngineCard> {
+  return j<EngineCard>(`/characters/${encodeURIComponent(id)}`)
+}
+
+/** Portraits the summaries left out (data URLs inside the cards), as many as one answer holds;
+ *  `rest` are the ids to ask for again. */
+export function fetchCharacterAvatars(ids: string[]): Promise<{ avatars: Record<string, string>; rest: string[] }> {
+  return j<{ avatars: Record<string, string>; rest: string[] }>('/characters/avatars', { method: 'POST', body: JSON.stringify({ ids }) })
 }
 
 /** `chatId` asks for that chat's transcript inline — pass the one about to be
@@ -594,6 +613,8 @@ const CARD_KNOWN = new Set([
   'id', 'spec', 'spec_version', 'studio', 'name', 'description', 'personality', 'scenario',
   'first_mes', 'mes_example', 'alternate_greetings', 'group_only_greetings', 'creator_notes', 'tags',
   'system_prompt', 'post_history_instructions', 'avatar', 'creator', 'character_version', 'character_book',
+  // a start-up summary's own fields (the plugin's cardSummary), never card data
+  'stub', 'blurb', 'tokens', 'avatarLazy', 'rev',
 ])
 function cardExtrasOf(card: EngineCard): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -687,11 +708,22 @@ export function cardToCharacter(card: EngineCard, id: string, lastChatAt = 0): C
     defaultExpression: text(studio.defaultExpression) || 'neutral',
     characterRegexIds: texts(studio.characterRegexIds),
     css: text(studio.css),
+    // the card file's size and change time as the engine saw them (absent on an engine without fs.stat)
+    ...(typeof card.rev === 'string' && card.rev ? { rev: card.rev } : {}),
+    // a start-up summary: the texts, variants, versions, sprites and gallery are not here yet
+    ...(card.stub === true ? {
+      stub: true as const,
+      blurb: text(card.blurb),
+      tokens: num(card.tokens, 0),
+      ...(card.avatarLazy === true ? { avatarLazy: true as const } : {}),
+    } : {}),
   }
 }
 
 export function characterToCard(c: Character): EngineCard {
   return {
+    // the engine refuses to write a summary as a whole card: it would blank the texts
+    ...(c.stub ? { _stub: true } : {}),
     spec: 'chara_card_v2',
     name: c.name,
     description: c.description,

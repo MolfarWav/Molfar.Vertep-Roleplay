@@ -32,6 +32,7 @@ import { shellLocale } from './shell-bridge'
 import {
   j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
+  fetchCharacterSummaries, fetchCharacterCard, fetchCharacterAvatars, type EngineCard,
   engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
@@ -269,6 +270,14 @@ interface AppState {
    *  that character's gallery when the setting says so). */
   postPicture: (chatId: ID, image: GeneratedImage) => Promise<void>
   // entity CRUD
+  /** The whole card of a character the list holds only as a summary (`stub`); the character
+   *  itself when it is already whole, or a group. One request per id at a time. */
+  loadCharacter: (id: ID) => Promise<Character | null>
+  /** Fetch the portraits of these characters when the list left them out (`avatarLazy`): for
+   *  what is on screen. Queued and batched; the list fills in as they land. */
+  wantAvatars: (ids: ID[]) => void
+  /** Characters the start-up list does not hold yet (the index is still being built). */
+  rosterPending: number
   updateCharacter: (id: ID, patch: Partial<Character>) => void
   newCharacter: () => ID
   duplicateCharacter: (id: ID) => void
@@ -496,6 +505,7 @@ export const useApp = create<AppState>()(
       drawer: null,
       activeChatId: null,
       activeCharacterId: null,
+      rosterPending: 0,
       characterEditorTab: null,
       dashOpen: 0,
       openDashboard: () => set((s) => ({ dashOpen: s.dashOpen + 1 })),
@@ -556,7 +566,13 @@ export const useApp = create<AppState>()(
           const library = boot.library
           const databankRes = boot.databank
           const chatMetas = { chats: boot.chats }
-          const solo = boot.characters.map((c) => cardToCharacter(c, c.id ?? ''))
+          const fromBoot = boot.characters.map((c) => withCachedAvatar(cardToCharacter(c, c.id ?? '')))
+          // a card already loaded whole stays whole (refreshed below): the list brings summaries
+          const held = new Map(get().characters.filter((c) => !c.isGroup && !c.stub).map((c) => [c.id, c]))
+          const solo = fromBoot.map((c) => {
+            const whole = c.stub ? held.get(c.id) : undefined
+            return whole ? { ...whole, lastChatAt: c.lastChatAt } : c
+          })
           const groups = boot.groups
             .map((g) => groupToCharacter(g, solo))
             .filter((c) => c.id)
@@ -720,9 +736,18 @@ export const useApp = create<AppState>()(
           // now, so the prompt carries the new fields (DATA-FORMATS, "The profile"); quiet like the
           // other hydrate-time repairs, and the old text lands in the card's versions
           for (const c of solo) {
+            if (c.stub) continue // loadCharacter runs the same repair when the card comes
             const patch = compileIfWrittenElsewhere(c)
             if (patch) get().updateCharacter(c.id, patch)
           }
+          // a whole card held from before is fetched again only when it changed on disk (Molfar, a
+          // sync, an undo): the summary's rev moved, or the engine gives none to compare
+          for (const c of fromBoot) {
+            const whole = held.get(c.id)
+            if (whole && (!c.rev || c.rev !== whole.rev)) void reloadCharacter(set, get, c.id)
+          }
+          set({ rosterPending: boot.charactersPending ?? 0 })
+          void finishRoster(set, get, boot.charactersPending ?? 0)
           if (settings.ui) {
             const ui = settings.ui as Record<string, unknown>
             // Object-valued bags (tts, translation, …) merge ONE level deep:
@@ -1700,14 +1725,42 @@ export const useApp = create<AppState>()(
         await postPicture(chatId, image, charId)
         await refreshChat(set, get, chatId)
         if (owner && !owner.isGroup && get().settings.imageGen?.saveToGallery !== false) {
-          get().updateCharacter(owner.id, {
-            gallery: [...owner.gallery, { id: uid('gal'), url: image.url, type: 'image', caption: image.prompt.slice(0, 200) }],
-          })
+          // the gallery comes with the whole card
+          const full = await get().loadCharacter(owner.id)
+          if (full && !full.stub) {
+            get().updateCharacter(owner.id, {
+              gallery: [...full.gallery, { id: uid('gal'), url: image.url, type: 'image', caption: image.prompt.slice(0, 200) }],
+            })
+          }
         }
       },
 
       // ─────────────────────────────────────────────────────── entity CRUD ──
+      loadCharacter: (id) => {
+        const have = get().characters.find((c) => c.id === id)
+        if (!have) return Promise.resolve(null)
+        if (!have.stub) return Promise.resolve(have)
+        return reloadCharacter(set, get, id)
+      },
+      wantAvatars: (ids) => {
+        const chars = new Map(get().characters.map((c) => [c.id, c]))
+        let added = false
+        for (const id of ids) {
+          const c = chars.get(id)
+          if (c?.avatarLazy && !avatarDone.has(id) && !avatarQueue.has(id)) { avatarQueue.add(id); added = true }
+        }
+        if (added) void drainAvatars(set, get)
+      },
       updateCharacter: (id, patch) => {
+        const held = get().characters.find((x) => x.id === id)
+        if (held?.stub && !held.isGroup && Object.keys(patch).some((k) => !STUB_SAFE_KEYS.has(k as keyof Character))) {
+          // a summary has none of the card's texts: a change computed from it would blank them.
+          // Every screen that edits them loads the card first; this only catches a path that did not.
+          console.error(`[roleplay] refused a change to ${id}: the card is not loaded (${Object.keys(patch).join(', ')})`)
+          toast.error('The card is still loading. Try again in a moment.')
+          void get().loadCharacter(id)
+          return
+        }
         bumpMutate()
         const before = get().characters.find((x) => x.id === id)
         set((s) => ({ characters: s.characters.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))
@@ -1798,6 +1851,10 @@ export const useApp = create<AppState>()(
       duplicateCharacter: (id) => {
         const c = get().characters.find((x) => x.id === id)
         if (!c || c.isGroup) return
+        if (c.stub) {
+          void get().loadCharacter(id).then((full) => { if (full && !full.stub) get().duplicateCharacter(id) })
+          return
+        }
         bumpMutate()
         const nid = uid('char')
         const copy: Character = { ...c, id: nid, name: `${c.name} (copy)`, createdAt: Date.now(), favorite: false }
@@ -1856,7 +1913,7 @@ export const useApp = create<AppState>()(
       },
       convertCharacterToPersona: (id, opts) => {
         const c = get().characters.find((x) => x.id === id)
-        if (!c) return null
+        if (!c || c.stub) return null // the caller loads the card first
         // the card speaks as {{char}}; as a persona the user takes that role,
         // so the two macros trade places
         const description = c.description.replace(
@@ -2704,6 +2761,170 @@ function writeThrough(what: string, req: Promise<unknown>): void {
 }
 
 export const useCharacter = (charId: ID | null) => useApp((s) => s.characters.find((c) => c.id === charId) ?? null)
+
+// ── whole cards on demand ────────────────────────────────────────────────────
+// The start-up list holds summaries (`stub`): a whole card per character ran the plugin out of
+// memory at ~700 characters (#46). The whole card comes when something needs it: the open chat's
+// character and a group's members, the character open in the editor or profile
+// (src/hooks/use-full-character.ts for screens that show one).
+
+/** Fields a summary carries as they are on disk: a change to them alone is safe on a summary
+ *  (the save sends only what changed). Anything else needs the whole card first. */
+const STUB_SAFE_KEYS = new Set<keyof Character>([
+  'name', 'avatar', 'tags', 'favorite', 'folderId', 'createdAt', 'lastChatAt', 'embeddedLorebookId', 'linkedLorebookIds',
+  'colors', 'stats', 'defaultExpression', 'characterRegexIds', 'voiceProvider', 'voiceId', 'creator', 'version',
+])
+
+const cardLoads = new Map<ID, Promise<Character | null>>()
+/** Fetch one whole card and put it in place of what the list holds. One request per id at a time. */
+function reloadCharacter(set: SetFn, get: GetFn, id: ID): Promise<Character | null> {
+  const running = cardLoads.get(id)
+  if (running) return running
+  const p = (async () => {
+    try {
+      const card = await fetchCharacterCard(id)
+      const prev = get().characters.find((c) => c.id === id)
+      if (!prev) return null // deleted meanwhile
+      const full = cardToCharacter(card, id, prev.lastChatAt)
+      full.lastChatAt = Math.max(full.lastChatAt, prev.lastChatAt)
+      set((s) => {
+        const characters = s.characters.map((c) => (c.id === id ? full : c))
+        // a group shows its first member's portrait
+        return { characters: characters.map((c) => (c.isGroup && c.group?.memberIds.includes(id) ? groupToCharacter(c.group, characters) : c)) }
+      })
+      // the hydrate-time repair, now that the card is here
+      const patch = compileIfWrittenElsewhere(full)
+      if (patch) get().updateCharacter(id, patch)
+      return get().characters.find((c) => c.id === id) ?? null
+    } catch (e) {
+      console.error(`[roleplay] could not load the card ${id}`, e)
+      return get().characters.find((c) => c.id === id) ?? null
+    } finally {
+      cardLoads.delete(id)
+    }
+  })()
+  cardLoads.set(id, p)
+  return p
+}
+
+/** After start: the characters the index had no time for, then the portraits the summaries left
+ *  out. Both run in the background; the list fills in as they land. */
+async function finishRoster(set: SetFn, get: GetFn, pending: number) {
+  wantStartAvatars(get)
+  for (let round = 0; pending > 0 && round < 30; round++) {
+    try {
+      const r = await fetchCharacterSummaries()
+      pending = r.pending
+      set({ rosterPending: pending })
+      mergeSummaries(set, get, r.characters)
+    } catch (e) {
+      console.error('[roleplay] could not list the remaining characters', e)
+      set({ rosterPending: 0 })
+      break
+    }
+  }
+  // characters that joined the list since may have chats too
+  if (pending === 0) wantStartAvatars(get)
+}
+
+/** Portraits the start screens show (characters with recent chats, favorites); the rest come
+ *  when a list shows them (wantAvatars). All 2,000 of a big library took ~50 s, every start. */
+function wantStartAvatars(get: GetFn) {
+  const st = get()
+  const first: ID[] = []
+  const add = (id: ID | undefined) => { if (id && !first.includes(id)) first.push(id) }
+  for (const ch of [...st.chats].sort((a, b) => b.updatedAt - a.updatedAt)) {
+    const owner = st.characters.find((c) => c.id === ch.characterId)
+    if (owner?.isGroup) for (const m of owner.members ?? []) add(m)
+    else add(ch.characterId)
+    if (first.length >= START_AVATARS) break
+  }
+  for (const c of st.characters) if (c.favorite && first.length < START_AVATARS * 2) add(c.id)
+  st.wantAvatars(first)
+}
+
+const START_AVATARS = 150
+const avatarQueue = new Set<ID>()
+/** Portraits fetched this page load: a later hydrate brings summaries without them again. */
+const avatarCache = new Map<ID, string>()
+const withCachedAvatar = (c: Character): Character => {
+  const avatar = c.avatarLazy ? avatarCache.get(c.id) : undefined
+  return avatar ? { ...c, avatar, avatarLazy: undefined } : c
+}
+/** Ids asked for already (with or without a portrait): never asked again this page load. */
+const avatarDone = new Set<ID>()
+let avatarsRunning = false
+async function drainAvatars(set: SetFn, get: GetFn) {
+  if (avatarsRunning) return
+  avatarsRunning = true
+  try {
+    while (avatarQueue.size) {
+      const batch = [...avatarQueue].slice(0, 80)
+      let r: { avatars: Record<string, string>; rest: string[] }
+      try {
+        r = await fetchCharacterAvatars(batch)
+      } catch (e) {
+        console.error('[roleplay] could not load portraits', e)
+        break
+      }
+      const got = r.avatars
+      const left = new Set(r.rest)
+      for (const id of batch) {
+        if (left.has(id)) continue
+        avatarQueue.delete(id)
+        avatarDone.add(id)
+      }
+      for (const [id, a] of Object.entries(got)) avatarCache.set(id, a)
+      if (Object.keys(got).length) {
+        set((s) => {
+          const characters = s.characters.map((c) => {
+            const avatar = c.avatarLazy ? got[c.id] : undefined
+            return avatar ? { ...c, avatar, avatarLazy: undefined } : c
+          })
+          return { characters: characters.map((c) => (c.isGroup && c.group?.memberIds.some((m) => got[m]) ? groupToCharacter(c.group, characters) : c)) }
+        })
+      } else if (left.size >= batch.length) {
+        break // an answer that brought nothing and kept everything would loop
+      }
+    }
+  } finally {
+    avatarsRunning = false
+  }
+}
+
+/** Summaries that came after start join the list; a card already there is left as it is. */
+function mergeSummaries(set: SetFn, get: GetFn, cards: EngineCard[]) {
+  const have = new Set(get().characters.map((c) => c.id))
+  const fresh = cards.map((c) => withCachedAvatar(cardToCharacter(c, c.id ?? ''))).filter((c) => c.id && !have.has(c.id))
+  if (!fresh.length) return
+  set((s) => {
+    const lastAt = new Map<ID, number>()
+    for (const ch of s.chats) if (ch.updatedAt > (lastAt.get(ch.characterId) ?? 0)) lastAt.set(ch.characterId, ch.updatedAt)
+    const added = fresh.map((c) => ({ ...c, lastChatAt: Math.max(c.lastChatAt, lastAt.get(c.id) ?? 0) }))
+    const characters = [...s.characters.filter((c) => !c.isGroup), ...added, ...s.characters.filter((c) => c.isGroup)]
+    return { characters: characters.map((c) => (c.isGroup && c.group ? groupToCharacter(c.group, characters) : c)) }
+  })
+}
+
+/** The whole cards the screen needs now: the open chat's character (a group: its members) and
+ *  the character open in the editor or profile. */
+function wantedCards(s: AppState): ID[] {
+  const out = new Set<ID>()
+  const add = (id: ID | null | undefined) => {
+    if (!id) return
+    const c = s.characters.find((x) => x.id === id)
+    if (!c) return
+    if (c.isGroup) for (const m of c.members ?? []) out.add(m)
+    else out.add(c.id)
+  }
+  add(s.activeCharacterId)
+  add(s.chats.find((c) => c.id === s.activeChatId)?.characterId)
+  return [...out].filter((id) => s.characters.find((c) => c.id === id)?.stub)
+}
+useApp.subscribe((s, prev) => {
+  if (s.activeCharacterId === prev.activeCharacterId && s.activeChatId === prev.activeChatId && s.characters === prev.characters) return
+  for (const id of wantedCards(s)) void s.loadCharacter(id)
+})
 
 // ── library write-through ────────────────────────────────────────────────────
 // The local collections (quick replies, themes, tags, folders, backgrounds,

@@ -209,21 +209,29 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
       errors.push(`${f.name}: ${e instanceof SyntaxError ? 'could not parse' : String((e as Error).message ?? e)}`)
     }
   }
-  if (cards.length) {
+  // in batches: one request for a few hundred cards ran the plugin out of its time or memory
+  // halfway, with part of the cards written and an error on screen (a retry then doubled them)
+  const BATCH = 25
+  let imported = 0
+  for (let at = 0; at < cards.length; at += BATCH) {
+    const part = cards.slice(at, at + BATCH)
+    const partNames = cardNames.slice(at, at + BATCH)
     try {
       const r = await j<{ characters: string[]; name?: string; errors?: string[]; notes?: string[] }>('/import/batch', {
-        method: 'POST', body: JSON.stringify({ cards }),
+        method: 'POST', body: JSON.stringify({ cards: part }),
       })
       notes.push(...(r.notes ?? []))
       out.characters.push(...r.characters)
+      imported += r.characters.length
       // the plugin names a single card only; the files carry the names
-      if (r.characters.length === cardNames.length) out.names.push(...cardNames)
+      if (r.characters.length === partNames.length) out.names.push(...partNames)
       else if (r.name) out.names.push(r.name)
-      if (!quiet) toast.success(`Imported ${r.characters.length} character${r.characters.length === 1 ? '' : 's'}`)
     } catch (e) {
-      errors.push(String((e as Error).message ?? e))
+      const which = partNames.length > 1 ? `${partNames[0]} … ${partNames[partNames.length - 1]}` : partNames[0] ?? ''
+      errors.push(`${which}: ${String((e as Error).message ?? e)}`)
     }
   }
+  if (imported && !quiet) toast.success(`Imported ${imported} character${imported === 1 ? '' : 's'}`)
   if (out.characters.length) {
     await hydrate()
     rateImported(out.characters)

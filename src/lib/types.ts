@@ -128,6 +128,18 @@ export interface Character {
   characterRegexIds: ID[]
   /** Per-character CSS, applied only while one of this character's chats is open. */
   css: string
+  /** A start-up summary, not the whole card: the texts, variants, versions, sprites, gallery,
+   *  css and extra portraits are empty until `loadCharacter` brings the card. Never saved whole. */
+  stub?: true
+  /** Summary only: the first 300 characters of the description (list text and search). */
+  blurb?: string
+  /** Summary only: the engine's token estimate of the card's main texts. */
+  tokens?: number
+  /** Summary only: the portrait is still to come (it lives inside the card as a data URL). */
+  avatarLazy?: true
+  /** The card file's size and change time when it was read ("size:mtime"); a whole card held in
+   *  memory is fetched again only when the list brings a different one. */
+  rev?: string
 }
 
 export interface Tag {

@@ -10,6 +10,12 @@ committed. Never type a large JSON file out as text. Files whose name starts wit
 `data/lorebooks/_example.json`) are AI-only templates: copy one to make a real entity, never edit it.
 Open pages pick up a changed file within about a second.
 
+`data/.cache/` holds files the app rebuilds on its own (the character index the app starts from:
+`.cache/characters-index/<n>.json`). It stays on this device: no git, backup or sync. Never edit
+it; deleting it is safe and only makes the next start slower. A card changed by hand or by Molfar
+shows in the list on the next start or refresh: the index re-reads any card whose size or change
+time moved.
+
 ## Characters: `data/characters/<id>/card.json`
 
 The folder name is the character id. The card is Character Card V2 written FLAT: the fields sit at

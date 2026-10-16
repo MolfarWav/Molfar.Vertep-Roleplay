@@ -1862,6 +1862,112 @@ const APP_STUDIO_KEYS = [
   "linkedLorebookIds", "colors", "stats", "descVariants", "personalityVariants", "scenarioVariants", "versions",
   "voiceProvider", "voiceId", "gallery", "expressions", "defaultExpression", "characterRegexIds", "css",
 ];
+// ---------- character summaries (the start-up list) ----------
+/** Studio keys a summary keeps: small, and read by lists, filters and the chat list. The rest
+ *  (texts, variants, versions, sprites, gallery, css, alternate portraits) comes with the full card. */
+const SUMMARY_STUDIO_KEYS = [
+  "favorite", "folderId", "createdAt", "lastChatAt", "embeddedLorebookId", "linkedLorebookIds", "colors", "stats",
+  "defaultExpression", "characterRegexIds", "voiceProvider", "voiceId",
+];
+// long enough to search a description by what it says, not only by its first lines
+const SUMMARY_BLURB = 1000;
+/** A card cut down to what the character lists need, in the card's own shape so the client reads
+ *  it with the same converter. `stub` marks it: never written back over a card. A portrait kept as
+ *  a data URL inside the card is left out (`avatarLazy`); the client fetches those afterwards. */
+function cardSummary(card, id) {
+  const st = card.studio && typeof card.studio === "object" ? card.studio : {};
+  const studio = {};
+  for (const k of SUMMARY_STUDIO_KEYS) if (st[k] !== undefined) studio[k] = st[k];
+  const avatar = typeof card.avatar === "string" && card.avatar ? card.avatar : typeof st.avatar === "string" ? st.avatar : "";
+  const desc = typeof card.description === "string" ? card.description : "";
+  const text = (v) => (typeof v === "string" ? v : "");
+  return {
+    id, stub: true, name: text(card.name) || id, spec: card.spec || "chara_card_v2",
+    ...(typeof card.creator === "string" && card.creator ? { creator: card.creator } : {}),
+    ...(typeof card.character_version === "string" && card.character_version ? { character_version: card.character_version } : {}),
+    tags: Array.isArray(card.tags) ? card.tags.map(String) : [],
+    // the card's kind is a badge on the list
+    ...(card.extensions && typeof card.extensions === "object" && typeof card.extensions.molfar_card_type === "string"
+      ? { extensions: { molfar_card_type: card.extensions.molfar_card_type } } : {}),
+    ...(avatar && !avatar.startsWith("data:") ? { avatar } : {}),
+    ...(avatar.startsWith("data:") ? { avatarLazy: true } : {}),
+    studio,
+    blurb: desc.length > SUMMARY_BLURB ? desc.slice(0, SUMMARY_BLURB) : desc,
+    tokens: estimateTokens(desc + text(card.personality) + text(card.scenario) + text(card.first_mes) + text(card.mes_example)),
+  };
+}
+/** The index of summaries lives in the local cache (not in git, backups or sync: every device builds
+ *  its own), split in shards so no file nears the 4 MB write limit. An entry is trusted only while
+ *  its card's size and change time match, so an edit by anyone (the app, Molfar, a sync pull, a git
+ *  undo) is picked up on the next read. */
+const INDEX_DIR = ".cache/characters-index";
+const INDEX_SHARDS = 16;
+const shardOf = (id) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % INDEX_SHARDS;
+};
+/** Summaries of every character. Cards not yet in the index are read until `budgetMs` runs out;
+ *  `pending` counts the ones left, and the next call goes on from the index. On an engine without
+ *  `fs.stat` there is no index: every card is read each time (still one at a time). */
+function characterSummaries(fsx, budgetMs) {
+  const started = Date.now();
+  const readJson = (rel, fb) => { try { return JSON.parse(fsx.read(rel)); } catch { return fb; } };
+  let ids = [];
+  try { ids = fsx.list("characters"); } catch {}
+  ids = ids.filter((cid) => !cid.startsWith("_")); // _-prefixed = AI-only template
+  const canStat = typeof fsx.stat === "function";
+  if (!canStat) {
+    const out = [];
+    for (const cid of ids) {
+      const card = readJson("characters/" + cid + "/card.json", null);
+      if (card) out.push(cardSummary(card, cid));
+    }
+    return { characters: out, pending: 0 };
+  }
+  const shards = [];
+  for (let i = 0; i < INDEX_SHARDS; i++) {
+    const s = readJson(INDEX_DIR + "/" + i + ".json", null);
+    shards.push({ entries: s && s.v === 1 && s.entries && typeof s.entries === "object" ? s.entries : {}, next: {}, dirty: false });
+  }
+  // all in one call: one call per card cost ~3 ms, seconds for a big library
+  const rels = ids.map((cid) => "characters/" + cid + "/card.json");
+  let stats = null;
+  try { stats = fsx.stat(rels); } catch { /* a link that leads out: path by path below */ }
+  if (!Array.isArray(stats)) {
+    stats = rels.map((rel) => { try { return fsx.stat(rel); } catch { return null; } });
+  }
+  const out = [];
+  let pending = 0;
+  for (let n = 0; n < ids.length; n++) {
+    const cid = ids[n];
+    const st = stats[n];
+    if (!st || st.dir) continue;
+    const shard = shards[shardOf(cid)];
+    const e = shard.entries[cid];
+    if (e && e.size === st.size && e.mtimeMs === st.mtimeMs && e.summary) {
+      shard.next[cid] = e;
+      out.push(e.summary);
+      continue;
+    }
+    const rev = st.size + ":" + st.mtimeMs;
+    if (Date.now() - started > budgetMs) { pending++; continue; }
+    const card = readJson("characters/" + cid + "/card.json", null);
+    if (!card) continue;
+    // rev: the client reloads a whole card it holds only when this moved
+    const summary = { ...cardSummary(card, cid), rev };
+    shard.next[cid] = { size: st.size, mtimeMs: st.mtimeMs, summary };
+    shard.dirty = true;
+    out.push(summary);
+  }
+  shards.forEach((s, i) => {
+    // a character that is gone leaves its shard too
+    if (!s.dirty && Object.keys(s.entries).length === Object.keys(s.next).length) return;
+    try { fsx.write(INDEX_DIR + "/" + i + ".json", JSON.stringify({ v: 1, entries: s.next })); } catch { /* the index is only a cache */ }
+  });
+  return { characters: out, pending };
+}
+
 function loadChat(fsx, id) {
   const meta = (() => { try { return JSON.parse(fsx.read("chats/" + id + ".meta.json")); } catch { return null; } })();
   if (!meta) return null;
@@ -3530,8 +3636,12 @@ export function handleRoute(req, host) {
       const full = sub("/chats/" + wanted);
       if (full && full.meta) activeChat = { meta: full.meta, messages: full.messages ?? [] };
     }
+    // Summaries, not cards: every card.json whole (texts, books, a portrait as a data URL)
+    // ran the sandbox out of memory at ~700 characters and the app no longer started (#46).
+    const roster = characterSummaries(fsx, 2500);
     return ok({
-      characters: sub("/characters").characters ?? [],
+      characters: roster.characters,
+      charactersPending: roster.pending,
       groups: sub("/groups").items ?? [],
       personas: sub("/personas").items ?? [],
       presets: sub("/presets").items ?? [],
@@ -3566,13 +3676,43 @@ export function handleRoute(req, host) {
       return ok({ characters: out });
     }
     if (!id) return err(400, "character id required");
+    // the start-up list again: what /bootstrap left pending, or a refresh
+    if (id === "summaries" && req.method === "GET") {
+      const roster = characterSummaries(fsx, 5000);
+      return ok({ characters: roster.characters, pending: roster.pending });
+    }
+    // the portraits a summary left out (data URLs inside the cards), as many as fit ~6 MB;
+    // `rest` are the ids to ask for again
+    if (id === "avatars" && req.method === "POST") {
+      const ids = Array.isArray(body().ids) ? body().ids.filter((x) => typeof x === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(x)) : [];
+      const avatars = {};
+      let size = 0;
+      let i = 0;
+      for (; i < ids.length && size < 6 * 1024 * 1024; i++) {
+        const card = readJson("characters/" + ids[i] + "/card.json", null);
+        if (!card) continue;
+        const st = card.studio && typeof card.studio === "object" ? card.studio : {};
+        const a = typeof card.avatar === "string" && card.avatar ? card.avatar : typeof st.avatar === "string" ? st.avatar : "";
+        if (!a) continue;
+        avatars[ids[i]] = a;
+        size += a.length;
+      }
+      return ok({ avatars, rest: ids.slice(i) });
+    }
     if (req.method === "GET") {
       const card = readJson("characters/" + id + "/card.json", null);
-      return card ? ok({ ...card, id }) : err(404, "not found");
+      if (!card) return err(404, "not found");
+      // the same rev a summary carries, so the client can tell whether its copy is current
+      let st = null;
+      try { st = typeof fsx.stat === "function" ? fsx.stat("characters/" + id + "/card.json") : null; } catch {}
+      return ok({ ...card, id, ...(st ? { rev: st.size + ":" + st.mtimeMs } : {}) });
     }
     if (req.method === "PUT") {
       const b = body();
       if (!b.name) return err(400, "name required");
+      // a start-up summary carries none of the card's texts: written as a whole card it would
+      // blank them. The app loads the full card first; this catches any path that did not.
+      if (b._stub === true || b.stub === true) return err(409, "this is a summary of the character, not the whole card: load the card first");
       // Canonical card fields + verbatim studio metadata bag (favorites, colors,
       // sprites, variants, stats…) — the card is storage, assembly reads the card fields.
       const prev = readJson("characters/" + id + "/card.json", {});

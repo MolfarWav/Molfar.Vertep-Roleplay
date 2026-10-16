@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, UploadSimple, Chats, Copy, Trash, Tag, DotsThree, DotsThreeVertical, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, UploadSimple, Chats, Copy, Trash, Tag, DotsThree, DotsThreeVertical, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -59,6 +59,11 @@ const SORT_OPTIONS: [SortKey, string][] = [
   ['favorites', 'Favorites'], ['chats', 'Most chats'], ['tokens', 'Most tokens'], ['random', 'Random'],
 ]
 
+/** The text a list shows and searches: a summary carries the description's start only. */
+const listText = (c: Character) => (c.stub ? c.blurb ?? '' : c.description)
+/** The card's main texts in tokens: a summary carries the engine's estimate. */
+const cardTokens = (c: Character) => (c.stub ? c.tokens ?? 0 : estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue))
+
 export function CharactersView() {
   const characters = useApp((s) => s.characters)
   const chats = useApp((s) => s.chats)
@@ -72,6 +77,8 @@ export function CharactersView() {
   const deleteCharacter = useApp((s) => s.deleteCharacter)
   const personas = useApp((s) => s.personas)
   const convertCharacterToPersona = useApp((s) => s.convertCharacterToPersona)
+  const loadCharacter = useApp((s) => s.loadCharacter)
+  const rosterPending = useApp((s) => s.rosterPending)
   const settings = useApp((s) => s.settings)
   const tags = useApp((s) => s.tags)
 
@@ -137,8 +144,11 @@ export function CharactersView() {
   const importFiles = (files: FileList | null) => importCardFiles(files, hydrate)
 
   /** Real export: V2 PNG card with the JSON spliced into a tEXt chunk. */
-  const exportPng = async (c: (typeof characters)[number]) => {
+  const exportPng = async (listed: (typeof characters)[number]) => {
     try {
+      // the list holds a summary: the export needs the whole card
+      const c = (await loadCharacter(listed.id)) ?? listed
+      if (c.stub) throw new Error(`Could not load ${c.name}: try again.`)
       const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToExportCard(c, useApp.getState().lorebooks))
       downloadCardPng(bytes, c.name)
       toast.success(`Exported ${c.name} as a PNG card`)
@@ -174,19 +184,30 @@ export function CharactersView() {
       setConvertTarget(c)
       return
     }
-    if (convertCharacterToPersona(c.id, { overwrite })) toast.success(`${c.name} is now a persona`)
+    // the description moves over: it comes with the whole card
+    void loadCharacter(c.id).then(() => {
+      if (convertCharacterToPersona(c.id, { overwrite })) toast.success(`${c.name} is now a persona`)
+    })
   }
 
   const active = characters.find((c) => c.id === activeCharacterId)
+
+  // chats per character, counted once: per card it was a pass over every chat (2,000 cards x
+  // thousands of chats froze the page, more so in the sort)
+  const chatCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const ch of chats) m.set(ch.characterId, (m.get(ch.characterId) ?? 0) + 1)
+    return m
+  }, [chats])
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
     let list = characters.filter((c) =>
       !!c.isGroup === (mode === 'groups') &&
-      (!q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q) || c.tags.some((t) => t.includes(q))) &&
+      (!q || c.name.toLowerCase().includes(q) || listText(c).toLowerCase().includes(q) || c.tags.some((t) => t.includes(q))) &&
       (tagFilter.every((t) => c.tags.includes(t))),
     )
-    const chatCount = (id: string) => chats.filter((ch) => ch.characterId === id).length
+    const chatCount = (id: string) => chatCounts.get(id) ?? 0
     switch (sort) {
       case 'az': list = [...list].sort((a, b) => a.name.localeCompare(b.name)); break
       case 'newest': list = [...list].sort((a, b) => b.createdAt - a.createdAt); break
@@ -194,11 +215,11 @@ export function CharactersView() {
       case 'favorites': list = [...list].sort((a, b) => Number(b.favorite) - Number(a.favorite)); break
       case 'recent': list = [...list].sort((a, b) => b.lastChatAt - a.lastChatAt); break
       case 'chats': list = [...list].sort((a, b) => chatCount(b.id) - chatCount(a.id)); break
-      case 'tokens': list = [...list].sort((a, b) => estimateTokens(b.description) - estimateTokens(a.description)); break
+      case 'tokens': list = [...list].sort((a, b) => cardTokens(b) - cardTokens(a)); break
       case 'random': list = [...list].sort(() => Math.random() - 0.5); break
     }
     return list
-  }, [characters, chats, query, sort, tagFilter, mode])
+  }, [characters, chatCounts, query, sort, tagFilter, mode])
 
   const soloCards = useMemo(() => characters.filter((c) => !c.isGroup), [characters])
   const groupCards = useMemo(() => characters.filter((c) => c.isGroup), [characters])
@@ -222,12 +243,24 @@ export function CharactersView() {
 
   const PAGE_SIZE = 24
   const paged = useMemo(() => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE), [filtered, page])
+  // the portraits the list left out, for the cards on this page
+  const wantAvatars = useApp((s) => s.wantAvatars)
+  useEffect(() => { wantAvatars(paged.map((c) => c.id)) }, [paged, wantAvatars])
 
   // the list is a place of its own; an open editor is not
   useGuidePlace(mode === 'groups' ? 'groups' : 'characters', hydrated && !active)
 
   if (active?.isGroup && active.group) {
     return <GroupEditor group={active} onClose={() => openCharacter(null)} />
+  }
+  if (active?.stub) {
+    // the list holds a summary: the editor waits for the whole card (the store is loading it)
+    return (
+      <div className="flex h-full items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">
+        <CircleNotch className="size-4 animate-spin" aria-hidden="true" />
+        {t('characters.loadingCard', { name: active.name })}
+      </div>
+    )
   }
   if (active) {
     return <CharacterEditor character={active} onClose={() => openCharacter(null)} />
@@ -446,6 +479,14 @@ export function CharactersView() {
 
       <CreateGroupDialog open={groupOpen} onOpenChange={setGroupOpen} />
 
+      {/* the first start after an update builds the list in the background: say more are coming */}
+      {mode === 'characters' && rosterPending > 0 && (
+        <p role="status" className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-xs text-muted-foreground">
+          <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" />
+          {t('characters.listFilling', { n: rosterPending })}
+        </p>
+      )}
+
       {/* tag filter row (desktop) — tags IN USE on existing cards, horizontally
           scrollable; on a phone they live in the Filter sheet */}
       {mode === 'characters' && !isMobile && (
@@ -488,8 +529,8 @@ export function CharactersView() {
         ) : grid ? (
           <div data-guide="characters.grid" className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {paged.map((c) => {
-              const chatCount = chats.filter((ch) => ch.characterId === c.id).length
-              const tokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue)
+              const chatCount = chatCounts.get(c.id) ?? 0
+              const tokens = cardTokens(c)
               return (
                 <div key={c.id} className={cn('group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50', selected.includes(c.id) && 'border-primary')}>
                   {batchMode && (
@@ -501,7 +542,9 @@ export function CharactersView() {
                     />
                   )}
                   <button type="button" className="flex flex-col text-left" onClick={() => batchMode ? setSelected((s) => s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]) : openCharacter(c.id)}>
-                    {c.avatar && !c.avatar.endsWith('avatar-default.png') ? <img src={c.avatar} alt={c.name} className="aspect-square w-full object-cover" /> : <NoPortrait name={c.name} />}
+                    {c.avatarLazy
+                      ? <span role="img" aria-label={t('characters.portraitLoading', { name: c.name })} className="block aspect-square w-full animate-pulse bg-muted" />
+                      : c.avatar && !c.avatar.endsWith('avatar-default.png') ? <img src={c.avatar} alt={c.name} className="aspect-square w-full object-cover" /> : <NoPortrait name={c.name} />}
                     <span className="flex flex-col gap-1 p-2.5">
                       <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: readableNameColor(c.colors.name) }}>
                         {c.name}
@@ -512,12 +555,12 @@ export function CharactersView() {
                       <span className="text-[11px] text-muted-foreground">
                         {settings.charSubheader === 'creator' ? `by ${c.creator}` : `v${c.version}`}
                       </span>
-                      <span className="line-clamp-2 text-xs text-muted-foreground">{c.description}</span>
+                      <span className="line-clamp-2 text-xs text-muted-foreground">{listText(c)}</span>
                       <span className="mt-1 flex flex-wrap gap-1">
                         {c.tags.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                       </span>
                       <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{formatTokens(tokens)} tokens</span>
+                        <span>{c.stub ? '~' : ''}{formatTokens(tokens)} tokens</span>
                         <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</span>
                       </span>
                     </span>
@@ -575,7 +618,7 @@ export function CharactersView() {
                       {c.favorite && <Star weight="fill" className="size-3 text-primary" aria-hidden="true" />}
                       <CardKindBadge type={cardTypeOf(c)} className="px-1.5 py-0 text-[10px]" />
                     </span>
-                    <span className="line-clamp-1 text-xs text-muted-foreground">{c.description}</span>
+                    <span className="line-clamp-1 text-xs text-muted-foreground">{listText(c)}</span>
                   </span>
                   <span className="hidden gap-1 sm:flex">
                     {c.tags.slice(0, 4).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
