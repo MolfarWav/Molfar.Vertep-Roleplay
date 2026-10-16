@@ -648,6 +648,20 @@ describe("rp studio engine: groups", () => {
 });
 
 describe("rp studio engine: export + regex + prompt preview", () => {
+  it("hands the files to the engine's native zip when it has one (1.1.0+)", async () => {
+    const m = mockHost();
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    let got: { name: string; text: string }[] = [];
+    (m.host as { zip?: unknown }).zip = { build: (files: { name: string; text: string }[]) => { got = files; return "TkFUSVZF"; } };
+    try {
+      const r = await drive(engineUrl, { method: "GET", path: "/export/backup" }, m);
+      expect(r.json.base64).toBe("TkFUSVZF");
+      expect(got.map((f) => f.name)).toContain("characters/aria.json");
+      expect(got.every((f) => typeof f.text === "string")).toBe(true);
+    } finally {
+      delete (m.host as { zip?: unknown }).zip;
+    }
+  });
   it("builds a real (store-mode) zip with entries for everything", async () => {
     const m = mockHost();
     await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
