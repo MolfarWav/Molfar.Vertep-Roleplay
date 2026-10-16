@@ -367,17 +367,27 @@ let distReloadArmed = false
 const activeGens = new Map<ID, AbortController>()
 
 /** The relationship dashboard notes when its prompt insert did not fit the
- *  user's token limit; say so once, so the user knows to raise it. */
+ *  user's token limit; say once what was left out and whether a bigger limit would help. */
 const shownInsertNotice = new Map<ID, number>()
 async function noticeInsertTrim(chatId: ID, lang: Lang) {
   try {
-    const { notice } = await j<{ notice: { at: number; trimmed: string[]; wanted: number; budget: number } | null }>(
+    const { notice } = await j<{ notice: { at: number; trimmed: string[]; wanted: number; budget: number; notesCut?: number; notesWanted?: number; overEvenBare?: boolean } | null }>(
       `/dashboard/notice?chatId=${encodeURIComponent(chatId)}`,
     )
     if (!notice || Date.now() - notice.at > 5 * 60_000 || notice.at <= (shownInsertNotice.get(chatId) ?? 0)) return
     shownInsertNotice.set(chatId, notice.at)
-    const what = notice.trimmed.map((k) => t(k === 'others' ? 'dashboard.trim.others' : 'dashboard.trim.notebooks', lang)).join(', ')
-    toast.warning(t('dashboard.trimmed', lang, { need: notice.wanted, limit: notice.budget, what }), { duration: 12_000 })
+    // a bigger limit helps only when even the pinned notes do not fit; leaving out the least
+    // relevant notes is how the notebook works, said plainly so it does not read as lost facts
+    if (notice.overEvenBare) {
+      toast.warning(t('dashboard.trimNotesBare', lang, { need: notice.wanted, limit: notice.budget }), { duration: 12_000 })
+      return
+    }
+    const parts: string[] = []
+    if (notice.trimmed.includes('others')) parts.push(t('dashboard.trimOthers', lang))
+    const cut = Number(notice.notesCut ?? 0)
+    const n = Number(notice.notesWanted ?? 0)
+    if (notice.trimmed.includes('notebooks') && cut > 0 && n > 0) parts.push(t('dashboard.trimNotes', lang, { cut, n }))
+    if (parts.length) toast.info(parts.join(' '), { duration: 10_000 })
   } catch {
     // no dashboard plugin in this app: nothing to say
   }

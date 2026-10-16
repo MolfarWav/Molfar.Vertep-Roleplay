@@ -3203,7 +3203,15 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     }
     trimmed.push("notebooks");
   }
-  return { text, tokens: estimateTokens(text), wanted, budget, trimmed, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
+  // how many notebook lines the cut took, of how many the scene would have shown; the rest of the
+  // notebook is untouched and comes back when a later scene is about it
+  const shownAt = (lim) => notes.filter((n) => focus.includes(n) && showsNotes(n, notes, lim))
+    .reduce((sum, n) => sum + pickNotes(arr(ctx.notebook[n]), lim, ctx.sceneText).length, 0);
+  const notesWanted = shownAt(NOTE_LIMIT);
+  const notesCut = trimmed.includes("notebooks") ? notesWanted - shownAt(limit) : 0;
+  // even with every unpinned line gone it does not fit: only a bigger limit helps
+  const overEvenBare = estimateTokens(text) > budget;
+  return { text, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
 /** The insert goes in as the last of the leading system messages (after the card and preset, before the history). */
@@ -3243,7 +3251,7 @@ export function llmRequest(ctx, host) {
       if (insert && insert.trimmed.length) {
         // a hook's writes are its own small files (the app's data watcher ignores dashboard/)
         try {
-          fsx.write(NOTICE_DIR + chatId + ".json", JSON.stringify({ at: Date.now(), trimmed: insert.trimmed, wanted: insert.wanted, budget: insert.budget }));
+          fsx.write(NOTICE_DIR + chatId + ".json", JSON.stringify({ at: Date.now(), trimmed: insert.trimmed, wanted: insert.wanted, budget: insert.budget, notesCut: insert.notesCut, notesWanted: insert.notesWanted, overEvenBare: insert.overEvenBare }));
         } catch {}
       } else if (insert) {
         // the notice speaks of the latest reply: one that fit drops an older cut's notice

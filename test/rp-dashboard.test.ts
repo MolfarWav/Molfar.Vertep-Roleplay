@@ -1480,6 +1480,10 @@ describe("prompt insert", () => {
     const notice = drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice;
     expect(notice.trimmed).toEqual(["others", "notebooks"]);
     expect(notice.wanted).toBeGreaterThan(notice.budget);
+    // how many notebook lines went, of how many the scene would show: the one note about the letter
+    expect(notice.notesCut).toBe(1);
+    expect(notice.notesWanted).toBe(1);
+    expect(typeof notice.overEvenBare).toBe("boolean");
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { values: { insertTokens: "2000" } } });
     // settings alone keep the notice; the next reply that fits drops it (it no longer describes the latest reply)
     expect(drive(mock, { method: "GET", path: "/dashboard/notice", query: { chatId: "c1" } }).json.notice.at).toBe(notice.at);
