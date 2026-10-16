@@ -19,6 +19,7 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ChatPicker } from '@/components/canvas/chat-picker'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import { toast } from 'sonner'
@@ -36,7 +37,7 @@ import { estimateTokens, formatTokens } from '@/lib/tokens'
 
 interface PromptBoardProps {
   chatId: string | null
-  chats: { id: string; title: string; name: string }[]
+  chats: { id: string; title: string; name: string; updatedAt?: number }[]
   onPickChat: (id: string) => void
   editable: boolean
   phoneList: boolean
@@ -324,17 +325,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           </span>
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
-            <select
-              data-guide="prompt.chat"
-              className="h-8 rounded-md border border-border bg-background px-2 text-sm"
-              value=""
-              onChange={e => e.target.value && onPickChat(e.target.value)}
-            >
-              <option value="">{t('canvas.prompt.pickChat')}</option>
-              {chats.map(c => (
-                <option key={c.id} value={c.id}>{c.title}{c.name ? ` – ${c.name}` : ''}</option>
-              ))}
-            </select>
+            <ChatPicker chats={chats} value={null} onChange={onPickChat} />
           </label>
         </header>
         <div className="flex flex-1 items-center justify-center p-8 text-center">
@@ -355,16 +346,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
         </span>
         <label className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
-          <select
-            data-guide="prompt.chat"
-            className="h-8 rounded-md border border-border bg-background px-2 text-sm"
-            value={chatId}
-            onChange={e => onPickChat(e.target.value)}
-          >
-            {chats.map(c => (
-              <option key={c.id} value={c.id}>{c.title}{c.name ? ` – ${c.name}` : ''}</option>
-            ))}
-          </select>
+          <ChatPicker chats={chats} value={chatId} onChange={onPickChat} />
         </label>
         <div className="mx-1 h-5 w-px bg-border" />
         <Button variant="ghost" size="icon" onClick={undo} disabled={past.length === 0} title={t('canvas.undo')}>
