@@ -2765,8 +2765,7 @@ export const useCharacter = (charId: ID | null) => useApp((s) => s.characters.fi
 // ── whole cards on demand ────────────────────────────────────────────────────
 // The start-up list holds summaries (`stub`): a whole card per character ran the plugin out of
 // memory at ~700 characters (#46). The whole card comes when something needs it: the open chat's
-// character and a group's members, the character open in the editor or profile
-// (src/hooks/use-full-character.ts for screens that show one).
+// character and a group's members, the character open in the editor or profile (the subscription below).
 
 /** Fields a summary carries as they are on disk: a change to them alone is safe on a summary
  *  (the save sends only what changed). Anything else needs the whole card first. */
