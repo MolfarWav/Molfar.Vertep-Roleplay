@@ -27,6 +27,8 @@ import { ChatAvatar, ChatPanel } from '@/components/chats/chat-panel'
 import { timeAgo } from '@/lib/tokens'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useAttention } from '@/lib/attention'
+import { NeedsYouBadge } from '@/components/shell/needs-you-badge'
 import type { Character, Chat } from '@/lib/types'
 
 const SORT_KEY = 'rp.chats.sort'
@@ -47,6 +49,8 @@ const GROUP_LINE: Record<string, string> = {
 
 export function ChatsView() {
   const t = useT()
+  // #55: Library proposals waiting per chat
+  const waiting = useAttention((s) => s.litopys)
   const isMobile = useIsMobile()
   const chats = useApp((s) => s.chats)
   const characters = useApp((s) => s.characters)
@@ -171,6 +175,12 @@ export function ChatsView() {
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
+            {(waiting[chat.id] ?? 0) > 0 && (
+              <span className="flex items-center gap-1" title={t('attn.chatWaiting', { n: waiting[chat.id]! })}>
+                <NeedsYouBadge count={waiting[chat.id]!} />
+                <span className="sr-only">{t('attn.chatWaiting', { n: waiting[chat.id]! })}</span>
+              </span>
+            )}
             {chat.pinned && <PushPin className="size-3.5 text-when-pinned" weight="fill" aria-label={t('chats.when.pinned')} />}
             <span className="font-medium text-foreground/85">{timeAgo(chat.updatedAt)}</span>
             <span className="text-foreground/65">{t('chats.msgs', { n: sizeOf(chat) })}</span>

@@ -42,6 +42,7 @@ import { buildImagePrompt, generateImage, postPicture, type GeneratedImage } fro
 import { triggerDashUpdate } from './dash-live'
 import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
+import { attentionOn, pollAttention } from './attention'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas'
@@ -135,6 +136,8 @@ interface AppState {
   focusPresetId: ID | null
   /** one-shot: the Library opens its Litopys settings (set by Settings > Memory) */
   litopysSettings: boolean
+  /** set by a "needs you" toast: the Library selects this chat's Overview and clears it */
+  focusLibraryChatId: ID | null
   focusPersonaId: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
@@ -196,6 +199,8 @@ interface AppState {
   focusPreset: (presetId: ID) => void
   focusPersona: (personaId: ID) => void
   focusLorebook: (bookId: ID) => void
+  /** open the Library on one chat's Overview (its proposals) */
+  focusLibraryChat: (chatId: ID) => void
   setSettingsSection: (s: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   // chat actions
@@ -392,12 +397,22 @@ async function noticeInsertTrim(chatId: ID, lang: Lang) {
     // no dashboard plugin in this app: nothing to say
   }
 }
+/** One round of the "needs you" source (lib/attention.ts) with the app's language and switch. */
+export function pollNeedsYou() {
+  const st = useApp.getState()
+  return pollAttention({
+    lang: resolveLanguage(st.settings.language),
+    on: attentionOn(st.settings.attention, 'litopys'),
+    openLibrary: (chatId) => useApp.getState().focusLibraryChat(chatId),
+  })
+}
 /** A proposal for souls is waiting for a card of this chat: say so once per proposal,
  *  with a button that opens the card's Soul tab. "Seen" is the proposal's timestamp, kept
  *  per card in localStorage (and in memory when storage is unavailable). */
 const soulSeenMem = new Map<ID, number>()
 export async function checkSoulProposals(chatId: ID) {
   const st = useApp.getState()
+  if (!attentionOn(st.settings.attention, 'soul')) return
   const chat = st.chats.find((c) => c.id === chatId)
   const holder = chat ? st.characters.find((c) => c.id === chat.characterId) : undefined
   const cardIds = !holder ? [] : holder.isGroup ? (holder.members ?? []) : [holder.id]
@@ -501,6 +516,7 @@ export const useApp = create<AppState>()(
       openDashboard: () => set((s) => ({ dashOpen: s.dashOpen + 1 })),
       focusPresetId: null,
       litopysSettings: false,
+      focusLibraryChatId: null,
       focusPersonaId: null,
       focusLorebookId: null,
       branchTreeFor: null,
@@ -1050,6 +1066,10 @@ export const useApp = create<AppState>()(
       focusPersona: (personaId) => {
         if (opensAsDrawer(get().view)) set({ focusPersonaId: personaId, drawer: 'personas' })
         else set({ view: 'personas', focusPersonaId: personaId })
+      },
+      focusLibraryChat: (chatId) => {
+        if (opensAsDrawer(get().view)) set({ focusLibraryChatId: chatId, drawer: 'litopys' })
+        else set({ view: 'litopys', focusLibraryChatId: chatId })
       },
       setSettingsSection: (s) => {
         if (opensAsDrawer(get().view)) set({ selectedSettingsSection: s, drawer: 'settings' })
@@ -2601,6 +2621,8 @@ async function runStream(
     if (committed) get().runAutoExecutes('onAi', chatId)
     if (committed) void noticeInsertTrim(chatId, resolveLanguage(get().settings.language))
     if (committed) void checkSoulProposals(chatId)
+    // the Library writes its chapter (and its proposals) a little after the reply
+    if (committed) setTimeout(() => pollNeedsYou(), 20_000)
     // pictures the reply asked for through the drawing tool
     if (committed && op !== 'continue') {
       const replied = get().chats.find((c) => c.id === chatId)?.messages.filter((m) => m.role === 'assistant' && !m.picture).at(-1)

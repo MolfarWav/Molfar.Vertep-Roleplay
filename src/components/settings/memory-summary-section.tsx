@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { ModelPicker } from '@/components/settings/model-picker'
+import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
 import { useT } from '@/hooks/use-t'
 import { toast } from 'sonner'
 import { embedConfig, embedStatus, setEmbedConfig } from '@/lib/engine'
@@ -78,6 +79,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           </div>
           <Switch id="lit-insert" checked={cfg.insert} onCheckedChange={(v) => save({ insert: v })} />
         </Field>
+        <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
         <Field>
           <FieldLabel htmlFor="lit-budget">{t('lit.set.budget')}</FieldLabel>
           <Input

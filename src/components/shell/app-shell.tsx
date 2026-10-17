@@ -33,6 +33,8 @@ import { GuideHost } from '@/components/guide/guide-host'
 import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
+import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
+import { pollNeedsYou } from '@/lib/store'
 
 export function AppShell() {
   const [mounted, setMounted] = useState(false)
@@ -47,6 +49,15 @@ export function AppShell() {
   const isDesktop = useIsDesktop()
 
   useEffect(() => setMounted(true), [])
+
+  // #55: what waits on the player (Library proposals), polled while the page is visible
+  const attentionLitopys = useApp((s) => s.settings.attention?.litopys)
+  useEffect(() => {
+    if (boot !== 'ready') return
+    void pollNeedsYou()
+    const id = setInterval(() => { if (document.visibilityState === 'visible') void pollNeedsYou() }, 60_000)
+    return () => clearInterval(id)
+  }, [boot, attentionLitopys])
 
   // Desktop invariant: the page behind is always home/chats/chat. A persisted
   // section view (or a phone session resized wide) becomes a drawer. Phones
@@ -151,7 +162,8 @@ export function AppShell() {
       {/* the /help reference (commands + macros): also reachable from the help list, with no chat open */}
       <HelpDialog />
       <GuideHost />
-      <Toaster position={isDesktop ? "bottom-right" : "top-center"} visibleToasts={isDesktop ? 3 : 1} closeButton />
+      {/* phones: the "needs you" toasts ride bottom-center, above the composer and the tab bar */}
+      <Toaster position={isDesktop ? "bottom-right" : "top-center"} visibleToasts={isDesktop ? 3 : 1} closeButton mobileOffset={{ bottom: 'calc(8rem + env(safe-area-inset-bottom))' }} />
     </div>
   )
 }
@@ -325,7 +337,7 @@ function IconRail() {
             />
           )}
           {group.map((item) => (
-            <RailItem
+            <SectionRailItem
               key={item.key}
               data-guide={`nav.${item.key}`}
               item={item}
@@ -364,7 +376,8 @@ function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
   )
 }
 
-function RailItem({ item, wide, label, active, onClick, 'data-guide': guide }: {
+function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0 }: {
+  badge?: number
   'data-guide': string
   item: Pick<SectionItem, 'icon'>
   wide: boolean
@@ -372,12 +385,13 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide }: {
   active: boolean
   onClick: () => void
 }) {
+  const t = useT()
   const button = (
     <button
       type="button"
       data-guide={guide}
       onClick={onClick}
-      aria-label={label}
+      aria-label={badge > 0 ? `${label}, ${t('attn.waiting', { n: badge })}` : label}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'relative flex w-full shrink-0 items-center border-l-[3px] transition-colors',
@@ -387,8 +401,12 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide }: {
           : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground',
       )}
     >
-      <item.icon className={cn('shrink-0', wide ? 'size-[19px]' : 'size-5', active && 'text-cta')} aria-hidden="true" />
-      {wide && <span className="min-w-0 text-left">{label}</span>}
+      <span className="relative inline-flex shrink-0">
+        <item.icon className={cn('shrink-0', wide ? 'size-[19px]' : 'size-5', active && 'text-cta')} aria-hidden="true" />
+        {!wide && <NeedsYouBadge count={badge} dot />}
+      </span>
+      {wide && <span className="min-w-0 flex-1 text-left">{label}</span>}
+      {wide && <NeedsYouBadge count={badge} />}
     </button>
   )
   if (wide) return button
@@ -398,4 +416,10 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide }: {
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   )
+}
+
+/** A section's rail item with its "needs you" count. */
+function SectionRailItem(props: Omit<Parameters<typeof RailItem>[0], 'badge'> & { item: SectionItem }) {
+  const badge = useSectionAttention(props.item.key)
+  return <RailItem {...props} badge={badge} />
 }

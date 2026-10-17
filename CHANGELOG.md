@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Needs you (MolfarWav/Molfar.Vertep#55): when the Library suggests pinning, merging, rewriting or retiring a fact, the Library icon in the rail (on a phone, More) and the chat in the Chats list show how many suggestions wait, and a short notice says so. One suggestion can be accepted or rejected right in the notice; several are batched into one notice with Open, which goes to that chat's Overview. The notice never takes the keyboard and waits while you type; on a phone it sits above the composer with 40 px buttons. Library settings → Tell me about suggestions turns it off; the Soul tab has the same switch for proposed souls (stored as `attention` in the app settings).
+
 ## 4.48.0
 
 Molfar as a second built-in preset, option hints, and fixes. The faster export and the hidden Molfar blocks need engine 1.1.0; the rest works with any engine.

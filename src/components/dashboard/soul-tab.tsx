@@ -24,6 +24,7 @@ import {
 import type { Character } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AvatarImg } from './dash-common'
+import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
 import { SoulForm, type VocabEvent } from './soul-form'
 import { SoulGuests } from './soul-guests'
 import { SoulModelPicker } from './soul-model-picker'
@@ -545,6 +546,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {unavailable && <p className="text-xs text-muted-foreground">{t('soul.pluginMissing')}</p>}
+      {!unavailable && <NeedsYouSwitch kind="soul" label="attn.set.soul" hint="attn.set.soulHint" />}
 
       {/* banners: a proposal, or its failure; then guests */}
       {pending && draft && (
