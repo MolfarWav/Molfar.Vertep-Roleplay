@@ -6,6 +6,7 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import { SECTIONS } from '@/components/shell/sections'
+import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 
 const PRIMARY = new Set(['home', 'chats', 'characters'])
 const primaryTabs = SECTIONS.filter((s) => PRIMARY.has(s.key))
@@ -18,6 +19,8 @@ export function MobileTabBar() {
   const t = useT()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = moreItems.some((i) => i.key === view)
+  // #55: the Library sits under More on phones, so More carries its count
+  const libraryWaiting = useSectionAttention('litopys')
 
   return (
     <>
@@ -48,13 +51,16 @@ export function MobileTabBar() {
         <button
           type="button"
           onClick={() => setMoreOpen(true)}
-          aria-label="More sections"
+          aria-label={libraryWaiting > 0 ? `More sections, ${t('attn.waiting', { n: libraryWaiting })}` : 'More sections'}
           className={cn(
             'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 border-t-[3px] font-heading text-[12px]',
             moreActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
           )}
         >
-          <List className={cn('size-5', moreActive && 'text-cta')} aria-hidden="true" />
+          <span className="relative inline-flex">
+            <List className={cn('size-5', moreActive && 'text-cta')} aria-hidden="true" />
+            <NeedsYouBadge count={libraryWaiting} dot />
+          </span>
           {t('nav.more')}
         </button>
       </nav>
@@ -78,7 +84,10 @@ export function MobileTabBar() {
                     : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
-                <item.icon className="size-5" aria-hidden="true" />
+                <span className="relative inline-flex">
+                  <item.icon className="size-5" aria-hidden="true" />
+                  {item.key === 'litopys' && <NeedsYouBadge count={libraryWaiting} dot />}
+                </span>
                 {t(item.labelKey)}
               </button>
             ))}

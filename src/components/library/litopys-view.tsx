@@ -10,6 +10,8 @@ import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
+import { setLitCounts } from '@/lib/attention'
+import { NeedsYouBadge } from '@/components/shell/needs-you-badge'
 import { distinctName, fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
 import { LedgerChat } from './ledger'
 import { WorkerDot } from './worker-dot'
@@ -102,6 +104,18 @@ export function LitopysView() {
     )
   }, [])
   const withData = items ? items.filter((x) => x.hasData).length : undefined
+  // the rail badge follows the list the Library already polls (and every Accept / Reject here)
+  const attentionOn = useApp((s) => s.settings.attention?.litopys !== false)
+  useEffect(() => { if (items) setLitCounts(items, attentionOn) }, [items, attentionOn])
+  // "Open" on a needs-you toast: that chat's Overview, where its proposals are
+  const focusChat = useApp((s) => s.focusLibraryChatId)
+  useEffect(() => {
+    if (!focusChat) return
+    useApp.setState({ focusLibraryChatId: null })
+    setMode('overview')
+    select(focusChat)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusChat])
   useGuidePlace('litopys', !!items && items.length > 0)
   const current = items?.find((x) => x.id === selectedId)
 
@@ -234,6 +248,7 @@ function ChatPicker({
                 <span className="flex min-w-0 items-center gap-1.5 font-medium">
                   {c.hasData && <WorkerDot worker={c.worker} className="shrink-0" />}
                   <span className="min-w-0 truncate">{c.title}</span>
+                  <NeedsYouBadge count={c.proposals} className="ml-auto shrink-0" />
                 </span>
                 <span className="truncate text-[11px] text-muted-foreground">
                   {distinctName(c.title, c.name) ? `${distinctName(c.title, c.name)} · ` : ''}

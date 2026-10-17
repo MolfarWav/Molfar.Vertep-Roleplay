@@ -2,9 +2,11 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased (4.49.0)
+## Unreleased
 
-Large libraries (MolfarWav/Molfar.Vertep#46). With engine 1.1.2 the start stays fast; an older engine works too, re-reading every card at each start.
+## 4.49.0
+
+Large libraries (MolfarWav/Molfar.Vertep#46), a notice when the Library waits on you (MolfarWav/Molfar.Vertep#55) and a Dashboard thread fix (MolfarWav/Molfar.Vertep#47). With engine 1.2.0 the start stays fast; an older engine works too, re-reading every card at each start.
 
 - The app starts from a short list of characters (name, portrait, tags, the start of the description, a token count) kept in an index under `data/.cache/`, and loads a whole card when it is opened, chatted with or exported. Before, every whole card was loaded at start: with about 700 characters the app no longer opened. Measured with 2,000 cards: the start takes about 2 s; the first start after the update builds the index in the background (about 25 s for 2,000 cards, the list fills in meanwhile).
 - Portraits kept inside the cards come when a list shows them: the characters with recent chats and favorites at start, the rest page by page on the Characters page. A tile shows a soft placeholder while its portrait comes, and the list says how many characters are still being loaded on that first start.
@@ -12,6 +14,7 @@ Large libraries (MolfarWav/Molfar.Vertep#46). With engine 1.1.2 the start stays 
 - Importing many cards at once sends them in batches of 25: a few hundred in one request ran out of time halfway, with part of the cards written and an error on screen.
 - Characters page: counting chats per card no longer slows the page down with thousands of chats.
 - Dashboard threads: a resolved thread stays resolved. A thread you added came back open one turn after the sensor closed it (MolfarWav/Molfar.Vertep#47); resolved threads now stay in the list's Resolved part as history (the newest 20, with the turn they closed on) instead of vanishing after a turn.
+- Needs you (MolfarWav/Molfar.Vertep#55): when the Library suggests pinning, merging, rewriting or retiring a fact, the Library icon in the rail (on a phone, More) and the chat in the Chats list show how many suggestions wait, and a short notice says so. One suggestion can be accepted or rejected right in the notice; several are batched into one notice with Open, which goes to that chat's Overview. The notice never takes the keyboard and waits while you type; on a phone it sits above the composer with 40 px buttons. Library settings → Tell me about suggestions turns it off; the Soul tab has the same switch for proposed souls (stored as `attention` in the app settings).
 
 ## 4.48.0
 
