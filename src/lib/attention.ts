@@ -122,6 +122,7 @@ export async function pollAttention(deps: AttentionDeps) {
   try {
     if (!deps.on) {
       useAttention.setState({ litopys: {} })
+      toast.dismiss('attention-litopys')
       return
     }
     const { items } = await fetchLitChats()
