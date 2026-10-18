@@ -3537,34 +3537,6 @@ export function withPlainSectionNames(preset) {
   return changed ? { ...preset, prompts, studio: { ...preset.studio, sections } } : null;
 }
 
-/** The lead lines of the Molfar preset's section headers that only told the reader what the
- *  section is: they went to the model on every request (4.52.0). */
-const READER_LINES = [
-  "How fast the story moves and when time jumps. ",
-  "How hard the world pushes back. ",
-  "How intimate and sexual scenes are written. ",
-  "Formatting, OOC, display, and tracking tools.\n",
-  "Rules for the setting. ",
-  "These rules apply to every response.\n",
-];
-
-/** The built-in Molfar copy (read-only) without READER_LINES; null when nothing changes. */
-export function withoutReaderLines(preset) {
-  if (!preset || !preset.studio || preset.studio.readOnly !== true || !Array.isArray(preset.studio.sections)) return null;
-  let changed = false;
-  const strip = (x) => {
-    if (!x || typeof x.content !== "string") return x;
-    let content = x.content;
-    for (const line of READER_LINES) content = content.split(line).join("");
-    if (content === x.content) return x;
-    changed = true;
-    return { ...x, content };
-  };
-  const sections = preset.studio.sections.map(strip);
-  const prompts = Array.isArray(preset.prompts) ? preset.prompts.map(strip) : preset.prompts;
-  return changed ? { ...preset, prompts, studio: { ...preset.studio, sections } } : null;
-}
-
 /** The editor used to give every section that had no generation types of
  *  its own just "normal", so swipes, regenerations and continues sent none of
  *  the preset. A preset where every section is limited to "normal" is that
@@ -3634,8 +3606,6 @@ export function onAppUpdate(ctx, host) {
   if (olderThan(from, "4.52.0")) {
     const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));
     if (out) { writeJsonFile(fsx, "presets/molfar.json", out); done.push("presets/molfar.json names"); }
-    const lean = withoutReaderLines(readJsonFile(fsx, "presets/molfar.json"));
-    if (lean) { writeJsonFile(fsx, "presets/molfar.json", lean); done.push("presets/molfar.json reader lines"); }
   }
   if (olderThan(from, "4.37.0")) {
     let files = [];
