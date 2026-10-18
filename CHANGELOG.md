@@ -2,8 +2,15 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.53.0
 
+A World DM: a game master per chat that keeps the world's records and, if you want, moves the world and brings events into the story (#52; needs no engine update).
+
+- World DM (chat menu → World DM, off by default, per chat). Levels: Chronicler records the people, places, groups and facts the story meets; Living world adds fronts (factions and threats with clocks) that move off screen, with soft news; Director brings hooks, complications and visitors; Antagonist brings pressure and consequences aimed at the Dashboard's threads; Total chaos ignores genre and logic. From Director up the next reply must use the event; a missed event is re-sent once, then dropped.
+- The records live in the chat's own world book (`lorebooks/world-<chatId>.json`, `ownerChatId`): scanned for that chat only, hidden from the Lorebooks library, copied when a chat is branched, deleted with the chat. "Look at the world" shows the records behind a spoiler warning; fronts and events stay hidden (the prompt Inspector shows what reaches the model).
+- When it runs: every N replies, when the scene stands still (scaled by the scene's direction), right after a time skip, or on World turn. An explicit scene freezes it. Its own model (the chat's model by default) and a Canvas prompt-board switch for its events.
+- Dashboard: the sensor names the scene's direction (domestic, social, intrigue, investigation, travel, combat, explicit, transition) as a new prompt part, "Direction". A preset that kept the old default prompt gets it on update.
+- Two languages in one chat: the DM writes records in the replies' language and adds the player's spelling of each name as an alias.
 - The app's name in the shell (the tab at the top, the app list) is now Vertep. Its id, folder and data stay `roleplay`.
 
 ## 4.52.0

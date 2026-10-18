@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.52.0'
+export const APP_VERSION = '4.53.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -196,6 +196,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Press this to send. While a reply is being written, the same spot becomes a stop button.',
       uk: 'Натисніть, щоб надіслати. Поки відповідь пишеться, це місце стає кнопкою зупинки.',
+    },
+  },
+  // ── What's new: World DM (#52)
+  {
+    id: 'new.world-dm',
+    since: '4.53.0',
+    target: 'menu.tools',
+    open: { view: 'chat', panel: 'chat-menu' },
+    title: { en: 'A game master for the world', uk: 'Майстер гри для світу' },
+    body: {
+      en: 'Chat menu → World DM: pick a level. Chronicler keeps the story’s people and places in the chat’s own lorebook; from Living world up the world moves and events reach the next reply. Off by default.',
+      uk: 'Меню чату → «Майстер світу»: оберіть рівень. «Літописець» записує людей і місця історії у власний лорбук чату; від «Живого світу» світ рухається, а події потрапляють у наступну відповідь. Типово вимкнений.',
     },
   },
   // ── What's new: the inbox
