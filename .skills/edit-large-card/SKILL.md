@@ -1,6 +1,6 @@
 ---
 name: edit-large-card
-description: Use when reading or changing fields of a Roleplay character card or lorebook: one field, example dialogues, a new lorebook, linking a book to a character. Triggers: "поправ картку", "зміни опис персонажа", "додай запис у лорбук", "знайди в лорбуку", "edit card", "lorebook entry".
+description: Use when reading or changing fields of a Roleplay character card or lorebook: one field, example dialogues, a new lorebook, linking a book to a character, a new avatar, background or gallery picture. Triggers: "поправ картку", "зміни опис персонажа", "додай запис у лорбук", "знайди в лорбуку", "зроби аватар", "намалюй фон", "edit card", "lorebook entry", "make an avatar".
 ---
 
 # Cards and lorebooks: the call order
@@ -51,3 +51,19 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 5. Report what changed. json_set and write_file commit on their own and open chats pick the change
    up within a second: do not read the file back or check with git. A write_file refusal means the
    JSON text is broken: fix the text, never patch the file afterwards.
+
+## Pictures: avatar, background, gallery
+1. Write the prompt from the card: ONE `json_get` of `/name`, `/description` (and
+   `/extensions/molfar_profile/appearance` when there is a profile). Describe the look in English,
+   no names. An avatar is a portrait: face and shoulders, plain or soft background.
+2. `image_generate` with that prompt (`list: true` first only when the user named a model or
+   server). A model marked "write tags" (ComfyUI, Forge) wants comma-separated Danbooru tags
+   (`1girl, solo, silver hair, ...`) instead of sentences. Paid models ask the user on their own;
+   a skip is final for this task.
+3. Put the returned `/v1/assets/<id>` URL where it belongs, in ONE write:
+   - Avatar: `json_set` on the card, `/avatar` and `/studio/avatar` both set to the URL. This
+     replaces the old portrait; to keep it, append the URL to `/studio/altAvatars` instead.
+   - Gallery: `{ pointer: "/studio/gallery", op: "append", value: { "id": "gal_<8 letters>", "url": "<url>", "type": "image", "caption": "<a few words>" } }`.
+   - Background: `json_set` on `apps/roleplay/data/library.json`, `{ pointer: "/backgrounds", op: "append", value: { "id": "bg_<8 letters>", "name": "<name>", "url": "<url>", "type": "image", "folderId": null, "fitting": "cover" } }`;
+     the user picks it in the chat's background menu.
+4. Report with the URL as a Markdown image (`![Jude](/v1/assets/<id>)`) so the user sees it.

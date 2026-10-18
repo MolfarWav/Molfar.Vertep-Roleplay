@@ -41,7 +41,8 @@ export function ImageGenTab() {
   const shownApi = shown?.api
   // Keep the picked model's backend in the settings: the plugins read it to choose the default prompt style.
   useEffect(() => {
-    if (shownApi && shownApi !== ig.modelApi) updateSettings({ imageGen: { ...ig, modelApi: shownApi } })
+    // only once image generation was set up: opening the tab alone writes nothing
+    if (settings.imageGen && shownApi && shownApi !== ig.modelApi) updateSettings({ imageGen: { ...ig, modelApi: shownApi } })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownApi, ig.modelApi])
   const style = resolvePromptStyle({ promptStyle: ig.promptStyle, modelApi: shownApi ?? ig.modelApi })
