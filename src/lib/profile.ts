@@ -36,6 +36,10 @@ export interface Profile {
   /** Free write: the profile is kept but no longer writes the card */
   free?: boolean
   compiled?: { at?: number; hash?: string }
+  /** More characters on the same card (a narrator card's cast): each one the same
+   *  fields as the profile itself, compiled after it under its own name. The
+   *  profile's own fields are the first character; its `notes` are the card's shared text. */
+  cast?: Profile[]
   [unknown: string]: unknown
 }
 
@@ -156,6 +160,13 @@ export function normalizeProfile(raw: unknown): Profile {
       .filter(isObj)
       .map((r) => ({ ...r, name: asText(r.name) ?? '', relation: asText(r.relation) ?? '', notes: asText(r.notes) ?? '' }))
   }
+  if ('cast' in p) {
+    // one level only: a member has no cast, no Free write and no compile stamp of its own
+    p.cast = (Array.isArray(p.cast) ? p.cast : []).filter(isObj).map((m) => {
+      const { cast: _c, free: _f, compiled: _d, v: _v, ...rest } = m as Profile
+      return normalizeProfile(rest)
+    })
+  }
   return p
 }
 
@@ -191,9 +202,37 @@ export function sectionOn(p: Profile, id: SectionId): boolean {
   return true
 }
 
+/** The name a profile goes by: title, first and family name, else the first
+ *  nickname, else "Character <n>" (n counts from 1). */
+export function profileName(p: Profile, index = 0): string {
+  const id = isObj(p.identity) ? p.identity : {}
+  const name = [filled(id.title), filled(id.first), filled(id.family)].filter(Boolean).join(' ')
+  return name || list(id.nicknames).map((x) => x.trim()).find(Boolean) || `Character ${index + 1}`
+}
+
+/** The card's other characters, as saved (see `Profile.cast`). */
+export function castOf(p: Profile): Profile[] {
+  return Array.isArray(p.cast) ? p.cast.filter(isObj) : []
+}
+
 /** What the profile writes into `description` (who and what they are) and
- *  `personality` (how they think and act). Labeled lines, empty fields skipped. */
+ *  `personality` (how they think and act). Labeled lines, empty fields skipped.
+ *  With a cast, every character that writes something gets its own `### Name`
+ *  part, the first character's part first; the profile's notes follow them all.
+ *  Members that write nothing are left out, so one character reads as before. */
 export function compileProfile(p: Profile): { description: string; personality: string } {
+  const cast = castOf(p)
+    .map((m, i) => ({ name: profileName(m, i + 1), ...compileOne(m) }))
+    .filter((m) => m.description || m.personality)
+  if (!cast.length) return compileOne(p)
+  const all = [{ name: profileName(p), ...compileOne({ ...p, notes: {} }) }, ...cast]
+  const notes = isObj(p.notes) ? p.notes : {}
+  const join = (key: 'description' | 'personality') =>
+    [...all.filter((m) => m[key]).map((m) => `### ${m.name}\n${m[key]}`), filled(notes[key])].filter(Boolean).join('\n\n')
+  return { description: join('description'), personality: join('personality') }
+}
+
+function compileOne(p: Profile): { description: string; personality: string } {
   const id = isObj(p.identity) ? p.identity : {}
   const name = [filled(id.title), filled(id.first), filled(id.family)].filter(Boolean).join(' ')
   const gender = [filled(id.gender), filled(id.pronouns) && `(${filled(id.pronouns)})`].filter(Boolean).join(' ')

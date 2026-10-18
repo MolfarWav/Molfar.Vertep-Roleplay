@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Warning } from '@phosphor-icons/react'
+import { Plus, Trash, Warning } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 import type { Character } from '@/lib/types'
 import {
   type Profile,
+  castOf,
+  profileName,
   profileOf,
   profileOutOfDate,
   applyProfile,
@@ -32,6 +35,8 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
   })
   const vision = useVisionModel()
   const fill = useFillEmpty(draft, p, c.avatar, vision)
+  // which character of the card the form shows: 0 the profile itself, n the cast's n-th
+  const [sel, setSel] = useState(0)
   const [readOpen, setReadOpen] = useState(false)
   const [reading, setReading] = useState(false)
   const structureButton = <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} onClick={() => void draft.runStructure()} />
@@ -56,6 +61,27 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
   }
 
   const save = (next: Profile) => up(applyProfile(c, next))
+  const cast = castOf(p)
+  const at = sel > cast.length ? 0 : sel
+  const shown = at === 0 ? p : cast[at - 1]!
+  const saveShown = (next: Profile) => (at === 0 ? save(next) : save({ ...p, cast: cast.map((m, i) => (i === at - 1 ? next : m)) }))
+  const addCharacter = () => {
+    save({ ...p, cast: [...cast, {}] })
+    setSel(cast.length + 1)
+  }
+  const removeShown = () => {
+    if (at === 0) return
+    const before = p
+    const gone = profileName(shown, at)
+    save({ ...p, cast: cast.filter((_, i) => i !== at - 1) })
+    setSel(at - 1)
+    toast(`${gone} removed from the profile.`, { action: { label: 'Undo', onClick: () => { save(before); setSel(at) } } })
+  }
+  // Structure it splits the card's whole text: with a cast it would put everyone into
+  // the first character, so it is offered only for a one-character profile.
+  // Fill empty and Read from picture fill the first character only, for now.
+  const structurable = cast.length === 0
+  const fillable = at === 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,10 +91,48 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
           Free write: edit Description and Personality by hand; the profile stops writing them
         </label>
         {p.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the card's text.</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          {structureButton}
-          <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
+        {fillable ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {structurable && structureButton}
+            <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Fill empty works on the first character only.</p>
+        )}
+        {!structurable && fillable && <p className="text-xs text-muted-foreground">Structure it is off while the profile has more than one character: it would put everyone into the first.</p>}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Characters in this profile">
+          {[p, ...cast].map((m, i) => (
+            <button
+              // biome-ignore lint/suspicious/noArrayIndexKey: members have no id; the place is the identity
+              key={i}
+              type="button"
+              aria-pressed={i === at}
+              onClick={() => setSel(i)}
+              className={cn(
+                'max-w-48 truncate border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                i === at ? 'border-primary bg-primary/15' : 'border-border hover:bg-muted',
+              )}
+            >
+              {profileName(m, i)}
+            </button>
+          ))}
+          <Button variant="ghost" size="sm" onClick={addCharacter}>
+            <Plus aria-hidden="true" />Add character
+          </Button>
+          {at > 0 && (
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={removeShown}>
+              <Trash aria-hidden="true" />Remove {profileName(shown, at)}
+            </Button>
+          )}
         </div>
+        <p className="text-xs text-muted-foreground">
+          {cast.length
+            ? 'Each character gets its own part in Description and Personality, under its name. Notes stay shared and come last.'
+            : 'The first name is this card\'s own character. A narrator card can describe several: Add character, and each gets its own part of the text.'}
+        </p>
       </div>
       {draftPanel}
 
@@ -102,10 +166,11 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
       )}
 
       <ProfileForm
-        p={p}
-        save={save}
+        key={at}
+        p={shown}
+        save={saveShown}
         mode="character"
-        fill={{ busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } }}
+        fill={fillable ? { busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } } : undefined}
       />
       <ReadPictureDialog
         open={readOpen}

@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
 const { cardToCharacter, characterToCard } = await import("../src/lib/engine");
 import {
-  acceptDraft, acceptFill, acceptPersonaDraft, acceptPersonaFill, mergeFill, emptyFields, isMale, personaProfile, sectionOn, writePersona, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
+  acceptDraft, acceptFill, acceptPersonaDraft, acceptPersonaFill, castOf, normalizeProfile, profileName, mergeFill, emptyFields, isMale, personaProfile, sectionOn, writePersona, adoptHandEdits, answersOf, applyAnswers, applyProfile, personaAdditions, personaEdited, compileProfile, compileProfileText, profileOf, profileOutOfDate, startProfile, textHash, withProfile,
   type Profile,
 } from "../src/lib/profile";
 
@@ -350,3 +350,62 @@ describe("cards written outside the app", () => {
     expect(c.favorite).toBe(false)
   })
 })
+
+describe("several characters on one card (cast)", () => {
+  const narrator: Profile = {
+    identity: { first: "Aria" },
+    appearance: { eyes: "green" },
+    lists: { fears: ["the dark"] },
+    notes: { description: "The tavern is the heart of the town.", personality: "" },
+    cast: [
+      { identity: { first: "Bram", family: "Holt" }, appearance: { hair: "red" }, behaviors: { speech: "loud" } },
+      { identity: { nicknames: ["the Fox"] }, goals: { life: "steal the crown" } },
+      { identity: { first: "" } },
+    ],
+  };
+
+  it("each character gets its own part, the shared notes come last, an empty member writes nothing", () => {
+    const out = compileProfile(narrator);
+    expect(out.description).toBe(
+      "### Aria\nFull name: Aria\n\nEyes: green\n\n### Bram Holt\nFull name: Bram Holt\n\nHair: red\n\n### the Fox\nAlso called: the Fox\n\nThe tavern is the heart of the town.",
+    );
+    expect(out.personality).toBe("### Aria\nFears: the dark\n\n### Bram Holt\nSpeech: loud\n\n### the Fox\nLife goal: steal the crown");
+  });
+
+  it("a cast that writes nothing leaves one character's text as it was", () => {
+    const solo: Profile = { ...narrator, cast: [{ identity: { first: " " } }] };
+    const { cast: _c, ...plain } = narrator;
+    expect(compileProfile(solo)).toEqual(compileProfile(plain));
+  });
+
+  it("names: the full name, else a nickname, else the place in the cast", () => {
+    expect(profileName({ identity: { title: "Dr.", first: "Elias", family: "Thorne" } })).toBe("Dr. Elias Thorne");
+    expect(profileName({ identity: { nicknames: ["", "Eli"] } })).toBe("Eli");
+    expect(profileName({}, 2)).toBe("Character 3");
+  });
+
+  it("normalizing: members are coerced like the profile; a member has no cast, Free write or stamp", () => {
+    const p = normalizeProfile({ cast: [{ lists: { fears: "fire" }, cast: [{}], free: true, compiled: { hash: "x" }, v: 1, mine: 1 }, "junk", null] });
+    expect(castOf(p)).toEqual([{ lists: { fears: ["fire"] }, mine: 1 }]);
+    expect(normalizeProfile({ cast: "x" }).cast).toEqual([]);
+  });
+
+  it("the hand-edit check and keeping additions work over every part", () => {
+    const c = { cardExtras: {}, description: "", personality: "" };
+    const saved = { ...c, ...applyProfile(c, narrator, 1) };
+    expect(profileOutOfDate(saved)).toBe(false);
+    const edited = { ...saved, description: saved.description + "\nIt rains a lot." };
+    expect(profileOutOfDate(edited)).toBe(true);
+    const kept = adoptHandEdits(profileOf(edited)!, edited)!;
+    expect(kept.notes!.description).toBe("The tavern is the heart of the town.\nIt rains a lot.");
+    expect(castOf(kept).length).toBe(3);
+  });
+
+  it("survives the round trip through the card format", () => {
+    const c = { cardExtras: {}, description: "", personality: "" };
+    const ch = { ...cardToCharacter({ spec: "chara_card_v2", data: { name: "Tavern" } } as any), ...applyProfile(c, narrator, 1) };
+    const back = cardToCharacter(characterToCard(ch as any) as any);
+    expect(castOf(profileOf(back)!).map((m) => profileName(m))).toEqual(["Bram Holt", "the Fox", "Character 1"]);
+    expect(back.description).toBe(ch.description);
+  });
+});

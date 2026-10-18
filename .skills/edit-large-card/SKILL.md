@@ -33,6 +33,11 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
   rewrites the two texts from the profile on its next load. When the profile has `"free": true`,
   edit the texts as usual. A section switched off
   in `sections` (`"trauma": false`) keeps its fields but writes nothing into the text.
+- A narrator card may describe several characters in one profile: the profile's own fields are
+  the first character, `/extensions/molfar_profile/cast` is a list of the others (same keys).
+  To change or add a second character, edit `/extensions/molfar_profile/cast/<n>/...` or append
+  to `cast`; the texts get a `### Name` part per character. Shared world text stays in the
+  profile's `notes`.
 
 ## The calls
 1. Read: ONE `json_get` with every pointer you need, for example
