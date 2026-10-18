@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.50.0'
+export const APP_VERSION = '4.51.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -196,6 +196,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Press this to send. While a reply is being written, the same spot becomes a stop button.',
       uk: 'Натисніть, щоб надіслати. Поки відповідь пишеться, це місце стає кнопкою зупинки.',
+    },
+  },
+  // ── What's new: a Profile for every character of a narrator card
+  {
+    id: 'new.profile-cast',
+    since: '4.51.0',
+    target: 'characters.title',
+    open: { view: 'characters', list: 'characters' },
+    title: { en: 'Several characters in one Profile', uk: 'Кілька персонажів в одному Профілі' },
+    body: {
+      en: 'Open a card → Profile → Add character: a narrator card can describe its whole cast, each with the same fields. Description and Personality get one part per character.',
+      uk: 'Відкрийте картку → Профіль → Add character: картка оповідача може описати всю свою трупу, кожного з тими самими полями. Опис і Особистість отримують окрему частину на кожного.',
     },
   },
   // ── What's new: image prompts as tags
