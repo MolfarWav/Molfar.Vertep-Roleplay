@@ -120,6 +120,17 @@ describe("agentic tools plugin", () => {
     expect(img().description).toBe("Paint it.");
   }, 30_000);
 
+  it("generate_image follows the image server's style and carries its prompt guidance", async () => {
+    const m = mockHost();
+    await drive("PUT", "/tools/image", { enabled: true }, m.host);
+    const img = () => mod.appTools(null, m.host).tools.find((t) => t.name === "generate_image")!;
+    const stock = img().description;
+    fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ ui: { imageGen: { modelApi: "comfyui", modelStyle: "description", modelInstructions: "Describe  the light." } } }));
+    expect(img().description).toBe(stock + " The image server's own guidance for prompts: Describe the light.");
+    fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ ui: { imageGen: { modelApi: "openai", modelStyle: "tags" } } }));
+    expect(img().description).toContain("Danbooru tags");
+  }, 30_000);
+
   it("built-ins let the user reshape what the model sees (rename + description)", async () => {
     const m = mockHost();
     const r = (await drive("PUT", "/tools/dice", { enabled: true, values: { "tool.name": "roll", "tool.description": "Roll the bones." } }, m.host))!;

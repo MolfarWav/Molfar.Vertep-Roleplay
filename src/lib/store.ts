@@ -39,7 +39,7 @@ import {
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
-import { buildImagePrompt, generateImage, postPicture, type GeneratedImage } from './image-gen'
+import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
 import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
@@ -783,16 +783,19 @@ export const useApp = create<AppState>()(
               return { settings: merged as unknown as typeof s.settings }
             })
           }
-          // image prompt style: remember the model's backend once, so the plugins can pick the default style
-          // for users who never reopen the Image Generation tab (silent on failure)
+          // image prompt style: refresh the model's backend, style and guidance on each start, so the plugins
+          // follow a change in the engine's Settings for users who never reopen the Image Generation tab (silent on failure)
           {
             const ig = get().settings.imageGen
-            if (ig?.enabled && ig.modelApi === undefined) {
+            if (ig?.enabled) {
               void fetchImageModels().then((list) => {
                 const cur = get().settings.imageGen
-                if (!cur || cur.modelApi !== undefined) return
-                const m = list.find((x) => `${x.provider}/${x.id}` === cur.model) ?? list[0]
-                if (m?.api) get().updateSettings({ imageGen: { ...cur, modelApi: m.api } })
+                const m = cur && (list.find((x) => `${x.provider}/${x.id}` === cur.model) ?? list[0])
+                if (!cur || !m?.api) return
+                const h = modelHints(m)
+                if (h.modelApi !== cur.modelApi || h.modelStyle !== cur.modelStyle || h.modelInstructions !== cur.modelInstructions) {
+                  get().updateSettings({ imageGen: { ...cur, ...h } })
+                }
               }).catch(() => {})
             }
           }

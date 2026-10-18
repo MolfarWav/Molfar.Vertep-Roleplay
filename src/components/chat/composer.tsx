@@ -253,7 +253,7 @@ export function Composer({ chatId }: { chatId: ID }) {
     setImgBusy(true)
     const toastId = toast.loading("mode" in start ? "Reading the chat…" : "Drawing…")
     try {
-      const subject = "text" in start ? start.text : await describeForImage(chatId, start.mode, chatModel, resolvePromptStyle(imageGen))
+      const subject = "text" in start ? start.text : await describeForImage(chatId, start.mode, chatModel, resolvePromptStyle(imageGen), imageGen?.modelInstructions)
       toast.loading("Drawing…", { id: toastId })
       const img = await generateImage({
         prompt: buildImagePrompt(imageGen, subject),

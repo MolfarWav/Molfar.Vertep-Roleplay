@@ -5216,9 +5216,11 @@ const toolX = (r) => ({
         const about = (name, text) => (String(text || "").trim() ? "About " + name + ":\n" + String(text).trim().slice(0, 3000) : "");
         const transcript = recentTranscript(chat.msgs, 12);
         const subject = typeof b.subject === "string" ? b.subject.trim().slice(0, 500) : "";
+        const guide = typeof b.instructions === "string" ? b.instructions.trim().slice(0, 1000) : "";
         const content = [
           IMAGE_PROMPT_MODES[mode].split("{{char}}").join(charName).split("{{user}}").join(userName),
           style === "tags" ? IMAGE_TAG_RULES : IMAGE_PROMPT_RULES,
+          guide ? "The image server's own guidance (follow it where it does not break the rules above): " + guide : "",
           subject ? "The user asked for: " + subject : "",
           who && mode !== "user" && mode !== "background" ? about(charName, who.card && who.card.description) : "",
           mode === "user" || mode === "scene" ? about(userName, persona && persona.description) : "",

@@ -268,7 +268,7 @@ variables. `frankenx` and `molfar` are the built-in read-only presets: copy one 
 
 ## App settings: image generation
 
-`data/settings.json` → `ui.imageGen` holds the Image Generation tab. Besides `enabled`, `model`, `promptPrefix`, `negativePrompt`, `interactive` and `saveToGallery` it has `promptStyle` (`"auto"` or absent, `"description"`, `"tags"`: how the picture prompt is written) and `modelApi` (the `api` of the picked image model, written by the app; with `promptStyle` auto, `comfyui` and `a1111` mean Danbooru tags, anything else a description).
+`data/settings.json` → `ui.imageGen` holds the Image Generation tab. Besides `enabled`, `model`, `promptPrefix`, `negativePrompt`, `interactive` and `saveToGallery` it has `promptStyle` (`"auto"` or absent, `"description"`, `"tags"`: how the picture prompt is written) and `modelApi` (the `api` of the picked image model, written by the app; with `promptStyle` auto, `comfyui` and `a1111` mean Danbooru tags, anything else a description). Engine 1.2.1+ also gives the app `modelStyle` (`"tags"` or `"description"`: the image server's own Prompt style in the engine's Settings > Images, which beats the `modelApi` rule) and `modelInstructions` (the server's prompt guidance, up to 1,000 characters, passed to whoever writes the prompt). The app refreshes all three at start and when the Image Generation tab shows the model.
 
 ## Macros and regex scripts
 

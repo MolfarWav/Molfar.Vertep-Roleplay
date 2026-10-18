@@ -10,7 +10,7 @@ import { Image, CircleNotch, MagicWand, Star } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { buildImagePrompt, generateImage, resolvePromptStyle, type GeneratedImage } from '@/lib/image-gen'
+import { buildImagePrompt, generateImage, modelHints, resolvePromptStyle, type GeneratedImage } from '@/lib/image-gen'
 import { fetchImageModels, type ImageModelInfo } from '@/lib/engine'
 
 const STYLE_LABELS: Record<string, string> = {
@@ -39,13 +39,15 @@ export function ImageGenTab() {
   // The model the Select shows: the picked one if listed, else the first.
   const shown = imageModels?.find((m) => `${m.provider}/${m.id}` === ig.model) ?? imageModels?.[0]
   const shownApi = shown?.api
-  // Keep the picked model's backend in the settings: the plugins read it to choose the default prompt style.
+  const hints = modelHints(shown)
+  // Keep the picked model's backend, prompt style and guidance in the settings: the plugins read them.
   useEffect(() => {
     // only once image generation was set up: opening the tab alone writes nothing
-    if (settings.imageGen && shownApi && shownApi !== ig.modelApi) updateSettings({ imageGen: { ...ig, modelApi: shownApi } })
+    if (!settings.imageGen || !shownApi) return
+    if (hints.modelApi !== ig.modelApi || hints.modelStyle !== ig.modelStyle || hints.modelInstructions !== ig.modelInstructions) updateSettings({ imageGen: { ...ig, ...hints } })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownApi, ig.modelApi])
-  const style = resolvePromptStyle({ promptStyle: ig.promptStyle, modelApi: shownApi ?? ig.modelApi })
+  }, [shownApi, hints.modelStyle, hints.modelInstructions, ig.modelApi, ig.modelStyle, ig.modelInstructions])
+  const style = resolvePromptStyle(shown ? { promptStyle: ig.promptStyle, ...hints } : ig)
 
   const runTest = async () => {
     setTesting(true)

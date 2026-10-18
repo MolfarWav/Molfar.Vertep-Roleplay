@@ -202,6 +202,15 @@ describe("image prompt style (MolfarWav/Molfar.Vertep#53)", () => {
     expect(plain.asked).not.toContain("Danbooru tags");
   });
 
+  it("the image server's guidance goes into the request", async () => {
+    const m = mockHost("x");
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "scene", style: "tags", instructions: "Always add a time of day tag." } }, m);
+    const asked = m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string;
+    expect(asked).toContain("The image server's own guidance (follow it where it does not break the rules above): Always add a time of day tag.");
+  });
+
   it("a tag reply comes back cleaned: label stripped, empties and duplicates dropped", async () => {
     const m = mockHost("Tags: 1girl, Silver hair, silver hair,, smile,\n long coat, " + "x".repeat(70));
     await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);

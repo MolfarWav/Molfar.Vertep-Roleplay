@@ -47,7 +47,7 @@ export function ImageGenDialog({
     const seq = ++readSeq.current
     setReading(true)
     try {
-      const text = await describeForImage(chatId, m, chatModel, resolvePromptStyle(settings))
+      const text = await describeForImage(chatId, m, chatModel, resolvePromptStyle(settings), settings?.modelInstructions)
       if (seq === readSeq.current) setSubject(text)
     } catch (err) {
       if (seq === readSeq.current) toast.error('Could not describe the scene', { description: (err as Error).message })

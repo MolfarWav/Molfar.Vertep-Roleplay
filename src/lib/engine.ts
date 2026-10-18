@@ -320,6 +320,9 @@ export interface ImageModelInfo {
   provider: string; id: string; label: string; api: string; connectionName: string | null
   /** On the user's list in the engine's Settings > Images (engine 1.2.1+): their name and what it is for. */
   favorite?: { name?: string; use?: string }
+  /** Image servers (engine 1.2.1+): how their prompts are best written, and the user's own guidance for them. */
+  style?: 'tags' | 'description'
+  instructions?: string
 }
 /** The engine's image models, the user's own list (Settings > Images) first in its order. */
 export async function fetchImageModels(): Promise<ImageModelInfo[]> {

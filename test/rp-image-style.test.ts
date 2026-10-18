@@ -19,6 +19,11 @@ describe("resolvePromptStyle", () => {
     expect(resolvePromptStyle({})).toBe("description");
     expect(resolvePromptStyle(undefined)).toBe("description");
   });
+  it("the image server's own style setting beats the backend rule, an explicit choice beats both", () => {
+    expect(resolvePromptStyle({ modelApi: "comfyui", modelStyle: "description" })).toBe("description");
+    expect(resolvePromptStyle({ modelApi: "openai", modelStyle: "tags" })).toBe("tags");
+    expect(resolvePromptStyle({ promptStyle: "description", modelApi: "comfyui", modelStyle: "tags" })).toBe("description");
+  });
 });
 
 describe("sortImageFavorites", () => {

@@ -21,13 +21,18 @@ export interface ImageGenSettings {
   /** `api` of the picked model as last listed by GET /v1/images/models; lets the
    *  plugins (which cannot ask for the list) pick the default style */
   modelApi?: string
+  /** the picked model's prompt style and guidance as its image server in the engine says (engine 1.2.1+) */
+  modelStyle?: PromptStyle
+  modelInstructions?: string
 }
 
 export type PromptStyle = 'description' | 'tags'
 
-/** An explicit choice wins; otherwise tag-trained backends (ComfyUI, Forge/A1111) get tags. */
-export function resolvePromptStyle(ig: Pick<ImageGenSettings, 'promptStyle' | 'modelApi'> | undefined): PromptStyle {
+/** An explicit choice wins, then the image server's own setting; otherwise
+ *  tag-trained backends (ComfyUI, Forge/A1111) get tags. */
+export function resolvePromptStyle(ig: Pick<ImageGenSettings, 'promptStyle' | 'modelApi' | 'modelStyle'> | undefined): PromptStyle {
   if (ig?.promptStyle === 'description' || ig?.promptStyle === 'tags') return ig.promptStyle
+  if (ig?.modelStyle === 'description' || ig?.modelStyle === 'tags') return ig.modelStyle
   return ig?.modelApi === 'comfyui' || ig?.modelApi === 'a1111' ? 'tags' : 'description'
 }
 
@@ -67,11 +72,16 @@ export function buildImagePrompt(ig: Pick<ImageGenSettings, 'promptPrefix'>, sub
   return `${prefix.replace(/,\s*$/, '')}, ${s}`
 }
 
+/** What the picked model's image server says, in the shape settings keep it. */
+export function modelHints(m: { api?: string; style?: PromptStyle; instructions?: string } | undefined): Pick<ImageGenSettings, 'modelApi' | 'modelStyle' | 'modelInstructions'> {
+  return { modelApi: m?.api, modelStyle: m?.style, modelInstructions: m?.instructions || undefined }
+}
+
 /** The chat model describes what to draw from the recent scene. */
-export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description'): Promise<string> {
+export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description', instructions?: string): Promise<string> {
   const r = await j<{ prompt: string }>(`/chats/${encodeURIComponent(chatId)}/image-prompt`, {
     method: 'POST',
-    body: JSON.stringify({ mode, style, ...(model ? { model } : {}) }),
+    body: JSON.stringify({ mode, style, ...(model ? { model } : {}), ...(instructions?.trim() ? { instructions: instructions.trim() } : {}) }),
   })
   return r.prompt
 }
