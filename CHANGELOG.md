@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.51.0
+
+The Dashboard keeps a persona switch apart from the cast, and narrator cards get a Profile for every character (needs no engine update; ships with engine 1.2.3).
+
 - The character Profile can describe several characters on one card, for narrator cards that bring a cast. A row of names sits above the form. Add character puts in another one, and each character has the same fields. Description and Personality then get one part per character under its name, and the notes stay shared at the end. A card with one character writes its text as before. Structure it is offered only while the profile has one character, and Fill empty works on the first character. Molfar's card skills (`edit-large-card`, `card-craft`) know the new `cast` list (DATA-FORMATS, "The profile").
 - Dashboard: a persona switched mid-chat no longer turns the earlier persona into a character. Every name the user wrote under in the chat counts as the player: never in the scene, never rated, never proposed as a guest. Before, after switching from Kael Vorn to another persona, Kael Vorn showed in the cast as an NPC.
 
