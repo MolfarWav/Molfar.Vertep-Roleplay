@@ -555,6 +555,11 @@ export const DEFAULT_PROMPTS = {
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
     "",
+    "Direction:",
+    "- direction: what kind of scene this is now, one of domestic (a private, familiar place with one or two people), social (three or more people in a public or institutional place: an academy, a court, a tavern), intrigue (secret deals, politics, bargaining), investigation (a search, a mystery, an inquiry), travel (on the road, or on hostile or unknown ground), combat (violence under way), explicit (a sexual scene), transition (a time skip or a journey told in a line: \"three days later\").",
+    "- Keep the direction of the Previous state unless the new messages show a clear change: a fight starts or ends, people arrive or leave, the place changes, a search or a deal begins, time skips. A change of mood or a single line is not a change. When in doubt, keep it.",
+    "- When an explicit scene ends, is interrupted or moves to another place, give the direction it had before (the Previous state names it).",
+    "",
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").",
     "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
@@ -596,8 +601,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The ninth sensor prompt (before the scene direction, for the World DM, #52).
+const SENSOR_PROMPT_9 = DEFAULT_PROMPTS.sensor.replace(/\n\nDirection:\n[\s\S]*?(?=\n\nKnowledge:)/, "");
 // The eighth sensor prompt (before a character in touch by text, call or letter counted as present, #16).
-const SENSOR_PROMPT_8 = DEFAULT_PROMPTS.sensor
+const SENSOR_PROMPT_8 = SENSOR_PROMPT_9
   .replace("- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.", "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.")
   .replace("- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".", "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows.")
   .replace("- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").", "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck.");
@@ -616,11 +623,12 @@ export const SENSOR_PARTS = [
   { key: "truth", title: "Truth" },
   { key: "events", title: "Events" },
   { key: "scene", title: "Scene" },
+  { key: "direction", title: "Scene direction" },
   { key: "knowledge", title: "Knowledge" },
   { key: "threads", title: "Threads" },
   { key: "style", title: "Reply size" },
 ];
-const SENSOR_HEADINGS = { "Language:": "language", "Truth:": "truth", "Events:": "events", "Scene:": "scene", "Knowledge:": "knowledge", "Threads:": "threads" };
+const SENSOR_HEADINGS = { "Language:": "language", "Truth:": "truth", "Events:": "events", "Scene:": "scene", "Direction:": "direction", "Knowledge:": "knowledge", "Threads:": "threads" };
 function splitSensor(text) {
   const parts = {};
   let key = "role";
@@ -642,14 +650,14 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
   "{ \"present\": [\"name\"], \"struck\": [\"name\"],",
   "  \"minutes\": 0, \"time\": \"HH:MM or dawn|morning|late morning|day|evening|night\", \"day\": 1,",
   "  \"place\": \"text\", \"weather\": \"text\",",
-  "  \"scene\": { \"new\": false, \"label\": \"2-5 words\" },",
+  "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
   "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": \"text\", \"holding\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\" } },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
@@ -1905,6 +1913,7 @@ function previousStateText(ctx) {
   const lines = [clockLine(B.clock || {})];
   const scene = [B.clock && B.clock.place, B.clock && B.clock.weather].filter(Boolean).join("; ");
   if (scene) lines.push(scene + ".");
+  if (B.scene && B.scene.direction) lines.push("Scene direction: " + B.scene.direction + (B.scene.before ? " (before it: " + B.scene.before + ")" : "") + ".");
   lines.push("Present: " + arr(B.present).join(", ") + ".");
   for (const name of arr(B.present)) {
     const c = B.chars && B.chars[name];
@@ -2286,10 +2295,25 @@ const NOTE_WEIGHTS = ["everyday", "important", "key"];
 /** A note's weight as the sensor gave it; anything else is everyday. */
 const weightOf = (v) => (NOTE_WEIGHTS.includes(str(v).toLowerCase()) ? str(v).toLowerCase() : "everyday");
 
-/** The sensor's scene field: { new, label }. Missing or malformed is { new: false }. */
-export function readScene(v) {
-  if (!isObj(v) || typeof v.new !== "boolean") return { new: false };
-  return { new: v.new, label: cut(str(v.label), 60) };
+export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "travel", "combat", "explicit", "transition"];
+
+/**
+ * The sensor's scene field: { new, label, direction?, before? }. Missing or malformed is { new: false }.
+ * direction: the sensor's word, else the previous scene's (it holds until the sensor names a change);
+ * before: the direction an explicit scene interrupted, so leaving it can go back (the World DM reads it).
+ */
+export function readScene(v, prev) {
+  const out = !isObj(v) || typeof v.new !== "boolean" ? { new: false } : { new: v.new, label: cut(str(v.label), 60) };
+  const p = isObj(prev) ? prev : {};
+  const said = isObj(v) && DIRECTIONS.includes(str(v.direction).toLowerCase()) ? str(v.direction).toLowerCase() : "";
+  const direction = said || (DIRECTIONS.includes(p.direction) ? p.direction : "");
+  if (!direction) return out;
+  out.direction = direction;
+  if (direction === "explicit") {
+    const before = p.direction === "explicit" ? p.before : p.direction;
+    if (DIRECTIONS.includes(before) && before !== "explicit") out.before = before;
+  }
+  return out;
 }
 
 function applyNotebook(ctx, out, present, turn, K) {
@@ -2457,7 +2481,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     sig: textSig(ctx.newMsgs),
     ...(out.__partial ? { partial: true } : {}),
     clock: advanceClock(B && B.clock, out, op),
-    scene: readScene(out.scene),
+    scene: readScene(out.scene, B && B.scene),
     present,
     events,
     chars,
@@ -3402,7 +3426,7 @@ function withNudge(messages, text) {
 const FAST_OPS = NUDGE_OPS;
 const FAST_REMINDER = "[End this reply with the <vertep_state> tag as instructed.]";
 // the sensor rules that still make sense inside a story reply: not its role, language or size lines (the note has its own)
-const FAST_PARTS = ["truth", "events", "scene", "knowledge", "threads"];
+const FAST_PARTS = ["truth", "events", "scene", "direction", "knowledge", "threads"];
 
 function fastRules(cfg) {
   // a whole custom sensor prompt is cut at its headings; a part it lacks falls back to the default

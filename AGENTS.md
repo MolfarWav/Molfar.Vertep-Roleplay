@@ -316,6 +316,8 @@ data/
 ├─ litopys/             litopys plugin (shadow mode, nothing reaches the prompt yet): chats/<chatId>.json (chapters, facts,
 │                       proposals, worker state), vectors/<chatId>.json, config.json; store.json = the 1.x backup.
 │                       The read-only Litopys rail section (components/library/) reads GET /litopys/chats and /litopys/chat?chatId=.
+├─ world/              world plugin (World DM): state/<chatId>.json (records, fronts, the pending event), config.json;
+│                       its world book is lorebooks/world-<chatId>.json with ownerChatId (hidden from the library)
 └─ personas/<id>.json   user personas
 ```
 

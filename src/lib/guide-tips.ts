@@ -488,6 +488,18 @@ export const TIPS: Tip[] = [
     keywords: { en: 'memory summary litopys rebuild', uk: 'памʼять підсумок літопис перебудувати' },
   },
   {
+    id: 'help.world-dm',
+    target: 'menu.tools',
+    open: { view: 'chat', panel: 'chat-menu' },
+    help: 'story',
+    title: { en: 'World DM', uk: 'Майстер світу' },
+    body: {
+      en: 'World DM in the chat menu switches on a game master for this chat. It keeps the people and places of the story in the chat’s own lorebook, and from Living world up it moves the world and brings events into the next reply. It is off until you pick a level.',
+      uk: '«Майстер світу» в меню чату вмикає майстра гри для цього чату. Він записує людей і місця історії у власний лорбук чату, а від рівня «Живий світ» рухає світ і приносить події в наступну відповідь. Поки не оберете рівень, він вимкнений.',
+    },
+    keywords: { en: 'dm game master gm world lorebook events fronts chaos director', uk: 'майстер гри дм світ лорбук події фронти хаос режисер' },
+  },
+  {
     id: 'help.author-note',
     target: 'menu.tools',
     open: { view: 'chat', panel: 'chat-menu' },

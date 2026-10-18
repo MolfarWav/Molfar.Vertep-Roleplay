@@ -228,13 +228,29 @@ player switches it on for that chat. It writes:
   `content` = "Name: text". The DM rewrites only entries whose memo starts with `world:`; any other entry in
   the book is left alone.
 - the chat meta's `worldBookId`: names that book; the engine adds it to the chat's scope before every reply.
-- `world/state/<chatId>.json`: `{ v: 1, chatId, bookId, settings: { level, everyN }, lastKey, nextId,
-  entities: [{ id, kind, name, aliases, text, status, uid, at? }], log: [{ at, key, changes, summary }],
-  lastRunAt?, lastModel?, lastError? }`. `level` is `off` or `chronicler` (`living`, `director`,
-  `antagonist`, `chaos` are planned); `everyN` = run after that many new replies (1-50, default 5); `lastKey`
-  = `<messageId>#<swipe>` of the newest message the DM has read; `kind` is `person`, `place`, `group`, `thing`
-  or `fact`; `status` `active` or `past` (retired: kept, text cut to two sentences); `uid` = its entry in the
-  world book.
+- `world/state/<chatId>.json`: `{ v: 1, chatId, bookId, settings: { level, everyN, stagnation, onTransition,
+  insert }, lastKey, nextId, entities: [{ id, kind, name, aliases, text, status, uid, at? }], nextFront,
+  fronts: [{ id, name, goal, clock, size, status, at? }], event, direction?, transitionKey?, log: [{ at, key,
+  reason, changes, fronts, summary }], lastRunAt?, lastModel?, lastError? }`.
+  - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
+    `antagonist`, `chaos` (a hard event for the next reply).
+  - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
+    that many replies (0 = never, default 6; x2 at home, x0.5 on the road, paused in a fight); `onTransition` = right
+    after a time skip. The last two need the Relationship dashboard. Nothing runs in an explicit scene.
+  - `insert`: `false` keeps the DM running but sends the story model no events (also the chat's prompt board key
+    `plugin:world`).
+  - `lastKey` = `<messageId>#<swipe>` of the newest message the DM has read; `kind` is `person`, `place`, `group`,
+    `thing` or `fact`; `status` `active` or `past` (retired: kept, text cut to two sentences); `uid` = its entry in
+    the world book.
+  - A front: `id` f1.., a goal and a clock `clock`/`size` (`size` 4, 6 or 8; full = the goal comes true).
+  - `event`: `{ text, hard, sent, retried, at?, sentAt? }` or null: added after the chat history of the next reply
+    (`sent` counts the replies that carried it); the next run checks the story, sends a missed one once more, then
+    drops it.
+  - `direction`: the scene direction the DM named last (used when the Dashboard has none); `transitionKey`: the
+    Dashboard snapshot of the last time skip it ran on.
+- The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
+  `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
+  interrupted). The DM reads them from `dashboard/state/<chatId>.json`.
 - `world/config.json`: only what differs from `{ model: "", maxTokens: 1500 }` (`model` empty = the chat's).
 
 To change a record, edit it in the state file (`entities`): the next run writes the book from there and

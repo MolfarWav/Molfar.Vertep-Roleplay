@@ -13,7 +13,7 @@ export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagon
 
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
-  settings: { level: WorldLevel; everyN: number }
+  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
   ready: WorldLevel[]
   records: number
   retired: number
@@ -22,6 +22,12 @@ export interface WorldView {
   lastSummary: string
   lastError: { at: number; message: string } | null
   model: string
+  /** the scene direction the DM goes by (the Dashboard's, else its own), null when unknown */
+  direction: string | null
+  /** the Dashboard has read this chat: stagnation and time skips can trigger */
+  sensor: boolean
+  fronts: number
+  eventWaiting: boolean
 }
 
 interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; skipped?: string; changes?: number }
@@ -64,6 +70,13 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
   const v = await j<WorldView>('/world/settings', { method: 'PUT', body: JSON.stringify({ chatId, ...patch }) })
   keepView(chatId, v)
   return v
+}
+
+export interface WorldRecord { id: string; kind: string; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number }
+
+/** The world book's records, for the player who asked to look (fronts and events are not sent). */
+export async function peekWorld(chatId: string): Promise<WorldRecord[]> {
+  return (await j<{ records: WorldRecord[] }>(`/world/peek?chatId=${encodeURIComponent(chatId)}`)).records
 }
 
 export async function loadWorldConfig(): Promise<{ model: string; maxTokens: number }> {

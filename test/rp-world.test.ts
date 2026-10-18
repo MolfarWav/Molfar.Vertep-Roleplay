@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { applyReport, dmInput, dueIn, emptyState, handleRoute, normalizeState, parseReply, shortText, unreadMessages } from "../plugins/world/plugin.js";
+import { applyLevel, applyReport, dmInput, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50 });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -151,9 +151,9 @@ describe("routes", () => {
     const m = memHost(seed());
     expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json).toMatchObject({ settings: { level: "off", everyN: 5 }, records: 0 });
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
-    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "director" }).status).toBe(400);
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1 });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -198,6 +198,16 @@ describe("routes", () => {
     expect(after.entries[1].memo).toBe("world:n1 (retired)");
   });
 
+  it("peek shows the records, not the fronts or the event", () => {
+    const m = memHost(seed());
+    m.files["world/state/c1.json"] = JSON.stringify({ ...emptyState("c1"), settings: { level: "director", everyN: 5 },
+      entities: [{ id: "n1", kind: "person", name: "Maksym", text: "Dead.", status: "past", at: 5 }, { id: "n2", kind: "place", name: "Tower", text: "Old.", at: 1 }],
+      fronts: [{ id: "f1", name: "Secret cult", clock: 3, size: 6 }], event: { text: "The cult strikes.", hard: true } });
+    const out = route(m.host, "GET", "/world/peek", undefined, { chatId: "c1" });
+    expect(out.json.records.map((r: any) => [r.name, r.status])).toEqual([["Tower", "active"], ["Maksym", "past"]]);
+    expect(JSON.stringify(out.json)).not.toContain("cult");
+  });
+
   it("a failed run records the error and reads the same messages next time", () => {
     const m = memHost(seed());
     route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", fromStart: true });
@@ -217,6 +227,166 @@ describe("routes", () => {
     expect(route(m.host, "PUT", "/world/config", { model: "c/dm", maxTokens: 99999 }).json).toEqual({ model: "c/dm", maxTokens: 8000 });
     expect(route(m.host, "PUT", "/world/config", { model: "", maxTokens: 1500 }).json).toEqual({ model: "", maxTokens: 1500 });
     expect(m.files["world/config.json"]).toBeUndefined();
+  });
+});
+
+// ---------- levels above the chronicler (P1, P2) ----------
+type Snap = { scene?: Record<string, unknown>; clock?: Record<string, unknown>; present?: string[]; threads?: unknown[] };
+const dashState = (snaps: Record<string, Snap>) => JSON.stringify({ v: 2, chatId: "c1", snapshots: snaps });
+const calm = (direction: string, extra: Snap = {}): Snap => ({ scene: { new: false, direction }, clock: { place: "Kitchen" }, present: ["Odarka"], ...extra });
+
+describe("the scene from the Dashboard", () => {
+  it("reads the newest snapshot on the active line and counts the turns since the scene changed", () => {
+    const m = memHost({ ...seed(), "dashboard/state/c1.json": dashState({
+      "m0#0": { ...calm("social"), scene: { new: true, direction: "social" } },
+      "m2#0": calm("domestic"), "m4#0": calm("domestic"), "m9#0": calm("combat"),
+    }) });
+    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2 });
+    expect(sceneOf(memHost(seed()).host.fs, "c1", STORY)).toBe(null);
+  });
+
+  it("dueReason: every N, stagnation by direction, a transition once, nothing when explicit", () => {
+    const st = emptyState("c1");
+    st.settings = { level: "director", everyN: 10, stagnation: 1, onTransition: true, insert: true };
+    st.lastKey = null;
+    const scene = (direction: string, stagnant: number, key = "m4#0") => ({ key, direction, before: null, stagnant });
+    expect(dueReason(st, STORY, scene("social", 0))).toBe(null);
+    expect(dueReason(st, STORY, scene("social", 1))).toBe("stagnation");
+    // domestic waits twice as long; combat pauses the counter
+    expect(dueReason(st, STORY, scene("domestic", 1))).toBe(null);
+    expect(dueReason(st, STORY, scene("domestic", 2))).toBe("stagnation");
+    st.settings.stagnation = 4;
+    // travel half as long (2 of 4); the 3 unread replies cap the still stretch
+    expect(dueReason(st, STORY, scene("travel", 2))).toBe("stagnation");
+    expect(dueReason(st, STORY, scene("social", 9))).toBe(null);
+    expect(dueReason(st, STORY, scene("combat", 20))).toBe(null);
+    expect(dueReason(st, STORY, scene("transition", 0))).toBe("transition");
+    st.transitionKey = "m4#0";
+    expect(dueReason(st, STORY, scene("transition", 0))).toBe(null);
+    // right after a run the still stretch starts again
+    st.lastKey = "m3#0";
+    expect(dueReason(st, STORY, scene("social", 9))).toBe(null);
+    st.settings.everyN = 1;
+    expect(dueReason(st, STORY, scene("explicit", 0))).toBe(null);
+    expect(dueReason(st, STORY, null)).toBe("every");
+  });
+});
+
+describe("fronts and events", () => {
+  it("adds, ticks and retires fronts; a full clock stays full", () => {
+    const st = emptyState("c1");
+    applyLevel(st, { fronts: [{ op: "add", name: "Bandits of the pass", goal: "Take the toll", size: 4 }, { op: "add", name: "bandits of the pass" }] }, { level: "living", direction: null, now: 1 });
+    expect(st.fronts).toEqual([{ id: "f1", name: "Bandits of the pass", goal: "Take the toll", clock: 0, size: 4, status: "active", at: 1 }]);
+    applyLevel(st, { fronts: [{ op: "tick", id: "f1", by: 9 }, { op: "tick", name: "Bandits of the pass", by: 2 }, { op: "tick", id: "f1" }] }, { level: "living", direction: null, now: 2 });
+    expect(st.fronts[0]!.clock).toBe(4);
+    applyLevel(st, { fronts: [{ op: "retire", id: "f1" }] }, { level: "living", direction: null, now: 3 });
+    expect(st.fronts[0]!.status).toBe("past");
+  });
+
+  it("an event is hard from director up, soft on living; none in an explicit scene, none in combat below antagonist", () => {
+    const ev = { event: { text: "A rider brings a sealed letter." } };
+    const st = emptyState("c1");
+    applyLevel(st, ev, { level: "living", direction: "social", now: 1 });
+    expect(st.event).toMatchObject({ text: "A rider brings a sealed letter.", hard: false, sent: 0 });
+    for (const [level, direction, made] of [["director", "explicit", false], ["chaos", "explicit", false], ["director", "combat", false], ["antagonist", "combat", true], ["director", "social", true]] as const) {
+      const s2 = emptyState("c1");
+      applyLevel(s2, ev, { level, direction, now: 1 });
+      expect([level, direction, !!s2.event]).toEqual([level, direction, made]);
+      if (made) expect(s2.event!.hard).toBe(true);
+    }
+  });
+
+  it("one shot: delivered drops it, missed once is sent again, missed twice is dropped", () => {
+    const st = emptyState("c1");
+    st.event = { text: "A knock.", hard: true, sent: 1, retried: false };
+    applyLevel(st, { delivered: false }, { level: "director", direction: null, now: 1 });
+    expect(st.event).toMatchObject({ sent: 0, retried: true });
+    st.event!.sent = 1;
+    applyLevel(st, { delivered: false, event: { text: "Another." } }, { level: "director", direction: null, now: 2 });
+    // dropped, and the new one takes its place
+    expect(st.event).toMatchObject({ text: "Another.", sent: 0, retried: false });
+    st.event!.sent = 1;
+    applyLevel(st, { delivered: true }, { level: "director", direction: null, now: 3 });
+    expect(st.event).toBe(null);
+  });
+
+  it("the insert has the fixed shape; soft news is a may", () => {
+    const hard = eventInsert({ text: "A knock at the door.", hard: true, sent: 0, retried: false })!;
+    expect(hard.split("\n")).toEqual([
+      "[WORLD EVENT: must happen in this reply]",
+      "What: A knock at the door.",
+      "How: bring it into this reply as part of the scene; the characters react in character.",
+      "Do not: resolve it in this reply, explain where it came from, or mention a game master.",
+    ]);
+    expect(eventInsert({ text: "Prices rose.", hard: false, sent: 0, retried: false })).toContain("may come up");
+  });
+
+  it("each level has its own rules; the chronicler has no fronts", () => {
+    expect(systemFor("chronicler")).not.toContain("fronts");
+    expect(systemFor("living")).toContain("living world");
+    expect(systemFor("antagonist")).toContain("where it hurts");
+    expect(systemFor("chaos")).toContain("total chaos");
+    expect(systemFor("director")).toContain('"delivered"');
+  });
+});
+
+describe("the llmRequest hook", () => {
+  const req = (op = "send") => ({ key: "reply", request: { sessionId: "c1", messages: [{ role: "system", content: "sys" }, { role: "user", content: "We go at night." }] }, turn: { op } });
+  const withEvent = (level: string, extra: Record<string, string> = {}) => memHost({
+    ...seed(), ...extra,
+    "world/state/c1.json": JSON.stringify({ ...emptyState("c1"), settings: { level, everyN: 5, stagnation: 6, onTransition: true, insert: true }, event: { text: "A knock at the door.", hard: true, sent: 0, retried: false } }),
+  });
+
+  it("puts the event after the history, once", () => {
+    const m = withEvent("director");
+    const out = llmRequest(req(), m.host) as { messages: { role: string; content: string }[]; promptSources: any };
+    expect(out.messages.length).toBe(2);
+    expect(out.messages[1]!.content).toStartWith("We go at night.\n\n[WORLD EVENT: must happen in this reply]");
+    expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "World DM" });
+    expect(JSON.parse(m.files["world/state/c1.json"]!).event.sent).toBe(1);
+    expect(llmRequest(req(), m.host)).toBe(null);
+  });
+
+  it("stays out of impersonate and continue, chronicler, a chat that switched it off, and an explicit scene (chaos too)", () => {
+    expect(llmRequest(req("impersonate"), withEvent("director").host)).toBe(null);
+    expect(llmRequest(req("continue"), withEvent("director").host)).toBe(null);
+    expect(llmRequest(req(), withEvent("chronicler").host)).toBe(null);
+    const offMeta = { "chats/c1.meta.json": JSON.stringify({ id: "c1", characterId: "odarka", promptBoard: { v: 1, off: ["plugin:world"] } }) };
+    expect(llmRequest(req(), withEvent("director", offMeta).host)).toBe(null);
+    const explicit = { "dashboard/state/c1.json": dashState({ "m4#0": calm("explicit") }) };
+    expect(llmRequest(req(), withEvent("chaos", explicit).host)).toBe(null);
+    const combat = { "dashboard/state/c1.json": dashState({ "m4#0": calm("combat") }) };
+    expect(llmRequest(req(), withEvent("director", combat).host)).toBe(null);
+    expect(llmRequest(req(), withEvent("antagonist", combat).host)).not.toBe(null);
+  });
+});
+
+describe("a run above the chronicler", () => {
+  it("director: sends fronts, threads and the direction, keeps the event; explicit freezes even World turn", () => {
+    const dash = { "dashboard/state/c1.json": dashState({ "m4#0": calm("social", { threads: [{ id: "t1", text: "Cross the pass unseen", status: "open" }] }) }) };
+    const m = memHost({ ...seed(), ...dash });
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "director", everyN: 1, fromStart: true });
+    const first = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    const spec = m.requests[0]!.spec;
+    expect(spec.systemPrompt).toContain("Your level: director");
+    expect(spec.messages[0].content).toContain("Scene direction now (from the scene tracker): social.");
+    expect(spec.messages[0].content).toContain("Open threads (what the characters care about now): Cross the pass unseen.");
+    m.results.world = { text: JSON.stringify({ add: [], fronts: [{ op: "add", name: "Toll riders", goal: "Catch smugglers", size: 6 }], event: { text: "Riders with torches climb the road." }, summary: "Riders." }) };
+    const done = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true }, {}, first.stash).json;
+    expect(done).toMatchObject({ ok: true, fronts: 1, eventWaiting: true, direction: "social", sensor: true });
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(st.event).toMatchObject({ text: "Riders with torches climb the road.", hard: true });
+    expect(st.log.at(-1)).toMatchObject({ reason: "every", fronts: 1 });
+    // an explicit scene: no run, not even a manual one
+    m.files["dashboard/state/c1.json"] = dashState({ "m4#0": calm("explicit"), "m5#0": calm("explicit") });
+    m.files["chats/c1.jsonl"] += JSON.stringify(msg(5, "char", "...")) + "\n";
+    expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "explicit" });
+  });
+
+  it("back to the chronicler drops a waiting event", () => {
+    const m = memHost(seed());
+    m.files["world/state/c1.json"] = JSON.stringify({ ...emptyState("c1"), settings: { level: "director", everyN: 5 }, event: { text: "x", hard: true, sent: 0 } });
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler" }).json.eventWaiting).toBe(false);
   });
 });
 
@@ -293,6 +463,16 @@ describe("engine plugin: the chat's world book", () => {
     expect(readRel("lorebooks/world-" + fork.id + ".json")).toMatchObject({ id: "world-" + fork.id, ownerChatId: fork.id });
     expect(readRel("world/state/" + fork.id + ".json")).toMatchObject({ chatId: fork.id, bookId: "world-" + fork.id, lastKey: "m2#0" });
     expect(readRel("lorebooks/world-" + id + ".json").ownerChatId).toBe(id);
+  });
+
+  it("the prompt board lists the DM's events where its level sends any, and the chat can switch them off", () => {
+    const id = worldChat();
+    const board = () => (call("POST", "/prompt/preview", { chatId: id, userText: "Hi" }).sources.board as { key: string; state: string }[]).filter((b) => b.key === "plugin:world");
+    expect(board()).toEqual([]);
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), JSON.stringify({ ...emptyState(id), settings: { level: "director", everyN: 5 } }));
+    expect(board().map((b) => b.state)).toEqual(["on"]);
+    call("PATCH", "/chats/" + id, { promptBoard: { v: 1, off: ["plugin:world"] } });
+    expect(board().map((b) => b.state)).toEqual(["off"]);
   });
 
   it("goes with its chat when the chat is deleted", () => {

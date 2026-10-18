@@ -3087,7 +3087,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(8);
+    expect(past.length).toBe(9);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limit given in the input");
     expect(text).not.toContain("three open threads");
@@ -3561,7 +3561,7 @@ describe("the sensor prompt in blocks", () => {
 
   it("the blocks joined with a blank line are the default prompt, character for character", () => {
     const parts = P.SENSOR_PARTS as { key: string; title: string }[];
-    expect(parts.map((p) => p.key)).toEqual(["role", "language", "truth", "events", "scene", "knowledge", "threads", "style"]);
+    expect(parts.map((p) => p.key)).toEqual(["role", "language", "truth", "events", "scene", "direction", "knowledge", "threads", "style"]);
     for (const p of parts) expect(typeof P.DEFAULT_SENSOR_PARTS[p.key]).toBe("string");
     expect(parts.map((p) => P.DEFAULT_SENSOR_PARTS[p.key]).join("\n\n")).toBe(P.DEFAULT_PROMPTS.sensor);
     expect(P.DEFAULT_SENSOR_PARTS.truth.startsWith("Truth:")).toBe(true);
@@ -4586,6 +4586,16 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: "true", label: "x" })).toEqual({ new: false });
     expect(P.readScene({ new: false, label: "Quiet" })).toEqual({ new: false, label: "Quiet" });
     expect(P.readScene({ new: true, label: "x".repeat(200) }).label.length).toBe(60);
+    // the direction holds until the sensor names another; an explicit scene remembers what it interrupted
+    expect(P.readScene({ new: false, direction: "Social" })).toEqual({ new: false, label: "", direction: "social" });
+    expect(P.readScene({ new: false, direction: "bogus" }, { new: false, direction: "travel" })).toEqual({ new: false, label: "", direction: "travel" });
+    expect(P.readScene({ new: false, direction: "explicit" }, { new: false, direction: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
+    expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
+    expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
+    // the ninth default (before the direction) still counts as the default
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-1)!;
+    expect(ninth).not.toContain("Direction:");
+    expect(P.DEFAULT_PROMPTS.sensor.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -4615,7 +4625,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-3)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-4)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });

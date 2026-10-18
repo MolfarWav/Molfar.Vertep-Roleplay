@@ -2185,7 +2185,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -3035,6 +3035,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "authorNote", label: "Author's note", kind: "note", state: isOff("authorNote") ? "off" : anHas ? "on" : "empty" });
   board.push({ key: "plugin:litopys", label: "Litopys", kind: "memory", state: isOff("plugin:litopys") ? "off" : "on" });
   board.push({ key: "plugin:relations", label: "Relationship dashboard", kind: "dashboard", state: isOff("plugin:relations") ? "off" : "on" });
+  // the World DM's events, only where its level sends any (its world book is a book row above)
+  const worldLevel = (() => { try { const w = JSON.parse(fsx.read("world/state/" + meta.id + ".json")); return w && w.settings ? w.settings.level : ""; } catch { return ""; } })();
+  if (["living", "director", "antagonist", "chaos"].includes(worldLevel)) {
+    board.push({ key: "plugin:world", label: "World DM events", kind: "plugin", state: isOff("plugin:world") ? "off" : "on" });
+  }
   src.board = board;
 
   const pp = preset && preset.studio && preset.studio.promptPostProcessing;
