@@ -440,7 +440,7 @@
       "name": "🌍 World",
       "role": "system",
       "marker": false,
-      "content": "{{// WHAT IT DOES: World axis (setting rules). World Gaps is ON and works alone. Genres (🌍) and Premises (🧭) are OFF by default; the card defines the world. Max two genres: base = Core + Texture, second = Texture only. Premises stack on any base. Parked ideas: note Molfar — World extensions (future). }}{{trim}}\n</molfarsenses>\n\n<molfarworld>\n## World\nRules for the setting. The character card and lorebook win on anything they define; the genre blocks below only tune how open gaps are filled.\n- One genre: apply its Core and Texture.\n- Two genres: the one matching the card's setting is the base (if unclear, the one placed higher). From the second, use only its Texture, and only where it does not contradict the base.\n- A Premise adds a situation to whatever world is active. It never replaces the base world's rules and does not count toward the two-genre limit.\n"
+      "content": "{{// WHAT IT DOES: World axis (setting rules). World Gaps is ON and works alone. Genres (🌍) and Premises (🧭) are OFF by default; the card defines the world. Max two genres: base = Core + Texture, second = Texture only. Premises stack on any base. Parked ideas: note Molfar — World extensions (future). }}{{trim}}\n</molfarsenses>\n\n<molfarworld>\n## World\nThe character card and lorebook win on anything they define; the genre blocks below only tune how open gaps are filled.\n- One genre: apply its Core and Texture.\n- Two genres: the one matching the card's setting is the base (if unclear, the one placed higher). From the second, use only its Texture, and only where it does not contradict the base.\n- A Premise adds a situation to whatever world is active. It never replaces the base world's rules and does not count toward the two-genre limit.\n"
     },
     {
       "identifier": "0b884ed0-eaa5-4fcf-bad8-6d84572ca18d",
@@ -524,7 +524,7 @@
       "name": "🚧 Plot Progression",
       "role": "system",
       "marker": false,
-      "content": "{{// WHAT IT DOES: Pace & structure axis. Pace (⏩) = PICK ONE, Natural is the default. Tools (🔧) are optional add-ons: enable any, all, or none; each fires only on its trigger. }}{{trim}}\n</molfarworld>\n\n<molfarplot>\n## Plot Progression\nHow fast the story moves and when time jumps. Exactly one pace level is active; it sets how soon a stalled scene gets a push in the Preflight Momentum step. The tools below are independent: each acts only when its trigger is met, and does nothing in any other response.\nThe active pace and these tools decide when the story moves. A general note from the app such as \"move the story forward\" does not override them; an explicit request from the Human for this reply (for example a note to make something happen now) does.\n"
+      "content": "{{// WHAT IT DOES: Pace & structure axis. Pace (⏩) = PICK ONE, Natural is the default. Tools (🔧) are optional add-ons: enable any, all, or none; each fires only on its trigger. }}{{trim}}\n</molfarworld>\n\n<molfarplot>\n## Plot Progression\nExactly one pace level is active; it sets how soon a stalled scene gets a push in the Preflight Momentum step. The tools below are independent: each acts only when its trigger is met, and does nothing in any other response.\nThe active pace and these tools decide when the story moves. A general note from the app such as \"move the story forward\" does not override them; an explicit request from the Human for this reply (for example a note to make something happen now) does.\n"
     },
     {
       "identifier": "125e5425-496e-4250-9e5f-42e2677c660d",
@@ -601,7 +601,7 @@
       "name": "☯️ Story Difficulty",
       "role": "system",
       "marker": false,
-      "content": "{{// WHAT IT DOES: Difficulty header. Pick exactly one level below; Natural is the default. The level sets the severity of the always-on Consequences and Cost rule. No Mercy (Story Focus) is about how dark events are delivered, not how hard the world is; the two combine. }}{{trim}}\n</molfarplot>\n\n<molfardifficulty>\n## Story Difficulty\nHow hard the world pushes back. The selected level sets how severe the costs required by Consequences and Cost are; where they differ, the level wins. Difficulty never changes what the scene is about (Story Focus) or how explicit it is (NSFW level).\n"
+      "content": "{{// WHAT IT DOES: Difficulty header. Pick exactly one level below; Natural is the default. The level sets the severity of the always-on Consequences and Cost rule. No Mercy (Story Focus) is about how dark events are delivered, not how hard the world is; the two combine. }}{{trim}}\n</molfarplot>\n\n<molfardifficulty>\n## Story Difficulty\nThe selected level sets how severe the costs required by Consequences and Cost are; where they differ, the level wins. Difficulty never changes what the scene is about (Story Focus) or how explicit it is (NSFW level).\n"
     },
     {
       "identifier": "045b29bd-10df-4ffa-9b44-466c5275d568",
@@ -741,7 +741,7 @@
       "name": "✍️ Prose Guidelines",
       "role": "system",
       "marker": false,
-      "content": "</molfarformat>\n\n<molfarprose>\n## Prose Guidelines\nThese rules apply to every response.\n"
+      "content": "</molfarformat>\n\n<molfarprose>\n## Prose Guidelines\n"
     },
     {
       "identifier": "bc475ad2-fd7b-4c33-b000-6555faa87dc6",
@@ -958,7 +958,7 @@
       "name": "🔞 NSFW Level",
       "role": "system",
       "marker": false,
-      "content": "{{// WHAT IT DOES: Explicitness axis. Level (🔞) = PICK ONE, Explicit is the default. Tools (🔧) are optional add-ons for intimate scenes: Intimacy Craft ON, the rest OFF. Kinks, BDSM, dark dynamics live in Story Focus modifiers; how hard the world is lives in Story Difficulty. }}{{trim}}\n</molfarvoice>\n\n<molfarnsfw>\n## NSFW Level\nHow intimate and sexual scenes are written. Exactly one level is active. The level sets how a scene is written, never whether it happens: that comes from the story, the characters, and the Story Focus. The tools below act only inside intimate scenes.\n"
+      "content": "{{// WHAT IT DOES: Explicitness axis. Level (🔞) = PICK ONE, Explicit is the default. Tools (🔧) are optional add-ons for intimate scenes: Intimacy Craft ON, the rest OFF. Kinks, BDSM, dark dynamics live in Story Focus modifiers; how hard the world is lives in Story Difficulty. }}{{trim}}\n</molfarvoice>\n\n<molfarnsfw>\n## NSFW Level\nExactly one level is active. The level sets how a scene is written, never whether it happens: that comes from the story, the characters, and the Story Focus. The tools below act only inside intimate scenes.\n"
     },
     {
       "identifier": "ff6fba9e-ea6f-4c89-9621-20d8ca92a31f",
@@ -1126,7 +1126,7 @@
       "name": "🔧 Utilities",
       "role": "system",
       "marker": false,
-      "content": "</molfarstory>\n\n<molfarutils>\n## Utilities\nFormatting, OOC, display, and tracking tools.\n"
+      "content": "</molfarstory>\n\n<molfarutils>\n## Utilities\n"
     },
     {
       "identifier": "96aa9c24-1168-46ed-9342-7850a0982908",
@@ -3438,7 +3438,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "{{// WHAT IT DOES: World axis (setting rules). World Gaps is ON and works alone. Genres (🌍) and Premises (🧭) are OFF by default; the card defines the world. Max two genres: base = Core + Texture, second = Texture only. Premises stack on any base. Parked ideas: note Molfar — World extensions (future). }}{{trim}}\n</molfarsenses>\n\n<molfarworld>\n## World\nRules for the setting. The character card and lorebook win on anything they define; the genre blocks below only tune how open gaps are filled.\n- One genre: apply its Core and Texture.\n- Two genres: the one matching the card's setting is the base (if unclear, the one placed higher). From the second, use only its Texture, and only where it does not contradict the base.\n- A Premise adds a situation to whatever world is active. It never replaces the base world's rules and does not count toward the two-genre limit.\n",
+        "content": "{{// WHAT IT DOES: World axis (setting rules). World Gaps is ON and works alone. Genres (🌍) and Premises (🧭) are OFF by default; the card defines the world. Max two genres: base = Core + Texture, second = Texture only. Premises stack on any base. Parked ideas: note Molfar — World extensions (future). }}{{trim}}\n</molfarsenses>\n\n<molfarworld>\n## World\nThe character card and lorebook win on anything they define; the genre blocks below only tune how open gaps are filled.\n- One genre: apply its Core and Texture.\n- Two genres: the one matching the card's setting is the base (if unclear, the one placed higher). From the second, use only its Texture, and only where it does not contradict the base.\n- A Premise adds a situation to whatever world is active. It never replaces the base world's rules and does not count toward the two-genre limit.\n",
         "position": "relative",
         "depth": 4,
         "order": 62,
@@ -3702,7 +3702,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "{{// WHAT IT DOES: Pace & structure axis. Pace (⏩) = PICK ONE, Natural is the default. Tools (🔧) are optional add-ons: enable any, all, or none; each fires only on its trigger. }}{{trim}}\n</molfarworld>\n\n<molfarplot>\n## Plot Progression\nHow fast the story moves and when time jumps. Exactly one pace level is active; it sets how soon a stalled scene gets a push in the Preflight Momentum step. The tools below are independent: each acts only when its trigger is met, and does nothing in any other response.\nThe active pace and these tools decide when the story moves. A general note from the app such as \"move the story forward\" does not override them; an explicit request from the Human for this reply (for example a note to make something happen now) does.\n",
+        "content": "{{// WHAT IT DOES: Pace & structure axis. Pace (⏩) = PICK ONE, Natural is the default. Tools (🔧) are optional add-ons: enable any, all, or none; each fires only on its trigger. }}{{trim}}\n</molfarworld>\n\n<molfarplot>\n## Plot Progression\nExactly one pace level is active; it sets how soon a stalled scene gets a push in the Preflight Momentum step. The tools below are independent: each acts only when its trigger is met, and does nothing in any other response.\nThe active pace and these tools decide when the story moves. A general note from the app such as \"move the story forward\" does not override them; an explicit request from the Human for this reply (for example a note to make something happen now) does.\n",
         "position": "relative",
         "depth": 4,
         "order": 74,
@@ -3944,7 +3944,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "{{// WHAT IT DOES: Difficulty header. Pick exactly one level below; Natural is the default. The level sets the severity of the always-on Consequences and Cost rule. No Mercy (Story Focus) is about how dark events are delivered, not how hard the world is; the two combine. }}{{trim}}\n</molfarplot>\n\n<molfardifficulty>\n## Story Difficulty\nHow hard the world pushes back. The selected level sets how severe the costs required by Consequences and Cost are; where they differ, the level wins. Difficulty never changes what the scene is about (Story Focus) or how explicit it is (NSFW level).\n",
+        "content": "{{// WHAT IT DOES: Difficulty header. Pick exactly one level below; Natural is the default. The level sets the severity of the always-on Consequences and Cost rule. No Mercy (Story Focus) is about how dark events are delivered, not how hard the world is; the two combine. }}{{trim}}\n</molfarplot>\n\n<molfardifficulty>\n## Story Difficulty\nThe selected level sets how severe the costs required by Consequences and Cost are; where they differ, the level wins. Difficulty never changes what the scene is about (Story Focus) or how explicit it is (NSFW level).\n",
         "position": "relative",
         "depth": 4,
         "order": 85,
@@ -4384,7 +4384,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "</molfarformat>\n\n<molfarprose>\n## Prose Guidelines\nThese rules apply to every response.\n",
+        "content": "</molfarformat>\n\n<molfarprose>\n## Prose Guidelines\n",
         "position": "relative",
         "depth": 4,
         "order": 105,
@@ -5066,7 +5066,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "{{// WHAT IT DOES: Explicitness axis. Level (🔞) = PICK ONE, Explicit is the default. Tools (🔧) are optional add-ons for intimate scenes: Intimacy Craft ON, the rest OFF. Kinks, BDSM, dark dynamics live in Story Focus modifiers; how hard the world is lives in Story Difficulty. }}{{trim}}\n</molfarvoice>\n\n<molfarnsfw>\n## NSFW Level\nHow intimate and sexual scenes are written. Exactly one level is active. The level sets how a scene is written, never whether it happens: that comes from the story, the characters, and the Story Focus. The tools below act only inside intimate scenes.\n",
+        "content": "{{// WHAT IT DOES: Explicitness axis. Level (🔞) = PICK ONE, Explicit is the default. Tools (🔧) are optional add-ons for intimate scenes: Intimacy Craft ON, the rest OFF. Kinks, BDSM, dark dynamics live in Story Focus modifiers; how hard the world is lives in Story Difficulty. }}{{trim}}\n</molfarvoice>\n\n<molfarnsfw>\n## NSFW Level\nExactly one level is active. The level sets how a scene is written, never whether it happens: that comes from the story, the characters, and the Story Focus. The tools below act only inside intimate scenes.\n",
         "position": "relative",
         "depth": 4,
         "order": 136,
@@ -5594,7 +5594,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "</molfarstory>\n\n<molfarutils>\n## Utilities\nFormatting, OOC, display, and tracking tools.\n",
+        "content": "</molfarstory>\n\n<molfarutils>\n## Utilities\n",
         "position": "relative",
         "depth": 4,
         "order": 160,

@@ -27,4 +27,18 @@ describe("plain section names", () => {
       expect(E.withPlainSectionNames(p)).toBeNull();
     }
   });
+
+  it("the built-in copy loses the lines that only described a section to the reader", () => {
+    const head = "</molfarworld>\n\n<molfarplot>\n## Plot Progression\nHow fast the story moves and when time jumps. Exactly one pace level is active.\n";
+    const preset = { prompts: [{ name: "🚧 Plot Progression", content: head }], studio: { readOnly: true, sections: [{ name: "🚧 Plot Progression", content: head }] } };
+    const out = E.withoutReaderLines(preset)!;
+    expect(out.prompts[0].content).toBe("</molfarworld>\n\n<molfarplot>\n## Plot Progression\nExactly one pace level is active.\n");
+    expect(out.studio.sections[0].content).toBe(out.prompts[0].content);
+    expect(E.withoutReaderLines(out)).toBeNull();
+    expect(E.withoutReaderLines({ ...preset, studio: { ...preset.studio, readOnly: false } })).toBeNull();
+    for (const f of ["data/presets/molfar.json", "data/presets/_molfar.json"]) {
+      const p = JSON.parse(fs.readFileSync(new URL("../" + f, import.meta.url), "utf8"));
+      expect(E.withoutReaderLines(p)).toBeNull();
+    }
+  });
 });
