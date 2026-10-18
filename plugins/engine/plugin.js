@@ -3510,6 +3510,33 @@ export function withTemplateHints(preset, template) {
   return changed ? { ...preset, studio: { ...preset.studio, variables: next } } : null;
 }
 
+/** #42: a SillyTavern section name as the Molfar preset carried it ("━📜 Directives (PICK ONE)")
+ *  read plainly: no leading "━", no "(PICK ONE…)" (the pick is made in Choices); anything after
+ *  "PICK ONE ·" stays in brackets. Other names come back unchanged. */
+export function plainSectionName(name) {
+  if (typeof name !== "string") return name;
+  return name
+    .replace(/^━+\s*/, "")
+    .replace(/\s*\(PICK ONE(?:\s*·\s*([^)]*)|[^)]*)\)/, (_, rest) => (rest && rest.trim() ? " (" + rest.trim() + ")" : ""))
+    .trim() || name;
+}
+
+/** #42: the built-in Molfar copy (read-only) with plain section names; null when nothing changes. */
+export function withPlainSectionNames(preset) {
+  if (!preset || !preset.studio || preset.studio.readOnly !== true || !Array.isArray(preset.studio.sections)) return null;
+  let changed = false;
+  const rename = (x) => {
+    if (!x || typeof x.name !== "string") return x;
+    const name = plainSectionName(x.name);
+    if (name === x.name) return x;
+    changed = true;
+    return { ...x, name };
+  };
+  const sections = preset.studio.sections.map(rename);
+  const prompts = Array.isArray(preset.prompts) ? preset.prompts.map(rename) : preset.prompts;
+  return changed ? { ...preset, prompts, studio: { ...preset.studio, sections } } : null;
+}
+
 /** The editor used to give every section that had no generation types of
  *  its own just "normal", so swipes, regenerations and continues sent none of
  *  the preset. A preset where every section is limited to "normal" is that
@@ -3574,6 +3601,11 @@ export function onAppUpdate(ctx, host) {
       const out = withTemplateHints(readJsonFile(fsx, "presets/" + pid + ".json"), readJsonFile(fsx, "presets/_" + pid + ".json"));
       if (out) { writeJsonFile(fsx, "presets/" + pid + ".json", out); done.push("presets/" + pid + ".json hints"); }
     }
+  }
+  // 4.52.0 (#42): the built-in Molfar copy loses the "━" and "(PICK ONE)" of its section names
+  if (olderThan(from, "4.52.0")) {
+    const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));
+    if (out) { writeJsonFile(fsx, "presets/molfar.json", out); done.push("presets/molfar.json names"); }
   }
   if (olderThan(from, "4.37.0")) {
     let files = [];

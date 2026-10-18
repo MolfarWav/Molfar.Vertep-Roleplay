@@ -4,6 +4,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Molfar preset: section names read plainly (#42). "━📜 Directives (PICK ONE)" is now "📜 Directives": the pick is made in Choices, and the "━" read as a stray dash. The built-in copy is renamed on update (4.52.0); a copy the user made is left alone.
 - Litopys: Consolidate facts (#51). Library > a chat > Facts has a Consolidate facts button (from 20 active facts). One model call per batch of 60 facts, a subject's facts kept together, proposes merges of duplicates and rewrites or retirements of contradictions. They wait in Proposals with the usual Accept / Reject; nothing changes until accepted, and a second run does not repeat a pending proposal. Route `POST /litopys/consolidate { chatId, op: start | cancel }`.
 - Litopys: in a long chat, facts written or used lately come first in the story record, and old unused ones sink slowly (#50). Only the ranking of ordinary facts changes: pinned facts and a present character's changes and traits keep their place, and nothing in the chat's record is rewritten. Uses are counted in the insert file (`litopys/insert/<chat>.json`, `used`), one write per reply.
 
