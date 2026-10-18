@@ -1341,6 +1341,15 @@ function userNameOf(fsx, meta) {
   return NO_USER_NAME;
 }
 
+/** Every name the user's character had in this chat. A persona switched
+ *  mid-chat leaves the earlier name in the text, and that is still the
+ *  player: never a character in the scene or one to rate (user, 2026-10-18). */
+function userNamesOf(fsx, chat) {
+  const names = [userNameOf(fsx, chat.meta)];
+  for (const m of arr(chat.msgs)) if (isObj(m) && m.role === "user" && str(m.name)) names.push(str(m.name));
+  return unique(names.filter((n) => n !== NO_USER_NAME));
+}
+
 // ---------- chat state file ----------
 function emptyState(chatId) {
   return {
@@ -2110,10 +2119,14 @@ function canonName(name, known) {
   return known.find((k) => k.toLowerCase() === s.toLowerCase()) || s;
 }
 
+/** "user" for any of the user's names (one, or every one the chat had), else the character's known name. */
+const userAll = (ctx) => (arr(ctx.userNames).length ? ctx.userNames : [ctx.userName]);
+
 function sideOf(v, userName, known) {
   const s = str(v);
   if (!s) return null;
-  if (isUser(s) || s.toLowerCase() === userName.toLowerCase()) return "user";
+  const mine = (Array.isArray(userName) ? userName : [userName]).map((n) => String(n).toLowerCase());
+  if (isUser(s) || mine.includes(s.toLowerCase())) return "user";
   return canonName(s, known);
 }
 
@@ -2133,8 +2146,8 @@ function readEvents(list, ctx, known, unknownIds) {
       id: use.id,
       family: use.family,
       weight: WEIGHTS[e.weight] ? e.weight : "routine",
-      from: sideOf(e.from, ctx.userName, known),
-      to: sideOf(e.to, ctx.userName, known),
+      from: sideOf(e.from, userAll(ctx), known),
+      to: sideOf(e.to, userAll(ctx), known),
       quote: cut(str(e.quote), 200),
       math: [],
     });
@@ -2157,17 +2170,17 @@ function mentionsName(ctx, text, name) {
 
 function scenePresent(ctx, out, known) {
   const B = ctx.base && ctx.base.snap;
-  const said = unique(arr(out.present).map((n) => sideOf(n, ctx.userName, known)).filter((n) => n && n !== "user"));
-  const struck = arr(out.struck).map((n) => sideOf(n, ctx.userName, known));
+  const said = unique(arr(out.present).map((n) => sideOf(n, userAll(ctx), known)).filter((n) => n && n !== "user"));
+  const struck = arr(out.struck).map((n) => sideOf(n, userAll(ctx), known));
   // an explicit [] means the user is alone (a narrator card is no person in
   // the scene); only a report without the key falls back
   const start = Array.isArray(out.present) ? said : B ? arr(B.present) : ctx.characters;
-  const list = start.filter((n) => !struck.includes(n));
+  const list = start.filter((n) => !struck.includes(n) && sideOf(n, userAll(ctx), []) !== "user");
   // a cheap sensor may leave out someone who acts or speaks: whoever was present and is named
   // (or speaks) in the new messages stays, unless the sensor said they left; nobody new comes in this way
   if (B && Array.isArray(out.present)) {
     const text = ctx.newMsgs.map((m) => String(m.text) + (m.role === "user" ? "" : " " + str(m.name))).join("\n");
-    for (const n of arr(B.present)) if (!list.includes(n) && !struck.includes(n) && mentionsName(ctx, text, n)) list.push(n);
+    for (const n of arr(B.present)) if (!list.includes(n) && !struck.includes(n) && sideOf(n, userAll(ctx), []) !== "user" && mentionsName(ctx, text, n)) list.push(n);
   }
   return unique(list);
 }
@@ -2300,7 +2313,7 @@ function applyNotebook(ctx, out, present, turn, K) {
   // the same text for three or more characters is a summary, not a fact
   const holders = {};
   for (const l of arr(out.learned)) {
-    if (!isObj(l) || sideOf(l.who, ctx.userName, present) === "user") continue;
+    if (!isObj(l) || sideOf(l.who, userAll(ctx), present) === "user") continue;
     const who = canonName(l.who, present);
     if (present.includes(who)) listIn(holders, sameText(l.text)).push(who);
   }
@@ -2308,13 +2321,13 @@ function applyNotebook(ctx, out, present, turn, K) {
   let used = 0;
   for (const l of arr(out.learned)) {
     if (used >= 4) break;
-    if (!isObj(l) || sideOf(l.who, ctx.userName, present) === "user") continue;
+    if (!isObj(l) || sideOf(l.who, userAll(ctx), present) === "user") continue;
     const who = canonName(l.who, present);
     const text = cut(str(l.text), 300);
     if (!text || !present.includes(who) || generic.includes(sameText(l.text))) continue;
     const how = ["saw", "heard", "guess"].includes(l.how) ? l.how : "guess";
     // "heard" with no teller: the user told them
-    const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, ctx.userName, present) : "user";
+    const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, userAll(ctx), present) : "user";
     const from = how === "heard" ? teller : null;
     // near the same words as a note already there: nothing new to keep
     if (says(who, text)) continue;
@@ -2336,7 +2349,7 @@ function applyNames(ctx, out, present, turn, K) {
   const live = activeNames(ctx.state, ctx.line.map((l) => l.key));
   for (const n of arr(out.names)) {
     if (!isObj(n)) continue;
-    if (sideOf(n.who, ctx.userName, present) === "user") continue;
+    if (sideOf(n.who, userAll(ctx), present) === "user") continue;
     const who = canonName(n.who, present);
     if (!present.includes(who)) continue;
     const before = arr(live[who]).slice(-1)[0];
@@ -2403,18 +2416,19 @@ function applySensor(ctx, out, op, model, unknownIds) {
   ctx.outScene = isObj(out.scene) ? out.scene : null; // charEntry: a new scene drops a carried contact
   const B = ctx.base && ctx.base.snap;
   const turn = (B ? B.turn || 0 : 0) + 1;
-  const known0 = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]);
-  const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0)).filter((n) => n && !isUser(n))]);
+  // a name the user had earlier in the chat may sit in an older snapshot: not a character
+  const known0 = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]).filter((n) => sideOf(n, userAll(ctx), []) !== "user");
+  const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user")]);
   const present = scenePresent(ctx, out, known);
   const events = readEvents(out.events, ctx, known, unknownIds);
 
   const sensorChars = {};
   if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[canonName(n, known)] = v;
   const blind = {};
-  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, ctx.userName, known) !== "user") blind[canonName(n, known)] = v;
+  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known) !== "user") blind[canonName(n, known)] = v;
 
   const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && known.includes(n));
-  const names = unique([...Object.keys((B && B.chars) || {}), ...present, ...targets]);
+  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user"), ...present, ...targets]);
   const chars = {};
   for (const name of names) {
     if (!present.includes(name) && !targets.includes(name) && B && B.chars[name]) {
@@ -2766,6 +2780,7 @@ function planUpdate(fsx, chatId, op) {
     characters: names,
     souls,
     userName: userNameOf(fsx, chat.meta),
+    userNames: userNamesOf(fsx, chat),
     state,
     before: JSON.stringify(state),
     cfg: loadConfig(fsx),
@@ -3434,6 +3449,7 @@ function fastContext(fsx, chatId, turn, cfg) {
     characters: names,
     souls,
     userName: userNameOf(fsx, chat.meta),
+    userNames: userNamesOf(fsx, chat),
   };
 }
 
@@ -3687,8 +3703,9 @@ function guestsRoute(req, fsx) {
   const users = new Set();
   const chatLorebookIds = [];
   for (const { id, meta } of chats.slice(0, GUEST_CHATS)) {
-    const user = userNameOf(fsx, meta);
-    if (user !== NO_USER_NAME) users.add(user.toLowerCase());
+    // every name the user had in that chat, a persona switched mid-chat included
+    const chat = readChat(fsx, id);
+    for (const user of chat ? userNamesOf(fsx, chat) : [userNameOf(fsx, meta)]) if (user !== NO_USER_NAME) users.add(user.toLowerCase());
     if (Array.isArray(meta.lorebookIds)) chatLorebookIds.push(...arr(meta.lorebookIds));
     for (const snap of Object.values(loadState(fsx, id).state.snapshots)) {
       for (const n of arr(isObj(snap) ? snap.present : [])) if (str(n)) counts.set(str(n), (counts.get(str(n)) || 0) + 1);

@@ -3182,6 +3182,36 @@ describe("compact reports: the user's own character and generic notes", () => {
   });
 });
 
+describe("a persona switched mid-chat", () => {
+  const K = (id: string, text: string): Msg => ({ id, role: "user", name: "Kael Vorn", text });
+  const switched = () => [K("m1", "Hello."), A("m2", "Welcome, Kael."), U("m3", "I am someone else now.")];
+
+  it("the earlier persona is the user: not present, not rated, not carried over", () => {
+    writeChat("c1", switched(), { userName: "Marko" });
+    const mock = mockHost([reply({ present: ["Aria", "Kael Vorn"], minutes: 1, chars: { Aria: { mood: "calm" }, "Kael Vorn": { mood: "tired" } } })]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const snap = readStateFile("c1").snapshots["m3#0"];
+    expect(snap.present).toEqual(["Aria"]);
+    expect(Object.keys(snap.chars)).toEqual(["Aria"]);
+    // the earlier name stays the player in the next turn too, though the sensor drops the key
+    writeChat("c1", [...switched(), A("m4", "Kael?"), U("m5", "Gone.")], { userName: "Marko" });
+    mock.push(reply({ minutes: 1 }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(readStateFile("c1").snapshots["m5#0"].present).toEqual(["Aria"]);
+  });
+
+  it("no guest proposal for the earlier persona", () => {
+    fs.writeFileSync(path.join(root, "characters/bram/card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Bram" }));
+    for (const id of ["a", "b"]) {
+      writeChat(id, [K("m1", "Hi.")], { characterId: "bram", userName: "Marko" });
+      fs.mkdirSync(path.join(root, "dashboard/state"), { recursive: true });
+      fs.writeFileSync(stateFile(id), JSON.stringify({ v: 2, chatId: id, snapshots: { "m0#0": { turn: 1, at: 1, present: ["Kael Vorn", "Garrett"], chars: {} } } }));
+    }
+    const r = drive(mockHost(), { method: "GET", path: "/dashboard/guests", query: { characterId: "bram" } });
+    expect(r.json.guests).toEqual(["Garrett"]);
+  });
+});
+
 describe("sensor reply limit and pronouns in the sensor input", () => {
   const putCfg = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "PUT", path: "/dashboard/config", body });
   const storedCfg = () => {

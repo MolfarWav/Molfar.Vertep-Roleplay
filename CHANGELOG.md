@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Dashboard: a persona switched mid-chat no longer turns the earlier persona into a character. Every name the user wrote under in the chat counts as the player: never in the scene, never rated, never proposed as a guest. Before, after switching from Kael Vorn to another persona, Kael Vorn showed in the cast as an NPC.
+
 ## 4.50.0
 
 Image prompts as Danbooru tags for ComfyUI and Forge (MolfarWav/Molfar.Vertep#53), and Molfar can draw avatars, backgrounds and gallery pictures with engine 1.2.1 (MolfarWav/Molfar.Vertep#54).
