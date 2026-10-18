@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- The app's name in the shell (the tab at the top, the app list) is now Vertep. Its id, folder and data stay `roleplay`.
+
 ## 4.52.0
 
 An inbox for what waits on you, Litopys keeps long chats in order, and chat previews stop leaking reasoning (needs no engine update; ships with engine 1.2.4).
