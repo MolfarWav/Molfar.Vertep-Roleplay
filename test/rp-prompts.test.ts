@@ -180,3 +180,34 @@ describe("memory prompts write English (user, 2026-10-07)", () => {
     expect(R.PAST_DEFAULT_PROMPTS.nudge[0]).toContain("moves the story forward{threads}. Stay in character and in the scene; never mention this note.]");
   });
 });
+
+describe("image prompt style (MolfarWav/Molfar.Vertep#53)", () => {
+  async function ask(style: string | undefined, reply: string) {
+    const m = mockHost(reply);
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    const body = { mode: "background", ...(style ? { style } : {}) };
+    const first = await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body }, m);
+    const asked = m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string;
+    return { asked, first, m, id, body };
+  }
+
+  it("tags style asks for Danbooru tags, description style (default) for a paragraph", async () => {
+    const tags = await ask("tags", "x");
+    expect(tags.asked).toContain("Danbooru tags");
+    expect(tags.asked).toContain("no humans");
+    expect(tags.asked).not.toContain("one paragraph of plain visual description");
+    const plain = await ask(undefined, "x");
+    expect(plain.asked).toContain("one paragraph of plain visual description");
+    expect(plain.asked).not.toContain("Danbooru tags");
+  });
+
+  it("a tag reply comes back cleaned: label stripped, empties and duplicates dropped", async () => {
+    const m = mockHost("Tags: 1girl, Silver hair, silver hair,, smile,\n long coat, " + "x".repeat(70));
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "scene", style: "tags" } }, m);
+    expect(r.json.prompt).toBe("1girl, Silver hair, smile, long coat");
+    expect(r.json.style).toBe("tags");
+  });
+});

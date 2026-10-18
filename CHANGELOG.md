@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Image generation has a Prompt style setting (MolfarWav/Molfar.Vertep#53): Auto, Description or Danbooru tags. Auto picks tags for models that run on ComfyUI or Forge, the checkpoints trained on tags (Illustrious, Pony), and a description for everything else. With tags, `/imagine` and the Picture tool write a comma-separated English tag line instead of a paragraph; put quality tags (masterpiece, best quality) in the common prefix. The tab also names NanoGPT and image servers when no image model is found.
+
 ## 4.49.0
 
 Large libraries (MolfarWav/Molfar.Vertep#46), a notice when the Library waits on you (MolfarWav/Molfar.Vertep#55) and a Dashboard thread fix (MolfarWav/Molfar.Vertep#47). With engine 1.2.0 the start stays fast; an older engine works too, re-reading every card at each start.

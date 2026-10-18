@@ -16,6 +16,19 @@ export interface ImageGenSettings {
   interactive: boolean
   /** generated pictures also land in the speaking character's gallery */
   saveToGallery?: boolean
+  /** how the picture prompt is written; undefined = 'auto' (follows the model's backend) */
+  promptStyle?: 'auto' | 'description' | 'tags'
+  /** `api` of the picked model as last listed by GET /v1/images/models; lets the
+   *  plugins (which cannot ask for the list) pick the default style */
+  modelApi?: string
+}
+
+export type PromptStyle = 'description' | 'tags'
+
+/** An explicit choice wins; otherwise tag-trained backends (ComfyUI, Forge/A1111) get tags. */
+export function resolvePromptStyle(ig: Pick<ImageGenSettings, 'promptStyle' | 'modelApi'> | undefined): PromptStyle {
+  if (ig?.promptStyle === 'description' || ig?.promptStyle === 'tags') return ig.promptStyle
+  return ig?.modelApi === 'comfyui' || ig?.modelApi === 'a1111' ? 'tags' : 'description'
 }
 
 export interface GeneratedImage {
@@ -55,10 +68,10 @@ export function buildImagePrompt(ig: Pick<ImageGenSettings, 'promptPrefix'>, sub
 }
 
 /** The chat model describes what to draw from the recent scene. */
-export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null): Promise<string> {
+export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description'): Promise<string> {
   const r = await j<{ prompt: string }>(`/chats/${encodeURIComponent(chatId)}/image-prompt`, {
     method: 'POST',
-    body: JSON.stringify({ mode, ...(model ? { model } : {}) }),
+    body: JSON.stringify({ mode, style, ...(model ? { model } : {}) }),
   })
   return r.prompt
 }
@@ -84,7 +97,7 @@ export async function generateImage(opts: {
   const b = (await r.json().catch(() => ({}))) as { url?: string; mimeType?: string; model?: string; error?: string }
   if (!r.ok || !b.url) {
     if (r.status === 503) {
-      throw new Error('No image model available. Add an OpenRouter key or connection in the engine client')
+      throw new Error('No image model available. Add an OpenRouter or NanoGPT connection, or an image server, in the engine Settings')
     }
     throw new Error(b.error ?? 'image generation failed')
   }

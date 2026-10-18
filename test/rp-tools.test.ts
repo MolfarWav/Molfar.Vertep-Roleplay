@@ -21,7 +21,7 @@ afterEach(() => {
 type Mod = {
   handleRoute: (req: { method: string; path: string; body?: unknown }, host: unknown) => Promise<unknown> | unknown;
   handleTool: (name: string, args: Record<string, unknown>, host: unknown) => { text: string; isError?: boolean };
-  appTools: (ctx: unknown, host: unknown) => { tools: { name: string }[] };
+  appTools: (ctx: unknown, host: unknown) => { tools: { name: string; description: string; parameters: { properties: { prompt: { description: string } } } }[] };
   uiPanel: (ctx: unknown, host: unknown) => { label: string; items: { id: string; enabled: boolean; saveUrl: string; fields?: { key: string }[]; note?: string }[] };
 };
 let mod: Mod;
@@ -94,6 +94,30 @@ describe("agentic tools plugin", () => {
     expect(toy.config.port).toBe(30000);
     expect(toy.handler).toBeUndefined();
     expect(mod.appTools(null, m.host).tools.map((t) => t.name)).toContain("lovense");
+  }, 30_000);
+
+  it("generate_image gets the Danbooru wording at send time when the image model runs on ComfyUI/Forge", async () => {
+    const m = mockHost();
+    await drive("PUT", "/tools/image", { enabled: true }, m.host);
+    const settings = (api: string | null) =>
+      fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ ui: { imageGen: api ? { modelApi: api } : {} } }));
+    const img = () => mod.appTools(null, m.host).tools.find((t) => t.name === "generate_image")!;
+    const stock = img().description;
+    expect(stock).toContain("complete visual description"); // no settings.json: today's text
+    settings("openrouter-images");
+    expect(img().description).toBe(stock);
+    settings("comfyui");
+    expect(img().description).toContain("Danbooru tags");
+    expect(img().parameters.properties.prompt.description).toBe("Comma-separated Danbooru tags for the picture");
+    settings("a1111");
+    expect(img().description).toContain("Danbooru tags");
+    fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify({ ui: { imageGen: { promptStyle: "description", modelApi: "comfyui" } } }));
+    expect(img().description).toBe(stock);
+    // stored file untouched, and an edited description is never replaced
+    settings("comfyui");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "tools", "image.json"), "utf8")).tool.description).toBe(stock);
+    await drive("PUT", "/tools/image", { values: { "tool.description": "Paint it." } }, m.host);
+    expect(img().description).toBe("Paint it.");
   }, 30_000);
 
   it("built-ins let the user reshape what the model sees (rename + description)", async () => {

@@ -261,13 +261,45 @@ function runCustom(tool, args, host) {
 }
 
 // ---------- engine hooks (hook signature is (ctx, host)) ----------
+const IMAGE_TAGS_DESCRIPTION =
+  "Draw a picture and show it in the chat. Use it when a moment is worth seeing: a place, an outfit, a scene, something the user asks to see. Keep it rare. Write the prompt as comma-separated Danbooru tags in English: count tag (1girl, 1boy, solo), appearance, clothing, pose, expression, setting, lighting, framing. No names, no quality tags, no sentences.";
+const IMAGE_TAGS_PARAM = "Comma-separated Danbooru tags for the picture";
+
+/** Prompt style of image generation, as settings.json → ui.imageGen says (same rule as the app). */
+function imageTagStyle(fsx) {
+  try {
+    const ig = (JSON.parse(fsx.read("settings.json")).ui || {}).imageGen || {};
+    if (ig.promptStyle === "tags") return true;
+    if (ig.promptStyle === "description") return false;
+    return ig.modelApi === "comfyui" || ig.modelApi === "a1111";
+  } catch {
+    return false;
+  }
+}
+
 export function appTools(_ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return { tools: [] };
   const defs = [];
+  let tags = null;
   for (const t of listTools(fsx)) {
     if (t.enabled === false) continue;
-    if (t.tool && typeof t.tool.name === "string") defs.push(t.tool);
+    if (t.tool && typeof t.tool.name === "string") {
+      let def = t.tool;
+      // the stored copy is seeded once, so the tag wording is applied at send time, and only to an unedited description
+      if (t.builtin === "image" && def.name === "generate_image" && def.description === BUILTINS.image.tool.description) {
+        if (tags === null) tags = imageTagStyle(fsx);
+        if (tags) {
+          const props = def.parameters && def.parameters.properties ? def.parameters.properties : {};
+          def = {
+            ...def,
+            description: IMAGE_TAGS_DESCRIPTION,
+            parameters: { ...def.parameters, properties: { ...props, prompt: { ...(props.prompt || { type: "string" }), description: IMAGE_TAGS_PARAM } } },
+          };
+        }
+      }
+      defs.push(def);
+    }
   }
   return { tools: defs };
 }

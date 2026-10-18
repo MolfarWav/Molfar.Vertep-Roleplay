@@ -10,8 +10,14 @@ import { Image, CircleNotch, MagicWand } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { buildImagePrompt, generateImage, type GeneratedImage } from '@/lib/image-gen'
+import { buildImagePrompt, generateImage, resolvePromptStyle, type GeneratedImage } from '@/lib/image-gen'
 import { fetchImageModels, type ImageModelInfo } from '@/lib/engine'
+
+const STYLE_LABELS: Record<string, string> = {
+  auto: 'Auto (from the model)',
+  description: 'Description',
+  tags: 'Danbooru tags',
+}
 
 /** Fixed subject so the test isolates the effect of the settings themselves. */
 const TEST_SUBJECT = 'a lantern-lit street after rain, figure in a long coat'
@@ -30,6 +36,15 @@ export function ImageGenTab() {
     void fetchImageModels().then(setImageModels)
   }, [])
   const modelKnown = !!imageModels?.some((m) => `${m.provider}/${m.id}` === ig.model)
+  // The model the Select shows: the picked one if listed, else the first.
+  const shown = imageModels?.find((m) => `${m.provider}/${m.id}` === ig.model) ?? imageModels?.[0]
+  const shownApi = shown?.api
+  // Keep the picked model's backend in the settings: the plugins read it to choose the default prompt style.
+  useEffect(() => {
+    if (shownApi && shownApi !== ig.modelApi) updateSettings({ imageGen: { ...ig, modelApi: shownApi } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownApi, ig.modelApi])
+  const style = resolvePromptStyle({ promptStyle: ig.promptStyle, modelApi: shownApi ?? ig.modelApi })
 
   const runTest = async () => {
     setTesting(true)
@@ -66,8 +81,8 @@ export function ImageGenTab() {
           <p className="text-xs text-muted-foreground">Loading image models…</p>
         ) : imageModels.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-4 text-xs leading-relaxed text-muted-foreground">
-            No image models yet. Add an OpenRouter key or an OpenRouter connection in the engine
-            client (Settings → API connections).
+            No image models yet. Add an OpenRouter or NanoGPT connection, or an image server such as
+            ComfyUI or Forge, in the engine&apos;s Settings (API connections, Images).
           </p>
         ) : (
           <Field>
@@ -95,6 +110,33 @@ export function ImageGenTab() {
             )}
           </Field>
         )}
+
+        <Field>
+          <FieldLabel>Prompt style</FieldLabel>
+          <Select
+            value={ig.promptStyle ?? 'auto'}
+            onValueChange={(v) => v && patch({ promptStyle: v as 'auto' | 'description' | 'tags' })}
+          >
+            <SelectTrigger>
+              <SelectValue>{(v) => STYLE_LABELS[String(v)] ?? String(v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {Object.entries(STYLE_LABELS).map(([v, label]) => (
+                  <SelectItem key={v} value={v}><span className="text-xs">{label}</span></SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {(ig.promptStyle ?? 'auto') === 'auto'
+              ? style === 'tags'
+                ? `Now: Danbooru tags, because the model runs on ${shownApi === 'a1111' ? 'Forge' : 'ComfyUI'}.`
+                : 'Now: description.'
+              : null}
+            {style === 'tags' ? ' Put quality tags (masterpiece, best quality…) in the prefix below.' : null}
+          </p>
+        </Field>
 
         <Field>
           <FieldLabel htmlFor="ig-prefix">Common prompt prefix</FieldLabel>

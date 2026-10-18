@@ -266,6 +266,10 @@ and picks) and `presetNotes` (what changed after which message, shown in the cha
 model). Marinara presets (`type: "marinara_preset"`) import with their choice blocks as `choice`
 variables. `frankenx` and `molfar` are the built-in read-only presets: copy one to change its text. Molfar's regex scripts (`data/regex/molfar-*.json`, scope `preset`) hide its `<molfar_plan>`, `<inner_voice>` and `<focus_log>` blocks; an update adds them from `data/_molfar-regex.json` when missing.
 
+## App settings: image generation
+
+`data/settings.json` → `ui.imageGen` holds the Image Generation tab. Besides `enabled`, `model`, `promptPrefix`, `negativePrompt`, `interactive` and `saveToGallery` it has `promptStyle` (`"auto"` or absent, `"description"`, `"tags"`: how the picture prompt is written) and `modelApi` (the `api` of the picked image model, written by the app; with `promptStyle` auto, `comfyui` and `a1111` mean Danbooru tags, anything else a description).
+
 ## Macros and regex scripts
 
 Card fields, lorebook entries and preset sections may use macros; the engine expands them when it

@@ -1081,6 +1081,33 @@ const IMAGE_PROMPT_RULES = [
   "Reply with only the description.",
 ].join(" ");
 
+const IMAGE_TAG_RULES = [
+  "This goes straight to an anime-style image generator trained on Danbooru tags.",
+  "Reply with one line of comma-separated Danbooru tags, lowercase, no sentences, at most 40 tags.",
+  "Order: count tag (1girl, 1boy, 2girls, solo; no humans for a place), appearance (hair colour and style, eye colour, body), clothing, pose, expression, setting, lighting, framing (portrait, upper body, cowboy shot, full body).",
+  "No names, no quality or style tags (masterpiece, best quality, score_9: the user adds those), no negative tags.",
+  "Write the tags in English, whatever language the story is in.",
+  "Reply with only the tags.",
+].join(" ");
+
+/** Clean a model's tag line: drop a label and quotes, split, dedupe (case-insensitive), cap. */
+function normaliseImageTags(text) {
+  const seen = new Set();
+  const tags = [];
+  const raw = String(text || "")
+    .replace(/^\s*(image\s+)?(prompt|tags)\s*:\s*/i, "")
+    .replace(/^["'`]+|["'`]+$/g, "");
+  for (const part of raw.split(/[,\n]/)) {
+    const tag = part.replace(/\s+/g, " ").trim();
+    if (!tag || tag.length > 60) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+  }
+  return tags.join(", ").slice(0, 1500);
+}
+
 /** The newest turns as "Name: text" lines (the image prompt reads them). */
 function recentTranscript(msgs, window) {
   return msgs.slice(-window)
@@ -5179,6 +5206,7 @@ const toolX = (r) => ({
     if (op === "image-prompt" && req.method === "POST") {
       const b = body();
       const mode = IMAGE_PROMPT_MODES[b.mode] ? b.mode : "scene";
+      const style = b.style === "tags" ? "tags" : "description";
       const reply = host.llm.results.imgprompt;
       if (!reply) {
         const lastChar = [...chat.msgs].reverse().find((m) => m.role === "char" && !m.picture);
@@ -5190,7 +5218,7 @@ const toolX = (r) => ({
         const subject = typeof b.subject === "string" ? b.subject.trim().slice(0, 500) : "";
         const content = [
           IMAGE_PROMPT_MODES[mode].split("{{char}}").join(charName).split("{{user}}").join(userName),
-          IMAGE_PROMPT_RULES,
+          style === "tags" ? IMAGE_TAG_RULES : IMAGE_PROMPT_RULES,
           subject ? "The user asked for: " + subject : "",
           who && mode !== "user" && mode !== "background" ? about(charName, who.card && who.card.description) : "",
           mode === "user" || mode === "scene" ? about(userName, persona && persona.description) : "",
@@ -5200,14 +5228,16 @@ const toolX = (r) => ({
         return pendingOut(meta);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      const prompt = String(reply.text || "")
-        .replace(/^\s*(image\s+)?prompt\s*:\s*/i, "")
-        .replace(/^["'`]+|["'`]+$/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 1500);
+      const prompt = style === "tags"
+        ? normaliseImageTags(reply.text)
+        : String(reply.text || "")
+          .replace(/^\s*(image\s+)?prompt\s*:\s*/i, "")
+          .replace(/^["'`]+|["'`]+$/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 1500);
       if (!prompt) return err(502, "the model returned an empty description");
-      return ok({ prompt, mode });
+      return ok({ prompt, mode, style });
     }
 
     // append a finished message without generating anything (a picture the

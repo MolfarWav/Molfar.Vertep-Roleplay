@@ -13,7 +13,7 @@ import { useDashMaybe } from "@/components/dashboard/dash-context"
 import { ExpandedEditor } from "@/components/chat/expanded-editor"
 import { ImageGenDialog, type ImageGenStart } from "@/components/chat/image-gen-dialog"
 import { GalleryDialog } from "@/components/chat/gallery-dialog"
-import { IMAGE_MODES, buildImagePrompt, describeForImage, generateImage, parseImagineArg } from "@/lib/image-gen"
+import { IMAGE_MODES, buildImagePrompt, describeForImage, generateImage, parseImagineArg, resolvePromptStyle } from "@/lib/image-gen"
 import {
   AutocompletePopup, detectTrigger, fuzzy, getSlashCommands, MACROS,
   type AcItem, type Trigger,
@@ -253,7 +253,7 @@ export function Composer({ chatId }: { chatId: ID }) {
     setImgBusy(true)
     const toastId = toast.loading("mode" in start ? "Reading the chat…" : "Drawing…")
     try {
-      const subject = "text" in start ? start.text : await describeForImage(chatId, start.mode, chatModel)
+      const subject = "text" in start ? start.text : await describeForImage(chatId, start.mode, chatModel, resolvePromptStyle(imageGen))
       toast.loading("Drawing…", { id: toastId })
       const img = await generateImage({
         prompt: buildImagePrompt(imageGen, subject),

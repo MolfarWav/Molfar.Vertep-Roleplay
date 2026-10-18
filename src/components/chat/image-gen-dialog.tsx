@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  IMAGE_MODES, buildImagePrompt, describeForImage, generateImage,
+  IMAGE_MODES, buildImagePrompt, describeForImage, generateImage, resolvePromptStyle,
   type GeneratedImage, type ImageGenSettings, type ImageMode,
 } from '@/lib/image-gen'
 import type { ID } from '@/lib/types'
@@ -47,7 +47,7 @@ export function ImageGenDialog({
     const seq = ++readSeq.current
     setReading(true)
     try {
-      const text = await describeForImage(chatId, m, chatModel)
+      const text = await describeForImage(chatId, m, chatModel, resolvePromptStyle(settings))
       if (seq === readSeq.current) setSubject(text)
     } catch (err) {
       if (seq === readSeq.current) toast.error('Could not describe the scene', { description: (err as Error).message })

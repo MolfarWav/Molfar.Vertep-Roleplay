@@ -30,7 +30,7 @@ import { DEFAULT_AVATAR } from './utils'
 import { compileIfWrittenElsewhere } from './profile'
 import { shellLocale } from './shell-bridge'
 import {
-  j, fetchModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
+  j, fetchModels, fetchImageModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
   fetchCharacterSummaries, fetchCharacterCard, fetchCharacterAvatars, type EngineCard,
   engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns,
@@ -782,6 +782,19 @@ export const useApp = create<AppState>()(
               }
               return { settings: merged as unknown as typeof s.settings }
             })
+          }
+          // image prompt style: remember the model's backend once, so the plugins can pick the default style
+          // for users who never reopen the Image Generation tab (silent on failure)
+          {
+            const ig = get().settings.imageGen
+            if (ig?.enabled && ig.modelApi === undefined) {
+              void fetchImageModels().then((list) => {
+                const cur = get().settings.imageGen
+                if (!cur || cur.modelApi !== undefined) return
+                const m = list.find((x) => `${x.provider}/${x.id}` === cur.model) ?? list[0]
+                if (m?.api) get().updateSettings({ imageGen: { ...cur, modelApi: m.api } })
+              }).catch(() => {})
+            }
           }
           // 0.9.5: until the user picks a language here, the app follows the shell's (asked once, re-applied on
           // every hydrate; the value may reach settings.json with other settings, languageChosen alone decides)
