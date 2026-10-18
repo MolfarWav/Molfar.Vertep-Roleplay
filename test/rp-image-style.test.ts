@@ -20,3 +20,16 @@ describe("resolvePromptStyle", () => {
     expect(resolvePromptStyle(undefined)).toBe("description");
   });
 });
+
+describe("sortImageFavorites", () => {
+  it("puts the user's list first in its order, with names, and keeps the rest", async () => {
+    (globalThis as { location?: unknown }).location ??= { origin: "http://localhost", pathname: "/" };
+    const { sortImageFavorites } = await import("../src/lib/engine");
+    const m = (provider: string, id: string, api = "openrouter-images") => ({ provider, id, label: id, api, connectionName: null });
+    const out = sortImageFavorites([m("or", "a"), m("or", "b"), m("comfy", "c", "comfyui")], [{ ref: "comfy/c", name: "Local", use: "backgrounds" }, { ref: "gone/x" }, { ref: "or/b" }]);
+    expect(out.map((x) => `${x.provider}/${x.id}`)).toEqual(["comfy/c", "or/b", "or/a"]);
+    expect(out[0]!.favorite).toEqual({ name: "Local", use: "backgrounds" });
+    expect(out[1]!.favorite).toEqual({});
+    expect(out[2]!.favorite).toBeUndefined();
+  });
+});

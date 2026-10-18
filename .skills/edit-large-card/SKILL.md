@@ -56,8 +56,9 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 1. Write the prompt from the card: ONE `json_get` of `/name`, `/description` (and
    `/extensions/molfar_profile/appearance` when there is a profile). Describe the look in English,
    no names. An avatar is a portrait: face and shoulders, plain or soft background.
-2. `image_generate` with that prompt (`list: true` first only when the user named a model or
-   server). A model marked "write tags" (ComfyUI, Forge) wants comma-separated Danbooru tags
+2. `image_generate` with `list: true` first: the user's image models with what each is for.
+   Take the one whose "for" fits (backgrounds, characters…) and pass its ref as `model`; with no
+   fitting one, leave `model` out. A model marked "write tags" (ComfyUI, Forge) wants comma-separated Danbooru tags
    (`1girl, solo, silver hair, ...`) instead of sentences. Paid models ask the user on their own;
    a skip is final for this task.
 3. Put the returned `/v1/assets/<id>` URL where it belongs, in ONE write:

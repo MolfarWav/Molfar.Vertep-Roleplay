@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Image, CircleNotch, MagicWand } from '@phosphor-icons/react'
+import { Image, CircleNotch, MagicWand, Star } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -93,14 +93,18 @@ export function ImageGenTab() {
               onValueChange={(v) => v && patch({ model: v })}
             >
               <SelectTrigger>
-                <SelectValue>{(v) => String(v).split('/').slice(1).join('/') || String(v)}</SelectValue>
+                <SelectValue>{(v) => {
+                  const m = imageModels.find((x) => `${x.provider}/${x.id}` === String(v))
+                  return m ? m.favorite?.name || m.label : String(v).split('/').slice(1).join('/') || String(v)
+                }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   {imageModels.map((m) => (
                     <SelectItem key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`}>
-                      <span className="text-xs">{m.label}</span>
-                      <span className="ml-1.5 text-[10px] text-muted-foreground">{m.connectionName ?? m.provider}</span>
+                      {m.favorite && <Star weight="fill" className="mr-1 inline size-3 text-primary" aria-label="Your model" />}
+                      <span className="text-xs">{m.favorite?.name || m.label}</span>
+                      <span className="ml-1.5 text-[10px] text-muted-foreground">{m.favorite?.use ? `${m.favorite.use} · ` : ''}{m.connectionName ?? m.provider}</span>
                     </SelectItem>
                   ))}
                 </SelectGroup>

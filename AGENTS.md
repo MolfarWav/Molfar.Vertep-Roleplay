@@ -153,6 +153,9 @@ earlier ones by name.
   target) and it lands in the character's gallery. The tools plugin's
   built-in `generate_image` lets the model ask for one mid-reply; the client
   draws it after the reply commits.
+  Molfar draws for the user with its own `image_generate` tool (engine
+  1.2.1+): avatars, backgrounds and gallery items, written into the card or
+  library.json as `/v1/assets/<id>` URLs (`.skills/edit-large-card`).
 - Regex has two axes like the portable format: placement = where
   (user_input, ai_output, slash, wi, reasoning), markdownOnly/promptOnly =
   when. Neither flag rewrites text as it is SAVED (send, reply, greeting,

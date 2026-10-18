@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.49.0'
+export const APP_VERSION = '4.50.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -196,6 +196,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Press this to send. While a reply is being written, the same spot becomes a stop button.',
       uk: 'Натисніть, щоб надіслати. Поки відповідь пишеться, це місце стає кнопкою зупинки.',
+    },
+  },
+  // ── What's new: image prompts as tags
+  {
+    id: 'new.image-prompt-style',
+    since: '4.50.0',
+    target: 'nav.extensions',
+    open: { view: 'home' },
+    title: { en: 'Image prompts as tags', uk: 'Промпти картинок тегами' },
+    body: {
+      en: 'Tools → Image Generation → Prompt style: models on ComfyUI or Forge now get Danbooru tags instead of a paragraph. Auto picks by the model; you can choose yourself.',
+      uk: 'Інструменти → Image Generation → Prompt style: моделі на ComfyUI чи Forge тепер отримують теги Danbooru замість абзацу. Auto обирає за моделлю, можна обрати й самому.',
     },
   },
   // ── What's new: Molfar and option hints

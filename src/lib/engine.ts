@@ -316,14 +316,31 @@ export async function fetchPromptFormatFor(ref: string, matchModel: boolean): Pr
 
 /** Image-capable models from the engine's pi-ai images bridge (empty until a
  *  provider with image models has credentials engine-side). */
-export interface ImageModelInfo { provider: string; id: string; label: string; api: string; connectionName: string | null }
+export interface ImageModelInfo {
+  provider: string; id: string; label: string; api: string; connectionName: string | null
+  /** On the user's list in the engine's Settings > Images (engine 1.2.1+): their name and what it is for. */
+  favorite?: { name?: string; use?: string }
+}
+/** The engine's image models, the user's own list (Settings > Images) first in its order. */
 export async function fetchImageModels(): Promise<ImageModelInfo[]> {
   try {
     const r = await fetch('/v1/images/models')
     if (!r.ok) return []
-    const { models } = (await r.json()) as { models?: ImageModelInfo[] }
-    return models ?? []
+    const { models, favorites } = (await r.json()) as { models?: ImageModelInfo[]; favorites?: { ref: string; name?: string; use?: string }[] }
+    return sortImageFavorites(models ?? [], favorites ?? [])
   } catch { return [] }
+}
+
+export function sortImageFavorites(models: ImageModelInfo[], favorites: { ref: string; name?: string; use?: string }[]): ImageModelInfo[] {
+  const byRef = new Map(models.map((m) => [`${m.provider}/${m.id}`, m]))
+  const mine: ImageModelInfo[] = []
+  for (const f of favorites) {
+    const m = byRef.get(f.ref)
+    if (!m || mine.includes(m)) continue
+    mine.push({ ...m, favorite: { ...(f.name ? { name: f.name } : {}), ...(f.use ? { use: f.use } : {}) } })
+  }
+  const taken = new Set(mine.map((m) => `${m.provider}/${m.id}`))
+  return [...mine, ...models.filter((m) => !taken.has(`${m.provider}/${m.id}`))]
 }
 
 /** Engine connections (names/ids/endpoints only — keys never leave). */
