@@ -836,8 +836,27 @@ function factScore(f, scan, inScan, df, n) {
   }
   return score;
 }
-/** Rank facts for group d: relevant facts, newest first on ties. */
-export function rankFacts(facts, scanText) {
+/** Turns for a fact's recency to fall to about a third; see factRecency. */
+const RECENCY_SPAN = 40;
+/** How many uses count toward the use bonus. */
+const USE_CAP = 5;
+/**
+ * #50: a ranking factor in 0.5-1.2 from how lately a fact was written or surfaced in a prompt and
+ * how often it was used. `written` and `lastUsed` are turns (line positions), `uses` a count.
+ * A fact with no known turn (written by hand, migrated) gets 1: it ranks as before.
+ */
+export function factRecency({ written, lastUsed, uses }, turn) {
+  const seen = Math.max(Number.isFinite(written) ? written : -1, Number.isFinite(lastUsed) ? lastUsed : -1);
+  if (seen < 0) return 1;
+  const age = Math.max(0, turn - seen);
+  const used = Math.min(USE_CAP, Math.max(0, Number(uses) || 0)) / USE_CAP;
+  return 0.5 + 0.5 * Math.exp(-age / RECENCY_SPAN) + 0.2 * used;
+}
+/**
+ * Rank facts for group d: relevant facts, newest first on ties. `recency(f)` (optional, #50)
+ * multiplies a fact's relevance; it changes nothing on disk.
+ */
+export function rankFacts(facts, scanText, recency) {
   const list = arr(facts).filter(isObj);
   const df = new Map();
   const keysMap = new Map();
@@ -850,7 +869,7 @@ export function rankFacts(facts, scanText) {
   const scan = wordTokensM3b(scanText || "");
   const inScan = scanMatcherM3b(scan);
   return list
-    .map((f) => ({ f, score: factScore(f, scan, inScan, df, n) }))
+    .map((f) => ({ f, score: factScore(f, scan, inScan, df, n) * (recency ? recency(f) : 1) }))
     .sort((a, b) => b.score - a.score || (b.f.updatedAt || 0) - (a.f.updatedAt || 0))
     .map((x) => x.f);
 }
@@ -885,7 +904,7 @@ export function rankChapters(chapters, scanText) {
 }
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }) {
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   const cut = cutCount(st, line, cfg);
   // who is present: the newest snapshot of the line, else the names in the recent window
@@ -930,7 +949,20 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }
     const r = f.src && f.src.chapter ? ranges.get(f.src.chapter) : null;
     return !!(r && !r.orphan && r.fromIdx >= cut);
   };
-  const d = rankFacts(active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f)), scanText);
+  // #50: recent and used facts rank a little higher; `used` is the insert file's record
+  const pos = new Map(line.map((m, i) => [m.id, i]));
+  const writtenAt = (f) => {
+    const src = isObj(f.src) ? f.src : {};
+    if (pos.has(src.to)) return pos.get(src.to);
+    const r = src.chapter ? ranges.get(src.chapter) : null;
+    return r && !r.orphan ? r.toIdx : undefined;
+  };
+  const usedBy = isObj(used) ? used : {};
+  const recency = (f) => {
+    const u = isObj(usedBy[f.id]) ? usedBy[f.id] : {};
+    return factRecency({ written: writtenAt(f), lastUsed: Number(u.turn), uses: u.n }, line.length);
+  };
+  const d = rankFacts(active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f)), scanText, recency);
   const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText).slice(0, 6);
 
   const header =
@@ -964,7 +996,23 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName }
   if (!facts.length && !chapters.length) return null;
   const text = render();
   const arcCount = chapters.filter((x) => arcs.includes(x)).length;
-  return { text, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcCount, arcs: arcCount, cut };
+  return { text, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcCount, arcs: arcCount, cut, factIds: facts.map((f) => f.id) };
+}
+
+/** Most facts the insert file keeps a use record for: the most recently used win. */
+const USED_KEEP = 500;
+/** The insert file's use record after a prompt included `factIds` at `turn` (#50). */
+export function markUsed(used, factIds, turn) {
+  const next = { ...(isObj(used) ? used : {}) };
+  for (const id of arr(factIds)) {
+    if (!str(id)) continue;
+    const u = isObj(next[id]) ? next[id] : {};
+    next[id] = { n: Math.min(USE_CAP, (Number(u.n) || 0) + 1), turn };
+  }
+  const ids = Object.keys(next);
+  if (ids.length <= USED_KEEP) return next;
+  const keep = ids.sort((x, y) => (Number(next[y].turn) || 0) - (Number(next[x].turn) || 0)).slice(0, USED_KEEP);
+  return Object.fromEntries(keep.map((id) => [id, next[id]]));
 }
 
 /** Insert one system message after the leading system block (ported from relations withInsert). */
@@ -1005,13 +1053,17 @@ export function llmRequest(ctx, host) {
       .slice(-6)
       .map((m) => m.content)
       .join("\n");
-    const insert = st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName }) : null;
+    // the use record (#50) lives in the insert file: one write per reply, gone with the chat
+    const prevInsert = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+    const used = isObj(prevInsert) && isObj(prevInsert.used) ? prevInsert.used : {};
+    const insert = st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName, used }) : null;
     if (!insert && !back) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
-        "litopys/insert/" + chatId + ".json",
+        INSERT_DIR + chatId + ".json",
         JSON.stringify({
+          used: insert ? markUsed(used, insert.factIds, line.length) : used,
           at: Date.now(),
           tokens: insert ? insert.tokens : 0,
           facts: insert ? insert.facts : 0,

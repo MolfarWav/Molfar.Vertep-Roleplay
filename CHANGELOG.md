@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Litopys: in a long chat, facts written or used lately come first in the story record, and old unused ones sink slowly (#50). Only the ranking of ordinary facts changes: pinned facts and a present character's changes and traits keep their place, and nothing in the chat's record is rewritten. Uses are counted in the insert file (`litopys/insert/<chat>.json`, `used`), one write per reply.
+
 ## 4.51.0
 
 The Dashboard keeps a persona switch apart from the cast, and narrator cards get a Profile for every character (needs no engine update; ships with engine 1.2.3).
