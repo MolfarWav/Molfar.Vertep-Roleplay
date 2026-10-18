@@ -10,6 +10,7 @@ Image prompts as Danbooru tags for ComfyUI and Forge (MolfarWav/Molfar.Vertep#53
 
 - Image generation has a Prompt style setting (MolfarWav/Molfar.Vertep#53): Auto, Description or Danbooru tags. Auto picks tags for models that run on ComfyUI or Forge, the checkpoints trained on tags (Illustrious, Pony), and a description for everything else. With tags, `/imagine` and the Picture tool write a comma-separated English tag line instead of a paragraph; put quality tags (masterpiece, best quality) in the common prefix. The tab also names NanoGPT and image servers when no image model is found.
 - The image model picker lists your own image models first (engine 1.2.1, Settings > Images): starred, with the name you gave each and what it is for. With an older engine the list is as before.
+- Pictures open full size in the character editor: click the portrait, a sprite or a gallery picture. The viewer fits it to the screen, shows its size in pixels, and Actual size shows every pixel (scroll to move around). Before, only a thumbnail was visible, too small to judge a generated portrait.
 - Molfar's card skill (`edit-large-card`) learns the engine's new picture tool (MolfarWav/Molfar.Vertep#54): asked for an avatar, a gallery picture or a chat background, Molfar draws it from the card's description and writes the picture's address into the card or the backgrounds list. Needs engine 1.2.1.
 
 ## 4.49.0

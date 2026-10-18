@@ -39,6 +39,7 @@ import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
 import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
+import { ImageViewer } from '@/components/ui/image-viewer'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
 import { buildCharx, cardJson } from '@/lib/charx'
@@ -96,6 +97,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [compareVersion, setCompareVersion] = useState<Character['versions'][number] | null>(null)
   const [lightboxId, setLightboxId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState<{ src: string; title: string } | null>(null)
   const [newExpression, setNewExpression] = useState('')
   const [confirm, confirmDialog] = useConfirm()
   const [voiceOptions, setVoiceOptions] = useState<{ value: string; label: string }[]>(
@@ -233,6 +235,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </div>
       )}
       {/* header + tab strip scroll WITH the tab content (mobile keyboard room) */}
+      <ImageViewer src={zoom?.src ?? null} title={zoom?.title ?? ''} onClose={() => setZoom(null)} />
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
@@ -345,7 +348,13 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
                 <div className="flex flex-col items-center gap-2">
                   <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={(e) => { void changeAvatar(e.target.files?.[0]); e.target.value = '' }} />
-                  <img src={c.avatar || DEFAULT_AVATAR} alt={`${c.name} avatar`} className="size-28 rounded-lg object-cover" />
+                  {c.avatar ? (
+                    <button type="button" onClick={() => setZoom({ src: c.avatar, title: `${c.name}: portrait` })} className="cursor-zoom-in rounded-lg" aria-label="Open the portrait at full size">
+                      <img src={c.avatar} alt={`${c.name} avatar`} className="size-28 rounded-lg object-cover" />
+                    </button>
+                  ) : (
+                    <img src={DEFAULT_AVATAR} alt={`${c.name} avatar`} className="size-28 rounded-lg object-cover" />
+                  )}
                   <Button variant="outline" size="sm" className="text-xs" onClick={() => avatarInput.current?.click()}>Change</Button>
                 </div>
                 <div className="flex flex-col gap-3">
@@ -572,7 +581,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 {c.expressions.map((e) => (
                   <div key={e.name} className="flex flex-col items-center gap-1 rounded-md border border-border p-2">
                     {e.url ? (
-                      <img src={e.url} alt={`${e.name} expression`} className="size-16 rounded object-cover" />
+                      <button type="button" onClick={() => setZoom({ src: e.url!, title: `${c.name}: ${e.name}` })} className="cursor-zoom-in rounded" aria-label={`Open the ${e.name} sprite at full size`}>
+                        <img src={e.url} alt={`${e.name} expression`} className="size-16 rounded object-cover" />
+                      </button>
                     ) : (
                       <div className="flex size-16 items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">empty</div>
                     )}
@@ -648,7 +659,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                         {lightboxItem.type === 'video' ? (
                           <video src={lightboxItem.url} className="max-h-[45dvh] w-full" controls />
                         ) : (
-                          <img src={lightboxItem.url} alt={lightboxItem.caption} className="max-h-[45dvh] w-full object-contain" />
+                          <button type="button" onClick={() => setZoom({ src: lightboxItem.url, title: lightboxItem.caption || 'Gallery item' })} className="w-full cursor-zoom-in" aria-label="Open at full size">
+                            <img src={lightboxItem.url} alt={lightboxItem.caption} className="max-h-[45dvh] w-full object-contain" />
+                          </button>
                         )}
                       </div>
                       <Input
