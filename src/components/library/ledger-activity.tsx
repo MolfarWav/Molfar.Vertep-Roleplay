@@ -67,6 +67,9 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'arc.delete': return t('lit.act.arcDelete', { label })
     case 'arc.drop': return t('lit.act.arcDrop', { label })
     case 'arc.fail': return t('lit.act.arcFail', { error })
+    case 'consolidate.ask': return t('lit.act.consolidateAsk', { n: num(d.facts) })
+    case 'consolidate.done': return Number(d.proposed) > 0 ? t('lit.act.consolidateDone', { n: num(d.proposed) }) : t('lit.consolidate.nothing')
+    case 'consolidate.fail': return t('lit.act.consolidateFail', { error })
     default: return a.text
   }
 }

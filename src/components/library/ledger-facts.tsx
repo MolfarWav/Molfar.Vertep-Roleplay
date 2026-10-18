@@ -16,6 +16,7 @@ import {
   ChatText,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { ConsolidateBar } from './consolidate'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -718,6 +719,8 @@ export function FactsTab({ chat, onChat }: TabProps) {
           {t('lit.addFact')}
         </Button>
       </div>
+
+      <ConsolidateBar chat={chat} onChat={onChat} />
 
       {adding && <FactEditor names={names} busy={ctl.busyId === 'add'} onSave={handleAdd} onCancel={() => setAdding(false)} />}
 

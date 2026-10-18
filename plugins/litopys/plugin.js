@@ -2184,6 +2184,8 @@ export function onTick(_ctx, host) {
         }
         // M4d: with every scene chaptered, the worker merges arcs (one call per tick)
         if (!work && arcStep(fsx, host, chatId, st, line, cfg, meta, now)) return;
+        // #51: a Consolidate the user asked for, one batch per tick, after chapters and arcs
+        if (!work && consolidateStep(fsx, host, chatId, st, cfg, meta, now)) return;
         if (!work && st.arcFlight) {
           delete st.arcFlight;
           changed = true;
@@ -2664,6 +2666,227 @@ export function arcRoute(fsx, body) {
     // the same chapters would be offered again at once: wait for the older part to grow
     st.arcSnooze = { tokens: arcPlan(st, line, cfg).tokens, at: now };
     addActivity(st, "user", "arc.delete", "Deleted the arc " + quote(arc.label || arc.id) + "; its chapters stay", [arc.id], now, { label: str(arc.label) });
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
+// ---------- #51: Consolidate facts ----------
+/** Fewer active facts than this: nothing worth a pass (the button is off). */
+export const CONSOLIDATE_MIN = 20;
+/** Facts per model call: fits the small context windows of free models. */
+export const CONSOLIDATE_BATCH = 60;
+const PROPOSALS_KEEP = 100;
+
+export const CONSOLIDATE_PROMPT = [
+  "You keep the story record of an ongoing roleplay. Below are facts from that record, one per line, each with its id and subject.",
+  "Find only real problems and propose fixes:",
+  "- merge: two or more facts that say the same thing, or that belong in one sentence. Give the ids and the one merged sentence.",
+  "- rewrite: a fact that contradicts another one or is unclear. Give the id and the corrected sentence.",
+  "- retire: a fact that a later fact makes untrue or that is a pure duplicate of another one you keep. Give the id.",
+  "Each with a short reason (at most 15 words). Most facts need nothing: leave them out. Propose nothing when nothing is wrong.",
+  "Never invent: use only what the facts say. Keep every name exactly as written. Write in the language the facts are in.",
+  "",
+  "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
+].join("\n");
+export const CONSOLIDATE_SHAPE =
+  '{"ops":[{"op":"merge","ids":["f1","f2"],"text":"one sentence","reason":""},{"op":"rewrite","id":"f3","text":"one sentence","reason":""},{"op":"retire","id":"f4","reason":""}]}';
+
+/** Active fact ids in batches, one subject's facts kept together so its duplicates meet. */
+export function consolidateBatches(st) {
+  const active = arr(st && st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && str(f.id));
+  const bySubject = new Map();
+  for (const f of active) {
+    const k = str(f.subject).toLowerCase();
+    if (!bySubject.has(k)) bySubject.set(k, []);
+    bySubject.get(k).push(f.id);
+  }
+  const batches = [];
+  let cur = [];
+  for (const ids of [...bySubject.values()].sort((x, y) => y.length - x.length)) {
+    for (let i = 0; i < ids.length; i += CONSOLIDATE_BATCH) {
+      const part = ids.slice(i, i + CONSOLIDATE_BATCH);
+      if (cur.length + part.length > CONSOLIDATE_BATCH && cur.length) {
+        batches.push(cur);
+        cur = [];
+      }
+      cur.push(...part);
+    }
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
+
+export function buildConsolidateRequest(facts, cfg, meta) {
+  const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const lines = facts.map((f) => f.id + " [" + (str(f.subject) || "world") + "] " + str(f.text));
+  const req = {
+    systemPrompt: CONSOLIDATE_PROMPT + "\n\nOutput shape\n" + CONSOLIDATE_SHAPE,
+    messages: [{ role: "user", content: "Facts\n\n" + lines.join("\n") }],
+    presetParams: { temperature: 0.2, max_tokens: 1500 },
+  };
+  if (model) req.model = model;
+  // NEVER set a reasoning field (reasoning stays off)
+  return req;
+}
+
+/** The model's ops, checked against the batch: unknown ids, empty texts and odd shapes are dropped. */
+export function parseConsolidateReply(text, batchIds) {
+  if (!text) return null;
+  let s = String(text).trim();
+  const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(s);
+  if (fence) s = fence[1].trim();
+  const fo = firstObject(s);
+  const v = fo.body ? parseObj(fo.body) : null;
+  if (!v) return null;
+  const list = Array.isArray(v.ops) ? v.ops : Array.isArray(v.proposals) ? v.proposals : null;
+  if (!list) return null;
+  const inBatch = new Set(arr(batchIds));
+  const out = [];
+  for (const o of list) {
+    if (!isObj(o)) continue;
+    const op = str(o.op).toLowerCase();
+    const reason = cut(str(o.reason), 200);
+    if (op === "merge") {
+      const ids = [...new Set(arr(o.ids).map(str))].filter((id) => inBatch.has(id));
+      const t = cut(str(o.text), 300);
+      if (ids.length >= 2 && t) out.push({ op, targets: ids, text: t, reason });
+    } else if (op === "rewrite") {
+      const id = str(o.id);
+      const t = cut(str(o.text), 300);
+      if (inBatch.has(id) && t) out.push({ op, targets: [id], text: t, reason });
+    } else if (op === "retire") {
+      const id = str(o.id);
+      if (inBatch.has(id)) out.push({ op, targets: [id], reason });
+    }
+  }
+  return out;
+}
+
+/**
+ * Adds the parsed ops to st.proposals: a fact already in a pending proposal is skipped (a second
+ * run does not repeat itself), a rewrite to the same text is skipped, the pending list stays at
+ * most PROPOSALS_KEEP. Returns how many were added.
+ */
+export function addConsolidateProposals(st, ops, now) {
+  const active = new Map(st.facts.filter((f) => isObj(f) && f.status === "active").map((f) => [f.id, f]));
+  const busy = new Set(st.proposals.filter((p) => p.status === "pending").flatMap((p) => arr(p.targets)));
+  let added = 0;
+  for (const o of arr(ops)) {
+    if (st.proposals.filter((p) => p.status === "pending").length >= PROPOSALS_KEEP) break;
+    const targets = arr(o.targets);
+    if (!targets.length || targets.some((id) => !active.has(id) || busy.has(id))) continue;
+    if (o.op === "rewrite" && str(active.get(targets[0]).text) === str(o.text)) continue;
+    st.counters.proposal = (Number(st.counters.proposal) || 0) + 1;
+    st.proposals.push({ id: "p" + st.counters.proposal, op: o.op, targets, ...(o.text ? { text: o.text } : {}), reason: o.reason || "consolidate", status: "pending", origin: "consolidate", at: now });
+    for (const id of targets) busy.add(id);
+    added++;
+  }
+  // settled proposals make room first, as after a chapter
+  if (st.proposals.length > PROPOSALS_KEEP) {
+    const done = st.proposals.filter((p) => p.status !== "pending");
+    let excess = st.proposals.length - PROPOSALS_KEEP;
+    while (excess > 0 && done.length) {
+      st.proposals.splice(st.proposals.indexOf(done.shift()), 1);
+      excess--;
+    }
+  }
+  return added;
+}
+
+const consolidateKey = (chatId, job) => "lit_cons_" + chatId + "_" + job.at + "_" + job.next;
+
+/** One tick's Consolidate step: apply an answer, else send the next batch. true = the tick is done. */
+function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
+  const job = st.consolidate;
+  if (!isObj(job) || job.state !== "working") return false;
+  const batches = arr(job.batches);
+  const next = Number(job.next) || 0;
+  if (next >= batches.length) {
+    finishConsolidate(st, now);
+    if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
+    return true;
+  }
+  const key = consolidateKey(chatId, job);
+  const results = host.llm && host.llm.results ? host.llm.results : {};
+  const reply = results[key];
+  if (reply) {
+    // re-read: the user may have accepted a proposal or cancelled since the request went out
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = attempt ? loadChatFile(fsx, chatId) : st;
+      if (!cur || !isObj(cur.consolidate) || cur.consolidate.state !== "working" || consolidateKey(chatId, cur.consolidate) !== key) break;
+      const ops = reply.error ? null : parseConsolidateReply(reply.text, batches[next]);
+      if (!ops) {
+        cur.consolidate = { ...cur.consolidate, state: "failed", error: cut(reply.error || "empty or invalid reply", 200), at: now };
+        delete cur.consolidate.batches;
+        addActivity(cur, "worker", "consolidate.fail", "Consolidating facts failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
+      } else {
+        const added = addConsolidateProposals(cur, ops, now);
+        cur.consolidate = { ...cur.consolidate, next: next + 1, proposed: (Number(cur.consolidate.proposed) || 0) + added };
+        if (next + 1 >= batches.length) finishConsolidate(cur, now);
+      }
+      if (saveChatFile(fsx, cur)) break;
+    }
+    beat(fsx, chatId, now);
+    return true;
+  }
+  const facts = arr(batches[next]).map((id) => st.facts.find((f) => f.id === id && f.status === "active")).filter(Boolean);
+  if (facts.length < 2) {
+    st.consolidate = { ...job, next: next + 1 };
+    if (next + 1 >= batches.length) finishConsolidate(st, now);
+    saveChatFile(fsx, st);
+    return true;
+  }
+  beat(fsx, chatId, now);
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta));
+  return true;
+}
+
+function finishConsolidate(st, now) {
+  const proposed = Number(st.consolidate && st.consolidate.proposed) || 0;
+  st.consolidate = { state: "done", proposed, at: now };
+  addActivity(st, "worker", "consolidate.done", proposed ? "Consolidating facts proposed " + proposed + " changes" : "Consolidating facts found nothing to change", [], now, { proposed });
+}
+
+/** The view's Consolidate line: the active count, and the run in progress or its outcome. */
+function consolidateView(st) {
+  const active = st ? st.facts.filter((f) => isObj(f) && f.status === "active").length : 0;
+  const c = st && isObj(st.consolidate) ? st.consolidate : null;
+  return {
+    active,
+    min: CONSOLIDATE_MIN,
+    state: c ? str(c.state) : "idle",
+    batches: c && c.state === "working" ? arr(c.batches).length : 0,
+    next: c && c.state === "working" ? Number(c.next) || 0 : 0,
+    proposed: c ? Number(c.proposed) || 0 : 0,
+    error: c && c.state === "failed" ? str(c.error) : "",
+    at: c ? Number(c.at) || 0 : 0,
+  };
+}
+
+/** POST /litopys/consolidate { chatId, op: start | cancel } */
+export function consolidateRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (op !== "start" && op !== "cancel") return bad("unknown op");
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st) => {
+    const now = Date.now();
+    if (op === "cancel") {
+      if (!isObj(st.consolidate) || st.consolidate.state !== "working") return;
+      const proposed = Number(st.consolidate.proposed) || 0;
+      st.consolidate = { state: "idle", proposed, at: now };
+      return;
+    }
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    if (isObj(st.consolidate) && st.consolidate.state === "working") return { status: 409, json: { error: "already consolidating" } };
+    const batches = consolidateBatches(st);
+    const active = batches.reduce((n, x) => n + x.length, 0);
+    if (active < CONSOLIDATE_MIN) return { status: 409, json: { error: "too few facts", min: CONSOLIDATE_MIN, active } };
+    st.consolidate = { state: "working", batches, next: 0, proposed: 0, at: now };
+    woke = true;
+    addActivity(st, "user", "consolidate.ask", "Asked to consolidate " + active + " facts", [], now, { facts: active });
   });
   if (woke && res.status === 200) wake(fsx, chatId, true);
   return res;
@@ -3445,6 +3668,7 @@ export function chatView(fsx, chatId) {
     // M4d: arcs over older chapters, and the merge offer / the merge in progress
     arcs: arcsView(st, line),
     arcState: arcStateView(st, line, cfg, Date.now()),
+    consolidate: consolidateView(st),
     ...chatViewExtras(fsx, chatId, st, line),
   };
 }
@@ -3499,6 +3723,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
+  if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
     const key = req.query && typeof req.query.key === "string" ? req.query.key : "";
