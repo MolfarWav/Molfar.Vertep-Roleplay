@@ -59,7 +59,8 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 2. `image_generate` with `list: true` first: the user's image models with what each is for.
    Take the one whose "for" fits (backgrounds, characters…) and pass its ref as `model`; with no
    fitting one, leave `model` out. A model marked "write tags" (ComfyUI, Forge) wants comma-separated Danbooru tags
-   (`1girl, solo, silver hair, ...`) instead of sentences. Paid models ask the user on their own;
+   (`1girl, solo, silver hair, ...`) instead of sentences; a "prompt guidance" line under a model is
+   the user's own rule for that server, follow it. Paid models ask the user on their own;
    a skip is final for this task.
 3. Put the returned `/v1/assets/<id>` URL where it belongs, in ONE write:
    - Avatar: `json_set` on the card, `/avatar` and `/studio/avatar` both set to the URL. This
