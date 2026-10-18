@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Inbox (#55): one list of what waits on you. The Inbox item above Help (on a phone, the first row of More) lists the chats with Library suggestions and the cards with souls proposed or a failed rating, with the total on its badge; a row opens the chat's Library or the card's Soul tab. The kinds follow the same switches as their toasts. The Dashboard plugin lists waiting proposals at `GET /dashboard/soul-drafts`.
+- Display regex: on a slow device the regex helper's start-up counted toward the first pattern's time limit, and a pattern that ran out was skipped for the rest of the session, so text it hides showed in chats and previews. A new helper now gets 5 extra seconds for its first pattern.
+- The Home hero's quote and the Chats panel's last messages also run the chat's display regex (#44), as the list previews do.
 - Chats and Recent chats: the preview under a chat no longer shows the model's reasoning (#44). It runs the chat's display regex first, as the chat itself does, and drops `<think>`-style blocks. The message row and the preview share one resolver (`src/lib/display-scripts.ts`).
 - Molfar preset: section names read plainly (#42). "━📜 Directives (PICK ONE)" is now "📜 Directives": the pick is made in Choices, and the "━" read as a stray dash. The built-in copy is renamed on update (4.52.0); a copy the user made is left alone.
 - Litopys: Consolidate facts (#51). Library > a chat > Facts has a Consolidate facts button (from 20 active facts). One model call per batch of 60 facts, a subject's facts kept together, proposes merges of duplicates and rewrites or retirements of contradictions. They wait in Proposals with the usual Accept / Reject; nothing changes until accepted, and a second run does not repeat a pending proposal. Route `POST /litopys/consolidate { chatId, op: start | cancel }`.

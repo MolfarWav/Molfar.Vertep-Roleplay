@@ -3,7 +3,7 @@ import { GitBranch, Play, UserCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/store'
 import { useRelativeTime, useT } from '@/hooks/use-t'
-import { firstLine } from '@/lib/preview'
+import { ChatQuote } from '@/components/chat/chat-preview-text'
 import { DEFAULT_AVATAR } from '@/lib/utils'
 import { CreateButtons } from '@/components/home/home-blocks'
 import { Chip, Diamond } from '@/components/home/home-ui'
@@ -38,9 +38,6 @@ export function HomeHero() {
     )
   }
 
-  const last = chat.messages[chat.messages.length - 1]
-  const lastText = last?.swipes[last.activeSwipe]?.content ?? chat.preview ?? ''
-  const quote = firstLine(lastText, 140)
   const persona = personas.find((p) => p.id === chat.personaId)
   const bookId = character.embeddedLorebookId ?? character.linkedLorebookIds?.[0] ?? null
   const book = bookId ? lorebooks.find((b) => b.id === bookId) : null
@@ -62,7 +59,7 @@ export function HomeHero() {
           <Diamond /> {t('home.pickUp')}
         </p>
         <h2 className="font-heading text-[28px] leading-tight md:text-[32px]">{title}</h2>
-        {quote && <p className="font-heading text-[17px] leading-snug text-foreground/90">«{quote}»</p>}
+        <ChatQuote chat={chat} max={140} className="font-heading text-[17px] leading-snug text-foreground/90" />
         <div className="flex flex-wrap items-center gap-2">
           {persona && (
             <Chip tone="red" className="bg-card/90 text-foreground" icon={<UserCircle className="size-3.5 shrink-0" aria-hidden="true" />}>{t('home.persona')}: {persona.name}</Chip>
