@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.52.0
+
+An inbox for what waits on you, Litopys keeps long chats in order, and chat previews stop leaking reasoning (needs no engine update; ships with engine 1.2.4).
+
 - Inbox (#55): one list of what waits on you. The Inbox item above Help (on a phone, the first row of More) lists the chats with Library suggestions and the cards with souls proposed or a failed rating, with the total on its badge; a row opens the chat's Library or the card's Soul tab. The kinds follow the same switches as their toasts. The Dashboard plugin lists waiting proposals at `GET /dashboard/soul-drafts`.
 - Display regex: on a slow device the regex helper's start-up counted toward the first pattern's time limit, and a pattern that ran out was skipped for the rest of the session, so text it hides showed in chats and previews. A new helper now gets 5 extra seconds for its first pattern.
 - The Home hero's quote and the Chats panel's last messages also run the chat's display regex (#44), as the list previews do.
