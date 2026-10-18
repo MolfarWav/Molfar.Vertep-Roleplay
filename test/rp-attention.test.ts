@@ -3,7 +3,7 @@
  * says, the seen list that keeps a proposal from being toasted twice, and the switch.
  */
 import { describe, expect, it } from 'bun:test'
-import { attentionOn, litCounts, takeNew, toastPlan, totalOf, waitingOf } from '../src/lib/attention-core'
+import { attentionOn, inboxRows, litCounts, soulWaitingOf, takeNew, toastPlan, totalOf, waitingOf } from '../src/lib/attention-core'
 import type { LitFact, LitProposal } from '../src/components/library/litopys-api'
 
 const fact = (id: string, text: string) => ({ id, text } as LitFact)
@@ -73,5 +73,47 @@ describe('needs you: Library proposals', () => {
     expect(attentionOn(undefined, 'litopys')).toBe(true)
     expect(attentionOn({ soul: false }, 'litopys')).toBe(true)
     expect(attentionOn({ soul: false }, 'soul')).toBe(false)
+  })
+})
+
+describe('needs you: the inbox', () => {
+  const names: Record<string, string> = { c1: 'Vivian Stein', c2: 'Group Night' }
+  const base = {
+    settings: undefined,
+    litopys: { c1: 1, c2: 3 },
+    soul: soulWaitingOf({ drafts: [{ characterId: 'k1', at: 5, n: 2, failed: false }, { characterId: 'k2', at: 9, n: 0, failed: true }] }),
+    chatName: (id: string) => names[id] ?? '',
+    cardName: (id: string) => ({ k1: 'Vivian', k2: 'Ola' })[id] ?? '',
+  }
+
+  it('lists Library chats (most waiting first), then cards (newest first), and totals them', () => {
+    const { rows, total } = inboxRows(base)
+    expect(rows.map((r) => r.key)).toEqual(['lit:c2', 'lit:c1', 'soul:k2', 'soul:k1'])
+    expect(rows[0]).toMatchObject({ kind: 'litopys', name: 'Group Night', count: 3 })
+    expect(rows[2]).toMatchObject({ kind: 'soul', name: 'Ola', failed: true })
+    // 4 proposals + 2 cards
+    expect(total).toBe(6)
+  })
+
+  it('a kind switched off is neither listed nor counted', () => {
+    const noLib = inboxRows({ ...base, settings: { litopys: false } })
+    expect(noLib.rows.map((r) => r.kind)).toEqual(['soul', 'soul'])
+    expect(noLib.total).toBe(2)
+    const noSoul = inboxRows({ ...base, settings: { soul: false } })
+    expect(noSoul.rows.map((r) => r.kind)).toEqual(['litopys', 'litopys'])
+    expect(noSoul.total).toBe(4)
+    expect(inboxRows({ ...base, settings: { litopys: false, soul: false } })).toEqual({ rows: [], total: 0 })
+  })
+
+  it('is empty when nothing waits', () => {
+    expect(inboxRows({ ...base, litopys: {}, soul: [] })).toEqual({ rows: [], total: 0 })
+  })
+
+  it('reads the soul-drafts body tolerantly: junk and empty drafts are dropped, newest first', () => {
+    expect(soulWaitingOf(null)).toEqual([])
+    expect(soulWaitingOf({})).toEqual([])
+    expect(soulWaitingOf({ drafts: 'x' })).toEqual([])
+    const list = soulWaitingOf({ drafts: [{ characterId: 'a', at: 1, n: 1 }, { at: 3, n: 4 }, { characterId: 'b', at: 2, n: 0, failed: false }, { characterId: 'c', at: 7, n: 0, failed: true }] })
+    expect(list.map((d) => d.characterId)).toEqual(['c', 'a'])
   })
 })

@@ -69,6 +69,11 @@ adult listings are hidden unless nsfw/nsfl/nsfw_only are ALL stated (absent
 ordering, so it gets its own switch and takes over the sort; an unknown sort
 key is a 400, never a fallback; tags are `topics`, and OR is `inclusive_or`
 (`tags_mode` is read by nothing).
+The inbox ("Waiting on you", components/shell/inbox.tsx, #55) lists what waits on the player: Library
+proposals per chat (lib/attention.ts, polled by pollNeedsYou) and cards with souls proposed (GET
+/dashboard/soul-drafts). It is the Inbox button above Help in the rail (a popover) and the first row of
+the phone's More sheet (a bottom sheet); rows and the badge total come from `inboxRows` in
+lib/attention-core.ts and respect the per-kind switches in settings.attention.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
 to it on every change. Messages are a FLAT list with swipes.
 

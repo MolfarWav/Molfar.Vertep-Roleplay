@@ -12,20 +12,32 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import { acceptLitProposal, rejectLitProposal, fetchLitChat, fetchLitChats, isPinLimit, type LitChatItem } from '@/components/library/litopys-api'
 import { t, type Lang } from '@/lib/i18n'
-import { litCounts, takeNew, toastPlan, waitingOf, type WaitingProposal } from './attention-core'
+import { litCounts, takeNew, toastPlan, waitingOf, type SoulWaiting, type WaitingProposal } from './attention-core'
 
 export * from './attention-core'
 
 interface AttentionState {
   /** pending Litopys proposals per chat id (only chats with some) */
   litopys: Record<string, number>
+  /** the Library's name for each of those chats (a fallback when the app has not loaded the chat) */
+  litNames: Record<string, string>
+  /** cards with souls proposed or a failed rating, newest first */
+  soul: SoulWaiting[]
 }
 
-export const useAttention = create<AttentionState>(() => ({ litopys: {} }))
+export const useAttention = create<AttentionState>(() => ({ litopys: {}, litNames: {}, soul: [] }))
+
+const namesOf = (items: Pick<LitChatItem, 'id' | 'name' | 'proposals'>[]) =>
+  Object.fromEntries(items.filter((it) => it.proposals > 0 && it.name).map((it) => [it.id, it.name]))
 
 /** The Library view already polls the list: it hands the counts over so the badge follows at once. */
-export function setLitCounts(items: Pick<LitChatItem, 'id' | 'proposals'>[], on = true) {
-  useAttention.setState({ litopys: on ? litCounts(items) : {} })
+export function setLitCounts(items: Pick<LitChatItem, 'id' | 'name' | 'proposals'>[], on = true) {
+  useAttention.setState({ litopys: on ? litCounts(items) : {}, litNames: on ? namesOf(items) : {} })
+}
+
+/** The soul poll (store.ts, which owns the engine helper) hands its list over here. */
+export function setSoulWaiting(list: SoulWaiting[]) {
+  useAttention.setState({ soul: list })
 }
 
 // ---------- seen list ----------
@@ -121,13 +133,13 @@ export async function pollAttention(deps: AttentionDeps) {
   polling = true
   try {
     if (!deps.on) {
-      useAttention.setState({ litopys: {} })
+      useAttention.setState({ litopys: {}, litNames: {} })
       toast.dismiss('attention-litopys')
       return
     }
     const { items } = await fetchLitChats()
     const counts = litCounts(items)
-    useAttention.setState({ litopys: counts })
+    useAttention.setState({ litopys: counts, litNames: namesOf(items) })
     const seen = readSeen()
     const fresh: WaitingProposal[] = []
     for (const chatId of Object.keys(counts)) {
