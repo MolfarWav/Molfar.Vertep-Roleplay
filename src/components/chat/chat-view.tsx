@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -37,6 +37,7 @@ import { MessageRow } from './message-row'
 import { Composer } from './composer'
 import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
+import { WorldSheet } from '@/components/chat/world-sheet'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_MENU_EVENT, guideTarget } from '@/components/guide/events'
 import { ExpressionPanel } from './expression-panel'
@@ -162,6 +163,7 @@ export function ChatView() {
   const [displayOpen, setDisplayOpen] = useState(false)
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [worldOpen, setWorldOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   // the desktop kebab is controlled so the guide's "Show me" can open it
@@ -605,6 +607,7 @@ export function ChatView() {
     { key: 'note', icon: Note, label: "Author's note", onSelect: () => setNotesOpen(true) },
     { key: 'lore', icon: BookOpenText, label: t('lore.activity.title'), onSelect: () => setLoreOpen(true) },
     { key: 'record', icon: Brain, label: t('lit.recordTitle'), onSelect: () => setSummaryOpen(true) },
+    { key: 'world', icon: GlobeHemisphereWest, label: t('world.menu'), onSelect: () => setWorldOpen(true) },
     ...(!character.isGroup ? [{ key: 'convert', icon: UserPlus, label: 'Convert to group', onSelect: () => setConvertOpen(true) }] : []),
     { key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },
     { key: 'bookmarks', icon: BookmarkSimple, label: 'Bookmarks', onSelect: () => setBookmarksOpen(true) },
@@ -1338,6 +1341,7 @@ export function ChatView() {
 
       {/* Litopys record */}
       <ChatRecordSheet chat={chat} open={summaryOpen} onOpenChange={setSummaryOpen} />
+      <WorldSheet chatId={chat.id} open={worldOpen} onOpenChange={setWorldOpen} />
 
       {/* expression sprite for the latest speaker (emotion-detected) */}
       <ExpressionPanel chat={chat} />

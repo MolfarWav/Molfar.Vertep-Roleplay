@@ -1,0 +1,11 @@
+{
+  "name": "World DM",
+  "version": "0.1.0",
+  "description": "A game master for the world around the characters (GitHub #52). After a reply, on the player's schedule, a DM model reads the new part of the story and keeps the chat's own world lorebook: people, places, groups and facts that matter beyond the scene, retired ones kept short. Prose stays canon; the DM never rewrites it. The world book belongs to one chat and stays out of the Lorebooks library. State lives in data/world/state/<chatId>.json.",
+  "origin": "local",
+  "permissions": [
+    "routes",
+    "llm",
+    "fs"
+  ]
+}

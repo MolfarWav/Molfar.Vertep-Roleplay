@@ -20,6 +20,9 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - Group: `apps/roleplay/data/groups/<id>.json` (not a card: members, shared scenario,
   openings, per-member settings, the group's own books; fields in DATA-FORMATS, "Groups").
 - Files starting with `_` are AI-only templates: copy, never edit.
+- A book with `ownerChatId` (`world-<chatId>.json`) is one chat's world book, kept by the World DM:
+  never link it to a card or remove that field. Its records live in `data/world/state/<chatId>.json`
+  (DATA-FORMATS, "World DM"); entries with a `world:` memo are rewritten from there on the next run.
 - Never ask for or print `/avatar` or `/studio/avatar` (base64 images). Leave
   `/extensions/molfar_soul` to the Soul tab.
 - `/extensions/molfar_translation` keeps the texts from before a translation

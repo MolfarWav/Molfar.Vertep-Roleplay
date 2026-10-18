@@ -948,13 +948,39 @@ function saveWiVectors(fsx, map) {
 }
 function wiVectorKey(book, entry, i) { return (book.id || book.name) + "#" + (entry.uid ?? i); }
 
+/** The chat's own world book (plugins/world): always in that chat's scope, never in another's. */
+function worldBookOf(meta) {
+  const id = meta && typeof meta.worldBookId === "string" ? meta.worldBookId : "";
+  return id && /^[A-Za-z0-9_-]{1,140}$/.test(id) ? [id] : [];
+}
+/** Fork: the new chat gets its own copy of the world book and the DM's state, so the two worlds
+ *  part from the fork on. A DM that read past the fork point starts the copy from the fork. */
+function forkWorld(fsx, fromId, meta, msgs) {
+  const [bookId] = worldBookOf(meta);
+  if (!bookId) return;
+  const toId = meta.id;
+  const book = (() => { try { return JSON.parse(fsx.read("lorebooks/" + bookId + ".json")); } catch { return null; } })();
+  if (!book || book.ownerChatId !== fromId) { delete meta.worldBookId; return; }
+  const nbook = "world-" + toId;
+  fsx.write("lorebooks/" + nbook + ".json", JSON.stringify({ ...book, id: nbook, ownerChatId: toId }, null, 2));
+  meta.worldBookId = nbook;
+  try {
+    const st = JSON.parse(fsx.read("world/state/" + fromId + ".json"));
+    const lastId = typeof st.lastKey === "string" ? st.lastKey.split("#")[0] : "";
+    const kept = lastId && msgs.some((m) => String(m.id) === lastId);
+    const last = msgs[msgs.length - 1];
+    fsx.write("world/state/" + toId + ".json", JSON.stringify({ ...st, chatId: toId, bookId: nbook,
+      lastKey: kept ? st.lastKey : last ? last.id + "#" + (Number.isFinite(last.swipe) ? last.swipe : 0) : null }, null, 2));
+  } catch {}
+}
+
 /** Semantic prep shared by send/peek: the scan-window embedding text plus
  *  the bound books' vectorized entries that lack a cached vector. Returns
  *  null when neither semantic memories nor vectorized entries need work. */
 function semanticEmbedWork(fsx, meta, extraBookIds) {
   const vecMap = loadWiVectors(fsx);
   const needed = [];
-  const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || [])]);
+  const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
   let books = [];
   try {
     books = fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
@@ -1487,7 +1513,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     // to the chat, embedded in / linked to the character, or global (the app
     // resolves all three into meta.lorebookIds before each send). An empty
     // scope means NO world info, never "scan the whole library".
-    const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || [])]);
+    const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
     // a group can leave members' books out (opts.excludeBookIds); a global or persona book stays
     const extra = new Set(extraBookIds || []);
     const excluded = new Set(Array.isArray(opts && opts.excludeBookIds) ? opts.excludeBookIds : []);
@@ -4822,6 +4848,7 @@ const toolX = (r) => ({
         nmeta.presetNotes = nmeta.presetNotes.filter((n) => n && kept.has(n.after));
         if (!nmeta.presetNotes.length) delete nmeta.presetNotes;
       }
+      forkWorld(fsx, id, nmeta, msgs);
       saveChat(fsx, nid, nmeta, msgs);
       return ok({ meta: nmeta, messages: msgs }, 201);
     }
@@ -4831,6 +4858,12 @@ const toolX = (r) => ({
       try { fsx.remove("chats/" + id + ".meta.json"); } catch {}
       // the facts vault belongs to the chat
       try { fsx.remove("chats/" + id + ".memories.json"); } catch {}
+      // so do its world book and the DM's state (plugins/world)
+      const [worldBook] = worldBookOf(meta);
+      if (worldBook && readJson("lorebooks/" + worldBook + ".json", {}).ownerChatId === id) {
+        try { fsx.remove("lorebooks/" + worldBook + ".json"); } catch {}
+      }
+      try { fsx.remove("world/state/" + id + ".json"); } catch {}
       return ok({ ok: true });
     }
 

@@ -172,7 +172,8 @@ belongs to.
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with
 `globalActive: true`, the character's `studio.embeddedLorebookId`, every id in the character's
 `studio.linkedLorebookIds` (in a group chat: every member's, filtered by the group's `memberBooks`, plus the
-group's own books), and the books bound to the active persona.
+group's own books), the books bound to the active persona, and the chat's own world book (the chat meta's
+`worldBookId`, below).
 Links live on the card (or the group) only; the book's old `linkedCharacterIds` field is not read.
 
 ### Book fields
@@ -187,6 +188,7 @@ Links live on the card (or the group) only; the book's old `linkedCharacterIds` 
 | `isEmbedded` | The book came inside a card. |
 | `formatTemplate` | Optional wrapper for each inserted entry: `{{original}}` marks the entry's text (`[Lore: {{original}}]`); empty = unwrapped. |
 | `folderId` | Library folder. |
+| `ownerChatId` | Set only on a chat's world book (World DM): the chat that owns it. Such a book is never in the Lorebooks library or any picker; only that chat scans it (through its meta's `worldBookId`), a fork gets its own copy and deleting the chat deletes the book. Never set it on another book. |
 
 ### Entry fields
 | Field | What it is |
@@ -215,6 +217,28 @@ Links live on the card (or the group) only; the book's old `linkedCharacterIds` 
 A new book: write the book with `"entries": []`, then add every entry with ONE json_set
 (`{ pointer: "/entries", op: "append", value: {…} }` per entry), then append the id to the
 character's `/studio/linkedLorebookIds`.
+
+## World DM: `data/world/`
+
+The World DM plugin (`plugins/world/`) keeps the world around the characters for one chat. Off unless the
+player switches it on for that chat. It writes:
+
+- `lorebooks/world-<chatId>.json`: the chat's world book, a normal lorebook with `ownerChatId`. One entry per
+  record, `memo` `world:<recordId>` (`world:n3 (retired)` once retired), `keys` = the name and aliases,
+  `content` = "Name: text". The DM rewrites only entries whose memo starts with `world:`; any other entry in
+  the book is left alone.
+- the chat meta's `worldBookId`: names that book; the engine adds it to the chat's scope before every reply.
+- `world/state/<chatId>.json`: `{ v: 1, chatId, bookId, settings: { level, everyN }, lastKey, nextId,
+  entities: [{ id, kind, name, aliases, text, status, uid, at? }], log: [{ at, key, changes, summary }],
+  lastRunAt?, lastModel?, lastError? }`. `level` is `off` or `chronicler` (`living`, `director`,
+  `antagonist`, `chaos` are planned); `everyN` = run after that many new replies (1-50, default 5); `lastKey`
+  = `<messageId>#<swipe>` of the newest message the DM has read; `kind` is `person`, `place`, `group`, `thing`
+  or `fact`; `status` `active` or `past` (retired: kept, text cut to two sentences); `uid` = its entry in the
+  world book.
+- `world/config.json`: only what differs from `{ model: "", maxTokens: 1500 }` (`model` empty = the chat's).
+
+To change a record, edit it in the state file (`entities`): the next run writes the book from there and
+overwrites hand edits to `world:` entries. Entries of your own in the book stay. Never remove `ownerChatId`.
 
 ## Presets: `data/presets/<id>.json`
 

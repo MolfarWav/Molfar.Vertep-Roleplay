@@ -38,6 +38,7 @@ import {
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
+import { libraryBooks, triggerWorldUpdate } from './world'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
@@ -629,7 +630,7 @@ export const useApp = create<AppState>()(
               if (changed) void j(`/presets/${encodeURIComponent(p.id)}`, { method: 'PUT', body: JSON.stringify({ ...presetToEngine(p), id: p.id }) }).catch(() => {})
             })
           }
-          const lorebooks = boot.lorebooks.map((b) => engineLorebookToUI(b as never, String(b.id ?? '')))
+          const lorebooks = libraryBooks(boot.lorebooks).map((b) => engineLorebookToUI(b as never, String(b.id ?? '')))
           const regexScripts = boot.regex.map((r) => engineRegexToUI(r as never, String(r.id ?? '')))
           // Transcripts are NOT in the boot payload: chats start unloaded and
           // fill in on open (ensureChatMessages). Lists read preview/
@@ -1002,7 +1003,7 @@ export const useApp = create<AppState>()(
         try {
           const res = await j<{ items: Record<string, unknown>[] }>('/lorebooks')
           if (mutateSeq !== seqAtStart) return
-          set({ lorebooks: res.items.map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))) })
+          set({ lorebooks: libraryBooks(res.items).map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))) })
         } catch { /* offline — keep the current list */ }
       },
 
@@ -2708,7 +2709,11 @@ async function runStream(
     // (or a failed reply) ends the turn
     const queue = Array.isArray(committedRes?.queue) ? (committedRes.queue as unknown[]).filter((x): x is string => typeof x === 'string') : []
     // the dashboard reads the newest reply once the turn is over (not between group members)
-    if (committed && queue.length === 0) void triggerDashUpdate(chatId, op, () => get().streaming?.chatId === chatId)
+    // then the World DM, if this chat's is due (one model call at a time: free models limit the rate)
+    if (committed && queue.length === 0) {
+      const busy = () => get().streaming?.chatId === chatId
+      void triggerDashUpdate(chatId, op, busy).then(() => triggerWorldUpdate(chatId, busy))
+    }
     if (committed && queue.length) {
       void (async () => {
         for (const charId of queue) {
