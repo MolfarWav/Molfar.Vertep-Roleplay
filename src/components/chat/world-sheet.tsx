@@ -12,8 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
-import { useT } from '@/hooks/use-t'
-import { relativeTime } from '@/lib/i18n'
+import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { loadWorld, loadWorldConfig, peekWorld, runWorld, saveWorldConfig, saveWorldSettings, useWorldLive, type WorldLevel, type WorldRecord, type WorldView } from '@/lib/world'
 
@@ -37,6 +36,7 @@ function SwitchRow({ label, hint, checked, onChange, disabled }: { label: string
 
 export function WorldSheet({ chatId, open, onOpenChange }: { chatId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   const t = useT()
+  const relativeTime = useRelativeTime()
   const view = useWorldLive((s) => s.views[chatId])
   const running = useWorldLive((s) => !!s.running[chatId])
   const [missing, setMissing] = useState(false)
@@ -46,7 +46,7 @@ export function WorldSheet({ chatId, open, onOpenChange }: { chatId: string; ope
   const [records, setRecords] = useState<WorldRecord[] | null>(null)
   const [confirm, confirmDialog] = useConfirm()
   const lookAtWorld = async () => {
-    if (!(await confirm({ title: t('world.peekTitle'), description: t('world.peekWarn'), actionLabel: t('world.peekGo') }))) return
+    if (!(await confirm({ title: t('world.peekTitle'), description: t('world.peekWarn'), actionLabel: t('world.peekGo'), destructive: false }))) return
     try {
       setRecords(await peekWorld(chatId))
     } catch (e) {
