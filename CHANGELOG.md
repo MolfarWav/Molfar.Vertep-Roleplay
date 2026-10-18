@@ -8,6 +8,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 An inbox for what waits on you, Litopys keeps long chats in order, and chat previews stop leaking reasoning (needs no engine update; ships with engine 1.2.4).
 
+- Canvas > Prompt board: long presets stay usable (#40, #43). A preset with groups shows one card per group, folded by default (fold state remembered per preset), with how many parts it sends, its tokens and one switch for the whole group. Only what is sent is on by default and says how many parts it hides; a search box finds a part by name. The total stays in view while the parts scroll, on a phone too.
+- Canvas > Prompt board: after picking another chat, the previous chat's parts no longer show under the new chat's name while it loads (#39).
 - Inbox (#55): one list of what waits on you. The Inbox item above Help (on a phone, the first row of More) lists the chats with Library suggestions and the cards with souls proposed or a failed rating, with the total on its badge; a row opens the chat's Library or the card's Soul tab. The kinds follow the same switches as their toasts. The Dashboard plugin lists waiting proposals at `GET /dashboard/soul-drafts`.
 - Display regex: on a slow device the regex helper's start-up counted toward the first pattern's time limit, and a pattern that ran out was skipped for the rest of the session, so text it hides showed in chats and previews. A new helper now gets 5 extra seconds for its first pattern.
 - The Home hero's quote and the Chats panel's last messages also run the chat's display regex (#44), as the list previews do.

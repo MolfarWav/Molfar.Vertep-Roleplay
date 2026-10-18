@@ -120,6 +120,8 @@ describe("guide registry", () => {
       src.includes(`data-guide="${target}"`) ||
       // a card marked only while it is the first / the history one: data-guide={cond ? 'target' : ...}
       src.includes(`data-guide={`) && new RegExp(`data-guide=\{[^}\n]*'${target.replace(".", "\.")}'`).test(src) ||
+      // a row component that sets data-guide={guide} from a prop: guide={cond ? 'target' : ...} or const guide = ...
+      new RegExp(`(?:\\bguide=\\{|const guide = )[^}\\n]*'${target.replace(".", "\\.")}'`).test(src) ||
       (target.startsWith("nav.") && src.includes("data-guide={`nav.${")) ||
       // section titles: data-guide={`${section}.title`} (page) and {`${drawer}.title`} (drawer)
       (target.endsWith(".title") && src.includes("data-guide={`${section}.title`}"));
