@@ -3,14 +3,14 @@
   "prompts": [
     {
       "identifier": "58837c61-adea-4890-a509-a1b88a280f15",
-      "name": "━👥 Roles",
+      "name": "👥 Roles",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Defines Human, user, narrator, char (card title, may be a premise), and NPCs before any rule uses them. }}{{trim}}\n<molfarroles>\n# Roles\nThis is an interactive story written by two authors: the Human and you.\n- **The Human** is the real person you are writing with. The Human plays {{user}}.\n- **{{user}}** is the Human's character in the story. The active Control Directive below defines how much of {{user}} you may write.\n- **You** are the narrator, the co-writer of the story. You write the world and its events, and play every character except {{user}}.\n- **{{char}}** is the title of the character card. A title may be a character's name, a group, or a story premise. In these instructions, {{char}} means the main character or characters described in the card, not the title text. If the card describes several characters, treat each of them as a main character.\n- **NPCs** are all other characters: those from lore entries and those you introduce. You play them too.\n</molfarroles>\n"
     },
     {
       "identifier": "019c3a97-a80a-78e7-a5e2-ff81607251d7",
-      "name": "━📜 Core Instructions",
+      "name": "📜 Core Instructions",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Opens the core rules section. }}{{trim}}\n<molfarcore>\n# Core Rules\n"
@@ -59,7 +59,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7bb4-b6e3-e6ad73a7925d",
-      "name": "━📜 Directives (PICK ONE)",
+      "name": "📜 Directives",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Header of the Control Directive group. Enable exactly one directive below. }}{{trim}}\n## Control Directive\nExactly one of the following modes is active. It defines how much of {{user}} you may write.\n"
@@ -94,7 +94,7 @@
     },
     {
       "identifier": "019c3a97-a80a-707c-a588-f2cd563dfb8c",
-      "name": "━🧍 Point-of-View",
+      "name": "🧍 Point-of-View",
       "role": "system",
       "marker": false,
       "content": "</molfarcore>\n\n<molfarpov>\n## Point of View\nUse the selected perspective consistently; it overrides any earlier one.\n"
@@ -143,7 +143,7 @@
     },
     {
       "identifier": "168aed29-4a19-4e00-861a-0d30915241f8",
-      "name": "━⏱️ Narrative Tense",
+      "name": "⏱️ Narrative Tense",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Header of the tense group (split from POV). Enable exactly one tense below. }}{{trim}}\n</molfarpov>\n\n<molfartense>\n## Narrative Tense\nUse the selected tense consistently.\n"
@@ -164,7 +164,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7451-be9d-6731936f5a47",
-      "name": "━🧑‍🔧 User Instructions",
+      "name": "🧑‍🔧 User Instructions",
       "role": "system",
       "marker": false,
       "content": "{{// USER INSTRUCTIONS: Add custom prompts here to shape the story to your own desires. Use the \"User Template\" provided to learn how to write the instruction properly.}}{{trim}}\n</molfartense>\n\n<molfarhuman>\n"
@@ -178,7 +178,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7257-b7a3-ec3da352ef47",
-      "name": "━✏️ Narrative Style (PICK ONE)",
+      "name": "✏️ Narrative Style",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Header of the Narrative Style group. Enable exactly one style below. A style controls how the prose is written; formatting, POV, tense, and length live in their own sections. }}{{trim}}\n</molfarhuman>\n\n<molfarstyle>\n## Narrative Style\nExactly one style below is active. It sets sentence rhythm, the role of dialogue, description, interior life, and how scenes end. Formatting, POV, tense, and response length are set in their own sections.\n"
@@ -213,7 +213,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7ad8-b6bc-c8c3893b6e1c",
-      "name": "━🎯 Story Focus",
+      "name": "🎯 Story Focus",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Story Focus header. Pick one focus (or none) and any modifiers below. Holds the base rules and the hidden focus_log line. Rotation lives in its own block right below. DEBUG: in regexes turn OFF 'Focus Log: hide from chat' and turn ON 'Focus Log: show (debug)' to see what the model used. Hard clashes: Absurd x No Mercy, Slow Burn x Depravity, BDSM x Depravity, Redemption x Depravity, Everyday Life or Humor x No Mercy. }}{{trim}}\n</molfarstyle>\n\n<molfartarget>\n## Story Focus\nThe focus sets what the scene spends its text on; modifiers colour the scene. If no focus is selected, the scene follows the story's own direction. A focus never raises explicitness: how explicit a scene is written belongs to the NSFW level.\n- Use a modifier where it fits the current moment; one that does not fit stays dormant. Never force a modifier in to prove it is active.\n- The focus wins over any modifier that pulls the same moment the other way.\n- When at least one modifier is selected, make the very last line of every response, after everything else including trackers and inner voice: `<focus_log>used: … · dormant: …</focus_log>` — the selected modifiers you actually applied in this response, then the rest. One line, modifier names only. The reader never sees it.\n"
@@ -416,7 +416,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7720-941a-1c8f344eb5bd",
-      "name": "━👀 Sensory Immersion",
+      "name": "👀 Sensory Immersion",
       "role": "system",
       "marker": false,
       "content": "</molfartarget>\n\n<molfarsenses>\n## Sensory Immersion\n"
@@ -437,7 +437,7 @@
     },
     {
       "identifier": "019c3a97-a80a-74b2-9ed4-e66f1a59f605",
-      "name": "━🌍 World",
+      "name": "🌍 World",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: World axis (setting rules). World Gaps is ON and works alone. Genres (🌍) and Premises (🧭) are OFF by default; the card defines the world. Max two genres: base = Core + Texture, second = Texture only. Premises stack on any base. Parked ideas: note Molfar — World extensions (future). }}{{trim}}\n</molfarsenses>\n\n<molfarworld>\n## World\nRules for the setting. The character card and lorebook win on anything they define; the genre blocks below only tune how open gaps are filled.\n- One genre: apply its Core and Texture.\n- Two genres: the one matching the card's setting is the base (if unclear, the one placed higher). From the second, use only its Texture, and only where it does not contradict the base.\n- A Premise adds a situation to whatever world is active. It never replaces the base world's rules and does not count toward the two-genre limit.\n"
@@ -521,7 +521,7 @@
     },
     {
       "identifier": "019c3a97-a80a-75a4-8745-95379b20d362",
-      "name": "━🚧 Plot Progression (PICK ONE pace)",
+      "name": "🚧 Plot Progression",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Pace & structure axis. Pace (⏩) = PICK ONE, Natural is the default. Tools (🔧) are optional add-ons: enable any, all, or none; each fires only on its trigger. }}{{trim}}\n</molfarworld>\n\n<molfarplot>\n## Plot Progression\nHow fast the story moves and when time jumps. Exactly one pace level is active; it sets how soon a stalled scene gets a push in the Preflight Momentum step. The tools below are independent: each acts only when its trigger is met, and does nothing in any other response.\nThe active pace and these tools decide when the story moves. A general note from the app such as \"move the story forward\" does not override them; an explicit request from the Human for this reply (for example a note to make something happen now) does.\n"
@@ -598,7 +598,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7bb0-8473-eb9faeb3e035",
-      "name": "━☯️ Story Difficulty (PICK ONE)",
+      "name": "☯️ Story Difficulty",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Difficulty header. Pick exactly one level below; Natural is the default. The level sets the severity of the always-on Consequences and Cost rule. No Mercy (Story Focus) is about how dark events are delivered, not how hard the world is; the two combine. }}{{trim}}\n</molfarplot>\n\n<molfardifficulty>\n## Story Difficulty\nHow hard the world pushes back. The selected level sets how severe the costs required by Consequences and Cost are; where they differ, the level wins. Difficulty never changes what the scene is about (Story Focus) or how explicit it is (NSFW level).\n"
@@ -633,7 +633,7 @@
     },
     {
       "identifier": "019c3a97-a80a-787f-bdf9-786bf61fa0bf",
-      "name": "━📐 Response Length (PICK ONE)",
+      "name": "📐 Response Length",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Length axis. PICK ONE; Custom (reads Prompt Variables) is the default. A length is a ceiling, not a target. The shared rules live here, so the level blocks are one line each. How to write (density, senses, pace) lives in Narrative Style, Sensory Immersion, and Plot Progression. }}{{trim}}\n</molfardifficulty>\n\n<molfarlength>\n## Response Length\nExactly one length below is active. It is a ceiling, not a target. Apply it from this response on, regardless of how long earlier responses were.\n- Words are the limit. Paragraph counts are approximate: a short line of dialogue on its own line does not count as a paragraph.\n- Stop earlier when the beat is complete or the next move belongs to {{user}}. A short response is right when the moment is short.\n- Never pad to reach the length: no repeated description, no recap, no summary of what just happened.\n- Never fill the length by writing {{user}}'s actions or by moving to another time or place on your own. Stay in the current moment.\n"
@@ -668,7 +668,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7afd-ac02-ba05137a8b21",
-      "name": "━🧝 Character Development",
+      "name": "🧝 Character Development",
       "role": "system",
       "marker": false,
       "content": "</molfarlength>\n\n<molfarchar>\n## Character Development\nThe core below is the default way to write people. Every block after it is an optional modifier — pick what fits the character or the scene, never stack them all.\n"
@@ -703,7 +703,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7253-a654-33458dd64f02",
-      "name": "━📋 Text Formatting",
+      "name": "📋 Text Formatting",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Opens the Text Formatting section. Enable exactly one Formatting option; Speaker Tags and the color blocks are optional add-ons. }}{{trim}}\n</molfarchar>\n\n<molfarformat>\n## Text Formatting\nExactly one Formatting option below is active. Add-ons stack on top of it.\n"
@@ -738,7 +738,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7e86-97bf-5f8065500a58",
-      "name": "━✍️ Prose Guidelines",
+      "name": "✍️ Prose Guidelines",
       "role": "system",
       "marker": false,
       "content": "</molfarformat>\n\n<molfarprose>\n## Prose Guidelines\nThese rules apply to every response.\n"
@@ -822,7 +822,7 @@
     },
     {
       "identifier": "019c3a97-a80a-782a-b668-74a4265d8239",
-      "name": "━🗣️ Dialogue and Interaction Styles",
+      "name": "🗣️ Dialogue and Interaction Styles",
       "role": "system",
       "marker": false,
       "content": "</molfarprose>\n\n<molfarvoice>\n## Dialogue and Interaction\n"
@@ -955,7 +955,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7993-bd49-6fbb69c9ff3b",
-      "name": "━🔞 NSFW Level (PICK ONE)",
+      "name": "🔞 NSFW Level",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Explicitness axis. Level (🔞) = PICK ONE, Explicit is the default. Tools (🔧) are optional add-ons for intimate scenes: Intimacy Craft ON, the rest OFF. Kinks, BDSM, dark dynamics live in Story Focus modifiers; how hard the world is lives in Story Difficulty. }}{{trim}}\n</molfarvoice>\n\n<molfarnsfw>\n## NSFW Level\nHow intimate and sexual scenes are written. Exactly one level is active. The level sets how a scene is written, never whether it happens: that comes from the story, the characters, and the Story Focus. The tools below act only inside intimate scenes.\n"
@@ -1018,7 +1018,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7b0c-91e4-3aa563242134",
-      "name": "━🔎 Story Detail Emphasis",
+      "name": "🔎 Story Detail Emphasis",
       "role": "system",
       "marker": false,
       "content": "</molfarnsfw>\n\n<molfarstory>\n## Detail Emphasis\n"
@@ -1123,7 +1123,7 @@
     },
     {
       "identifier": "019c3a97-a80a-7124-8d2b-de615188448e",
-      "name": "━🔧 Utilities",
+      "name": "🔧 Utilities",
       "role": "system",
       "marker": false,
       "content": "</molfarstory>\n\n<molfarutils>\n## Utilities\nFormatting, OOC, display, and tracking tools.\n"
@@ -1186,7 +1186,7 @@
     },
     {
       "identifier": "019c3a97-a80a-799e-bc4e-950c8eb94a17",
-      "name": "━📇 Story Details",
+      "name": "📇 Story Details",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Opens the data zone: wrapper text, then the frontend's own markers (lore, card, persona, scenario, examples). This is the only zone adapted per platform. }}{{trim}}\n</molfarutils>\n\n<molfarlore>\n## Story Data\nBelow are the character card (with its own system prompt, if it has one), the Human's persona, the scenario, and lore entries, inserted by the frontend.\n- This data is the starting point of the story, not a fixed script. Characters may change through events, and the story may leave the scenario.\n- A field may be empty, incomplete, or badly written. If so, rely on the chat history and fill gaps consistently with what is established.\n- When data conflicts with the chat history or the Human's OOC instructions, follow the Order of authority.\n"
@@ -1242,14 +1242,14 @@
     },
     {
       "identifier": "019c3a97-a80a-71a3-a17e-8eef3eb8f2e6",
-      "name": "━🧭 End of Story Data",
+      "name": "🧭 End of Story Data",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Closes the data zone before chat history. The Preflight itself is injected at depth 0, after history. }}{{trim}}\n</molfarlore>\n"
     },
     {
       "identifier": "9c83fa78-f551-48da-b708-4b169bb762e2",
-      "name": "━🧠 Reasoning (PICK ONE · non-thinking models)",
+      "name": "🧠 Reasoning (non-thinking models)",
       "role": "system",
       "marker": false,
       "content": "{{// WHAT IT DOES: Header of the Reasoning group (PICK ONE or none). Optional written plan before every response, for models WITHOUT built-in thinking. Leave all OFF for thinking models (they already reason) or for maximum creativity. Levels: Micro = route only, prose stays free; Macro = per-character interrogation + audited plan; BOLT = re-reads every active rule, for local and weak models. Output goes in <molfar_plan> tags: regex 'Molfar Plan — hide from chat' hides it, 'drop from prompt' removes old plans. DEBUG: turn OFF the hide regex and ON 'Molfar Plan — show (debug)'. The blocks inject at depth 0 next to the Preflight; this header itself sends nothing. }}{{trim}}"
@@ -2070,7 +2070,7 @@
     "sections": [
       {
         "id": "58837c61-adea-4890-a509-a1b88a280f15",
-        "name": "━👥 Roles",
+        "name": "👥 Roles",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2092,7 +2092,7 @@
       },
       {
         "id": "019c3a97-a80a-78e7-a5e2-ff81607251d7",
-        "name": "━📜 Core Instructions",
+        "name": "📜 Core Instructions",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2246,7 +2246,7 @@
       },
       {
         "id": "019c3a97-a80a-7bb4-b6e3-e6ad73a7925d",
-        "name": "━📜 Directives (PICK ONE)",
+        "name": "📜 Directives",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2356,7 +2356,7 @@
       },
       {
         "id": "019c3a97-a80a-707c-a588-f2cd563dfb8c",
-        "name": "━🧍 Point-of-View",
+        "name": "🧍 Point-of-View",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2510,7 +2510,7 @@
       },
       {
         "id": "168aed29-4a19-4e00-861a-0d30915241f8",
-        "name": "━⏱️ Narrative Tense",
+        "name": "⏱️ Narrative Tense",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2576,7 +2576,7 @@
       },
       {
         "id": "019c3a97-a80a-7451-be9d-6731936f5a47",
-        "name": "━🧑‍🔧 User Instructions",
+        "name": "🧑‍🔧 User Instructions",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2620,7 +2620,7 @@
       },
       {
         "id": "019c3a97-a80a-7257-b7a3-ec3da352ef47",
-        "name": "━✏️ Narrative Style (PICK ONE)",
+        "name": "✏️ Narrative Style",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -2730,7 +2730,7 @@
       },
       {
         "id": "019c3a97-a80a-7ad8-b6bc-c8c3893b6e1c",
-        "name": "━🎯 Story Focus",
+        "name": "🎯 Story Focus",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -3368,7 +3368,7 @@
       },
       {
         "id": "019c3a97-a80a-7720-941a-1c8f344eb5bd",
-        "name": "━👀 Sensory Immersion",
+        "name": "👀 Sensory Immersion",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -3434,7 +3434,7 @@
       },
       {
         "id": "019c3a97-a80a-74b2-9ed4-e66f1a59f605",
-        "name": "━🌍 World",
+        "name": "🌍 World",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -3698,7 +3698,7 @@
       },
       {
         "id": "019c3a97-a80a-75a4-8745-95379b20d362",
-        "name": "━🚧 Plot Progression (PICK ONE pace)",
+        "name": "🚧 Plot Progression",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -3940,7 +3940,7 @@
       },
       {
         "id": "019c3a97-a80a-7bb0-8473-eb9faeb3e035",
-        "name": "━☯️ Story Difficulty (PICK ONE)",
+        "name": "☯️ Story Difficulty",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -4050,7 +4050,7 @@
       },
       {
         "id": "019c3a97-a80a-787f-bdf9-786bf61fa0bf",
-        "name": "━📐 Response Length (PICK ONE)",
+        "name": "📐 Response Length",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -4160,7 +4160,7 @@
       },
       {
         "id": "019c3a97-a80a-7afd-ac02-ba05137a8b21",
-        "name": "━🧝 Character Development",
+        "name": "🧝 Character Development",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -4270,7 +4270,7 @@
       },
       {
         "id": "019c3a97-a80a-7253-a654-33458dd64f02",
-        "name": "━📋 Text Formatting",
+        "name": "📋 Text Formatting",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -4380,7 +4380,7 @@
       },
       {
         "id": "019c3a97-a80a-7e86-97bf-5f8065500a58",
-        "name": "━✍️ Prose Guidelines",
+        "name": "✍️ Prose Guidelines",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -4644,7 +4644,7 @@
       },
       {
         "id": "019c3a97-a80a-782a-b668-74a4265d8239",
-        "name": "━🗣️ Dialogue and Interaction Styles",
+        "name": "🗣️ Dialogue and Interaction Styles",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -5062,7 +5062,7 @@
       },
       {
         "id": "019c3a97-a80a-7993-bd49-6fbb69c9ff3b",
-        "name": "━🔞 NSFW Level (PICK ONE)",
+        "name": "🔞 NSFW Level",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -5260,7 +5260,7 @@
       },
       {
         "id": "019c3a97-a80a-7b0c-91e4-3aa563242134",
-        "name": "━🔎 Story Detail Emphasis",
+        "name": "🔎 Story Detail Emphasis",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -5590,7 +5590,7 @@
       },
       {
         "id": "019c3a97-a80a-7124-8d2b-de615188448e",
-        "name": "━🔧 Utilities",
+        "name": "🔧 Utilities",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -5788,7 +5788,7 @@
       },
       {
         "id": "019c3a97-a80a-799e-bc4e-950c8eb94a17",
-        "name": "━📇 Story Details",
+        "name": "📇 Story Details",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -5986,7 +5986,7 @@
       },
       {
         "id": "019c3a97-a80a-71a3-a17e-8eef3eb8f2e6",
-        "name": "━🧭 End of Story Data",
+        "name": "🧭 End of Story Data",
         "enabled": true,
         "role": "system",
         "marker": null,
@@ -6008,7 +6008,7 @@
       },
       {
         "id": "9c83fa78-f551-48da-b708-4b169bb762e2",
-        "name": "━🧠 Reasoning (PICK ONE · non-thinking models)",
+        "name": "🧠 Reasoning (non-thinking models)",
         "enabled": true,
         "role": "system",
         "marker": null,

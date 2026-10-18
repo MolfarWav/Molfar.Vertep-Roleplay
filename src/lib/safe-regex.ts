@@ -65,6 +65,11 @@ const badPatterns = new Set<string>()
 let workerUrl: string | null = null
 let sharedWorker: RegexWorker | null = null
 let seq = 0
+/** the shared worker has answered once: its start-up no longer counts toward a job's time */
+let warm = false
+/** extra time for the first job of a new worker: a cold start on a slow phone took longer than
+ *  the job's own limit, and the pattern was then skipped for the whole session */
+const COLD_START_MS = 5000
 
 /** Structural shape of the browser Worker used here. Declared locally because
  *  the engine's TypeScript program compiles this app module too, without the
@@ -119,6 +124,7 @@ function ensureWorker(): RegexWorker | null {
   if (!w) return null
   w.onmessage = (ev) => {
     const d = ev.data as ({ id?: number } & SafeRegexResult) | null
+    warm = true
     if (!active || d?.id !== active.id) return
     finishActive(d)
   }
@@ -129,6 +135,7 @@ function ensureWorker(): RegexWorker | null {
     finishActive({ ok: false, error: "regex worker error" })
   }
   sharedWorker = w
+  warm = false
   return w
 }
 
@@ -143,12 +150,13 @@ function pump(): void {
     return
   }
   active = job
+  const limit = job.timeoutMs + (warm ? 0 : COLD_START_MS)
   job.timer = setTimeout(() => {
     // only the one in-flight pattern can have wedged the worker
     try { sharedWorker?.terminate() } catch { /* already gone */ }
     sharedWorker = null
     finishActive({ ok: false, timedOut: true, error: `timed out (${job.timeoutMs}ms), likely catastrophic backtracking` })
-  }, job.timeoutMs)
+  }, limit)
   try {
     w.postMessage(job.message)
   } catch {

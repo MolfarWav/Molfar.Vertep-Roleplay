@@ -28,6 +28,7 @@
  * Souls (docs/SOUL.md): who a character is. A card holds them; a rating call proposes them.
  *  POST   /dashboard/soul/rate {characterId, chatId?, auto?}  rate a card's main characters (two-phase)
  *  GET    /dashboard/soul-draft?characterId=                  the proposal of a card, or null
+ *  GET    /dashboard/soul-drafts                              cards with a proposal waiting: [{characterId, at, n, failed}] (the "needs you" inbox, #55)
  *  DELETE /dashboard/soul-draft?characterId=[&accepted=1[&name=]]  dismiss it, or remove it (or one name) once accepted
  *  GET    /dashboard/guests?characterId=                      names seen in the card's chats with no soul
  *  POST   /dashboard/soul/effects {soul}                      what a soul changes in play
@@ -3703,6 +3704,29 @@ function draftRoute(req, fsx) {
   return ok({ ok: true });
 }
 
+/** The cards whose soul proposal waits on the player: not dismissed, with names left or an error. */
+function draftsRoute(fsx) {
+  let files = [];
+  try {
+    files = fsx.list(DRAFT_DIR.slice(0, -1)).filter((f) => f.endsWith(".json"));
+  } catch {
+    return ok({ drafts: [] });
+  }
+  const drafts = [];
+  for (const f of files.slice(0, 500)) {
+    const cardId = f.replace(/\.json$/, "");
+    if (!CHAT_ID.test(cardId)) continue;
+    const draft = visibleDraft(fsx, cardId, readCard(fsx, cardId));
+    if (!isObj(draft) || draft.dismissedAt) continue;
+    const n = isObj(draft.characters) ? Object.keys(draft.characters).length : 0;
+    const failed = typeof draft.error === "string" && draft.error !== "";
+    if (n === 0 && !failed) continue;
+    drafts.push({ characterId: cardId, at: Number(draft.at) || 0, n, failed });
+  }
+  drafts.sort((a, b) => b.at - a.at);
+  return ok({ drafts });
+}
+
 const GUEST_CHATS = 30;
 const GUEST_MIN_SEEN = 2;
 
@@ -4102,6 +4126,7 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/update" && method === "POST") return readUpdate(req, host);
   if (path === "/dashboard/soul/rate" && method === "POST") return rateRoute(req, host);
   if (path === "/dashboard/soul-draft" && (method === "GET" || method === "DELETE")) return draftRoute(req, fsx);
+  if (path === "/dashboard/soul-drafts" && method === "GET") return draftsRoute(fsx);
   if (path === "/dashboard/guests" && method === "GET") return guestsRoute(req, fsx);
   if (path === "/dashboard/soul/effects" && method === "POST") {
     const b = isObj(req.body) ? req.body : {};

@@ -1,12 +1,13 @@
 
 import { useState } from 'react'
-import { List, Question } from '@phosphor-icons/react'
+import { List, Question, Tray } from '@phosphor-icons/react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import { SECTIONS } from '@/components/shell/sections'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
+import { InboxSheet, useInbox, useInboxTotal } from '@/components/shell/inbox'
 
 const PRIMARY = new Set(['home', 'chats', 'characters'])
 const primaryTabs = SECTIONS.filter((s) => PRIMARY.has(s.key))
@@ -19,8 +20,9 @@ export function MobileTabBar() {
   const t = useT()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = moreItems.some((i) => i.key === view)
-  // #55: the Library sits under More on phones, so More carries its count
-  const libraryWaiting = useSectionAttention('litopys')
+  // #55: the inbox and the Library sit under More on phones, so More carries the total
+  const waiting = useInboxTotal()
+  const setInboxOpen = useInbox((s) => s.setOpen)
 
   return (
     <>
@@ -51,7 +53,7 @@ export function MobileTabBar() {
         <button
           type="button"
           onClick={() => setMoreOpen(true)}
-          aria-label={libraryWaiting > 0 ? `More sections, ${t('attn.waiting', { n: libraryWaiting })}` : 'More sections'}
+          aria-label={waiting > 0 ? `More sections, ${t('attn.waiting', { n: waiting })}` : 'More sections'}
           className={cn(
             'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 border-t-[3px] font-heading text-[12px]',
             moreActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
@@ -59,7 +61,7 @@ export function MobileTabBar() {
         >
           <span className="relative inline-flex">
             <List className={cn('size-5', moreActive && 'text-cta')} aria-hidden="true" />
-            <NeedsYouBadge count={libraryWaiting} dot />
+            <NeedsYouBadge count={waiting} dot />
           </span>
           {t('nav.more')}
         </button>
@@ -70,6 +72,18 @@ export function MobileTabBar() {
           <SheetHeader>
             <SheetTitle>All sections</SheetTitle>
           </SheetHeader>
+          <div className="px-4 pb-1">
+            <button
+              type="button"
+              data-guide="nav.inbox"
+              onClick={() => { setMoreOpen(false); setInboxOpen(true) }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border px-3 font-heading text-[15px] text-foreground hover:bg-accent"
+            >
+              <Tray className="size-5 text-cta" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-left">{t('inbox.button')}</span>
+              <NeedsYouBadge count={waiting} />
+            </button>
+          </div>
           <div className="grid grid-cols-4 gap-2 px-4 pb-2">
             {moreItems.map((item) => (
               <button
@@ -86,7 +100,7 @@ export function MobileTabBar() {
               >
                 <span className="relative inline-flex">
                   <item.icon className="size-5" aria-hidden="true" />
-                  {item.key === 'litopys' && <NeedsYouBadge count={libraryWaiting} dot />}
+                  {item.key === 'litopys' && <LibraryDot />}
                 </span>
                 {t(item.labelKey)}
               </button>
@@ -103,6 +117,11 @@ export function MobileTabBar() {
           </div>
         </SheetContent>
       </Sheet>
+      <InboxSheet />
     </>
   )
+}
+
+function LibraryDot() {
+  return <NeedsYouBadge count={useSectionAttention('litopys')} dot />
 }

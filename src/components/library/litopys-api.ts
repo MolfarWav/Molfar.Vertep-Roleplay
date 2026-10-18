@@ -174,6 +174,7 @@ export type LitActivityKind =
   | 'proposal.accept' | 'proposal.reject'
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
+  | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
 
 /**
  * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
@@ -221,6 +222,20 @@ export interface LitChat {
   /** M4d */
   arcs: LitArc[]
   arcState: LitArcState
+  /** #51; missing from an engine before it */
+  consolidate?: LitConsolidate
+}
+
+/** #51 Consolidate facts: batches is the run's size, next the batch being read (0-based). */
+export interface LitConsolidate {
+  active: number
+  min: number
+  state: 'idle' | 'working' | 'done' | 'failed'
+  batches: number
+  next: number
+  proposed: number
+  error: string
+  at: number
 }
 
 export interface LitConfig {
@@ -282,6 +297,9 @@ export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) 
 
 /** M4d arcs. merge: from/to = the first and last chapter ids of the run (a suggestion's fromChapter/toChapter). */
 export const mergeLitArc = (chatId: string, from: string, to: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'merge', from, to })
+/** #51: start or stop a Consolidate facts run. */
+export const startLitConsolidate = (chatId: string) => post<LitChat>('/litopys/consolidate', { chatId, op: 'start' })
+export const cancelLitConsolidate = (chatId: string) => post<LitChat>('/litopys/consolidate', { chatId, op: 'cancel' })
 /** Cancels a queued merge (also holds the offer like Not now). */
 export const cancelLitArc = (chatId: string) => post<LitChat>('/litopys/arcs', { chatId, op: 'cancel' })
 /** "Not now": the offer comes back when the older chapters grow by another threshold. */

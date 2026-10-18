@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useApp, scopeBookIds } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
-import { cleanPreview } from '@/lib/preview'
+import { MessagePreviewText } from '@/components/chat/chat-preview-text'
 import { estimateTokens, formatTokens, timeAgo } from '@/lib/tokens'
 import { memberColor } from '@/lib/dialogue-voices'
 import { exportChatJSONL, exportChatTxt } from '@/lib/export'
@@ -284,7 +284,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
                 return (
                   <div key={m.id} className="max-w-prose border-l-2 pl-3" style={{ borderColor: who.color ?? 'var(--border)' }}>
                     <p className={cn('text-xs font-semibold', !who.color && 'text-muted-foreground')} style={who.color ? { color: `color-mix(in oklab, ${who.color} 70%, var(--foreground))` } : undefined}>{who.name}</p>
-                    <p className="line-clamp-4 text-sm leading-relaxed">{cleanPreview(m.swipes[m.activeSwipe]?.content ?? '', 420)}</p>
+                    <p className="line-clamp-4 text-sm leading-relaxed"><MessagePreviewText chat={chat} message={m} max={420} /></p>
                   </div>
                 )
               })}

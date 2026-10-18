@@ -1,6 +1,6 @@
 
 import { Fragment, useEffect, useState } from 'react'
-import { ArrowsIn, ArrowsOut, CircleNotch, CaretLeft, CaretRight, Question } from '@phosphor-icons/react'
+import { ArrowsIn, ArrowsOut, CircleNotch, CaretLeft, CaretRight, Question, Tray } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -34,6 +34,8 @@ import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
+import { InboxHeading, InboxList, useInbox, useInboxTotal } from '@/components/shell/inbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { pollNeedsYou } from '@/lib/store'
 
 export function AppShell() {
@@ -52,12 +54,13 @@ export function AppShell() {
 
   // #55: what waits on the player (Library proposals), polled while the page is visible
   const attentionLitopys = useApp((s) => s.settings.attention?.litopys)
+  const attentionSoul = useApp((s) => s.settings.attention?.soul)
   useEffect(() => {
     if (boot !== 'ready') return
     void pollNeedsYou()
     const id = setInterval(() => { if (document.visibilityState === 'visible') void pollNeedsYou() }, 60_000)
     return () => clearInterval(id)
-  }, [boot, attentionLitopys])
+  }, [boot, attentionLitopys, attentionSoul])
 
   // Desktop invariant: the page behind is always home/chats/chat. A persisted
   // section view (or a phone session resized wide) becomes a drawer. Phones
@@ -326,6 +329,7 @@ function IconRail() {
         <Fragment key={String(group[0]!.group)}>
           {gi > 0 && <RailDivider wide={wide} pinned={group[0]!.group === 'end'} />}
           {/* the help list is an action, not a view: it sits just above Settings */}
+          {group[0]?.group === 'end' && <InboxRailItem wide={wide} />}
           {group[0]?.group === 'end' && (
             <RailItem
               data-guide="nav.help"
@@ -376,14 +380,17 @@ function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
   )
 }
 
-function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0 }: {
+function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0, popover = false }: {
   badge?: number
+  /** the button opens a popover: it is the popover's trigger */
+  popover?: boolean
   'data-guide': string
   item: Pick<SectionItem, 'icon'>
   wide: boolean
   label: string
   active: boolean
-  onClick: () => void
+  /** none for a popover trigger: the popover opens it */
+  onClick?: () => void
 }) {
   const t = useT()
   const button = (
@@ -409,10 +416,11 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
       {wide && <NeedsYouBadge count={badge} />}
     </button>
   )
-  if (wide) return button
+  const trigger = popover ? <PopoverTrigger render={button} /> : button
+  if (wide) return trigger
   return (
     <Tooltip>
-      <TooltipTrigger render={button} />
+      <TooltipTrigger render={trigger} />
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   )
@@ -422,4 +430,31 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
 function SectionRailItem(props: Omit<Parameters<typeof RailItem>[0], 'badge'> & { item: SectionItem }) {
   const badge = useSectionAttention(props.item.key)
   return <RailItem {...props} badge={badge} />
+}
+
+/** The inbox (#55): everything that waits on the player, one button above Help. */
+function InboxRailItem({ wide }: { wide: boolean }) {
+  const t = useT()
+  const open = useInbox((s) => s.open)
+  const setOpen = useInbox((s) => s.setOpen)
+  const total = useInboxTotal()
+  // one open flag serves the popover (desktop) and the sheet (phone): only the one for this screen shows
+  const isDesktop = useIsDesktop()
+  return (
+    <Popover open={open && isDesktop} onOpenChange={setOpen}>
+      <RailItem
+        popover
+        data-guide="nav.inbox"
+        item={{ icon: Tray }}
+        wide={wide}
+        label={t('inbox.button')}
+        badge={total}
+        active={open && isDesktop}
+      />
+      <PopoverContent side="right" align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-4rem))] gap-2 p-3">
+        <InboxHeading />
+        <div className="max-h-[60vh] overflow-y-auto"><InboxList /></div>
+      </PopoverContent>
+    </Popover>
+  )
 }

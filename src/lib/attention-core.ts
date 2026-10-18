@@ -77,3 +77,64 @@ export function toastPlan(items: WaitingProposal[], lang: Lang) {
   }
 }
 
+
+// ---------- the inbox: everything that waits on the player, in one list ----------
+
+/** One card with souls proposed (or a failed rating), as GET /dashboard/soul-drafts lists it. */
+export interface SoulWaiting {
+  characterId: string
+  at: number
+  n: number
+  failed: boolean
+}
+
+/** Tolerant read of the soul-drafts body: anything unusable is dropped, newest first. */
+export function soulWaitingOf(body: unknown): SoulWaiting[] {
+  const list = (body as { drafts?: unknown } | null)?.drafts
+  if (!Array.isArray(list)) return []
+  const out: SoulWaiting[] = []
+  for (const d of list) {
+    const r = d as Partial<SoulWaiting> | null
+    if (!r || typeof r.characterId !== 'string' || !r.characterId) continue
+    const failed = r.failed === true
+    const n = Number(r.n) || 0
+    if (!failed && n <= 0) continue
+    out.push({ characterId: r.characterId, at: Number(r.at) || 0, n, failed })
+  }
+  return out.sort((a, b) => b.at - a.at)
+}
+
+export type InboxRow =
+  | { kind: 'litopys'; key: string; chatId: string; name: string; count: number }
+  | { kind: 'soul'; key: string; characterId: string; name: string; count: number; failed: boolean }
+
+export interface InboxInput {
+  settings: AttentionSettings | undefined
+  /** pending Library proposals per chat id */
+  litopys: Record<string, number>
+  soul: SoulWaiting[]
+  /** the name a chat shows under (its character or group), '' when unknown */
+  chatName: (chatId: string) => string
+  cardName: (characterId: string) => string
+}
+
+/**
+ * The rows of the inbox and the number on its badge. A kind switched off (settings.attention)
+ * is neither listed nor counted. The total counts every Library proposal and every card with
+ * souls waiting (a card is one item, however many souls it proposes). Library rows come first,
+ * the chat with the most waiting at the top; soul rows follow, newest first.
+ */
+export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number } {
+  const rows: InboxRow[] = []
+  if (attentionOn(input.settings, 'litopys')) {
+    const chats = Object.entries(input.litopys).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
+    for (const [chatId, count] of chats) rows.push({ kind: 'litopys', key: `lit:${chatId}`, chatId, name: input.chatName(chatId), count })
+  }
+  if (attentionOn(input.settings, 'soul')) {
+    for (const d of input.soul) {
+      rows.push({ kind: 'soul', key: `soul:${d.characterId}`, characterId: d.characterId, name: input.cardName(d.characterId), count: d.failed ? 0 : d.n, failed: d.failed })
+    }
+  }
+  const total = rows.reduce((a, r) => a + (r.kind === 'litopys' ? r.count : 1), 0)
+  return { rows, total }
+}

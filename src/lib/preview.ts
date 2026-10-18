@@ -1,9 +1,17 @@
+const REASONING_TAGS = 'think|thinking|reasoning|thought|thoughts'
+const REASONING_BLOCK = new RegExp(`<(${REASONING_TAGS})\\b[^>]*>[\\s\\S]*?<\\/\\1\\s*>`, 'gi')
+const REASONING_OPEN = new RegExp(`^\\s*<(?:${REASONING_TAGS})\\b[^>]*>(?![\\s\\S]*<\\/(?:${REASONING_TAGS})\\s*>)[\\s\\S]*$`, 'i')
+
 /** One-line text for list previews (Home, Chats). Display only: the stored
  *  message is never touched. Drops tags such as `<sage:tremble>`, `<b>` and
  *  `</i>`, HTML comments, markdown emphasis and heading/quote markers, turns
  *  `[text](url)` into `text`, and collapses whitespace. */
 export function cleanPreview(text: string, max = 0): string {
   let s = text
+    // reasoning a model wrote into the reply never previews (#44): whole blocks, and an
+    // unclosed one at the start (the reply was cut off inside it)
+    .replace(REASONING_BLOCK, ' ')
+    .replace(REASONING_OPEN, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
     // <tag>, </tag>, <name:value>, <tag attr="x"/> — a letter right after "<",
     // so "a < b" and "<3" survive

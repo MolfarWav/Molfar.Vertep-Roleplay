@@ -44,7 +44,7 @@ import { buildImagePrompt, generateImage, modelHints, postPicture, type Generate
 import { triggerDashUpdate } from './dash-live'
 import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
-import { attentionOn, pollAttention } from './attention'
+import { attentionOn, pollAttention, setSoulWaiting, soulWaitingOf } from './attention'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas'
@@ -410,11 +410,21 @@ async function noticeInsertTrim(chatId: ID, lang: Lang) {
 /** One round of the "needs you" source (lib/attention.ts) with the app's language and switch. */
 export function pollNeedsYou() {
   const st = useApp.getState()
+  void pollSoulWaiting(attentionOn(st.settings.attention, 'soul'))
   return pollAttention({
     lang: resolveLanguage(st.settings.language),
     on: attentionOn(st.settings.attention, 'litopys'),
     openLibrary: (chatId) => useApp.getState().focusLibraryChat(chatId),
   })
+}
+/** Cards with souls proposed, for the inbox. A missing dashboard plugin means an empty list, silently. */
+async function pollSoulWaiting(on: boolean) {
+  if (!on) { setSoulWaiting([]); return }
+  try {
+    setSoulWaiting(soulWaitingOf(await j<unknown>('/dashboard/soul-drafts')))
+  } catch {
+    setSoulWaiting([])
+  }
 }
 /** A proposal for souls is waiting for a card of this chat: say so once per proposal,
  *  with a button that opens the card's Soul tab. "Seen" is the proposal's timestamp, kept

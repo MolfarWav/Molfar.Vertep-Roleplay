@@ -1726,6 +1726,20 @@ describe("souls", () => {
     expect(fs.existsSync(draftFile("bram"))).toBe(false);
   });
 
+  it("the drafts list names cards whose proposal waits (#55)", () => {
+    const mock = mockHost();
+    const list = () => drive(mock, { method: "GET", path: "/dashboard/soul-drafts" }).json.drafts;
+    expect(list()).toEqual([]);
+    writeDraft("bram", { v: 1, at: 5, by: "auto", characters: { Medli: { class: "ally" } } });
+    writeDraft("aria", { v: 1, at: 9, by: "auto", characters: {}, error: "model answer is not JSON" });
+    writeDraft("nest", { v: 1, at: 7, by: "auto", characters: { Ki: {} }, dismissedAt: 8 });
+    writeDraft("empty", { v: 1, at: 3, by: "auto", characters: {} });
+    expect(list()).toEqual([
+      { characterId: "aria", at: 9, n: 0, failed: true },
+      { characterId: "bram", at: 5, n: 1, failed: false },
+    ]);
+  });
+
   describe("nameKey and transliteration", () => {
     it("nameKey: lowercase, Cyrillic transliterated, accents dropped", () => {
       expect(P.nameKey("Medli")).toBe("medli");

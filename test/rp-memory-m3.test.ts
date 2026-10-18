@@ -182,6 +182,12 @@ it("llmRequest insert placement and sidecar", () => {
   expect(insert.tokens).toBeGreaterThan(0);
   expect(typeof insert.chapters).toBe("number");
   expect(typeof insert.facts).toBe("number");
+  // #50: the facts that went in are counted in the insert file, not the chat file
+  const usedIds = Object.keys(insert.used);
+  expect(usedIds.length).toBe(insert.facts);
+  for (const id of usedIds) expect(insert.used[id].n).toBe(1);
+  L.llmRequest(ctx, mockHost().host);
+  for (const id of usedIds) expect(readJson("litopys/insert/c1.json").used[id].n).toBe(2);
   expect(readText("litopys/chats/c1.json")).toBe(before);
 });
 

@@ -29,6 +29,7 @@ import { useDisplayTexts, type DisplayScript } from '@/hooks/use-display-texts'
 import { cssAttrValue } from '@/lib/scope-css'
 import { balanceStreamingMarkdown } from '@/lib/rich-parts'
 import { hideStateTag } from '@/lib/state-tag'
+import { resolveDisplayScripts } from '@/lib/display-scripts'
 import { j } from '@/lib/engine'
 import { speakText, stopSpeaking, useSpeakingKey, voiceFor } from '@/lib/tts'
 import type { Chat, Character, Message, RegexScript, ToolPart } from '@/lib/types'
@@ -414,51 +415,18 @@ export const MessageRow = memo(function MessageRow({
   // (group members count), or the chat's active preset.
   const regexScripts = useApp((s) => s.regexScripts)
   const displayScripts = useMemo<DisplayScript[]>(() => {
-    // Regex scripts arrive from arbitrary import zips — a hostile pattern
-    // ((a+)+b) backtracks catastrophically, and RegExp can't be interrupted.
-    // Every script runs in the regex worker off the render path, where a
-    // timeout can kill it; capping the pattern length bounds what ships.
-    const MAX_PATTERN = 500
-    const inScope = (r: RegexScript): boolean => {
-      if (r.scope === 'global') return true
-      if (!r.scopeTargetId) return false
-      if (r.scope === 'chat') return r.scopeTargetId === chat.id
-      if (r.scope === 'character') return r.scopeTargetId === chat.characterId || (!!character.isGroup && (character.members ?? []).includes(r.scopeTargetId))
-      if (r.scope === 'preset') return r.scopeTargetId === chat.presetId
-      return true
-    }
-    // depth = distance from the chat's end; scripts bound to a window only
-    // apply inside it (same count the engine uses at assembly)
-    const depth = chat.messages.length - 1 - index
-    // global first, then preset-bound, then scoped — same order the engine runs
-    const rank = (r: RegexScript) => (r.scope === 'global' ? 0 : r.scope === 'preset' ? 1 : 2)
+    // every script runs in the regex worker off the render path, where a timeout can kill it
     const persona = personas.find((p) => p.id === chat.personaId) ?? personas.find((p) => p.isDefault)
-    const userName = persona?.name ?? 'User'
-    // replacement macros use the chat's global names — only the trim pass is
-    // speaker-aware in the source format, keep the same split here
-    const charName = character.name
-    const subMacros = (t: string) => t.replace(/\{\{(user|char)\}\}/gi, (_, k: string) => (k.toLowerCase() === 'user' ? userName : charName))
-    const escapeLiteral = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const resolved: DisplayScript[] = []
-    for (const r of [...regexScripts].sort((a, b) => rank(a) - rank(b) || a.order - b.order)) {
-      // display-stage scripts only: saved-text scripts already ran when the
-      // message was stored, prompt-only ones never touch what is shown
-      if (!r.enabled || !r.markdownOnly || !r.find || r.find.length > MAX_PATTERN) continue
-      if (!(message.role === 'user' ? r.placements.userInput : r.placements.aiOutput)) continue
-      if (!inScope(r)) continue
-      if (r.minDepth != null && depth < r.minDepth) continue
-      if (r.maxDepth != null && depth > r.maxDepth) continue
-      // same replace semantics as the engine: {{match}} is the whole
-      // (trimmed) match, $n / $<name> pull captured groups, missing groups
-      // vanish, trims erase from each, macros substitute (user/char names)
-      let find = r.find
-      if (r.macroMode === 'raw') find = subMacros(find)
-      else if (r.macroMode === 'escaped') {
-        find = find.replace(/\{\{(user|char)\}\}/gi, (_, k: string) => escapeLiteral(k.toLowerCase() === 'user' ? userName : charName))
-      }
-      resolved.push({ find, flags: r.flags || 'g', replace: r.replace, trims: r.trimStrings.filter(Boolean), macros: { user: userName, char: charName } })
-    }
-    return resolved
+    return resolveDisplayScripts(regexScripts, {
+      role: message.role,
+      chatId: chat.id,
+      characterId: chat.characterId,
+      presetId: chat.presetId,
+      members: character.isGroup ? character.members ?? [] : [],
+      depth: chat.messages.length - 1 - index,
+      userName: persona?.name ?? 'User',
+      charName: character.name,
+    })
   }, [regexScripts, message.role, personas, chat, character, index])
   // while streaming, unclosed emphasis/fence markers get synthetic closers
   // so each tick renders as finished markdown (never committed)

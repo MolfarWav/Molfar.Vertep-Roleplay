@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useApp } from '@/lib/store'
 import { useRelativeTime, useT } from '@/hooks/use-t'
-import { cleanPreview } from '@/lib/preview'
+import { ChatPreviewText } from '@/components/chat/chat-preview-text'
 import { NO_FILTER, filterChats, isFiltering, type ChatFilter } from '@/lib/chat-filters'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { ChatFilters } from '@/components/chat/chat-filters'
@@ -115,8 +115,6 @@ export function RecentChats() {
           {shown.map((chat) => {
             const char = characters.find((c) => c.id === chat.characterId)
             const persona = personas.find((p) => p.id === chat.personaId)
-            const last = chat.messages[chat.messages.length - 1]
-            const text = last?.swipes[last.activeSwipe]?.content ?? chat.preview ?? ''
             const count = chat.messages.length > 0 ? chat.messages.length : chat.messageCount ?? 0
             const title = chat.title.trim() || char?.name || ''
             const isPicked = picked.has(chat.id)
@@ -145,7 +143,7 @@ export function RecentChats() {
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
                     {persona && <Chip tone="red" className="self-start">{t('home.persona')}: {persona.name}</Chip>}
                     <span className="truncate font-heading text-[18px] leading-tight">{title}</span>
-                    <span className="line-clamp-1 text-[12.5px] text-muted-foreground">{cleanPreview(text, 160)}</span>
+                    <span className="line-clamp-1 text-[12.5px] text-muted-foreground"><ChatPreviewText chat={chat} max={160} /></span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-0.5 font-mono text-[11.5px] text-muted-foreground">
                     <span>{when(chat.updatedAt)}</span>

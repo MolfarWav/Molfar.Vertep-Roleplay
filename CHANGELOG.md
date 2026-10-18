@@ -4,6 +4,20 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.52.0
+
+An inbox for what waits on you, Litopys keeps long chats in order, and chat previews stop leaking reasoning (needs no engine update; ships with engine 1.2.4).
+
+- Canvas > Prompt board: long presets stay usable (#40, #43). A preset with groups shows one card per group, folded by default (fold state remembered per preset), with how many parts it sends, its tokens and one switch for the whole group. Only what is sent is on by default and says how many parts it hides; a search box finds a part by name. The total stays in view while the parts scroll, on a phone too.
+- Canvas > Prompt board: after picking another chat, the previous chat's parts no longer show under the new chat's name while it loads (#39).
+- Inbox (#55): one list of what waits on you. The Inbox item above Help (on a phone, the first row of More) lists the chats with Library suggestions and the cards with souls proposed or a failed rating, with the total on its badge; a row opens the chat's Library or the card's Soul tab. The kinds follow the same switches as their toasts. The Dashboard plugin lists waiting proposals at `GET /dashboard/soul-drafts`.
+- Display regex: on a slow device the regex helper's start-up counted toward the first pattern's time limit, and a pattern that ran out was skipped for the rest of the session, so text it hides showed in chats and previews. A new helper now gets 5 extra seconds for its first pattern.
+- The Home hero's quote and the Chats panel's last messages also run the chat's display regex (#44), as the list previews do.
+- Chats and Recent chats: the preview under a chat no longer shows the model's reasoning (#44). It runs the chat's display regex first, as the chat itself does, and drops `<think>`-style blocks. The message row and the preview share one resolver (`src/lib/display-scripts.ts`).
+- Molfar preset: section names read plainly (#42). "━📜 Directives (PICK ONE)" is now "📜 Directives": the pick is made in Choices, and the "━" read as a stray dash. The built-in copy is renamed on update (4.52.0); a copy the user made is left alone.
+- Litopys: Consolidate facts (#51). Library > a chat > Facts has a Consolidate facts button (from 20 active facts). One model call per batch of 60 facts, a subject's facts kept together, proposes merges of duplicates and rewrites or retirements of contradictions. They wait in Proposals with the usual Accept / Reject; nothing changes until accepted, and a second run does not repeat a pending proposal. Route `POST /litopys/consolidate { chatId, op: start | cancel }`.
+- Litopys: in a long chat, facts written or used lately come first in the story record, and old unused ones sink slowly (#50). Only the ranking of ordinary facts changes: pinned facts and a present character's changes and traits keep their place, and nothing in the chat's record is rewritten. Uses are counted in the insert file (`litopys/insert/<chat>.json`, `used`), one write per reply.
+
 ## 4.51.0
 
 The Dashboard keeps a persona switch apart from the cast, and narrator cards get a Profile for every character (needs no engine update; ships with engine 1.2.3).

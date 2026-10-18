@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.51.0'
+export const APP_VERSION = '4.52.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -196,6 +196,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Press this to send. While a reply is being written, the same spot becomes a stop button.',
       uk: 'Натисніть, щоб надіслати. Поки відповідь пишеться, це місце стає кнопкою зупинки.',
+    },
+  },
+  // ── What's new: the inbox
+  {
+    id: 'new.inbox',
+    since: '4.52.0',
+    target: 'nav.inbox',
+    open: { view: 'home' },
+    title: { en: 'Everything waiting on you, in one place', uk: 'Усе, що чекає на вас, в одному місці' },
+    body: {
+      en: 'Inbox lists the chats with Library suggestions and the cards with proposed souls. Click a row to decide there. On a phone it is the first row under More.',
+      uk: 'Вхідні показують чати з пропозиціями Бібліотеки та картки із запропонованими душами. Натисніть рядок, щоб вирішити на місці. На телефоні це перший рядок у «More».',
     },
   },
   // ── What's new: a Profile for every character of a narrator card
