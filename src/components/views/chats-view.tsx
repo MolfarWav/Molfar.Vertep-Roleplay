@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { useApp } from '@/lib/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
-import { cleanPreview } from '@/lib/preview'
+import { ChatPreviewText } from '@/components/chat/chat-preview-text'
 import { NO_FILTER, filterChats, type ChatFilter } from '@/lib/chat-filters'
 import { groupChats, sortChats, type ChatKind, type ChatSort } from '@/lib/chat-list'
 import { ChatFilters } from '@/components/chat/chat-filters'
@@ -134,8 +134,6 @@ export function ChatsView() {
     const owner = ownerOf(chat)
     const isGroup = !!owner?.isGroup
     const members = isGroup ? (owner?.group?.memberIds ?? owner?.members ?? []).map((id) => byId.get(id)).filter((c): c is Character => !!c) : []
-    const last = chat.messages[chat.messages.length - 1]
-    const previewText = last?.swipes[last.activeSwipe]?.content ?? chat.preview ?? ''
     const on = !selecting && !isMobile && selected?.id === chat.id
     const ticked = picked.has(chat.id)
     return (
@@ -171,7 +169,7 @@ export function ChatsView() {
             <span className="line-clamp-1 text-xs text-muted-foreground">
               {/* a title that only repeats the character's name says nothing: show the last words instead */}
               {chat.title.trim() && chat.title.trim() !== owner?.name && <><span className="text-foreground/90">{chat.title}</span> · </>}
-              {cleanPreview(previewText, 120) || 'No messages yet'}
+              <ChatPreviewText chat={chat} max={120} fallback="No messages yet" />
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end gap-0.5 text-xs">

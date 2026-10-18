@@ -46,3 +46,32 @@ describe("firstLine", () => {
     expect(firstLine("   \n  ")).toBe("");
   });
 });
+
+describe("reasoning never previews (#44)", () => {
+  it("drops whole reasoning blocks and an unclosed one at the start", () => {
+    expect(cleanPreview("<think>1. Consequence: Vivian</think>She smiles.")).toBe("She smiles.");
+    expect(cleanPreview("<thinking type='x'>plan\nmore</thinking>\n\n*She* smiles.")).toBe("She smiles.");
+    expect(cleanPreview("<think>cut off inside the reasoning")).toBe("");
+    expect(cleanPreview("She <b>smiles</b>, a < b.")).toBe("She smiles, a < b.");
+  });
+});
+
+describe("the preview's display scripts (#44)", async () => {
+  const { resolveDisplayScripts } = await import("../src/lib/display-scripts");
+  const script = (id: string, extra: Record<string, unknown> = {}) => ({
+    id, name: id, enabled: true, find: "<plan>[\\s\\S]*?</plan>", replace: "", flags: "g", order: 0, scope: "global", scopeTargetId: null,
+    placements: { userInput: false, aiOutput: true }, markdownOnly: true, promptOnly: false, trimStrings: [], macroMode: "none", ...extra,
+  });
+  const at = { role: "assistant", chatId: "c1", characterId: "ch1", presetId: "molfar", depth: 0, userName: "You", charName: "Aria" };
+  it("picks the display-stage scripts in scope of the chat's last reply", () => {
+    const list = [
+      script("global"),
+      script("preset", { scope: "preset", scopeTargetId: "molfar" }),
+      script("other-preset", { scope: "preset", scopeTargetId: "frankenx" }),
+      script("saved-text", { markdownOnly: false }),
+      script("user-only", { placements: { userInput: true, aiOutput: false } }),
+      script("off", { enabled: false }),
+    ];
+    expect(resolveDisplayScripts(list as never, at).length).toBe(2);
+  });
+});
