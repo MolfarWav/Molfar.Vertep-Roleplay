@@ -221,6 +221,16 @@ export const TIPS: Tip[] = [
       uk: 'У «Світі» вкладка «Профілі» містить п’ять вбудованих майстрів і ваших власних: відкрийте будь-якого, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра. Вкладка «Записи» чату дає читати, писати, відправляти в минуле й видаляти те, що записав майстер.',
     },
   },
+  {
+    id: 'new.world-start',
+    since: '4.53.0',
+    open: { view: 'home' },
+    title: { en: 'Start a world, save it, play in it again', uk: 'Почніть світ, збережіть його, грайте в ньому знову' },
+    body: {
+      en: 'In World, a chat\u2019s Start tab drafts records and fronts from its cards or a short interview; you remove what you do not want and accept the rest. Save a world to the Worlds tab and start new chats in it: the DM drafts the chat\u2019s scenario and first message, and you edit them before it begins.',
+      uk: 'У «Світі» вкладка «Старт» чату складає чернетку записів і фронтів із його карток або короткого інтерв’ю; ви прибираєте зайве й приймаєте решту. Збережіть світ на вкладці «Світи» й починайте в ньому нові чати: майстер пише сценарій і перше повідомлення чату, а ви правите їх до початку.',
+    },
+  },
   // ── What's new: failures reach the inbox
   {
     id: 'new.inbox-failures',

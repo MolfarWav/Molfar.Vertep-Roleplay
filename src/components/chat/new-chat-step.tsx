@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { formatTokens } from '@/lib/tokens'
+import { listSavedWorlds, listWorldChats, type SavedWorld, type WorldChat } from '@/lib/world'
 import type { ChatTurns, ID, PresetMemory } from '@/lib/types'
 
 /**
@@ -43,6 +44,18 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const groupMode = character?.group?.generationMode ?? 'swap'
   const [genMode, setGenMode] = useState<NonNullable<ChatTurns['generationMode']>>(groupMode)
 
+  // a world to start in: a saved one, or a chat of this character that has one (only when the app has the World plugin)
+  const [worlds, setWorlds] = useState<SavedWorld[] | null>(null)
+  const [worldChats, setWorldChats] = useState<WorldChat[]>([])
+  const [worldPick, setWorldPick] = useState('none')
+  useEffect(() => {
+    let live = true
+    listSavedWorlds().then((w) => { if (live) setWorlds(w) }).catch(() => {})
+    listWorldChats().then((c) => { if (live) setWorldChats((c ?? []).filter((x) => (x.characterId === charId || x.groupId === charId) && x.records > 0)) }).catch(() => {})
+    return () => { live = false }
+  }, [charId])
+  const showWorld = (worlds?.length ?? 0) + worldChats.length > 0
+
   // the character's memory (single characters only)
   useEffect(() => {
     let live = true
@@ -76,6 +89,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
     void startChatWith(charId, greetingIndex, {
       presetId: preset.id, presetVars: values,
       ...(character?.isGroup && genMode !== groupMode ? { turns: { generationMode: genMode } } : {}),
+      ...(worldPick.startsWith('w:') ? { world: { worldId: worldPick.slice(2) } } : worldPick.startsWith('c:') ? { world: { fromChatId: worldPick.slice(2) } } : {}),
     })
   }
 
@@ -134,6 +148,32 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+        {showWorld && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium" id="new-chat-world">{t('world.step.world')}</span>
+            <Select value={worldPick} onValueChange={(v) => v && setWorldPick(v)}>
+              <SelectTrigger className="h-8 w-full text-xs" aria-labelledby="new-chat-world" data-testid="new-chat-world">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('world.step.none')}</SelectItem>
+                {(worlds?.length ?? 0) > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>{t('world.step.saved')}</SelectLabel>
+                    {(worlds ?? []).map((w) => <SelectItem key={w.id} value={`w:${w.id}`}>{w.name}</SelectItem>)}
+                  </SelectGroup>
+                )}
+                {worldChats.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>{t('world.step.chats')}</SelectLabel>
+                    {worldChats.map((c) => <SelectItem key={c.chatId} value={`c:${c.chatId}`}>{c.title || c.cards.join(', ')}</SelectItem>)}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
+            {worldPick !== 'none' && <p className="text-[11px] text-muted-foreground">{t('world.step.hint')}</p>}
           </div>
         )}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-0.5">

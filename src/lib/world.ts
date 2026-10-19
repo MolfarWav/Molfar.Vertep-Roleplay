@@ -306,7 +306,7 @@ export async function listWorldRecipes(): Promise<WorldRecipe[]> {
 interface DraftReply { ok?: boolean; error?: string; code?: WorldErrorCode | 'no-text'; draft: WorldDraft }
 
 /** Begin a draft. 409 code 'no-text' = the chosen cards have nothing to learn from. */
-export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; lang?: string; deck?: boolean }): Promise<WorldDraft> {
+export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean }): Promise<WorldDraft> {
   return (await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId, begin: true, ...o }) })).draft
 }
 
@@ -391,4 +391,11 @@ export interface WorldScenario { text: string; mode: 'replace' | 'append' }
  */
 export async function setWorldOverride(chatId: string, o: { scenario?: WorldScenario | null; opening?: string }): Promise<{ scenario: WorldScenario | null; opening: boolean }> {
   return j('/world/override', { method: 'PUT', body: JSON.stringify({ chatId, ...o }) })
+}
+
+/** The chat's own scenario (null = the card's) and whether the player has written in it yet. */
+export async function loadWorldScenario(chatId: string): Promise<{ scenario: WorldScenario | null; started: boolean }> {
+  const r = await j<{ meta?: { worldScenario?: WorldScenario }; messages?: { role?: string }[] }>(`/chats/${encodeURIComponent(chatId)}`)
+  const sc = r.meta?.worldScenario
+  return { scenario: sc && typeof sc.text === 'string' && sc.text ? sc : null, started: (r.messages ?? []).some((m) => m.role === 'user') }
 }

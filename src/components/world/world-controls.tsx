@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils'
 import { useApp } from '@/lib/store'
 import { useWorldProfiles } from '@/lib/world-profiles'
 import { WorldProfilePicker } from './world-profile-picker'
+import { SaveWorldDialog } from './world-library'
+import { NewWorldChatDialog, useChatCharacterId } from './world-new-chat'
+import { DeckLine } from './world-start'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import {
   formatK,
@@ -23,15 +26,18 @@ import {
 } from './world-common'
 import {
   loadWorld,
+  loadWorldScenario,
   peekWorld,
   readWholeChat,
   runWorld,
   saveWorldConfig,
   saveWorldSettings,
+  setWorldOverride,
   useWorldLive,
   type WorldError,
   type WorldLevel,
   type WorldRecord,
+  type WorldScenario,
   type WorldView,
 } from '@/lib/world'
 import type { MsgKey } from '@/lib/i18n'
@@ -155,6 +161,13 @@ export function WorldControls({
   const [records, setRecords] = useState<WorldRecord[] | null>(null)
   const [confirm, confirmDialog] = useConfirm()
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [newChatOpen, setNewChatOpen] = useState(false)
+  const [own, setOwn] = useState<WorldScenario | null>(null)
+  const chatTitle = useApp((s) => s.chats.find((c) => c.id === chatId)?.title ?? '')
+  const chatCharId = useChatCharacterId(chatId)
+  // the chat's own scenario: read again when the opening dialog closes
+  const openingOpen = useApp((s) => !!s.worldOpening)
   const modelSectionRef = useRef<HTMLElement>(null)
 
   const [reading, setReading] = useState(false)
@@ -180,6 +193,13 @@ export function WorldControls({
       stopReadRef.current = true
     }
   }, [chatId])
+
+  useEffect(() => {
+    if (openingOpen) return
+    let live = true
+    loadWorldScenario(chatId).then((r) => { if (live) setOwn(r.scenario) }).catch(() => {})
+    return () => { live = false }
+  }, [chatId, openingOpen])
 
   useEffect(() => {
     if (view) setEveryN(String(view.settings.everyN))
@@ -265,6 +285,16 @@ export function WorldControls({
     try {
       await saveWorldConfig({ model: '' })
       await loadWorld(chatId)
+    } catch (e) {
+      toast.error(errText(e))
+    }
+  }
+
+  const useCardScenario = async () => {
+    if (!(await confirm({ title: t('world.open.useCardTitle'), description: t('world.open.useCardWarn'), actionLabel: t('world.open.useCard'), destructive: false }))) return
+    try {
+      await setWorldOverride(chatId, { scenario: null })
+      setOwn(null)
     } catch (e) {
       toast.error(errText(e))
     }
@@ -445,11 +475,31 @@ export function WorldControls({
       )}
 
       <p className="text-xs text-muted-foreground">{t('world.hidden')}</p>
-      {view.records + view.retired > 0 && (
-        <Button variant="outline" size="sm" className="mt-1 self-start max-md:h-10" onClick={() => void lookAtWorld()}>
-          {t('world.peek')}
-        </Button>
+      <DeckLine chatId={chatId} view={view} where="overview" />
+      {own && (
+        <div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-2.5" data-testid="own-scenario">
+          <span className="min-w-0 flex-1 text-sm">{t('world.open.own')}</span>
+          <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => useApp.getState().openWorldOpening(chatId, false)}>{t('world.open.edit')}</Button>
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => void useCardScenario()}>{t('world.open.useCard')}</Button>
+        </div>
       )}
+      <div className="mt-1 flex flex-wrap gap-2">
+        {view.records + view.retired > 0 && (
+          <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => void lookAtWorld()}>
+            {t('world.peek')}
+          </Button>
+        )}
+        {view.records > 0 && (
+          <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => setSaveOpen(true)} data-testid="save-world">
+            {t('world.save.btn')}
+          </Button>
+        )}
+        {view.records > 0 && (
+          <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => setNewChatOpen(true)} data-testid="overview-new-chat">
+            {t('world.newchat.btn')}
+          </Button>
+        )}
+      </div>
     </section>
   )
 
@@ -520,6 +570,14 @@ export function WorldControls({
         </div>
       </div>
       {confirmDialog}
+      <SaveWorldDialog open={saveOpen} onOpenChange={setSaveOpen} chatId={chatId} defaultName={chatTitle} />
+      <NewWorldChatDialog
+        open={newChatOpen}
+        onOpenChange={setNewChatOpen}
+        source={{ fromChatId: chatId }}
+        defaultCharId={chatCharId}
+        onCreate={onNavigate}
+      />
       <Dialog open={records !== null} onOpenChange={(o) => { if (!o) setRecords(null) }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>

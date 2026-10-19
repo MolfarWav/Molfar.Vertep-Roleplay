@@ -62,7 +62,11 @@ world book's records, editable by hand behind a spoiler confirm; `world-records.
 tokens, errors) on the right, and World settings (the play model for all chats, a model test). The Profiles
 tab (`world-profiles.tsx`, data in `lib/world-profiles.ts`) edits the five built-in levels and the player's
 own profiles: defaults, options (clocks by model or code, news by clock), four prompt blocks with Changed
-badge, reset and Show default, a locked reply format, one Save with a dirty mark and a leave guard. The chat header's globe dot (`world-status.tsx`) shows its state.
+badge, reset and Show default, a locked reply format, one Save with a dirty mark and a leave guard.
+The chat's Start tab (`world-start.tsx`) drafts records, fronts and an events deck from the cards or an interview, and the player
+removes items and accepts the rest; the Worlds tab (`world-library.tsx`) holds saved worlds, and "New chat in this world"
+(`world-new-chat.tsx`, also a World select in the new-chat step) carries one into a fresh chat, where the opening dialog
+(`world-opening.tsx`, opened through the store's `worldOpening`) edits the DM's drafted scenario and first message. The chat header's globe dot (`world-status.tsx`) shows its state.
 The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and
 downloads via the /import/url path; remote art rides the engine's same-origin

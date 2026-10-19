@@ -20,6 +20,7 @@ import { MarketplaceView } from '@/components/views/marketplace-view'
 import { ChatsView } from '@/components/views/chats-view'
 import { ChatView } from '@/components/chat/chat-view'
 import { NewChatStep } from '@/components/chat/new-chat-step'
+import { WorldOpeningDialog } from '@/components/world/world-opening'
 import { PersonasView } from '@/components/views/personas-view'
 import { PresetsView } from '@/components/views/presets-view'
 import { LorebooksView } from '@/components/views/lorebooks-view'
@@ -155,6 +156,7 @@ export function AppShell() {
       <SectionDrawer isDesktop={isDesktop} />
       <InboxDrawer />
       <NewChatStep />
+      <WorldOpeningDialog />
       {/* Live generation status, below the header line at the right edge:
           clear of the header buttons, the composer, toasts and quick replies. */}
       {streaming && (

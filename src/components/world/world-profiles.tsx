@@ -199,6 +199,10 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         <span className="min-w-0">{t('world.opt.news')}<span className="block text-xs text-muted-foreground">{t('world.opt.newsHint')}</span></span>
         <Switch checked={options.eventByClock} onCheckedChange={(v) => onChange({ ...options, eventByClock: v })} aria-label={t('world.opt.news')} />
       </div>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
+        <Switch checked={options.deck} onCheckedChange={(v) => onChange({ ...options, deck: v })} aria-label={t('world.prof.opt.deck')} />
+      </div>
     </section>
   )
 }

@@ -17,7 +17,7 @@ import { editWorldRecord, peekWorld, useWorldLive, type WorldKind, type WorldRec
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
 
-function KindChip({ kind, className }: { kind: WorldKind; className?: string }) {
+export function KindChip({ kind, className }: { kind: WorldKind; className?: string }) {
   const t = useT()
   return (
     <span className={cn('inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[11px] font-medium leading-none', KIND_TONE[kind], className)}>

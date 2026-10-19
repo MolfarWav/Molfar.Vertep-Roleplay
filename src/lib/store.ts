@@ -38,7 +38,7 @@ import {
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
-import { libraryBooks, triggerWorldUpdate } from './world'
+import { carryWorld, libraryBooks, triggerWorldUpdate } from './world'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
@@ -144,6 +144,10 @@ interface AppState {
   focusWorldChatId: ID | null
   /** the World section opens its Profiles tab on this profile (a level id or an own id) */
   focusWorldProfileId: string | null
+  /** the World section opens its Worlds tab on this saved world */
+  focusWorldWorldId: string | null
+  /** the opening dialog (scenario and first message) is open on this chat; fresh = the chat is not opened yet */
+  worldOpening: { chatId: ID; fresh: boolean } | null
   focusPersonaId: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
@@ -209,6 +213,11 @@ interface AppState {
   focusLibraryChat: (chatId: ID) => void
   focusWorldChat: (chatId: ID) => void
   focusWorldProfile: (profileId: string) => void
+  focusWorldWorld: (worldId: string) => void
+  openWorldOpening: (chatId: ID, fresh?: boolean) => void
+  closeWorldOpening: () => void
+  /** read one chat's transcript from the engine again (after something outside the store changed it) */
+  reloadChat: (chatId: ID) => Promise<void>
   setSettingsSection: (s: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   // chat actions
@@ -250,7 +259,7 @@ interface AppState {
   newChatStep: { charId: ID; greetingIndex?: number } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; world?: { worldId: string } | { fromChatId: ID } }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
@@ -591,6 +600,8 @@ export const useApp = create<AppState>()(
       focusLibraryChatId: null,
       focusWorldChatId: null,
       focusWorldProfileId: null,
+      focusWorldWorldId: null,
+      worldOpening: null,
       focusPersonaId: null,
       focusLorebookId: null,
       branchTreeFor: null,
@@ -1184,6 +1195,13 @@ export const useApp = create<AppState>()(
         if (opensAsDrawer(get().view)) set({ focusWorldProfileId: profileId, drawer: 'world' })
         else set({ view: 'world', focusWorldProfileId: profileId })
       },
+      focusWorldWorld: (worldId) => {
+        if (opensAsDrawer(get().view)) set({ focusWorldWorldId: worldId, drawer: 'world' })
+        else set({ view: 'world', focusWorldWorldId: worldId })
+      },
+      openWorldOpening: (chatId, fresh = false) => set({ worldOpening: { chatId, fresh } }),
+      closeWorldOpening: () => set({ worldOpening: null }),
+      reloadChat: (chatId) => refreshChat(set, get, chatId),
       setSettingsSection: (s) => {
         if (opensAsDrawer(get().view)) set({ selectedSettingsSection: s, drawer: 'settings' })
         else set({ selectedSettingsSection: s, view: 'settings' })
@@ -1683,6 +1701,14 @@ export const useApp = create<AppState>()(
         try {
           const id = await get().newChat(charId, greetingIndex, opts)
           sessionNewChats.add(id)
+          if (opts?.world) {
+            // a chat in a world: the world goes in first, then the player writes the start (the chat opens after that)
+            try {
+              await carryWorld(id, opts.world)
+              set({ worldOpening: { chatId: id, fresh: true } })
+              return
+            } catch (e) { toast.error(String((e as Error).message ?? e)) }
+          }
           get().openChat(id)
         } catch (e) { toast.error(String((e as Error).message ?? e)) }
       },
