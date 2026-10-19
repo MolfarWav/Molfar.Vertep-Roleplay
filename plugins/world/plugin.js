@@ -26,8 +26,11 @@
  *  GET  /world/state?chatId=          the chat's DM: settings, counts, when it runs next, last error
  *  PUT  /world/settings {chatId, level?, everyN?, stagnation?, onTransition?, insert?}   the chat's DM settings
  *  GET  /world/peek?chatId=           the world book's records, for the player who asks (fronts and events stay hidden)
- *  GET  /world/config                 the DM model and reply limit (all chats)
- *  PUT  /world/config {model?, maxTokens?}
+ *  GET  /world/config?chatId=         the DM's models and reply limit (all chats), with the models in force
+ *  PUT  /world/config {model?, buildModel?, maxTokens?}
+ *  GET  /world/chats                  every chat with a DM, for the World section's list
+ *  GET  /world/runs?chatId=           the chat's run history, newest first (tokens, time, errors)
+ *  POST /world/test {chatId?, which?}  one tiny call to the play (or build) model: works, or why not
  *  POST /world/update {chatId, auto?}  a DM run (two-phase); auto = the app's call after a reply,
  *                                      which runs only when a trigger is due; without auto it always runs
  *                                      (except in an explicit scene)
@@ -58,11 +61,18 @@ const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
 export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true };
-export const DEFAULT_CONFIG = { model: "", maxTokens: 1500 };
+// model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
+export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500 };
 
 // what a run reads and writes, kept small for small context windows
 const NEW_TEXT_MAX = 8000;
 const MSG_MAX = 2500;
+// below this share per message a run reads fewer messages (catch-up) instead of cutting each one thinner
+const MSG_MIN = 400;
+const LINE_EXTRA = 40;
+// a retry after a reply that was all thinking gets this many times the room, at most RETRY_MAX
+const RETRY_FACTOR = 3;
+const RETRY_MAX = 12000;
 const NAME_MAX = 80;
 const TEXT_MAX = 600;
 const PAST_TEXT_MAX = 240;
@@ -98,9 +108,11 @@ export function loadConfig(fsx) {
 
 function cleanConfig(c) {
   const model = str(c.model);
+  const build = str(c.buildModel);
   const n = Number(c.maxTokens);
   return {
     model: MODEL_REF.test(model) ? model : "",
+    buildModel: MODEL_REF.test(build) ? build : "",
     maxTokens: Number.isFinite(n) ? clamp(Math.round(n), 500, 8000) : DEFAULT_CONFIG.maxTokens,
   };
 }
@@ -210,8 +222,37 @@ export function normalizeState(raw, chatId) {
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
   if (str(s.lastModel)) out.lastModel = str(s.lastModel);
-  if (isObj(s.lastError) && str(s.lastError.message)) out.lastError = { at: Number(s.lastError.at) || 0, message: cut(str(s.lastError.message), 400) };
+  if (isObj(s.lastError) && str(s.lastError.message)) out.lastError = cleanError(s.lastError);
+  if (isObj(s.usage)) out.usage = cleanUsage(s.usage, true);
   return out;
+}
+
+const num = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : 0);
+
+/** Tokens of one run (input, output, cost when the provider prices it); totals also count runs. */
+function cleanUsage(u, totals) {
+  const b = isObj(u) ? u : {};
+  return { input: Math.round(num(b.input)), output: Math.round(num(b.output)), cost: num(b.cost), ...(totals ? { runs: Math.round(num(b.runs)) } : {}) };
+}
+
+/** The limit a run went out with: max output tokens and the model block it came from (null = the DM's own). */
+function cleanLimit(l) {
+  if (!isObj(l) || !Number.isFinite(Number(l.max))) return null;
+  return { max: Math.round(Number(l.max)), block: str(l.block) ? cut(str(l.block), 80) : null, fromModel: l.fromModel === true };
+}
+
+export const ERROR_CODES = ["thinking", "thinking-block", "reasoning-off", "rate", "context", "auth", "model", "not-json", "empty", "other"];
+
+/** A failed run as the app shows it: a code it can say in the player's language, the plain message, the raw text for "details". */
+function cleanError(e) {
+  const limit = cleanLimit(e.limit);
+  return {
+    at: Number(e.at) || 0,
+    code: ERROR_CODES.includes(e.code) ? e.code : "other",
+    message: cut(str(e.message), 400),
+    ...(str(e.details) ? { details: cut(str(e.details), 1200) } : {}),
+    ...(limit ? { limit } : {}),
+  };
 }
 
 export function loadState(fsx, chatId) {
@@ -249,6 +290,49 @@ export function unreadMessages(msgs, lastKey) {
   const id = String(lastKey).split("#")[0];
   const i = msgs.findIndex((m) => String(m.id) === id);
   return i < 0 ? msgs : msgs.slice(i + 1);
+}
+
+const textLen = (m) => (str(m.text) ? String(m.text).trim().length : 0);
+
+/** The largest per-message size c with sum(min(len, c)) <= budget, at most MSG_MAX. */
+function fairCap(lens, budget) {
+  let lo = 0;
+  let hi = MSG_MAX;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (lens.reduce((n, l) => n + Math.min(l, mid), 0) <= budget) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/**
+ * What one run reads of the unread messages: { msgs, cap, rest }. All of them when each can keep
+ * at least MSG_MIN chars (long ones are cut in the middle to a fair share of NEW_TEXT_MAX, so no
+ * message is lost); else the oldest ones that fit, and `rest` waits for the next run (catch-up).
+ */
+export function takeUnread(unread) {
+  const lens = unread.map(textLen);
+  // each line also carries "[name] " and a newline
+  const cap = fairCap(lens, NEW_TEXT_MAX - LINE_EXTRA * unread.length);
+  if (cap >= MSG_MIN || unread.length <= 1) return { msgs: unread, cap: Math.max(cap, MSG_MIN), rest: [] };
+  let size = 0;
+  let n = 0;
+  while (n < unread.length && (n === 0 || size + Math.min(lens[n], MSG_MAX) + LINE_EXTRA <= NEW_TEXT_MAX)) size += Math.min(lens[n++], MSG_MAX) + LINE_EXTRA;
+  return { msgs: unread.slice(0, n), cap: MSG_MAX, rest: unread.slice(n) };
+}
+
+/** How far behind the DM is: unread messages one run cannot read, and the runs it takes to read them all. */
+export function behindOf(unread) {
+  let rest = unread;
+  let runs = 0;
+  while (rest.length && runs < 200) {
+    const take = takeUnread(rest);
+    rest = take.rest;
+    runs++;
+  }
+  const first = takeUnread(unread).rest.length;
+  return { messages: first, runs: first ? runs : 0 };
 }
 
 /**
@@ -393,12 +477,12 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
     .filter((m) => str(m.text))
-    .map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), MSG_MAX));
+    .map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), cap || MSG_MAX));
   let story = lines.join("\n");
   if (story.length > NEW_TEXT_MAX) story = "…" + story.slice(-NEW_TEXT_MAX);
   return [
@@ -407,6 +491,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads }) : []),
+    ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
   ].join("\n\n");
 }
@@ -451,7 +536,7 @@ function chatPreset(fsx, meta) {
 }
 
 /** Thinking settings of the chat's preset; with a budget the reply limit grows by it (see the dashboard's callParams). */
-function callParams(fsx, cfg, meta) {
+function callParams(fsx, cfg, meta, maxTokens) {
   const preset = chatPreset(fsx, meta);
   const reasoning = preset && typeof preset.reasoning === "string" && preset.reasoning !== "off" ? preset.reasoning : "";
   const budget = reasoning && typeof preset.thinkingBudget === "number" && preset.thinkingBudget > 0 ? Math.round(preset.thinkingBudget) : 0;
@@ -460,14 +545,41 @@ function callParams(fsx, cfg, meta) {
     ...(reasoning ? { reasoning } : {}),
     ...(budget ? { thinkingBudget: budget } : {}),
     ...(tags ? { reasoningTags: tags } : {}),
-    presetParams: { temperature: 0.3, max_tokens: cfg.maxTokens + budget },
+    presetParams: { temperature: 0.3, max_tokens: maxTokens || cfg.maxTokens + budget },
   };
 }
 
-/** Who plays the DM: its own model, else the chat's, else the app's default. */
-export function dmModel(fsx, cfg, meta) {
+/** The first model set of the list, with where it came from. */
+function firstModel(list) {
+  const hit = list.find(([, m]) => MODEL_REF.test(str(m)));
+  return hit ? { model: str(hit[1]), from: hit[0] } : { model: "", from: "default" };
+}
+
+/**
+ * Who plays the DM after replies (user, 2026-10-19): the World's own play model, else the
+ * Dashboard sensor's (fast and cheap already), else Litopys's, else the chat's, else the app's default.
+ */
+export function playModel(fsx, cfg, meta) {
+  const dash = readJson(fsx, "dashboard/config.json", null);
+  const lit = readJson(fsx, "litopys/config.json", null);
   const settings = readJson(fsx, "settings.json", null);
-  return str(cfg.model) || str(meta && meta.model) || (isObj(settings) ? str(settings.model) : "");
+  return firstModel([
+    ["world", cfg.model],
+    ["sensor", isObj(dash) ? dash.sensorModel : ""],
+    ["litopys", isObj(lit) ? lit.model : ""],
+    ["chat", meta && meta.model],
+    ["default", isObj(settings) ? settings.model : ""],
+  ]);
+}
+
+/** Who builds worlds (start, remix): the World's build model, else the chat's, else the app's default. */
+export function buildModel(fsx, cfg, meta) {
+  const settings = readJson(fsx, "settings.json", null);
+  return firstModel([["world", cfg.buildModel], ["chat", meta && meta.model], ["default", isObj(settings) ? settings.model : ""]]);
+}
+
+export function dmModel(fsx, cfg, meta) {
+  return playModel(fsx, cfg, meta).model;
 }
 
 // ---------- reading the DM's reply ----------
@@ -585,7 +697,7 @@ export function applyReport(state, out, { cards, userName, now }) {
  * waits while the old one is pending. No event in an explicit scene, none in combat below
  * antagonist. Returns how many fronts changed.
  */
-export function applyLevel(state, out, { level, direction, now }) {
+export function applyLevel(state, out, { level, direction, now, catchingUp }) {
   const at = now || Date.now();
   let changes = 0;
   const said = DIRECTIONS.includes(str(out.direction).toLowerCase()) ? str(out.direction).toLowerCase() : null;
@@ -624,7 +736,7 @@ export function applyLevel(state, out, { level, direction, now }) {
   }
   const quiet = dir === "explicit" || (dir === "combat" && level !== "antagonist" && level !== "chaos");
   const text = isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
-  if (text && !quiet && (!state.event || state.event.sent === 0)) {
+  if (text && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) {
     state.event = { text, hard: HARD_LEVELS.includes(level), sent: 0, retried: false, at };
   }
   return changes;
@@ -760,7 +872,24 @@ function body(req) {
   return isObj(req.body) ? req.body : {};
 }
 
-function stateView(state, msgs, cfg, scene) {
+/** The newest run of the log, as the sheet and the hub show it. */
+function lastRunOf(state) {
+  const r = state.log[state.log.length - 1];
+  return isObj(r) ? runView(r) : null;
+}
+
+function runView(r) {
+  return {
+    at: num(r.at), reason: str(r.reason), changes: Math.round(num(r.changes)), fronts: Math.round(num(r.fronts)),
+    summary: str(r.summary), model: str(r.model), ms: Math.round(num(r.ms)),
+    usage: isObj(r.usage) ? cleanUsage(r.usage) : null, limit: cleanLimit(r.limit),
+    behind: Math.round(num(r.behind)), retried: r.retried === true,
+    ...(ERROR_CODES.includes(r.error) ? { error: r.error } : {}),
+  };
+}
+
+function stateView(state, msgs, cfg, scene, play) {
+  const unread = unreadMessages(msgs, state.lastKey);
   return {
     settings: state.settings,
     ready: READY_LEVELS,
@@ -777,6 +906,12 @@ function stateView(state, msgs, cfg, scene) {
     sensor: !!scene,
     fronts: state.fronts.filter((f) => f.status === "active").length,
     eventWaiting: !!(state.event && state.event.sent === 0),
+    // the play model in force for this chat and where it comes from (world, sensor, litopys, chat, default)
+    play: play || null,
+    lastRun: lastRunOf(state),
+    usage: state.usage || { input: 0, output: 0, cost: 0, runs: 0 },
+    // unread text one run cannot read: "Read the whole chat" runs until it is 0
+    behind: state.settings.level === "off" ? { messages: 0, runs: 0 } : behindOf(unread),
   };
 }
 
@@ -785,7 +920,8 @@ function stateRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const chat = readChat(host.fs, chatId);
   if (!chat) return ok({ error: "no such chat" }, 404);
-  return ok(stateView(loadState(host.fs, chatId).state, chat.msgs, loadConfig(host.fs), sceneOf(host.fs, chatId, chat.msgs)));
+  const cfg = loadConfig(host.fs);
+  return ok(stateView(loadState(host.fs, chatId).state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta)));
 }
 
 /** "Look at the world": the records only, newest first; the DM's plans (fronts, the event) stay its own. */
@@ -811,7 +947,9 @@ function settingsRoute(req, host) {
   for (const k of ["level", "everyN", "stagnation", "onTransition", "insert"]) if (b[k] !== undefined) patch[k] = b[k];
   const next = cleanSettings({ ...state.settings, ...patch });
   // switched on for the first time: the DM starts reading from now, not from the first message
-  if (!existed && next.level !== "off" && chat.msgs.length && b.fromStart !== true) {
+  // (also when a state file was saved with the DM off and it never ran: lastKey is still null)
+  const fresh = !existed || (state.settings.level === "off" && state.lastKey === null && !state.lastRunAt);
+  if (fresh && next.level !== "off" && chat.msgs.length && b.fromStart !== true) {
     const unread = chat.msgs.slice(-Math.max(2, next.everyN * 2));
     const before = chat.msgs[chat.msgs.length - unread.length - 1];
     state.lastKey = before ? keyOf(before) : null;
@@ -820,14 +958,25 @@ function settingsRoute(req, host) {
   if ((next.level === "off" || next.level === "chronicler") && state.event) state.event = null;
   state.settings = next;
   saveState(host.fs, state);
-  return ok(stateView(state, chat.msgs, loadConfig(host.fs), sceneOf(host.fs, chatId, chat.msgs)));
+  const cfg = loadConfig(host.fs);
+  return ok(stateView(state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta)));
+}
+
+/** The config with the models in force (for a chat when chatId names one). */
+function configView(fsx, cfg, chatId) {
+  const meta = CHAT_ID.test(chatId) ? readJson(fsx, "chats/" + chatId + ".meta.json", null) : null;
+  const m = isObj(meta) ? meta : null;
+  return { ...cfg, play: playModel(fsx, cfg, m), build: buildModel(fsx, cfg, m) };
 }
 
 function configRoute(req, host) {
-  if (req.method === "GET") return ok(loadConfig(host.fs));
+  const chatId = String((req.query && req.query.chatId) || "");
+  if (req.method === "GET") return ok(configView(host.fs, loadConfig(host.fs), chatId));
   const b = body(req);
   const cur = loadConfig(host.fs);
-  const next = cleanConfig({ ...cur, ...(b.model !== undefined ? { model: b.model } : {}), ...(b.maxTokens !== undefined ? { maxTokens: b.maxTokens } : {}) });
+  const patch = {};
+  for (const k of ["model", "buildModel", "maxTokens"]) if (b[k] !== undefined) patch[k] = b[k];
+  const next = cleanConfig({ ...cur, ...patch });
   const diff = {};
   for (const k of Object.keys(DEFAULT_CONFIG)) if (next[k] !== DEFAULT_CONFIG[k]) diff[k] = next[k];
   if (Object.keys(diff).length) writeJson(host.fs, CONFIG_FILE, diff);
@@ -836,15 +985,42 @@ function configRoute(req, host) {
       host.fs.remove(CONFIG_FILE);
     } catch {}
   }
-  return ok(next);
+  return ok(configView(host.fs, next, chatId));
 }
 
 const isRateLimit = (r) => /429|rate.?limit/i.test(String(r.error || ""));
 
-function emptyReplyError(r) {
-  if (r.error) return String(r.error);
-  if (str(r.reasoning)) return "the DM model spent its whole reply limit thinking and wrote no answer. Give the chat's preset a thinking budget, turn thinking off for this model, or raise the DM's reply limit.";
-  return "the DM model returned nothing";
+/** The limit a call went out with, from the engine's echo of its params. */
+export function limitOf(r) {
+  const p = isObj(r && r.requestParams) ? r.requestParams : {};
+  if (!Number.isFinite(Number(p.max_tokens))) return null;
+  const from = isObj(p.from) ? p.from : {};
+  return { max: Math.round(Number(p.max_tokens)), block: str(p.block) || null, fromModel: from.max_tokens === "model" };
+}
+
+/** A reply that is all thinking and no answer. */
+const thinkingOnly = (r) => !r.error && !str(r.text) && !!str(r.reasoning);
+
+/**
+ * A failed call as one plain sentence and a code the app says in the player's language (world.err.<code>);
+ * the provider's own text stays in details. The next step is in the sentence: the player cannot be
+ * expected to know the engine (user, 2026-10-18).
+ */
+export function classifyError(r, limit) {
+  const raw = String((r && r.error) || "");
+  const details = raw ? cut(raw, 1200) : "";
+  const e = (code, message) => ({ code, message, ...(details ? { details } : {}), ...(limit ? { limit } : {}) });
+  if (r && thinkingOnly(r)) {
+    if (limit && limit.fromModel) return e("thinking-block", "The model spent its whole limit (" + limit.max + " tokens) thinking and wrote no answer. The limit comes from this model's " + (limit.block || "World DM") + " parameters in API connections: raise it there, or pick a model that does not think.");
+    return e("thinking", "The model spent its whole limit thinking and wrote no answer, even with more room. Pick a model that does not think, or give it a bigger limit in its parameters in API connections.");
+  }
+  if (/disabl\w* reasoning|reasoning\W.*(cannot|can't|not).*(disabl|off)|always thinks/i.test(raw)) return e("reasoning-off", "This model always thinks and cannot turn thinking off. Set Reasoning to on (not off) in its parameters in API connections, or pick another model.");
+  if (/429|rate.?limit|too many requests/i.test(raw)) return e("rate", "The provider is busy (rate limit). The same messages are read next time.");
+  if (/context|too long|maximum.*tokens|token limit/i.test(raw)) return e("context", "The DM's input is too big for this model. Pick a model with a bigger context.");
+  if (/\b40[13]\b|unauthori|api key|forbidden/i.test(raw)) return e("auth", "The provider refused the key. Check the connection in API connections.");
+  if (/\b404\b|no such model|model.*not found|unknown model/i.test(raw)) return e("model", "The provider does not know this model. Pick another one.");
+  if (raw) return e("other", cut(raw.split("\n")[0], 300));
+  return e("empty", "The model returned nothing.");
 }
 
 function updateRoute(req, host) {
@@ -872,51 +1048,141 @@ function updateRoute(req, host) {
   const r = host.llm.results[key];
   const cards = cardNames(fsx, chat.meta);
   const userName = userNameOf(fsx, chat.meta);
-  const ask = (k) => {
-    const model = dmModel(fsx, cfg, chat.meta);
+  const play = playModel(fsx, cfg, chat.meta);
+  // what this run reads: every unread message (cut to a fair share), or the oldest part when far behind
+  const take = takeUnread(unread);
+  const catchingUp = take.rest.length > 0;
+  const ask = (k, maxTokens) => {
     host.llm.request(k, {
-      ...(model ? { model } : {}),
+      ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(level),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: unread, level,
+        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
       }) }],
-      ...callParams(fsx, cfg, chat.meta),
+      ...callParams(fsx, cfg, chat.meta, maxTokens),
     });
   };
   // the newest message read now: the run is pinned to it, so a reply that lands meanwhile waits for the next run
-  const upTo = keyOf(chat.msgs[chat.msgs.length - 1]);
+  const upTo = keyOf(take.msgs[take.msgs.length - 1]);
+  const started = Number(stash.started) || Date.now();
   if (!r) {
     ask(key);
-    return { __llmPending: true, stash: { retry, upTo } };
+    return { __llmPending: true, stash: { retry, upTo, started } };
   }
+  const limit = limitOf(r);
   if (!retry && r.error && isRateLimit(r)) {
     ask("world_retry");
-    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo } };
+    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo, started } };
   }
-  const fail = (message) => {
-    state.lastError = { at: Date.now(), message: cut(message, 400) };
-    saveState(fsx, state);
-    return ok({ ok: false, error: message });
+  // all thinking, no answer: once more with room for both, unless the model's own block sets the
+  // limit (it wins over the request, so more room asked here would change nothing)
+  if (!retry && thinkingOnly(r) && !(limit && limit.fromModel)) {
+    const room = Math.min(RETRY_MAX, Math.max((limit ? limit.max : cfg.maxTokens) * RETRY_FACTOR, cfg.maxTokens + 2000));
+    ask("world_retry", room);
+    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo, started, roomy: true } };
+  }
+  const usage = isObj(r.usage) ? { input: num(r.usage.input), output: num(r.usage.output), cost: r.usage.priced === false ? 0 : num(r.usage.costTotal) } : null;
+  const run = { at: Date.now(), reason, model: str(r.model) && r.model !== "error" ? str(r.model) : play.model, ms: Math.round(num(r.genTimeMs) || Date.now() - started), ...(usage ? { usage } : {}), ...(limit ? { limit } : {}), ...(retry ? { retried: true } : {}) };
+  const count = (u) => {
+    const t = state.usage || { input: 0, output: 0, cost: 0, runs: 0 };
+    state.usage = { input: t.input + (u ? u.input : 0), output: t.output + (u ? u.output : 0), cost: t.cost + (u ? u.cost : 0), runs: t.runs + 1 };
   };
-  if (r.error || !str(r.text)) return fail(emptyReplyError(r));
+  const fail = (err) => {
+    state.lastError = cleanError({ at: Date.now(), ...err });
+    state.log = [...state.log, { ...run, key: state.lastKey, changes: 0, fronts: 0, summary: "", error: state.lastError.code }].slice(-LOG_MAX);
+    count(usage);
+    saveState(fsx, state);
+    return ok({ ok: false, error: state.lastError.message, code: state.lastError.code });
+  };
+  if (r.error || !str(r.text)) return fail(classifyError(r, limit));
   const out = parseReply(r.text);
-  if (!out) return fail("the DM's reply was not JSON");
+  if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const changes = applyReport(state, out, { cards, userName, now: Date.now() });
-  const moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now() }) : 0;
+  const moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp }) : 0;
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
   state.lastRunAt = Date.now();
   if (str(r.model)) state.lastModel = str(r.model);
   delete state.lastError;
-  state.log = [...state.log, { at: state.lastRunAt, key: state.lastKey, reason, changes, fronts: moved, summary: cut(str(out.summary), 200) }].slice(-LOG_MAX);
+  const behind = catchingUp ? unreadMessages(chat.msgs, state.lastKey).length : 0;
+  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: cut(str(out.summary), 200), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
+  count(usage);
   if (changes || state.entities.length) {
     writeBook(fsx, state, str(chat.meta.title));
     bindBook(fsx, chatId, chat.meta, state.bookId);
   }
   saveState(fsx, state);
-  return ok({ ok: true, changes, ...stateView(state, chat.msgs, cfg, scene) });
+  return ok({ ok: true, changes, ...stateView(state, chat.msgs, cfg, scene, play) });
+}
+
+/** The World section's list: every chat with a DM state, newest run first. Chats that are gone are skipped. */
+function chatsRoute(req, host) {
+  const fsx = host.fs;
+  let files = [];
+  try {
+    files = fsx.list("world/state").filter((f) => f.endsWith(".json"));
+  } catch {}
+  const chats = [];
+  for (const f of files) {
+    const chatId = f.slice(0, -5);
+    if (!CHAT_ID.test(chatId)) continue;
+    const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+    if (!isObj(meta)) continue;
+    const { state } = loadState(fsx, chatId);
+    if (state.settings.level === "off" && !state.entities.length) continue;
+    chats.push({
+      chatId,
+      title: str(meta.title),
+      characterId: str(meta.characterId) || null,
+      groupId: str(meta.groupId) || null,
+      cards: cardNames(fsx, meta),
+      level: state.settings.level,
+      lastRunAt: state.lastRunAt ?? null,
+      error: state.lastError ? state.lastError.code : null,
+      records: state.entities.filter((e) => e.status === "active").length,
+      fronts: state.fronts.filter((x) => x.status === "active").length,
+      usage: state.usage || { input: 0, output: 0, cost: 0, runs: 0 },
+    });
+  }
+  chats.sort((a, b) => (b.lastRunAt || 0) - (a.lastRunAt || 0));
+  return ok({ chats });
+}
+
+/** The run history, newest first: when, why, what changed, tokens, time, errors. Summaries can spoil: the app asks first. */
+function runsRoute(req, host) {
+  const chatId = String((req.query && req.query.chatId) || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const { state } = loadState(host.fs, chatId);
+  return ok({ runs: state.log.map(runView).reverse(), usage: state.usage || { input: 0, output: 0, cost: 0, runs: 0 }, lastError: state.lastError ?? null });
+}
+
+/** "Test the model": one tiny call. Says it works, or the plain reason, with the limit in force. */
+function testRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  const which = b.which === "build" ? "build" : "play";
+  const meta = CHAT_ID.test(chatId) ? readJson(fsx, "chats/" + chatId + ".meta.json", null) : null;
+  const cfg = loadConfig(fsx);
+  const pick = which === "build" ? buildModel(fsx, cfg, isObj(meta) ? meta : null) : playModel(fsx, cfg, isObj(meta) ? meta : null);
+  const r = host.llm.results.world_test;
+  if (!r) {
+    host.llm.request("world_test", {
+      ...(pick.model ? { model: pick.model } : {}),
+      systemPrompt: "You answer with one JSON object and nothing else.",
+      messages: [{ role: "user", content: 'Reply with exactly this JSON: {"ok":true}' }],
+      ...callParams(fsx, cfg, isObj(meta) ? meta : null),
+    });
+    return { __llmPending: true };
+  }
+  const limit = limitOf(r);
+  const base = { which, model: str(r.model) && r.model !== "error" ? str(r.model) : pick.model, from: pick.from, ms: Math.round(num(r.genTimeMs)), ...(limit ? { limit } : {}) };
+  if (r.error || !str(r.text)) return ok({ ok: false, ...base, ...classifyError(r, limit) });
+  const out = parseReply(r.text);
+  if (!out) return ok({ ok: false, ...base, code: "not-json", message: "The model answers, but not in JSON: the DM needs JSON. Pick a stronger model.", details: cut(str(r.text), 600) });
+  return ok({ ok: true, ...base, thinks: !!str(r.reasoning) });
 }
 
 export function handleRoute(req, host) {
@@ -927,5 +1193,8 @@ export function handleRoute(req, host) {
   if (path === "/world/peek" && req.method === "GET") return peekRoute(req, host);
   if (path === "/world/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (path === "/world/update" && req.method === "POST") return updateRoute(req, host);
+  if (path === "/world/chats" && req.method === "GET") return chatsRoute(req, host);
+  if (path === "/world/runs" && req.method === "GET") return runsRoute(req, host);
+  if (path === "/world/test" && req.method === "POST") return testRoute(req, host);
   return ok({ error: "not found" }, 404);
 }

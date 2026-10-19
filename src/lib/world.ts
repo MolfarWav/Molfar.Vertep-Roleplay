@@ -11,6 +11,34 @@ export function libraryBooks<T extends Record<string, unknown>>(items: T[]): T[]
 
 export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'chaos'
 
+/** Where a model in force comes from: the World's own setting, the Dashboard sensor's, Litopys's, the chat's, the app's default. */
+export type WorldModelFrom = 'world' | 'sensor' | 'litopys' | 'chat' | 'default'
+export interface WorldModelPick { model: string; from: WorldModelFrom }
+
+export interface WorldUsage { input: number; output: number; cost: number }
+/** The reply limit a call went out with; fromModel = it came from the model's parameter block in API connections. */
+export interface WorldLimit { max: number; block: string | null; fromModel: boolean }
+
+export type WorldErrorCode = 'thinking' | 'thinking-block' | 'reasoning-off' | 'rate' | 'context' | 'auth' | 'model' | 'not-json' | 'empty' | 'other'
+export interface WorldError { at: number; code: WorldErrorCode; message: string; details?: string; limit?: WorldLimit }
+
+/** One run of the history (GET /world/runs, newest first). summary can spoil: ask before showing it. */
+export interface WorldRun {
+  at: number
+  reason: string
+  changes: number
+  fronts: number
+  summary: string
+  model: string
+  ms: number
+  usage: WorldUsage | null
+  limit: WorldLimit | null
+  /** unread messages left after this run (catch-up) */
+  behind: number
+  retried: boolean
+  error?: WorldErrorCode
+}
+
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
@@ -20,7 +48,7 @@ export interface WorldView {
   dueIn: number
   lastRunAt: number | null
   lastSummary: string
-  lastError: { at: number; message: string } | null
+  lastError: WorldError | null
   model: string
   /** the scene direction the DM goes by (the Dashboard's, else its own), null when unknown */
   direction: string | null
@@ -28,9 +56,16 @@ export interface WorldView {
   sensor: boolean
   fronts: number
   eventWaiting: boolean
+  /** the play model in force for this chat */
+  play: WorldModelPick | null
+  lastRun: WorldRun | null
+  /** the chat's total so far */
+  usage: WorldUsage & { runs: number }
+  /** unread text one run cannot read: "Read the whole chat" takes `runs` runs */
+  behind: { messages: number; runs: number }
 }
 
-interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; skipped?: string; changes?: number }
+interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; code?: WorldErrorCode; skipped?: string; changes?: number }
 
 interface WorldLiveState {
   running: Record<string, true>
@@ -79,12 +114,52 @@ export async function peekWorld(chatId: string): Promise<WorldRecord[]> {
   return (await j<{ records: WorldRecord[] }>(`/world/peek?chatId=${encodeURIComponent(chatId)}`)).records
 }
 
-export async function loadWorldConfig(): Promise<{ model: string; maxTokens: number }> {
-  return j('/world/config')
+/** All chats: the play model (runs after replies) and the build model (makes worlds); empty = the fallback in `play`/`build`. */
+export interface WorldConfig { model: string; buildModel: string; maxTokens: number; play: WorldModelPick; build: WorldModelPick }
+
+const chatQuery = (chatId?: string) => (chatId ? `?chatId=${encodeURIComponent(chatId)}` : '')
+
+export async function loadWorldConfig(chatId?: string): Promise<WorldConfig> {
+  return j(`/world/config${chatQuery(chatId)}`)
 }
 
-export async function saveWorldConfig(patch: { model?: string; maxTokens?: number }): Promise<{ model: string; maxTokens: number }> {
-  return j('/world/config', { method: 'PUT', body: JSON.stringify(patch) })
+export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number }, chatId?: string): Promise<WorldConfig> {
+  return j(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
+}
+
+/** A row of the World section's list. */
+export interface WorldChat {
+  chatId: string
+  title: string
+  characterId: string | null
+  groupId: string | null
+  cards: string[]
+  level: WorldLevel
+  lastRunAt: number | null
+  error: WorldErrorCode | null
+  records: number
+  fronts: number
+  usage: WorldUsage & { runs: number }
+}
+
+export async function listWorldChats(): Promise<WorldChat[] | null> {
+  try {
+    return (await j<{ chats: WorldChat[] }>('/world/chats')).chats
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+
+export async function loadWorldRuns(chatId: string): Promise<{ runs: WorldRun[]; usage: WorldUsage & { runs: number }; lastError: WorldError | null }> {
+  return j(`/world/runs?chatId=${encodeURIComponent(chatId)}`)
+}
+
+export interface WorldTest { ok: boolean; which: 'play' | 'build'; model: string; from: WorldModelFrom; ms: number; limit?: WorldLimit; thinks?: boolean; code?: WorldErrorCode; message?: string; details?: string }
+
+/** "Test the model": one tiny call to the play (or build) model, for this chat when given. */
+export async function testWorldModel(which: 'play' | 'build', chatId?: string): Promise<WorldTest> {
+  return j('/world/test', { method: 'POST', body: JSON.stringify({ which, ...(chatId ? { chatId } : {}) }) })
 }
 
 const inFlight = new Set<string>()
@@ -110,6 +185,26 @@ export async function runWorld(chatId: string, auto: boolean): Promise<WorldRepl
     inFlight.delete(chatId)
     setRunning(chatId, false)
   }
+}
+
+/**
+ * "Read the whole chat": runs one after another until nothing is left unread, an error, or `stop()`.
+ * Each run reads the oldest unread part and sends no event. Returns how many runs went.
+ */
+export async function readWholeChat(chatId: string, onRun: (left: number, done: number) => void, stop: () => boolean): Promise<{ runs: number; error?: string }> {
+  let done = 0
+  for (let i = 0; i < 200; i++) {
+    if (stop()) break
+    const r = await runWorld(chatId, false)
+    if (!r) break
+    if (r.ok === false) return { runs: done, error: r.error }
+    if (r.skipped) break
+    done++
+    const left = r.behind?.messages ?? 0
+    onRun(left, done)
+    if (!left) break
+  }
+  return { runs: done }
 }
 
 /** After a reply (once the dashboard has read it): a DM run if this chat's DM is due. `busy` = the next reply is already being written. */

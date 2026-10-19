@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { applyLevel, applyReport, dmInput, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { applyLevel, applyReport, behindOf, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -212,20 +212,33 @@ describe("routes", () => {
     const m = memHost(seed());
     route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", fromStart: true });
     m.results.world = { text: "Sorry, I cannot." };
-    expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: false, error: "the DM's reply was not JSON" });
+    const out = route(m.host, "POST", "/world/update", { chatId: "c1" }).json;
+    expect(out.ok).toBe(false);
+    expect(out.code).toBe("not-json");
     const st = JSON.parse(m.files["world/state/c1.json"]!);
     expect(st.lastKey).toBe(null);
-    expect(st.lastError.message).toBe("the DM's reply was not JSON");
+    expect(st.lastError.code).toBe("not-json");
+    expect(st.lastError.details).toBe("Sorry, I cannot.");
+    // the failed run is in the history too
+    expect(st.log.at(-1).error).toBe("not-json");
     expect(m.files["lorebooks/world-c1.json"]).toBeUndefined();
   });
 
-  it("the model falls back to the chat's, then the app's", () => {
+  it("the play model falls back to the sensor's, Litopys's, the chat's, then the app's", () => {
     const m = memHost(seed());
     route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", fromStart: true });
     route(m.host, "POST", "/world/update", { chatId: "c1" });
     expect(m.requests[0]!.spec.model).toBe("c/chat");
-    expect(route(m.host, "PUT", "/world/config", { model: "c/dm", maxTokens: 99999 }).json).toEqual({ model: "c/dm", maxTokens: 8000 });
-    expect(route(m.host, "PUT", "/world/config", { model: "", maxTokens: 1500 }).json).toEqual({ model: "", maxTokens: 1500 });
+    m.files["litopys/config.json"] = JSON.stringify({ model: "c/lit" });
+    expect(route(m.host, "GET", "/world/config", undefined, { chatId: "c1" }).json.play).toEqual({ model: "c/lit", from: "litopys" });
+    m.files["dashboard/config.json"] = JSON.stringify({ sensorModel: "c/sensor" });
+    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json.play).toEqual({ model: "c/sensor", from: "sensor" });
+    const put = route(m.host, "PUT", "/world/config", { model: "c/dm", maxTokens: 99999 }).json;
+    expect([put.model, put.maxTokens, put.play]).toEqual(["c/dm", 8000, { model: "c/dm", from: "world" }]);
+    // the build model: its own, else the chat's (no chat named: the app's default)
+    expect(put.build).toEqual({ model: "c/default", from: "default" });
+    const back = route(m.host, "PUT", "/world/config", { model: "", maxTokens: 1500 }).json;
+    expect([back.model, back.buildModel, back.maxTokens]).toEqual(["", "", 1500]);
     expect(m.files["world/config.json"]).toBeUndefined();
   });
 });
@@ -387,6 +400,116 @@ describe("a run above the chronicler", () => {
     const m = memHost(seed());
     m.files["world/state/c1.json"] = JSON.stringify({ ...emptyState("c1"), settings: { level: "director", everyN: 5 }, event: { text: "x", hard: true, sent: 0 } });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler" }).json.eventWaiting).toBe(false);
+  });
+});
+
+// ---------- P3 stage 1: what a run reads, tokens, errors, the hub's routes ----------
+describe("P3: what a run reads", () => {
+  const long = (i: number, n: number) => msg(i, i % 2 ? "user" : "char", "x".repeat(n));
+  it("every unread message is read, long ones cut to a fair share, none dropped", () => {
+    const msgs = Array.from({ length: 10 }, (_, i) => long(i, 2400));
+    const t = takeUnread(msgs);
+    expect(t.msgs.length).toBe(10);
+    expect(t.rest).toEqual([]);
+    expect(t.cap).toBeLessThanOrEqual(800);
+    const input = dmInput({ cards: [], userName: "Taras", entities: [], msgs: t.msgs, cap: t.cap });
+    // all ten speak, none cut away
+    expect(input.match(/\[(Taras|Odarka)\]/g)!.length).toBe(10);
+  });
+  it("far behind: the oldest part now, the rest waits, and the run sends no event", () => {
+    const msgs = Array.from({ length: 60 }, (_, i) => long(i, 2400));
+    const t = takeUnread(msgs);
+    expect(t.msgs[0]!.id).toBe("m0");
+    expect(t.rest.length).toBeGreaterThan(0);
+    expect(behindOf(msgs).runs).toBeGreaterThan(1);
+    const m = memHost(seed(msgs));
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "director", fromStart: true });
+    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json.behind.messages).toBe(t.rest.length);
+    route(m.host, "POST", "/world/update", { chatId: "c1" });
+    expect(m.requests[0]!.spec.messages[0].content).toContain("send no event");
+    m.results.world = { text: JSON.stringify({ add: [], event: { text: "A rider comes." }, summary: "old part" }) };
+    const out = route(m.host, "POST", "/world/update", { chatId: "c1" }, {}, { upTo: "m" + (t.msgs.length - 1) + "#0" }).json;
+    expect(out.ok).toBe(true);
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(st.event).toBe(null);
+    expect(st.lastKey).toBe("m" + (t.msgs.length - 1) + "#0");
+    expect(st.log.at(-1).behind).toBe(t.rest.length);
+    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json.behind.runs).toBeGreaterThan(0);
+  });
+  it("a state saved with the DM off still starts reading from now when switched on", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", everyN: 1 });
+    expect(m.files["world/state/c1.json"]).toBeDefined();
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler" });
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(st.lastKey).toBe("m2#0");
+  });
+});
+
+describe("P3: tokens and errors", () => {
+  const ran = (m: ReturnType<typeof memHost>, result: unknown, key = "world") => {
+    m.results[key] = result;
+    const r = route(m.host, "POST", "/world/update", { chatId: "c1" }, {}, key === "world_retry" ? { retry: true, upTo: "m4#0" } : undefined);
+    return r.json ?? r;
+  };
+  it("a run keeps its tokens, time and limit; the chat keeps the total", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", fromStart: true });
+    const out = ran(m, { text: REPORT, model: "c/chat", genTimeMs: 1200, usage: { input: 900, output: 120, costTotal: 0.002, priced: true }, requestParams: { max_tokens: 2048, block: "plugin:world", from: { max_tokens: "model" } } });
+    expect(out.lastRun.usage).toEqual({ input: 900, output: 120, cost: 0.002 });
+    expect(out.lastRun.limit).toEqual({ max: 2048, block: "plugin:world", fromModel: true });
+    expect(out.lastRun.ms).toBe(1200);
+    expect(out.usage).toEqual({ input: 900, output: 120, cost: 0.002, runs: 1 });
+    const runs = route(m.host, "GET", "/world/runs", undefined, { chatId: "c1" }).json;
+    expect(runs.runs[0].summary).toBe("The toll keeper and his tower.");
+  });
+  it("all thinking, no answer: retries once with more room, by itself", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", fromStart: true });
+    const out = ran(m, { text: "", reasoning: "hmm...", requestParams: { max_tokens: 1500, from: { max_tokens: "request" } } });
+    expect(out.__llmPending).toBe(true);
+    expect(m.requests.at(-1)!.key).toBe("world_retry");
+    expect(m.requests.at(-1)!.spec.presetParams.max_tokens).toBe(4500);
+    const done = ran(m, { text: REPORT }, "world_retry");
+    expect(done.ok).toBe(true);
+    expect(done.lastRun.retried).toBe(true);
+  });
+  it("all thinking under the model's own block: no useless retry, the error names the block", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", fromStart: true });
+    const out = ran(m, { text: "", reasoning: "hmm", requestParams: { max_tokens: 2048, block: "plugin:world", from: { max_tokens: "model" } } });
+    expect(out.code).toBe("thinking-block");
+    expect(out.error).toContain("2048");
+    expect(out.error.endsWith("..")).toBe(false);
+  });
+  it("errors read as one plain sentence with a code; the provider's text stays in details", () => {
+    const glm = classifyError({ error: '400 {"error":"This model always thinks and does not support disabling reasoning"}' }, null);
+    expect(glm.code).toBe("reasoning-off");
+    expect(glm.details).toContain("400");
+    expect(classifyError({ error: "HTTP 429 rate limited" }, null).code).toBe("rate");
+    expect(classifyError({ error: "401 invalid api key" }, null).code).toBe("auth");
+    expect(classifyError({ text: "" }, null).code).toBe("empty");
+  });
+});
+
+describe("P3: the World section's routes", () => {
+  it("lists chats with a DM, skips the ones that are off and empty or gone", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "living", fromStart: true });
+    m.files["world/state/gone.json"] = JSON.stringify({ settings: { level: "living" } });
+    m.files["chats/c2.meta.json"] = JSON.stringify({ id: "c2", title: "Off" });
+    m.files["world/state/c2.json"] = JSON.stringify({ settings: { level: "off" } });
+    const list = route(m.host, "GET", "/world/chats").json.chats;
+    expect(list.map((c: any) => [c.chatId, c.title, c.level, c.cards])).toEqual([["c1", "The Pass", "living", ["Odarka"]]]);
+  });
+  it("tests the play model: works, or the plain reason", () => {
+    const m = memHost(seed());
+    expect(route(m.host, "POST", "/world/test", { chatId: "c1" }).__llmPending).toBe(true);
+    expect(m.requests[0]!.spec.model).toBe("c/chat");
+    m.results.world_test = { text: '{"ok":true}', model: "c/chat", requestParams: { max_tokens: 1500, from: {} } };
+    expect(route(m.host, "POST", "/world/test", { chatId: "c1" }).json).toMatchObject({ ok: true, model: "c/chat", from: "chat", limit: { max: 1500 } });
+    m.results.world_test = { text: "Hello! How can I help?" };
+    expect(route(m.host, "POST", "/world/test", { chatId: "c1" }).json).toMatchObject({ ok: false, code: "not-json" });
   });
 });
 
