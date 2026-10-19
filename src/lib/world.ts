@@ -41,8 +41,11 @@ export interface WorldRun {
 
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
-  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
+  /** profile: the player's own profile on this level ("" = the level's built-in one) */
+  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string }
   ready: WorldLevel[]
+  /** the profile in force: a level's id or an own profile's id; null when off */
+  profile: string | null
   records: number
   retired: number
   dueIn: number
@@ -101,13 +104,55 @@ export async function loadWorld(chatId: string): Promise<WorldView | null> {
   }
 }
 
+/** patch.profile picks a profile (a level id or an own one); the plugin sets the level from it. */
 export async function saveWorldSettings(chatId: string, patch: Partial<WorldView['settings']>): Promise<WorldView> {
   const v = await j<WorldView>('/world/settings', { method: 'PUT', body: JSON.stringify({ chatId, ...patch }) })
   keepView(chatId, v)
   return v
 }
 
-export interface WorldRecord { id: string; kind: string; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number }
+export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
+/** by: 'player' = written or changed by hand in the Records tab */
+export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player' }
+
+export type WorldRecordOp = 'add' | 'update' | 'retire' | 'restore' | 'delete'
+
+/** Edit the world book by hand; returns the records as peek does. 409 = the name is taken. */
+export async function editWorldRecord(chatId: string, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
+  return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ chatId, op, record }) })).records
+}
+
+export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
+export interface WorldProfileBlock { key: WorldBlockKey; text: string; default: string; changed: boolean }
+export interface WorldProfileDefaults { everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
+/** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
+export interface WorldProfile {
+  id: string
+  builtIn: boolean
+  base: Exclude<WorldLevel, 'off'>
+  name: string
+  description: string
+  defaults: WorldProfileDefaults
+  blocks: WorldProfileBlock[]
+  /** the locked reply format, read-only */
+  output: string
+  changed: boolean
+  /** chats on this profile */
+  chats: number
+}
+
+export async function listWorldProfiles(): Promise<WorldProfile[]> {
+  return (await j<{ profiles: WorldProfile[] }>('/world/profiles')).profiles
+}
+
+/** Change a profile (blocks: a string replaces, null resets to the default) or make one (no id, with base). */
+export async function saveWorldProfile(patch: { id?: string; name?: string; description?: string; base?: WorldProfile['base']; blocks?: Partial<Record<WorldBlockKey, string | null>>; defaults?: Partial<WorldProfileDefaults> }): Promise<{ id: string; profiles: WorldProfile[] }> {
+  return j('/world/profiles', { method: 'PUT', body: JSON.stringify(patch) })
+}
+
+export async function deleteWorldProfile(id: string): Promise<WorldProfile[]> {
+  return (await j<{ profiles: WorldProfile[] }>(`/world/profiles?id=${encodeURIComponent(id)}`, { method: 'DELETE' })).profiles
+}
 
 /** The world book's records, for the player who asked to look (fronts and events are not sent). */
 export async function peekWorld(chatId: string): Promise<WorldRecord[]> {

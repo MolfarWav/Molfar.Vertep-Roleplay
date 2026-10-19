@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { applyLevel, applyReport, behindOf, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { CHRONICLER_SYSTEM, applyLevel, applyReport, behindOf, defaultBlocks, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "" });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -153,7 +153,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "" });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -516,6 +516,70 @@ describe("P3: the World section's routes", () => {
     expect(route(m.host, "POST", "/world/test", { chatId: "c1" }).json).toMatchObject({ ok: true, model: "c/chat", from: "chat", limit: { max: 1500 } });
     m.results.world_test = { text: "Hello! How can I help?" };
     expect(route(m.host, "POST", "/world/test", { chatId: "c1" }).json).toMatchObject({ ok: false, code: "not-json" });
+  });
+});
+
+describe("P3 stage 2: profiles", () => {
+  it("built-in profiles give the same prompts as the levels did", () => {
+    const m = memHost(seed());
+    const list = route(m.host, "GET", "/world/profiles").json.profiles;
+    expect(list.map((p: any) => p.id)).toEqual(["chronicler", "living", "director", "antagonist", "chaos"]);
+    expect(systemFor("chronicler")).toBe(CHRONICLER_SYSTEM);
+    const dir = list.find((p: any) => p.id === "director");
+    expect(dir.blocks.map((b: any) => b.key)).toEqual(["keeper", "level", "shared", "event"]);
+    expect(dir.output).toContain('"fronts"');
+    expect(dir.changed).toBe(false);
+  });
+  it("a changed block reaches the run and resets alone; the event block keeps {event}", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/profiles", { id: "director", blocks: { level: "Your level: gentle director. Only kind visitors." } });
+    expect(route(m.host, "PUT", "/world/profiles", { id: "director", blocks: { event: "no placeholder" } }).status).toBe(400);
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "director", fromStart: true });
+    route(m.host, "POST", "/world/update", { chatId: "c1" });
+    expect(m.requests[0]!.spec.systemPrompt).toContain("gentle director");
+    // the locked output is still there
+    expect(m.requests[0]!.spec.systemPrompt).toContain('"delivered"');
+    const back = route(m.host, "PUT", "/world/profiles", { id: "director", blocks: { level: null } }).json.profiles;
+    expect(back.find((p: any) => p.id === "director").changed).toBe(false);
+    expect(m.files["world/profiles/director.json"]).toBeUndefined();
+  });
+  it("an own profile runs on its base, with its event text; removing it falls back to the base", () => {
+    const m = memHost(seed());
+    const made = route(m.host, "PUT", "/world/profiles", { name: "Noir City", base: "antagonist", blocks: { event: "[NOIR: {event}]" }, defaults: { everyN: 2 } }).json;
+    expect(made.id).toBe("p-noir-city");
+    const v = route(m.host, "PUT", "/world/settings", { chatId: "c1", profile: "p-noir-city", fromStart: true }).json;
+    expect([v.settings.level, v.settings.profile, v.settings.everyN, v.profile]).toEqual(["antagonist", "p-noir-city", 2, "p-noir-city"]);
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    st.event = { text: "A shot in the rain.", hard: true, sent: 0 };
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    const out = llmRequest({ key: "reply", request: { sessionId: "c1", messages: [{ role: "user", content: "hi" }] }, turn: { op: "send" } }, m.host) as any;
+    expect(out.messages.at(-1).content).toContain("[NOIR: A shot in the rain.]");
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "p-noir-city").chats).toBe(1);
+    route(m.host, "DELETE", "/world/profiles", undefined, { id: "p-noir-city" });
+    route(m.host, "POST", "/world/update", { chatId: "c1" });
+    expect(m.requests.at(-1)!.spec.systemPrompt).toContain(defaultBlocks("antagonist").level);
+    expect(route(m.host, "DELETE", "/world/profiles", undefined, { id: "director" }).status).toBe(400);
+  });
+});
+
+describe("P3 stage 2: records by hand", () => {
+  it("add, change, retire, restore and delete; the book follows", () => {
+    const m = memHost(seed());
+    const add = route(m.host, "PUT", "/world/records", { chatId: "c1", op: "add", record: { kind: "place", name: "Salt Mill", aliases: ["the mill"], text: "An old mill by the river." } }).json.records;
+    expect(add[0]).toMatchObject({ name: "Salt Mill", by: "player", status: "active" });
+    const book = () => JSON.parse(m.files["lorebooks/world-c1.json"]!);
+    expect(book().entries[0].keys).toEqual(["Salt Mill", "the mill"]);
+    expect(JSON.parse(m.files["chats/c1.meta.json"]!).worldBookId).toBe("world-c1");
+    expect(route(m.host, "PUT", "/world/records", { chatId: "c1", op: "add", record: { name: "the mill", text: "x" } }).status).toBe(409);
+    const id = add[0].id;
+    route(m.host, "PUT", "/world/records", { chatId: "c1", op: "update", record: { id, text: "A burnt mill by the river." } });
+    expect(book().entries[0].content).toBe("Salt Mill: A burnt mill by the river.");
+    route(m.host, "PUT", "/world/records", { chatId: "c1", op: "retire", record: { id } });
+    expect(book().entries[0].memo).toContain("retired");
+    route(m.host, "PUT", "/world/records", { chatId: "c1", op: "restore", record: { id } });
+    const gone = route(m.host, "PUT", "/world/records", { chatId: "c1", op: "delete", record: { id } }).json.records;
+    expect(gone).toEqual([]);
+    expect(book().entries).toEqual([]);
   });
 });
 

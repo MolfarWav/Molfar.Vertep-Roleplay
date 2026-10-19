@@ -31,6 +31,11 @@
  *  GET  /world/chats                  every chat with a DM, for the World section's list
  *  GET  /world/runs?chatId=           the chat's run history, newest first (tokens, time, errors)
  *  POST /world/test {chatId?, which?}  one tiny call to the play (or build) model: works, or why not
+ *  GET  /world/profiles               the DM profiles: five built in (the levels), the player's own; prompt blocks with defaults
+ *  PUT  /world/profiles {id?, name?, description?, base?, blocks?, defaults?}   change one (a block set to null goes back
+ *                                     to its default), or make a new one (no id, or an id not in use)
+ *  DELETE /world/profiles?id=         remove one of the player's own (chats on it fall back to its base)
+ *  PUT  /world/records {chatId, op: add|update|retire|restore|delete, record}   the player edits the world book by hand
  *  POST /world/update {chatId, auto?}  a DM run (two-phase); auto = the app's call after a reply,
  *                                      which runs only when a trigger is due; without auto it always runs
  *                                      (except in an explicit scene)
@@ -40,6 +45,7 @@
  * Files (fs root = the app's data/):
  *  world/state/<chatId>.json   the chat's world state (shape: normalizeState)
  *  world/config.json           only what differs from the defaults
+ *  world/profiles/<id>.json    a built-in profile's changes (only blocks that differ) or a player's own profile
  *  lorebooks/world-<chatId>.json  the chat's world book: ownerChatId = the chat, so the app's
  *                              library never lists it; the chat's meta names it as worldBookId,
  *                              and the engine plugin scans it in that chat only
@@ -48,6 +54,8 @@
 const STATE_DIR = "world/state/";
 const CONFIG_FILE = "world/config.json";
 const CHAT_ID = /^[A-Za-z0-9_-]{1,120}$/;
+// a player's own profile: "p-" and a slug, never a level's name
+const OWN_PROFILE_ID = /^p-[a-z0-9-]{1,40}$/;
 const MODEL_REF = /^[^\s]{1,200}$/;
 
 export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "chaos"];
@@ -60,7 +68,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "" };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500 };
 
@@ -137,6 +145,8 @@ function cleanSettings(s) {
     stagnation: Number.isFinite(st) ? clamp(Math.round(st), 0, 50) : DEFAULT_SETTINGS.stagnation,
     onTransition: typeof b.onTransition === "boolean" ? b.onTransition : DEFAULT_SETTINGS.onTransition,
     insert: typeof b.insert === "boolean" ? b.insert : DEFAULT_SETTINGS.insert,
+    // a player's own profile on top of the level (its base); "" = the level's built-in profile
+    profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
   };
 }
 
@@ -191,6 +201,8 @@ function cleanEntity(e) {
     status: past ? "past" : "active",
     uid: Number.isInteger(e.uid) && e.uid > 0 ? e.uid : 0,
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
+    // written or changed by the player by hand (the Records tab)
+    ...(e.by === "player" ? { by: "player" } : {}),
   };
 }
 
@@ -416,7 +428,7 @@ function userNameOf(fsx, meta) {
 }
 
 // ---------- the DM call ----------
-export const CHRONICLER_SYSTEM = [
+const CHRONICLER_RULES = [
   "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups, things and facts that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
   "Rules:",
   "- The story text is canon. Record only what it shows or plainly says. Never invent events, and never contradict the story.",
@@ -429,9 +441,13 @@ export const CHRONICLER_SYSTEM = [
   "- Write names and text in the language and script of the story's replies. Only the JSON keys and kind values are English.",
   "- When the player writes in another language or script, add the player's spellings of a name to its aliases too (Anna and \u0410\u043d\u043d\u0430): the book matches names in both.",
   "- At most " + CHANGES_MAX + " changes in one reply. Nothing worth recording: empty lists.",
+];
+// the reply's shape: locked, parseReply and applyReport depend on it
+const CHRONICLER_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
   '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"..."}],"update":[{"id":"n3","text":"...","aliases":["..."]}],"retire":[{"id":"n3","text":"..."}],"summary":"one short line: what changed in the world"}',
-].join("\n");
+];
+export const CHRONICLER_SYSTEM = [...CHRONICLER_RULES, ...CHRONICLER_OUTPUT].join("\n");
 
 // what each level above the chronicler may do; one block, added to the chronicler's rules
 const LEVEL_RULES = {
@@ -465,10 +481,142 @@ const LEVEL_SHARED = [
 
 const LEVEL_SHAPE = '{"add":[...],"update":[...],"retire":[...],"fronts":[{"op":"add","name":"...","goal":"...","size":6},{"op":"tick","id":"f1","by":1,"reason":"..."},{"op":"retire","id":"f1"}],"event":{"text":"..."} or null,"delivered":true|false|null,"direction":"...","summary":"..."}';
 
-/** The system prompt of a run at this level. */
-export function systemFor(level) {
-  if (!LEVEL_RULES[level]) return CHRONICLER_SYSTEM;
-  return [CHRONICLER_SYSTEM, "", ...LEVEL_RULES[level], ...LEVEL_SHARED, "Output at this level, the same object with more keys:", LEVEL_SHAPE].join("\n");
+const LEVEL_OUTPUT = ["Output at this level, the same object with more keys:", LEVEL_SHAPE];
+
+const SOFT_EVENT = "[World news, may come up in this reply if it fits: {event} If it fits, let it reach the characters as talk, a rumour or a message. Never mention where this note came from.]";
+const HARD_EVENT = [
+  "[WORLD EVENT: must happen in this reply]",
+  "What: {event}",
+  "How: bring it into this reply as part of the scene; the characters react in character.",
+  "Do not: resolve it in this reply, explain where it came from, or mention a game master.",
+].join("\n");
+
+// ---------- profiles: which DM a chat gets ----------
+// The five levels are the built-in profiles; the player can change their prompt blocks (only what differs
+// is stored, each block resets on its own) and make profiles of their own on top of a level (its base,
+// which decides what code does: fronts, events, hard or soft). The output block is never editable.
+export const PROFILE_LEVELS = LEVELS.filter((l) => l !== "off");
+const PROFILE_DIR = "world/profiles/";
+const BLOCK_MAX = 6000;
+const PROFILES_MAX = 40;
+const NAME_LEN = 60;
+const DESC_LEN = 300;
+
+/** The editable blocks of a level, with their default texts (the event block's text has {event}). */
+export function defaultBlocks(base) {
+  const out = { keeper: CHRONICLER_RULES.join("\n") };
+  if (LEVEL_RULES[base]) {
+    out.level = LEVEL_RULES[base].join("\n");
+    out.shared = LEVEL_SHARED.join("\n");
+    out.event = HARD_LEVELS.includes(base) ? HARD_EVENT : SOFT_EVENT;
+  }
+  return out;
+}
+
+/** The locked output block of a level, shown read-only. */
+export const outputBlock = (base) => (LEVEL_RULES[base] ? [...CHRONICLER_OUTPUT, "", ...LEVEL_OUTPUT] : CHRONICLER_OUTPUT).join("\n");
+
+const DEFAULT_PROFILE_SETTINGS = { everyN: DEFAULT_SETTINGS.everyN, stagnation: DEFAULT_SETTINGS.stagnation, onTransition: true, insert: true };
+
+function cleanDefaults(d) {
+  const s = cleanSettings({ ...DEFAULT_PROFILE_SETTINGS, ...(isObj(d) ? d : {}), level: "chronicler" });
+  return { everyN: s.everyN, stagnation: s.stagnation, onTransition: s.onTransition, insert: s.insert };
+}
+
+/** Changed blocks only: known keys, non-empty, not equal to the default; the event block must keep {event}. */
+function cleanBlocks(raw, base) {
+  const dflt = defaultBlocks(base);
+  const out = {};
+  if (!isObj(raw)) return out;
+  for (const k of Object.keys(dflt)) {
+    const v = typeof raw[k] === "string" ? raw[k].replace(/\r\n/g, "\n").trim() : "";
+    if (!v || v === dflt[k]) continue;
+    if (k === "event" && !v.includes("{event}")) continue;
+    out[k] = cut(v, BLOCK_MAX);
+  }
+  return out;
+}
+
+function readProfileFile(fsx, id) {
+  const raw = readJson(fsx, PROFILE_DIR + id + ".json", null);
+  return isObj(raw) ? raw : null;
+}
+
+/** A profile as code trusts it, with every block's text in force; null when there is no such profile. */
+export function loadProfile(fsx, id) {
+  if (PROFILE_LEVELS.includes(id)) {
+    const raw = readProfileFile(fsx, id) || {};
+    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults) };
+  }
+  if (!OWN_PROFILE_ID.test(id)) return null;
+  const raw = readProfileFile(fsx, id);
+  if (!raw || !PROFILE_LEVELS.includes(raw.base)) return null;
+  return {
+    id, builtIn: false, base: raw.base,
+    name: cut(str(raw.name), NAME_LEN) || id,
+    description: cut(str(raw.description), DESC_LEN),
+    blocks: cleanBlocks(raw.blocks, raw.base),
+    defaults: cleanDefaults(raw.defaults),
+  };
+}
+
+/** The profile a chat runs with: its own one when it still exists on the same level, else the level's. */
+export function profileFor(fsx, settings) {
+  if (settings.level === "off") return null;
+  const own = settings.profile ? loadProfile(fsx, settings.profile) : null;
+  return own && own.base === settings.level ? own : loadProfile(fsx, settings.level);
+}
+
+const blockText = (profile, key) => (profile && profile.blocks[key]) || defaultBlocks(profile ? profile.base : "chronicler")[key] || "";
+
+/** The system prompt of a run: a level name (built-in texts) or a profile (its blocks, the output locked). */
+export function systemFor(levelOrProfile) {
+  const profile = isObj(levelOrProfile) ? levelOrProfile : { base: levelOrProfile, blocks: {} };
+  const keeper = blockText(profile, "keeper");
+  if (!LEVEL_RULES[profile.base]) return [keeper, ...CHRONICLER_OUTPUT].join("\n");
+  return [keeper, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n");
+}
+
+function profileView(fsx, p, used) {
+  const dflt = defaultBlocks(p.base);
+  return {
+    id: p.id, builtIn: p.builtIn, base: p.base, name: p.name, description: p.description,
+    defaults: p.defaults,
+    blocks: Object.keys(dflt).map((key) => ({ key, text: p.blocks[key] || dflt[key], default: dflt[key], changed: !!p.blocks[key] })),
+    output: outputBlock(p.base),
+    changed: Object.keys(p.blocks).length > 0,
+    chats: used[p.id] || 0,
+  };
+}
+
+/** Every profile, built-in first, with how many chats use each. */
+export function listProfiles(fsx) {
+  const used = {};
+  let states = [];
+  try {
+    states = fsx.list("world/state").filter((f) => f.endsWith(".json"));
+  } catch {}
+  for (const f of states) {
+    const s = readJson(fsx, STATE_DIR + f, null);
+    if (!isObj(s) || !isObj(s.settings)) continue;
+    const set = cleanSettings(s.settings);
+    if (set.level === "off") continue;
+    const id = set.profile || set.level;
+    used[id] = (used[id] || 0) + 1;
+  }
+  const own = [];
+  let files = [];
+  try {
+    files = fsx.list("world/profiles").filter((f) => f.endsWith(".json"));
+  } catch {}
+  for (const f of files) {
+    const id = f.slice(0, -5);
+    if (!OWN_PROFILE_ID.test(id)) continue;
+    const p = loadProfile(fsx, id);
+    if (p) own.push(p);
+  }
+  own.sort((a, b) => a.name.localeCompare(b.name));
+  return [...PROFILE_LEVELS.map((id) => loadProfile(fsx, id)), ...own].map((p) => profileView(fsx, p, used));
 }
 
 const entityLine = (e) => e.id + " · " + e.kind + " · " + e.name + (e.aliases.length ? " (" + e.aliases.join(", ") + ")" : "") + ": " + e.text;
@@ -746,16 +894,11 @@ export function applyLevel(state, out, { level, direction, now, catchingUp }) {
 // the engine plugin's ops: a new reply (send, next) or a new swipe of one; never continue or impersonate
 const OPS_WITH_EVENT = ["send", "next", "swipe"];
 
-/** The text the writing model gets for an event, or null. */
-export function eventInsert(event) {
+/** The text the writing model gets for an event, or null. template = the profile's event block (with {event}). */
+export function eventInsert(event, template) {
   if (!event || !str(event.text)) return null;
-  if (!event.hard) return "[World news, may come up in this reply if it fits: " + event.text + " If it fits, let it reach the characters as talk, a rumour or a message. Never mention where this note came from.]";
-  return [
-    "[WORLD EVENT: must happen in this reply]",
-    "What: " + event.text,
-    "How: bring it into this reply as part of the scene; the characters react in character.",
-    "Do not: resolve it in this reply, explain where it came from, or mention a game master.",
-  ].join("\n");
+  const t = typeof template === "string" && template.includes("{event}") ? template : event.hard ? HARD_EVENT : SOFT_EVENT;
+  return t.split("{event}").join(event.text);
 }
 
 function withLast(messages, text) {
@@ -785,7 +928,8 @@ export function llmRequest(ctx, host) {
     const dir = directionOf(state, chat ? sceneOf(fsx, chatId, chat.msgs) : null);
     if (dir === "explicit") return null;
     if (dir === "combat" && lv !== "antagonist" && lv !== "chaos") return null;
-    const text = eventInsert(state.event);
+    const profile = profileFor(fsx, state.settings);
+    const text = eventInsert(state.event, profile && profile.blocks.event);
     if (!text) return null;
     state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now() };
     saveState(fsx, state);
@@ -893,6 +1037,8 @@ function stateView(state, msgs, cfg, scene, play) {
   return {
     settings: state.settings,
     ready: READY_LEVELS,
+    // the profile in force (its own one, else the level's)
+    profile: state.settings.level === "off" ? null : state.settings.profile || state.settings.level,
     bookId: state.bookId,
     records: state.entities.filter((e) => e.status === "active").length,
     retired: state.entities.filter((e) => e.status === "past").length,
@@ -930,7 +1076,7 @@ function peekRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const { state } = loadState(host.fs, chatId);
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0 }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -945,6 +1091,15 @@ function settingsRoute(req, host) {
   const { state, existed } = loadState(host.fs, chatId);
   const patch = {};
   for (const k of ["level", "everyN", "stagnation", "onTransition", "insert"]) if (b[k] !== undefined) patch[k] = b[k];
+  // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
+  if (b.profile !== undefined) {
+    const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
+    if (str(b.profile) && !p) return ok({ error: "no such profile" }, 400);
+    patch.level = p ? p.base : patch.level;
+    patch.profile = p && !p.builtIn ? p.id : "";
+    // first switched on with this profile: its defaults; later the chat's own numbers stay
+    if (p && state.settings.level === "off") Object.assign(patch, p.defaults, Object.fromEntries(["everyN", "stagnation", "onTransition", "insert"].filter((k) => b[k] !== undefined).map((k) => [k, b[k]])));
+  } else if (b.level !== undefined) patch.profile = "";
   const next = cleanSettings({ ...state.settings, ...patch });
   // switched on for the first time: the DM starts reading from now, not from the first message
   // (also when a state file was saved with the DM off and it never ran: lastKey is still null)
@@ -1055,7 +1210,7 @@ function updateRoute(req, host) {
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
-      systemPrompt: systemFor(level),
+      systemPrompt: systemFor(profileFor(fsx, state.settings) || level),
       messages: [{ role: "user", content: dmInput({
         cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
@@ -1159,6 +1314,103 @@ function runsRoute(req, host) {
   return ok({ runs: state.log.map(runView).reverse(), usage: state.usage || { input: 0, output: 0, cost: 0, runs: 0 }, lastError: state.lastError ?? null });
 }
 
+/** The profiles: list, change (blocks, name, defaults), make, remove. */
+function profilesRoute(req, host) {
+  const fsx = host.fs;
+  if (req.method === "GET") return ok({ profiles: listProfiles(fsx) });
+  if (req.method === "DELETE") {
+    const id = String((req.query && req.query.id) || "");
+    if (!OWN_PROFILE_ID.test(id)) return ok({ error: "only your own profiles can be removed" }, 400);
+    try {
+      fsx.remove(PROFILE_DIR + id + ".json");
+    } catch {}
+    return ok({ profiles: listProfiles(fsx) });
+  }
+  const b = body(req);
+  let id = str(b.id);
+  const builtIn = PROFILE_LEVELS.includes(id);
+  const current = id ? loadProfile(fsx, id) : null;
+  if (id && !builtIn && !OWN_PROFILE_ID.test(id)) return ok({ error: "bad profile id" }, 400);
+  if (!current) {
+    // a new own profile: on a base level, from that level's texts unless blocks say otherwise
+    if (!PROFILE_LEVELS.includes(b.base)) return ok({ error: "a new profile needs a base level" }, 400);
+    const own = listProfiles(fsx).filter((p) => !p.builtIn).length;
+    if (own >= PROFILES_MAX) return ok({ error: "too many profiles" }, 400);
+    if (!id) {
+      const slug = str(b.name).toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "profile";
+      id = "p-" + slug;
+      for (let n = 2; readProfileFile(fsx, id); n++) id = "p-" + slug + "-" + n;
+    }
+  }
+  const base = current ? current.base : b.base;
+  // a block sent as null goes back to its default; a string replaces it; a missing one stays
+  const blocks = { ...(current ? current.blocks : {}) };
+  if (isObj(b.blocks)) for (const [k, v] of Object.entries(b.blocks)) if (v === null) delete blocks[k]; else if (typeof v === "string") blocks[k] = v;
+  if (b.blocks && isObj(b.blocks) && typeof b.blocks.event === "string" && !b.blocks.event.includes("{event}") && b.blocks.event.trim()) return ok({ error: "the event block must keep {event}" }, 400);
+  const next = {
+    v: 1,
+    ...(builtIn ? {} : { name: cut(str(b.name !== undefined ? b.name : current ? current.name : ""), NAME_LEN) || "Profile", description: cut(str(b.description !== undefined ? b.description : current ? current.description : ""), DESC_LEN), base }),
+    blocks: cleanBlocks(blocks, base),
+    defaults: cleanDefaults(b.defaults !== undefined ? b.defaults : current ? current.defaults : {}),
+  };
+  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS);
+  if (plain) {
+    try {
+      fsx.remove(PROFILE_DIR + id + ".json");
+    } catch {}
+  } else writeJson(fsx, PROFILE_DIR + id + ".json", next);
+  return ok({ id, profiles: listProfiles(fsx) });
+}
+
+/** The player edits the world book by hand: add, change, retire, bring back or delete a record. */
+function recordsRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  const r = isObj(b.record) ? b.record : {};
+  const op = str(b.op);
+  const now = Date.now();
+  const name = cut(str(r.name), NAME_MAX);
+  const text = cut(str(r.text), TEXT_MAX);
+  const clash = (exceptId) => state.entities.find((e) => e.id !== exceptId && namesOf(e).some((n) => sameName(n, name)));
+  if (op === "add") {
+    if (!name || !text) return ok({ error: "a record needs a name and a text" }, 400);
+    if (clash(null)) return ok({ error: "a record with this name exists" }, 409);
+    if (state.entities.length >= ENTITIES_MAX) return ok({ error: "the world book is full" }, 400);
+    state.entities.push({ id: "n" + state.nextId++, kind: KINDS.includes(r.kind) ? r.kind : "fact", name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player" });
+  } else {
+    const e = state.entities.find((x) => x.id === str(r.id));
+    if (!e) return ok({ error: "no such record" }, 404);
+    if (op === "update") {
+      if (name && clash(e.id)) return ok({ error: "a record with this name exists" }, 409);
+      if (name) e.name = name;
+      if (r.text !== undefined) {
+        if (!text) return ok({ error: "a record needs a text" }, 400);
+        e.text = e.status === "past" ? cut(text, PAST_TEXT_MAX) : text;
+      }
+      if (KINDS.includes(r.kind)) e.kind = r.kind;
+      if (r.aliases !== undefined) e.aliases = cleanAliases(r.aliases, e.name);
+    } else if (op === "retire") {
+      e.status = "past";
+      e.text = shortText(text || e.text);
+    } else if (op === "restore") e.status = "active";
+    else if (op === "delete") state.entities = state.entities.filter((x) => x !== e);
+    else return ok({ error: "unknown op" }, 400);
+    if (op !== "delete") {
+      e.at = now;
+      e.by = "player";
+    }
+  }
+  writeBook(fsx, state, str(chat.meta.title));
+  bindBook(fsx, chatId, chat.meta, state.bookId);
+  saveState(fsx, state);
+  return peekRoute({ query: { chatId } }, host);
+}
+
 /** "Test the model": one tiny call. Says it works, or the plain reason, with the limit in force. */
 function testRoute(req, host) {
   const fsx = host.fs;
@@ -1197,5 +1449,7 @@ export function handleRoute(req, host) {
   if (path === "/world/chats" && req.method === "GET") return chatsRoute(req, host);
   if (path === "/world/runs" && req.method === "GET") return runsRoute(req, host);
   if (path === "/world/test" && req.method === "POST") return testRoute(req, host);
+  if (path === "/world/profiles" && ["GET", "PUT", "DELETE"].includes(req.method)) return profilesRoute(req, host);
+  if (path === "/world/records" && req.method === "PUT") return recordsRoute(req, host);
   return ok({ error: "not found" }, 404);
 }
