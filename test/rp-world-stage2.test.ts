@@ -6,7 +6,7 @@ import type { WorldProfile, WorldRecord } from '../src/lib/world'
 const profile = (over: Partial<WorldProfile> = {}): WorldProfile => ({
   id: 'p-slow', builtIn: false, base: 'director', name: 'Slow', description: 'd',
   defaults: { everyN: 5, stagnation: 6, onTransition: true, insert: true },
-  options: { clocks: 'model', clockEvery: 6, eventByClock: false },
+  options: { clocks: 'model', clockEvery: 6, eventByClock: false, deck: false },
   blocks: [
     { key: 'keeper', text: 'KEEP', default: 'KEEP', changed: false },
     { key: 'event', text: 'Do {event} now', default: 'Do {event} now', changed: false },

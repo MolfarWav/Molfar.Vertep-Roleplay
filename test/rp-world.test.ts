@@ -703,6 +703,6 @@ describe("P3 stage 2: profile options", () => {
     // 3 replies read (m0, m2, m4): one tick, one reply carried over; the model's +2 ignored
     expect(after.fronts[0].clock).toBe(1);
     expect(after.clockReplies).toBe(1);
-    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true });
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false });
   });
 });

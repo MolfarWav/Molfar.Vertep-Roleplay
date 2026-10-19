@@ -66,6 +66,11 @@ export interface WorldView {
   usage: WorldUsage & { runs: number }
   /** unread text one run cannot read: "Read the whole chat" takes `runs` runs */
   behind: { messages: number; runs: number }
+  /** a Start in progress or waiting to be accepted */
+  draft: WorldDraft | null
+  /** cards left in the events deck (their text stays the DM's) */
+  deck: number
+  origin: WorldOrigin | null
 }
 
 interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; code?: WorldErrorCode; skipped?: string; changes?: number }
@@ -126,7 +131,8 @@ export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
 export interface WorldProfileBlock { key: WorldBlockKey; text: string; default: string; changed: boolean }
 export interface WorldProfileDefaults { everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
 /** clocks: who ticks the fronts' clocks ('code' = every clockEvery replies read); eventByClock: news worded by the clock's stage */
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean }
+/** deck: events come only from the chat's events deck (built at start; "New deck" when used up) */
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string
@@ -261,4 +267,128 @@ export async function readWholeChat(chatId: string, onRun: (left: number, done: 
 export async function triggerWorldUpdate(chatId: string, busy: () => boolean): Promise<void> {
   if (busy()) return
   await runWorld(chatId, true)
+}
+
+// ---------- Start (P3 stage 3): recipes, the draft, the deck, the library, carry, the chat's own opening ----------
+export interface WorldRecipeQuestion { id: string; text: string; options?: string[]; default?: string }
+export interface WorldRecipe {
+  id: string
+  name: string
+  description: string
+  questions: WorldRecipeQuestion[]
+  sections: { id: string; kinds: WorldKind[]; max: number; prompt: string }[]
+  fronts: { count: number; prompt: string }
+  builtin: boolean
+}
+export interface WorldDraftFront { id: string; name: string; goal: string; clock: number; size: number }
+/** A Start's result before the player accepts it: done of total build calls; error = the last step failed (call again) */
+export interface WorldDraft {
+  recipe: string
+  cardIds: string[]
+  lang: string
+  total: number
+  done: number
+  entities: WorldRecord[]
+  fronts: WorldDraftFront[]
+  deck: { id: string; text: string }[]
+  at: number
+  error: WorldError | null
+}
+export type WorldOrigin =
+  | { kind: 'cards' | 'recipe'; recipe: string; cardIds: string[]; at: number }
+  | { kind: 'library'; worldId: string; name: string; at: number }
+  | { kind: 'chat'; chatId: string; title: string; at: number }
+
+export async function listWorldRecipes(): Promise<WorldRecipe[]> {
+  return (await j<{ recipes: WorldRecipe[] }>('/world/recipes')).recipes
+}
+
+interface DraftReply { ok?: boolean; error?: string; code?: WorldErrorCode | 'no-text'; draft: WorldDraft }
+
+/** Begin a draft. 409 code 'no-text' = the chosen cards have nothing to learn from. */
+export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; lang?: string; deck?: boolean }): Promise<WorldDraft> {
+  return (await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId, begin: true, ...o }) })).draft
+}
+
+/**
+ * Run the draft's build calls one after another until done, a failed step (it stays; calling
+ * again retries it) or `stop()`. onStep gets the draft after each call.
+ */
+export async function buildWorldDraft(chatId: string, onStep: (d: WorldDraft) => void, stop: () => boolean): Promise<{ draft: WorldDraft | null; error?: string; code?: string }> {
+  let draft: WorldDraft | null = null
+  setRunning(chatId, true)
+  try {
+    for (let i = 0; i < 80; i++) {
+      if (stop()) break
+      const r = await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId }) })
+      draft = r.draft
+      onStep(draft)
+      if (r.ok === false) return { draft, error: r.error, code: r.code }
+      if (draft.done >= draft.total) break
+    }
+    return { draft }
+  } catch (e) {
+    return { draft, error: String((e as Error)?.message ?? e) }
+  } finally {
+    setRunning(chatId, false)
+    void loadWorld(chatId).catch(() => {})
+  }
+}
+
+/** Accept the draft into the world, minus the ids the player removed; or throw it away. */
+export async function finishWorldDraft(chatId: string, op: 'accept' | 'discard', drop?: { entities?: string[]; fronts?: string[]; deck?: string[] }): Promise<void> {
+  const r = await j<Partial<WorldView>>('/world/draft', { method: 'PUT', body: JSON.stringify({ chatId, op, ...(drop ? { drop } : {}) }) })
+  if (r?.settings) keepView(chatId, r)
+  else void loadWorld(chatId).catch(() => {})
+}
+
+/** A new events deck for the chat (one build call). */
+export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok: boolean; deck?: number; error?: string; code?: WorldErrorCode }> {
+  const r = await j<{ ok: boolean; deck?: number; error?: string; code?: WorldErrorCode }>('/world/deck', { method: 'POST', body: JSON.stringify({ chatId, ...(lang ? { lang } : {}) }) })
+  void loadWorld(chatId).catch(() => {})
+  return r
+}
+
+/** A saved world of the library (records, fronts, deck, settings), as the list shows it. */
+export interface SavedWorld { id: string; name: string; description: string; at: number; from: { chatId: string; title: string } | null; level: WorldLevel; records: number; fronts: number; deck: number }
+
+export async function listSavedWorlds(): Promise<SavedWorld[] | null> {
+  try {
+    return (await j<{ worlds: SavedWorld[] }>('/world/library')).worlds
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+/** Save the chat's world as it stands. 409 = the world is empty or the library full. */
+export async function saveWorldToLibrary(chatId: string, name?: string, description?: string): Promise<{ id: string; worlds: SavedWorld[] }> {
+  return j('/world/library', { method: 'POST', body: JSON.stringify({ chatId, name, description }) })
+}
+export async function renameSavedWorld(id: string, patch: { name?: string; description?: string }): Promise<SavedWorld[]> {
+  return (await j<{ worlds: SavedWorld[] }>('/world/library', { method: 'PUT', body: JSON.stringify({ id, ...patch }) })).worlds
+}
+export async function deleteSavedWorld(id: string): Promise<SavedWorld[]> {
+  return (await j<{ worlds: SavedWorld[] }>(`/world/library?id=${encodeURIComponent(id)}`, { method: 'DELETE' })).worlds
+}
+
+/** A world into a chat, from the library or another chat. 409 code 'has-world' unless replace. */
+export async function carryWorld(toChatId: string, from: { worldId: string } | { fromChatId: string }, replace = false): Promise<WorldView> {
+  const v = await j<WorldView>('/world/carry', { method: 'POST', body: JSON.stringify({ toChatId, ...from, ...(replace ? { replace } : {}) }) })
+  keepView(toChatId, v)
+  return v
+}
+
+export interface WorldOpeningDraft { ok: boolean; scenario?: string; opening?: string; model?: string; error?: string; code?: WorldErrorCode }
+/** The build model drafts the chat's scenario and first message from its world (or a library world). */
+export async function draftWorldOpening(chatId: string, o: { worldId?: string; wish?: string; lang?: string } = {}): Promise<WorldOpeningDraft> {
+  return j('/world/opening', { method: 'POST', body: JSON.stringify({ chatId, ...o }) })
+}
+
+export interface WorldScenario { text: string; mode: 'replace' | 'append' }
+/**
+ * The chat's own scenario (null = the card's again) and, before the player's first message, its first
+ * message (the greeting's new first swipe). 409 code 'started' = the player has written already.
+ */
+export async function setWorldOverride(chatId: string, o: { scenario?: WorldScenario | null; opening?: string }): Promise<{ scenario: WorldScenario | null; opening: boolean }> {
+  return j('/world/override', { method: 'PUT', body: JSON.stringify({ chatId, ...o }) })
 }

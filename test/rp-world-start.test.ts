@@ -1,6 +1,9 @@
 // World DM P3 stage 3: building a world from the chat's cards (recipes, sources, chunks, build prompts).
-import { describe, expect, it } from "bun:test";
-import { buildInput, chunkSources, listRecipes, recipeOf, startPlan, startSources } from "../plugins/world/plugin.js";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { applyLevel, buildInput, chunkSources, dmInput, handleRoute, listRecipes, recipeOf, startPlan, startSources } from "../plugins/world/plugin.js";
 
 function memFs(files: Record<string, string> = {}) {
   return {
@@ -99,5 +102,210 @@ describe("world start: plan and input", () => {
     expect(text).toContain("Kinds: place. At most 5 records.");
     expect(text).toContain("Write names and text in Ukrainian.");
     expect(text).not.toContain("Texts to learn from");
+  });
+});
+
+// ---------- routes ----------
+
+const engineUrl = new URL("../plugins/engine/plugin.js", import.meta.url).href;
+const eng = (await import(engineUrl)) as { handleRoute: Function };
+
+let root: string;
+let results: Record<string, unknown>;
+let requests: { key: string; spec: Record<string, any> }[];
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "world-start-"));
+  for (const d of ["characters/odarka", "personas", "presets", "regex", "groups", "lorebooks", "chats"]) fs.mkdirSync(path.join(root, d), { recursive: true });
+  fs.writeFileSync(path.join(root, "presets", "default.json"), J({ id: "default", name: "Default", prompts: [], prompt_order: [] }));
+  fs.writeFileSync(path.join(root, "characters", "odarka", "card.json"), J({ spec: "chara_card_v2", name: "Odarka", description: "A witch of the pass.", scenario: "At the card's hut.", first_mes: "Hi, {{user}}.", studio: { linkedLorebookIds: ["pass"] } }));
+  fs.writeFileSync(path.join(root, "lorebooks", "pass.json"), J({ id: "pass", name: "Pass", entries: [{ uid: 1, title: "Red Tower", content: "A tower up the pass.", enabled: true }] }));
+  fs.writeFileSync(path.join(root, "settings.json"), J({ model: null }));
+  results = {};
+  requests = [];
+});
+afterEach(() => {
+  try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* watcher races */ }
+});
+function host() {
+  return {
+    fs: {
+      root,
+      read: (rel: string) => fs.readFileSync(path.resolve(root, rel), "utf8"),
+      write: (rel: string, content: string) => {
+        const full = path.resolve(root, rel);
+        fs.mkdirSync(path.dirname(full), { recursive: true });
+        fs.writeFileSync(full, content, "utf8");
+      },
+      list: (rel = ".") => fs.readdirSync(path.resolve(root, rel)).sort(),
+      remove: (rel: string) => fs.rmSync(path.resolve(root, rel), { recursive: true, force: true }),
+    },
+    store: { get: () => null, put: () => {}, delete: () => {}, keys: () => [] },
+    llm: { request: (key: string, spec: Record<string, any>) => { requests.push({ key, spec }); }, results, embed: () => {}, embedResults: {} },
+    net: { request: () => {}, results: {} },
+    log: () => {},
+  };
+}
+const engine = (method: string, p: string, body?: unknown) => (eng.handleRoute({ method, path: p, query: {}, body }, host()) as { json: Record<string, any> }).json;
+const world = (method: string, p: string, body?: unknown, query: Record<string, string> = {}) => {
+  const r = handleRoute({ method, path: p, query, body }, host()) as any;
+  return r.json ?? r;
+};
+const readRel = (rel: string) => JSON.parse(fs.readFileSync(path.join(root, rel), "utf8"));
+const newChat = () => engine("POST", "/chats", { characterId: "odarka" }).meta.id as string;
+const allText = (p: any) => [p.systemPrompt ?? "", ...p.messages.map((m: any) => m.content)].join("\n");
+
+/** Run a start to its end: each step answers with the next reply of the list. */
+function runStart(chatId: string, replies: string[]) {
+  let out: any;
+  for (const text of replies) {
+    for (const k of Object.keys(results)) delete results[k];
+    results.world_build = { text, model: "b/build", genTimeMs: 10 };
+    out = world("POST", "/world/start", { chatId });
+  }
+  return out;
+}
+
+describe("world start: draft from the cards", () => {
+  it("begins a draft, builds it step by step, accepts it minus what the player dropped", () => {
+    const id = newChat();
+    world("PUT", "/world/settings", { chatId: id, level: "living" });
+    const begun = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", lang: "Ukrainian" });
+    expect(begun.draft).toMatchObject({ recipe: "from-cards", total: 2, done: 0 });
+    // the first pass asks the build model, with the card and its book
+    const pending = world("POST", "/world/start", { chatId: id });
+    expect(pending.__llmPending).toBe(true);
+    expect(requests[0]!.spec.messages[0].content).toContain("[Pass: Red Tower]");
+    expect(requests[0]!.spec.messages[0].content).toContain("Write names and text in Ukrainian.");
+    const out = runStart(id, [
+      J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }, { kind: "person", name: "Odarka", text: "skip" }, { kind: "person", name: "Maksym", text: "The toll keeper." }] }),
+      J({ fronts: [{ name: "The toll", goal: "Close the pass.", size: 4 }] }),
+    ]);
+    expect(out.draft.done).toBe(2);
+    expect(out.draft.entities.map((e: any) => [e.id, e.name])).toEqual([["d1", "Red Tower"], ["d2", "Maksym"]]);
+    expect(out.draft.fronts.map((f: any) => f.name)).toEqual(["The toll"]);
+    // the world stays empty until the player accepts
+    expect(world("GET", "/world/peek", undefined, { chatId: id }).records ?? []).toEqual([]);
+    const done = world("PUT", "/world/draft", { chatId: id, op: "accept", drop: { entities: ["d2"] } });
+    expect(done.added).toBe(1);
+    const state = readRel("world/state/" + id + ".json");
+    expect(state.entities.map((e: any) => e.name)).toEqual(["Red Tower"]);
+    expect(state.fronts.map((f: any) => [f.id, f.name, f.size])).toEqual([["f1", "The toll", 4]]);
+    expect(state.origin).toMatchObject({ kind: "cards", recipe: "from-cards" });
+    expect(state.draft).toBeUndefined();
+    expect(readRel("chats/" + id + ".meta.json").worldBookId).toBe("world-" + id);
+    expect(readRel("world/state/" + id + ".json").log.filter((r: any) => r.reason === "start").length).toBe(2);
+  });
+
+  it("a failed step keeps its place and says why; the next call tries it again", () => {
+    const id = newChat();
+    world("POST", "/world/start", { chatId: id, begin: true });
+    results.world_build = { text: "", reasoning: "hmm", model: "b/x" };
+    results.world_build_retry = { text: "not json at all", model: "b/x" };
+    const failed = handleRoute({ method: "POST", path: "/world/start", query: {}, body: { chatId: id }, stash: { retry: true } }, host()) as any;
+    expect(failed.json.ok).toBe(false);
+    expect(failed.json.code).toBe("not-json");
+    expect(failed.json.draft.done).toBe(0);
+    const out = runStart(id, [J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }] })]);
+    expect(out.draft.done).toBe(1);
+    expect(out.draft.error).toBeNull();
+  });
+
+  it("refuses cards with nothing to read, and a draft that is not there", () => {
+    fs.writeFileSync(path.join(root, "characters", "odarka", "card.json"), J({ name: "Odarka" }));
+    const id = newChat();
+    expect(world("POST", "/world/start", { chatId: id, begin: true }).code).toBe("no-text");
+    expect(world("PUT", "/world/draft", { chatId: id, op: "accept" }).error).toBe("no draft");
+  });
+});
+
+describe("world start: the events deck", () => {
+  it("is built at start when asked, and a run's event comes only from it, used up once sent", () => {
+    const id = newChat();
+    world("PUT", "/world/settings", { chatId: id, level: "director" });
+    world("POST", "/world/start", { chatId: id, begin: true, deck: true });
+    runStart(id, [
+      J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }] }),
+      J({ fronts: [] }),
+      "Here: " + J({ deck: [{ text: "A courier arrives." }, { text: "The bridge burns." }] }),
+    ]);
+    world("PUT", "/world/draft", { chatId: id, op: "accept" });
+    const s = readRel("world/state/" + id + ".json");
+    expect(s.deck).toEqual([{ id: "e1", text: "A courier arrives." }, { id: "e2", text: "The bridge burns." }]);
+    const input = dmInput({ cards: [], userName: "", entities: [], msgs: [], level: "director", fronts: [], event: null, direction: null, threads: [], options: { clocks: "model", clockEvery: 6, eventByClock: false, deck: true }, deck: s.deck });
+    expect(input).toContain("e2 · The bridge burns.");
+    const st = { ...s, event: null };
+    applyLevel(st, { event: { text: "Made up" } }, { level: "director", useDeck: true });
+    expect(st.event).toBeNull();
+    applyLevel(st, { event: { deck: "e2" } }, { level: "director", useDeck: true });
+    expect(st.event.text).toBe("The bridge burns.");
+    expect(st.deck.map((c: any) => c.id)).toEqual(["e1"]);
+  });
+});
+
+describe("world library and carry", () => {
+  it("saves a chat's world, carries it into a new chat with its clocks, and resets the run fields", () => {
+    const id = newChat();
+    fs.mkdirSync(path.join(root, "world", "state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), J({
+      chatId: id, settings: { level: "living", everyN: 3 }, lastKey: "m9#0", lastRunAt: 5, event: { text: "x", sent: 0 },
+      entities: [{ id: "n1", kind: "place", name: "Red Tower", aliases: [], text: "A tower.", status: "active", uid: 4 }],
+      fronts: [{ id: "f1", name: "The toll", goal: "Close it.", clock: 3, size: 6, status: "active" }], deck: [{ id: "e1", text: "A courier." }],
+    }));
+    const saved = world("POST", "/world/library", { chatId: id, name: "The pass" });
+    expect(saved.worlds[0]).toMatchObject({ name: "The pass", records: 1, fronts: 1, deck: 1, level: "living" });
+    const to = newChat();
+    const carried = world("POST", "/world/carry", { toChatId: to, worldId: saved.id });
+    expect(carried.ok).toBe(true);
+    const s = readRel("world/state/" + to + ".json");
+    expect(s.settings).toMatchObject({ level: "living", everyN: 3 });
+    expect(s.fronts[0].clock).toBe(3);
+    expect(s.lastKey).toBeNull();
+    expect(s.event).toBeNull();
+    expect(s.lastRunAt).toBeUndefined();
+    expect(s.deck).toEqual([{ id: "e1", text: "A courier." }]);
+    expect(s.origin).toMatchObject({ kind: "library", worldId: saved.id });
+    expect(readRel("lorebooks/world-" + to + ".json").ownerChatId).toBe(to);
+    // a chat that has a world already is refused unless replace
+    expect(world("POST", "/world/carry", { toChatId: to, fromChatId: id }).code).toBe("has-world");
+    expect(world("POST", "/world/carry", { toChatId: to, fromChatId: id, replace: true }).ok).toBe(true);
+    expect(world("PUT", "/world/library", { id: saved.id, name: "Renamed" }).worlds[0].name).toBe("Renamed");
+    expect(world("DELETE", "/world/library", undefined, { id: saved.id }).worlds).toEqual([]);
+  });
+});
+
+describe("world start: the chat's own scenario and first message", () => {
+  it("the build model drafts both from the world and the card", () => {
+    const id = newChat();
+    fs.mkdirSync(path.join(root, "world", "state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), J({ chatId: id, entities: [{ id: "n1", kind: "place", name: "Red Tower", aliases: [], text: "A tower.", status: "active" }] }));
+    expect(world("POST", "/world/opening", { chatId: id, lang: "Ukrainian" }).__llmPending).toBe(true);
+    expect(requests[0]!.spec.messages[0].content).toContain("Card's first message (style only): Hi, {{user}}.");
+    results.world_opening = { text: J({ scenario: "At the Red Tower.", opening: "The lantern burns, {{user}}." }) };
+    expect(world("POST", "/world/opening", { chatId: id })).toMatchObject({ ok: true, scenario: "At the Red Tower.", opening: "The lantern burns, {{user}}." });
+  });
+
+  it("replaces the card's scenario in the prompt (or follows it), and the greeting gets the new first swipe", () => {
+    const id = newChat();
+    expect(allText(engine("POST", "/prompt/preview", { chatId: id, userText: "hi" }))).toContain("At the card's hut.");
+    world("PUT", "/world/override", { chatId: id, scenario: { text: "At the Red Tower." }, opening: "The lantern burns, {{user}}." });
+    let p = allText(engine("POST", "/prompt/preview", { chatId: id, userText: "hi" }));
+    expect(p).toContain("At the Red Tower.");
+    expect(p).not.toContain("At the card's hut.");
+    world("PUT", "/world/override", { chatId: id, scenario: { text: "At the Red Tower.", mode: "append" } });
+    p = allText(engine("POST", "/prompt/preview", { chatId: id, userText: "hi" }));
+    expect(p).toContain("At the card's hut.");
+    expect(p).toContain("At the Red Tower.");
+    const msgs = fs.readFileSync(path.join(root, "chats", id + ".jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(msgs[0].swipes[0]).toMatch(/^The lantern burns, /);
+    expect(msgs[0].swipes.some((t: string) => t.startsWith("Hi,"))).toBe(true);
+    expect(msgs[0].swipe).toBe(0);
+    world("PUT", "/world/override", { chatId: id, scenario: null });
+    expect(readRel("chats/" + id + ".meta.json").worldScenario).toBeUndefined();
+  });
+
+  it("refuses a new first message once the player has written", () => {
+    const id = newChat();
+    fs.appendFileSync(path.join(root, "chats", id + ".jsonl"), J({ id: "u1", role: "user", text: "hello" }) + "\n");
+    expect(world("PUT", "/world/override", { chatId: id, opening: "Too late." }).code).toBe("started");
   });
 });

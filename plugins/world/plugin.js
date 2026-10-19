@@ -36,6 +36,17 @@
  *                                     to its default), or make a new one (no id, or an id not in use)
  *  DELETE /world/profiles?id=         remove one of the player's own (chats on it fall back to its base)
  *  PUT  /world/records {chatId, op: add|update|retire|restore|delete, record}   the player edits the world book by hand
+ *  GET  /world/recipes               what a start can build (from the cards, an interview, the player's own files)
+ *  POST /world/start {chatId, begin?, recipe?, cardIds?, answers?, lang?, deck?}   begin = a new draft; then
+ *                                     each call makes one build call (two-phase) until done == total
+ *  PUT  /world/draft {chatId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into the world
+ *  POST /world/deck {chatId, lang?}   a new events deck (profile option deck)
+ *  GET|POST|PUT|DELETE /world/library  saved worlds: list, save a chat's world {chatId, name?, description?},
+ *                                     rename {id, name?, description?}, remove ?id=
+ *  POST /world/carry {toChatId, fromChatId? | worldId?, replace?}   a world into a chat (records, fronts, clocks)
+ *  POST /world/opening {chatId, worldId?, wish?, lang?}   the build model drafts the chat's scenario and first message
+ *  PUT  /world/override {chatId, scenario?: {text, mode: replace|append} | null, opening?}   the chat's own
+ *                                     scenario (meta.worldScenario, read by the engine plugin) and first message
  *  POST /world/update {chatId, auto?}  a DM run (two-phase); auto = the app's call after a reply,
  *                                      which runs only when a trigger is due; without auto it always runs
  *                                      (except in an explicit scene)
@@ -46,6 +57,8 @@
  *  world/state/<chatId>.json   the chat's world state (shape: normalizeState)
  *  world/config.json           only what differs from the defaults
  *  world/profiles/<id>.json    a built-in profile's changes (only blocks that differ) or a player's own profile
+ *  world/recipes/<id>.json     a recipe of the player's (an id of a built-in replaces it)
+ *  world/library/w-<id>.json   a saved world: records, fronts, deck, settings
  *  lorebooks/world-<chatId>.json  the chat's world book: ownerChatId = the chat, so the app's
  *                              library never lists it; the chat's meta names it as worldBookId,
  *                              and the engine plugin scans it in that chat only
@@ -237,6 +250,11 @@ export function normalizeState(raw, chatId) {
   if (str(s.lastModel)) out.lastModel = str(s.lastModel);
   if (isObj(s.lastError) && str(s.lastError.message)) out.lastError = cleanError(s.lastError);
   if (isObj(s.usage)) out.usage = cleanUsage(s.usage, true);
+  const deck = cleanDeck(s.deck);
+  if (deck.length) out.deck = deck;
+  const draft = cleanDraft(s.draft);
+  if (draft) out.draft = draft;
+  if (isObj(s.origin) && str(s.origin.kind)) out.origin = s.origin;
   return out;
 }
 
@@ -522,7 +540,8 @@ const DEFAULT_PROFILE_SETTINGS = { everyN: DEFAULT_SETTINGS.everyN, stagnation: 
 // profile options (user, 2026-10-19, both off by default): clocks ticked by code every N replies read
 // (Arbiter's way: cheaper and steadier on small models; the model then only adds and retires fronts), and
 // event wording that follows the front's clock (Story Engine's way: rumour, then visible, then unmistakable)
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false };
+// events deck (Arbiter's way, user 2026-10-19, off by default): built at start, the DM picks one by id
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -531,6 +550,7 @@ function cleanOptions(o) {
     clocks: b.clocks === "code" ? "code" : "model",
     clockEvery: Number.isFinite(n) ? clamp(Math.round(n), 2, 50) : DEFAULT_OPTIONS.clockEvery,
     eventByClock: b.eventByClock === true,
+    deck: b.deck === true,
   };
 }
 
@@ -643,7 +663,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -656,7 +676,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "The user's character (do not record): " + (userName || "the user") + ".",
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
   ].join("\n\n");
@@ -668,7 +688,7 @@ export function clockStage(f) {
   return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
 }
 
-function levelInput({ fronts, event, direction, threads, options }) {
+function levelInput({ fronts, event, direction, threads, options, deck }) {
   const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
@@ -676,6 +696,11 @@ function levelInput({ fronts, event, direction, threads, options }) {
   if (o.eventByClock && active.length) {
     out.push("How news of each front reads now, by its clock:\n" + active.map((f) => f.id + " " + f.name + ": " + clockStage(f)).join("\n"));
     out.push("Off-screen effects arrive as news, threats or signs, never as harm already done to the user's character.");
+  }
+  if (Array.isArray(deck)) {
+    out.push(deck.length
+      ? 'Events deck: an event comes only from this deck. When one is due, pick the card that fits the scene best and send event {"deck":"<its id>"}; never invent one.\n' + deck.map((c) => c.id + " · " + c.text).join("\n")
+      : "The events deck is used up: send no event (event null).");
   }
   if (event && event.sent > 0) out.push("Event sent in an earlier reply: " + event.text + "\nDid the new part of the story show it? Answer in delivered.");
   else if (event) out.push("Event still waiting for a reply (keep it, or replace it with a better one): " + event.text);
@@ -915,7 +940,7 @@ export function tickClocks(state, replies, every, now) {
  * waits while the old one is pending. No event in an explicit scene, none in combat below
  * antagonist. Returns how many fronts changed.
  */
-export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks }) {
+export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks, useDeck }) {
   const at = now || Date.now();
   let changes = 0;
   const said = DIRECTIONS.includes(str(out.direction).toLowerCase()) ? str(out.direction).toLowerCase() : null;
@@ -954,7 +979,10 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
     else if (out.delivered === false) state.event = null;
   }
   const quiet = dir === "explicit" || (dir === "combat" && level !== "antagonist" && level !== "chaos");
-  const text = isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
+  // with the deck on, only a card of the deck becomes the event, and it is used up
+  const card = useDeck && isObj(out.event) ? arr(state.deck).find((c) => c.id === str(out.event.deck)) : null;
+  const text = useDeck ? (card ? card.text : "") : isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
+  if (card && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) state.deck = state.deck.filter((c) => c !== card);
   if (text && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) {
     state.event = { text, hard: HARD_LEVELS.includes(level), sent: 0, retried: false, at };
   }
@@ -1082,7 +1110,6 @@ function bindBook(fsx, chatId, meta, bookId) {
   writeJson(fsx, "chats/" + chatId + ".meta.json", { ...meta, worldBookId: bookId });
 }
 
-// ---------- routes ----------
 // ---------- start: building a world (P3 stage 3) ----------
 // The DM learns the world from the chat's cards and their books (user, 2026-10-18: it learns from
 // card lore, never copies it). The text is cut into chunks a small context window can read; each chunk
@@ -1341,6 +1368,495 @@ export function startPlan(recipe, chunks, withFronts) {
   return steps;
 }
 
+
+// ---------- start: the draft, the deck, the library, carry, the chat's own opening ----------
+// A start writes a draft (user, 2026-10-19: free models invent extras, so the player removes what they do
+// not want, then accepts). One route pass = one build call (two-phase); the app calls again until done.
+const DECK_MIN = 8;
+const DECK_MAX = 12;
+const LIBRARY_DIR = "world/library/";
+const WORLD_ID = /^w-[a-z0-9]{4,40}$/;
+const LIBRARY_MAX = 100;
+const SCENARIO_MAX = 4000;
+const OPENING_MAX = 6000;
+const LANG_MAX = 40;
+
+export const DECK_SYSTEM = [
+  "You build the world of a roleplay story. From the world record and its fronts, write a deck of events that can happen later in the story: each one concrete thing that happens in a scene (a visitor, a hook, a complication, news that cannot be ignored), built from the record and the fronts, never from nowhere.",
+  "- One or two plain sentences each: what happens, who and where. Never write the story itself.",
+  "- Mix small and big ones. They must fit the genre and the tone of the world.",
+  "- Only the JSON keys are English.",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"deck":[{"text":"..."}],"summary":"one short line"}',
+].join("\n");
+
+export const OPENING_SYSTEM = [
+  "You set up a new roleplay chat in a world that already exists. Write the chat's scenario (where and how the story starts: the situation, not the backstory) and its first message (the opening scene, written as the story's narrator or the character, in the card's style, ending where the user's character can act).",
+  "- Build both from the world record and the cards; the card's own scenario and first message show the style, do not repeat them.",
+  "- Never write what the user's character says, does or feels. Refer to them as {{user}} and to the card's character as {{char}}.",
+  "- Only the JSON keys are English.",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"scenario":"...","opening":"..."}',
+].join("\n");
+
+function cleanCard(c, i) {
+  const text = cut(str(isObj(c) ? c.text : c), EVENT_MAX);
+  return text ? { id: isObj(c) && /^e\d{1,6}$/.test(str(c.id)) ? str(c.id) : "e" + (i + 1), text } : null;
+}
+export function cleanDeck(v) {
+  const out = [];
+  for (const c of arr(v)) {
+    const x = cleanCard(c, out.length);
+    if (x && !out.some((y) => y.id === x.id)) out.push(x);
+    if (out.length >= DECK_MAX * 2) break;
+  }
+  return out;
+}
+
+function cleanDraft(d) {
+  if (!isObj(d) || !str(d.recipe)) return null;
+  const entities = arr(d.entities).map(cleanEntity).filter(Boolean);
+  const fronts = arr(d.fronts).map(cleanFront).filter(Boolean);
+  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
+  return {
+    recipe: str(d.recipe),
+    cardIds: arr(d.cardIds).filter((id) => typeof id === "string" && CHAT_ID.test(id)),
+    answers: isObj(d.answers) ? Object.fromEntries(Object.entries(d.answers).map(([k, v]) => [k, cut(str(v), ANSWER_MAX)]).filter(([, v]) => v)) : {},
+    lang: cut(str(d.lang), LANG_MAX),
+    steps,
+    done: clamp(Math.round(num(d.done)), 0, steps.length),
+    entities, nextId: Math.max(Number.isInteger(d.nextId) ? d.nextId : 1, entities.length + 1),
+    fronts, nextFront: Math.max(Number.isInteger(d.nextFront) ? d.nextFront : 1, fronts.length + 1),
+    deck: cleanDeck(d.deck),
+    at: num(d.at) || Date.now(),
+    ...(isObj(d.error) && str(d.error.message) ? { error: cleanError(d.error) } : {}),
+  };
+}
+
+const draftView = (d) => (d ? { recipe: d.recipe, cardIds: d.cardIds, lang: d.lang, total: d.steps.length, done: d.done, entities: d.entities, fronts: d.fronts, deck: d.deck, at: d.at, error: d.error || null } : null);
+
+/** The answer of a build call: the parsed object, or an error to keep (one retry on a rate limit or a reply all thinking). */
+function buildResult(host, key, ask, stash) {
+  const retry = stash.retry === true;
+  const r = host.llm.results[retry ? key + "_retry" : key];
+  if (!r) {
+    ask(retry ? key + "_retry" : key);
+    return { pending: { __llmPending: true, stash: { ...stash, retry, started: Number(stash.started) || Date.now() } } };
+  }
+  const limit = limitOf(r);
+  if (!retry && (r.error ? isRateLimit(r) : thinkingOnly(r) && !(limit && limit.fromModel))) {
+    ask(key + "_retry", thinkingOnly(r) ? Math.min(RETRY_MAX, 6000) : undefined);
+    return { pending: { __llmPending: true, stash: { ...stash, retry: true, started: Number(stash.started) || Date.now() } } };
+  }
+  const usage = isObj(r.usage) ? { input: num(r.usage.input), output: num(r.usage.output), cost: r.usage.priced === false ? 0 : num(r.usage.costTotal) } : null;
+  const run = { model: str(r.model) && r.model !== "error" ? str(r.model) : "", ms: Math.round(num(r.genTimeMs) || Date.now() - (Number(stash.started) || Date.now())), ...(usage ? { usage } : {}), ...(limit ? { limit } : {}), ...(retry ? { retried: true } : {}) };
+  if (r.error || !str(r.text)) return { run, usage, error: classifyError(r, limit) };
+  const out = parseReply(r.text) || firstJson(r.text);
+  if (!out) return { run, usage, error: { code: "not-json", message: "The build model's reply was not JSON: pick a stronger build model.", details: cut(str(r.text), 1200) } };
+  return { run, usage, out };
+}
+
+/** The first JSON object of a text, whatever keys it has (the deck and opening replies have none of the run's). */
+function firstJson(text) {
+  const s = String(text || "").replace(/```(?:json)?/gi, "");
+  for (let i = s.indexOf("{"); i >= 0; i = s.indexOf("{", i + 1)) {
+    const o = firstObject(s, i);
+    if (!o) return null;
+    try {
+      const v = JSON.parse(o);
+      if (isObj(v)) return v;
+    } catch {}
+  }
+  return null;
+}
+
+/** Tokens of a build call count with the chat's DM; the run log shows it with its reason. */
+function countBuild(state, built, reason, changes) {
+  const u = built.usage;
+  const t = state.usage || { input: 0, output: 0, cost: 0, runs: 0 };
+  state.usage = { input: t.input + (u ? u.input : 0), output: t.output + (u ? u.output : 0), cost: t.cost + (u ? u.cost : 0), runs: t.runs + 1 };
+  state.log = [...state.log, { at: Date.now(), reason, ...built.run, key: state.lastKey, changes, fronts: 0, summary: "", ...(built.error ? { error: cleanError(built.error).code } : {}) }].slice(-LOG_MAX);
+}
+
+function buildAsk(host, fsx, cfg, meta, systemPrompt, content) {
+  const pick = buildModel(fsx, cfg, meta);
+  return (k, maxTokens) =>
+    host.llm.request(k, {
+      ...(pick.model ? { model: pick.model } : {}),
+      systemPrompt,
+      messages: [{ role: "user", content }],
+      ...callParams(fsx, cfg, meta, maxTokens || Math.max(cfg.maxTokens, 2000)),
+    });
+}
+
+/** The draft's records merged by name; never one the world already has. */
+function mergeDraft(draft, state, out, section, ctx) {
+  const known = (name) => !!findEntity(state.entities, { name });
+  const adds = arr(out.add).filter((a) => isObj(a) && !known(cut(str(a.name), NAME_MAX)))
+    .map((a) => ({ ...a, kind: section.kinds.includes(a.kind) ? a.kind : section.kinds[0] }))
+    .slice(0, section.max);
+  const pseudo = { entities: draft.entities, nextId: draft.nextId };
+  const changes = applyReport(pseudo, { add: adds }, ctx);
+  draft.entities = pseudo.entities.map((e) => (/^n\d/.test(e.id) ? { ...e, id: "d" + e.id.slice(1) } : e));
+  draft.nextId = pseudo.nextId;
+  return changes;
+}
+
+function deckFrom(out, max) {
+  return arr(out.deck).map((c, i) => cleanCard(c, i)).filter(Boolean).slice(0, max);
+}
+
+const nextDeckId = (deck) => deck.reduce((m, c) => Math.max(m, Number(c.id.slice(1)) || 0), 0) + 1;
+
+function startRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  const cfg = loadConfig(fsx);
+  if (b.begin === true) {
+    const recipe = recipeOf(fsx, str(b.recipe) || "from-cards");
+    if (!recipe) return ok({ error: "no such recipe" }, 404);
+    const cardIds = arr(b.cardIds).filter((id) => typeof id === "string" && CHAT_ID.test(id));
+    const usesCards = recipe.id === "from-cards" || b.fromCards === true;
+    const chunks = usesCards ? chunkSources(startSources(fsx, chat.meta, cardIds)) : [];
+    if (usesCards && !chunks.length) return ok({ error: "the chosen cards have nothing to learn from", code: "no-text" }, 409);
+    const profile = profileFor(fsx, state.settings);
+    const withDeck = b.deck === true || (b.deck !== false && !!(profile && profile.options && profile.options.deck));
+    const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler");
+    if (withDeck) steps.push({ deck: true });
+    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, at: Date.now() });
+    saveState(fsx, state);
+    return ok({ ok: true, draft: draftView(state.draft) });
+  }
+  const draft = cleanDraft(state.draft);
+  if (!draft) return ok({ error: "no start in progress" }, 409);
+  if (draft.done >= draft.steps.length) return ok({ ok: true, draft: draftView(draft) });
+  const recipe = recipeOf(fsx, draft.recipe);
+  if (!recipe) return ok({ error: "no such recipe" }, 404);
+  const step = draft.steps[draft.done];
+  const cards = cardNames(fsx, chat.meta);
+  const userName = userNameOf(fsx, chat.meta);
+  const stash = isObj(req.stash) ? req.stash : {};
+  let system;
+  let content;
+  if (step.fronts || step.deck) {
+    const entities = [...state.entities, ...draft.entities];
+    if (step.fronts) {
+      system = FRONTS_SYSTEM;
+      content = frontsInput({ entities, recipe, answers: draft.answers, lang: draft.lang });
+    } else {
+      system = DECK_SYSTEM;
+      content = deckInput({ entities, fronts: [...state.fronts, ...draft.fronts], lang: draft.lang });
+    }
+  } else {
+    const section = recipe.sections.find((s) => s.id === step.section) || recipe.sections[0];
+    const chunks = step.chunk >= 0 ? chunkSources(startSources(fsx, chat.meta, draft.cardIds)) : [];
+    content = buildInput({ cards, userName, entities: [...state.entities, ...draft.entities], section, chunk: chunks[step.chunk] || "", recipe, answers: draft.answers, lang: draft.lang });
+    system = BUILD_SYSTEM;
+  }
+  const built = buildResult(host, "world_build", buildAsk(host, fsx, cfg, chat.meta, system, content), stash);
+  if (built.pending) return built.pending;
+  let changes = 0;
+  if (!built.error) {
+    if (step.fronts) {
+      const pseudo = { fronts: draft.fronts, nextFront: draft.nextFront, event: null, entities: [] };
+      const adds = arr(built.out.fronts).filter((f) => isObj(f) && !state.fronts.some((x) => x.status === "active" && sameName(x.name, str(f.name))))
+        .map((f) => ({ ...f, op: "add" })).slice(0, recipe.fronts.count || FRONTS_MAX);
+      changes = applyLevel(pseudo, { fronts: adds }, { level: "living", catchingUp: true });
+      draft.fronts = pseudo.fronts;
+      draft.nextFront = pseudo.nextFront;
+    } else if (step.deck) {
+      const cardsOut = deckFrom(built.out, DECK_MAX);
+      if (cardsOut.length) draft.deck = cardsOut.map((c, i) => ({ id: "e" + (i + 1), text: c.text }));
+      changes = draft.deck.length;
+    } else {
+      const section = recipe.sections.find((s) => s.id === step.section) || recipe.sections[0];
+      changes = mergeDraft(draft, state, built.out, section, { cards, userName, now: Date.now() });
+    }
+    draft.done++;
+    delete draft.error;
+  } else draft.error = cleanError({ at: Date.now(), ...built.error });
+  countBuild(state, built, "start", changes);
+  state.draft = draft;
+  saveState(fsx, state);
+  return ok({ ok: !built.error, ...(built.error ? { error: draft.error.message, code: draft.error.code } : {}), draft: draftView(draft) });
+}
+
+export function deckInput({ entities, fronts, lang }) {
+  return [
+    "World record\n" + (entities.filter((e) => e.status === "active").map(entityLine).join("\n") || "empty"),
+    "Fronts" + (arr(fronts).filter((f) => f.status === "active").length ? "\n" + fronts.filter((f) => f.status === "active").map(frontLine).join("\n") : ": none"),
+    "Task: write " + DECK_MIN + " to " + DECK_MAX + " events.",
+    "Write them in " + (lang || "the language of the record") + ".",
+  ].join("\n\n");
+}
+
+/** Accept the draft (minus what the player removed) into the world, or throw it away. */
+function draftRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  const draft = cleanDraft(state.draft);
+  if (!draft) return ok({ error: "no draft" }, 409);
+  if (b.op === "discard") {
+    delete state.draft;
+    saveState(fsx, state);
+    return ok({ ok: true });
+  }
+  if (b.op !== "accept") return ok({ error: "op must be accept or discard" }, 400);
+  const drop = isObj(b.drop) ? b.drop : {};
+  const gone = (list, id) => arr(list).includes(id);
+  const now = Date.now();
+  let added = 0;
+  for (const e of draft.entities) {
+    if (gone(drop.entities, e.id) || findEntity(state.entities, { name: e.name }) || state.entities.length >= ENTITIES_MAX) continue;
+    state.entities.push({ ...e, id: "n" + state.nextId++, uid: 0, at: now });
+    added++;
+  }
+  for (const f of draft.fronts) {
+    if (gone(drop.fronts, f.id) || state.fronts.filter((x) => x.status === "active").length >= FRONTS_MAX) continue;
+    if (state.fronts.some((x) => x.status === "active" && sameName(x.name, f.name))) continue;
+    state.fronts.push({ ...f, id: "f" + state.nextFront++, at: now });
+  }
+  const deck = draft.deck.filter((c) => !gone(drop.deck, c.id));
+  if (deck.length) {
+    const kept = cleanDeck(state.deck);
+    let n = nextDeckId(kept);
+    state.deck = [...kept, ...deck.map((c) => ({ id: "e" + n++, text: c.text }))].slice(-DECK_MAX * 2);
+  }
+  state.origin = { kind: draft.recipe === "from-cards" ? "cards" : "recipe", recipe: draft.recipe, cardIds: draft.cardIds, at: now };
+  delete state.draft;
+  if (state.entities.length) {
+    writeBook(fsx, state, str(chat.meta.title));
+    bindBook(fsx, chatId, chat.meta, state.bookId);
+  }
+  saveState(fsx, state);
+  const cfg = loadConfig(fsx);
+  return ok({ ok: true, added, ...stateView(state, chat.msgs, cfg, sceneOf(fsx, chatId, chat.msgs), playModel(fsx, cfg, chat.meta)) });
+}
+
+/** A new deck for the chat (the old one is used up, or the player wants another). One build call. */
+function deckRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  const cfg = loadConfig(fsx);
+  const content = deckInput({ entities: state.entities, fronts: state.fronts, lang: cut(str(b.lang), LANG_MAX) });
+  const built = buildResult(host, "world_deck", buildAsk(host, fsx, cfg, chat.meta, DECK_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  const cards = built.error ? [] : deckFrom(built.out, DECK_MAX);
+  if (cards.length) state.deck = cards.map((c, i) => ({ id: "e" + (i + 1), text: c.text }));
+  countBuild(state, built, "deck", cards.length);
+  saveState(fsx, state);
+  if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
+  return ok({ ok: true, deck: cards.length });
+}
+
+// ---------- the library of saved worlds ----------
+function cleanWorld(raw, id) {
+  if (!isObj(raw)) return null;
+  const s = normalizeState({ entities: raw.entities, fronts: raw.fronts, settings: raw.settings }, "x");
+  return {
+    v: 1, id, name: cut(str(raw.name), NAME_LEN) || "World", description: cut(str(raw.description), DESC_LEN),
+    at: num(raw.at) || Date.now(),
+    from: isObj(raw.from) ? { chatId: str(raw.from.chatId), title: cut(str(raw.from.title), 120) } : null,
+    settings: s.settings, entities: s.entities.map((e) => ({ ...e, uid: 0 })), fronts: s.fronts, deck: cleanDeck(raw.deck),
+  };
+}
+const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length });
+
+export function listWorlds(fsx) {
+  let files = [];
+  try {
+    files = fsx.list(LIBRARY_DIR.slice(0, -1)).filter((f) => f.endsWith(".json"));
+  } catch {}
+  const out = [];
+  for (const f of files) {
+    const id = f.slice(0, -5);
+    const w = WORLD_ID.test(id) ? cleanWorld(readJson(fsx, LIBRARY_DIR + f, null), id) : null;
+    if (w) out.push(w);
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
+function libraryRoute(req, host) {
+  const fsx = host.fs;
+  if (req.method === "GET") return ok({ worlds: listWorlds(fsx).map(worldRow) });
+  if (req.method === "DELETE") {
+    const id = String((req.query && req.query.id) || "");
+    if (!WORLD_ID.test(id)) return ok({ error: "id required" }, 400);
+    try {
+      fsx.remove(LIBRARY_DIR + id + ".json");
+    } catch {}
+    return ok({ ok: true, worlds: listWorlds(fsx).map(worldRow) });
+  }
+  const b = body(req);
+  if (req.method === "PUT") {
+    const id = str(b.id);
+    const w = WORLD_ID.test(id) ? cleanWorld(readJson(fsx, LIBRARY_DIR + id + ".json", null), id) : null;
+    if (!w) return ok({ error: "no such world" }, 404);
+    if (b.name !== undefined) w.name = cut(str(b.name), NAME_LEN) || w.name;
+    if (b.description !== undefined) w.description = cut(str(b.description), DESC_LEN);
+    writeJson(fsx, LIBRARY_DIR + id + ".json", w);
+    return ok({ ok: true, worlds: listWorlds(fsx).map(worldRow) });
+  }
+  // POST: save the chat's world as it stands
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  if (!isObj(meta)) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  if (!state.entities.length && !state.fronts.length) return ok({ error: "this chat's world is empty" }, 409);
+  if (listWorlds(fsx).length >= LIBRARY_MAX) return ok({ error: "the library is full" }, 409);
+  const id = "w-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const w = cleanWorld({ ...state, deck: state.deck, name: str(b.name) || str(meta.title), description: b.description, at: Date.now(), from: { chatId, title: str(meta.title) } }, id);
+  writeJson(fsx, LIBRARY_DIR + id + ".json", w);
+  return ok({ ok: true, id, worlds: listWorlds(fsx).map(worldRow) });
+}
+
+/**
+ * A world into another chat (user, 2026-10-18: records and fronts as they stand, clocks included): from a
+ * chat or from the library. The run fields start fresh; the settings come along (off becomes chronicler).
+ * A chat whose world already has records is refused unless `replace`.
+ */
+function carryRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const toChatId = String(b.toChatId || "");
+  if (!CHAT_ID.test(toChatId)) return ok({ error: "toChatId required" }, 400);
+  const chat = readChat(fsx, toChatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  let src = null;
+  let origin = null;
+  if (WORLD_ID.test(str(b.worldId))) {
+    src = cleanWorld(readJson(fsx, LIBRARY_DIR + str(b.worldId) + ".json", null), str(b.worldId));
+    origin = src && { kind: "library", worldId: src.id, name: src.name };
+  } else if (CHAT_ID.test(str(b.fromChatId)) && str(b.fromChatId) !== toChatId) {
+    const { state: from, existed } = loadState(fsx, str(b.fromChatId));
+    src = existed ? { ...from, deck: cleanDeck(from.deck) } : null;
+    origin = src && { kind: "chat", chatId: str(b.fromChatId), title: str(readJson(fsx, "chats/" + str(b.fromChatId) + ".meta.json", {}).title) };
+  }
+  if (!src) return ok({ error: "no such world" }, 404);
+  const { state: old } = loadState(fsx, toChatId);
+  if (old.entities.length && b.replace !== true) return ok({ error: "this chat already has a world", code: "has-world" }, 409);
+  const state = emptyState(toChatId);
+  state.settings = { ...cleanSettings(src.settings), ...(src.settings && src.settings.level === "off" ? { level: "chronicler" } : {}) };
+  state.entities = src.entities.map((e) => ({ ...e, uid: 0 }));
+  state.fronts = src.fronts;
+  state.deck = cleanDeck(src.deck);
+  const s = normalizeState(state, toChatId);
+  s.deck = state.deck;
+  s.origin = { ...origin, at: Date.now() };
+  if (s.entities.length) {
+    writeBook(fsx, s, str(chat.meta.title));
+    bindBook(fsx, toChatId, chat.meta, s.bookId);
+  }
+  saveState(fsx, s);
+  const cfg = loadConfig(fsx);
+  return ok({ ok: true, ...stateView(s, chat.msgs, cfg, sceneOf(fsx, toChatId, chat.msgs), playModel(fsx, cfg, chat.meta)) });
+}
+
+// ---------- the chat's own scenario and first message ----------
+const cleanScenario = (v) => {
+  const text = isObj(v) ? cut(str(v.text), SCENARIO_MAX) : "";
+  return text ? { text, mode: v.mode === "append" ? "append" : "replace" } : null;
+};
+
+/** The DM drafts the chat's scenario and first message from its world (or a library world) and its card. */
+function openingRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const world = WORLD_ID.test(str(b.worldId)) ? cleanWorld(readJson(fsx, LIBRARY_DIR + str(b.worldId) + ".json", null), str(b.worldId)) : loadState(fsx, chatId).state;
+  if (!world || !world.entities.length) return ok({ error: "no world to build from" }, 409);
+  const cfg = loadConfig(fsx);
+  const cardLines = [];
+  for (const id of memberIds(fsx, chat.meta)) {
+    const card = cardOf(fsx, id);
+    if (!card) continue;
+    cardLines.push("[" + (str(card.name) || id) + "]");
+    if (str(card.description)) cardLines.push("Who: " + cutMiddle(str(card.description), 1500));
+    if (str(card.scenario)) cardLines.push("Card's scenario: " + cutMiddle(str(card.scenario), 1000));
+    if (str(card.first_mes)) cardLines.push("Card's first message (style only): " + cutMiddle(str(card.first_mes), 1500));
+  }
+  const content = [
+    "The user's character: " + (userNameOf(fsx, chat.meta) || "the user") + " ({{user}}).",
+    "Cards\n" + (cardLines.join("\n") || "none"),
+    "World record\n" + world.entities.filter((e) => e.status === "active").map(entityLine).join("\n"),
+    ...(world.fronts.filter((f) => f.status === "active").length ? ["Fronts (what moves off screen; do not reveal their plans)\n" + world.fronts.filter((f) => f.status === "active").map(frontLine).join("\n")] : []),
+    ...(str(b.wish) ? ["What the player wants from this start: " + cut(str(b.wish), ANSWER_MAX)] : []),
+    "Write both in " + (cut(str(b.lang), LANG_MAX) || "the language of the card's first message") + ".",
+  ].join("\n\n");
+  const built = buildResult(host, "world_opening", buildAsk(host, fsx, cfg, chat.meta, OPENING_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
+  const scenario = cut(str(built.out.scenario), SCENARIO_MAX);
+  const opening = cut(str(built.out.opening), OPENING_MAX);
+  if (!scenario && !opening) return ok({ ok: false, error: "The build model wrote neither a scenario nor a first message.", code: "empty" });
+  return ok({ ok: true, scenario, opening, model: built.run.model, usage: built.usage });
+}
+
+/**
+ * Set the chat's own scenario (meta.worldScenario; null = the card's again) and, before the player's first
+ * message, its first message: the new text becomes the greeting's first swipe, the card's greetings stay
+ * behind it as swipes.
+ */
+function overrideRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const opening = cut(str(b.opening), OPENING_MAX);
+  if (opening && chat.msgs.some((m) => m.role === "user")) return ok({ error: "the chat has already started", code: "started" }, 409);
+  const meta = { ...chat.meta };
+  if (b.scenario !== undefined) {
+    const sc = cleanScenario(b.scenario);
+    if (sc) meta.worldScenario = sc;
+    else delete meta.worldScenario;
+  }
+  let msgs = chat.msgs;
+  if (opening) {
+    const i = msgs.findIndex((m) => m.greeting === true && m.role !== "system");
+    const userName = userNameOf(fsx, meta) || "User";
+    const text = opening.split("{{user}}").join(userName);
+    if (i >= 0) {
+      const g = msgs[i];
+      const name = str(g.name);
+      const shown = text.split("{{char}}").join(name);
+      const old = arr(g.swipes).filter((t) => typeof t === "string" && t !== shown);
+      msgs = msgs.map((m, k) => (k === i ? { ...m, text: shown, swipes: [shown, ...old], swipe: 0, ...(isObj(m.extra) && Array.isArray(m.extra.swipeMeta) ? { extra: { ...m.extra, swipeMeta: [null, ...m.extra.swipeMeta] } } : {}) } : m));
+    } else {
+      const card = meta.characterId ? cardOf(fsx, meta.characterId) : null;
+      const name = card ? str(card.name) : "Narrator";
+      const shown = text.split("{{char}}").join(name);
+      const id = "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      msgs = [card ? { id, name, charId: meta.characterId, role: "char", text: shown, at: Date.now(), swipes: [shown], swipe: 0, greeting: true } : { id, name, charId: null, role: "system", text: shown, at: Date.now(), swipes: [shown], swipe: 0, greeting: true }, ...msgs];
+    }
+    fsx.write("chats/" + chatId + ".jsonl", msgs.map((m) => JSON.stringify(m)).join("\n") + "\n");
+  }
+  meta.updatedAt = Date.now();
+  writeJson(fsx, "chats/" + chatId + ".meta.json", meta);
+  return ok({ ok: true, scenario: meta.worldScenario || null, opening: !!opening });
+}
+
+// ---------- routes ----------
 function body(req) {
   return isObj(req.body) ? req.body : {};
 }
@@ -1387,6 +1903,10 @@ function stateView(state, msgs, cfg, scene, play) {
     usage: state.usage || { input: 0, output: 0, cost: 0, runs: 0 },
     // unread text one run cannot read: "Read the whole chat" runs until it is 0
     behind: state.settings.level === "off" ? { messages: 0, runs: 0 } : behindOf(unread),
+    // Start: a draft in progress, how many deck cards are left (not their text), where the world came from
+    draft: draftView(state.draft || null),
+    deck: arr(state.deck).length,
+    origin: state.origin || null,
   };
 }
 
@@ -1544,6 +2064,7 @@ function updateRoute(req, host) {
       systemPrompt: systemFor(profile || level),
       messages: [{ role: "user", content: dmInput({
         cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level, options,
+        deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
       }) }],
@@ -1587,7 +2108,7 @@ function updateRoute(req, host) {
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const changes = applyReport(state, out, { cards, userName, now: Date.now() });
   const codeClocks = options.clocks === "code";
-  let moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks }) : 0;
+  let moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;
   if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now());
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
@@ -1785,5 +2306,13 @@ export function handleRoute(req, host) {
   if (path === "/world/test" && req.method === "POST") return testRoute(req, host);
   if (path === "/world/profiles" && ["GET", "PUT", "DELETE"].includes(req.method)) return profilesRoute(req, host);
   if (path === "/world/records" && req.method === "PUT") return recordsRoute(req, host);
+  if (path === "/world/recipes" && req.method === "GET") return ok({ recipes: listRecipes(host.fs) });
+  if (path === "/world/start" && req.method === "POST") return startRoute(req, host);
+  if (path === "/world/draft" && req.method === "PUT") return draftRoute(req, host);
+  if (path === "/world/deck" && req.method === "POST") return deckRoute(req, host);
+  if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
+  if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);
+  if (path === "/world/opening" && req.method === "POST") return openingRoute(req, host);
+  if (path === "/world/override" && req.method === "PUT") return overrideRoute(req, host);
   return ok({ error: "not found" }, 404);
 }

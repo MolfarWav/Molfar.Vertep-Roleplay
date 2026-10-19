@@ -2118,6 +2118,16 @@ function resolveCardVariants(card, sel) {
   return out || card;
 }
 
+/** The chat's own scenario (World DM, meta.worldScenario = {text, mode}): it replaces the speaker's
+ *  scenario, or with mode "append" follows it. A copy; the card file is untouched. */
+function withWorldScenario(meta, card) {
+  const w = meta && meta.worldScenario;
+  const text = w && typeof w.text === "string" ? w.text.trim() : "";
+  if (!card || !text) return card;
+  const base = typeof card.scenario === "string" ? card.scenario.trim() : "";
+  return { ...card, scenario: w.mode === "append" && base ? base + "\n\n" + text : text };
+}
+
 /** A member's card as this group sees it: the group's shared scenario replaces the card's, and the
  *  group's talkativeness for this member wins over the card's. A copy; the card file is untouched. */
 function groupCardOverrides(g, mid, card) {
@@ -2386,7 +2396,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const pbOff = new Set((cleanPromptBoard(meta.promptBoard) || {}).off || []);
   const isOff = (k) => pbOff.has(k);
   const members = chatMembers(fsx, meta);
-  const speakerCard = (speaker && speaker.card) || (members[0] && members[0].card) || null;
+  const speakerCard = withWorldScenario(meta, (speaker && speaker.card) || (members[0] && members[0].card) || null);
   const isGroup = !!meta.groupId && members.length > 0;
   const { persona, userName } = chatPersona(fsx, meta);
   const charName = speakerCard ? speakerCard.name : "";

@@ -251,7 +251,25 @@ player switches it on for that chat. It writes:
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.
-- `world/config.json`: only what differs from `{ model: "", maxTokens: 1500 }` (`model` empty = the chat's).
+- `world/config.json`: only what differs from `{ model: "", buildModel: "", maxTokens: 1500 }` (`model` = the play model
+  after replies, `buildModel` = the model of a Start; empty = the fallbacks the World section shows).
+
+- Start (building a world before play): `state.draft` holds a Start in progress or waiting for the player
+  (`{ recipe, cardIds, answers, lang, steps, done, entities, fronts, deck, at, error? }`); it reaches the world only
+  when the player accepts it. `state.origin` says where the world came from (`cards` / `recipe` with the recipe and
+  card ids, `library` with the world id, `chat` with the chat it was carried from). `state.deck`: the events deck
+  (`[{ id: "e1", text }]`, profile option `deck`): the DM's events come only from it, each card used once.
+- `world/recipes/<id>.json`: what a Start builds. `{ name, description, questions: [{ id, text, options?, default? }],
+  sections: [{ id, kinds, max, prompt }], fronts: { count, prompt } }`. Built in: `from-cards` (reads the chat's
+  cards: description, personality, scenario, the group's scenario, and the enabled entries of their books) and
+  `interview`; a file with a built-in's id replaces it, any other id adds one.
+- `world/library/w-<id>.json`: a saved world: `{ v: 1, id, name, description, at, from: { chatId, title },
+  settings, entities, fronts, deck }`. "New chat in this world" copies it (or another chat's world) into a chat's
+  state: records and fronts as they stand, clocks included; the run fields start fresh.
+- The chat meta's `worldScenario: { text, mode }`: the chat's own scenario, set from the World section. `mode`
+  `replace` (default) puts it in place of the card's (or group's) scenario in every prompt of this chat, `append`
+  adds it after. A chat's own first message is written into the greeting as its first swipe; the card's
+  greetings stay behind it as swipes.
 
 To change a record, edit it in the state file (`entities`): the next run writes the book from there and
 overwrites hand edits to `world:` entries. Entries of your own in the book stay. Never remove `ownerChatId`.
