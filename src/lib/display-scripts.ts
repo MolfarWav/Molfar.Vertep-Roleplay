@@ -56,3 +56,37 @@ export function resolveDisplayScripts(regexScripts: RegexScript[], at: DisplayTa
   }
   return resolved
 }
+
+/** Tag names a reasoning-hiding script usually wraps; a script naming the first five letters (`think(?:ing)?`) counts. */
+const BLOCK_TAGS = ['thinking', 'think', 'thought', 'reasoning', 'analysis', 'scratchpad']
+
+/**
+ * A stream that is still inside a block a script hides: `<thinking>` opened, `</thinking>` not yet
+ * written. The script's pattern needs both ends, so until the closer arrives the raw block would show
+ * and then vanish in one jump. Cut the text at the unclosed opener (and at a half-written one at the very
+ * end) for every tag some script mentions. Only meant for text that is still streaming.
+ */
+export function hideOpenBlocks(text: string, scripts: Pick<DisplayScript, 'find'>[]): string {
+  if (!text.includes('<')) return text
+  const tags = BLOCK_TAGS.filter((tag) => scripts.some((s) => s.find.toLowerCase().includes(tag.slice(0, 5))))
+  if (!tags.length) return text
+  let out = text
+  for (const tag of tags) {
+    const open = new RegExp(`<${tag}(\\s[^>]*)?>`, 'gi')
+    const close = new RegExp(`</${tag}\\s*>`, 'gi')
+    let cut = -1
+    for (let m = open.exec(out); m; m = open.exec(out)) {
+      close.lastIndex = m.index + m[0].length
+      if (!close.exec(out)) { cut = m.index; break }
+      open.lastIndex = close.lastIndex
+    }
+    if (cut >= 0) out = out.slice(0, cut)
+    // a half-written opener at the very end: "<", "<thi", "<thinking"
+    const tail = out.lastIndexOf('<')
+    if (tail >= 0 && !out.includes('>', tail)) {
+      const frag = out.slice(tail + 1).toLowerCase()
+      if (frag === '' || tags.some((t) => t.startsWith(frag) || frag.startsWith(`${t} `))) out = out.slice(0, tail)
+    }
+  }
+  return out
+}

@@ -29,7 +29,7 @@ import { useDisplayTexts, type DisplayScript } from '@/hooks/use-display-texts'
 import { cssAttrValue } from '@/lib/scope-css'
 import { balanceStreamingMarkdown } from '@/lib/rich-parts'
 import { hideStateTag } from '@/lib/state-tag'
-import { resolveDisplayScripts } from '@/lib/display-scripts'
+import { hideOpenBlocks, resolveDisplayScripts } from '@/lib/display-scripts'
 import { j } from '@/lib/engine'
 import { speakText, stopSpeaking, useSpeakingKey, voiceFor } from '@/lib/tts'
 import type { Chat, Character, Message, RegexScript, ToolPart } from '@/lib/types'
@@ -433,8 +433,10 @@ export const MessageRow = memo(function MessageRow({
   // the dashboard's fast-mode state tag never shows, streaming or saved
   // a leading echo of the speaker's own name ("Aria:") is cut on display: replies saved before the engine did it still carry it
   const echoOf = (text: string) => (message.role === 'assistant' ? hideEchoedName(text, speakerName) : text)
-  const rawDisplayed = isStreamingThis ? balanceStreamingMarkdown(echoOf(hideStateTag(rawContent, true))) : echoOf(hideStateTag(rawContent))
-  const content = useDisplayTexts([rawDisplayed], displayScripts)[0] ?? rawDisplayed
+  // an unclosed hidden block (<thinking> without its closer yet) stays out of the stream, so the text only grows
+  const rawDisplayed = isStreamingThis ? balanceStreamingMarkdown(hideOpenBlocks(echoOf(hideStateTag(rawContent, true)), displayScripts)) : echoOf(hideStateTag(rawContent))
+  const holdKey = `${message.id}:${shownSwipe}`
+  const content = useDisplayTexts([rawDisplayed], displayScripts, holdKey, isStreamingThis)[0] ?? rawDisplayed
   const activeSwipeData = message.swipes[shownSwipe]
   // committed segments: messages whose generation used tools render thinking,
   // text and tool rows interleaved (same message, same id, agent-style top to
@@ -464,7 +466,7 @@ export const MessageRow = memo(function MessageRow({
   }, [isStreamingThis, streamingMarks, streamingShown, streamingFull])
   // text segments of both timelines run through the same worker-backed pass
   const partTexts = useDisplayTexts(parts ? parts.filter((p) => p.type === 'text').map((p, k) => (k === 0 ? echoOf(hideStateTag(p.text)) : hideStateTag(p.text))) : [], displayScripts)
-  const liveTexts = useDisplayTexts(liveTimeline ? liveTimeline.filter((n) => n.type === 'text').map((n, k) => (k === 0 ? echoOf(hideStateTag(n.text, true)) : hideStateTag(n.text, true))) : [], displayScripts)
+  const liveTexts = useDisplayTexts(liveTimeline ? liveTimeline.filter((n) => n.type === 'text').map((n, k) => hideOpenBlocks(k === 0 ? echoOf(hideStateTag(n.text, true)) : hideStateTag(n.text, true), displayScripts)) : [], displayScripts, `${holdKey}:live`, true)
   const isUser = message.role === 'user'
   // per-message <style> blocks are rewritten under this row's own boundary,
   // so one message cannot restyle another's text
