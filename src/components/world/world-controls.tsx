@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { GlobeHemisphereWest, Warning } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -55,6 +55,41 @@ function SwitchRow({ label, hint, checked, onChange, disabled }: { label: string
         <span className="block text-xs text-muted-foreground">{hint}</span>
       </span>
       <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
+    </div>
+  )
+}
+
+/** One fact of the "So far" list: the numbers (and the given words) in the text colour, the rest muted. */
+function Fact({ text, strong = [] }: { text: string; strong?: string[] }) {
+  const esc = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${[...strong.filter(Boolean).map(esc), '\\$?\\d[\\d.,]*k?'].join('|')})`))
+  return (
+    <li>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? <span key={i} className="font-medium text-foreground">{part}</span> : part,
+      )}
+    </li>
+  )
+}
+
+/** The DM's own words about its last run: the text colour, a left rule, four lines unless opened. */
+function RunSummary({ text }: { text: string }) {
+  const t = useT()
+  const ref = useRef<HTMLParagraphElement>(null)
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el && !open) setLong(el.scrollHeight > el.clientHeight + 1)
+  }, [text, open])
+  return (
+    <div className="border-l-2 border-primary/40 pl-3" data-testid="world-summary">
+      <p ref={ref} className={cn('break-words text-foreground', !open && 'line-clamp-4')}>{text}</p>
+      {(long || open) && (
+        <button type="button" className="mt-1 text-xs text-primary underline-offset-2 hover:underline max-md:min-h-10" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? t('world.summary.less') : t('world.summary.more')}
+        </button>
+      )}
     </div>
   )
 }
@@ -435,45 +470,33 @@ export function WorldControls({
   )
 
   const statusSection = (
-    <section className="flex flex-col gap-1 text-sm" aria-live="polite">
+    <section className="flex flex-col gap-2 text-sm" aria-live="polite">
       <h3 className="font-medium">{t('world.status')}</h3>
-      <p className="text-muted-foreground">{t('world.records', { n: view.records, r: view.retired })}</p>
-      {events && (
-        <p className="text-muted-foreground">
-          {t('world.fronts', { n: view.fronts })} {view.eventWaiting ? t('world.eventWaiting') : ''}
-        </p>
-      )}
-      {view.direction && (
-        <p className="text-muted-foreground">
-          {t('world.direction', { d: t(`world.dir.${view.direction}` as MsgKey) })}
-        </p>
-      )}
+      <ul className="flex flex-col gap-0.5 text-muted-foreground" data-testid="world-facts">
+        <Fact text={t('world.records', { n: view.records, r: view.retired })} />
+        {events && <Fact text={`${t('world.fronts', { n: view.fronts })} ${view.eventWaiting ? t('world.eventWaiting') : ''}`.trim()} />}
+        {view.direction && <Fact text={t('world.direction', { d: t(`world.dir.${view.direction}` as MsgKey) })} strong={[t(`world.dir.${view.direction}` as MsgKey)]} />}
+        {view.lastRun?.usage && (
+          <Fact
+            text={t('world.usage.last', {
+              in: formatK(view.lastRun.usage.input),
+              out: formatK(view.lastRun.usage.output),
+              cost: view.lastRun.usage.cost > 0 ? ` · ${formatMoney(view.lastRun.usage.cost)}` : '',
+              sec: formatSeconds(view.lastRun.ms),
+            })}
+          />
+        )}
+        {view.usage.runs > 0 && (
+          <Fact text={t('world.usage.total', { runs: view.usage.runs, tokens: formatK(view.usage.input + view.usage.output) })} />
+        )}
+      </ul>
       {view.lastRunAt ? (
-        <p className="text-muted-foreground">
-          {t('world.lastRun', { when: relativeTime(view.lastRunAt) })}
-          {view.lastSummary ? `: ${view.lastSummary}` : ''}
-        </p>
+        <div className="flex flex-col gap-1" data-testid="world-last-run">
+          <p className="text-xs text-muted-foreground">{t('world.lastRun', { when: relativeTime(view.lastRunAt) })}</p>
+          {view.lastSummary && <RunSummary text={view.lastSummary} />}
+        </div>
       ) : (
-        <p className="text-muted-foreground">{t('world.neverRan')}</p>
-      )}
-
-      {view.lastRun?.usage && (
-        <p className="text-muted-foreground">
-          {t('world.usage.last', {
-            in: formatK(view.lastRun.usage.input),
-            out: formatK(view.lastRun.usage.output),
-            cost: view.lastRun.usage.cost > 0 ? ` · ${formatMoney(view.lastRun.usage.cost)}` : '',
-            sec: formatSeconds(view.lastRun.ms),
-          })}
-        </p>
-      )}
-      {view.usage.runs > 0 && (
-        <p className="text-muted-foreground">
-          {t('world.usage.total', {
-            runs: view.usage.runs,
-            tokens: formatK(view.usage.input + view.usage.output),
-          })}
-        </p>
+        <p className="text-xs text-muted-foreground">{t('world.neverRan')}</p>
       )}
 
       <p className="text-xs text-muted-foreground">{t('world.hidden')}</p>

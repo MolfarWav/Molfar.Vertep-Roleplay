@@ -60,13 +60,9 @@ const TAB_ICONS: Record<string, PhosphorIcon> = {
   lorebook: BookOpen, colors: Palette, sprites: Images, gallery: ImageIcon, regex: Code, voice: SpeakerHigh,
   more: ListBullets,
 }
-/** A colored dot per group: Core sky, Profile emerald, Soul violet, Lorebook amber,
+/** The tinted border and fill per group: Core sky, Profile emerald, Soul violet, Lorebook amber,
  *  everything else slate. The desktop strip paints all eleven panels with their group's
  *  color; the phone strip paints the five groups the same way. */
-const GROUP_DOT: Record<string, string> = {
-  core: 'bg-sky-500', profile: 'bg-emerald-500', soul: 'bg-violet-500',
-  lorebook: 'bg-amber-500', more: 'bg-slate-400',
-}
 const GROUP_TINT: Record<string, string> = {
   core: 'border-sky-500/30 bg-sky-500/10 data-active:bg-sky-500/25',
   profile: 'border-emerald-500/30 bg-emerald-500/10 data-active:bg-emerald-500/25',
@@ -111,6 +107,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     const panel = TAB_PANELS[group].includes(asked) ? asked : TAB_PANELS[group][0]
     setTab(panel)
     if (group === 'more') setLastMore(panel)
+  }
+  /** A click on one of the eleven desktop buttons: that very panel. (`openPanel('core')` reads the word as the
+   *  Core tab and keeps the open panel, so a click on Core while Example dialogue was open did nothing.) */
+  const showPanel = (panel: string) => {
+    setTab(panel)
+    if (tabOfPanel(panel) === 'more') setLastMore(panel)
   }
   // opened on a given tab (the chat's "souls proposed" toast)
   const wantTab = useApp((s) => s.characterEditorTab)
@@ -362,7 +364,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             data-guide="editor.tabs"
             role="tablist"
             aria-label={t('editor.tabs')}
-            onKeyDown={(e) => { const next = panelStep((ALL_PANELS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))), tab, e.key); if (next) { e.preventDefault(); openPanel(next); focusTab(e.currentTarget, next) } }}
+            onKeyDown={(e) => { const next = panelStep((ALL_PANELS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))), tab, e.key); if (next) { e.preventDefault(); showPanel(next); focusTab(e.currentTarget, next) } }}
             // the variant's own h-8 would clip the second row and let the panel overlap it: h-auto has to name the same variant to win
             className={cn(tabsListVariants(), 'h-auto w-full flex-wrap items-center gap-1 group-data-horizontal/tabs:h-auto')}
           >
@@ -379,7 +381,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                   tabIndex={on ? 0 : -1}
                   aria-selected={on}
                   data-active={on || undefined}
-                  onClick={() => openPanel(p)}
+                  onClick={() => showPanel(p)}
                   className={cn(
                     TAB_BUTTON,
                     GROUP_TINT[g],
@@ -387,7 +389,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                     p === 'soul' && soulStatus === 'unrated' && 'outline-1 -outline-offset-1 outline-dashed outline-amber-500',
                   )}
                 >
-                  <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[g])} aria-hidden="true" />
                   <Icon className="size-3.5 shrink-0" aria-hidden="true" />
                   {panelLabel(p, t)}
                   {p === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
@@ -424,7 +425,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                     onClick={() => openPanel(tabName)}
                     className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none gap-1 px-1.5')}
                   >
-                    <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
                     {t(`editor.tab.${tabName}` as MsgKey)}
                     {tabName === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
                     {tabName === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
@@ -445,7 +445,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       aria-haspopup="menu"
                       className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none gap-1 px-1.5')}
                     >
-                      <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
                       {t(`editor.tab.${tabName}` as MsgKey)}
                       <CaretDown className="size-3 shrink-0 opacity-70" aria-hidden="true" />
                     </button>
@@ -456,7 +455,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       const active = tab === p
                       return (
                         <DropdownMenuItem key={p} onClick={() => openPanel(p)} className="gap-2">
-                          <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
                           <Icon className="size-3.5 shrink-0" aria-hidden="true" />
                           <span>{panelLabel(p, t)}</span>
                           {active && <Check className="ml-auto size-3.5" aria-hidden="true" />}
@@ -995,12 +993,13 @@ function Field({ label, hint, description, value, onChange, rows = 3, mono = fal
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <Label className="flex items-center gap-2 text-xs">
-        {label}
+      {/* the Translate button stays outside the label: a label passes its clicks to the first button in it */}
+      <div className="flex items-center gap-2 text-xs">
+        <Label className="text-xs">{label}</Label>
         <TokenBadge text={value} />
         {hint && <span className="font-normal text-muted-foreground">{hint}</span>}
         {translate && <FieldTranslateButton label={label} value={value} onChange={onChange} />}
-      </Label>
+      </div>
       <Textarea value={value} rows={rows} onChange={(e) => onChange(e.target.value)} aria-label={label} className={mono ? 'font-mono text-xs' : 'text-sm'} />
       {description && <FieldDescription className="text-[11px]">{description}</FieldDescription>}
     </div>
