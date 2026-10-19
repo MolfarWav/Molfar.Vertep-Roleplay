@@ -2,6 +2,20 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.54.0
+
+The World DM grows up: profiles, a world built from the cards before the first message, saved worlds, and backgrounds drawn for a world (#52, #61). Plus two of Molfar's fixes from the workspace: the Dashboard re-reads after an earlier message changes (#48), and the card editor in five groups (#63). Needs no engine update.
+
+- World section: Chats, Worlds and Profiles. A chat's world has Overview, Records (edit, add and remove records by hand), Start, Backgrounds and Runs (each run with its tokens and a plain error).
+- DM profiles replace the level radios: four editable prompt blocks, a locked reply format, and options such as clocks ticked by code, news worded by the clock stage, and an events deck (off by default).
+- Start a world before the first message: the build model reads the cards (description, personality, scenario, enabled lorebook entries, in chunks) or asks you a few questions, and writes a draft you accept or discard. It can also draft the chat's scenario and first message; the scenario replaces the card's, or is added to it.
+- Saved worlds: keep a world in the library, rename it, and start a new chat in it (New chat in this world, or the World step of a new chat), or carry it into an existing chat.
+- Backgrounds for a world: a folder of its own, a set planned by the build model and drawn by your image model (1 picture per place by default, up to 3), and names and tags written by a vision model for pictures you already have. A chat can change its background by scene: the Dashboard picks a picture from the world's folder (off by default).
+- New backgrounds are stored as WebP in the engine's asset store instead of inside library.json. Extensions → Backgrounds has a folder filter, tags, and Convert to WebP for the old ones (GIFs and animated pictures stay as they are; a picture stays as it is when WebP is not smaller).
+- Dashboard (#48): an edit, a Continue, a deleted message or another swipe of an earlier message now re-reads the story from that message in one call, instead of keeping later stats, threads, clock and scene from text that is gone. The line under the newest message says from which message. Swiping back to a swipe the Dashboard already read costs no call.
+- Card editor (#63): the eleven tabs sit in five groups on a phone (Core, Profile, Soul, Lorebook, More); on a wide screen every panel stays one click away. The tab row is one Tab stop; the arrow keys move between panels.
+- Failures in the background (Dashboard, Library, World DM, soul rating) show in the Inbox and as a toast, in plain words for the common causes.
+
 ## 4.53.0
 
 A World DM: a game master per chat that keeps the world's records and, if you want, moves the world and brings events into the story (#52; needs no engine update).

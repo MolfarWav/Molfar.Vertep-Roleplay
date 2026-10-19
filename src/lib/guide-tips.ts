@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.53.0'
+export const APP_VERSION = '4.54.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -213,7 +213,7 @@ export const TIPS: Tip[] = [
   // ── What's new: DM profiles and records
   {
     id: 'new.world-profiles',
-    since: '4.53.0',
+    since: '4.54.0',
     open: { view: 'home' },
     title: { en: 'Profiles for the World DM, and its records in your hands', uk: 'Профілі для майстра світу і його записи у ваших руках' },
     body: {
@@ -223,7 +223,7 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'new.world-start',
-    since: '4.53.0',
+    since: '4.54.0',
     open: { view: 'home' },
     title: { en: 'Start a world, save it, play in it again', uk: 'Почніть світ, збережіть його, грайте в ньому знову' },
     body: {
@@ -233,7 +233,7 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'new.world-backgrounds',
-    since: '4.53.0',
+    since: '4.54.0',
     open: { view: 'home' },
     title: { en: 'Pictures for a world, picked by the scene', uk: 'Картинки для світу, які добирає сцена' },
     body: {
@@ -244,7 +244,7 @@ export const TIPS: Tip[] = [
   // ── What's new: failures reach the inbox
   {
     id: 'new.inbox-failures',
-    since: '4.53.0',
+    since: '4.54.0',
     target: 'nav.inbox',
     open: { view: 'home' },
     title: { en: 'A failed background job tells you', uk: 'Збій у фоні тепер видно' },
