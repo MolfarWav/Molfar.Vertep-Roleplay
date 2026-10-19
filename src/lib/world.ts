@@ -410,13 +410,19 @@ export interface WorldPlace { name: string; text: string }
 export interface PlannedBackground { place: string; file: string; tags: string[]; prompt: string }
 
 /** The world's place records and its folder. */
-export async function loadWorldBackgrounds(ref: WorldRef): Promise<{ places: WorldPlace[]; folderId: string | null }> {
+/** A lorebook entry of the chat's cards, offered as a place to tick (not every entry is a place). */
+export interface BookPlace { name: string; text: string; book: string }
+export async function loadWorldBackgrounds(ref: WorldRef): Promise<{ places: WorldPlace[]; fromBooks?: BookPlace[]; folderId: string | null }> {
   const q = 'chatId' in ref ? `chatId=${encodeURIComponent(ref.chatId)}` : `worldId=${encodeURIComponent(ref.worldId)}`
   return j(`/world/backgrounds?${q}`)
 }
 /** The build model plans the set: file names, tags and prompts (taken = names already in the folder). */
 export async function planWorldBackgrounds(ref: WorldRef, o: { places: (WorldPlace | string)[]; direction?: string; variants?: number; taken?: string[]; lang?: string }): Promise<{ ok: boolean; images?: PlannedBackground[]; imageModel?: string; error?: string; code?: WorldErrorCode }> {
   return j('/world/backgrounds', { method: 'POST', body: JSON.stringify({ ...ref, ...o }) })
+}
+/** The build model lists the places the cards and the world's records name (one call). */
+export async function findWorldPlaces(ref: WorldRef): Promise<{ ok: boolean; places?: WorldPlace[]; error?: string; code?: WorldErrorCode | 'no-text' }> {
+  return j('/world/backgrounds/places', { method: 'POST', body: JSON.stringify(ref) })
 }
 /** Link the world (a chat's or a saved one) to a folder of the Backgrounds library; null unlinks. */
 export async function linkWorldBackgrounds(ref: WorldRef, folderId: string | null): Promise<void> {

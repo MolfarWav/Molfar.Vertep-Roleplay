@@ -366,6 +366,17 @@ describe("world backgrounds", () => {
     expect(world("PUT", "/world/backgrounds", { worldId: saved.id, folderId: null }).folderId).toBeNull();
   });
 
+  it("offers the card books' entries as places, and the build model finds the places the cards name", () => {
+    const id = newChat();
+    const got = world("GET", "/world/backgrounds", undefined, { chatId: id });
+    expect(got.fromBooks).toEqual([{ name: "Red Tower", text: "A tower up the pass.", book: "Pass" }]);
+    expect(world("POST", "/world/backgrounds/places", { chatId: id }).__llmPending).toBe(true);
+    const ask = requests.at(-1)!.spec.messages[0].content as string;
+    expect(ask).toContain("A witch of the pass.");
+    results.world_places = { text: J({ places: [{ name: "The hut", text: "A hut on the pass." }, { name: "the hut", text: "dup" }, { name: "" }] }), model: "b/build" };
+    const found = world("POST", "/world/backgrounds/places", { chatId: id });
+    expect(found.places).toEqual([{ name: "The hut", text: "A hut on the pass." }]);
+  });
   it("a vision model names an image", () => {
     const img = { data: "aGk=", mimeType: "image/webp" };
     expect(world("POST", "/world/backgrounds/name", { image: img, hint: "IMG_2041" }).__llmPending).toBe(true);
