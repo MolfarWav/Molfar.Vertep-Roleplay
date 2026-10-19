@@ -1,12 +1,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, tabsListVariants } from '@/components/ui/tabs'
 import { useConfirm } from '@/components/ui/confirm'
 import { VariantField } from '@/components/character/variant-field'
 import { Switch } from '@/components/ui/switch'
@@ -25,6 +25,8 @@ import { useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
+import type { MsgKey } from '@/lib/i18n'
+import { ALL_PANELS, EDITOR_TABS, TAB_PANELS, panelGroup, panelStep, tabOfPanel } from '@/lib/editor-tabs'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
 import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
@@ -53,31 +55,64 @@ function TokenBadge({ text }: { text: string }) {
   return <Badge variant="outline" className="text-[10px] text-muted-foreground">{formatTokens(estimateTokens(text))} tok</Badge>
 }
 
-
-/** The editor's tabs by purpose: text, world, look, then the technical one. */
-const TAB_GROUPS: readonly (readonly string[])[] = [
-  ['core', 'profile', 'dialogue', 'soul'],
-  ['lorebook', 'regex'],
-  ['colors', 'sprites', 'gallery', 'voice'],
-  ['advanced'],
-]
 const TAB_ICONS: Record<string, PhosphorIcon> = {
-  core: UserCircle, profile: ListBullets, dialogue: ChatsCircle, advanced: SlidersHorizontal, soul: Sparkle,
-  lorebook: BookOpen, colors: Palette, sprites: Smiley, gallery: Images, regex: Code, voice: SpeakerHigh,
+  core: UserCircle, profile: Smiley, dialogue: ChatsCircle, advanced: SlidersHorizontal, soul: Sparkle,
+  lorebook: BookOpen, colors: Palette, sprites: Images, gallery: ImageIcon, regex: Code, voice: SpeakerHigh,
+  more: ListBullets,
+}
+/** A colored dot per group: Core sky, Profile emerald, Soul violet, Lorebook amber,
+ *  everything else slate. The desktop strip paints all eleven panels with their group's
+ *  color; the phone strip paints the five groups the same way. */
+const GROUP_DOT: Record<string, string> = {
+  core: 'bg-sky-500', profile: 'bg-emerald-500', soul: 'bg-violet-500',
+  lorebook: 'bg-amber-500', more: 'bg-slate-400',
+}
+const GROUP_TINT: Record<string, string> = {
+  core: 'border-sky-500/30 bg-sky-500/10 data-active:bg-sky-500/25',
+  profile: 'border-emerald-500/30 bg-emerald-500/10 data-active:bg-emerald-500/25',
+  soul: 'border-violet-500/30 bg-violet-500/10 data-active:bg-violet-500/25',
+  lorebook: 'border-amber-500/30 bg-amber-500/10 data-active:bg-amber-500/25',
+  more: 'border-slate-500/30 bg-slate-500/10 data-active:bg-slate-500/25',
+}
+/** The look of a tab button: the app's own TabsTrigger look plus a tinted border. */
+const TAB_BUTTON = 'inline-flex items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap text-foreground transition-all hover:brightness-125 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring data-active:shadow-sm'
+/** The readable name of one panel: single panels reuse their group label. */
+function panelLabel(panel: string, t: (key: MsgKey) => string): string {
+  if (panel === 'soul') return t('soul.tab')
+  if (panel === 'profile' || panel === 'lorebook') return t(`editor.tab.${panel}` as MsgKey)
+  return t(`editor.panel.${panel}` as MsgKey)
 }
 
 export function CharacterEditor({ character, onClose }: { character: Character; onClose: () => void }) {
   useBackClose(true, onClose)
   const t = useT()
+  // the open panel (core, dialogue, advanced…); the five tabs are derived from it
   const [tab, setTab] = useState('core')
+  // the last panel of the More tab, so that tab opens where the user left it
+  const [lastMore, setLastMore] = useState('advanced')
   // the Soul tab stays mounted while hidden: only its own visit counts for the tour
   useGuidePlace('soul', tab === 'soul')
   const [soulStatus, setSoulStatus] = useState<SoulStatus>(null)
+  /** Opens a panel: a panel name (a link, the store, an older build) or one of the five
+   *  tabs. Panels keep the old names, so anything that asked for an old tab still lands
+   *  on the panel it asked for, inside the tab that now holds it. */
+  const openPanel = (asked: string | null | undefined) => {
+    if (!asked) return
+    const group = tabOfPanel(asked)
+    if ((EDITOR_TABS as readonly string[]).includes(asked)) {
+      if (tabOfPanel(tab) === group) return // the tab is open already: keep the panel
+      setTab(group === 'more' ? lastMore : TAB_PANELS[group][0])
+      return
+    }
+    const panel = TAB_PANELS[group].includes(asked) ? asked : TAB_PANELS[group][0]
+    setTab(panel)
+    if (group === 'more') setLastMore(panel)
+  }
   // opened on a given tab (the chat's "souls proposed" toast)
   const wantTab = useApp((s) => s.characterEditorTab)
   useEffect(() => {
     if (!wantTab) return
-    setTab(wantTab)
+    openPanel(wantTab)
     useApp.setState({ characterEditorTab: null })
   }, [wantTab])
   const updateCharacter = useApp((s) => s.updateCharacter)
@@ -236,7 +271,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
       )}
       {/* header + tab strip scroll WITH the tab content (mobile keyboard room) */}
       <ImageViewer src={zoom?.src ?? null} title={zoom?.title ?? ''} onClose={() => setZoom(null)} />
-      <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex min-h-0 flex-1 flex-col">
+      <Tabs value={tab} className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <Button variant="ghost" size="sm" onClick={onClose} aria-label="Back to characters">
@@ -315,32 +350,113 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </div>
       </header>
 
-        <div className="mt-2 max-w-full">
-        <ScrollStrip className="px-4">
-          <TabsList data-guide="editor.tabs" className="h-8 w-max flex-nowrap">
-            {TAB_GROUPS.map((group, gi) => {
-              const names = group.filter((name) => !(c.isGroup && (name === 'profile' || name === 'soul')))
-              return [
-                gi > 0 && <span key={`divider-${group[0]}`} className="mx-1 h-4 w-px shrink-0 self-center bg-border" aria-hidden="true" />,
-                ...names.map((name) => {
-                  const Icon = TAB_ICONS[name] ?? UserCircle
-                  return (
-                    <TabsTrigger
-                      key={name}
-                      value={name}
-                      className={cn('flex-none gap-1 px-2.5 text-xs capitalize', name === 'soul' && soulStatus === 'unrated' && 'outline-1 -outline-offset-1 outline-dashed outline-amber-500')}
-                    >
-                      <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-                      {name === 'soul' ? t('soul.tab') : name}
-                      {name === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
-                      {name === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
-                      {name === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
-                    </TabsTrigger>
-                  )
-                }),
-              ]
+        <div className="mt-2 hidden max-w-full px-4 md:block">
+          {/* Desktop: all eleven panels, wrapping to two rows so every tab fits without
+              scrolling. Plain buttons, not Base UI tabs — the panels stay the editor
+              Tabs' content. */}
+          <div
+            data-guide="editor.tabs"
+            role="tablist"
+            aria-label={t('editor.tabs')}
+            onKeyDown={(e) => { const next = panelStep(ALL_PANELS as unknown as readonly string[], tab, e.key); if (next) { e.preventDefault(); openPanel(next) } }}
+            className={cn(tabsListVariants(), 'h-auto w-full flex-wrap items-center gap-1')}
+          >
+            {ALL_PANELS.filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))).map((p) => {
+              const Icon = TAB_ICONS[p] ?? UserCircle
+              const on = tab === p
+              const g = panelGroup(p)
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  data-active={on || undefined}
+                  onClick={() => openPanel(p)}
+                  className={cn(
+                    TAB_BUTTON,
+                    GROUP_TINT[g],
+                    'h-8 flex-none',
+                    p === 'soul' && soulStatus === 'unrated' && 'outline-1 -outline-offset-1 outline-dashed outline-amber-500',
+                  )}
+                >
+                  <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[g])} aria-hidden="true" />
+                  <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                  {panelLabel(p, t)}
+                  {p === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
+                  {p === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
+                  {p === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
+                </button>
+              )
             })}
-          </TabsList>
+          </div>
+        </div>
+        <div className="mt-2 max-w-full md:hidden">
+        <ScrollStrip className="px-4">
+          {/* Phone: five groups in one row, no icons so they fit 390px. Groups that hold
+              more than one panel open a dropdown — nothing overlaps the content anymore. */}
+          <div
+            role="tablist"
+            aria-label={t('editor.tabs')}
+            onKeyDown={(e) => { const next = panelStep(EDITOR_TABS as unknown as readonly string[], tabOfPanel(tab), e.key); if (next) { e.preventDefault(); openPanel(next) } }}
+            className={cn(tabsListVariants(), 'h-8 w-max max-w-full flex-nowrap items-center gap-1')}
+          >
+            {EDITOR_TABS.filter((tabName) => !(c.isGroup && (tabName === 'profile' || tabName === 'soul'))).map((tabName) => {
+              const panels = TAB_PANELS[tabName]
+              const on = tabOfPanel(tab) === tabName
+              if (panels.length === 1) {
+                return (
+                  <button
+                    key={tabName}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    data-active={on || undefined}
+                    onClick={() => openPanel(tabName)}
+                    className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none')}
+                  >
+                    <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
+                    {t(`editor.tab.${tabName}` as MsgKey)}
+                    {tabName === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
+                    {tabName === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
+                    {tabName === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
+                  </button>
+                )
+              }
+              return (
+                <DropdownMenu key={tabName}>
+                  <DropdownMenuTrigger render={
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      data-active={on || undefined}
+                      aria-haspopup="menu"
+                      className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none')}
+                    >
+                      <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
+                      {t(`editor.tab.${tabName}` as MsgKey)}
+                      <CaretDown className="size-3 shrink-0 opacity-70" aria-hidden="true" />
+                    </button>
+                  } />
+                  <DropdownMenuContent align="start">
+                    {panels.map((p) => {
+                      const Icon = TAB_ICONS[p] ?? UserCircle
+                      const active = tab === p
+                      return (
+                        <DropdownMenuItem key={p} onClick={() => openPanel(p)} className="gap-2">
+                          <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
+                          <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                          <span>{panelLabel(p, t)}</span>
+                          {active && <Check className="ml-auto size-3.5" aria-hidden="true" />}
+                        </DropdownMenuItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
+            })}
+          </div>
         </ScrollStrip>
         </div>
           <fieldset disabled={!!preview} className={`mx-auto flex w-full min-w-0 flex-col gap-4 border-0 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'} ${preview ? 'bg-sky-500/5 ring-1 ring-sky-500/40' : ''}`}>

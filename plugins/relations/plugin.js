@@ -5,8 +5,11 @@
  * what each character learned). It never gives relationship numbers. Code
  * turns the events into numbers (pure functions below, tested without a model)
  * and saves one SNAPSHOT per chat message, keyed "<msgId>#<swipe>". The active
- * line of the chat decides which snapshots, notes and history lines count, so a
- * swipe or a deleted message never leaves stale state behind.
+ * line of the chat decides which snapshots, notes and history lines count. An
+ * edit, a Continue, a deleted message or another swipe leaves every snapshot
+ * after it computed from text that is gone: the next update drops those and
+ * reads the line again from the last snapshot that stands, in one sensor call,
+ * and answers `reread: {from, trimmed?}` — the message it went back to.
  *
  * Routes (under /v1/apps/roleplay/):
  *  POST /dashboard/update {chatId, op?, auto?}  sensor now (two-phase); auto = the UI's trigger after a reply
@@ -1737,6 +1740,77 @@ function nearestSnapshot(state, keys, before) {
   return -1;
 }
 
+// how far back the messages a snapshot read may start when the snapshot before it is gone
+const READ_BACK = 12;
+
+/** The messages (j, i] of the line that carry text: the texts a snapshot's sig is taken over. */
+function lineRange(line, j, i) {
+  const out = [];
+  for (let k = j + 1; k <= i; k++) if (str(line[k].msg.text)) out.push(line[k].msg);
+  return out;
+}
+
+/**
+ * Does this snapshot's sig still describe the messages it read? Its range is the messages
+ * after the snapshot before it, so the base is that snapshot — or, for the oldest one still
+ * standing, nothing: the 40-snapshot cap may have dropped its base, and its sig may then
+ * cover a shorter range, so a few shorter ranges are tried too, and the line start last.
+ */
+function sigStands(line, i, good, sig) {
+  const starts = good >= 0 ? [good] : [];
+  if (good < 0) {
+    for (let j = i - 1; j >= Math.max(-1, i - READ_BACK); j--) starts.push(j);
+    if (starts[starts.length - 1] > -1) starts.push(-1);
+  }
+  for (const j of starts) if (textSig(lineRange(line, j, i)) === sig) return true;
+  return false;
+}
+
+/**
+ * Does this snapshot still describe the line? A snapshot records the key it was computed from
+ * (`base`, null = the line start): that must be the standing snapshot just before it, or, when
+ * the 40-snapshot cap dropped that one, a key still on the line with no snapshot of its own; and
+ * its sig must match the messages between them. A snapshot from before `base` was recorded falls
+ * back to the sig check alone (sigStands). Snapshots off the line (another swipe, an abandoned
+ * branch) are not judged: they are kept, so swiping back costs no call, and they are judged by
+ * the same rule if they come back on the line.
+ */
+function snapStands(state, line, index, i, good, snap) {
+  if (!("base" in snap)) return sigStands(line, i, good, snap.sig);
+  const b = snap.base === null ? -1 : index.has(snap.base) ? index.get(snap.base) : -2;
+  if (b === -2 || b >= i) return false;
+  if (b !== good && !(b > good && !state.snapshots[line[b].key])) return false;
+  return textSig(lineRange(line, b, i)) === snap.sig;
+}
+
+/**
+ * Where the active line has to be read again: the first snapshot on it that no longer stands (an
+ * earlier edit, a Continue, a deleted message, another swipe of an earlier message) and every one
+ * after it were computed from text that is gone. Returns the index of the last snapshot that still
+ * stands (the base to read from) and whether anything has to be dropped at all.
+ */
+function standingFrom(state, line) {
+  const index = new Map(line.map((l, i) => [l.key, i]));
+  let good = -1;
+  for (let i = 0; i < line.length; i++) {
+    const snap = state.snapshots[line[i].key];
+    if (!snap) continue;
+    // a snapshot made before sigs existed is never re-sensed
+    if (typeof snap.sig !== "string" || snapStands(state, line, index, i, good, snap)) good = i;
+    else return { good, cut: true, at: i };
+  }
+  return { good, cut: false };
+}
+
+/** The snapshots to drop: every one on the line after the base. */
+function dropAfter(state, line, good) {
+  const out = [];
+  line.forEach((l, i) => {
+    if (i > good && state.snapshots[l.key]) out.push(l.key);
+  });
+  return out;
+}
+
 // ---------- config ----------
 const DEFAULT_CONFIG = {
   sensorModel: "",
@@ -1936,8 +2010,9 @@ function noteLine(n) {
 }
 
 function notebookTexts(ctx) {
-  // a re-sense starts without what the old snapshot of K wrote
-  const live = effectiveNotebook(ctx.state, ctx.line.map((l) => l.key).filter((k) => !(ctx.resense && k === ctx.K)), ctx.overlay).live;
+  // the notes the dropped snapshots wrote are gone: the sensor must not read them as live
+  const gone = arr(ctx.drop);
+  const live = effectiveNotebook(ctx.state, ctx.line.map((l) => l.key).filter((k) => !gone.includes(k)), ctx.overlay).live;
   const B = ctx.base && ctx.base.snap;
   const out = [];
   const news = arr(ctx.newMsgs).map((m) => str(m && m.text)).join("\n");
@@ -1955,9 +2030,14 @@ function notebookTexts(ctx) {
 
 const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2)));
 
+/** The "New messages" lines, and whether the 8000-character cut dropped earlier ones. */
+function newMessagesBody(msgs) {
+  const body = msgs.map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || m.role || "narrator") + "] " + cutMiddle(String(m.text).trim(), 1500)).join("\n");
+  return { body, trimmed: body.length > 8000 };
+}
+
 function newMessagesText(msgs) {
-  const lines = msgs.map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || m.role || "narrator") + "] " + cutMiddle(String(m.text).trim(), 1500));
-  return "New messages\n" + lines.join("\n").slice(-8000);
+  return "New messages\n" + newMessagesBody(msgs).body.slice(-8000);
 }
 
 /** Every N turns (only then): ask about open threads that have been open that long. */
@@ -2517,6 +2597,8 @@ function applySensor(ctx, out, op, model, unknownIds) {
     sensorModel: model || "",
     op,
     sig: textSig(ctx.newMsgs),
+    // the key this snapshot was computed from (null = the line start): standingFrom checks it still stands
+    base: ctx.base ? ctx.base.key : null,
     ...(out.__partial ? { partial: true } : {}),
     clock: advanceClock(B && B.clock, out, op),
     scene: readScene(out.scene, B && B.scene),
@@ -2819,18 +2901,33 @@ function planUpdate(fsx, chatId, op) {
   if (!line.length) return unchanged();
   // a reply with no text (only reasoning, or a cut-off stream) has nothing to read: no sensor call
   if (!str(line[line.length - 1].msg.text)) return { final: ok({ ok: true, state: existed ? state : null, unchanged: true, skipped: "empty" }) };
-  const K = line[line.length - 1].key;
+  const keys = line.map((l) => l.key);
+  const K = keys[keys.length - 1];
   const existing = state.snapshots[K];
   // a snapshot made before sigs existed is never re-sensed
   if (existing && typeof existing.sig !== "string") return unchanged();
-  const bi = nearestSnapshot(state, line.map((l) => l.key), line.length - 1);
-  const base = bi >= 0 ? { key: line[bi].key, snap: state.snapshots[line[bi].key] } : null;
+  // Which snapshots still stand: everything after the first one whose messages changed (an
+  // earlier edit, a Continue, a deleted message, another swipe) was computed from text that
+  // is gone. Those are dropped and the line is read again from the last one that stands,
+  // in one call (standingFrom).
+  const { good, cut, at } = standingFrom(state, line);
+  const bi = good;
+  const base = bi >= 0 ? { key: keys[bi], snap: state.snapshots[keys[bi]] } : null;
+  const drop = cut ? dropAfter(state, line, bi) : [];
   const newMsgs = line.slice(bi + 1).map((l) => l.msg).filter((m) => str(m.text));
-  if (!newMsgs.length) return unchanged();
-  // the newest message changed (edit, Continue): read it again
-  if (existing && textSig(newMsgs) === existing.sig) return unchanged();
+  // nothing to read after the base (only text-less messages): dropping the stale snapshots needs no call
+  if (!newMsgs.length) {
+    if (!drop.length) return unchanged();
+    return { fsx, chatId, meta: chat.meta, line, K, base, drop, newMsgs, state, before: JSON.stringify(state) };
+  }
   const { names, souls } = chatCharacters(fsx, chat.meta);
   const overlay = loadOverlay(fsx, chatId);
+  // the read starts before where the newest key's own snapshot started (an earlier snapshot
+  // fell, or the newest one's base did): the line under the reply says from which message.
+  // A new swipe of the newest message or an edit of it is an ordinary read.
+  const from = bi + 2 + line.slice(bi + 1).findIndex((l) => str(l.msg.text));
+  const earlier = cut && (at !== keys.length - 1 || !existing || !("base" in existing) || existing.base !== (base ? base.key : null));
+  const reread = earlier ? { from, ...(newMessagesBody(newMsgs).trimmed ? { trimmed: true } : {}) } : null;
   return {
     fsx,
     chatId,
@@ -2838,7 +2935,10 @@ function planUpdate(fsx, chatId, op) {
     // the base snapshot's threads with the user's edits and additions: what the sensor sees and carries
     threads: effectiveThreads(overlay, base && base.snap.threads, base ? base.snap.turn : 0),
     op: existing ? "resense" : op,
+    // a re-read never takes the state the story reply carried (fast mode)
     ...(existing ? { resense: true } : {}),
+    drop,
+    ...(reread ? { reread } : {}),
     meta: chat.meta,
     line,
     K,
@@ -2890,7 +2990,8 @@ function commitUpdate(fsx, ctx, r) {
   if (!out) return failUpdate(fsx, ctx, "sensor reply was not JSON", { raw: String(r.text) });
   const unknownIds = [];
   try {
-    if (ctx.resense) dropSnapshot(ctx.state, ctx.K);
+    // every snapshot after the base is read again from it: start from what it wrote
+    for (const key of ctx.drop) dropSnapshot(ctx.state, key);
     const snapshot = applySensor(ctx, out, ctx.op, str(r.model), unknownIds);
     // fast mode: the report came with the story reply, so no sensor call and no tokens of its own
     if (r.fast) snapshot.fast = true;
@@ -2906,12 +3007,20 @@ function commitUpdate(fsx, ctx, r) {
     ctx.state.lastError = null;
     saveState(fsx, ctx);
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds });
-    return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn, ms: ctx.state.usage.lastMs });
+    return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn, ms: ctx.state.usage.lastMs, ...(ctx.reread ? { reread: ctx.reread } : {}) });
   } catch (e) {
     // a half-applied report must not leave notes or history behind
     ctx.state = JSON.parse(ctx.before);
     return failUpdate(fsx, ctx, "could not apply the sensor reply: " + (e && e.message ? e.message : String(e)), { raw: String(r.text), parsed: out });
   }
+}
+
+/** Only stale snapshots to drop and nothing to read after the base: no sensor call. */
+function dropStale(fsx, ctx) {
+  for (const key of ctx.drop) dropSnapshot(ctx.state, key);
+  ctx.state.lastError = null;
+  saveState(fsx, ctx);
+  return ok({ ok: true, state: ctx.state, dropped: ctx.drop.length });
 }
 
 /**
@@ -2923,6 +3032,8 @@ function runUpdate(host, input) {
   const fsx = host.fs;
   let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
+  // nothing new to read, only stale snapshots: drop them, no call
+  if (!ctx.newMsgs.length) return { done: dropStale(fsx, ctx) };
   const rated = !!input.rated;
   const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...extra });
   // Cards with no soul are rated first, so the sensor starts from their souls. The

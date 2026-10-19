@@ -13,6 +13,8 @@ export interface DashLast {
   error?: string
   skipped?: string
   unchanged?: boolean
+  /** the plugin read the state again from an earlier message: which one, and was the read trimmed */
+  reread?: { from: number; trimmed?: boolean }
 }
 
 interface DashLiveState {
@@ -22,7 +24,15 @@ interface DashLiveState {
 
 export const useDashLive = create<DashLiveState>(() => ({ running: {}, last: {} }))
 
-interface UpdateReply { ok?: boolean; error?: string; skipped?: string; unchanged?: boolean; ms?: number }
+interface UpdateReply {
+  ok?: boolean
+  error?: string
+  skipped?: string
+  unchanged?: boolean
+  ms?: number
+  dropped?: number
+  reread?: { from: number; trimmed?: boolean }
+}
 
 /** Let the reply settle first (a group turn's next member starts right after it). */
 const WAIT_MS = 1500
@@ -63,7 +73,7 @@ async function runOnce(chatId: string, op: string): Promise<boolean> {
     if (r?.ok === false) setLast(chatId, { at, ok: false, error: r.error || 'unknown error' })
     else if (r?.skipped) setLast(chatId, { at, ok: true, skipped: r.skipped })
     else if (r?.unchanged) setLast(chatId, { at, ok: true, unchanged: true })
-    else setLast(chatId, { at, ok: true, ...(typeof r?.ms === 'number' ? { ms: r.ms } : {}) })
+    else setLast(chatId, { at, ok: true, ...(typeof r?.ms === 'number' ? { ms: r.ms } : {}), ...(r?.reread ? { reread: r.reread } : {}) })
     return false
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return true
