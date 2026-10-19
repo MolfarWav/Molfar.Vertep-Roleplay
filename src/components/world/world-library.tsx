@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Trash } from '@phosphor-icons/react'
+import { CircleNotch, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
 import { create } from 'zustand'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
@@ -25,9 +25,10 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import {
   deleteSavedWorld,
-  listSavedWorlds,
+  listLibrary,
   renameSavedWorld,
   saveWorldToLibrary,
+  type BuildingWorld,
   type SavedWorld,
 } from '@/lib/world'
 import { LevelChip } from './world-common'
@@ -35,23 +36,30 @@ import { WorldBackgrounds } from './world-backgrounds'
 
 interface SavedWorldsState {
   list: SavedWorld[] | null | 'missing'
+  /** worlds being built without a chat (their draft not yet accepted) */
+  building: BuildingWorld[]
   error: string
   setList: (list: SavedWorld[] | null | 'missing') => void
+  setBuilding: (building: BuildingWorld[]) => void
   setError: (error: string) => void
 }
 
 export const useSavedWorlds = create<SavedWorldsState>((set) => ({
   list: null,
+  building: [],
   error: '',
   setList: (list) => set({ list }),
+  setBuilding: (building) => set({ building }),
   setError: (error) => set({ error }),
 }))
 
+/** The id the Worlds tab selects for the "New world" form. */
+export const NEW_WORLD = '__new_world__'
+
 export async function refreshSavedWorlds(): Promise<void> {
   try {
-    const worlds = await listSavedWorlds()
-    useSavedWorlds.getState().setList(worlds === null ? 'missing' : worlds)
-    useSavedWorlds.getState().setError('')
+    const lib = await listLibrary()
+    useSavedWorlds.setState({ list: lib === null ? 'missing' : lib.worlds, building: lib?.building ?? [], error: '' })
   } catch (e) {
     useSavedWorlds.getState().setList(null)
     useSavedWorlds.getState().setError(e instanceof Error ? e.message : String(e))
@@ -67,7 +75,7 @@ export function WorldList({
 }) {
   const t = useT()
   const relative = useRelativeTime()
-  const { list, error } = useSavedWorlds()
+  const { list, building, error } = useSavedWorlds()
 
   useEffect(() => {
     void refreshSavedWorlds()
@@ -97,17 +105,60 @@ export function WorldList({
     )
   }
 
-  if (list.length === 0) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">
-        {t('world.lib.empty')}
-      </div>
+  const row = (selected: boolean) =>
+    cn(
+      'flex min-h-12 flex-col items-start gap-0.5 rounded-md border border-transparent px-3 py-2 text-left text-sm transition-colors',
+      selected ? 'bg-accent' : 'hover:bg-accent/50',
     )
-  }
 
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-1 p-2">
+        <Button
+          variant={selectedId === NEW_WORLD ? 'secondary' : 'outline'}
+          className="mb-1 justify-start max-md:h-11"
+          aria-current={selectedId === NEW_WORLD ? 'true' : undefined}
+          onClick={() => onSelect(NEW_WORLD)}
+          data-testid="new-world"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          {t('world.new.button')}
+        </Button>
+
+        {building.length > 0 && (
+          <>
+            <h3 className="px-3 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('world.new.building')}</h3>
+            {building.map((w) => {
+              const selected = selectedId === w.id
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  data-testid="building-world"
+                  aria-current={selected ? 'true' : undefined}
+                  onClick={() => onSelect(w.id)}
+                  className={row(selected)}
+                >
+                  <span className="w-full truncate font-medium">{w.name}</span>
+                  <span className={cn('flex items-center gap-1 text-xs', w.error ? 'text-destructive' : 'text-muted-foreground')}>
+                    {w.error ? <WarningCircle className="size-3.5" aria-hidden="true" /> : w.done < w.total ? <CircleNotch className="size-3.5" aria-hidden="true" /> : null}
+                    {w.error
+                      ? t('world.new.stepFailed')
+                      : w.done < w.total
+                        ? t('world.new.steps', { done: w.done, total: w.total })
+                        : t('world.new.toReview')}
+                  </span>
+                </button>
+              )
+            })}
+            {list.length > 0 && <h3 className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('world.lib.title')}</h3>}
+          </>
+        )}
+
+        {list.length === 0 && building.length === 0 && (
+          <p className="px-3 py-2 text-sm text-muted-foreground">{t('world.lib.empty')}</p>
+        )}
+
         {list.map((w) => {
           const selected = selectedId === w.id
           return (
@@ -117,10 +168,7 @@ export function WorldList({
               data-testid="saved-world"
               aria-current={selected ? 'true' : undefined}
               onClick={() => onSelect(w.id)}
-              className={cn(
-                'flex min-h-12 flex-col items-start gap-0.5 rounded-md border border-transparent px-3 py-2 text-left text-sm transition-colors',
-                selected ? 'bg-accent' : 'hover:bg-accent/50',
-              )}
+              className={row(selected)}
             >
               <span className="w-full truncate font-medium">{w.name}</span>
               <span className="text-xs text-muted-foreground">

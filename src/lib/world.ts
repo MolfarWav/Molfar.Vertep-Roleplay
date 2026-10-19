@@ -395,12 +395,19 @@ export async function finishNewWorld(worldId: string, op: 'accept' | 'discard', 
   return j('/world/draft', { method: 'PUT', body: JSON.stringify({ worldId, op, ...(drop ? { drop } : {}) }) })
 }
 
-/** Worlds being built, for the Worlds list (an older plugin has none). */
-export async function listBuildingWorlds(): Promise<BuildingWorld[]> {
+/** A new world's draft as it stands, without a build call (null = no draft: accepted or discarded elsewhere). */
+export async function peekNewWorld(worldId: string): Promise<WorldDraft | null> {
+  return (await j<{ draft: WorldDraft | null }>('/world/start', { method: 'POST', body: JSON.stringify({ worldId, peek: true }) })).draft
+}
+
+/** The library in one read: saved worlds and worlds being built (an older plugin has no building). null = no World plugin. */
+export async function listLibrary(): Promise<{ worlds: SavedWorld[]; building: BuildingWorld[] } | null> {
   try {
-    return (await j<{ building?: BuildingWorld[] }>('/world/library')).building ?? []
-  } catch {
-    return []
+    const r = await j<{ worlds: SavedWorld[]; building?: BuildingWorld[] }>('/world/library')
+    return { worlds: r.worlds, building: r.building ?? [] }
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
   }
 }
 

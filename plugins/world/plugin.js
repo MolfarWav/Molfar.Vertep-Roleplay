@@ -41,7 +41,8 @@
  *  POST /world/start {chatId, begin?, recipe?, cardIds?, answers?, lang?, deck?}   begin = a new draft; then
  *                                     each call makes one build call (two-phase) until done == total.
  *                                     {begin, newWorld: true, name, description?, level?, profile?, ...} builds a
- *                                     world without a chat (answers worldId; later calls send {worldId})
+ *                                     world without a chat (answers worldId; later calls send {worldId});
+ *                                     {worldId, peek: true} reads its draft without a build call
  *  PUT  /world/draft {chatId | worldId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into
  *                                     the world (a worldId's draft becomes a saved world)
  *  POST /world/deck {chatId, lang?}   a new events deck (profile option deck)
@@ -1607,6 +1608,8 @@ function startRoute(req, host) {
     return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(state.draft) });
   }
   const draft = cleanDraft(state.draft);
+  // peek: read a world's draft without running a step (the Worlds tab reopens one being built)
+  if (b.peek === true) return ok({ ok: true, draft: draft ? draftView(draft) : null });
   if (!draft) return ok({ error: "no start in progress" }, 409);
   if (draft.done >= draft.steps.length) return ok({ ok: true, draft: draftView(draft) });
   const recipe = recipeOf(fsx, draft.recipe);

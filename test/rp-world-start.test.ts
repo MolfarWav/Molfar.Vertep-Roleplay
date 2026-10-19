@@ -292,6 +292,12 @@ describe("a world built without a chat", () => {
     expect(requests[0]!.spec.messages[0].content).toContain("[Pass: Red Tower]");
     expect(requests[0]!.spec.messages[0].content).toContain("Odarka");
     step(wid, J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }, { kind: "person", name: "Maksym", text: "The toll keeper." }] }));
+    // a peek reads the draft without a build call
+    const asked = requests.length;
+    const peeked = world("POST", "/world/start", { worldId: wid, peek: true });
+    expect(peeked.draft).toMatchObject({ done: 1, total: 2 });
+    expect(peeked.draft.entities.map((e: any) => e.name)).toEqual(["Red Tower", "Maksym"]);
+    expect(requests.length).toBe(asked);
     const built = step(wid, J({ fronts: [{ name: "The toll", goal: "Close the pass.", size: 4 }] }));
     expect(built.draft.done).toBe(2);
     const done = world("PUT", "/world/draft", { worldId: wid, op: "accept", drop: { entities: ["d2"] } });
