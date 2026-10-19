@@ -273,6 +273,58 @@ describe("world library and carry", () => {
   });
 });
 
+describe("a world built without a chat", () => {
+  const step = (worldId: string, text: string) => {
+    for (const k of Object.keys(results)) delete results[k];
+    results.world_build = { text, model: "b/build", genTimeMs: 10 };
+    return world("POST", "/world/start", { worldId });
+  };
+  it("builds from chosen cards into the library, lists it while building, and a new chat carries it", () => {
+    const begun = world("POST", "/world/start", { begin: true, newWorld: true, name: "The pass", level: "living", recipe: "from-cards", cardIds: ["odarka"] });
+    const wid = begun.worldId as string;
+    expect(wid).toMatch(/^w-/);
+    expect(begun.draft).toMatchObject({ total: 2, done: 0, cardIds: ["odarka"] });
+    // in the list while it is built, not yet a saved world
+    const listed = world("GET", "/world/library");
+    expect(listed.worlds).toEqual([]);
+    expect(listed.building[0]).toMatchObject({ id: wid, name: "The pass", done: 0, total: 2, level: "living" });
+    expect(world("POST", "/world/start", { worldId: wid }).__llmPending).toBe(true);
+    expect(requests[0]!.spec.messages[0].content).toContain("[Pass: Red Tower]");
+    expect(requests[0]!.spec.messages[0].content).toContain("Odarka");
+    step(wid, J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }, { kind: "person", name: "Maksym", text: "The toll keeper." }] }));
+    const built = step(wid, J({ fronts: [{ name: "The toll", goal: "Close the pass.", size: 4 }] }));
+    expect(built.draft.done).toBe(2);
+    const done = world("PUT", "/world/draft", { worldId: wid, op: "accept", drop: { entities: ["d2"] } });
+    expect(done.id).toBe(wid);
+    expect(done.building).toEqual([]);
+    expect(done.worlds[0]).toMatchObject({ id: wid, name: "The pass", records: 1, fronts: 1, from: null });
+    expect(fs.existsSync(path.join(root, "world", "library", wid + ".draft.json"))).toBe(false);
+    // any characters can live in it: a new chat with them carries the world
+    const to = newChat();
+    expect(world("POST", "/world/carry", { toChatId: to, worldId: wid }).ok).toBe(true);
+    expect(readRel("world/state/" + to + ".json").entities.map((e: any) => e.name)).toEqual(["Red Tower"]);
+  });
+  it("an interview world reads no cards; discarding removes the draft; an empty accept is refused", () => {
+    const begun = world("POST", "/world/start", { begin: true, newWorld: true, name: "Steppe", level: "chronicler", recipe: "interview", answers: { genre: "Steppe fantasy" } });
+    const wid = begun.worldId as string;
+    expect(begun.draft.total).toBeGreaterThan(0);
+    world("POST", "/world/start", { worldId: wid });
+    const ask = requests[0]!.spec.messages[0].content as string;
+    expect(ask).toContain("Steppe fantasy");
+    expect(ask).not.toContain("Red Tower");
+    let out: any;
+    for (let i = 0; i < begun.draft.total; i++) out = step(wid, J({ add: [] }));
+    expect(out.draft.done).toBe(begun.draft.total);
+    expect(world("PUT", "/world/draft", { worldId: wid, op: "accept" }).code).toBe("empty");
+    expect(world("PUT", "/world/draft", { worldId: wid, op: "discard" }).building).toEqual([]);
+    expect(world("POST", "/world/start", { worldId: wid }).error).toBe("chatId or worldId required");
+  });
+  it("only a begin with newWorld makes a world", () => {
+    expect(world("POST", "/world/start", { begin: true, recipe: "interview" }).error).toBe("chatId or worldId required");
+    expect(world("POST", "/world/start", { worldId: "w-nothere" }).error).toBe("chatId or worldId required");
+  });
+});
+
 describe("world start: the chat's own scenario and first message", () => {
   it("the build model drafts both from the world and the card", () => {
     const id = newChat();
