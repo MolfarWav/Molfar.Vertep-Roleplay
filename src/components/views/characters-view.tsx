@@ -502,7 +502,7 @@ export function CharactersView() {
         </div>
         <div className="relative w-full md:w-auto md:min-w-36 md:max-w-72 md:flex-1">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-10 pl-8 text-sm md:h-8" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
+          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : t('characters.search')} className="h-10 pl-8 text-sm md:h-8" aria-label={mode === 'groups' ? t('groups.search') : t('characters.search')} />
         </div>
         <div className="flex items-center gap-1.5 md:ml-auto md:shrink-0">
           {mode === 'characters' && (<>
@@ -624,7 +624,7 @@ export function CharactersView() {
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
                         {chatCount > 0 && (
-                          <span className="flex items-center gap-1 font-semibold tabular-nums text-primary"><Chats className="size-4" weight="fill" aria-hidden="true" />{t('characters.chatsN', { n: chatCount })}</span>
+                          <span className="flex items-center gap-1 font-semibold tabular-nums text-sky-600 dark:text-sky-400"><Chats className="size-4" weight="fill" aria-hidden="true" />{t('characters.chatsN', { n: chatCount })}</span>
                         )}
                         <span className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">{c.stub ? '~' : ''}{t('characters.tokensN', { n: formatTokens(tokens) })}</span>
                         {hasBook(c) && <BookOpenText className="size-4 text-muted-foreground" aria-label={t('characters.hasLore')} role="img"><title>{t('characters.hasLore')}</title></BookOpenText>}
