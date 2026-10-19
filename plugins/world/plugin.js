@@ -38,8 +38,11 @@
  *  PUT  /world/records {chatId, op: add|update|retire|restore|delete, record}   the player edits the world book by hand
  *  GET  /world/recipes               what a start can build (from the cards, an interview, the player's own files)
  *  POST /world/start {chatId, begin?, recipe?, cardIds?, answers?, lang?, deck?}   begin = a new draft; then
- *                                     each call makes one build call (two-phase) until done == total
- *  PUT  /world/draft {chatId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into the world
+ *                                     each call makes one build call (two-phase) until done == total.
+ *                                     {begin, newWorld: true, name, description?, level?, profile?, ...} builds a
+ *                                     world without a chat (answers worldId; later calls send {worldId})
+ *  PUT  /world/draft {chatId | worldId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into
+ *                                     the world (a worldId's draft becomes a saved world)
  *  POST /world/deck {chatId, lang?}   a new events deck (profile option deck)
  *  GET|POST|PUT|DELETE /world/library  saved worlds: list, save a chat's world {chatId, name?, description?},
  *                                     rename {id, name?, description?}, remove ?id=
@@ -62,6 +65,7 @@
  *  world/profiles/<id>.json    a built-in profile's changes (only blocks that differ) or a player's own profile
  *  world/recipes/<id>.json     a recipe of the player's (an id of a built-in replaces it)
  *  world/library/w-<id>.json   a saved world: records, fronts, deck, settings
+ *  world/library/w-<id>.draft.json   a world being built without a chat, until accepted
  *  lorebooks/world-<chatId>.json  the chat's world book: ownerChatId = the chat, so the app's
  *                              library never lists it; the chat's meta names it as worldBookId,
  *                              and the engine plugin scans it in that chat only

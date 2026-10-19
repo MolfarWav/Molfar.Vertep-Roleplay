@@ -273,7 +273,11 @@ player switches it on for that chat. It writes:
   `interview`; a file with a built-in's id replaces it, any other id adds one.
 - `world/library/w-<id>.json`: a saved world: `{ v: 1, id, name, description, at, from: { chatId, title },
   settings, entities, fronts, deck }`. "New chat in this world" copies it (or another chat's world) into a chat's
-  state: records and fronts as they stand, clocks included; the run fields start fresh.
+  state: records and fronts as they stand, clocks included; the run fields start fresh. `from` is null for a world
+  built without a chat.
+- `world/library/w-<id>.draft.json`: a world being built without a chat ("New world" in the Worlds tab): `{ name,
+  description, at, settings, draft, usage, log }`, the same draft as a chat's start. Accepting it writes
+  `w-<id>.json` and removes this file; discarding removes it. The Worlds list shows it until then.
 - The chat meta's `worldScenario: { text, mode }`: the chat's own scenario, set from the World section. `mode`
   `replace` (default) puts it in place of the card's (or group's) scenario in every prompt of this chat, `append`
   adds it after. A chat's own first message is written into the greeting as its first swipe; the card's
