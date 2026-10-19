@@ -72,13 +72,16 @@ export function DashLiveLine({ chatId }: { chatId: string }) {
 
   const age = ageLabel(t, view.at, now)
   const ms = last?.ms ?? view.usage.lastMs
+  const reread = last?.reread
   const notes = view.order
     .flatMap((name) => (view.chars[name]?.notebook ?? []).filter((n) => n.turn === view.turn).map((n) => ({ name, n })))
     .slice(0, 2)
 
   return (
     <Follow className="ls-live flex min-w-0 flex-col gap-0.5 px-1 text-[11px] leading-snug text-muted-foreground">
-      <span>{view.fast ? t('dash.live.fast', { age }) : ms > 0 ? t('dash.live.updatedIn', { age, s: (ms / 1000).toFixed(1) }) : t('dash.live.updated', { age })}</span>
+      <span>{reread
+        ? t(reread.trimmed ? 'dash.live.rereadTrimmed' : 'dash.live.reread', { n: reread.from, age })
+        : view.fast ? t('dash.live.fast', { age }) : ms > 0 ? t('dash.live.updatedIn', { age, s: (ms / 1000).toFixed(1) }) : t('dash.live.updated', { age })}</span>
       {notes.map(({ name, n }) => {
         const text = n.text.length > 60 ? `${n.text.slice(0, 60)}…` : n.text
         const key = n.how === 'heard' ? 'dash.live.heard' : n.how === 'saw' ? 'dash.live.saw' : 'dash.live.remembered'

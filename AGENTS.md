@@ -55,6 +55,15 @@ default is the built-in "Vertep" (dark); a theme's optional `cta` color is the
 second accent (primary button, active nav icon) and falls back to the accent.
 Views are components/views/*, the chat experience lives in
 components/chat/*, the tabbed character editor in components/character/*.
+The card editor shows ELEVEN panels: desktop keeps all eleven tabs, wrapping to two
+rows so every tab fits without scrolling, each
+painted with its group's color (Core sky = core + dialogue, Profile emerald, Soul
+violet, Lorebook amber, everything else slate). On a phone the row holds FIVE groups
+(Core, Profile, Soul, Lorebook, More): a group with one panel opens it, Core and More
+open a dropdown (nothing overlaps the content). The panels keep their old names (that
+is what links, the store and older builds pass), and `src/lib/editor-tabs.ts`
+(`tabOfPanel`) maps an old name to the panel it named. The rows are plain
+buttons, not Base UI tabs, because a group holds more than one panel.
 The World section (components/world/, `world` in the rail) is the hub of the World DM plugin: chats
 with a DM on the left (top switch Chats | Profiles), one chat's Overview (the same controls as the chat's
 World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit profile button), Records (the

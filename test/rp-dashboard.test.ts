@@ -518,22 +518,164 @@ describe("update route", () => {
     // the user swipes the last message
     writeChat("c1", [...three(), { ...A("m4", "You are welcome."), swipe: 1 }]);
     mock.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
-    update(mock, "c1");
+    const sw = update(mock, "c1");
+    // a new swipe of the newest message is an ordinary read, not a re-read
+    expect(sw.json.reread).toBeUndefined();
     const st = readStateFile("c1");
+    // the other swipe's snapshot is kept: swiping back costs no call
     expect(Object.keys(st.snapshots).sort()).toEqual(["m3#0", "m4#0", "m4#1"]);
     const swiped = st.snapshots["m4#1"];
     expect(swiped.turn).toBe(2);
     // from m3#0 (affection 0), not from the discarded m4#0 (affection 1)
     expect(swiped.chars.Aria.stats).toMatchObject({ trust: 2, affection: 1, comfort: 1, attraction: 0 });
-    // the note written under the discarded swipe does not count on the new line
     const keys = ["m1#0", "m2#0", "m3#0", "m4#1"];
     expect(P.activeNotebook(st, keys).Aria.map((n: any) => n.id)).toEqual(["n1"]);
+    // the note written under the other swipe stays, but does not count on this line
     expect(st.notebook.Aria.map((n: any) => n.id)).toEqual(["n1", "n2"]);
     expect(P.activeNotebook(st, [...keys.slice(0, 3), "m4#0"]).Aria.map((n: any) => n.id)).toEqual(["n1", "n2"]);
     // GET state names the current key and the active keys
     const got = getState(mock, "c1");
     expect(got.current).toBe("m4#1");
     expect(got.activeKeys).toEqual(keys);
+  });
+
+  it("an edit of an earlier message reads the line again from it, in one call", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1"); // turn 1 at m3#0, over the whole chat
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1"); // turn 2 at m4#0
+    writeChat("c1", [...three(), A("m4", "Thank you."), U("m5", "Always."), A("m6", "Of course.")]);
+    mock.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1"); // turn 3 at m6#0, over m5..m6
+    const before = mock.requests.length;
+
+    // the user edits the 2nd reply (m4) and sends a new message
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "I kept my promise."), A("m4", "You are kind."), U("m5", "Always."), A("m6", "Of course."), U("m7", "Good night.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    const r = update(mock, "c1");
+
+    // one call, over the messages since the last snapshot that still stands (m3#0)
+    expect(mock.requests.length - before).toBe(1);
+    expect(r.json.reread).toEqual({ from: 4 });
+    const prompt = String(mock.requests[before]!.req.messages[0].content);
+    expect(prompt).toContain("You are kind."); // the edited message is read again
+    expect(prompt).not.toContain("Thank you."); // the text it had is gone
+    expect(prompt).toContain("Good night."); // and the new message with it
+    const st = readStateFile("c1");
+    // everything read after m3#0 was dropped and read again as one turn
+    expect(Object.keys(st.snapshots).sort()).toEqual(["m3#0", "m7#0"]);
+    expect(st.snapshots["m7#0"].turn).toBe(2);
+  });
+
+  it("a swipe switch on an earlier message reads the line again from it", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you."), U("m5", "Always.")]);
+    mock.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    const before = mock.requests.length;
+
+    // the user switches the 2nd reply to another swipe: what m5#0 read is gone
+    writeChat("c1", [...three(), { ...A("m4", "You are welcome."), swipe: 1 }, U("m5", "Always.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    const r = update(mock, "c1");
+
+    expect(mock.requests.length - before).toBe(1);
+    expect(r.json.reread).toEqual({ from: 4 });
+    const prompt = String(mock.requests[before]!.req.messages[0].content);
+    expect(prompt).toContain("You are welcome."); // the swipe now on the line
+    expect(prompt).not.toContain("Thank you."); // not the discarded one
+    expect(prompt).toContain("Always."); // and the message read after it
+    const st = readStateFile("c1");
+    // m5#0 is read again from m3#0; the other swipe's m4#0 is kept for a swipe back
+    expect(Object.keys(st.snapshots).sort()).toEqual(["m3#0", "m4#0", "m5#0"]);
+    expect(st.snapshots["m5#0"].turn).toBe(2);
+    expect(st.snapshots["m5#0"].base).toBe("m3#0");
+  });
+
+  it("a line whose snapshots all still stand asks the sensor for nothing", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you."), U("m5", "Always.")]);
+    mock.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    const before = mock.requests.length;
+    const r = update(mock, "c1");
+    expect(r.json.unchanged).toBe(true);
+    expect(r.json.reread).toBeUndefined();
+    expect(mock.requests.length).toBe(before);
+  });
+
+  it("a gap longer than the read limit is trimmed to the newest part, and the line says so", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+
+    // the 2nd reply is edited and the messages after it are longer than the 8000-character read
+    const big = (id: string, marker: string) => U(id, (marker + " ").repeat(300));
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "I kept my promise."), A("m4", "You are kind."), big("m5", "EARLIEST"), big("m6", "MIDDLE"), big("m7", "MIDDLE"), big("m8", "MIDDLE"), big("m9", "MIDDLE"), big("m10", "MIDDLE"), big("m11", "LATEST")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    const before = mock.requests.length;
+    const r = update(mock, "c1");
+
+    expect(r.json.reread).toEqual({ from: 4, trimmed: true });
+    const prompt = String(mock.requests[before]!.req.messages[0].content);
+    expect(prompt).toContain("LATEST"); // the newest part is read
+    expect(prompt).not.toContain("EARLIEST"); // the oldest of the gap did not fit
+    expect(prompt.length).toBeLessThan(12000);
+  });
+
+  it("deleting a message in the middle reads the line again from the snapshot before it", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you."), U("m5", "Always.")]);
+    mock.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    const before = mock.requests.length;
+
+    writeChat("c1", [...three(), U("m5", "Always.")]); // m4 is deleted: m5#0 was read on top of it
+    mock.push(reply({ events: [{ id: "gift", weight: "routine", from: "user", to: "Aria" }] }));
+    const r = update(mock, "c1");
+    expect(mock.requests.length - before).toBe(1);
+    expect(r.json.reread).toEqual({ from: 4 });
+    const st = readStateFile("c1");
+    expect(st.snapshots["m5#0"].base).toBe("m3#0");
+    expect(st.snapshots["m5#0"].turn).toBe(2);
+  });
+
+  it("deleting the newest message asks the sensor for nothing and the state steps back", () => {
+    writeChat("c1", three());
+    const mock = mockHost([keptPromise]);
+    update(mock, "c1");
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
+    update(mock, "c1");
+    const before = mock.requests.length;
+
+    writeChat("c1", three()); // the last reply is deleted
+    const r = update(mock, "c1");
+    expect(mock.requests.length).toBe(before);
+    expect(r.json.unchanged).toBe(true);
+    expect(r.json.reread).toBeUndefined();
+    // the deleted reply's snapshot is off the line: kept, but the active state is m3#0's
+    expect(getState(mock, "c1").current).toBe("m3#0");
   });
 
   it("the UI view is settled for the active line: previous stats, live notes, series, stale", () => {

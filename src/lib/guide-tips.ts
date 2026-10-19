@@ -601,10 +601,10 @@ export const TIPS: Tip[] = [
     help: 'characters',
     title: { en: 'The card editor', uk: 'Редактор картки' },
     body: {
-      en: 'A card has tabs: core, profile, dialogue and soul; lorebook and regex; colors, sprites, gallery and voice; and advanced. The Chat button starts a conversation with the card.',
-      uk: 'У картки є вкладки: core, profile, dialogue і soul; lorebook і regex; colors, sprites, gallery і voice; а також advanced. Кнопка «Chat» починає розмову з карткою.',
+      en: 'A card has eleven tabs, each painted with its group\u2019s color: Core (core and dialogue), Profile, Soul, Lorebook, and the rest (advanced, colors, sprites, gallery, regex, voice). On a phone the row holds five groups and More opens a dropdown list. The Chat button starts a conversation with the card.',
+      uk: 'У картки одинадцять вкладок, кожна в кольорі своєї групи: «Головне» (головне і діалоги), «Профіль», «Душа», «Лорбук» і решта (додатково, кольори, спрайти, галерея, регекс, голос). На телефоні в рядку пʼять груп, а «Ще» відкриває випадаючий список. Кнопка «Chat» починає розмову з карткою.',
     },
-    keywords: { en: 'card edit description greeting first message sprites voice', uk: 'картка редагувати опис привітання перше повідомлення спрайти голос' },
+    keywords: { en: 'card edit description greeting first message sprites voice core profile soul lorebook more', uk: 'картка редагувати опис привітання перше повідомлення спрайти голос головне профіль душа лорбук ще' },
   },
   {
     id: 'help.groups',
