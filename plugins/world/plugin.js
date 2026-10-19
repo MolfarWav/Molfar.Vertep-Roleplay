@@ -115,6 +115,13 @@ const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v) => (typeof v === "string" ? v.trim() : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
 const cut = (s, n) => (s.length > n ? s.slice(0, n) : s);
+/** A text shown to the player, shortened at a word with an ellipsis instead of mid-word. */
+const shorten = (s, n) => {
+  if (s.length <= n) return s;
+  const head = s.slice(0, n - 1);
+  const space = head.lastIndexOf(" ");
+  return (space > n * 0.6 ? head.slice(0, space) : head).replace(/[\s,.;:]+$/, "") + "…";
+};
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const ok = (json, status) => ({ status: status || 200, json });
 
@@ -2281,7 +2288,7 @@ function updateRoute(req, host) {
   if (str(r.model)) state.lastModel = str(r.model);
   delete state.lastError;
   const behind = catchingUp ? unreadMessages(chat.msgs, state.lastKey).length : 0;
-  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: cut(str(out.summary), 200), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
+  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: shorten(str(out.summary), 600), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
   count(usage);
   if (changes || state.entities.length) {
     writeBook(fsx, state, str(chat.meta.title));

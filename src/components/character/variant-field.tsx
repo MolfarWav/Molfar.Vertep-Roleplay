@@ -87,8 +87,9 @@ export function VariantField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="flex flex-wrap items-center gap-2 text-xs">
-        {label}
+      {/* the Translate button stays outside the label: a label passes its clicks to the first button in it */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Label className="text-xs">{label}</Label>
         <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground">
           {formatTokens(estimateTokens(current))} tok
         </span>
@@ -99,7 +100,7 @@ export function VariantField({
         )}
         {hint && <span className="font-normal text-muted-foreground">{hint}</span>}
         {translate && <FieldTranslateButton label={label} value={current} onChange={setCurrent} />}
-      </Label>
+      </div>
 
       {/* Variant chips — the base value is always the first, unremovable one. */}
       <div className="flex flex-wrap items-center gap-1">
