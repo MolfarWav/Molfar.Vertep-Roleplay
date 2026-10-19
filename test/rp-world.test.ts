@@ -684,3 +684,25 @@ describe("parseReply takes the answer, not a draft", () => {
     expect(parseReply("no json")).toBe(null);
   });
 });
+
+describe("P3 stage 2: profile options", () => {
+  it("code clocks: the model's ticks are ignored, every N replies read each front moves by 1", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/profiles", { id: "living", options: { clocks: "code", clockEvery: 2, eventByClock: true } });
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "living", fromStart: true });
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    st.fronts = [{ id: "f1", name: "Toll war", goal: "Close the pass", clock: 0, size: 6, status: "active" }];
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    route(m.host, "POST", "/world/update", { chatId: "c1" });
+    const input = m.requests[0]!.spec.messages[0].content;
+    expect(input).toContain("never send tick ops");
+    expect(input).toContain("f1 Toll war: early");
+    m.results.world = { text: JSON.stringify({ add: [], fronts: [{ op: "tick", id: "f1", by: 2 }], summary: "x" }) };
+    route(m.host, "POST", "/world/update", { chatId: "c1" }, {}, { upTo: "m4#0" });
+    const after = JSON.parse(m.files["world/state/c1.json"]!);
+    // 3 replies read (m0, m2, m4): one tick, one reply carried over; the model's +2 ignored
+    expect(after.fronts[0].clock).toBe(1);
+    expect(after.clockReplies).toBe(1);
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true });
+  });
+});

@@ -231,6 +231,7 @@ export function normalizeState(raw, chatId) {
   out.event = cleanEvent(s.event);
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
+  if (Number.isInteger(s.clockReplies) && s.clockReplies > 0) out.clockReplies = s.clockReplies;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
   if (str(s.lastModel)) out.lastModel = str(s.lastModel);
@@ -518,6 +519,21 @@ export const outputBlock = (base) => (LEVEL_RULES[base] ? [...CHRONICLER_OUTPUT,
 
 const DEFAULT_PROFILE_SETTINGS = { everyN: DEFAULT_SETTINGS.everyN, stagnation: DEFAULT_SETTINGS.stagnation, onTransition: true, insert: true };
 
+// profile options (user, 2026-10-19, both off by default): clocks ticked by code every N replies read
+// (Arbiter's way: cheaper and steadier on small models; the model then only adds and retires fronts), and
+// event wording that follows the front's clock (Story Engine's way: rumour, then visible, then unmistakable)
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false };
+
+function cleanOptions(o) {
+  const b = isObj(o) ? o : {};
+  const n = Number(b.clockEvery);
+  return {
+    clocks: b.clocks === "code" ? "code" : "model",
+    clockEvery: Number.isFinite(n) ? clamp(Math.round(n), 2, 50) : DEFAULT_OPTIONS.clockEvery,
+    eventByClock: b.eventByClock === true,
+  };
+}
+
 function cleanDefaults(d) {
   const s = cleanSettings({ ...DEFAULT_PROFILE_SETTINGS, ...(isObj(d) ? d : {}), level: "chronicler" });
   return { everyN: s.everyN, stagnation: s.stagnation, onTransition: s.onTransition, insert: s.insert };
@@ -546,7 +562,7 @@ function readProfileFile(fsx, id) {
 export function loadProfile(fsx, id) {
   if (PROFILE_LEVELS.includes(id)) {
     const raw = readProfileFile(fsx, id) || {};
-    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults) };
+    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults), options: cleanOptions(raw.options) };
   }
   if (!OWN_PROFILE_ID.test(id)) return null;
   const raw = readProfileFile(fsx, id);
@@ -557,6 +573,7 @@ export function loadProfile(fsx, id) {
     description: cut(str(raw.description), DESC_LEN),
     blocks: cleanBlocks(raw.blocks, raw.base),
     defaults: cleanDefaults(raw.defaults),
+    options: cleanOptions(raw.options),
   };
 }
 
@@ -582,6 +599,7 @@ function profileView(fsx, p, used) {
   return {
     id: p.id, builtIn: p.builtIn, base: p.base, name: p.name, description: p.description,
     defaults: p.defaults,
+    options: p.options,
     blocks: Object.keys(dflt).map((key) => ({ key, text: p.blocks[key] || dflt[key], default: dflt[key], changed: !!p.blocks[key] })),
     output: outputBlock(p.base),
     changed: Object.keys(p.blocks).length > 0,
@@ -625,7 +643,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -638,15 +656,27 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "The user's character (do not record): " + (userName || "the user") + ".",
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
   ].join("\n\n");
 }
 
-function levelInput({ fronts, event, direction, threads }) {
+/** How far a front's clock is, as the wording its news should take. */
+export function clockStage(f) {
+  const r = f.size ? f.clock / f.size : 0;
+  return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
+}
+
+function levelInput({ fronts, event, direction, threads, options }) {
+  const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
+  if (o.clocks === "code") out.push("The clocks tick by themselves as story time passes: never send tick ops. Add a front when the story sets one up, retire one that is finished.");
+  if (o.eventByClock && active.length) {
+    out.push("How news of each front reads now, by its clock:\n" + active.map((f) => f.id + " " + f.name + ": " + clockStage(f)).join("\n"));
+    out.push("Off-screen effects arrive as news, threats or signs, never as harm already done to the user's character.");
+  }
   if (event && event.sent > 0) out.push("Event sent in an earlier reply: " + event.text + "\nDid the new part of the story show it? Answer in delivered.");
   else if (event) out.push("Event still waiting for a reply (keep it, or replace it with a better one): " + event.text);
   if (direction) out.push("Scene direction now (from the scene tracker): " + direction + ".");
@@ -860,12 +890,32 @@ export function applyReport(state, out, { cards, userName, now }) {
 }
 
 /**
+ * Code ticks the clocks (profile option "code"): every `every` replies read, each active front moves by 1.
+ * The count carries over between runs in state.clockReplies. Returns how many ticks were made.
+ */
+export function tickClocks(state, replies, every, now) {
+  let count = (Number.isInteger(state.clockReplies) ? state.clockReplies : 0) + replies;
+  let ticks = 0;
+  while (count >= every) {
+    count -= every;
+    for (const f of state.fronts) {
+      if (f.status !== "active" || f.clock >= f.size) continue;
+      f.clock++;
+      f.at = now || Date.now();
+      ticks++;
+    }
+  }
+  state.clockReplies = count;
+  return ticks;
+}
+
+/**
  * The levels above the chronicler: fronts, the event and the direction (in place). The pending
  * event: delivered drops it; missed once is sent again; missed twice is dropped. A new event
  * waits while the old one is pending. No event in an explicit scene, none in combat below
  * antagonist. Returns how many fronts changed.
  */
-export function applyLevel(state, out, { level, direction, now, catchingUp }) {
+export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks }) {
   const at = now || Date.now();
   let changes = 0;
   const said = DIRECTIONS.includes(str(out.direction).toLowerCase()) ? str(out.direction).toLowerCase() : null;
@@ -886,6 +936,7 @@ export function applyLevel(state, out, { level, direction, now, catchingUp }) {
     const f = state.fronts.find((x) => x.status === "active" && (x.id === str(raw.id) || (str(raw.name) && sameName(x.name, str(raw.name)))));
     if (!f) continue;
     if (op === "tick") {
+      if (codeClocks) continue;
       const by = clamp(Math.round(Number(raw.by) || 1), -2, 2);
       f.clock = clamp(f.clock + by, 0, f.size);
       f.at = at;
@@ -1227,12 +1278,14 @@ function updateRoute(req, host) {
   // what this run reads: every unread message (cut to a fair share), or the oldest part when far behind
   const take = takeUnread(unread);
   const catchingUp = take.rest.length > 0;
+  const profile = profileFor(fsx, state.settings);
+  const options = (profile && profile.options) || DEFAULT_OPTIONS;
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
-      systemPrompt: systemFor(profileFor(fsx, state.settings) || level),
+      systemPrompt: systemFor(profile || level),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level,
+        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level, options,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
       }) }],
@@ -1275,7 +1328,9 @@ function updateRoute(req, host) {
   const out = parseReply(r.text);
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const changes = applyReport(state, out, { cards, userName, now: Date.now() });
-  const moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp }) : 0;
+  const codeClocks = options.clocks === "code";
+  let moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks }) : 0;
+  if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now());
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
   state.lastRunAt = Date.now();
@@ -1372,8 +1427,9 @@ function profilesRoute(req, host) {
     ...(builtIn ? {} : { name: cut(str(b.name !== undefined ? b.name : current ? current.name : ""), NAME_LEN) || "Profile", description: cut(str(b.description !== undefined ? b.description : current ? current.description : ""), DESC_LEN), base }),
     blocks: cleanBlocks(blocks, base),
     defaults: cleanDefaults(b.defaults !== undefined ? b.defaults : current ? current.defaults : {}),
+    options: cleanOptions({ ...(current ? current.options : {}), ...(isObj(b.options) ? b.options : {}) }),
   };
-  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS);
+  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS) && JSON.stringify(next.options) === JSON.stringify(DEFAULT_OPTIONS);
   if (plain) {
     try {
       fsx.remove(PROFILE_DIR + id + ".json");

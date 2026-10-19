@@ -125,6 +125,8 @@ export async function editWorldRecord(chatId: string, op: WorldRecordOp, record:
 export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
 export interface WorldProfileBlock { key: WorldBlockKey; text: string; default: string; changed: boolean }
 export interface WorldProfileDefaults { everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
+/** clocks: who ticks the fronts' clocks ('code' = every clockEvery replies read); eventByClock: news worded by the clock's stage */
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string
@@ -133,6 +135,7 @@ export interface WorldProfile {
   name: string
   description: string
   defaults: WorldProfileDefaults
+  options: WorldProfileOptions
   blocks: WorldProfileBlock[]
   /** the locked reply format, read-only */
   output: string
@@ -146,7 +149,7 @@ export async function listWorldProfiles(): Promise<WorldProfile[]> {
 }
 
 /** Change a profile (blocks: a string replaces, null resets to the default) or make one (no id, with base). */
-export async function saveWorldProfile(patch: { id?: string; name?: string; description?: string; base?: WorldProfile['base']; blocks?: Partial<Record<WorldBlockKey, string | null>>; defaults?: Partial<WorldProfileDefaults> }): Promise<{ id: string; profiles: WorldProfile[] }> {
+export async function saveWorldProfile(patch: { id?: string; name?: string; description?: string; base?: WorldProfile['base']; blocks?: Partial<Record<WorldBlockKey, string | null>>; defaults?: Partial<WorldProfileDefaults>; options?: Partial<WorldProfileOptions> }): Promise<{ id: string; profiles: WorldProfile[] }> {
   return j('/world/profiles', { method: 'PUT', body: JSON.stringify(patch) })
 }
 
