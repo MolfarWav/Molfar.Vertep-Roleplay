@@ -38,7 +38,7 @@ update at all.
 
 The roleplay studio, v4: a power-user roleplay UI. Left nav rail (components/shell/
 sections.ts is the one list, items carry a `group`: Home, Chats | Characters,
-Marketplace, Personas, Lorebooks, Litopys | Presets, Connections | Shortcuts, Tools |
+Marketplace, Personas, Lorebooks, Litopys, Canvas, World | Presets, Connections | Shortcuts, Tools |
 Settings pinned at the bottom) + Ctrl+K command palette. From 1280px the rail is
 206px with labels (Kurale) and ornament dividers; below that it is icons with
 tooltips; on phones it is the bottom tab bar. On desktop a section always opens
@@ -55,6 +55,10 @@ default is the built-in "Vertep" (dark); a theme's optional `cta` color is the
 second accent (primary button, active nav icon) and falls back to the accent.
 Views are components/views/*, the chat experience lives in
 components/chat/*, the tabbed character editor in components/character/*.
+The World section (components/world/, `world` in the rail) is the hub of the World DM plugin: chats
+with a DM on the left, one chat's Overview (the same controls as the chat's World DM sheet,
+`world-controls.tsx`) and Runs (history, tokens, errors) on the right, and World settings (the play
+model for all chats, a model test). The chat header's globe dot (`world-status.tsx`) shows its state.
 The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and
 downloads via the /import/url path; remote art rides the engine's same-origin

@@ -38,6 +38,7 @@ import { Composer } from './composer'
 import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { WorldSheet } from '@/components/chat/world-sheet'
+import { WorldStatusButton } from '@/components/world/world-status'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_MENU_EVENT, guideTarget } from '@/components/guide/events'
 import { ExpressionPanel } from './expression-panel'
@@ -709,6 +710,7 @@ export function ChatView() {
               tokensOut={tokensOut}
               context={chatContext}
             />
+            <WorldStatusButton chatId={chat.id} onClick={() => setWorldOpen(true)} />
             <HeaderIcon label="Find in chat (Ctrl+F)" onClick={() => setFindOpen((o) => !o)}>
               <MagnifyingGlass aria-hidden="true" />
             </HeaderIcon>
@@ -766,6 +768,7 @@ export function ChatView() {
           tokensOut={tokensOut}
           context={chatContext}
         />
+        <WorldStatusButton phone chatId={chat.id} onClick={() => { closeDrawer(); setWorldOpen(true) }} />
         <Button variant="outline" className="h-10 shrink-0 gap-1.5 px-3" onClick={() => { closeDrawer(); setMenuOpen(true) }} aria-haspopup="dialog">
           <List className="size-4.5" aria-hidden="true" /> Menu
         </Button>

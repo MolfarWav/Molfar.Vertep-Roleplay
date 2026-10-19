@@ -47,13 +47,13 @@ import { migrateLook } from './migrate-look'
 import { attentionOn, pollAttention, setSoulWaiting, soulWaitingOf } from './attention'
 
 export type ViewKey =
-  | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas'
+  | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
   | 'quickreplies' | 'extensions' | 'connections' | 'settings' | 'chat'
 
 /** Sections that can be a drawer (see opensAsDrawer). Home and the chat
  *  surfaces are always pages. */
 export const DRAWER_VIEWS = new Set<ViewKey>([
-  'characters', 'marketplace', 'personas', 'presets', 'lorebooks', 'litopys', 'canvas', 'quickreplies', 'extensions', 'connections', 'settings',
+  'characters', 'marketplace', 'personas', 'presets', 'lorebooks', 'litopys', 'canvas', 'world', 'quickreplies', 'extensions', 'connections', 'settings',
 ])
 
 const isDesktopViewport = () =>
@@ -140,6 +140,8 @@ interface AppState {
   litopysSettings: boolean
   /** set by a "needs you" toast: the Library selects this chat's Overview and clears it */
   focusLibraryChatId: ID | null
+  /** the World section opens on this chat (set by the chat's World DM sheet) */
+  focusWorldChatId: ID | null
   focusPersonaId: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
@@ -203,6 +205,7 @@ interface AppState {
   focusLorebook: (bookId: ID) => void
   /** open the Library on one chat's Overview (its proposals) */
   focusLibraryChat: (chatId: ID) => void
+  focusWorldChat: (chatId: ID) => void
   setSettingsSection: (s: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   // chat actions
@@ -538,6 +541,7 @@ export const useApp = create<AppState>()(
       focusPresetId: null,
       litopysSettings: false,
       focusLibraryChatId: null,
+      focusWorldChatId: null,
       focusPersonaId: null,
       focusLorebookId: null,
       branchTreeFor: null,
@@ -1122,6 +1126,10 @@ export const useApp = create<AppState>()(
       focusLibraryChat: (chatId) => {
         if (opensAsDrawer(get().view)) set({ focusLibraryChatId: chatId, drawer: 'litopys' })
         else set({ view: 'litopys', focusLibraryChatId: chatId })
+      },
+      focusWorldChat: (chatId) => {
+        if (opensAsDrawer(get().view)) set({ focusWorldChatId: chatId, drawer: 'world' })
+        else set({ view: 'world', focusWorldChatId: chatId })
       },
       setSettingsSection: (s) => {
         if (opensAsDrawer(get().view)) set({ selectedSettingsSection: s, drawer: 'settings' })

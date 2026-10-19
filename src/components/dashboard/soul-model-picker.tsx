@@ -12,10 +12,13 @@ import { useApp } from '@/lib/store'
 /** cmdk renders every item it gets; a catalog of hundreds is fine, thousands are not. */
 const CAP = 300
 
-export function SoulModelPicker({ disabled, onPick, label }: { disabled?: boolean; onPick: (ref: string) => void; label?: string }) {
+export function SoulModelPicker({ disabled, onPick, label, open: openProp, onOpenChange }: { disabled?: boolean; onPick: (ref: string) => void; label?: string; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const t = useT()
   const models = useApp((s) => s.models)
-  const [open, setOpen] = useState(false)
+  // controlled when `open` is given (an error card's "Pick another model" opens it), else on its own
+  const [own, setOwn] = useState(false)
+  const open = openProp ?? own
+  const setOpen = (v: boolean) => { setOwn(v); onOpenChange?.(v) }
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger

@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 import { CircleNotch } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useT } from '@/hooks/use-t'
 import { promptPreview } from '@/lib/engine'
+import { useWorldLive } from '@/lib/world'
 import { MarkedPre, PromptSourcesPanel } from '@/components/chat/prompt-sources'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
@@ -28,6 +30,12 @@ export function PromptPeekDialog({
   messageId?: string
   title?: string
 }) {
+  const t = useT()
+  // the World DM's event is not in this preview: it joins the prompt when the reply is written
+  const worldEvent = useWorldLive((s) => {
+    const v = chatId ? s.views[chatId] : undefined
+    return !!v && v.eventWaiting && v.settings.insert && v.settings.level !== 'off' && v.settings.level !== 'chronicler'
+  })
   const [data, setData] = useState<Preview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -98,6 +106,7 @@ export function PromptPeekDialog({
             {data && <span className="text-xs font-normal text-muted-foreground">preset: {data.presetName} · {formatTokens(total)} tokens · {blocks.length} blocks</span>}
           </DialogTitle>
         </DialogHeader>
+        {worldEvent && <p className="text-xs text-muted-foreground" data-testid="world-event-note">{t('world.promptNote')}</p>}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {busy && (
             <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
