@@ -675,3 +675,12 @@ describe("engine plugin: the chat's world book", () => {
     expect(exists("world/state/" + id + ".json")).toBe(false);
   });
 });
+
+describe("parseReply takes the answer, not a draft", () => {
+  it("the last object with the reply's keys wins; braces in thinking and fences are skipped", () => {
+    expect(parseReply('I think {maybe} then {"draft": 1}\n```json\n{"add":[],"summary":"final"}\n```')).toEqual({ add: [], summary: "final" });
+    expect(parseReply('{"add":[{"name":"A","text":"x"}],"summary":"one"} and later {"summary":"two"}')!.summary).toBe("two");
+    expect(parseReply('{"foo":1}')).toEqual({ foo: 1 });
+    expect(parseReply("no json")).toBe(null);
+  });
+});

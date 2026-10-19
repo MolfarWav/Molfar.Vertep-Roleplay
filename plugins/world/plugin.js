@@ -731,9 +731,9 @@ export function dmModel(fsx, cfg, meta) {
 }
 
 // ---------- reading the DM's reply ----------
-/** The first balanced {...} of the text; null when there is none. */
-function firstObject(s) {
-  const start = s.indexOf("{");
+/** The first balanced {...} of the text from `from`; null when there is none. */
+function firstObject(s, from = 0) {
+  const start = s.indexOf("{", from);
   if (start < 0) return null;
   let depth = 0;
   let inString = false;
@@ -753,18 +753,38 @@ function firstObject(s) {
   return null;
 }
 
-export function parseReply(text) {
-  let s = String(text || "").replace(/^\s*<(think|thinking|reasoning)>[\s\S]*?<\/\1>/i, "").trim();
-  const fence = /```(?:json)?\s*([\s\S]*?)(?:```|$)/i.exec(s);
-  if (fence) s = fence[1];
-  const body = firstObject(s);
-  if (!body) return null;
+const REPLY_KEYS = ["add", "update", "retire", "summary", "fronts", "event", "delivered", "direction"];
+
+const tryObject = (body) => {
   try {
     const v = JSON.parse(body.replace(/,\s*([}\]])/g, "$1"));
     return isObj(v) ? v : null;
   } catch {
     return null;
   }
+};
+
+/**
+ * The DM's JSON: the LAST balanced object that parses and has a key of the reply (a thinking model may
+ * write braces or a draft before the answer); else the first one that parses. Code fences are ignored.
+ */
+export function parseReply(text) {
+  const s = String(text || "").replace(/^\s*<(think|thinking|reasoning)>[\s\S]*?<\/\1>/i, "").replace(/```(?:json)?/gi, " ").trim();
+  let first = null;
+  let best = null;
+  for (let from = 0, body = firstObject(s, 0); body; body = firstObject(s, from)) {
+    const at = s.indexOf(body, from);
+    from = at + body.length;
+    const v = tryObject(body);
+    if (!v) {
+      // not JSON: look inside it on the next pass
+      from = at + 1;
+      continue;
+    }
+    if (!first) first = v;
+    if (Object.keys(v).some((k) => REPLY_KEYS.includes(k))) best = v;
+  }
+  return best || first;
 }
 
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
