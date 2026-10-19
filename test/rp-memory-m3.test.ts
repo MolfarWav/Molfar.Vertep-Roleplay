@@ -121,9 +121,12 @@ it("buildInsert fill order, knownBy, budget and layout", () => {
   expect(factsIdx).not.toBe(-1);
   expect(earlierIdx).toBeLessThan(factsIdx);
 
-  const c1Idx = ins.text.indexOf("Aria entered the mill.");
-  const c2Idx = ins.text.indexOf("Bram waited outside.");
-  expect(c1Idx).toBeLessThan(c2Idx);
+  // the bridge chapter (just before the cut) rides above the history; older chapters and facts after it
+  expect(ins.head).toContain("Bram waited outside.");
+  expect(ins.head).not.toContain("Facts:");
+  expect(ins.tail).toContain("Aria entered the mill.");
+  expect(ins.tail).not.toContain("Bram waited outside.");
+  expect(ins.text).toBe(ins.head + "\n\n" + ins.tail);
 
   expect(ins.text).toContain("(known to: Aria)");
   expect(ins.text).not.toContain("(known to: all)");

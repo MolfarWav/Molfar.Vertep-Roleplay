@@ -34,8 +34,10 @@ import {
   type PromptBoardHistory,
   type PromptBoardConfig,
   type PromptSourcePart,
-  type PromptSourceOmitted
+  type PromptSourceOmitted,
+  type PromptSourceSpan
 } from '@/lib/engine'
+import { requestOrder } from '@/lib/prompt-order'
 import { useApp, useChat } from '@/lib/store'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 
@@ -279,6 +281,8 @@ function BoardSkeleton() {
 export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: PromptBoardProps) {
   const t = useT()
   const [sources, setSources] = useState<PromptSources | null>(null)
+  // where each part sits in the request: the output list follows it, not the switch order
+  const [spans, setSpans] = useState<PromptSourceSpan[] | undefined>(undefined)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   // Linked selection: left ⇄ Request panel. Hover is one key, or `group:<id>` when a group card is hovered.
@@ -324,6 +328,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
       if (counter !== requestCounter.current) return
       if (activeChatRef.current !== id) return
       setSources(preview.sources ?? null)
+      setSpans(preview.sourceSpans)
       if (config) {
         setBoardState({
           off: config.off ?? [],
@@ -347,7 +352,10 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
     setPreviewLoading(true)
     try {
       const preview = await promptPreview(id)
-      if (counter === requestCounter.current && activeChatRef.current === id) setSources(preview.sources ?? null)
+      if (counter === requestCounter.current && activeChatRef.current === id) {
+        setSources(preview.sources ?? null)
+        setSpans(preview.sourceSpans)
+      }
     } catch {
       /* the last preview stays on screen */
     } finally {
@@ -517,8 +525,8 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
   }, [itemsWithMeta, query])
 
   const outputRows = useMemo(() => {
-    return filteredItems.filter(m => m.on && (m.tokens > 0 || m.isLitopys))
-  }, [filteredItems])
+    return requestOrder(filteredItems.filter(m => m.on && (m.tokens > 0 || m.isLitopys)), sources?.parts, spans)
+  }, [filteredItems, sources, spans])
 
   // Fold long presets by group (#43). The board format carries no group info
   // and must not change, so sections join client-side: `section:<id>` meets

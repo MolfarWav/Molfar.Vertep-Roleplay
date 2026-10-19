@@ -478,7 +478,7 @@ it("the removed compact, undo and memories routes do not answer 200", async () =
   }
 });
 
-it("Litopys llmRequest inserts one story block after leading system messages and returns nothing for impersonate", async () => {
+it("Litopys llmRequest inserts the story above the history and the rest before the newest turn, and returns nothing for impersonate", async () => {
   const m = mockHost();
   const id = await newChat(m);
   seedNumberedPairs(id, 6);
@@ -542,14 +542,12 @@ it("Litopys llmRequest inserts one story block after leading system messages and
   const headerIndexes = messages
     .map((x, i) => (x.content.startsWith("[Story record (Litopys)") ? i : -1))
     .filter((i) => i >= 0);
-  expect(headerIndexes.length).toBe(1);
-
-  const insertIdx = headerIndexes[0];
-  const originalLead = replyReq.messages.findIndex((x) => x.role !== "system");
-  const lead = originalLead === -1 ? replyReq.messages.length : originalLead;
-  expect(insertIdx).toBe(lead);
-  for (let i = 0; i < insertIdx; i++) {
-    expect(messages[i].role).toBe("system");
+  // the story block sits above the history, facts and older chapters just before the newest turn
+  expect(headerIndexes.length).toBeGreaterThanOrEqual(1);
+  for (const insertIdx of headerIndexes) {
+    const lastTurn = messages.map((x, i) => (x.role !== "system" ? i : -1)).filter((i) => i >= 0).pop();
+    const firstTurn = messages.findIndex((x) => x.role !== "system");
+    expect(insertIdx === firstTurn - 1 || insertIdx === (lastTurn ?? 0) - 1).toBe(true);
   }
 
   const joined = messages.map((x) => x.content).join("\n");

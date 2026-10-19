@@ -3,9 +3,10 @@
  *
  * One chapter per closed scene, built by one model call per tick (the oldest
  * closed scene that has none), plus fact operations that come back with it.
- * Before each reply (llmRequest) it inserts one block: chapters of what left the
- * prompt and facts, within the user's token budget (see M3-SPEC.md). The module is evaluated afresh on
- * every pass of a hook, so all state lives in files.
+ * Before each reply (llmRequest) it inserts chapters of what left the prompt and facts, within
+ * the user's token budget (see M3-SPEC.md), in two blocks: the chapter just before the history
+ * above it, the rest just before the newest turn (so the provider's prompt cache keeps the
+ * history). The module is evaluated afresh on every pass of a hook, so all state lives in files.
  *
  * Files (under data/litopys/):
  *   chats/<chatId>.json      chapters, facts, proposals, the scene in progress,
@@ -965,21 +966,29 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const d = rankFacts(active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f)), scanText, recency);
   const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText).slice(0, 6);
 
-  const header =
-    "[Story record (Litopys): what happened before the messages below and what stays true. Background for the next reply: do not retell it, do not contradict it.]";
+  // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
+  // closes (the history above it changes then too), so it rides above the history; facts and the
+  // chapters picked by relevance change every reply, so they ride after the newest turn.
+  const headHeader = "[Story record (Litopys): what happened just before the messages below. Background for the next reply: do not retell it, do not contradict it.]";
+  const tailHeader =
+    "[Story record (Litopys): earlier chapters and what stays true. Background for the next reply: do not retell it, do not contradict it.]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const facts = [];
   const chapters = [];
-  const render = () => {
-    const out = [header];
-    if (chapters.length) {
-      const ordered = chapters.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
+  const renderHead = () => (bridge && chapters.includes(bridge) ? [headHeader, chapterLine(bridge)].join("\n") : "");
+  const renderTail = () => {
+    const others = chapters.filter((ch) => ch !== bridge);
+    if (!others.length && !facts.length) return "";
+    const out = [tailHeader];
+    if (others.length) {
+      const ordered = others.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
       out.push("Earlier chapters:", ...ordered.map(chapterLine));
     }
     if (facts.length) out.push("Facts:", ...facts.map(factLine));
     return out.join("\n");
   };
+  const render = () => [renderHead(), renderTail()].filter(Boolean).join("\n\n");
   const budget = clamp(cfg && cfg.budget, 200, 4000);
   // each item goes in whole or not at all; a group stops at its first item that does not fit
   const tryAdd = (list, item) => {
@@ -996,7 +1005,7 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   if (!facts.length && !chapters.length) return null;
   const text = render();
   const arcCount = chapters.filter((x) => arcs.includes(x)).length;
-  return { text, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcCount, arcs: arcCount, cut, factIds: facts.map((f) => f.id) };
+  return { text, head: renderHead(), tail: renderTail(), tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcCount, arcs: arcCount, cut, factIds: facts.map((f) => f.id) };
 }
 
 /** Most facts the insert file keeps a use record for: the most recently used win. */
@@ -1020,6 +1029,24 @@ function withInsert(messages, text) {
   let lead = 0;
   while (lead < messages.length && messages[lead] && messages[lead].role === "system") lead++;
   return [...messages.slice(0, lead), { role: "system", content: text }, ...messages.slice(lead)];
+}
+
+/**
+ * Insert one system message just before the newest turn (the user's line, or the reply that
+ * Continue extends): what changes every reply goes below the history, so the provider's prompt
+ * cache keeps the history above it, and the user's line stays last for the notes that end it.
+ * (The dashboard plugin carries the same function.)
+ */
+function withTailInsert(messages, text) {
+  let last = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i] && messages[i].role !== "system") {
+      last = i;
+      break;
+    }
+  }
+  if (last < 0) return [...messages, { role: "system", content: text }];
+  return [...messages.slice(0, last), { role: "system", content: text }, ...messages.slice(last)];
 }
 
 /** M3b item 3: read files, build the insert, insert the block, write st.lastInsert. */
@@ -1081,9 +1108,13 @@ export function llmRequest(ctx, host) {
       messages = withInsert(messages, back.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: String(back.text || "").trim() });
     }
-    if (insert) {
-      messages = withInsert(messages, insert.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · story so far", text: String(insert.text || "").trim() });
+    if (insert && insert.head) {
+      messages = withInsert(messages, insert.head);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · story so far", text: String(insert.head).trim() });
+    }
+    if (insert && insert.tail) {
+      messages = withTailInsert(messages, insert.tail);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
