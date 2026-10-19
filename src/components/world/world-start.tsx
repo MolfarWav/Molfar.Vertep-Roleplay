@@ -296,7 +296,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
             </label>
           ))}
           </div>
-          {cards.length > CARD_SEARCH_AT && <p className="text-xs text-muted-foreground" aria-live="polite">{t('world.new.picked', { n: cardTicks.size })}</p>}
+          {(cards.length > CARD_SEARCH_AT || !allTicked) && cards.length > 0 && <p className="text-xs text-muted-foreground" aria-live="polite">{t('world.new.picked', { n: cardTicks.size })}</p>}
           {cards.length === 0 && <p className="text-xs text-muted-foreground">{t('world.start.noText')}</p>}
           {allTicked && cards.length > 1 && <p className="text-xs text-muted-foreground">{t('world.start.members', { names: cards.map((c) => c.name).join(', ') })}</p>}
           {noCards && ticked !== null && cards.length > 0 && <p className="text-xs text-destructive">{t('world.start.cardsNone')}</p>}
@@ -439,7 +439,11 @@ export function BuildingWorldPanel({ worldId, onGone, onOpenSettings }: { worldI
   const build = async () => {
     setBusy(true)
     stopRef.current = false
-    const r = await buildNewWorld(worldId, (d) => { if (mounted.current) setLive(d) }, () => stopRef.current)
+    const r = await buildNewWorld(worldId, (d) => {
+      // the list row follows the steps too
+      useSavedWorlds.setState((st) => ({ building: st.building.map((w) => (w.id === worldId ? { ...w, done: d.done, total: d.total, error: d.error } : w)) }))
+      if (mounted.current) setLive(d)
+    }, () => stopRef.current)
     void refreshSavedWorlds()
     if (!mounted.current) return
     setBusy(false)
@@ -620,7 +624,7 @@ function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted
         </div>
       )}
 
-      {total > 0 && !shown && (
+      {total > 0 && !shown && !progress && (
         <div className="rounded-md border border-border bg-card p-3">
           <p className="text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
           <Button variant="outline" size="sm" className="mt-2 max-md:h-10" onClick={() => void reveal()} data-testid="draft-show">
@@ -681,7 +685,7 @@ function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted
 
       {!progress && (
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <Button disabled={working || keep <= 0 || busy} onClick={() => void accept()} className="max-md:h-10" data-testid="draft-accept">
+          <Button disabled={working || keep <= 0 || total <= 0 || busy} onClick={() => void accept()} className="max-md:h-10" data-testid="draft-accept">
             <Check className="size-4" aria-hidden="true" />
             {keep === total ? t('world.draft.acceptAll') : t('world.draft.accept', { n: keep })}
           </Button>
