@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CaretRight, GearSix, GlobeHemisphereWest } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -7,6 +7,7 @@ import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
+import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { setLooking } from '@/lib/attention'
 import { useIsDesktop } from '@/hooks/use-mobile'
@@ -14,13 +15,18 @@ import { listWorldChats, useWorldLive, type WorldChat } from '@/lib/world'
 import { formatK, LevelChip } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
 import { WorldRuns } from '@/components/world/world-runs'
+import { WorldRecords } from '@/components/world/world-records'
+import { NEW_PROFILE, NewProfileEditor, ProfileEditor, ProfileList, useFocusedProfile } from '@/components/world/world-profiles'
+import { useConfirm } from '@/components/ui/confirm'
+import { refreshWorldProfiles, useWorldProfiles } from '@/lib/world-profiles'
 import { WorldSettingsDialog } from '@/components/world/world-settings'
 
 const TAB_KEY = 'rp.worldTab'
 
-const isTab = (v: string | null): v is 'overview' | 'runs' => v === 'overview' || v === 'runs'
+type Tab = 'overview' | 'records' | 'runs'
+const isTab = (v: string | null): v is Tab => v === 'overview' || v === 'records' || v === 'runs'
 
-function readTab(): 'overview' | 'runs' {
+function readTab(): Tab {
   try {
     const v = sessionStorage.getItem(TAB_KEY)
     return isTab(v) ? v : 'overview'
@@ -29,7 +35,7 @@ function readTab(): 'overview' | 'runs' {
   }
 }
 
-function saveTab(v: 'overview' | 'runs') {
+function saveTab(v: Tab) {
   try {
     sessionStorage.setItem(TAB_KEY, v)
   } catch {
@@ -42,15 +48,16 @@ type ChatListProps = {
   listError: string
   selectedId: string | null
   onSelect: (id: string) => void
-  onOpenSettings: () => void
 }
 
-function ChatList({ items, listError, selectedId, onSelect, onOpenSettings }: ChatListProps) {
+type Top = 'chats' | 'profiles'
+
+/** The left pane's head: the section title, World settings, and the switch Chats | Profiles. */
+function PaneHeader({ top, onTop, onOpenSettings }: { top: Top; onTop: (v: Top) => void; onOpenSettings: () => void }) {
   const t = useT()
-  const rel = useRelativeTime()
   return (
-    <aside aria-label={t('world.list.aria')} className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+    <div className="flex flex-col gap-2 border-b border-border px-3 py-2">
+      <div className="flex items-center gap-2">
         <PaneTitle section="world" icon={<GlobeHemisphereWest className="size-4 text-primary" aria-hidden="true" />} />
         <Button
           variant="ghost"
@@ -63,6 +70,21 @@ function ChatList({ items, listError, selectedId, onSelect, onOpenSettings }: Ch
           <GearSix className="size-4" aria-hidden="true" />
         </Button>
       </div>
+      <Tabs value={top} onValueChange={(v) => { if (v === 'chats' || v === 'profiles') onTop(v) }}>
+        <TabsList className="w-full max-md:h-10">
+          <TabsTrigger value="chats" className="flex-1 max-md:h-10" data-testid="world-top-chats">{t('world.top.chats')}</TabsTrigger>
+          <TabsTrigger value="profiles" className="flex-1 max-md:h-10" data-testid="world-top-profiles">{t('world.top.profiles')}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </div>
+  )
+}
+
+function ChatList({ items, listError, selectedId, onSelect }: ChatListProps) {
+  const t = useT()
+  const rel = useRelativeTime()
+  return (
+    <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
         {listError && <p className="p-3 text-xs text-destructive">{t('world.list.loadError', { error: listError })}</p>}
         {items === 'missing' && <p className="p-3 text-xs text-muted-foreground">{t('world.missing')}</p>}
@@ -112,15 +134,15 @@ function ChatList({ items, listError, selectedId, onSelect, onOpenSettings }: Ch
             })}
         </ul>
       </ScrollArea>
-    </aside>
+    </div>
   )
 }
 
 type ChatDetailProps = {
   chatId: string
   items: WorldChat[] | null | 'missing'
-  tab: 'overview' | 'runs'
-  onTabChange: (tab: 'overview' | 'runs') => void
+  tab: Tab
+  onTabChange: (tab: Tab) => void
   onOpenSettings: () => void
 }
 
@@ -146,6 +168,9 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
             <TabsTrigger value="overview" className="max-md:h-10">
               {t('world.tab.overview')}
             </TabsTrigger>
+            <TabsTrigger value="records" className="max-md:h-10">
+              {t('world.tab.records')}
+            </TabsTrigger>
             <TabsTrigger value="runs" className="max-md:h-10">
               {t('world.tab.runs')}
             </TabsTrigger>
@@ -154,6 +179,7 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
         {tab === 'overview' && <WorldControls key={chatId} chatId={chatId} where="hub" wide onOpenSettings={onOpenSettings} />}
+        {tab === 'records' && <WorldRecords key={chatId} chatId={chatId} />}
         {tab === 'runs' && <WorldRuns key={chatId} chatId={chatId} />}
       </div>
     </div>
@@ -167,7 +193,19 @@ export function WorldView() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'runs'>(readTab)
+  const [tab, setTab] = useState<Tab>(readTab)
+  const [top, setTop] = useState<Top>('chats')
+  const [profileId, setProfileId] = useState<string | null>(null)
+  const profiles = useWorldProfiles((s) => s.list)
+  const [confirm, confirmDialog] = useConfirm()
+  const dirtyRef = useRef(false)
+  const onDirty = useCallback((d: boolean) => { dirtyRef.current = d }, [])
+  // unsaved profile text: ask before anything that would drop it
+  const guard = async (go: () => void) => {
+    if (dirtyRef.current && !(await confirm({ title: t('world.prof.leaveTitle'), description: t('world.prof.leaveWarn'), actionLabel: t('world.prof.leaveGo'), destructive: false }))) return
+    dirtyRef.current = false
+    go()
+  }
   const [tick, setTick] = useState(0)
   const focusChat = useApp((s) => s.focusWorldChatId)
   const liveViews = useWorldLive((s) => s.views)
@@ -185,6 +223,7 @@ export function WorldView() {
   useEffect(() => {
     if (!focusChat) return
     useApp.setState({ focusWorldChatId: null })
+    setTop('chats')
     setSelectedId(focusChat)
     setDetailOpen(true)
     setTab('overview')
@@ -240,21 +279,50 @@ export function WorldView() {
     setDetailOpen(true)
   }
 
-  const handleTabChange = (v: 'overview' | 'runs') => {
+  useEffect(() => { void refreshWorldProfiles() }, [])
+  // "Edit profile" in the Overview or the chat's sheet lands here
+  useFocusedProfile((id) => void guard(() => { setTop('profiles'); setProfileId(id); setDetailOpen(true) }))
+
+  const changeTop = (v: Top) => void guard(() => { setTop(v); setDetailOpen(false) })
+  const selectProfile = (id: string) => void guard(() => { setProfileId(id); setDetailOpen(true) })
+  const profile = profiles?.find((p) => p.id === profileId)
+
+  const handleTabChange = (v: Tab) => {
     setTab(v)
     saveTab(v)
   }
 
   return (
-    <SectionPage section="world" count={count} hideOnPhone={detailOpen && !!selectedId}>
+    <SectionPage section="world" count={top === 'chats' ? count : undefined} hideOnPhone={detailOpen && (top === 'chats' ? !!selectedId : !!profileId)}>
       <MasterDetail
-        detailOpen={detailOpen && !!selectedId}
-        onBack={() => setDetailOpen(false)}
-        detailTitle={current?.title || storeTitle}
+        detailOpen={detailOpen && (top === 'chats' ? !!selectedId : !!profileId)}
+        onBack={() => void guard(() => setDetailOpen(false))}
+        detailTitle={top === 'chats' ? current?.title || storeTitle : profileId === NEW_PROFILE ? t('world.prof.new') : profile ? (profile.builtIn ? t(`world.level.${profile.id}` as MsgKey) : profile.name) : undefined}
         masterWidth="w-72"
-        master={<ChatList items={items} listError={listError} selectedId={selectedId} onSelect={selectChat} onOpenSettings={() => setSettingsOpen(true)} />}
+        master={
+          <aside aria-label={t('world.list.aria')} className="flex h-full min-h-0 flex-col">
+            <PaneHeader top={top} onTop={changeTop} onOpenSettings={() => setSettingsOpen(true)} />
+            {top === 'chats' ? (
+              <ChatList items={items} listError={listError} selectedId={selectedId} onSelect={(id) => void guard(() => selectChat(id))} />
+            ) : (
+              <ProfileList selectedId={profileId} onSelect={selectProfile} onNew={() => selectProfile(NEW_PROFILE)} />
+            )}
+          </aside>
+        }
         detail={
-          selectedId ? (
+          top === 'profiles' ? (
+            profileId === NEW_PROFILE ? (
+              <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+                <NewProfileEditor key="new" onDirty={onDirty} onCancel={() => void guard(() => { setProfileId(null); setDetailOpen(false) })} onCreated={(id) => { setProfileId(id) }} />
+              </div>
+            ) : profile ? (
+              <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+                <ProfileEditor key={profile.id} profile={profile} onDirty={onDirty} onGone={() => { setProfileId(null); setDetailOpen(false) }} onOpenProfile={(id) => void guard(() => setProfileId(id))} />
+              </div>
+            ) : (
+              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">{t('world.prof.pick')}</div>
+            )
+          ) : selectedId ? (
             <ChatDetail chatId={selectedId} items={items} tab={tab} onTabChange={handleTabChange} onOpenSettings={() => setSettingsOpen(true)} />
           ) : (
             <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
@@ -263,6 +331,7 @@ export function WorldView() {
           )
         }
       />
+      {confirmDialog}
       <WorldSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} chatId={selectedId} chatTitle={current?.title || storeTitle || ''} />
     </SectionPage>
   )

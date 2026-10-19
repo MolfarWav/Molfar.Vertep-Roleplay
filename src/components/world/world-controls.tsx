@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
+import { useApp } from '@/lib/store'
+import { useWorldProfiles } from '@/lib/world-profiles'
+import { WorldProfilePicker } from './world-profile-picker'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import {
-  LEVEL_ICON,
-  LEVEL_TONE,
   formatK,
   formatMoney,
   formatSeconds,
@@ -133,16 +134,20 @@ export function WorldControls({
   chatId,
   where,
   onOpenSettings,
+  onNavigate,
   wide,
 }: {
   chatId: string
   where: 'sheet' | 'hub'
   onOpenSettings?: () => void
+  /** called before the controls send the player elsewhere (the sheet closes itself) */
+  onNavigate?: () => void
   wide?: boolean
 }) {
   const t = useT()
   const relativeTime = useRelativeTime()
   const view = useWorldLive((s) => s.views[chatId])
+  const profiles = useWorldProfiles((s) => s.list)
   const running = useWorldLive((s) => !!s.running[chatId])
   const [missing, setMissing] = useState(false)
   const [everyN, setEveryN] = useState('')
@@ -279,43 +284,19 @@ export function WorldControls({
   const levels = (view.ready ?? ['off', 'chronicler']) as WorldLevel[]
   const events = EVENT_LEVELS.includes(level)
 
+  const inForce = profiles?.find((p) => p.id === view.profile)
   const levelSection = (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">{t('world.level')}</h3>
-      <div role="radiogroup" aria-label={t('world.level')} className="flex flex-col gap-2">
-        {levels.map((l) => {
-          const picked = level === l
-          const Icon = LEVEL_ICON[l]
-          return (
-            <button
-              key={l}
-              type="button"
-              role="radio"
-              aria-checked={picked}
-              onClick={() => {
-                if (!picked) void save({ level: l })
-              }}
-              className={cn(
-                'flex min-h-11 items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
-                picked ? LEVEL_TONE[l].picked : 'border-border hover:bg-accent/60',
-              )}
-            >
-              <Icon
-                className={cn('mt-0.5 size-4 shrink-0', picked ? LEVEL_TONE[l].icon : 'text-muted-foreground')}
-                weight={picked ? 'fill' : 'regular'}
-                aria-hidden="true"
-              />
-              <span className="min-w-0">
-                <span className={cn('block text-sm font-medium', picked && LEVEL_TONE[l].icon)}>
-                  {t(`world.level.${l}` as MsgKey)}
-                </span>
-                <span className="block text-xs text-muted-foreground">{t(`world.level.${l}.hint` as MsgKey)}</span>
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </section>
+    <WorldProfilePicker
+      on={on}
+      profileId={view.profile}
+      ready={levels}
+      onToggle={(v) => void save(v ? { profile: 'chronicler' } : { level: 'off' })}
+      onPick={(id) => void save({ profile: id })}
+      onEdit={(id) => {
+        onNavigate?.()
+        useApp.getState().focusWorldProfile(id)
+      }}
+    />
   )
 
   const scheduleSection = (
@@ -339,6 +320,7 @@ export function WorldControls({
       </label>
       <p className="-mt-2 text-xs text-muted-foreground">
         {on ? (view.dueIn > 0 ? t('world.dueIn', { n: view.dueIn }) : t('world.dueNow')) : t('world.offHint')}
+        {on && inForce ? ` ${t('world.profile.default', { n: inForce.defaults.everyN })}` : ''}
       </p>
       <Button onClick={() => void handleWorldTurn()} disabled={!on || running || reading} className="max-md:h-10">
         <GlobeHemisphereWest className="size-4" aria-hidden="true" />

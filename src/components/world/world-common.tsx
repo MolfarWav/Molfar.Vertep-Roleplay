@@ -5,7 +5,7 @@ import { BookBookmark, Compass, Crown, Prohibit, Skull, Sparkle } from '@phospho
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import type { WorldError, WorldErrorCode, WorldLevel, WorldModelFrom } from '@/lib/world'
+import type { WorldError, WorldErrorCode, WorldKind, WorldLevel, WorldModelFrom } from '@/lib/world'
 
 export const LEVEL_ICON: Record<WorldLevel, typeof Prohibit> = { off: Prohibit, chronicler: BookBookmark, living: Compass, director: Crown, antagonist: Skull, chaos: Sparkle }
 
@@ -68,4 +68,25 @@ export const FROM_KEY: Record<WorldModelFrom, MsgKey> = {
   litopys: 'world.from.litopys',
   chat: 'world.from.chat',
   default: 'world.from.default',
+}
+
+/** One colour per kind of record (chips in the Records tab): person pink, place teal, group violet, thing amber, fact blue. */
+export const KIND_TONE: Record<WorldKind, string> = {
+  person: 'border-pink-500/40 bg-pink-500/10 text-pink-700 dark:text-pink-300',
+  place: 'border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300',
+  group: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  thing: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  fact: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+}
+
+/** A profile's name: a built-in one is its level's, an own one has its own. */
+export function useProfileName(): (p: { id: string; builtIn: boolean; name: string }) => string {
+  const t = useT()
+  return (p) => (p.builtIn ? t(`world.level.${p.id}` as MsgKey) : p.name)
+}
+
+/** A profile's one-line description. */
+export function useProfileHint(): (p: { id: string; builtIn: boolean; description: string }) => string {
+  const t = useT()
+  return (p) => (p.builtIn ? t(`world.level.${p.id}.hint` as MsgKey) : p.description)
 }

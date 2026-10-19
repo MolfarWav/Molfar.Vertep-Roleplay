@@ -210,6 +210,17 @@ export const TIPS: Tip[] = [
       uk: 'Меню чату → «Майстер світу»: оберіть рівень. «Літописець» записує людей і місця історії у власний лорбук чату; від «Живого світу» світ рухається, а події потрапляють у наступну відповідь. Типово вимкнений.',
     },
   },
+  // ── What's new: DM profiles and records
+  {
+    id: 'new.world-profiles',
+    since: '4.53.0',
+    open: { view: 'home' },
+    title: { en: 'Profiles for the World DM, and its records in your hands', uk: 'Профілі для майстра світу і його записи у ваших руках' },
+    body: {
+      en: 'In World, the Profiles tab holds the five built-in DMs and your own: open one, change its prompts, roll a block back to the default. A chat picks its profile in the DM sheet. The Records tab of a chat lets you read, write, retire and delete what the DM recorded.',
+      uk: 'У «Світі» вкладка «Профілі» містить п’ять вбудованих майстрів і ваших власних: відкрийте будь-якого, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра. Вкладка «Записи» чату дає читати, писати, відправляти в минуле й видаляти те, що записав майстер.',
+    },
+  },
   // ── What's new: failures reach the inbox
   {
     id: 'new.inbox-failures',

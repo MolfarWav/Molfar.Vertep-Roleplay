@@ -126,6 +126,12 @@ export interface FailedItem {
 
 export const failKey = (f: Pick<FailedItem, 'worker' | 'ref' | 'at'>) => `${f.worker}:${f.ref}:${f.at}`
 
+const KNOWN_CAUSES: [RegExp, string][] = [
+  [/thinking|reasoning/i, 'thinking'],
+  [/\b429\b|rate.?limit|too many requests/i, 'rate'],
+  [/\b401\b|\b403\b|unauthori[sz]ed|invalid.*key|api key/i, 'auth'],
+  [/model.*(not found|does not exist|unknown)|no such model|no endpoints/i, 'model'],
+]
 const WORLD_CODES = ['thinking', 'thinking-block', 'reasoning-off', 'rate', 'context', 'auth', 'model', 'not-json', 'empty']
 
 /** The plain one-line reason: the World DM's code in words, the others' own message trimmed. */
@@ -137,6 +143,9 @@ export function failReason(f: FailedItem, lang: Lang): string {
   }
   if (f.worker === 'soul') return t('inbox.soulFailed', lang)
   const raw = f.message.replace(/\s+/g, ' ').trim()
+  // other workers report in English; the common causes get the app's own wording
+  const known = KNOWN_CAUSES.find(([re]) => re.test(raw))
+  if (known) return t(`world.err.${known[1]}` as MsgKey, lang)
   return raw.length > 140 ? `${raw.slice(0, 139)}…` : raw || t('inbox.failedUnknown', lang)
 }
 

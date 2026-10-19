@@ -56,9 +56,13 @@ second accent (primary button, active nav icon) and falls back to the accent.
 Views are components/views/*, the chat experience lives in
 components/chat/*, the tabbed character editor in components/character/*.
 The World section (components/world/, `world` in the rail) is the hub of the World DM plugin: chats
-with a DM on the left, one chat's Overview (the same controls as the chat's World DM sheet,
-`world-controls.tsx`) and Runs (history, tokens, errors) on the right, and World settings (the play
-model for all chats, a model test). The chat header's globe dot (`world-status.tsx`) shows its state.
+with a DM on the left (top switch Chats | Profiles), one chat's Overview (the same controls as the chat's
+World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit profile button), Records (the
+world book's records, editable by hand behind a spoiler confirm; `world-records.tsx`) and Runs (history,
+tokens, errors) on the right, and World settings (the play model for all chats, a model test). The Profiles
+tab (`world-profiles.tsx`, data in `lib/world-profiles.ts`) edits the five built-in levels and the player's
+own profiles: defaults, options (clocks by model or code, news by clock), four prompt blocks with Changed
+badge, reset and Show default, a locked reply format, one Save with a dirty mark and a leave guard. The chat header's globe dot (`world-status.tsx`) shows its state.
 The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and
 downloads via the /import/url path; remote art rides the engine's same-origin

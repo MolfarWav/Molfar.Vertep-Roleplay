@@ -142,6 +142,8 @@ interface AppState {
   focusLibraryChatId: ID | null
   /** the World section opens on this chat (set by the chat's World DM sheet) */
   focusWorldChatId: ID | null
+  /** the World section opens its Profiles tab on this profile (a level id or an own id) */
+  focusWorldProfileId: string | null
   focusPersonaId: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
@@ -206,6 +208,7 @@ interface AppState {
   /** open the Library on one chat's Overview (its proposals) */
   focusLibraryChat: (chatId: ID) => void
   focusWorldChat: (chatId: ID) => void
+  focusWorldProfile: (profileId: string) => void
   setSettingsSection: (s: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   // chat actions
@@ -587,6 +590,7 @@ export const useApp = create<AppState>()(
       litopysSettings: false,
       focusLibraryChatId: null,
       focusWorldChatId: null,
+      focusWorldProfileId: null,
       focusPersonaId: null,
       focusLorebookId: null,
       branchTreeFor: null,
@@ -1175,6 +1179,10 @@ export const useApp = create<AppState>()(
       focusWorldChat: (chatId) => {
         if (opensAsDrawer(get().view)) set({ focusWorldChatId: chatId, drawer: 'world' })
         else set({ view: 'world', focusWorldChatId: chatId })
+      },
+      focusWorldProfile: (profileId) => {
+        if (opensAsDrawer(get().view)) set({ focusWorldProfileId: profileId, drawer: 'world' })
+        else set({ view: 'world', focusWorldProfileId: profileId })
       },
       setSettingsSection: (s) => {
         if (opensAsDrawer(get().view)) set({ selectedSettingsSection: s, drawer: 'settings' })

@@ -35,7 +35,7 @@ export function WorldSheet({ chatId, open, onOpenChange }: { chatId: string; ope
         </SheetHeader>
         {open && (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4">
-            <WorldControls chatId={chatId} where="sheet" />
+            <WorldControls chatId={chatId} where="sheet" onNavigate={() => onOpenChange(false)} />
           </div>
         )}
       </SheetContent>

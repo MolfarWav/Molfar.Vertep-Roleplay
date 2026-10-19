@@ -125,6 +125,7 @@ describe('needs you: the inbox', () => {
     expect(failReason(w, 'en')).toMatch(/refused the key/)
     expect(failReason({ ...w, code: 'weird', message: 'boom' }, 'en')).toBe('boom')
     expect(failReason({ worker: 'litopys', ref: 'c', title: '', code: '', message: '  a\n b ', at: 1 }, 'en')).toBe('a b')
+    expect(failReason({ worker: 'dashboard', ref: 'c', title: '', code: '', message: 'the sensor spent its whole reply limit thinking', at: 1 }, 'uk')).toMatch(/міркування/)
   })
 
   it('toasts a failure once: a new `at` is a new failure, a dismissed one stays quiet', () => {
