@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.54.0'
+export const APP_VERSION = '4.55.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -239,6 +239,28 @@ export const TIPS: Tip[] = [
     body: {
       en: 'In World, a chat\u2019s Backgrounds tab links a folder, plans a set of pictures for its places (you check the plan before anything is drawn), draws them one by one and names old ones with a vision model. Turn on \u201cChange the background by scene\u201d in the chat and the Dashboard picks the image that fits. Images are stored as WebP; Extensions > Backgrounds can convert the old ones.',
       uk: 'У «Світі» вкладка «Тла» чату прив’язує теку, планує набір картинок для його місць (план ви перевіряєте до малювання), малює їх по одній і називає старі за допомогою моделі зору. Увімкніть у чаті «Змінювати тло за сценою», і Дашборд обере картинку, що пасує. Картинки зберігаються як WebP; «Розширення > Тла» перетворить старі.',
+    },
+  },
+  // ── What's new: a world without a chat
+  {
+    id: 'new.world-new',
+    since: '4.55.0',
+    open: { view: 'home' },
+    title: { en: 'Build a world first, cast it later', uk: 'Спершу світ, персонажі потім' },
+    body: {
+      en: 'In World > Worlds, New world builds a world before any chat: from the cards you pick or a short interview. Accept the draft and the world goes into the library; any characters can start a chat in it.',
+      uk: 'У «Світ > Світи» кнопка «Новий світ» будує світ ще до чату: з карток, які оберете, або з короткого інтерв’ю. Прийміть чернетку, і світ потрапить у бібліотеку; будь-які персонажі можуть почати в ньому чат.',
+    },
+  },
+  // ── What's new: the Characters page
+  {
+    id: 'new.characters-bar',
+    since: '4.55.0',
+    open: { view: 'home' },
+    title: { en: 'The Characters page, tidied', uk: 'Сторінка персонажів, прибрана' },
+    body: {
+      en: 'One bar holds Characters and Groups, search, sort, view, Import and New. Tiles show chats and tokens larger, with icons for a lorebook and sprites. Tags take two rows at most; All tags has the rest, with search and sort.',
+      uk: 'Одна панель тримає Персонажів і Групи, пошук, сортування, вигляд, Імпорт і Створити. Плитки показують чати й токени більшими, з іконками лорбука та спрайтів. Теги займають щонайбільше два рядки; решта в «Усі теги», з пошуком і сортуванням.',
     },
   },
   // ── What's new: failures reach the inbox

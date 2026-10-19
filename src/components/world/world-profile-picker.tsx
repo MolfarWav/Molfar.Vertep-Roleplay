@@ -25,6 +25,7 @@ export function WorldProfilePicker({
   onToggle,
   onPick,
   onEdit,
+  bare = false,
 }: {
   on: boolean
   /** the profile in force (WorldView.profile); null when the DM is off */
@@ -33,6 +34,8 @@ export function WorldProfilePicker({
   onToggle: (on: boolean) => void
   onPick: (id: string) => void
   onEdit: (id: string) => void
+  /** only the Profile select (a new world: no chat to switch the DM on in, nothing to edit from here) */
+  bare?: boolean
 }) {
   const t = useT()
   const list = useWorldProfiles((s) => s.list)
@@ -46,13 +49,13 @@ export function WorldProfilePicker({
   const items = Object.fromEntries(options.map((p) => [p.id, nameOf(p)]))
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+      {!bare && <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 text-sm font-medium">
           {t('world.dmHere')}
           <span className="block text-xs font-normal text-muted-foreground">{on ? t('world.dmHere.on') : t('world.dmHere.off')}</span>
         </span>
         <Switch checked={on} onCheckedChange={onToggle} aria-label={t('world.dmHere')} />
-      </div>
+      </div>}
 
       <div className={cn('flex flex-col gap-1.5', !on && 'opacity-60')}>
         <label id="world-profile-label" className="text-sm font-medium">{t('world.profile')}</label>
@@ -98,16 +101,18 @@ export function WorldProfilePicker({
         </Select>
         {on && picked && <p className="text-xs text-muted-foreground">{hintOf(picked)}</p>}
         {!on && <p className="text-xs text-muted-foreground">{t('world.profile.offHint')}</p>}
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-1 self-start max-md:h-10"
-          disabled={!on || !picked}
-          onClick={() => picked && onEdit(picked.id)}
-        >
-          <PencilSimple className="size-4" aria-hidden="true" />
-          {t('world.profile.edit')}
-        </Button>
+        {!bare && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-1 self-start max-md:h-10"
+            disabled={!on || !picked}
+            onClick={() => picked && onEdit(picked.id)}
+          >
+            <PencilSimple className="size-4" aria-hidden="true" />
+            {t('world.profile.edit')}
+          </Button>
+        )}
       </div>
     </section>
   )

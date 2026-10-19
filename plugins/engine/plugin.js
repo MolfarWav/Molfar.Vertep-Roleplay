@@ -1945,6 +1945,8 @@ function cardSummary(card, id) {
     ...(avatar && !avatar.startsWith("data:") ? { avatar } : {}),
     ...(avatar.startsWith("data:") ? { avatarLazy: true } : {}),
     studio,
+    // how many sprites the card has: the list shows an icon, the sprites themselves come with the full card
+    spriteCount: Array.isArray(st.expressions) ? st.expressions.filter((e) => e && typeof e === "object" && e.url).length : 0,
     blurb: desc.length > SUMMARY_BLURB ? desc.slice(0, SUMMARY_BLURB) : desc,
     tokens: estimateTokens(desc + text(card.personality) + text(card.scenario) + text(card.first_mes) + text(card.mes_example)),
   };
@@ -1981,7 +1983,7 @@ function characterSummaries(fsx, budgetMs) {
   const shards = [];
   for (let i = 0; i < INDEX_SHARDS; i++) {
     const s = readJson(INDEX_DIR + "/" + i + ".json", null);
-    shards.push({ entries: s && s.v === 1 && s.entries && typeof s.entries === "object" ? s.entries : {}, next: {}, dirty: false });
+    shards.push({ entries: s && s.v === 2 && s.entries && typeof s.entries === "object" ? s.entries : {}, next: {}, dirty: false });
   }
   // all in one call: one call per card cost ~3 ms, seconds for a big library
   const rels = ids.map((cid) => "characters/" + cid + "/card.json");
@@ -2016,7 +2018,7 @@ function characterSummaries(fsx, budgetMs) {
   shards.forEach((s, i) => {
     // a character that is gone leaves its shard too
     if (!s.dirty && Object.keys(s.entries).length === Object.keys(s.next).length) return;
-    try { fsx.write(INDEX_DIR + "/" + i + ".json", JSON.stringify({ v: 1, entries: s.next })); } catch { /* the index is only a cache */ }
+    try { fsx.write(INDEX_DIR + "/" + i + ".json", JSON.stringify({ v: 2, entries: s.next })); } catch { /* the index is only a cache */ }
   });
   return { characters: out, pending };
 }

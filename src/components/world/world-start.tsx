@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, Eye, Play, Stop, Trash, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, Eye, MagnifyingGlass, Play, Stop, Trash, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useConfirm } from '@/components/ui/confirm'
@@ -20,10 +20,13 @@ import { cn } from '@/lib/utils'
 import { acceptCount, draftTotal, dropOf, groupByKind, LANG_ENGLISH, noneRemoved, plannedCalls, type Removed } from '@/lib/world-start'
 import { useWorldProfiles } from '@/lib/world-profiles'
 import {
-  beginWorldStart, buildWorldDraft, finishWorldDraft, listWorldRecipes, loadWorld, loadWorldConfig, newWorldDeck, useWorldLive,
-  type WorldConfig, type WorldDraft, type WorldRecipe, type WorldView,
+  beginNewWorld, beginWorldStart, buildNewWorld, buildWorldDraft, finishNewWorld, finishWorldDraft, listWorldRecipes, loadWorld, loadWorldConfig,
+  newWorldDeck, peekNewWorld, useWorldLive,
+  type WorldConfig, type WorldDraft, type WorldLevel, type WorldRecipe, type WorldView,
 } from '@/lib/world'
-import { FROM_KEY } from './world-common'
+import { FROM_KEY, LevelChip } from './world-common'
+import { refreshSavedWorlds, useSavedWorlds } from './world-library'
+import { WorldProfilePicker } from './world-profile-picker'
 import { WorldErrorCard } from './world-controls'
 import { KindChip } from './world-records'
 
@@ -112,16 +115,34 @@ function useChatCards(chatId: string): { id: string; name: string }[] {
 
 // ---------- the setup form ----------
 
-function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view: WorldView; onBegun: () => void; onOpenSettings: () => void }) {
+/** What a begin sends, whatever it builds (a chat's world or a new one). */
+type BeginOpts = { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean }
+
+/** A long card list gets a search box and a scroll of its own. */
+const CARD_SEARCH_AT = 8
+
+function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, blocked, onBegin, onOpenSettings }: {
+  cards: { id: string; name: string }[]
+  /** every card ticked at first (a chat's own cards); a new world starts with none */
+  allTicked: boolean
+  profileDeck: boolean
+  chronicler: boolean
+  configChatId?: string
+  /** fields above the recipe (a new world's name and profile) */
+  head?: React.ReactNode
+  /** the head is not filled in yet */
+  blocked?: boolean
+  /** throws on failure; the form shows the message */
+  onBegin: (o: BeginOpts) => Promise<void>
+  onOpenSettings: () => void
+}) {
   const t = useT()
   const appLang = resolveLanguage(useApp((s) => s.settings.language))
   const recipes = useRecipes()
   const recipeText = useRecipeText()
-  const cards = useChatCards(chatId)
-  const profiles = useWorldProfiles((s) => s.list)
-  const profileDeck = !!profiles?.find((p) => p.id === view.profile)?.options.deck
   const [recipeId, setRecipeId] = useState('from-cards')
   const [ticked, setTicked] = useState<Set<string> | null>(null)
+  const [find, setFind] = useState('')
   const [picked, setPicked] = useState<Record<string, string>>({})
   const [free, setFree] = useState<Record<string, string>>({})
   const [alsoCards, setAlsoCards] = useState(false)
@@ -130,16 +151,16 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
   const [config, setConfig] = useState<WorldConfig | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const cardTicks = ticked ?? new Set(cards.map((c) => c.id))
+  const cardTicks = ticked ?? new Set(allTicked ? cards.map((c) => c.id) : [])
   const recipe = recipes?.find((r) => r.id === recipeId) ?? recipes?.[0]
   const usesCards = recipe?.id === 'from-cards' || alsoCards
   const withDeck = deck ?? profileDeck
 
   useEffect(() => {
     let live = true
-    loadWorldConfig(chatId).then((c) => { if (live) setConfig(c) }).catch(() => {})
+    loadWorldConfig(configChatId).then((c) => { if (live) setConfig(c) }).catch(() => {})
     return () => { live = false }
-  }, [chatId])
+  }, [configChatId])
 
   // an interview's defaults
   useEffect(() => {
@@ -154,6 +175,8 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
   const otherLang = appLang === 'en' ? 'uk' : 'en'
   const langSent = lang === 'cards' ? undefined : LANG_ENGLISH[lang === 'app' ? appLang : lang]
   const noCards = usesCards && cardTicks.size === 0
+  const q = find.trim().toLowerCase()
+  const shownCards = q ? cards.filter((c) => c.name.toLowerCase().includes(q)) : cards
 
   const begin = async () => {
     if (!recipe || busy) return
@@ -165,7 +188,7 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
       if (a) answers[q.id] = a
     }
     try {
-      await beginWorldStart(chatId, {
+      await onBegin({
         recipe: recipe.id,
         ...(usesCards ? { cardIds: [...cardTicks] } : {}),
         ...(recipe.questions.length ? { answers } : {}),
@@ -173,21 +196,22 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
         ...(langSent ? { lang: langSent } : {}),
         deck: withDeck,
       })
-      await loadWorld(chatId)
-      onBegun()
     } catch (e) {
-      setErr(e instanceof ApiError && e.status === 409 ? t('world.start.noText') : t('world.start.fail', { message: errText(e) }))
+      setErr(e instanceof ApiError && e.status === 409
+        ? (/full/.test(e.message) ? t('world.new.full') : t('world.start.noText'))
+        : t('world.start.fail', { message: errText(e) }))
       setBusy(false)
     }
   }
 
   if (!recipes) return <p className="text-sm text-muted-foreground">{t('chats.panel.loading')}</p>
 
-  const calls = plannedCalls(recipe, view.settings.level !== 'chronicler', withDeck)
+  const calls = plannedCalls(recipe, !chronicler, withDeck)
   const langLabel = (c: string) => t(`world.lang.${c}` as MsgKey)
 
   return (
     <div className="flex flex-col gap-4">
+      {head}
       <div role="radiogroup" aria-label={t('world.start.recipe')} className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">{t('world.start.recipe')}</h3>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -250,7 +274,14 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
         <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-3" data-testid="start-cards">
           <h3 className="text-sm font-medium">{t('world.start.cards')}</h3>
           <p className="text-xs text-muted-foreground">{t('world.start.cardsHint')}</p>
-          {cards.map((c) => (
+          {cards.length > CARD_SEARCH_AT && (
+            <div className="relative">
+              <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input value={find} onChange={(e) => setFind(e.target.value)} placeholder={t('world.new.findCard')} aria-label={t('world.new.findCard')} className="h-10 pl-8 md:h-9" />
+            </div>
+          )}
+          <div className={cn('flex flex-col', cards.length > CARD_SEARCH_AT && 'max-h-72 overflow-y-auto')}>
+          {shownCards.map((c) => (
             <label key={c.id} className="flex min-h-9 items-center gap-2 text-sm max-md:min-h-11">
               <Checkbox
                 checked={cardTicks.has(c.id)}
@@ -264,9 +295,11 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
               <span className="min-w-0 truncate">{c.name}</span>
             </label>
           ))}
+          </div>
+          {(cards.length > CARD_SEARCH_AT || !allTicked) && cards.length > 0 && <p className="text-xs text-muted-foreground" aria-live="polite">{t('world.new.picked', { n: cardTicks.size })}</p>}
           {cards.length === 0 && <p className="text-xs text-muted-foreground">{t('world.start.noText')}</p>}
-          {cards.length > 1 && <p className="text-xs text-muted-foreground">{t('world.start.members', { names: cards.map((c) => c.name).join(', ') })}</p>}
-          {noCards && cards.length > 0 && <p className="text-xs text-destructive">{t('world.start.cardsNone')}</p>}
+          {allTicked && cards.length > 1 && <p className="text-xs text-muted-foreground">{t('world.start.members', { names: cards.map((c) => c.name).join(', ') })}</p>}
+          {noCards && ticked !== null && cards.length > 0 && <p className="text-xs text-destructive">{t('world.start.cardsNone')}</p>}
         </div>
       )}
 
@@ -300,10 +333,173 @@ function Setup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view
           </p>
         )}
         {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
-        <Button className="self-start max-md:h-10" disabled={busy || noCards || !recipe || (recipe.id === 'from-cards' && cards.length === 0)} onClick={() => void begin()} data-testid="start-build">
+        <Button className="self-start max-md:h-10" disabled={busy || blocked || noCards || !recipe || (recipe.id === 'from-cards' && cards.length === 0)} onClick={() => void begin()} data-testid="start-build">
           <Play className="size-4" aria-hidden="true" />{t('world.start.build')}
         </Button>
       </div>
+    </div>
+  )
+}
+
+/** The chat's Start form: its own cards, its profile. */
+function ChatSetup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view: WorldView; onBegun: () => void; onOpenSettings: () => void }) {
+  const cards = useChatCards(chatId)
+  const profiles = useWorldProfiles((s) => s.list)
+  const profileDeck = !!profiles?.find((p) => p.id === view.profile)?.options.deck
+  return (
+    <Setup
+      cards={cards}
+      allTicked
+      profileDeck={profileDeck}
+      chronicler={view.settings.level === 'chronicler'}
+      configChatId={chatId}
+      onOpenSettings={onOpenSettings}
+      onBegin={async (o) => {
+        await beginWorldStart(chatId, o)
+        await loadWorld(chatId)
+        onBegun()
+      }}
+    />
+  )
+}
+
+// ---------- a world without a chat ----------
+
+/** A new world may run on any profile: every level is finished. */
+const ALL_LEVELS: WorldLevel[] = ['off', 'chronicler', 'living', 'director', 'antagonist', 'chaos']
+
+/** Worlds just begun from the form: their panel starts building at once, from this first draft. */
+const buildNow = new Map<string, WorldDraft>()
+
+/** "New world" in the Worlds tab (user, 2026-10-19): a world built from any cards or an interview, with no chat. */
+export function NewWorldSetup({ onBegun, onOpenSettings }: { onBegun: (worldId: string) => void; onOpenSettings: () => void }) {
+  const t = useT()
+  const characters = useApp((s) => s.characters)
+  const cards = useMemo(
+    () => characters.filter((c) => !c.isGroup).map((c) => ({ id: c.id, name: c.name })).sort((a, b) => a.name.localeCompare(b.name)),
+    [characters],
+  )
+  const profiles = useWorldProfiles((s) => s.list)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [profileId, setProfileId] = useState('living')
+  const profile = profiles?.find((p) => p.id === profileId)
+
+  const head = (
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-3">
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium">{t('world.lib.name')}</span>
+        <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={t('world.new.namePh')} className="h-10 md:h-9" data-testid="new-world-name" />
+        {!name.trim() && <span className="text-xs text-muted-foreground">{t('world.new.nameFirst')}</span>}
+      </label>
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium">{t('world.lib.desc')}</span>
+        <Textarea value={description} maxLength={400} onChange={(e) => setDescription(e.target.value)} rows={2} />
+      </label>
+      <WorldProfilePicker bare on profileId={profile?.id ?? null} ready={ALL_LEVELS} onToggle={() => {}} onPick={setProfileId} onEdit={() => {}} />
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-4 p-4" data-testid="new-world-form">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-heading text-xl">{t('world.new.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('world.new.lead')}</p>
+      </div>
+      <Setup
+        cards={cards}
+        allTicked={false}
+        profileDeck={!!profile?.options.deck}
+        chronicler={profile?.base === 'chronicler'}
+        head={head}
+        blocked={!name.trim() || !profile}
+        onOpenSettings={onOpenSettings}
+        onBegin={async (o) => {
+          if (!profile) return
+          const { worldId, draft } = await beginNewWorld({ name: name.trim(), description: description.trim(), level: profile.base, profile: profile.id, ...o })
+          buildNow.set(worldId, draft)
+          await refreshSavedWorlds()
+          onBegun(worldId)
+        }}
+      />
+    </div>
+  )
+}
+
+/** A world being built without a chat: its build calls, then its draft to accept into the library or discard. */
+export function BuildingWorldPanel({ worldId, onGone, onOpenSettings }: { worldId: string; onGone: () => void; onOpenSettings: () => void }) {
+  const t = useT()
+  const row = useSavedWorlds((s) => s.building.find((w) => w.id === worldId))
+  const [draft, setDraft] = useState<WorldDraft | null | undefined>(() => buildNow.get(worldId))
+  const [live, setLive] = useState<WorldDraft | null>(null)
+  const [busy, setBusy] = useState(false)
+  const stopRef = useRef(false)
+  const mounted = useRef(true)
+
+  const build = async () => {
+    setBusy(true)
+    stopRef.current = false
+    const r = await buildNewWorld(worldId, (d) => {
+      // the list row follows the steps too
+      useSavedWorlds.setState((st) => ({ building: st.building.map((w) => (w.id === worldId ? { ...w, done: d.done, total: d.total, error: d.error } : w)) }))
+      if (mounted.current) setLive(d)
+    }, () => stopRef.current)
+    void refreshSavedWorlds()
+    if (!mounted.current) return
+    setBusy(false)
+    setLive(null)
+    if (r.draft) setDraft(r.draft)
+    if (r.error && !r.draft?.error) toast.error(r.error)
+    else if (stopRef.current) toast.info(t('world.start.stopped'))
+  }
+
+  useEffect(() => {
+    mounted.current = true
+    let on = true
+    if (buildNow.delete(worldId)) void build()
+    else peekNewWorld(worldId).then((d) => { if (on) setDraft(d) }).catch((e) => { if (on) { setDraft(null); toast.error(errText(e)) } })
+    return () => { on = false; mounted.current = false; stopRef.current = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldId])
+
+  const finish = async (op: 'accept' | 'discard', drop?: ReturnType<typeof dropOf>) => {
+    try {
+      const r = await finishNewWorld(worldId, op, drop)
+      useSavedWorlds.setState({ list: r.worlds, building: r.building })
+      // accepted: the same id is now a saved world, and the tab shows it
+      if (op === 'discard') onGone()
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) throw new Error(t('world.new.empty'))
+      throw e
+    }
+  }
+
+  const shown = busy && live ? live : draft
+  if (shown === undefined) return <p className="p-4 text-sm text-muted-foreground">{t('chats.panel.loading')}</p>
+
+  return (
+    <div className="flex flex-col gap-4 p-4" data-testid="building-world-panel">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-heading text-xl">{row?.name ?? t('world.new.title')}</h2>
+          {row && <LevelChip level={row.level} />}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('world.new.draftLead')}</p>
+      </div>
+      {shown ? (
+        <DraftPanel
+          finish={finish}
+          draft={shown}
+          busy={busy}
+          progress={busy}
+          onBuild={() => void build()}
+          onStop={() => { stopRef.current = true }}
+          onAccepted={() => {}}
+          onOpenSettings={onOpenSettings}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">{t('world.new.gone')}</p>
+      )}
     </div>
   )
 }
@@ -346,8 +542,9 @@ function toggled(set: Set<string>, id: string): Set<string> {
   return next
 }
 
-function DraftPanel({ chatId, draft, busy, progress, onBuild, onStop, onAccepted, onOpenSettings }: {
-  chatId: string
+function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted, onOpenSettings }: {
+  /** accept (minus the dropped) or discard; throws on failure */
+  finish: (op: 'accept' | 'discard', drop?: ReturnType<typeof dropOf>) => Promise<void>
   draft: WorldDraft
   busy: boolean
   progress: boolean
@@ -373,7 +570,7 @@ function DraftPanel({ chatId, draft, busy, progress, onBuild, onStop, onAccepted
     setWorking(true)
     try {
       const kept = draft.entities.filter((r) => !removed.entities.has(r.id)).length
-      await finishWorldDraft(chatId, 'accept', dropOf(removed))
+      await finish('accept', dropOf(removed))
       toast.success(t('world.draft.added', { n: kept }))
       onAccepted()
     } catch (e) {
@@ -387,7 +584,7 @@ function DraftPanel({ chatId, draft, busy, progress, onBuild, onStop, onAccepted
     if (!(await confirm({ title: t('world.draft.discardTitle'), description: t('world.draft.discardWarn'), actionLabel: t('world.draft.discard') }))) return
     setWorking(true)
     try {
-      await finishWorldDraft(chatId, 'discard')
+      await finish('discard')
     } catch (e) {
       toast.error(errText(e))
     } finally {
@@ -427,7 +624,7 @@ function DraftPanel({ chatId, draft, busy, progress, onBuild, onStop, onAccepted
         </div>
       )}
 
-      {total > 0 && !shown && (
+      {total > 0 && !shown && !progress && (
         <div className="rounded-md border border-border bg-card p-3">
           <p className="text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
           <Button variant="outline" size="sm" className="mt-2 max-md:h-10" onClick={() => void reveal()} data-testid="draft-show">
@@ -488,7 +685,7 @@ function DraftPanel({ chatId, draft, busy, progress, onBuild, onStop, onAccepted
 
       {!progress && (
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <Button disabled={working || keep <= 0 || busy} onClick={() => void accept()} className="max-md:h-10" data-testid="draft-accept">
+          <Button disabled={working || keep <= 0 || total <= 0 || busy} onClick={() => void accept()} className="max-md:h-10" data-testid="draft-accept">
             <Check className="size-4" aria-hidden="true" />
             {keep === total ? t('world.draft.acceptAll') : t('world.draft.accept', { n: keep })}
           </Button>
@@ -542,9 +739,9 @@ export function WorldStart({ chatId, onOpenSettings, onAccepted }: { chatId: str
       {view.records + view.retired > 0 && !draft && <p className="text-xs text-muted-foreground">{t('world.start.hasWorld', { n: view.records })}</p>}
       <DeckLine chatId={chatId} view={view} />
       {draft ? (
-        <DraftPanel chatId={chatId} draft={draft} busy={busy} progress={busy} onBuild={() => void build()} onStop={() => { stopRef.current = true }} onAccepted={onAccepted} onOpenSettings={onOpenSettings} />
+        <DraftPanel finish={(op, drop) => finishWorldDraft(chatId, op, drop)} draft={draft} busy={busy} progress={busy} onBuild={() => void build()} onStop={() => { stopRef.current = true }} onAccepted={onAccepted} onOpenSettings={onOpenSettings} />
       ) : (
-        <Setup chatId={chatId} view={view} onOpenSettings={onOpenSettings} onBegun={() => void build()} />
+        <ChatSetup chatId={chatId} view={view} onOpenSettings={onOpenSettings} onBegun={() => void build()} />
       )}
       {!draft && (
         <div className="flex flex-col gap-2 border-t border-border pt-3">

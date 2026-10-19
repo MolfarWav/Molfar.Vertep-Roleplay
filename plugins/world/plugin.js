@@ -39,8 +39,12 @@
  *  POST /world/records/keys {chatId}   the build model writes keys for the living records that have none
  *  GET  /world/recipes               what a start can build (from the cards, an interview, the player's own files)
  *  POST /world/start {chatId, begin?, recipe?, cardIds?, answers?, lang?, deck?}   begin = a new draft; then
- *                                     each call makes one build call (two-phase) until done == total
- *  PUT  /world/draft {chatId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into the world
+ *                                     each call makes one build call (two-phase) until done == total.
+ *                                     {begin, newWorld: true, name, description?, level?, profile?, ...} builds a
+ *                                     world without a chat (answers worldId; later calls send {worldId});
+ *                                     {worldId, peek: true} reads its draft without a build call
+ *  PUT  /world/draft {chatId | worldId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into
+ *                                     the world (a worldId's draft becomes a saved world)
  *  POST /world/deck {chatId, lang?}   a new events deck (profile option deck)
  *  GET|POST|PUT|DELETE /world/library  saved worlds: list, save a chat's world {chatId, name?, description?},
  *                                     rename {id, name?, description?}, remove ?id=
@@ -64,6 +68,7 @@
  *  world/profiles/<id>.json    a built-in profile's changes (only blocks that differ) or a player's own profile
  *  world/recipes/<id>.json     a recipe of the player's (an id of a built-in replaces it)
  *  world/library/w-<id>.json   a saved world: records, fronts, deck, settings
+ *  world/library/w-<id>.draft.json   a world being built without a chat, until accepted
  *  lorebooks/world-<chatId>.json  the chat's world book: ownerChatId = the chat, so the app's
  *                              library never lists it; the chat's meta names it as worldBookId,
  *                              and the engine plugin scans it in that chat only
@@ -444,6 +449,8 @@ export function dueIn(state, msgs) {
 }
 
 function memberIds(fsx, meta) {
+  // a world built without a chat names its cards itself
+  if (Array.isArray(meta.cardIds)) return meta.cardIds.filter((id) => typeof id === "string" && CHAT_ID.test(id));
   const ids = meta.groupId ? arr(readJson(fsx, "groups/" + meta.groupId + ".json", {}).memberIds) : meta.characterId ? [meta.characterId] : [];
   return ids.filter((id) => typeof id === "string" && CHAT_ID.test(id));
 }
@@ -1530,31 +1537,79 @@ function deckFrom(out, max) {
 
 const nextDeckId = (deck) => deck.reduce((m, c) => Math.max(m, Number(c.id.slice(1)) || 0), 0) + 1;
 
+// A world can also be built without a chat (user, 2026-10-19: "New world" in the Worlds tab): its draft
+// lives in world/library/<id>.draft.json until it is accepted into the library as <id>.json.
+const draftPath = (id) => LIBRARY_DIR + id + ".draft.json";
+const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "chaos"];
+
+/** What a start works on: a chat's world, or a world being built in the library. */
+function startTarget(fsx, b) {
+  if (str(b.chatId)) {
+    const chatId = str(b.chatId);
+    if (!CHAT_ID.test(chatId)) return { error: ok({ error: "chatId required" }, 400) };
+    const chat = readChat(fsx, chatId);
+    if (!chat) return { error: ok({ error: "no such chat" }, 404) };
+    const { state } = loadState(fsx, chatId);
+    return { chat, meta: chat.meta, state, title: str(chat.meta.title), save: (st) => saveState(fsx, st) };
+  }
+  let id = str(b.worldId);
+  let raw = WORLD_ID.test(id) ? readJson(fsx, draftPath(id), null) : null;
+  if (!isObj(raw)) {
+    // a new world: only a begin may make one
+    if (b.begin !== true || b.newWorld !== true) return { error: ok({ error: "chatId or worldId required" }, 400) };
+    if (listWorlds(fsx).length + listBuilding(fsx).length >= LIBRARY_MAX) return { error: ok({ error: "the library is full" }, 409) };
+    id = "w-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const level = NEW_LEVELS.includes(str(b.level)) ? str(b.level) : "living";
+    raw = { name: cut(str(b.name), NAME_LEN) || "World", description: cut(str(b.description), DESC_LEN), at: Date.now(), settings: { level, ...(str(b.profile) ? { profile: str(b.profile) } : {}) } };
+  }
+  const state = normalizeState(raw, id);
+  const head = { name: cut(str(raw.name), NAME_LEN) || "World", description: cut(str(raw.description), DESC_LEN), at: num(raw.at) || Date.now() };
+  const cardIds = state.draft ? state.draft.cardIds : arr(b.cardIds).filter((x) => typeof x === "string" && CHAT_ID.test(x));
+  return { worldId: id, head, meta: { cardIds }, state, title: head.name, save: (st) => writeJson(fsx, draftPath(id), { ...st, ...head }) };
+}
+
+/** Worlds being built without a chat, for the Worlds list. */
+export function listBuilding(fsx) {
+  let files = [];
+  try {
+    files = fsx.list(LIBRARY_DIR.slice(0, -1)).filter((f) => f.endsWith(".draft.json"));
+  } catch {}
+  const out = [];
+  for (const f of files) {
+    const id = f.slice(0, -".draft.json".length);
+    const raw = WORLD_ID.test(id) ? readJson(fsx, LIBRARY_DIR + f, null) : null;
+    const d = isObj(raw) ? cleanDraft(raw.draft) : null;
+    if (d) out.push({ id, name: cut(str(raw.name), NAME_LEN) || "World", at: num(raw.at), level: cleanSettings(raw.settings).level, done: d.done, total: d.steps.length, error: d.error || null });
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
 function startRoute(req, host) {
   const fsx = host.fs;
   const b = body(req);
-  const chatId = String(b.chatId || "");
-  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const chat = readChat(fsx, chatId);
-  if (!chat) return ok({ error: "no such chat" }, 404);
-  const { state } = loadState(fsx, chatId);
+  const t = startTarget(fsx, b);
+  if (t.error) return t.error;
+  const { state, meta } = t;
+  const chat = t.chat || { meta };
   const cfg = loadConfig(fsx);
   if (b.begin === true) {
     const recipe = recipeOf(fsx, str(b.recipe) || "from-cards");
     if (!recipe) return ok({ error: "no such recipe" }, 404);
     const cardIds = arr(b.cardIds).filter((id) => typeof id === "string" && CHAT_ID.test(id));
     const usesCards = recipe.id === "from-cards" || b.fromCards === true;
-    const chunks = usesCards ? chunkSources(startSources(fsx, chat.meta, cardIds)) : [];
+    const chunks = usesCards ? chunkSources(startSources(fsx, t.chat ? meta : { cardIds }, cardIds)) : [];
     if (usesCards && !chunks.length) return ok({ error: "the chosen cards have nothing to learn from", code: "no-text" }, 409);
     const profile = profileFor(fsx, state.settings);
     const withDeck = b.deck === true || (b.deck !== false && !!(profile && profile.options && profile.options.deck));
     const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler");
     if (withDeck) steps.push({ deck: true });
     state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, at: Date.now() });
-    saveState(fsx, state);
-    return ok({ ok: true, draft: draftView(state.draft) });
+    t.save(state);
+    return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(state.draft) });
   }
   const draft = cleanDraft(state.draft);
+  // peek: read a world's draft without running a step (the Worlds tab reopens one being built)
+  if (b.peek === true) return ok({ ok: true, draft: draft ? draftView(draft) : null });
   if (!draft) return ok({ error: "no start in progress" }, 409);
   if (draft.done >= draft.steps.length) return ok({ ok: true, draft: draftView(draft) });
   const recipe = recipeOf(fsx, draft.recipe);
@@ -1604,8 +1659,8 @@ function startRoute(req, host) {
   } else draft.error = cleanError({ at: Date.now(), ...built.error });
   countBuild(state, built, "start", changes);
   state.draft = draft;
-  saveState(fsx, state);
-  return ok({ ok: !built.error, ...(built.error ? { error: draft.error.message, code: draft.error.code } : {}), draft: draftView(draft) });
+  t.save(state);
+  return ok({ ok: !built.error, ...(t.worldId ? { worldId: t.worldId } : {}), ...(built.error ? { error: draft.error.message, code: draft.error.code } : {}), draft: draftView(draft) });
 }
 
 export function deckInput({ entities, fronts, lang }) {
@@ -1621,14 +1676,20 @@ export function deckInput({ entities, fronts, lang }) {
 function draftRoute(req, host) {
   const fsx = host.fs;
   const b = body(req);
-  const chatId = String(b.chatId || "");
-  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const chat = readChat(fsx, chatId);
-  if (!chat) return ok({ error: "no such chat" }, 404);
-  const { state } = loadState(fsx, chatId);
+  if (!str(b.chatId) && !WORLD_ID.test(str(b.worldId))) return ok({ error: "chatId or worldId required" }, 400);
+  const t = startTarget(fsx, b);
+  if (t.error) return t.error;
+  const { state, chat } = t;
+  const chatId = t.chat ? state.chatId : "";
   const draft = cleanDraft(state.draft);
   if (!draft) return ok({ error: "no draft" }, 409);
   if (b.op === "discard") {
+    if (t.worldId) {
+      try {
+        fsx.remove(draftPath(t.worldId));
+      } catch {}
+      return ok({ ok: true, worlds: listWorlds(fsx).map(worldRow), building: listBuilding(fsx) });
+    }
     delete state.draft;
     saveState(fsx, state);
     return ok({ ok: true });
@@ -1656,6 +1717,15 @@ function draftRoute(req, host) {
   }
   state.origin = { kind: draft.recipe === "from-cards" ? "cards" : "recipe", recipe: draft.recipe, cardIds: draft.cardIds, at: now };
   delete state.draft;
+  if (t.worldId) {
+    // a world built without a chat goes into the library; the draft file goes
+    if (!state.entities.length && !state.fronts.length) return ok({ error: "the world would be empty", code: "empty" }, 409);
+    writeJson(fsx, LIBRARY_DIR + t.worldId + ".json", cleanWorld({ ...state, ...t.head, at: now, from: null }, t.worldId));
+    try {
+      fsx.remove(draftPath(t.worldId));
+    } catch {}
+    return ok({ ok: true, added, id: t.worldId, worlds: listWorlds(fsx).map(worldRow), building: listBuilding(fsx) });
+  }
   if (state.entities.length) {
     writeBook(fsx, state, str(chat.meta.title));
     bindBook(fsx, chatId, chat.meta, state.bookId);
@@ -1716,7 +1786,7 @@ export function listWorlds(fsx) {
 
 function libraryRoute(req, host) {
   const fsx = host.fs;
-  if (req.method === "GET") return ok({ worlds: listWorlds(fsx).map(worldRow) });
+  if (req.method === "GET") return ok({ worlds: listWorlds(fsx).map(worldRow), building: listBuilding(fsx) });
   if (req.method === "DELETE") {
     const id = String((req.query && req.query.id) || "");
     if (!WORLD_ID.test(id)) return ok({ error: "id required" }, 400);

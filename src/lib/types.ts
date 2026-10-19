@@ -135,6 +135,8 @@ export interface Character {
   blurb?: string
   /** Summary only: the engine's token estimate of the card's main texts. */
   tokens?: number
+  /** Summary only: how many sprites (expressions with an image) the card has. */
+  spriteCount?: number
   /** Summary only: the portrait is still to come (it lives inside the card as a data URL). */
   avatarLazy?: true
   /** The card file's size and change time when it was read ("size:mtime"); a whole card held in

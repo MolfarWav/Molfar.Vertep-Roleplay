@@ -18,7 +18,8 @@ import { WorldBackgrounds } from '@/components/world/world-backgrounds'
 import { WorldRuns } from '@/components/world/world-runs'
 import { WorldRecords } from '@/components/world/world-records'
 import { WorldStart } from '@/components/world/world-start'
-import { refreshSavedWorlds, useSavedWorlds, WorldDetail, WorldList } from '@/components/world/world-library'
+import { NEW_WORLD, refreshSavedWorlds, useSavedWorlds, WorldDetail, WorldList } from '@/components/world/world-library'
+import { BuildingWorldPanel, NewWorldSetup } from '@/components/world/world-start'
 import { NewWorldChatDialog, type WorldSource } from '@/components/world/world-new-chat'
 import { NEW_PROFILE, NewProfileEditor, ProfileEditor, ProfileList, useFocusedProfile } from '@/components/world/world-profiles'
 import { useConfirm } from '@/components/ui/confirm'
@@ -212,6 +213,7 @@ export function WorldView() {
   const [worldId, setWorldId] = useState<string | null>(null)
   const [newChatFor, setNewChatFor] = useState<{ source: WorldSource; charId: string | null } | null>(null)
   const saved = useSavedWorlds((s) => s.list)
+  const building = useSavedWorlds((s) => s.building)
   const focusWorld = useApp((s) => s.focusWorldWorldId)
   const profiles = useWorldProfiles((s) => s.list)
   const [confirm, confirmDialog] = useConfirm()
@@ -314,8 +316,9 @@ export function WorldView() {
   const selectProfile = (id: string) => void guard(() => { setProfileId(id); setDetailOpen(true) })
   const profile = profiles?.find((p) => p.id === profileId)
   const world = Array.isArray(saved) ? saved.find((w) => w.id === worldId) : undefined
+  const buildingWorld = world ? undefined : building.find((w) => w.id === worldId)
   const selectWorld = (id: string) => void guard(() => { setWorldId(id); setDetailOpen(true) })
-  const hasSelection = top === 'chats' ? !!selectedId : top === 'worlds' ? !!world : !!profileId
+  const hasSelection = top === 'chats' ? !!selectedId : top === 'worlds' ? !!world || !!buildingWorld || worldId === NEW_WORLD : !!profileId
 
   const handleTabChange = (v: Tab) => {
     setTab(v)
@@ -327,7 +330,7 @@ export function WorldView() {
       <MasterDetail
         detailOpen={detailOpen && hasSelection}
         onBack={() => void guard(() => setDetailOpen(false))}
-        detailTitle={top === 'chats' ? current?.title || storeTitle : top === 'worlds' ? world?.name : profileId === NEW_PROFILE ? t('world.prof.new') : profile ? (profile.builtIn ? t(`world.level.${profile.id}` as MsgKey) : profile.name) : undefined}
+        detailTitle={top === 'chats' ? current?.title || storeTitle : top === 'worlds' ? (worldId === NEW_WORLD ? t('world.new.title') : world?.name ?? buildingWorld?.name) : profileId === NEW_PROFILE ? t('world.prof.new') : profile ? (profile.builtIn ? t(`world.level.${profile.id}` as MsgKey) : profile.name) : undefined}
         masterWidth="w-72"
         master={
           <aside aria-label={t('world.list.aria')} className="flex h-full min-h-0 flex-col">
@@ -349,6 +352,19 @@ export function WorldView() {
                   key={world.id}
                   world={world}
                   onNewChat={(w) => setNewChatFor({ source: { worldId: w.id }, charId: libraryCharacter(w.from?.chatId) })}
+                  onGone={() => { setWorldId(null); setDetailOpen(false) }}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                />
+              </div>
+            ) : worldId === NEW_WORLD ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <NewWorldSetup onBegun={(id) => setWorldId(id)} onOpenSettings={() => setSettingsOpen(true)} />
+              </div>
+            ) : buildingWorld ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <BuildingWorldPanel
+                  key={buildingWorld.id}
+                  worldId={buildingWorld.id}
                   onGone={() => { setWorldId(null); setDetailOpen(false) }}
                   onOpenSettings={() => setSettingsOpen(true)}
                 />

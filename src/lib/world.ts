@@ -363,6 +363,54 @@ export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok:
   return r
 }
 
+/** A world being built without a chat (its draft not yet accepted): Worlds lists it to resume or discard. */
+export interface BuildingWorld { id: string; name: string; at: number; level: WorldLevel; done: number; total: number; error: WorldError | null }
+
+/** Begin a new world without a chat (user, 2026-10-19): from cards or an interview. Returns its id and draft. */
+export async function beginNewWorld(o: { name: string; description?: string; level?: WorldLevel; profile?: string; recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean }): Promise<{ worldId: string; draft: WorldDraft }> {
+  const r = await j<DraftReply & { worldId: string }>('/world/start', { method: 'POST', body: JSON.stringify({ begin: true, newWorld: true, ...o }) })
+  return { worldId: r.worldId, draft: r.draft }
+}
+
+/** Run a new world's build calls, as buildWorldDraft does for a chat. */
+export async function buildNewWorld(worldId: string, onStep: (d: WorldDraft) => void, stop: () => boolean): Promise<{ draft: WorldDraft | null; error?: string; code?: string }> {
+  let draft: WorldDraft | null = null
+  try {
+    for (let i = 0; i < 80; i++) {
+      if (stop()) break
+      const r = await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ worldId }) })
+      draft = r.draft
+      onStep(draft)
+      if (r.ok === false) return { draft, error: r.error, code: r.code }
+      if (draft.done >= draft.total) break
+    }
+    return { draft }
+  } catch (e) {
+    return { draft, error: String((e as Error)?.message ?? e) }
+  }
+}
+
+/** Accept a new world's draft into the library (minus what the player dropped), or discard it. 409 code "empty" = nothing left to keep. */
+export async function finishNewWorld(worldId: string, op: 'accept' | 'discard', drop?: { entities?: string[]; fronts?: string[]; deck?: string[] }): Promise<{ worlds: SavedWorld[]; building: BuildingWorld[] }> {
+  return j('/world/draft', { method: 'PUT', body: JSON.stringify({ worldId, op, ...(drop ? { drop } : {}) }) })
+}
+
+/** A new world's draft as it stands, without a build call (null = no draft: accepted or discarded elsewhere). */
+export async function peekNewWorld(worldId: string): Promise<WorldDraft | null> {
+  return (await j<{ draft: WorldDraft | null }>('/world/start', { method: 'POST', body: JSON.stringify({ worldId, peek: true }) })).draft
+}
+
+/** The library in one read: saved worlds and worlds being built (an older plugin has no building). null = no World plugin. */
+export async function listLibrary(): Promise<{ worlds: SavedWorld[]; building: BuildingWorld[] } | null> {
+  try {
+    const r = await j<{ worlds: SavedWorld[]; building?: BuildingWorld[] }>('/world/library')
+    return { worlds: r.worlds, building: r.building ?? [] }
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+
 /** A saved world of the library (records, fronts, deck, settings), as the list shows it. */
 export interface SavedWorld { id: string; name: string; description: string; at: number; from: { chatId: string; title: string } | null; backgroundFolderId: string | null; level: WorldLevel; records: number; fronts: number; deck: number }
 

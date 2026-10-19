@@ -635,7 +635,7 @@ const CARD_KNOWN = new Set([
   'first_mes', 'mes_example', 'alternate_greetings', 'group_only_greetings', 'creator_notes', 'tags',
   'system_prompt', 'post_history_instructions', 'avatar', 'creator', 'character_version', 'character_book',
   // a start-up summary's own fields (the plugin's cardSummary), never card data
-  'stub', 'blurb', 'tokens', 'avatarLazy', 'rev',
+  'stub', 'blurb', 'tokens', 'spriteCount', 'avatarLazy', 'rev',
 ])
 function cardExtrasOf(card: EngineCard): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -736,6 +736,7 @@ export function cardToCharacter(card: EngineCard, id: string, lastChatAt = 0): C
       stub: true as const,
       blurb: text(card.blurb),
       tokens: num(card.tokens, 0),
+      spriteCount: num(card.spriteCount, 0),
       ...(card.avatarLazy === true ? { avatarLazy: true as const } : {}),
     } : {}),
   }
