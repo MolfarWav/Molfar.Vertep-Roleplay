@@ -1,6 +1,6 @@
 // Backgrounds as WebP: which images stay as they are.
 import { describe, expect, it } from 'bun:test'
-import { isAnimated, pickSmaller } from '../src/lib/webp'
+import { backgroundBlob, isAnimated, pickSmaller } from '../src/lib/webp'
 
 const bytes = (...parts: (string | number[])[]) => new Uint8Array(parts.flatMap((p) => (typeof p === 'string' ? [...p].map((c) => c.charCodeAt(0)) : p)))
 const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]
@@ -36,5 +36,13 @@ describe('webp: the smaller file wins', () => {
   })
   it('takes the WebP when it is smaller', () => {
     expect(pickSmaller(orig, new Blob([new Uint8Array(400)], { type: 'image/webp' }))).toMatchObject({ converted: true, before: 1000 })
+  })
+})
+
+describe('webp: reading a background', () => {
+  it('decodes a data URL itself (the frame cannot fetch one)', async () => {
+    const b = await backgroundBlob(`data:image/png;base64,${btoa('abc')}`)
+    expect(b.type).toBe('image/png')
+    expect(new Uint8Array(await b.arrayBuffer())).toEqual(new Uint8Array([97, 98, 99]))
   })
 })

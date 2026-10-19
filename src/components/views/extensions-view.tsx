@@ -1,5 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react'
+import { useApp } from '@/lib/store'
 import { PuzzlePiece, Asterisk, Translate, Image, Waveform, Database, SquaresFour, DiceFive, Wrench, Lightning, BookOpenText, Plug } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { j } from '@/lib/engine'
@@ -55,6 +56,11 @@ export function ExtensionsView() {
   useEffect(() => {
     if (!pickedTab.current && firstPanelValue) setTab(firstPanelValue)
   }, [firstPanelValue])
+  // "Open in Backgrounds" from a world: land on that tab (the tab reads and clears the folder)
+  const focusFolder = useApp((s) => s.focusBackgroundFolderId)
+  useEffect(() => {
+    if (focusFolder) { pickedTab.current = true; setTab('backgrounds') }
+  }, [focusFolder])
 
   // Header + tab strip scroll WITH the tab content (mobile keyboard room).
   // The regex tab is a full master/detail workspace with its own internal

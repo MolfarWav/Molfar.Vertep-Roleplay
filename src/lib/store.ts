@@ -42,6 +42,7 @@ import { carryWorld, libraryBooks, triggerWorldUpdate } from './world'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
+import { applySceneBackground } from './world-backgrounds'
 import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
 import { attentionOn, claimFailure, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
@@ -146,6 +147,8 @@ interface AppState {
   focusWorldProfileId: string | null
   /** the World section opens its Worlds tab on this saved world */
   focusWorldWorldId: string | null
+  /** Extensions opens its Backgrounds tab filtered to this folder */
+  focusBackgroundFolderId: ID | null
   /** the opening dialog (scenario and first message) is open on this chat; fresh = the chat is not opened yet */
   worldOpening: { chatId: ID; fresh: boolean } | null
   focusPersonaId: ID | null
@@ -214,6 +217,7 @@ interface AppState {
   focusWorldChat: (chatId: ID) => void
   focusWorldProfile: (profileId: string) => void
   focusWorldWorld: (worldId: string) => void
+  focusBackgroundFolder: (folderId: ID) => void
   openWorldOpening: (chatId: ID, fresh?: boolean) => void
   closeWorldOpening: () => void
   /** read one chat's transcript from the engine again (after something outside the store changed it) */
@@ -601,6 +605,7 @@ export const useApp = create<AppState>()(
       focusWorldChatId: null,
       focusWorldProfileId: null,
       focusWorldWorldId: null,
+      focusBackgroundFolderId: null,
       worldOpening: null,
       focusPersonaId: null,
       focusLorebookId: null,
@@ -1199,6 +1204,10 @@ export const useApp = create<AppState>()(
         if (opensAsDrawer(get().view)) set({ focusWorldWorldId: worldId, drawer: 'world' })
         else set({ view: 'world', focusWorldWorldId: worldId })
       },
+      focusBackgroundFolder: (folderId) => {
+        if (opensAsDrawer(get().view)) set({ focusBackgroundFolderId: folderId, drawer: 'extensions' })
+        else set({ view: 'extensions', focusBackgroundFolderId: folderId })
+      },
       openWorldOpening: (chatId, fresh = false) => set({ worldOpening: { chatId, fresh } }),
       closeWorldOpening: () => set({ worldOpening: null }),
       reloadChat: (chatId) => refreshChat(set, get, chatId),
@@ -1388,7 +1397,7 @@ export const useApp = create<AppState>()(
             }))
             // the dashboard follows the swipe now showing as the newest message
             if (get().chats.find((c) => c.id === chatId)?.messages.at(-1)?.id === messageId) {
-              void triggerDashUpdate(chatId, 'swipe', () => get().streaming?.chatId === chatId)
+              void triggerDashUpdate(chatId, 'swipe', () => get().streaming?.chatId === chatId).then(() => applySceneBackground(chatId, get()))
             }
           } catch (e) {
             toast.error(String((e as Error).message ?? e))
@@ -1445,7 +1454,7 @@ export const useApp = create<AppState>()(
             })
             // an edit of the newest message changes what the dashboard should read
             if (get().chats.find((c) => c.id === chatId)?.messages.at(-1)?.id === messageId) {
-              void triggerDashUpdate(chatId, 'edit', () => get().streaming?.chatId === chatId)
+              void triggerDashUpdate(chatId, 'edit', () => get().streaming?.chatId === chatId).then(() => applySceneBackground(chatId, get()))
             }
           } catch (e) {
             toast.error(String((e as Error).message ?? e))
@@ -2809,7 +2818,7 @@ async function runStream(
     // then the World DM, if this chat's is due (one model call at a time: free models limit the rate)
     if (committed && queue.length === 0) {
       const busy = () => get().streaming?.chatId === chatId
-      void triggerDashUpdate(chatId, op, busy).then(() => triggerWorldUpdate(chatId, busy))
+      void triggerDashUpdate(chatId, op, busy).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy))
     }
     if (committed && queue.length) {
       void (async () => {

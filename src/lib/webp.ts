@@ -105,6 +105,15 @@ export async function storeBackground(src: Blob, name?: string): Promise<{ url: 
 
 /** The bytes behind a background's URL (a data URL, an asset, or the app's own path). */
 export async function backgroundBlob(url: string): Promise<Blob> {
+  // the frame's fetch only reaches the engine: a data URL cannot be fetched, it is decoded here
+  if (url.startsWith('data:')) {
+    const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(url)
+    if (!m) throw new Error('not a data URL')
+    const raw = m[2] ? atob(m[3]!) : decodeURIComponent(m[3]!)
+    const bytes = new Uint8Array(raw.length)
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+    return new Blob([bytes], { type: m[1] || 'application/octet-stream' })
+  }
   const r = await fetch(url)
   if (!r.ok) throw new Error(`could not read the image (${r.status})`)
   return r.blob()

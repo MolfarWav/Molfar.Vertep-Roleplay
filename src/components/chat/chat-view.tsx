@@ -20,7 +20,9 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { estimateTokens, formatCost, knownCost } from '@/lib/tokens'
 import { modelLimits } from '@/lib/model-params'
-import { fileToRawDataUrl } from '@/lib/engine'
+import { storeBackground } from '@/lib/webp'
+import { formatBytes, uniqueName } from '@/lib/world-backgrounds'
+import { AutoBackground } from '@/components/world/world-auto-bg'
 import { WiStatusView } from '@/components/lore/wi-status-view'
 import { useApp, useChat, useCharacter, checkSoulProposals } from '@/lib/store'
 import { speakText, voiceFor } from '@/lib/tts'
@@ -1288,12 +1290,16 @@ export function ChatView() {
                 const file = e.target.files?.[0]
                 e.target.value = ''
                 if (!file) return
-                // data URL, not an object URL — it persists to the library and
-                // must survive reloads (object URLs die with the page)
-                const url = await fileToRawDataUrl(file)
-                const id = addBackground(file.name.replace(/\.[^.]+$/, ''), url)
-                updateChat(chat.id, { backgroundId: id })
-                toast.success('Background added to your library')
+                // stored once as WebP in the asset store; the library keeps only the URL
+                try {
+                  const base = file.name.replace(/\.[^.]+$/, '')
+                  const r = await storeBackground(file, base)
+                  const id = addBackground(uniqueName(base, backgrounds.map((b) => b.name)), r.url)
+                  updateChat(chat.id, { backgroundId: id })
+                  toast.success(r.converted ? t('bg.tab.saved', { before: formatBytes(r.before), after: formatBytes(r.size) }) : 'Background added to your library')
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : String(err))
+                }
               }}
             />
             <div className="grid grid-cols-3 gap-2">
@@ -1322,6 +1328,7 @@ export function ChatView() {
                 />
               ))}
             </div>
+            <div className="border-t pt-3"><AutoBackground chatId={chat.id} compact /></div>
             {bg && (
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-xs text-muted-foreground">Fit</span>

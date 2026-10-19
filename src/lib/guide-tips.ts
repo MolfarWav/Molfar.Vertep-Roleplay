@@ -231,6 +231,16 @@ export const TIPS: Tip[] = [
       uk: 'У «Світі» вкладка «Старт» чату складає чернетку записів і фронтів із його карток або короткого інтерв’ю; ви прибираєте зайве й приймаєте решту. Збережіть світ на вкладці «Світи» й починайте в ньому нові чати: майстер пише сценарій і перше повідомлення чату, а ви правите їх до початку.',
     },
   },
+  {
+    id: 'new.world-backgrounds',
+    since: '4.53.0',
+    open: { view: 'home' },
+    title: { en: 'Pictures for a world, picked by the scene', uk: 'Картинки для світу, які добирає сцена' },
+    body: {
+      en: 'In World, a chat\u2019s Backgrounds tab links a folder, plans a set of pictures for its places (you check the plan before anything is drawn), draws them one by one and names old ones with a vision model. Turn on \u201cChange the background by scene\u201d in the chat and the Dashboard picks the image that fits. Images are stored as WebP; Extensions > Backgrounds can convert the old ones.',
+      uk: 'У «Світі» вкладка «Тла» чату прив’язує теку, планує набір картинок для його місць (план ви перевіряєте до малювання), малює їх по одній і називає старі за допомогою моделі зору. Увімкніть у чаті «Змінювати тло за сценою», і Дашборд обере картинку, що пасує. Картинки зберігаються як WebP; «Розширення > Тла» перетворить старі.',
+    },
+  },
   // ── What's new: failures reach the inbox
   {
     id: 'new.inbox-failures',

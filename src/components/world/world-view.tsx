@@ -14,6 +14,7 @@ import { useIsDesktop } from '@/hooks/use-mobile'
 import { listWorldChats, useWorldLive, type WorldChat } from '@/lib/world'
 import { formatK, LevelChip } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
+import { WorldBackgrounds } from '@/components/world/world-backgrounds'
 import { WorldRuns } from '@/components/world/world-runs'
 import { WorldRecords } from '@/components/world/world-records'
 import { WorldStart } from '@/components/world/world-start'
@@ -26,8 +27,8 @@ import { WorldSettingsDialog } from '@/components/world/world-settings'
 
 const TAB_KEY = 'rp.worldTab'
 
-type Tab = 'overview' | 'records' | 'start' | 'runs'
-const isTab = (v: string | null): v is Tab => v === 'overview' || v === 'records' || v === 'start' || v === 'runs'
+type Tab = 'overview' | 'records' | 'start' | 'backgrounds' | 'runs'
+const isTab = (v: string | null): v is Tab => v === 'overview' || v === 'records' || v === 'start' || v === 'backgrounds' || v === 'runs'
 
 function readTab(): Tab {
   try {
@@ -178,6 +179,9 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
             <TabsTrigger value="start" className="max-md:h-10" data-testid="world-tab-start">
               {t('world.tab.start')}
             </TabsTrigger>
+            <TabsTrigger value="backgrounds" className="max-md:h-10" data-testid="world-tab-backgrounds">
+              {t('world.tab.backgrounds')}
+            </TabsTrigger>
             <TabsTrigger value="runs" className="max-md:h-10">
               {t('world.tab.runs')}
             </TabsTrigger>
@@ -188,6 +192,7 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
         {tab === 'overview' && <WorldControls key={chatId} chatId={chatId} where="hub" wide onOpenSettings={onOpenSettings} />}
         {tab === 'records' && <WorldRecords key={chatId} chatId={chatId} />}
         {tab === 'start' && <WorldStart key={chatId} chatId={chatId} onOpenSettings={onOpenSettings} onAccepted={() => onTabChange('records')} />}
+        {tab === 'backgrounds' && <WorldBackgrounds key={chatId} wref={{ chatId }} worldName={chat?.title || storeTitle || ''} onOpenSettings={onOpenSettings} />}
         {tab === 'runs' && <WorldRuns key={chatId} chatId={chatId} />}
       </div>
     </div>
@@ -345,6 +350,7 @@ export function WorldView() {
                   world={world}
                   onNewChat={(w) => setNewChatFor({ source: { worldId: w.id }, charId: libraryCharacter(w.from?.chatId) })}
                   onGone={() => { setWorldId(null); setDetailOpen(false) }}
+                  onOpenSettings={() => setSettingsOpen(true)}
                 />
               </div>
             ) : (

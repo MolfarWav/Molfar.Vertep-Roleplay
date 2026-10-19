@@ -67,6 +67,7 @@ The chat's Start tab (`world-start.tsx`) drafts records, fronts and an events de
 removes items and accepts the rest; the Worlds tab (`world-library.tsx`) holds saved worlds, and "New chat in this world"
 (`world-new-chat.tsx`, also a World select in the new-chat step) carries one into a fresh chat, where the opening dialog
 (`world-opening.tsx`, opened through the store's `worldOpening`) edits the DM's drafted scenario and first message. The chat header's globe dot (`world-status.tsx`) shows its state.
+The chat's Backgrounds tab and a saved world's Backgrounds section (`world-backgrounds.tsx`, with `world-bg-set.tsx` for planning and drawing a set and `world-bg-name.tsx` for naming with a vision model; pure helpers in `lib/world-backgrounds.ts`) keep one library folder per world; images are stored through `storeBackground` (`lib/webp.ts`, WebP in the asset store) and "Change the background by scene" (`world-auto-bg.tsx`, `applySceneBackground` after each Dashboard update) is the only thing that switches a background by itself.
 The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and
 downloads via the /import/url path; remote art rides the engine's same-origin

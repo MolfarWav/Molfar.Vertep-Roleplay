@@ -31,6 +31,7 @@ import {
   type SavedWorld,
 } from '@/lib/world'
 import { LevelChip } from './world-common'
+import { WorldBackgrounds } from './world-backgrounds'
 
 interface SavedWorldsState {
   list: SavedWorld[] | null | 'missing'
@@ -146,10 +147,12 @@ export function WorldDetail({
   world,
   onNewChat,
   onGone,
+  onOpenSettings,
 }: {
   world: SavedWorld
   onNewChat: (w: SavedWorld) => void
   onGone: () => void
+  onOpenSettings?: () => void
 }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
@@ -275,6 +278,11 @@ export function WorldDetail({
           {t('world.lib.delete')}
         </Button>
       </div>
+
+      <section className="flex flex-col gap-2 border-t border-border pt-4" data-testid="world-detail-backgrounds">
+        <h3 className="font-heading text-base">{t('world.tab.backgrounds')}</h3>
+        <WorldBackgrounds wref={{ worldId: world.id }} worldName={world.name} onOpenSettings={onOpenSettings} />
+      </section>
 
       {confirmDialog}
     </div>
