@@ -251,8 +251,16 @@ player switches it on for that chat. It writes:
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.
-- `world/config.json`: only what differs from `{ model: "", buildModel: "", maxTokens: 1500 }` (`model` = the play model
-  after replies, `buildModel` = the model of a Start; empty = the fallbacks the World section shows).
+- `world/config.json`: only what differs from `{ model: "", buildModel: "", maxTokens: 1500, imageModel: "",
+  autoBackground: false }` (`model` = the play model after replies, `buildModel` = the model of a Start, empty = the
+  fallbacks the World section shows; `imageModel` = the backgrounds' image model, empty = the app's; `autoBackground`
+  = new chats in a world switch backgrounds by scene).
+- Backgrounds of a world: a folder of the app's Backgrounds library (`library.json`, `backgrounds`: `{ id, name,
+  url, type, folderId, fitting, tags? }`), linked as `backgroundFolderId` in the chat's state and in a saved world.
+  `name` is an English snake_case place name (`tavern`, `tavern_2`), `tags` English words for kind, time, weather
+  and mood; new images are stored as WebP in the engine's asset store (`url` = `/v1/assets/<id>`), never as data
+  URLs in `library.json`. The chat meta's `autoBackground: { on, folderId }` lets the Dashboard sensor pick the
+  image that fits the scene (its snapshot's `background` = the image's name); the app then sets `backgroundId`.
 
 - Start (building a world before play): `state.draft` holds a Start in progress or waiting for the player
   (`{ recipe, cardIds, answers, lang, steps, done, entities, fronts, deck, at, error? }`); it reaches the world only

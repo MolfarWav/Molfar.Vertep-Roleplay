@@ -1999,8 +1999,45 @@ function sensorUser(ctx) {
     previousStateText(ctx),
     ...notebookTexts(ctx),
     ...[threadCheckText(ctx)].filter(Boolean),
+    ...[backdropText(ctx)].filter(Boolean),
     newMessagesText(ctx.newMsgs),
   ].join("\n\n");
+}
+
+// ---------- the chat's background by scene (World DM backgrounds, user 2026-10-19) ----------
+// Off unless the chat's meta.autoBackground is on: then the sensor, in the call it makes anyway, picks the image
+// of the chat's background folder (library.json) that fits where the scene is now, by place or mood. The app
+// sets the chat's background from the snapshot's `background`; no pick, or one not in the folder, changes nothing.
+const BACKDROPS_MAX = 40;
+export function backdropChoices(fsx, meta) {
+  const a = isObj(meta) && isObj(meta.autoBackground) ? meta.autoBackground : null;
+  if (!a || a.on !== true || !str(a.folderId)) return [];
+  const lib = readJson(fsx, "library.json", {});
+  const seen = new Set();
+  const out = [];
+  for (const b of arr(isObj(lib) ? lib.backgrounds : null)) {
+    if (!isObj(b) || b.folderId !== a.folderId || !str(b.name) || seen.has(str(b.name).toLowerCase())) continue;
+    seen.add(str(b.name).toLowerCase());
+    out.push({ name: str(b.name).slice(0, 60), tags: arr(b.tags).map(str).filter(Boolean).slice(0, 6) });
+    if (out.length >= BACKDROPS_MAX) break;
+  }
+  return out;
+}
+
+function backdropText(ctx) {
+  if (!arr(ctx.backdrops).length) return "";
+  const now = ctx.base && ctx.base.snap && str(ctx.base.snap.background);
+  return [
+    "Backgrounds: also add \"background\" to your JSON: the name of the image below that fits where the scene is at the end of the new messages, by place first, then by time, weather and mood; null when none fits." + (now ? " Now shown: " + now + "; keep it unless the place or the mood clearly changed." : ""),
+    ...ctx.backdrops.map((b) => "- " + b.name + (b.tags.length ? ": " + b.tags.join(", ") : "")),
+  ].join("\n");
+}
+
+/** The sensor's pick, only when it names an image of the folder. */
+export function readBackdrop(v, choices) {
+  const name = str(v).toLowerCase();
+  const hit = name ? arr(choices).find((b) => b.name.toLowerCase() === name) : null;
+  return hit ? hit.name : null;
 }
 
 const classOf = (soul) => (soul && CLASSES.includes(soul.class) ? soul.class : "neutral");
@@ -2490,6 +2527,11 @@ function applySensor(ctx, out, op, model, unknownIds) {
     threads: applyThreads(ctx, out, turn),
     extra: {},
   };
+  if (arr(ctx.backdrops).length) {
+    // the pick holds until the sensor names another image of the folder
+    const picked = readBackdrop(out.background, ctx.backdrops) || (B && readBackdrop(B.background, ctx.backdrops));
+    if (picked) snapshot.background = picked;
+  }
   state.snapshots[K] = snapshot;
   const order = Object.keys(state.snapshots).sort((a, b) => (state.snapshots[b].at || 0) - (state.snapshots[a].at || 0));
   for (const old of order.slice(SNAPSHOT_LIMIT)) delete state.snapshots[old];
@@ -2810,6 +2852,7 @@ function planUpdate(fsx, chatId, op) {
     before: JSON.stringify(state),
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
+    backdrops: backdropChoices(fsx, chat.meta),
   };
 }
 

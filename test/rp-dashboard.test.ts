@@ -4657,3 +4657,32 @@ describe("notes age out of the insert (memory M3)", () => {
     expect(P.freshNotes(nb, 40, 50).Aria.map((n: any) => n.id)).toEqual(["n1", "n2", "n3", "u1"]);
   });
 });
+
+describe("background by scene (World DM backgrounds)", () => {
+  const lib = () => fs.writeFileSync(path.join(root, "library.json"), JSON.stringify({ backgrounds: [
+    { id: "bg1", name: "tavern_night", folderId: "fold_w", tags: ["inn", "night"] },
+    { id: "bg2", name: "forest_path", folderId: "fold_w" },
+    { id: "bg3", name: "elsewhere", folderId: "fold_other" },
+  ] }));
+  const snapOf = (id: string) => Object.values(readStateFile(id).snapshots as Record<string, any>)[0];
+  it("off: the sensor is not asked and the snapshot has no background", () => {
+    lib();
+    writeChat("c1", three(), { autoBackground: { on: false, folderId: "fold_w" } });
+    const mock = mockHost([reply({ present: ["Aria"], background: "tavern_night" })]);
+    update(mock, "c1");
+    expect(mock.requests[0]!.req.messages[0].content).not.toContain("Backgrounds:");
+    expect(snapOf("c1").background).toBeUndefined();
+  });
+  it("on: the folder's images go to the sensor, its pick lands in the snapshot, a name outside the folder is ignored", () => {
+    lib();
+    writeChat("c1", three(), { autoBackground: { on: true, folderId: "fold_w" } });
+    const mock = mockHost([reply({ present: ["Aria"], background: "Tavern_Night" })]);
+    update(mock, "c1");
+    const sent = mock.requests[0]!.req.messages[0].content as string;
+    expect(sent).toContain("- tavern_night: inn, night");
+    expect(sent).toContain("- forest_path");
+    expect(sent).not.toContain("elsewhere");
+    expect(snapOf("c1").background).toBe("tavern_night");
+    expect(P.readBackdrop("elsewhere", P.backdropChoices(mock.host.fs, { autoBackground: { on: true, folderId: "fold_w" } }))).toBeNull();
+  });
+});

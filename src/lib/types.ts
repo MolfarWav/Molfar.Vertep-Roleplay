@@ -255,6 +255,8 @@ export interface Chat {
   pinned?: boolean
   chatTags: string[]
   backgroundId: ID | 'none' | null
+  /** switch the background by scene (Dashboard sensor) among this folder's images; absent = off */
+  autoBackground?: { on: boolean; folderId: ID } | null
   fieldVariantSelection: { desc?: ID; personality?: ID; scenario?: ID }
   /** From the chat list meta: what a chat shows BEFORE its transcript loads.
    *  `messages` is empty until the chat is opened, so lists read these two
@@ -720,6 +722,8 @@ export interface BackgroundItem {
   type: 'image' | 'video'
   folderId: ID | null
   fitting: 'cover' | 'contain' | 'stretch'
+  /** English words the Dashboard sensor matches a scene by (World DM backgrounds); the name is the place */
+  tags?: string[]
 }
 
 // ── Memory / data bank ──

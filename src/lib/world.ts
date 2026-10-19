@@ -71,6 +71,8 @@ export interface WorldView {
   /** cards left in the events deck (their text stays the DM's) */
   deck: number
   origin: WorldOrigin | null
+  /** the world's backgrounds: a folder of the Backgrounds library */
+  backgroundFolderId: string | null
 }
 
 interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; code?: WorldErrorCode; skipped?: string; changes?: number }
@@ -169,7 +171,8 @@ export async function peekWorld(chatId: string): Promise<WorldRecord[]> {
 }
 
 /** All chats: the play model (runs after replies) and the build model (makes worlds); empty = the fallback in `play`/`build`. */
-export interface WorldConfig { model: string; buildModel: string; maxTokens: number; play: WorldModelPick; build: WorldModelPick }
+/** imageModel: the backgrounds' image model ('' = the app's, Settings > Images); autoBackground: new chats in a world switch backgrounds by scene */
+export interface WorldConfig { model: string; buildModel: string; maxTokens: number; imageModel: string; autoBackground: boolean; play: WorldModelPick; build: WorldModelPick }
 
 const chatQuery = (chatId?: string) => (chatId ? `?chatId=${encodeURIComponent(chatId)}` : '')
 
@@ -177,7 +180,7 @@ export async function loadWorldConfig(chatId?: string): Promise<WorldConfig> {
   return j(`/world/config${chatQuery(chatId)}`)
 }
 
-export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number }, chatId?: string): Promise<WorldConfig> {
+export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number; imageModel?: string; autoBackground?: boolean }, chatId?: string): Promise<WorldConfig> {
   return j(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
 }
 
@@ -350,7 +353,7 @@ export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok:
 }
 
 /** A saved world of the library (records, fronts, deck, settings), as the list shows it. */
-export interface SavedWorld { id: string; name: string; description: string; at: number; from: { chatId: string; title: string } | null; level: WorldLevel; records: number; fronts: number; deck: number }
+export interface SavedWorld { id: string; name: string; description: string; at: number; from: { chatId: string; title: string } | null; backgroundFolderId: string | null; level: WorldLevel; records: number; fronts: number; deck: number }
 
 export async function listSavedWorlds(): Promise<SavedWorld[] | null> {
   try {
@@ -398,4 +401,29 @@ export async function loadWorldScenario(chatId: string): Promise<{ scenario: Wor
   const r = await j<{ meta?: { worldScenario?: WorldScenario }; messages?: { role?: string }[] }>(`/chats/${encodeURIComponent(chatId)}`)
   const sc = r.meta?.worldScenario
   return { scenario: sc && typeof sc.text === 'string' && sc.text ? sc : null, started: (r.messages ?? []).some((m) => m.role === 'user') }
+}
+
+// ---------- backgrounds: a set per world, named images, picked by scene ----------
+export type WorldRef = { chatId: string } | { worldId: string }
+export interface WorldPlace { name: string; text: string }
+/** One planned image: the place it shows, its English file name (the background's name), tags and the image prompt */
+export interface PlannedBackground { place: string; file: string; tags: string[]; prompt: string }
+
+/** The world's place records and its folder. */
+export async function loadWorldBackgrounds(ref: WorldRef): Promise<{ places: WorldPlace[]; folderId: string | null }> {
+  const q = 'chatId' in ref ? `chatId=${encodeURIComponent(ref.chatId)}` : `worldId=${encodeURIComponent(ref.worldId)}`
+  return j(`/world/backgrounds?${q}`)
+}
+/** The build model plans the set: file names, tags and prompts (taken = names already in the folder). */
+export async function planWorldBackgrounds(ref: WorldRef, o: { places: (WorldPlace | string)[]; direction?: string; variants?: number; taken?: string[]; lang?: string }): Promise<{ ok: boolean; images?: PlannedBackground[]; imageModel?: string; error?: string; code?: WorldErrorCode }> {
+  return j('/world/backgrounds', { method: 'POST', body: JSON.stringify({ ...ref, ...o }) })
+}
+/** Link the world (a chat's or a saved one) to a folder of the Backgrounds library; null unlinks. */
+export async function linkWorldBackgrounds(ref: WorldRef, folderId: string | null): Promise<void> {
+  await j('/world/backgrounds', { method: 'PUT', body: JSON.stringify({ ...ref, folderId }) })
+  if ('chatId' in ref) void loadWorld(ref.chatId).catch(() => {})
+}
+/** A vision model names one image (no model = the engine's Vision model). */
+export async function nameBackgroundImage(image: { data: string; mimeType: string }, o: { model?: string; hint?: string } = {}): Promise<{ ok: boolean; file?: string; tags?: string[]; error?: string; message?: string; code?: WorldErrorCode }> {
+  return j('/world/backgrounds/name', { method: 'POST', body: JSON.stringify({ image, ...o }) })
 }

@@ -4805,7 +4805,7 @@ const toolX = (r) => ({
       // bubble mid-generation. Nothing changed → no write, no event.
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
-        "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "temporary",
+        "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "autoBackground", "temporary",
         "fieldVariantSelection", "parentChatId", "parentMessageId"];
       // turns: the chat's own turn settings, replaced whole; null or {} = follow the group
       const turns = "turns" in b ? cleanTurns(b.turns) : undefined;

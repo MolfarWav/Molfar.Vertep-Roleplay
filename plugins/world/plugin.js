@@ -47,6 +47,9 @@
  *  POST /world/opening {chatId, worldId?, wish?, lang?}   the build model drafts the chat's scenario and first message
  *  PUT  /world/override {chatId, scenario?: {text, mode: replace|append} | null, opening?}   the chat's own
  *                                     scenario (meta.worldScenario, read by the engine plugin) and first message
+ *  GET|POST|PUT /world/backgrounds {chatId|worldId}   the world's places and folder; POST {places, direction?,
+ *                                     variants?, taken?} plans a set (build model); PUT {folderId|null} links a folder
+ *  POST /world/backgrounds/name {image, model?, hint?}   a vision model names one background: {file, tags}
  *  POST /world/update {chatId, auto?}  a DM run (two-phase); auto = the app's call after a reply,
  *                                      which runs only when a trigger is due; without auto it always runs
  *                                      (except in an explicit scene)
@@ -70,6 +73,7 @@ const CHAT_ID = /^[A-Za-z0-9_-]{1,120}$/;
 // a player's own profile: "p-" and a slug, never a level's name
 const OWN_PROFILE_ID = /^p-[a-z0-9-]{1,40}$/;
 const MODEL_REF = /^[^\s]{1,200}$/;
+const FOLDER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
 export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "chaos"];
 /** The levels that work today (all of them since P2). */
@@ -83,7 +87,9 @@ export const KINDS = ["person", "place", "group", "thing", "fact"];
 
 export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "" };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
-export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500 };
+// imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
+// world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
+export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500, imageModel: "", autoBackground: false };
 
 // what a run reads and writes, kept small for small context windows
 const NEW_TEXT_MAX = 8000;
@@ -135,6 +141,8 @@ function cleanConfig(c) {
     model: MODEL_REF.test(model) ? model : "",
     buildModel: MODEL_REF.test(build) ? build : "",
     maxTokens: Number.isFinite(n) ? clamp(Math.round(n), 500, 8000) : DEFAULT_CONFIG.maxTokens,
+    imageModel: MODEL_REF.test(str(c.imageModel)) ? str(c.imageModel) : "",
+    autoBackground: c.autoBackground === true,
   };
 }
 
@@ -255,6 +263,8 @@ export function normalizeState(raw, chatId) {
   const draft = cleanDraft(s.draft);
   if (draft) out.draft = draft;
   if (isObj(s.origin) && str(s.origin.kind)) out.origin = s.origin;
+  // the world's backgrounds: a folder of the app's Backgrounds library (its id lives in library.json)
+  if (FOLDER_ID.test(str(s.backgroundFolderId))) out.backgroundFolderId = str(s.backgroundFolderId);
   return out;
 }
 
@@ -1673,9 +1683,10 @@ function cleanWorld(raw, id) {
     at: num(raw.at) || Date.now(),
     from: isObj(raw.from) ? { chatId: str(raw.from.chatId), title: cut(str(raw.from.title), 120) } : null,
     settings: s.settings, entities: s.entities.map((e) => ({ ...e, uid: 0 })), fronts: s.fronts, deck: cleanDeck(raw.deck),
+    ...(FOLDER_ID.test(str(raw.backgroundFolderId)) ? { backgroundFolderId: str(raw.backgroundFolderId) } : {}),
   };
 }
-const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length });
+const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, backgroundFolderId: w.backgroundFolderId || null, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length });
 
 export function listWorlds(fsx) {
   let files = [];
@@ -1709,6 +1720,10 @@ function libraryRoute(req, host) {
     if (!w) return ok({ error: "no such world" }, 404);
     if (b.name !== undefined) w.name = cut(str(b.name), NAME_LEN) || w.name;
     if (b.description !== undefined) w.description = cut(str(b.description), DESC_LEN);
+    if (b.backgroundFolderId !== undefined) {
+      if (FOLDER_ID.test(str(b.backgroundFolderId))) w.backgroundFolderId = str(b.backgroundFolderId);
+      else delete w.backgroundFolderId;
+    }
     writeJson(fsx, LIBRARY_DIR + id + ".json", w);
     return ok({ ok: true, worlds: listWorlds(fsx).map(worldRow) });
   }
@@ -1759,9 +1774,16 @@ function carryRoute(req, host) {
   const s = normalizeState(state, toChatId);
   s.deck = state.deck;
   s.origin = { ...origin, at: Date.now() };
+  // the world's backgrounds come along (user, 2026-10-19); switching by scene follows the World default
+  if (FOLDER_ID.test(str(src.backgroundFolderId))) s.backgroundFolderId = str(src.backgroundFolderId);
+  let meta = chat.meta;
+  if (s.backgroundFolderId && !isObj(meta.autoBackground)) {
+    meta = { ...meta, autoBackground: { on: loadConfig(fsx).autoBackground, folderId: s.backgroundFolderId } };
+    writeJson(fsx, "chats/" + toChatId + ".meta.json", meta);
+  }
   if (s.entities.length) {
     writeBook(fsx, s, str(chat.meta.title));
-    bindBook(fsx, toChatId, chat.meta, s.bookId);
+    bindBook(fsx, toChatId, meta, s.bookId);
   }
   saveState(fsx, s);
   const cfg = loadConfig(fsx);
@@ -1856,6 +1878,148 @@ function overrideRoute(req, host) {
   return ok({ ok: true, scenario: meta.worldScenario || null, opening: !!opening });
 }
 
+// ---------- backgrounds (user, 2026-10-19) ----------
+// Pre-generated sets, no live per-scene generation. The build model plans the set (an English file name,
+// tags and an image prompt per place); the app draws each image with its image model, stores it as WebP
+// in the asset store and files it in the world's folder of the Backgrounds library. A vision model names
+// the player's own images the same way. The Dashboard sensor picks among them by scene (its own switch).
+const FILE_NAME = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
+const FILE_MAX = 60;
+const TAGS_MAX = 6;
+const PLACES_MAX = 30;
+const VARIANTS_MAX = 3;
+const PROMPT_MAX = 1200;
+
+export const BACKGROUNDS_SYSTEM = [
+  "You plan background images for the places of a roleplay story. Each image is a wide scene background the story's chat shows behind the text.",
+  "For each place and variant:",
+  "- file: a short English name for the image file, 1 to 4 words in snake_case (a-z, 0-9, _), naming the place: tavern, tavern_kitchen, red_tower. A second variant of a place ends in _2, a third in _3.",
+  "- tags: 2 to 6 English words for kind, time, weather and mood (inn, night, rain, crowded), so a scene can be matched to it.",
+  "- prompt: an English prompt for an image model: the place, its light, time and mood, in the style direction given; a wide establishing view with no people unless the place needs a crowd; no text, no captions. Variants differ in time of day, weather or angle.",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"images":[{"place":"the place\'s name as given","file":"...","tags":["..."],"prompt":"..."}]}',
+].join("\n");
+
+export const NAME_IMAGE_SYSTEM = [
+  "You name a background image of a roleplay story so a scene can be matched to it.",
+  "- file: a short English name, 1 to 4 words in snake_case (a-z, 0-9, _), naming the place shown: tavern, forest_path, throne_room.",
+  "- tags: 2 to 6 English words for kind, time, weather and mood (inn, night, rain, crowded).",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"file":"...","tags":["..."]}',
+].join("\n");
+
+export const cleanFile = (v) => {
+  const f = str(v).toLowerCase().replace(/[\s-]+/g, "_").replace(/[^a-z0-9_]/g, "").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  return FILE_NAME.test(f) ? cut(f, FILE_MAX).replace(/_$/, "") : "";
+};
+export const cleanTags = (v) => [...new Set(arr(v).map((t) => cleanFile(t).replace(/_/g, " ")).filter(Boolean))].slice(0, TAGS_MAX);
+
+/** The planned set: known places only, file names unique (a clash gets _2, _3), up to `variants` per place. */
+export function cleanPlan(out, places, variants, taken = []) {
+  const used = new Set(taken.map((t) => cleanFile(t)).filter(Boolean));
+  const per = new Map();
+  const images = [];
+  for (const raw of arr(isObj(out) ? out.images : null)) {
+    if (!isObj(raw)) continue;
+    const place = places.find((p) => sameName(p.name, str(raw.place))) || (places.length === 1 ? places[0] : null);
+    if (!place) continue;
+    const n = per.get(place.name) || 0;
+    if (n >= variants) continue;
+    const prompt = cut(str(raw.prompt), PROMPT_MAX);
+    let file = cleanFile(raw.file) || cleanFile(place.name) || "place";
+    if (!prompt) continue;
+    for (let i = 2; used.has(file); i++) file = cut(file.replace(/_\d+$/, ""), FILE_MAX - 3) + "_" + i;
+    used.add(file);
+    per.set(place.name, n + 1);
+    images.push({ place: place.name, file, tags: cleanTags(raw.tags), prompt });
+  }
+  return images;
+}
+
+export function backgroundsInput({ places, direction, variants, lang }) {
+  return [
+    "Style direction for the whole set: " + (direction || "painterly, atmospheric, cinematic light") + ".",
+    "Variants per place: " + variants + ".",
+    "Places\n" + places.map((p) => "- " + p.name + (p.text ? ": " + cutMiddle(p.text, 400) : "")).join("\n"),
+    ...(lang ? ["The place names are in " + lang + "; the file names, tags and prompts are always English."] : []),
+  ].join("\n\n");
+}
+
+/** The world's places: its active place records, for the set's list (the player adds their own). */
+function worldPlaces(fsx, b) {
+  const w = WORLD_ID.test(str(b.worldId)) ? cleanWorld(readJson(fsx, LIBRARY_DIR + str(b.worldId) + ".json", null), str(b.worldId)) : CHAT_ID.test(str(b.chatId)) ? loadState(fsx, str(b.chatId)).state : null;
+  return w ? w.entities.filter((e) => e.status === "active" && e.kind === "place").map((e) => ({ name: e.name, text: e.text })) : [];
+}
+
+/**
+ * GET: the world's places and its folder. POST {chatId|worldId, places, direction?, variants?, taken?}: the build
+ * model plans the set (two-phase). PUT {chatId|worldId, folderId|null}: link the world to a folder.
+ */
+function backgroundsRoute(req, host) {
+  const fsx = host.fs;
+  const q = req.method === "GET" || req.method === "DELETE" ? req.query || {} : body(req);
+  const worldId = str(q.worldId);
+  const chatId = str(q.chatId);
+  if (!WORLD_ID.test(worldId) && !CHAT_ID.test(chatId)) return ok({ error: "chatId or worldId required" }, 400);
+  const lib = WORLD_ID.test(worldId);
+  const world = lib ? cleanWorld(readJson(fsx, LIBRARY_DIR + worldId + ".json", null), worldId) : loadState(fsx, chatId).state;
+  if (!world) return ok({ error: "no such world" }, 404);
+  if (req.method === "GET") return ok({ places: worldPlaces(fsx, q), folderId: world.backgroundFolderId || null });
+  if (req.method === "PUT") {
+    const folder = FOLDER_ID.test(str(q.folderId)) ? str(q.folderId) : null;
+    if (folder) world.backgroundFolderId = folder;
+    else delete world.backgroundFolderId;
+    if (lib) writeJson(fsx, LIBRARY_DIR + worldId + ".json", world);
+    else {
+      const { state, existed } = loadState(fsx, chatId);
+      if (!existed && !folder) return ok({ ok: true, folderId: null });
+      if (folder) state.backgroundFolderId = folder;
+      else delete state.backgroundFolderId;
+      saveState(fsx, state);
+    }
+    return ok({ ok: true, folderId: folder });
+  }
+  const places = arr(q.places).map((p) => (isObj(p) ? { name: cut(str(p.name), NAME_MAX), text: cut(str(p.text), TEXT_MAX) } : { name: cut(str(p), NAME_MAX), text: "" }))
+    .filter((p) => p.name).slice(0, PLACES_MAX);
+  if (!places.length) return ok({ error: "no places" }, 400);
+  const variants = clamp(Math.round(num(q.variants)) || 1, 1, VARIANTS_MAX);
+  const cfg = loadConfig(fsx);
+  const meta = CHAT_ID.test(chatId) ? readJson(fsx, "chats/" + chatId + ".meta.json", null) : null;
+  const content = backgroundsInput({ places, direction: cut(str(q.direction), 600), variants, lang: cut(str(q.lang), LANG_MAX) });
+  const built = buildResult(host, "world_backgrounds", buildAsk(host, fsx, cfg, isObj(meta) ? meta : null, BACKGROUNDS_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
+  const images = cleanPlan(built.out, places, variants, arr(q.taken).map(str));
+  if (!images.length) return ok({ ok: false, error: "The build model planned no image for these places.", code: "empty" });
+  return ok({ ok: true, images, imageModel: cfg.imageModel, model: built.run.model, usage: built.usage });
+}
+
+/** A vision model names one background: {image: {data, mimeType}, model?, hint?} -> {file, tags}. */
+function nameImageRoute(req, host) {
+  const b = body(req);
+  const img = isObj(b.image) && str(b.image.data) && /^image\//.test(str(b.image.mimeType)) ? { data: String(b.image.data), mimeType: str(b.image.mimeType) } : null;
+  if (!img) return ok({ error: "image required" }, 400);
+  const r = host.llm.results.world_name;
+  if (!r) {
+    const model = MODEL_REF.test(str(b.model)) ? str(b.model) : "";
+    host.llm.request("world_name", {
+      // no model named: the engine's Vision model (Settings)
+      ...(model ? { model } : {}),
+      systemPrompt: NAME_IMAGE_SYSTEM,
+      messages: [{ role: "user", content: "Name this background." + (str(b.hint) ? " Its current name: " + cut(str(b.hint), 80) + "." : "") }],
+      images: [img],
+      presetParams: { temperature: 0.2, max_tokens: 400 },
+    });
+    return { __llmPending: true };
+  }
+  const limit = limitOf(r);
+  if (r.error || !str(r.text)) return ok({ ok: false, ...classifyError(r, limit) });
+  const out = firstJson(r.text);
+  const file = out ? cleanFile(out.file) : "";
+  if (!file) return ok({ ok: false, code: "not-json", message: "The vision model did not name the image.", details: cut(str(r.text), 600) });
+  return ok({ ok: true, file, tags: cleanTags(out.tags), model: str(r.model) });
+}
+
 // ---------- routes ----------
 function body(req) {
   return isObj(req.body) ? req.body : {};
@@ -1907,6 +2071,7 @@ function stateView(state, msgs, cfg, scene, play) {
     draft: draftView(state.draft || null),
     deck: arr(state.deck).length,
     origin: state.origin || null,
+    backgroundFolderId: state.backgroundFolderId || null,
   };
 }
 
@@ -1979,7 +2144,7 @@ function configRoute(req, host) {
   const b = body(req);
   const cur = loadConfig(host.fs);
   const patch = {};
-  for (const k of ["model", "buildModel", "maxTokens"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["model", "buildModel", "maxTokens", "imageModel", "autoBackground"]) if (b[k] !== undefined) patch[k] = b[k];
   const next = cleanConfig({ ...cur, ...patch });
   const diff = {};
   for (const k of Object.keys(DEFAULT_CONFIG)) if (next[k] !== DEFAULT_CONFIG[k]) diff[k] = next[k];
@@ -2314,5 +2479,7 @@ export function handleRoute(req, host) {
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);
   if (path === "/world/opening" && req.method === "POST") return openingRoute(req, host);
   if (path === "/world/override" && req.method === "PUT") return overrideRoute(req, host);
+  if (path === "/world/backgrounds" && ["GET", "POST", "PUT"].includes(req.method)) return backgroundsRoute(req, host);
+  if (path === "/world/backgrounds/name" && req.method === "POST") return nameImageRoute(req, host);
   return ok({ error: "not found" }, 404);
 }

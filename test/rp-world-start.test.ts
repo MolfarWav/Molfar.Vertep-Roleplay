@@ -309,3 +309,70 @@ describe("world start: the chat's own scenario and first message", () => {
     expect(world("PUT", "/world/override", { chatId: id, opening: "Too late." }).code).toBe("started");
   });
 });
+
+describe("world backgrounds", () => {
+  it("cleans file names and tags, keeps names unique and the variants per place", async () => {
+    const { cleanFile, cleanTags, cleanPlan } = await import("../plugins/world/plugin.js");
+    expect(cleanFile("Red Tower!")).toBe("red_tower");
+    expect(cleanFile("  --tavern--kitchen ")).toBe("tavern_kitchen");
+    expect(cleanFile("Вежа")).toBe("");
+    expect(cleanTags(["Night", "night", "rainy-day", "x", "a", "b", "c", "d"])).toEqual(["night", "rainy day", "x", "a", "b", "c"]);
+    const places = [{ name: "Червона Вежа", text: "" }, { name: "Корчма", text: "" }];
+    const plan = cleanPlan({ images: [
+      { place: "Червона Вежа", file: "red_tower", tags: ["tower"], prompt: "a tower" },
+      { place: "червона вежа", file: "red_tower", prompt: "a tower at night" },
+      { place: "Червона Вежа", file: "red_tower_3", prompt: "too many" },
+      { place: "Nowhere", file: "x", prompt: "unknown place" },
+      { place: "Корчма", file: "tavern", prompt: "" },
+      { place: "Корчма", file: "Tavern", prompt: "an inn" },
+    ] }, places, 2, ["tavern"]);
+    expect(plan.map((i: any) => [i.place, i.file])).toEqual([["Червона Вежа", "red_tower"], ["Червона Вежа", "red_tower_2"], ["Корчма", "tavern_2"]]);
+  });
+
+  it("plans a set with the build model, from the world's places", () => {
+    const id = newChat();
+    fs.mkdirSync(path.join(root, "world", "state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), J({ chatId: id, entities: [
+      { id: "n1", kind: "place", name: "Червона Вежа", aliases: [], text: "A tower up the pass.", status: "active" },
+      { id: "n2", kind: "person", name: "Maksym", aliases: [], text: "The toll keeper.", status: "active" },
+    ] }));
+    expect(world("GET", "/world/backgrounds", undefined, { chatId: id }).places).toEqual([{ name: "Червона Вежа", text: "A tower up the pass." }]);
+    const body = { chatId: id, places: [{ name: "Червона Вежа", text: "A tower." }, "Корчма"], direction: "ink and watercolour", variants: 1, lang: "Ukrainian" };
+    expect(world("POST", "/world/backgrounds", body).__llmPending).toBe(true);
+    const sent = requests[0]!.spec.messages[0].content as string;
+    expect(sent).toContain("Style direction for the whole set: ink and watercolour.");
+    expect(sent).toContain("- Корчма");
+    results.world_backgrounds = { text: J({ images: [{ place: "Червона Вежа", file: "red_tower", tags: ["tower", "dusk"], prompt: "a red tower at dusk" }, { place: "Корчма", file: "tavern", prompt: "a warm inn" }] }) };
+    const out = world("POST", "/world/backgrounds", body);
+    expect(out.ok).toBe(true);
+    expect(out.images.map((i: any) => i.file)).toEqual(["red_tower", "tavern"]);
+  });
+
+  it("links a folder to a chat's world and a saved world, and carry takes it with switching off by default", () => {
+    const id = newChat();
+    fs.mkdirSync(path.join(root, "world", "state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), J({ chatId: id, entities: [{ id: "n1", kind: "place", name: "Tower", aliases: [], text: "A tower.", status: "active" }] }));
+    expect(world("PUT", "/world/backgrounds", { chatId: id, folderId: "fold_w" }).folderId).toBe("fold_w");
+    const saved = world("POST", "/world/library", { chatId: id });
+    expect(saved.worlds[0].backgroundFolderId).toBe("fold_w");
+    const to = newChat();
+    world("POST", "/world/carry", { toChatId: to, worldId: saved.id });
+    expect(readRel("world/state/" + to + ".json").backgroundFolderId).toBe("fold_w");
+    expect(readRel("chats/" + to + ".meta.json").autoBackground).toEqual({ on: false, folderId: "fold_w" });
+    world("PUT", "/world/config", { autoBackground: true });
+    const to2 = newChat();
+    world("POST", "/world/carry", { toChatId: to2, fromChatId: id });
+    expect(readRel("chats/" + to2 + ".meta.json").autoBackground).toEqual({ on: true, folderId: "fold_w" });
+    expect(world("PUT", "/world/backgrounds", { worldId: saved.id, folderId: null }).folderId).toBeNull();
+  });
+
+  it("a vision model names an image", () => {
+    const img = { data: "aGk=", mimeType: "image/webp" };
+    expect(world("POST", "/world/backgrounds/name", { image: img, hint: "IMG_2041" }).__llmPending).toBe(true);
+    expect(requests[0]!.spec.images).toEqual([img]);
+    expect(requests[0]!.spec.model).toBeUndefined();
+    results.world_name = { text: '```json\n{"file":"Forest Path","tags":["forest","day"]}\n```' };
+    expect(world("POST", "/world/backgrounds/name", { image: img })).toMatchObject({ ok: true, file: "forest_path", tags: ["forest", "day"] });
+    expect(world("POST", "/world/backgrounds/name", { image: { data: "x", mimeType: "text/html" } }).error).toBe("image required");
+  });
+});

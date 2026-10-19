@@ -89,6 +89,7 @@ export interface EngineChatMeta {
   pinned?: boolean
   chatTags?: string[]
   backgroundId?: string | 'none' | null
+  autoBackground?: { on: boolean; folderId: string } | null
   temporary?: boolean
   litopysCut?: { count: number; upTo: string | null }
   fieldVariantSelection?: Chat['fieldVariantSelection']
@@ -981,6 +982,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
+    ...(meta.autoBackground && typeof meta.autoBackground === 'object' ? { autoBackground: meta.autoBackground } : {}),
     fieldVariantSelection: meta.fieldVariantSelection ?? {},
     // carried so an unloaded chat still renders a preview and a count; a
     // loaded transcript makes them redundant
@@ -1003,6 +1005,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('pinned' in p) out.pinned = p.pinned === true
   if ('chatTags' in p) out.chatTags = p.chatTags
   if ('backgroundId' in p) out.backgroundId = p.backgroundId
+  if ('autoBackground' in p) out.autoBackground = p.autoBackground ?? null
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection
   if ('turns' in p) out.turns = p.turns && Object.keys(p.turns).length ? p.turns : null
   return out
