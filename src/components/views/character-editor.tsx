@@ -74,6 +74,10 @@ const GROUP_TINT: Record<string, string> = {
   lorebook: 'border-amber-500/30 bg-amber-500/10 data-active:bg-amber-500/25',
   more: 'border-slate-500/30 bg-slate-500/10 data-active:bg-slate-500/25',
 }
+/** Arrow keys move the selection and the focus with it (the tab row is one tab stop, roving). */
+function focusTab(list: HTMLElement, key: string) {
+  requestAnimationFrame(() => list.querySelector<HTMLElement>(`[data-tab="${key}"]`)?.focus())
+}
 /** The look of a tab button: the app's own TabsTrigger look plus a tinted border. */
 const TAB_BUTTON = 'inline-flex items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap text-foreground transition-all hover:brightness-125 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring data-active:shadow-sm'
 /** The readable name of one panel: single panels reuse their group label. */
@@ -358,8 +362,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             data-guide="editor.tabs"
             role="tablist"
             aria-label={t('editor.tabs')}
-            onKeyDown={(e) => { const next = panelStep(ALL_PANELS as unknown as readonly string[], tab, e.key); if (next) { e.preventDefault(); openPanel(next) } }}
-            className={cn(tabsListVariants(), 'h-auto w-full flex-wrap items-center gap-1')}
+            onKeyDown={(e) => { const next = panelStep((ALL_PANELS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))), tab, e.key); if (next) { e.preventDefault(); openPanel(next); focusTab(e.currentTarget, next) } }}
+            // the variant's own h-8 would clip the second row and let the panel overlap it: h-auto has to name the same variant to win
+            className={cn(tabsListVariants(), 'h-auto w-full flex-wrap items-center gap-1 group-data-horizontal/tabs:h-auto')}
           >
             {ALL_PANELS.filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))).map((p) => {
               const Icon = TAB_ICONS[p] ?? UserCircle
@@ -370,6 +375,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                   key={p}
                   type="button"
                   role="tab"
+                  data-tab={p}
+                  tabIndex={on ? 0 : -1}
                   aria-selected={on}
                   data-active={on || undefined}
                   onClick={() => openPanel(p)}
@@ -398,7 +405,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           <div
             role="tablist"
             aria-label={t('editor.tabs')}
-            onKeyDown={(e) => { const next = panelStep(EDITOR_TABS as unknown as readonly string[], tabOfPanel(tab), e.key); if (next) { e.preventDefault(); openPanel(next) } }}
+            onKeyDown={(e) => { const next = panelStep((EDITOR_TABS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))), tabOfPanel(tab), e.key); if (next) { e.preventDefault(); openPanel(next); focusTab(e.currentTarget, next) } }}
             className={cn(tabsListVariants(), 'h-8 w-max max-w-full flex-nowrap items-center gap-1')}
           >
             {EDITOR_TABS.filter((tabName) => !(c.isGroup && (tabName === 'profile' || tabName === 'soul'))).map((tabName) => {
@@ -410,10 +417,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                     key={tabName}
                     type="button"
                     role="tab"
+                    data-tab={tabName}
+                    tabIndex={on ? 0 : -1}
                     aria-selected={on}
                     data-active={on || undefined}
                     onClick={() => openPanel(tabName)}
-                    className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none')}
+                    className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none gap-1 px-1.5')}
                   >
                     <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
                     {t(`editor.tab.${tabName}` as MsgKey)}
@@ -429,10 +438,12 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                     <button
                       type="button"
                       role="tab"
+                      data-tab={tabName}
+                      tabIndex={on ? 0 : -1}
                       aria-selected={on}
                       data-active={on || undefined}
                       aria-haspopup="menu"
-                      className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none')}
+                      className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none gap-1 px-1.5')}
                     >
                       <span className={cn('size-1.5 shrink-0 rounded-full', GROUP_DOT[tabName])} aria-hidden="true" />
                       {t(`editor.tab.${tabName}` as MsgKey)}
