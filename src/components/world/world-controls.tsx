@@ -221,8 +221,8 @@ export function WorldControls({
     const r = await runWorld(chatId, false)
     if (!r) return
     if (r.ok === false) toast.error(r.error || t('world.failed'))
-    else if (r.skipped === 'nothing new') toast(t('world.nothingNew'))
-    else if (r.skipped === 'explicit') toast(t('world.explicitWait'))
+    else if (r.skipped === 'nothing new') toast.info(t('world.nothingNew'))
+    else if (r.skipped === 'explicit') toast.warning(t('world.explicitWait'))
     else toast.success(r.changes ? t('world.changed', { n: r.changes }) : t('world.unchanged'))
   }
 
@@ -240,7 +240,7 @@ export function WorldControls({
     )
     setReading(false)
     if (error) toast.error(t('world.readFailed', { n: runs, message: error }))
-    else if (stopReadRef.current) toast(t('world.readStopped', { n: runs }))
+    else if (stopReadRef.current) toast.info(t('world.readStopped', { n: runs }))
     else toast.success(t('world.readDone', { n: runs }))
     stopReadRef.current = false
   }

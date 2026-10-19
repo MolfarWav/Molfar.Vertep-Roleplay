@@ -190,7 +190,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   const draftUnsaved = !!value && unsavedList.includes(draftKey(chatId))
   const copyDraft = () => {
     void navigator.clipboard?.writeText(value).then(
-      () => toast(t('composer.copied')),
+      () => toast.success(t('composer.copied')),
       () => toast.error(t('composer.copyFailed')),
     )
   }

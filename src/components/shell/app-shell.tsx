@@ -35,8 +35,7 @@ import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
-import { InboxHeading, InboxList, useInbox, useInboxTotal } from '@/components/shell/inbox'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { InboxDrawer, useInbox, useInboxBadge } from '@/components/shell/inbox'
 import { pollNeedsYou } from '@/lib/store'
 
 export function AppShell() {
@@ -90,7 +89,7 @@ export function AppShell() {
   // here means the reload came from the browser, not from the app.
   useEffect(() => {
     const reason = takeReloadReason()
-    if (reason) toast(reason)
+    if (reason) toast.info(reason)
   }, [])
 
   // Mobile keyboards shrink the VISUAL viewport only — dvh keeps the layout
@@ -154,6 +153,7 @@ export function AppShell() {
       </div>
       {view !== 'chat' && !keyboardOpen && <MobileTabBar />}
       <SectionDrawer isDesktop={isDesktop} />
+      <InboxDrawer />
       <NewChatStep />
       {/* Live generation status, below the header line at the right edge:
           clear of the header buttons, the composer, toasts and quick replies. */}
@@ -382,16 +382,15 @@ function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
   )
 }
 
-function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0, popover = false }: {
+function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0, failures = 0 }: {
   badge?: number
-  /** the button opens a popover: it is the popover's trigger */
-  popover?: boolean
+  /** how many of the badge are failures: the badge turns red */
+  failures?: number
   'data-guide': string
   item: Pick<SectionItem, 'icon'>
   wide: boolean
   label: string
   active: boolean
-  /** none for a popover trigger: the popover opens it */
   onClick?: () => void
 }) {
   const t = useT()
@@ -400,7 +399,7 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
       type="button"
       data-guide={guide}
       onClick={onClick}
-      aria-label={badge > 0 ? `${label}, ${t('attn.waiting', { n: badge })}` : label}
+      aria-label={badge > 0 ? `${label}, ${t('attn.waiting', { n: badge })}${failures > 0 ? `, ${t('inbox.failedCount', { n: failures })}` : ''}` : label}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'relative flex w-full shrink-0 items-center border-l-[3px] transition-colors',
@@ -412,17 +411,16 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
     >
       <span className="relative inline-flex shrink-0">
         <item.icon className={cn('shrink-0', wide ? 'size-[19px]' : 'size-5', active && 'text-cta')} aria-hidden="true" />
-        {!wide && <NeedsYouBadge count={badge} dot />}
+        {!wide && <NeedsYouBadge count={badge} dot failed={failures > 0} />}
       </span>
       {wide && <span className="min-w-0 flex-1 text-left">{label}</span>}
-      {wide && <NeedsYouBadge count={badge} />}
+      {wide && <NeedsYouBadge count={badge} failed={failures > 0} />}
     </button>
   )
-  const trigger = popover ? <PopoverTrigger render={button} /> : button
-  if (wide) return trigger
+  if (wide) return button
   return (
     <Tooltip>
-      <TooltipTrigger render={trigger} />
+      <TooltipTrigger render={button} />
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   )
@@ -434,29 +432,23 @@ function SectionRailItem(props: Omit<Parameters<typeof RailItem>[0], 'badge'> & 
   return <RailItem {...props} badge={badge} />
 }
 
-/** The inbox (#55): everything that waits on the player, one button above Help. */
+/** The inbox (#55): everything that waits on the player, one button above Help. It opens the inbox drawer. */
 function InboxRailItem({ wide }: { wide: boolean }) {
   const t = useT()
   const open = useInbox((s) => s.open)
   const setOpen = useInbox((s) => s.setOpen)
-  const total = useInboxTotal()
-  // one open flag serves the popover (desktop) and the sheet (phone): only the one for this screen shows
-  const isDesktop = useIsDesktop()
+  const { total, failures } = useInboxBadge()
+  const closeDrawer = useApp((s) => s.closeDrawer)
   return (
-    <Popover open={open && isDesktop} onOpenChange={setOpen}>
-      <RailItem
-        popover
-        data-guide="nav.inbox"
-        item={{ icon: Tray }}
-        wide={wide}
-        label={t('inbox.button')}
-        badge={total}
-        active={open && isDesktop}
-      />
-      <PopoverContent side="right" align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-4rem))] gap-2 p-3">
-        <InboxHeading />
-        <div className="max-h-[60vh] overflow-y-auto"><InboxList /></div>
-      </PopoverContent>
-    </Popover>
+    <RailItem
+      data-guide="nav.inbox"
+      item={{ icon: Tray }}
+      wide={wide}
+      label={t('inbox.button')}
+      badge={total}
+      failures={failures}
+      active={open}
+      onClick={() => { if (!open) { closeDrawer(); useInbox.getState().setFilter('all') } setOpen(!open) }}
+    />
   )
 }

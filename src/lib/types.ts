@@ -749,7 +749,7 @@ export interface ConnectionProfile {
 // ── Settings ──
 export interface AppSettings {
   /** #55: "needs you" toasts and badges per kind (litopys, soul); a kind is on unless false. */
-  attention?: Partial<Record<'litopys' | 'soul', boolean>>
+  attention?: Partial<Record<'litopys' | 'soul' | 'failed', boolean>>
   /** 0.9.2: the old connection profiles were moved into the engine's quick switch once. */
   profilesMovedToFavorites?: boolean
   /** 0.9.2: the active preset's samplers were moved into the current model once (model-params.ts). */

@@ -210,6 +210,18 @@ export const TIPS: Tip[] = [
       uk: 'Меню чату → «Майстер світу»: оберіть рівень. «Літописець» записує людей і місця історії у власний лорбук чату; від «Живого світу» світ рухається, а події потрапляють у наступну відповідь. Типово вимкнений.',
     },
   },
+  // ── What's new: failures reach the inbox
+  {
+    id: 'new.inbox-failures',
+    since: '4.53.0',
+    target: 'nav.inbox',
+    open: { view: 'home' },
+    title: { en: 'A failed background job tells you', uk: 'Збій у фоні тепер видно' },
+    body: {
+      en: 'When the World DM, the Library, the scene state or a soul rating fails, a red notice says where, and the Inbox count turns red. The Inbox is now a drawer with filters; Dismiss clears a failure.',
+      uk: 'Коли майстер світу, Бібліотека, стан сцени чи оцінка душ не вдається, червоне сповіщення каже де, а цифра на «Вхідних» червоніє. Вхідні тепер висувна панель із фільтрами; «Закрити» прибирає збій.',
+    },
+  },
   // ── What's new: the inbox
   {
     id: 'new.inbox',

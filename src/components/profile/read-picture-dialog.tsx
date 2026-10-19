@@ -59,7 +59,7 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
     const fields = replace
       ? { appearance: APPEARANCE.map(([k]) => k).filter((k) => !skip.has(k)) }
       : emptyFields(profile, 'appearance')
-    if (!Object.keys(fields).length) { toast('Nothing is empty here.'); return }
+    if (!Object.keys(fields).length) { toast.info('Nothing is empty here.'); return }
     let image = picked?.image
     if (!image && portrait) {
       const img = await readImage(portrait)

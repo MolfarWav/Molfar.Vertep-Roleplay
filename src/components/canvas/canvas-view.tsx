@@ -235,7 +235,7 @@ export function CanvasView() {
       } catch (e) {
         setGraph(prev)
         setHistory(historyOf(prev))
-        toast(t('canvas.saveFailed'))
+        toast.error(t('canvas.saveFailed'))
       }
     },
     [t, writeLinks]
@@ -318,7 +318,7 @@ export function CanvasView() {
     setHistory(next)
     setGraph(next.present)
     writeLinks(history.present, next.present).catch(() => {
-      toast(t('canvas.saveFailed'))
+      toast.error(t('canvas.saveFailed'))
     })
   }, [history, t, writeLinks])
 
@@ -330,7 +330,7 @@ export function CanvasView() {
     setHistory(next)
     setGraph(next.present)
     writeLinks(history.present, next.present).catch(() => {
-      toast(t('canvas.saveFailed'))
+      toast.error(t('canvas.saveFailed'))
     })
   }, [history, t, writeLinks])
 
@@ -458,7 +458,7 @@ export function CanvasView() {
           setGraph(g)
           setHistory(historyOf(g))
         })
-        .catch(() => toast(t('canvas.saveFailed')))
+        .catch(() => toast.error(t('canvas.saveFailed')))
     },
     [fullGraph, writeLinks, allChats, onBoard, positions, t]
   )

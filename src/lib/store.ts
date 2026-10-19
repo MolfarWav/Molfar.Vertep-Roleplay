@@ -44,7 +44,7 @@ import { buildImagePrompt, generateImage, modelHints, postPicture, type Generate
 import { triggerDashUpdate } from './dash-live'
 import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
-import { attentionOn, pollAttention, setSoulWaiting, soulWaitingOf } from './attention'
+import { attentionOn, claimFailure, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
@@ -410,15 +410,58 @@ async function noticeInsertTrim(chatId: ID, lang: Lang) {
     // no dashboard plugin in this app: nothing to say
   }
 }
-/** One round of the "needs you" source (lib/attention.ts) with the app's language and switch. */
-export function pollNeedsYou() {
+/** Where a failure is fixed: the World section, the Library, the chat (dashboard), the card's Soul tab. */
+function openFailure(f: FailedItem) {
+  const app = useApp.getState()
+  if (f.worker === 'world') app.focusWorldChat(f.ref)
+  else if (f.worker === 'litopys') app.focusLibraryChat(f.ref)
+  else if (f.worker === 'soul') app.openCharacterOnTab(f.ref, 'soul')
+  else {
+    app.openChat(f.ref)
+    app.openDashboard()
+  }
+}
+/** Is the player already looking at the place where this failure is fixed? */
+function isLookingAt(f: FailedItem): boolean {
+  const { view, drawer, activeCharacterId } = useApp.getState()
+  const shown = (key: string) => view === key || drawer === key
+  if (f.worker === 'world') return shown('world') && lookingAt('world') === f.ref
+  if (f.worker === 'litopys') return shown('litopys') && lookingAt('litopys') === f.ref
+  if (f.worker === 'soul') return view === 'characters' && activeCharacterId === f.ref
+  return false
+}
+function failureName(f: FailedItem): string {
   const st = useApp.getState()
-  void pollSoulWaiting(attentionOn(st.settings.attention, 'soul'))
-  return pollAttention({
+  if (f.worker === 'soul') return st.characters.find((c) => c.id === f.ref)?.name ?? ''
+  const chat = st.chats.find((c) => c.id === f.ref)
+  return chat?.title || f.title || st.characters.find((c) => c.id === chat?.characterId)?.name || ''
+}
+/** The deps of the attention poll, from the app's current settings. */
+function attentionDeps(): AttentionDeps {
+  const st = useApp.getState()
+  return {
     lang: resolveLanguage(st.settings.language),
     on: attentionOn(st.settings.attention, 'litopys'),
+    failedOn: attentionOn(st.settings.attention, 'failed'),
     openLibrary: (chatId) => useApp.getState().focusLibraryChat(chatId),
-  })
+    openFailure,
+    openInbox: () => { useInbox.getState().setFilter('failed'); useInbox.getState().setOpen(true) },
+    nameOf: failureName,
+    isLooking: isLookingAt,
+  }
+}
+/** The dashboard of the open chat has a sensor error (or has none again). */
+export function reportDashFailure(chatId: ID, err: { at: number; message: string } | null) {
+  const title = useApp.getState().chats.find((c) => c.id === chatId)?.title ?? ''
+  const on = attentionOn(useApp.getState().settings.attention, 'failed')
+  setDashFailure(chatId, title, on ? err : null, on ? attentionDeps() : undefined)
+}
+/** One round of the "needs you" source (lib/attention.ts) with the app's language and switch. */
+export async function pollNeedsYou() {
+  const st = useApp.getState()
+  // the soul list first: the failure toast of the round then covers it too, and lands in front of the Library's
+  await pollSoulWaiting(attentionOn(st.settings.attention, 'soul') || attentionOn(st.settings.attention, 'failed'))
+  return pollAttention(attentionDeps())
 }
 /** Cards with souls proposed, for the inbox. A missing dashboard plugin means an empty list, silently. */
 async function pollSoulWaiting(on: boolean) {
@@ -457,6 +500,8 @@ export async function checkSoulProposals(chatId: ID) {
       try { localStorage.setItem(key, String(at)) } catch { /* storage unavailable */ }
       const card = st.characters.find((c) => c.id === cardId)?.name ?? ''
       if (failed) {
+        // the inbox poll may have said it already
+        if (!claimFailure(`soul:${cardId}:${at}`)) continue
         const raw = String(draft.error).replace(/\s+/g, ' ').slice(0, 120)
         // the model's answer was not readable JSON: say that in plain words, not the parser's
         const reason = /not JSON/i.test(raw) ? t('soul.reasonUnreadable', lang) : raw

@@ -66,7 +66,7 @@ function RunRow({ run, shown }: { run: WorldRun; shown: boolean }) {
 
         {run.usage && run.usage.cost > 0 && <span>{formatMoney(run.usage.cost)}</span>}
 
-        <span>{formatSeconds(run.ms)} s</span>
+        {run.ms > 0 && <span>{formatSeconds(run.ms)} s</span>}
       </div>
 
       <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -95,6 +95,8 @@ export function WorldRuns({ chatId }: { chatId: string }) {
 
   const reqRef = useRef(0)
   const lastRunAt = useWorldLive((s) => s.views[chatId]?.lastRunAt)
+  // a failed run does not move lastRunAt: its error time does
+  const lastErrorAt = useWorldLive((s) => s.views[chatId]?.lastError?.at)
 
   useEffect(() => {
     let live = true
@@ -122,7 +124,7 @@ export function WorldRuns({ chatId }: { chatId: string }) {
     return () => {
       live = false
     }
-  }, [chatId, lastRunAt])
+  }, [chatId, lastRunAt, lastErrorAt])
 
   const askShow = async () => {
     const yes = await confirm({

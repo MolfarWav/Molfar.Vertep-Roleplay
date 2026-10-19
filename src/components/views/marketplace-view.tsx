@@ -653,7 +653,7 @@ export function MarketplaceView() {
   const getOnJanny = () => {
     if (jannyHintShown) return
     jannyHintShown = true
-    toast('Download the card there, then drop the PNG here.')
+    toast.info('Download the card there, then drop the PNG here.')
   }
 
   /** Install a card. Chub goes through the proven URL-import path — the engine

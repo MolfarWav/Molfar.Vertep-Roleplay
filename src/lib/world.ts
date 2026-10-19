@@ -137,6 +137,8 @@ export interface WorldChat {
   level: WorldLevel
   lastRunAt: number | null
   error: WorldErrorCode | null
+  /** when that error happened (epoch ms); null when there is none */
+  errorAt?: number | null
   records: number
   fronts: number
   usage: WorldUsage & { runs: number }

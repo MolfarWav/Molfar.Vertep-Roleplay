@@ -12,15 +12,17 @@ export function useChatAttention(chatId: string): number {
   return useAttention((s) => s.litopys[chatId] ?? 0)
 }
 
-/** A small count pill; `dot` sits on the corner of an icon, otherwise it flows inline. */
-export function NeedsYouBadge({ count, dot, className }: { count: number; dot?: boolean; className?: string }) {
+/** A small count pill; `dot` sits on the corner of an icon, otherwise it flows inline. `failed`: red, something failed in the background. */
+export function NeedsYouBadge({ count, dot, failed, className }: { count: number; dot?: boolean; failed?: boolean; className?: string }) {
   if (count <= 0) return null
   return (
     <span
       aria-hidden="true"
       data-testid="needs-you-badge"
+      data-failed={failed ? 'true' : undefined}
       className={cn(
-        'inline-flex min-w-[18px] items-center justify-center rounded-full bg-cta px-1 text-[11px] font-semibold leading-[18px] text-cta-foreground',
+        'inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-semibold leading-[18px]',
+        failed ? 'bg-destructive text-destructive-foreground' : 'bg-cta text-cta-foreground',
         dot && 'pointer-events-none absolute -top-1.5 -right-2 ring-2 ring-card',
         className,
       )}

@@ -10,7 +10,8 @@ import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { setLitCounts } from '@/lib/attention'
+import { setLitCounts, setLooking } from '@/lib/attention'
+import { useIsDesktop } from '@/hooks/use-mobile'
 import { NeedsYouBadge } from '@/components/shell/needs-you-badge'
 import { distinctName, fetchLitChats, type LitChat, type LitChatItem } from './litopys-api'
 import { LedgerChat } from './ledger'
@@ -118,6 +119,11 @@ export function LitopysView() {
   }, [focusChat])
   useGuidePlace('litopys', !!items && items.length > 0)
   const current = items?.find((x) => x.id === selectedId)
+  const isDesktop = useIsDesktop()
+  useEffect(() => {
+    setLooking('litopys', selectedId && (isDesktop || detailOpen) ? selectedId : null)
+    return () => setLooking('litopys', null)
+  }, [selectedId, detailOpen, isDesktop])
 
   return (
     <SectionPage section="litopys" count={withData} hideOnPhone={detailOpen && !!selectedId}>

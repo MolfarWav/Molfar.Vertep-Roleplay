@@ -11,7 +11,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useT } from '@/hooks/use-t'
 import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
-import { useApp } from '@/lib/store'
+import { reportDashFailure, useApp } from '@/lib/store'
 import { PortraitDialog } from '@/components/library/portrait-dialog'
 import { DashCtx, useDashMaybe } from './dash-context'
 import { DashEmpty } from './dash-empty'
@@ -25,6 +25,13 @@ export { useDashMaybe }
 
 export function DashProvider({ chatId, children }: { chatId: string; children: ReactNode }) {
   const dash = useDashboard(chatId)
+  // the sensor's last error goes to the inbox and, once, to a toast (lib/attention.ts)
+  const errAt = dash.data?.lastError?.at ?? null
+  const errMsg = dash.data?.lastError?.message ?? ''
+  useEffect(() => {
+    reportDashFailure(chatId, errAt ? { at: errAt, message: errMsg } : null)
+    return () => reportDashFailure(chatId, null)
+  }, [chatId, errAt, errMsg])
   return <DashCtx.Provider value={dash}>{children}</DashCtx.Provider>
 }
 

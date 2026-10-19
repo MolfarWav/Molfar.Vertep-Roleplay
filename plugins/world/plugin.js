@@ -1141,6 +1141,7 @@ function chatsRoute(req, host) {
       level: state.settings.level,
       lastRunAt: state.lastRunAt ?? null,
       error: state.lastError ? state.lastError.code : null,
+      errorAt: state.lastError ? state.lastError.at : null,
       records: state.entities.filter((e) => e.status === "active").length,
       fronts: state.fronts.filter((x) => x.status === "active").length,
       usage: state.usage || { input: 0, output: 0, cost: 0, runs: 0 },

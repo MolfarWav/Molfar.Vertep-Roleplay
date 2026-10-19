@@ -501,6 +501,12 @@ describe("P3: the World section's routes", () => {
     m.files["world/state/c2.json"] = JSON.stringify({ settings: { level: "off" } });
     const list = route(m.host, "GET", "/world/chats").json.chats;
     expect(list.map((c: any) => [c.chatId, c.title, c.level, c.cards])).toEqual([["c1", "The Pass", "living", ["Odarka"]]]);
+    expect(list[0].errorAt).toBe(null);
+    const st = JSON.parse(m.files["world/state/c1.json"]);
+    st.lastError = { at: 1234, code: "rate", message: "Rate limited" };
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    const failed = route(m.host, "GET", "/world/chats").json.chats[0];
+    expect([failed.error, failed.errorAt]).toEqual(["rate", 1234]);
   });
   it("tests the play model: works, or the plain reason", () => {
     const m = memHost(seed());

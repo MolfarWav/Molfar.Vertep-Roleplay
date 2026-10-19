@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check } from '@phosphor-icons/react'
+import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -210,6 +211,10 @@ export function WorldSettingsDialog({
                   )}
                 </div>
               )}
+            </section>
+
+            <section>
+              <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
             </section>
           </div>
         )}

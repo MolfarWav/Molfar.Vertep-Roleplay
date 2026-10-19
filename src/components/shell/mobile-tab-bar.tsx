@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import { SECTIONS } from '@/components/shell/sections'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
-import { InboxSheet, useInbox, useInboxTotal } from '@/components/shell/inbox'
+import { useInbox, useInboxBadge } from '@/components/shell/inbox'
 
 const PRIMARY = new Set(['home', 'chats', 'characters'])
 const primaryTabs = SECTIONS.filter((s) => PRIMARY.has(s.key))
@@ -21,7 +21,7 @@ export function MobileTabBar() {
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = moreItems.some((i) => i.key === view)
   // #55: the inbox and the Library sit under More on phones, so More carries the total
-  const waiting = useInboxTotal()
+  const { total: waiting, failures } = useInboxBadge()
   const setInboxOpen = useInbox((s) => s.setOpen)
 
   return (
@@ -61,7 +61,7 @@ export function MobileTabBar() {
         >
           <span className="relative inline-flex">
             <List className={cn('size-5', moreActive && 'text-cta')} aria-hidden="true" />
-            <NeedsYouBadge count={waiting} dot />
+            <NeedsYouBadge count={waiting} dot failed={failures > 0} />
           </span>
           {t('nav.more')}
         </button>
@@ -76,12 +76,12 @@ export function MobileTabBar() {
             <button
               type="button"
               data-guide="nav.inbox"
-              onClick={() => { setMoreOpen(false); setInboxOpen(true) }}
+              onClick={() => { setMoreOpen(false); useInbox.getState().setFilter('all'); setInboxOpen(true) }}
               className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border px-3 font-heading text-[15px] text-foreground hover:bg-accent"
             >
               <Tray className="size-5 text-cta" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-left">{t('inbox.button')}</span>
-              <NeedsYouBadge count={waiting} />
+              <NeedsYouBadge count={waiting} failed={failures > 0} />
             </button>
           </div>
           <div className="grid grid-cols-4 gap-2 px-4 pb-2">
@@ -117,7 +117,6 @@ export function MobileTabBar() {
           </div>
         </SheetContent>
       </Sheet>
-      <InboxSheet />
     </>
   )
 }

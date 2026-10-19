@@ -3,7 +3,7 @@
  * says, the seen list that keeps a proposal from being toasted twice, and the switch.
  */
 import { describe, expect, it } from 'bun:test'
-import { attentionOn, inboxRows, litCounts, soulWaitingOf, takeNew, toastPlan, totalOf, waitingOf } from '../src/lib/attention-core'
+import { attentionOn, failKey, failReason, inboxRows, litCounts, litopysFailures, soulWaitingOf, takeNew, takeNewFailures, toastPlan, totalOf, waitingOf, worldFailures } from '../src/lib/attention-core'
 import type { LitFact, LitProposal } from '../src/components/library/litopys-api'
 
 const fact = (id: string, text: string) => ({ id, text } as LitFact)
@@ -86,27 +86,59 @@ describe('needs you: the inbox', () => {
     cardName: (id: string) => ({ k1: 'Vivian', k2: 'Ola' })[id] ?? '',
   }
 
-  it('lists Library chats (most waiting first), then cards (newest first), and totals them', () => {
-    const { rows, total } = inboxRows(base)
-    expect(rows.map((r) => r.key)).toEqual(['lit:c2', 'lit:c1', 'soul:k2', 'soul:k1'])
-    expect(rows[0]).toMatchObject({ kind: 'litopys', name: 'Group Night', count: 3 })
-    expect(rows[2]).toMatchObject({ kind: 'soul', name: 'Ola', failed: true })
-    // 4 proposals + 2 cards
+  it('lists failures first, then Library chats (most waiting first), then cards, and totals them', () => {
+    const { rows, total, failures } = inboxRows(base)
+    expect(rows.map((r) => r.key)).toEqual([`failed:soul:k2:9`, 'lit:c2', 'lit:c1', 'soul:k1'])
+    expect(rows[0]).toMatchObject({ kind: 'failed', name: 'Ola' })
+    expect(rows[1]).toMatchObject({ kind: 'litopys', name: 'Group Night', count: 3 })
+    // 4 proposals + 1 card + 1 failure
     expect(total).toBe(6)
+    expect(failures).toBe(1)
   })
 
   it('a kind switched off is neither listed nor counted', () => {
     const noLib = inboxRows({ ...base, settings: { litopys: false } })
-    expect(noLib.rows.map((r) => r.kind)).toEqual(['soul', 'soul'])
+    expect(noLib.rows.map((r) => r.kind)).toEqual(['failed', 'soul'])
     expect(noLib.total).toBe(2)
     const noSoul = inboxRows({ ...base, settings: { soul: false } })
-    expect(noSoul.rows.map((r) => r.kind)).toEqual(['litopys', 'litopys'])
-    expect(noSoul.total).toBe(4)
-    expect(inboxRows({ ...base, settings: { litopys: false, soul: false } })).toEqual({ rows: [], total: 0 })
+    expect(noSoul.rows.map((r) => r.kind)).toEqual(['failed', 'litopys', 'litopys'])
+    expect(noSoul.total).toBe(5)
+    const noFail = inboxRows({ ...base, settings: { failed: false } })
+    expect(noFail.rows.map((r) => r.kind)).toEqual(['litopys', 'litopys', 'soul'])
+    expect(noFail.failures).toBe(0)
+    expect(inboxRows({ ...base, settings: { litopys: false, soul: false, failed: false } })).toEqual({ rows: [], total: 0, failures: 0 })
+  })
+
+  it('failures from every source are listed newest first; a dismissed one is gone', () => {
+    const failed = [
+      ...worldFailures([{ chatId: 'w1', title: 'Harbour', error: 'rate', errorAt: 100 }, { chatId: 'w2', title: 'Fine', error: null }]),
+      ...litopysFailures([{ id: 'c1', title: 'Chat one', name: 'Vivian', worker: { ok: false, error: 'HTTP 500', lastRunAt: 300 } }, { id: 'c2', title: 'ok', name: '', worker: { ok: true, lastRunAt: 1 } }]),
+    ]
+    const r = inboxRows({ ...base, soul: [], litopys: {}, failed })
+    expect(r.rows.map((x) => x.key)).toEqual(['failed:litopys:c1:300', 'failed:world:w1:100'])
+    expect(r.rows[1]).toMatchObject({ name: 'Harbour', reason: 'The provider is busy (rate limit). Try again in a minute.' })
+    expect(inboxRows({ ...base, soul: [], litopys: {}, failed, dismissed: new Set([failKey(failed[0]!)]) }).total).toBe(1)
+  })
+
+  it('says a failure in plain words', () => {
+    const w = worldFailures([{ chatId: 'w', title: 't', error: 'auth', errorAt: 1 }])[0]!
+    expect(failReason(w, 'en')).toMatch(/refused the key/)
+    expect(failReason({ ...w, code: 'weird', message: 'boom' }, 'en')).toBe('boom')
+    expect(failReason({ worker: 'litopys', ref: 'c', title: '', code: '', message: '  a\n b ', at: 1 }, 'en')).toBe('a b')
+  })
+
+  it('toasts a failure once: a new `at` is a new failure, a dismissed one stays quiet', () => {
+    const seen = new Set<string>()
+    const f = worldFailures([{ chatId: 'w1', title: 'x', error: 'rate', errorAt: 5 }])
+    expect(takeNewFailures(f, seen, new Set())).toHaveLength(1)
+    expect(takeNewFailures(f, seen, new Set())).toHaveLength(0)
+    const again = worldFailures([{ chatId: 'w1', title: 'x', error: 'rate', errorAt: 6 }])
+    expect(takeNewFailures(again, seen, new Set([failKey(again[0]!)]))).toHaveLength(0)
+    expect(takeNewFailures(again, new Set(), new Set())).toHaveLength(1)
   })
 
   it('is empty when nothing waits', () => {
-    expect(inboxRows({ ...base, litopys: {}, soul: [] })).toEqual({ rows: [], total: 0 })
+    expect(inboxRows({ ...base, litopys: {}, soul: [] })).toEqual({ rows: [], total: 0, failures: 0 })
   })
 
   it('reads the soul-drafts body tolerantly: junk and empty drafts are dropped, newest first', () => {

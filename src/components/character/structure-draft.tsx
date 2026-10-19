@@ -107,7 +107,7 @@ export function toBase64(bytes: Uint8Array): string {
 export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avatar: string | undefined, vision: VisionModel) {
   const run = async (section?: SectionKey) => {
     const fields = emptyFields(profile ?? {}, section)
-    if (!Object.keys(fields).length) { toast('Nothing is empty here.'); return }
+    if (!Object.keys(fields).length) { toast.info('Nothing is empty here.'); return }
     let image: Image | undefined
     let model: string | undefined
     let textOnly = false
@@ -120,7 +120,7 @@ export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avat
       } else textOnly = true
     }
     const ok = await d.runFill(fields, image, model)
-    if (ok && textOnly) toast('No portrait could be read: the proposal comes from the text only.')
+    if (ok && textOnly) toast.warning('No portrait could be read: the proposal comes from the text only.')
   }
   return { busy: d.busy === 'fill', run: (section?: SectionKey) => { void run(section) } }
 }

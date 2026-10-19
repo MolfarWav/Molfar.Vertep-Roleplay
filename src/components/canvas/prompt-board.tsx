@@ -335,7 +335,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
       setPast([])
       setFuture([])
     } catch {
-      if (counter === requestCounter.current) toast(tRef.current('canvas.loadFailed'))
+      if (counter === requestCounter.current) toast.error(tRef.current('canvas.loadFailed'))
     } finally {
       if (counter === requestCounter.current && activeChatRef.current === id) setPreviewLoading(false)
     }
@@ -398,7 +398,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
         if (activeChatRef.current !== targetId) return
         setBoardState(prev)
         setSaveState('saved')
-        toast(t('canvas.saveFailed'))
+        toast.error(t('canvas.saveFailed'))
       }
     }, 300)
   }, [t, refreshPreview])

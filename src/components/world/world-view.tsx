@@ -8,6 +8,8 @@ import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/lib/store'
+import { setLooking } from '@/lib/attention'
+import { useIsDesktop } from '@/hooks/use-mobile'
 import { listWorldChats, useWorldLive, type WorldChat } from '@/lib/world'
 import { formatK, LevelChip } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
@@ -169,6 +171,12 @@ export function WorldView() {
   const [tick, setTick] = useState(0)
   const focusChat = useApp((s) => s.focusWorldChatId)
   const liveViews = useWorldLive((s) => s.views)
+  // tell the failure toast which chat is on screen (no toast about a chat you are looking at)
+  const isDesktop = useIsDesktop()
+  useEffect(() => {
+    setLooking('world', selectedId && (isDesktop || detailOpen) ? selectedId : null)
+    return () => setLooking('world', null)
+  }, [selectedId, detailOpen, isDesktop])
 
   const current = Array.isArray(items) ? items.find((c) => c.chatId === selectedId) : undefined
   const count = Array.isArray(items) ? items.length : undefined

@@ -80,6 +80,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           <Switch id="lit-insert" checked={cfg.insert} onCheckedChange={(v) => save({ insert: v })} />
         </Field>
         <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
+        <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
         <Field>
           <FieldLabel htmlFor="lit-budget">{t('lit.set.budget')}</FieldLabel>
           <Input
