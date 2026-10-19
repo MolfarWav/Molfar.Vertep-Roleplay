@@ -2,6 +2,14 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.55.0
+
+A world can be built before any chat, and the Characters page gets one header bar. Needs no engine update.
+
+- New world (World → Worlds): a name, a DM profile, then the cards to read (any characters, with a search) or an interview. The build runs step by step as a chat's Start does; the world shows under "Being built" until you accept the draft into the library or discard it. Leaving the page pauses the build, and Continue picks it up. "New chat in this world" then starts a chat with any character.
+- Characters page: one bar with Characters/Groups, search, sort, view, Import and New (Character or Group). Tiles drop the description and the creator; chats (hidden at 0) and tokens are larger and coloured, with icons for a lorebook and for sprites. Tags take two rows at most; "All tags (N)" lists the rest with search and sort by count or name.
+- A chat's Start tab: Accept is off while the draft has nothing in it, and the Show box waits until the build ends.
+
 ## 4.54.0
 
 The World DM grows up: profiles, a world built from the cards before the first message, saved worlds, and backgrounds drawn for a world (#52, #61). Plus two of Molfar's fixes from the workspace: the Dashboard re-reads after an earlier message changes (#48), and the card editor in five groups (#63). Needs no engine update.
