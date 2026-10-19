@@ -1083,6 +1083,264 @@ function bindBook(fsx, chatId, meta, bookId) {
 }
 
 // ---------- routes ----------
+// ---------- start: building a world (P3 stage 3) ----------
+// The DM learns the world from the chat's cards and their books (user, 2026-10-18: it learns from
+// card lore, never copies it). The text is cut into chunks a small context window can read; each chunk
+// is one call that returns the same "add" list as a run, merged by name. Recipes say what to look for;
+// built-ins live in code, a file world/recipes/<id>.json of the same id replaces one, other ids add one.
+const RECIPE_DIR = "world/recipes/";
+const RECIPE_ID = /^[a-z0-9][a-z0-9-]{0,40}$/;
+const CHUNK_MAX = 6000;
+const SOURCE_MAX = 60000;
+const QUESTIONS_MAX = 8;
+const SECTIONS_MAX = 6;
+const ANSWER_MAX = 400;
+
+const BUILTIN_RECIPES = [
+  {
+    id: "from-cards",
+    name: "From the cards",
+    description: "Reads the cards and their books and records the world they describe.",
+    questions: [],
+    sections: [{ id: "world", kinds: KINDS, max: 8, prompt: "Record the people, places, groups, things and facts of the world these texts describe, beyond the characters themselves." }],
+    fronts: { count: 2, prompt: "Name the powers that want something in this world and could move off screen." },
+  },
+  {
+    id: "interview",
+    name: "Interview",
+    description: "A few questions about the story you want; the DM builds a world around the cards from your answers.",
+    questions: [
+      { id: "genre", text: "Genre", options: ["fantasy", "dark fantasy", "historical", "modern", "science fiction", "horror", "slice of life"] },
+      { id: "conflict", text: "What is at stake", options: ["survival", "power", "love", "a secret", "revenge", "a journey"] },
+      { id: "tone", text: "Tone", options: ["light", "warm", "tense", "grim", "absurd"] },
+      { id: "scale", text: "Scale", options: ["one house", "a village", "a city", "a country", "a whole world"] },
+      { id: "extra", text: "Anything else the world must have" },
+    ],
+    sections: [
+      { id: "places", kinds: ["place"], max: 5, prompt: "Invent the places of this world that the story will need, fitting the answers and the cards." },
+      { id: "people", kinds: ["person", "group"], max: 6, prompt: "Invent the people and groups who live in this world and matter to the characters, fitting the answers and the cards." },
+      { id: "facts", kinds: ["thing", "fact"], max: 5, prompt: "Invent the things and facts of this world (customs, dangers, history) the story can lean on." },
+    ],
+    fronts: { count: 3, prompt: "Invent the powers that want something in this world and will move off screen." },
+  },
+];
+
+function cleanRecipe(raw, id) {
+  if (!isObj(raw)) return null;
+  const questions = arr(raw.questions).filter(isObj).slice(0, QUESTIONS_MAX).map((q, i) => ({
+    id: RECIPE_ID.test(str(q.id)) ? str(q.id) : "q" + (i + 1),
+    text: cut(str(q.text), 200),
+    ...(arr(q.options).length ? { options: arr(q.options).map(str).filter(Boolean).slice(0, 12).map((o) => cut(o, 80)) } : {}),
+    ...(str(q.default) ? { default: cut(str(q.default), ANSWER_MAX) } : {}),
+  })).filter((q) => q.text);
+  const sections = arr(raw.sections).filter(isObj).slice(0, SECTIONS_MAX).map((s, i) => ({
+    id: RECIPE_ID.test(str(s.id)) ? str(s.id) : "s" + (i + 1),
+    kinds: arr(s.kinds).filter((k) => KINDS.includes(k)).length ? arr(s.kinds).filter((k) => KINDS.includes(k)) : KINDS,
+    max: clamp(Math.round(num(s.max)) || CHANGES_MAX, 1, CHANGES_MAX),
+    prompt: cut(str(s.prompt), 1000),
+  })).filter((s) => s.prompt);
+  if (!sections.length) return null;
+  const f = isObj(raw.fronts) ? raw.fronts : {};
+  return {
+    id, name: cut(str(raw.name), NAME_LEN) || id, description: cut(str(raw.description), DESC_LEN), questions, sections,
+    fronts: { count: clamp(Math.round(num(f.count)), 0, FRONTS_MAX), prompt: cut(str(f.prompt), 1000) },
+  };
+}
+
+/** Every recipe: the built-ins (a file of the same id replaces one), then the player's own files. */
+export function listRecipes(fsx) {
+  const out = BUILTIN_RECIPES.map((r) => ({ ...cleanRecipe(readJson(fsx, RECIPE_DIR + r.id + ".json", null), r.id) || r, builtin: true }));
+  let files = [];
+  try {
+    files = fsx.list(RECIPE_DIR.slice(0, -1)).filter((f) => f.endsWith(".json"));
+  } catch {}
+  for (const f of files.sort()) {
+    const id = f.slice(0, -5);
+    if (!RECIPE_ID.test(id) || out.some((r) => r.id === id)) continue;
+    const r = cleanRecipe(readJson(fsx, RECIPE_DIR + f, null), id);
+    if (r) out.push({ ...r, builtin: false });
+  }
+  return out;
+}
+
+export const recipeOf = (fsx, id) => listRecipes(fsx).find((r) => r.id === id) || null;
+
+const cardOf = (fsx, id) => {
+  const c = readJson(fsx, "characters/" + id + "/card.json", null);
+  return isObj(c) ? (isObj(c.data) && !str(c.name) ? { ...c.data, studio: c.studio } : c) : null;
+};
+
+/** The ids of a card's or a group's books: embedded first, then linked. */
+function booksOf(holder) {
+  const s = isObj(holder && holder.studio) ? holder.studio : holder || {};
+  return [s.embeddedLorebookId, ...arr(s.linkedLorebookIds)].filter((id) => typeof id === "string" && CHAT_ID.test(id));
+}
+
+/**
+ * What the DM reads to learn the world: each card's description, personality and scenario, the group's
+ * scenario, then the enabled entries of their books (each book once; the chat's own world book never).
+ * One part per text, labelled; `cardIds` limits it to those of the chat's cards.
+ */
+export function startSources(fsx, meta, cardIds) {
+  const ids = memberIds(fsx, meta).filter((id) => !Array.isArray(cardIds) || !cardIds.length || cardIds.includes(id));
+  const parts = [];
+  const books = [];
+  const seen = new Set([str(meta.worldBookId)]);
+  const addBooks = (list) => {
+    for (const id of list) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      books.push(id);
+    }
+  };
+  for (const id of ids) {
+    const card = cardOf(fsx, id);
+    if (!card) continue;
+    const name = str(card.name) || id;
+    for (const field of ["description", "personality", "scenario"]) {
+      if (str(card[field])) parts.push({ label: name + ": " + field, text: str(card[field]) });
+    }
+    addBooks(booksOf(card));
+  }
+  if (meta.groupId) {
+    const group = readJson(fsx, "groups/" + meta.groupId + ".json", null);
+    if (isObj(group)) {
+      if (str(group.scenario)) parts.push({ label: (str(group.name) || "group") + ": scenario", text: str(group.scenario) });
+      addBooks(booksOf(group));
+    }
+  }
+  for (const id of books) {
+    const book = readJson(fsx, "lorebooks/" + id + ".json", null);
+    if (!isObj(book) || str(book.ownerChatId)) continue;
+    for (const e of arr(book.entries)) {
+      if (!isObj(e) || e.enabled === false || !str(e.content)) continue;
+      const title = str(e.title) || arr(e.keys).map(str).filter(Boolean).slice(0, 3).join(", ");
+      parts.push({ label: (str(book.name) || id) + (title ? ": " + title : ""), text: str(e.content) });
+    }
+  }
+  let total = 0;
+  return parts.filter((p) => (total += p.text.length) <= SOURCE_MAX);
+}
+
+/** Split a text longer than max at paragraph, then sentence, then word ends. */
+function splitText(text, max) {
+  const out = [];
+  let rest = text;
+  while (rest.length > max) {
+    const head = rest.slice(0, max);
+    let at = head.lastIndexOf("\n\n");
+    if (at < max / 3) at = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "), head.lastIndexOf("\n")) + 1;
+    if (at < max / 3) at = head.lastIndexOf(" ");
+    if (at < max / 3) at = max;
+    out.push(rest.slice(0, at).trim());
+    rest = rest.slice(at).trim();
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+/**
+ * The sources packed into chunks of at most `max` characters, cut between parts; a part too long on its
+ * own is split at paragraph or sentence ends, each piece keeping its label.
+ */
+export function chunkSources(parts, max = CHUNK_MAX) {
+  const chunks = [];
+  let cur = "";
+  const push = (block) => {
+    if (cur && cur.length + 2 + block.length > max) {
+      chunks.push(cur);
+      cur = "";
+    }
+    cur = cur ? cur + "\n\n" + block : block;
+  };
+  for (const p of parts) {
+    const head = "[" + p.label + "]\n";
+    if (head.length + p.text.length <= max) push(head + p.text);
+    else {
+      // the first piece fills what is left of the open chunk when that is worth a piece
+      const room = cur ? max - cur.length - 2 - head.length : 0;
+      let rest = p.text;
+      if (room >= 1000) {
+        const [first] = splitText(rest, room);
+        push(head + first);
+        rest = rest.slice(rest.indexOf(first) + first.length).trim();
+      }
+      for (const piece of splitText(rest, max - head.length)) push(head + piece);
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+const BUILD_RULES = [
+  "You build the world of a roleplay story before it starts. Another model will write the story; it reads your record when a name comes up.",
+  "Rules:",
+  "- Learn from the texts you are given; write each record in your own short words. Never copy a text whole.",
+  "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
+  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up (who or what it is, where, how it stands toward the characters).",
+  "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
+  "- aliases: other names for it (a nickname, a title, a short name).",
+  "- Only the JSON keys and kind values are English.",
+];
+const BUILD_OUTPUT = [
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"..."}],"summary":"one short line"}',
+];
+const FRONTS_OUTPUT = [
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"fronts":[{"op":"add","name":"...","goal":"what it wants, one sentence","size":6}],"summary":"one short line"}',
+];
+export const BUILD_SYSTEM = [...BUILD_RULES, ...BUILD_OUTPUT].join("\n");
+export const FRONTS_SYSTEM = [
+  "You build the world of a roleplay story before it starts. From the world record, name the fronts: factions, threats and powers with a goal that will move off screen, each with a clock of 4, 6 or 8 segments (bigger = slower).",
+  "- Build them only from the record; a front's name may be a record's name.",
+  "- Only the JSON keys are English.",
+  ...FRONTS_OUTPUT,
+].join("\n");
+
+const answerLines = (recipe, answers) =>
+  recipe.questions
+    .map((q) => [q.text, cut(str(isObj(answers) ? answers[q.id] : "") || str(q.default), ANSWER_MAX)])
+    .filter(([, a]) => a)
+    .map(([q, a]) => "- " + q + ": " + a);
+
+/** The user message of one build call: a recipe section over one chunk (or over the answers alone). */
+export function buildInput({ cards, userName, entities, section, chunk, recipe, answers, lang }) {
+  const known = entities.filter((e) => e.status === "active");
+  const said = answerLines(recipe, answers);
+  return [
+    "Characters with their own cards (do not record): " + (cards.length ? cards.join(", ") : "none") + ".",
+    "The user's character (do not record): " + (userName || "the user") + ".",
+    "World record so far" + (known.length ? "\n" + known.map(entityLine).join("\n") : ": empty."),
+    ...(said.length ? ["What the player wants\n" + said.join("\n")] : []),
+    "Task: " + section.prompt + " Kinds: " + section.kinds.join(", ") + ". At most " + section.max + " records.",
+    "Write names and text in " + (lang || "the language of the texts below") + ".",
+    ...(chunk ? ["Texts to learn from\n" + chunk] : []),
+  ].join("\n\n");
+}
+
+/** The user message of the fronts call. */
+export function frontsInput({ entities, recipe, answers, lang }) {
+  const said = answerLines(recipe, answers);
+  return [
+    "World record\n" + (entities.filter((e) => e.status === "active").map(entityLine).join("\n") || "empty"),
+    ...(said.length ? ["What the player wants\n" + said.join("\n")] : []),
+    "Task: " + (recipe.fronts.prompt || "Name the fronts.") + " At most " + recipe.fronts.count + " fronts.",
+    "Write names and goals in " + (lang || "the language of the record") + ".",
+  ].join("\n\n");
+}
+
+/** The calls a start makes, in order: one per (section, chunk), then the fronts call when the recipe asks for any. */
+export function startPlan(recipe, chunks, withFronts) {
+  const steps = [];
+  for (const s of recipe.sections) {
+    if (chunks.length) for (let i = 0; i < chunks.length; i++) steps.push({ section: s.id, chunk: i });
+    else steps.push({ section: s.id, chunk: -1 });
+  }
+  if (withFronts && recipe.fronts.count > 0) steps.push({ fronts: true });
+  return steps;
+}
+
 function body(req) {
   return isObj(req.body) ? req.body : {};
 }
