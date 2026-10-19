@@ -15,6 +15,8 @@ The World DM grows up: profiles, a world built from the cards before the first m
 - Dashboard (#48): an edit, a Continue, a deleted message or another swipe of an earlier message now re-reads the story from that message in one call, instead of keeping later stats, threads, clock and scene from text that is gone. The line under the newest message says from which message. Swiping back to a swipe the Dashboard already read costs no call.
 - Card editor (#63): the eleven tabs sit in five groups on a phone (Core, Profile, Soul, Lorebook, More); on a wide screen every panel stays one click away. The tab row is one Tab stop; the arrow keys move between panels.
 - Failures in the background (Dashboard, Library, World DM, soul rating) show in the Inbox and as a toast, in plain words for the common causes.
+- A streaming reply no longer jumps when a display regex hides a thinking block: the text only grows, and the hidden block never flashes while it is written.
+- Card editor: the Translate button answers only to a click on it (a click anywhere on its label row pressed it), and a tab always opens its own panel.
 
 ## 4.53.0
 
