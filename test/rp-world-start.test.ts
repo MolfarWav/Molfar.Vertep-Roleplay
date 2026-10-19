@@ -273,6 +273,40 @@ describe("world library and carry", () => {
   });
 });
 
+describe("world records: keys and pins", () => {
+  it("a pinned record is always in the book; the build model fills keys for records that have none", () => {
+    const id = newChat();
+    fs.mkdirSync(path.join(root, "world", "state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), J({
+      chatId: id, settings: { level: "chronicler" },
+      entities: [
+        { id: "n1", kind: "place", name: "Ava's house", aliases: [], text: "A neighbour's home.", status: "active", uid: 0 },
+        { id: "n2", kind: "thing", name: "IKEA dresser", aliases: [], text: "A flat-pack dresser.", status: "active", uid: 0 },
+      ],
+    }));
+    world("PUT", "/world/records", { chatId: id, op: "update", record: { id: "n1", pinned: true } });
+    let book = readRel("lorebooks/world-" + id + ".json");
+    expect(book.entries.find((e: any) => e.title === "Ava's house").status).toBe("constant");
+    expect(book.entries.find((e: any) => e.title === "IKEA dresser").status).toBe("normal");
+    // the pinned one needs no keys: only the dresser is asked about
+    expect(world("POST", "/world/records/keys", { chatId: id }).__llmPending).toBe(true);
+    const ask = requests.at(-1)!.spec.messages[0].content as string;
+    expect(ask).toContain("IKEA dresser");
+    expect(ask).not.toContain("Ava's house");
+    results.world_keys = { text: J({ keys: [{ id: "n2", keys: ["dresser", "IKEA dresser", "the flat-pack"] }, { id: "n9", keys: ["x"] }] }), model: "b/build" };
+    expect(world("POST", "/world/records/keys", { chatId: id }).changed).toBe(1);
+    book = readRel("lorebooks/world-" + id + ".json");
+    expect(book.entries.find((e: any) => e.title === "IKEA dresser").keys).toEqual(["IKEA dresser", "dresser", "the flat-pack"]);
+    expect(readRel("world/state/" + id + ".json").log.at(-1).reason).toBe("keys");
+    // nothing left without keys: no call
+    const before = requests.length;
+    expect(world("POST", "/world/records/keys", { chatId: id }).changed).toBe(0);
+    expect(requests.length).toBe(before);
+    world("PUT", "/world/records", { chatId: id, op: "update", record: { id: "n1", pinned: false } });
+    expect(readRel("lorebooks/world-" + id + ".json").entries.find((e: any) => e.title === "Ava's house").status).toBe("normal");
+  });
+});
+
 describe("world start: the chat's own scenario and first message", () => {
   it("the build model drafts both from the world and the card", () => {
     const id = newChat();

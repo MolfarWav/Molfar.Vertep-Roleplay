@@ -36,6 +36,7 @@
  *                                     to its default), or make a new one (no id, or an id not in use)
  *  DELETE /world/profiles?id=         remove one of the player's own (chats on it fall back to its base)
  *  PUT  /world/records {chatId, op: add|update|retire|restore|delete, record}   the player edits the world book by hand
+ *  POST /world/records/keys {chatId}   the build model writes keys for the living records that have none
  *  GET  /world/recipes               what a start can build (from the cards, an interview, the player's own files)
  *  POST /world/start {chatId, begin?, recipe?, cardIds?, answers?, lang?, deck?}   begin = a new draft; then
  *                                     each call makes one build call (two-phase) until done == total
@@ -232,6 +233,8 @@ function cleanEntity(e) {
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
     // written or changed by the player by hand (the Records tab)
     ...(e.by === "player" ? { by: "player" } : {}),
+    // always in the prompt, no keys needed (the player pins it in the Records tab)
+    ...(e.pinned === true ? { pinned: true } : {}),
   };
 }
 
@@ -474,7 +477,7 @@ const CHRONICLER_RULES = [
   "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up again (who or what it is, where, how it stands toward the characters).",
   "- Update a record only when the story changed something about it (it moved, was hurt, a secret came out). Never update a record just to reword it.",
   "- Retire a record when it is finished for good (dead, destroyed, gone from the story for good). Its text then says in one or two sentences who or what it was and how it ended.",
-  "- aliases: other names the story uses for it (a nickname, a title, a short name), exactly as the story spells them.",
+  "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
   "- Write names and text in the language and script of the story's replies. Only the JSON keys and kind values are English.",
   "- When the player writes in another language or script, add the player's spellings of a name to its aliases too (Anna and \u0410\u043d\u043d\u0430): the book matches names in both.",
   "- At most " + CHANGES_MAX + " changes in one reply. Nothing worth recording: empty lists.",
@@ -1077,7 +1080,8 @@ function entryOf(e, uid, old) {
     keysRegex: false,
     secondaryKeys: [],
     selectiveLogic: "AND_ANY",
-    status: "normal",
+    // a pinned living record is always in the prompt; the rest come up by their keys
+    status: e.pinned && e.status !== "past" ? "constant" : "normal",
     content: e.name + ": " + e.text,
     position: "after_char",
     depth: 4,
@@ -1324,7 +1328,7 @@ const BUILD_RULES = [
   "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
   "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up (who or what it is, where, how it stands toward the characters).",
   "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
-  "- aliases: other names for it (a nickname, a title, a short name).",
+  "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
   "- Only the JSON keys and kind values are English.",
 ];
 const BUILD_OUTPUT = [
@@ -2177,7 +2181,7 @@ function peekRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const { state } = loadState(host.fs, chatId);
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -2488,7 +2492,7 @@ function recordsRoute(req, host) {
     if (!name || !text) return ok({ error: "a record needs a name and a text" }, 400);
     if (clash(null)) return ok({ error: "a record with this name exists" }, 409);
     if (state.entities.length >= ENTITIES_MAX) return ok({ error: "the world book is full" }, 400);
-    state.entities.push({ id: "n" + state.nextId++, kind: KINDS.includes(r.kind) ? r.kind : "fact", name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player" });
+    state.entities.push({ id: "n" + state.nextId++, kind: KINDS.includes(r.kind) ? r.kind : "fact", name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player", ...(r.pinned === true ? { pinned: true } : {}) });
   } else {
     const e = state.entities.find((x) => x.id === str(r.id));
     if (!e) return ok({ error: "no such record" }, 404);
@@ -2501,6 +2505,8 @@ function recordsRoute(req, host) {
       }
       if (KINDS.includes(r.kind)) e.kind = r.kind;
       if (r.aliases !== undefined) e.aliases = cleanAliases(r.aliases, e.name);
+      if (r.pinned === true) e.pinned = true;
+      else if (r.pinned === false) delete e.pinned;
     } else if (op === "retire") {
       e.status = "past";
       e.text = shortText(text || e.text);
@@ -2516,6 +2522,49 @@ function recordsRoute(req, host) {
   bindBook(fsx, chatId, chat.meta, state.bookId);
   saveState(fsx, state);
   return peekRoute({ query: { chatId } }, host);
+}
+
+export const KEYS_SYSTEM = [
+  "You add lorebook keys to the records of a roleplay world. A record comes into the story only when one of its keys appears in the newest messages, so each needs the words the story will really use.",
+  "- For each record: 2 to 5 short words or phrases: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\").",
+  "- In the language and script of the record. Never a word that comes up in every scene (room, door, day, man).",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"keys":[{"id":"n3","keys":["..."]}]}',
+].join("\n");
+
+/** POST {chatId}: the build model writes keys for the living records that have none (one call). */
+function keysRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  const bare = state.entities.filter((e) => e.status === "active" && !e.aliases.length && !e.pinned);
+  if (!bare.length) return ok({ ok: true, changed: 0 });
+  const cfg = loadConfig(fsx);
+  const content = "Records\n" + bare.slice(0, 60).map(entityLine).join("\n");
+  const built = buildResult(host, "world_keys", buildAsk(host, fsx, cfg, chat.meta, KEYS_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
+  let changed = 0;
+  for (const k of arr(built.out.keys)) {
+    const e = isObj(k) ? bare.find((x) => x.id === str(k.id)) : null;
+    if (!e) continue;
+    const keys = cleanAliases(k.keys, e.name);
+    if (keys.length) {
+      e.aliases = keys;
+      changed++;
+    }
+  }
+  countBuild(state, built, "keys", changed);
+  if (changed) {
+    writeBook(fsx, state, str(chat.meta.title));
+    bindBook(fsx, chatId, chat.meta, state.bookId);
+  }
+  saveState(fsx, state);
+  return ok({ ok: true, changed });
 }
 
 /** "Test the model": one tiny call. Says it works, or the plain reason, with the limit in force. */
@@ -2569,5 +2618,6 @@ export function handleRoute(req, host) {
   if (path === "/world/backgrounds" && ["GET", "POST", "PUT"].includes(req.method)) return backgroundsRoute(req, host);
   if (path === "/world/backgrounds/name" && req.method === "POST") return nameImageRoute(req, host);
   if (path === "/world/backgrounds/places" && req.method === "POST") return findPlacesRoute(req, host);
+  if (path === "/world/records/keys" && req.method === "POST") return keysRoute(req, host);
   return ok({ error: "not found" }, 404);
 }

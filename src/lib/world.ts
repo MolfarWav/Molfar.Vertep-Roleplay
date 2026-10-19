@@ -120,13 +120,20 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
 
 export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
 /** by: 'player' = written or changed by hand in the Records tab */
-export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player' }
+export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean }
 
 export type WorldRecordOp = 'add' | 'update' | 'retire' | 'restore' | 'delete'
 
 /** Edit the world book by hand; returns the records as peek does. 409 = the name is taken. */
 export async function editWorldRecord(chatId: string, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
   return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ chatId, op, record }) })).records
+}
+
+/** The build model writes keys for the living records that have none (one call); changed = records given keys. */
+export async function fillWorldKeys(chatId: string): Promise<{ ok: boolean; changed?: number; error?: string; code?: WorldErrorCode }> {
+  const r = await j<{ ok: boolean; changed?: number; error?: string; code?: WorldErrorCode }>('/world/records/keys', { method: 'POST', body: JSON.stringify({ chatId }) })
+  void loadWorld(chatId).catch(() => {})
+  return r
 }
 
 export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
@@ -181,8 +188,12 @@ export async function loadWorldConfig(chatId?: string): Promise<WorldConfig> {
 }
 
 export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number; imageModel?: string; autoBackground?: boolean }, chatId?: string): Promise<WorldConfig> {
-  return j(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
+  const saved = await j<WorldConfig>(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
+  // whoever shows the config (the Make a set line, a dialog) re-reads it
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<WorldConfig>(WORLD_CONFIG_EVENT, { detail: saved }))
+  return saved
 }
+export const WORLD_CONFIG_EVENT = 'world-config-saved'
 
 /** A row of the World section's list. */
 export interface WorldChat {
