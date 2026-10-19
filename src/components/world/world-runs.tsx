@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { loadWorldRuns, useWorldLive, type WorldRun, type WorldUsage } from '@/lib/world'
 import { formatK, formatMoney, formatSeconds } from './world-common'
 
-const REASONS = ['every', 'stagnation', 'transition', 'manual', 'start', 'deck'] as const
+const REASONS = ['every', 'stagnation', 'transition', 'manual', 'start', 'deck', 'keys'] as const
 
 function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (

@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Archive, MagnifyingGlass, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Archive, CircleNotch, MagnifyingGlass, PencilSimple, PushPin, Plus, Trash, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import { useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT } from '@/lib/world-records'
-import { editWorldRecord, peekWorld, useWorldLive, type WorldKind, type WorldRecord, type WorldRecordOp } from '@/lib/world'
+import { editWorldRecord, fillWorldKeys, peekWorld, useWorldLive, type WorldKind, type WorldRecord, type WorldRecordOp } from '@/lib/world'
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
 
@@ -26,7 +26,51 @@ export function KindChip({ kind, className }: { kind: WorldKind; className?: str
   )
 }
 
-interface Form { name: string; kind: WorldKind; aliases: string; text: string }
+interface Form { name: string; kind: WorldKind; aliases: string[]; text: string }
+
+/** The keys of a record as removable chips plus an input: Enter or a comma adds one. */
+function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const t = useT()
+  const [draft, setDraft] = useState('')
+  const add = (raw: string) => {
+    const next = parseAliases([...value, raw].join(','))
+    if (next.length !== value.length) onChange(next)
+    setDraft('')
+  }
+  return (
+    <div className="flex flex-col gap-1.5 text-sm" data-testid="keys-input">
+      <span className="font-medium">{t('world.rec.keys')}</span>
+      {value.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {value.map((k) => (
+            <li key={k} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-xs">
+              <span className="break-all">{k}</span>
+              <button type="button" aria-label={t('world.rec.keyRemove', { k })} className="inline-flex size-5 items-center justify-center rounded-full hover:bg-accent max-md:size-7" onClick={() => onChange(value.filter((x) => x !== k))}>
+                <X className="size-3" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Input
+        value={draft}
+        aria-label={t('world.rec.keys')}
+        placeholder={t('world.rec.keysPh')}
+        className="h-10 md:h-9"
+        onChange={(e) => {
+          const v = e.target.value
+          if (v.includes(',')) add(v)
+          else setDraft(v)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); if (draft.trim()) add(draft) }
+          else if (e.key === 'Backspace' && !draft && value.length) onChange(value.slice(0, -1))
+        }}
+        onBlur={() => { if (draft.trim()) add(draft) }}
+      />
+    </div>
+  )
+}
 
 function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void }) {
   const t = useT()
@@ -64,10 +108,7 @@ function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; 
           ))}
         </div>
       </div>
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">{t('world.rec.aliases')}</span>
-        <Input value={f.aliases} onChange={(e) => setF({ ...f, aliases: e.target.value })} placeholder={t('world.rec.aliasesPh')} className="h-10 md:h-9" />
-      </label>
+      <KeysInput value={f.aliases} onChange={(aliases) => setF({ ...f, aliases })} />
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">{t('world.rec.text')}</span>
         <Textarea value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} rows={4} className="min-h-24" />
@@ -84,7 +125,7 @@ function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; 
   )
 }
 
-function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp }: {
+function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }: {
   r: WorldRecord
   editing: boolean
   busy: boolean
@@ -92,10 +133,11 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp }: {
   onCancel: () => void
   onSave: (f: Form) => void
   onOp: (op: 'retire' | 'restore' | 'delete') => void
+  onPin: (pinned: boolean) => void
 }) {
   const t = useT()
   if (editing) {
-    return <RecordForm initial={{ name: r.name, kind: r.kind, aliases: r.aliases.join(', '), text: r.text }} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} />
+    return <RecordForm initial={{ name: r.name, kind: r.kind, aliases: r.aliases, text: r.text }} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} />
   }
   const past = r.status === 'past'
   return (
@@ -106,8 +148,24 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp }: {
         {past && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">{t('world.past')}</span>}
         {r.by === 'player' && <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] leading-none text-primary">{t('world.rec.byYou')}</span>}
       </div>
-      {r.aliases.length > 0 && <p className={cn('mt-1 text-xs text-muted-foreground', past && 'opacity-70')}>{r.aliases.join(', ')}</p>}
+      {r.pinned && !past ? (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-primary" data-testid="record-pinned">
+          <PushPin className="size-3.5" weight="fill" aria-hidden="true" />
+          <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 leading-none">{t('world.rec.pin')}</span>
+        </p>
+      ) : r.aliases.length === 0 && !past ? (
+        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid="record-no-keys">{t('world.rec.noKeys')}</p>
+      ) : null}
+      {r.aliases.length > 0 && (
+        <ul className={cn('mt-1 flex flex-wrap items-center gap-1', past && 'opacity-70')} aria-label={t('world.rec.keys')} data-testid="record-keys">
+          <li className="mr-0.5 text-[11px] text-muted-foreground">{t('world.rec.keys')}</li>
+          {r.aliases.map((k) => (
+            <li key={k} className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs">{k}</li>
+          ))}
+        </ul>
+      )}
       <p className={cn('mt-1.5 whitespace-pre-wrap break-words text-muted-foreground', past && 'opacity-70')}>{r.text}</p>
+      {r.pinned && !past && <p className="mt-1 text-xs text-muted-foreground">{t('world.rec.pinHint')}</p>}
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={onEdit}>
           <PencilSimple className="size-4" aria-hidden="true" />{t('world.rec.edit')}
@@ -119,6 +177,11 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp }: {
         ) : (
           <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={() => onOp('retire')}>
             <Archive className="size-4" aria-hidden="true" />{t('world.rec.retire')}
+          </Button>
+        )}
+        {!past && (
+          <Button variant={r.pinned ? 'secondary' : 'outline'} size="sm" className="max-md:h-10" disabled={busy} aria-pressed={!!r.pinned} title={t('world.rec.pinHint')} onClick={() => onPin(!r.pinned)} data-testid="record-pin">
+            <PushPin className="size-4" weight={r.pinned ? 'fill' : 'regular'} aria-hidden="true" />{t('world.rec.pin')}
           </Button>
         )}
         <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive max-md:h-10" disabled={busy} onClick={() => onOp('delete')}>
@@ -138,6 +201,9 @@ export function WorldRecords({ chatId }: { chatId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [filling, setFilling] = useState(false)
+  const [fillMsg, setFillMsg] = useState<string | null>(null)
+  const [fillErr, setFillErr] = useState<string | null>(null)
   const lastRunAt = useWorldLive((s) => s.views[chatId]?.lastRunAt)
 
   // the DM edits the book too: read it again after each of its runs
@@ -172,6 +238,24 @@ export function WorldRecords({ chatId }: { chatId: string }) {
       return false
     } finally {
       setBusy(false)
+    }
+  }
+
+  const keyless = useMemo(() => (records ?? []).filter((r) => r.status === 'active' && !r.pinned && r.aliases.length === 0).length, [records])
+
+  const fill = async () => {
+    setFilling(true)
+    setFillMsg(null)
+    setFillErr(null)
+    try {
+      const r = await fillWorldKeys(chatId)
+      if (!r.ok) setFillErr(r.error ?? t('world.rec.fillFail'))
+      else setFillMsg(r.changed ? t('world.rec.filled', { n: r.changed }) : t('world.rec.filledNone'))
+      setRecords(await peekWorld(chatId))
+    } catch (e) {
+      setFillErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFilling(false)
     }
   }
 
@@ -231,13 +315,29 @@ export function WorldRecords({ chatId }: { chatId: string }) {
         })}
       </div>
 
+      {(keyless > 0 || fillMsg || fillErr) && (
+        <div className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3" data-testid="records-fill">
+          {keyless > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <Button variant="outline" size="sm" className="max-md:h-10" disabled={filling || busy} onClick={() => void fill()} data-testid="records-fill-go">
+                {filling && <CircleNotch className="size-4 animate-spin" aria-hidden="true" />}
+                {filling ? t('world.rec.filling') : t('world.rec.fill', { n: keyless })}
+              </Button>
+              <span className="text-xs text-muted-foreground">{t('world.rec.fillCost')}</span>
+            </div>
+          )}
+          {fillMsg && <p className="text-sm" role="status">{fillMsg}</p>}
+          {fillErr && <p className="text-sm text-destructive" role="alert">{fillErr}</p>}
+        </div>
+      )}
+
       {adding && (
         <RecordForm
-          initial={{ name: '', kind: kind === 'all' ? 'person' : kind, aliases: '', text: '' }}
+          initial={{ name: '', kind: kind === 'all' ? 'person' : kind, aliases: [], text: '' }}
           past={false}
           busy={busy}
           onCancel={() => setAdding(false)}
-          onSave={async (f) => { if (await run('add', { name: f.name.trim(), kind: f.kind, aliases: parseAliases(f.aliases), text: f.text.trim() })) setAdding(false) }}
+          onSave={async (f) => { if (await run('add', { name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim() })) setAdding(false) }}
         />
       )}
 
@@ -254,9 +354,10 @@ export function WorldRecords({ chatId }: { chatId: string }) {
             onEdit={() => { setEditingId(r.id); setAdding(false) }}
             onCancel={() => setEditingId(null)}
             onSave={async (f) => {
-              if (await run('update', { id: r.id, name: f.name.trim(), kind: f.kind, aliases: parseAliases(f.aliases), text: f.text.trim() })) setEditingId(null)
+              if (await run('update', { id: r.id, name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim() })) setEditingId(null)
             }}
             onOp={(op) => void onOp(r, op)}
+            onPin={(pinned) => void run('update', { id: r.id, pinned })}
           />
         ))}
       </ul>

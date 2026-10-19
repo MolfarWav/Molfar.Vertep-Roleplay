@@ -120,13 +120,20 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
 
 export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
 /** by: 'player' = written or changed by hand in the Records tab */
-export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player' }
+export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean }
 
 export type WorldRecordOp = 'add' | 'update' | 'retire' | 'restore' | 'delete'
 
 /** Edit the world book by hand; returns the records as peek does. 409 = the name is taken. */
 export async function editWorldRecord(chatId: string, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
   return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ chatId, op, record }) })).records
+}
+
+/** The build model writes keys for the living records that have none (one call); changed = records given keys. */
+export async function fillWorldKeys(chatId: string): Promise<{ ok: boolean; changed?: number; error?: string; code?: WorldErrorCode }> {
+  const r = await j<{ ok: boolean; changed?: number; error?: string; code?: WorldErrorCode }>('/world/records/keys', { method: 'POST', body: JSON.stringify({ chatId }) })
+  void loadWorld(chatId).catch(() => {})
+  return r
 }
 
 export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
@@ -181,8 +188,12 @@ export async function loadWorldConfig(chatId?: string): Promise<WorldConfig> {
 }
 
 export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number; imageModel?: string; autoBackground?: boolean }, chatId?: string): Promise<WorldConfig> {
-  return j(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
+  const saved = await j<WorldConfig>(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
+  // whoever shows the config (the Make a set line, a dialog) re-reads it
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<WorldConfig>(WORLD_CONFIG_EVENT, { detail: saved }))
+  return saved
 }
+export const WORLD_CONFIG_EVENT = 'world-config-saved'
 
 /** A row of the World section's list. */
 export interface WorldChat {
@@ -451,13 +462,19 @@ export interface WorldPlace { name: string; text: string }
 export interface PlannedBackground { place: string; file: string; tags: string[]; prompt: string }
 
 /** The world's place records and its folder. */
-export async function loadWorldBackgrounds(ref: WorldRef): Promise<{ places: WorldPlace[]; folderId: string | null }> {
+/** A lorebook entry of the chat's cards, offered as a place to tick (not every entry is a place). */
+export interface BookPlace { name: string; text: string; book: string }
+export async function loadWorldBackgrounds(ref: WorldRef): Promise<{ places: WorldPlace[]; fromBooks?: BookPlace[]; folderId: string | null }> {
   const q = 'chatId' in ref ? `chatId=${encodeURIComponent(ref.chatId)}` : `worldId=${encodeURIComponent(ref.worldId)}`
   return j(`/world/backgrounds?${q}`)
 }
 /** The build model plans the set: file names, tags and prompts (taken = names already in the folder). */
 export async function planWorldBackgrounds(ref: WorldRef, o: { places: (WorldPlace | string)[]; direction?: string; variants?: number; taken?: string[]; lang?: string }): Promise<{ ok: boolean; images?: PlannedBackground[]; imageModel?: string; error?: string; code?: WorldErrorCode }> {
   return j('/world/backgrounds', { method: 'POST', body: JSON.stringify({ ...ref, ...o }) })
+}
+/** The build model lists the places the cards and the world's records name (one call). */
+export async function findWorldPlaces(ref: WorldRef): Promise<{ ok: boolean; places?: WorldPlace[]; error?: string; code?: WorldErrorCode | 'no-text' }> {
+  return j('/world/backgrounds/places', { method: 'POST', body: JSON.stringify(ref) })
 }
 /** Link the world (a chat's or a saved one) to a folder of the Backgrounds library; null unlinks. */
 export async function linkWorldBackgrounds(ref: WorldRef, folderId: string | null): Promise<void> {

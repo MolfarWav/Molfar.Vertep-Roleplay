@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { toast } from 'sonner';
-import { CaretDown, Check } from '@phosphor-icons/react';
+import { CaretDown, Check, CircleNotch } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +22,9 @@ import { fetchImageModels } from '@/lib/engine';
 import { buildImagePrompt, generateImage } from '@/lib/image-gen';
 import {
   loadWorldBackgrounds,
+  findWorldPlaces,
   loadWorldConfig,
+  WORLD_CONFIG_EVENT,
   planWorldBackgrounds,
   type PlannedBackground,
   type WorldErrorCode,
@@ -30,9 +32,10 @@ import {
   type WorldRef,
 } from '@/lib/world';
 import { WorldErrorCard } from './world-controls';
+import { ImageModelDialog } from './world-image-model';
 
 type PlaceEntry =
-  | { id: string; kind: 'record'; name: string; text: string; ticked: boolean }
+  | { id: string; kind: 'record' | 'book' | 'found'; name: string; text: string; book?: string; ticked: boolean }
   | { id: string; kind: 'chip' | 'custom'; value: string; ticked: boolean };
 
 type ReviewItem = {
@@ -47,14 +50,16 @@ type ReviewItem = {
   error?: string;
 };
 
+type NamedEntry = Extract<PlaceEntry, { name: string }>;
+const isNamed = (e: PlaceEntry): e is NamedEntry => 'name' in e;
+
 function entryLabel(e: PlaceEntry): string {
-  return e.kind === 'record' ? e.name : e.value;
+  return isNamed(e) ? e.name : e.value;
 }
 
 export function MakeSet({
   wref,
   folderId,
-  onOpenSettings,
 }: {
   wref: WorldRef;
   folderId: string;
@@ -68,6 +73,10 @@ export function MakeSet({
   const updateBackground = useApp((s) => s.updateBackground);
 
   const [open, setOpen] = useState(false);
+  const [imgDialog, setImgDialog] = useState(false);
+  const [booksAll, setBooksAll] = useState(false);
+  const [finding, setFinding] = useState(false);
+  const [findMsg, setFindMsg] = useState<string | null>(null);
   const [direction, setDirection] = useState('');
   const [entries, setEntries] = useState<PlaceEntry[]>([]);
   const [customPlace, setCustomPlace] = useState('');
@@ -102,7 +111,15 @@ export function MakeSet({
           ticked: true,
         }));
         // the places arrive late: keep what the player already added
-        setEntries((prev) => [...list, ...prev.filter((e) => e.kind !== 'record')]);
+        const taken = new Set(list.filter(isNamed).map((e) => e.name.trim().toLowerCase()));
+        const books: PlaceEntry[] = [];
+        (res.fromBooks ?? []).forEach((b, idx) => {
+          const key = b.name.trim().toLowerCase();
+          if (!key || taken.has(key)) return;
+          taken.add(key);
+          books.push({ id: `b-${idx}`, kind: 'book', name: b.name, text: b.text ?? '', book: b.book, ticked: false });
+        });
+        setEntries((prev) => [...list, ...books, ...prev.filter((e) => e.kind !== 'record' && e.kind !== 'book')]);
         setStage('form');
         setReview([]);
         setStopped(false);
@@ -133,35 +150,48 @@ export function MakeSet({
     return () => abortRef.current?.abort();
   }, []);
 
-  // Reload image model config when the fold opens.
+  // The image model line: the World's own pick, else the app's. Set from a read when the fold opens and
+  // from the saved config a World settings / image-model dialog hands over (no second read to land late).
+  const applyImageModel = useCallback(
+    (own: string | undefined, alive: () => boolean = () => true) => {
+      const m = own || imageGen?.model || '';
+      setModel(m);
+      setConfigModel(own || undefined);
+      setModelFrom(own ? 'world' : imageGen?.model ? 'app' : 'none');
+      void fetchImageModels().then((all) => {
+        const hit = all.find((x) => `${x.provider}/${x.id}` === m);
+        if (alive()) setModelLabel(hit ? hit.favorite?.name || hit.label : m);
+      });
+    },
+    [imageGen?.model],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const saved = (e: Event) => applyImageModel((e as CustomEvent<{ imageModel: string }>).detail.imageModel, () => active);
+    window.addEventListener(WORLD_CONFIG_EVENT, saved);
+    return () => {
+      active = false;
+      window.removeEventListener(WORLD_CONFIG_EVENT, saved);
+    };
+  }, [applyImageModel]);
+
+  // Read the image model config when the fold opens.
   useEffect(() => {
     if (!open) return;
     let active = true;
     loadWorldConfig('chatId' in wref ? wref.chatId : undefined)
       .then((cfg: { imageModel?: string }) => {
-        if (!active) return;
-        const m = cfg.imageModel || imageGen?.model || '';
-        setModel(m);
-        void fetchImageModels().then((all) => {
-          const hit = all.find((x) => `${x.provider}/${x.id}` === m);
-          if (active) setModelLabel(hit ? hit.favorite?.name || hit.label : m);
-        });
-        setConfigModel(cfg.imageModel);
-        setModelFrom(cfg.imageModel ? 'world' : imageGen?.model ? 'app' : 'none');
+        if (active) applyImageModel(cfg.imageModel, () => active);
       })
       .catch(() => {
-        if (!active) return;
-        const m = imageGen?.model || '';
-        setModel(m);
-        setModelLabel(m);
-        setConfigModel(undefined);
-        setModelFrom(imageGen?.model ? 'app' : 'none');
+        if (active) applyImageModel(undefined, () => active);
       });
     return () => {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, refKey, imageGen?.model]);
+  }, [open, refKey, applyImageModel]);
 
   const takenNames = useMemo(
     () => backgrounds.filter((b) => b.folderId === folderId).map((b) => toSnake(b.name)),
@@ -175,7 +205,7 @@ export function MakeSet({
     () =>
       entries
         .filter((e) => e.ticked)
-        .map((e) => (e.kind === 'record' ? { name: e.name, text: e.text } : e.value)),
+        .map((e) => (isNamed(e) ? { name: e.name, text: e.text } : e.value)),
     [entries],
   );
 
@@ -244,6 +274,36 @@ export function MakeSet({
       setPlanBusy(false);
     }
   }, [costN, model, planPlaces, direction, variants, takenNames, lang, wref, t]);
+
+  const handleFind = useCallback(async () => {
+    setFinding(true);
+    setFindMsg(null);
+    setError(null);
+    try {
+      const res = await findWorldPlaces(wref);
+      if (!res.ok) {
+        if (res.code === 'no-text') setFindMsg(t('world.bg.findNoText'));
+        else setError({ code: (res.code as WorldErrorCode) ?? 'other', message: res.error ?? t('world.bg.planFail') });
+        return;
+      }
+      setEntries((prev) => {
+        const shown = new Set(prev.filter(isNamed).map((e) => e.name.trim().toLowerCase()));
+        const fresh: PlaceEntry[] = [];
+        for (const p of res.places ?? []) {
+          const key = p.name.trim().toLowerCase();
+          if (!key || shown.has(key)) continue;
+          shown.add(key);
+          fresh.push({ id: `f-${Date.now()}-${fresh.length}`, kind: 'found', name: p.name, text: p.text ?? '', ticked: false });
+        }
+        setFindMsg(fresh.length ? null : t('world.bg.findNone'));
+        return [...prev, ...fresh];
+      });
+    } catch (e) {
+      setError({ code: 'other', message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setFinding(false);
+    }
+  }, [wref, t]);
 
   const handleReplan = useCallback(() => {
     setStage('form');
@@ -337,8 +397,28 @@ export function MakeSet({
     abortRef.current?.abort();
   }, []);
 
-  const recordEntries = entries.filter((e) => e.kind === 'record');
-  const chipEntries = entries.filter((e): e is Extract<PlaceEntry, { kind: 'chip' | 'custom' }> => e.kind !== 'record');
+  const recordEntries = entries.filter((e): e is NamedEntry => e.kind === 'record');
+  const bookEntries = entries.filter((e) => e.kind === 'book');
+  const foundEntries = entries.filter((e) => e.kind === 'found');
+  const chipEntries = entries.filter((e): e is Extract<PlaceEntry, { kind: 'chip' | 'custom' }> => e.kind === 'chip' || e.kind === 'custom');
+  const BOOKS_SHOWN = 12;
+  const shownBooks = booksAll ? bookEntries : bookEntries.slice(0, BOOKS_SHOWN);
+  const placeChip = (e: PlaceEntry) => (
+    <Button
+      key={e.id}
+      type="button"
+      role="checkbox"
+      aria-checked={e.ticked}
+      variant={e.ticked ? 'default' : 'outline'}
+      size="sm"
+      className="max-md:h-10"
+      title={e.kind === 'book' && e.book ? t('world.bg.fromBook', { book: e.book }) : undefined}
+      onClick={() => toggleEntry(e.id)}
+    >
+      {e.ticked && <Check className="size-3.5" aria-hidden="true" />}
+      {entryLabel(e)}
+    </Button>
+  );
 
   return (
     <section className="space-y-4">
@@ -390,24 +470,33 @@ export function MakeSet({
                 {recordEntries.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t('world.bg.placesNone')}</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {recordEntries.map((e) => (
-                      <Button
-                        key={e.id}
-                        type="button"
-                        role="checkbox"
-                        aria-checked={e.ticked}
-                        variant={e.ticked ? 'default' : 'outline'}
-                        size="sm"
-                        className="max-md:h-10"
-                        onClick={() => toggleEntry(e.id)}
-                      >
-                        {e.ticked && <Check className="size-3.5" aria-hidden="true" />}
-                        {entryLabel(e)}
-                      </Button>
-                    ))}
+                  <div className="flex flex-wrap gap-2">{recordEntries.map(placeChip)}</div>
+                )}
+                {bookEntries.length > 0 && (
+                  <div className="space-y-1.5" data-testid="places-books">
+                    <p className="text-xs font-medium text-muted-foreground">{t('world.bg.placesBooks')}</p>
+                    <div className="flex flex-wrap gap-2">{shownBooks.map(placeChip)}</div>
+                    {bookEntries.length > BOOKS_SHOWN && (
+                      <button type="button" className="text-xs text-primary underline-offset-2 hover:underline max-md:min-h-10" onClick={() => setBooksAll((v) => !v)}>
+                        {booksAll ? t('world.bg.showLess') : t('world.bg.showAll', { n: bookEntries.length })}
+                      </button>
+                    )}
                   </div>
                 )}
+                {foundEntries.length > 0 && (
+                  <div className="space-y-1.5" data-testid="places-found">
+                    <p className="text-xs font-medium text-muted-foreground">{t('world.bg.placesFound')}</p>
+                    <div className="flex flex-wrap gap-2">{foundEntries.map(placeChip)}</div>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Button type="button" variant="outline" size="sm" className="max-md:h-10" disabled={finding} onClick={() => void handleFind()} data-testid="places-find">
+                    {finding && <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" />}
+                    {finding ? t('world.bg.finding') : t('world.bg.find')}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">{t('world.bg.findCost')}</span>
+                </div>
+                {findMsg && <p className="text-sm text-muted-foreground" role="status">{findMsg}</p>}
                 <div className="flex flex-wrap gap-2">
                   {PLACE_CHIPS.map((chip) => {
                     const active = chipEntries.some((e) => e.value === chip.words);
@@ -478,17 +567,16 @@ export function MakeSet({
                         ),
                       })
                     : t('world.bg.modelNone')}
-                  {onOpenSettings && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="max-md:h-10 ml-2"
-                      onClick={onOpenSettings}
-                    >
-                      {t('world.bg.modelChange')}
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="max-md:h-10 ml-2"
+                    data-testid="bg-model-change"
+                    onClick={() => setImgDialog(true)}
+                  >
+                    {t('world.bg.modelChange')}
+                  </Button>
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {t('world.bg.cost', { n: costN })}
@@ -616,6 +704,7 @@ export function MakeSet({
           )}
         </div>
       )}
+      <ImageModelDialog open={imgDialog} onOpenChange={setImgDialog} chatId={"chatId" in wref ? wref.chatId : null} />
     </section>
   );
 }
