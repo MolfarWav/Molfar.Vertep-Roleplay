@@ -1,6 +1,7 @@
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, UploadSimple, Chats, Copy, Trash, Tag, DotsThree, DotsThreeVertical, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch } from '@phosphor-icons/react'
+import type * as React from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, CaretDown, Check, SortAscending, BookOpenText, Smiley } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -14,9 +15,6 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -28,7 +26,7 @@ import { useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_LIST_EVENT } from '@/components/guide/events'
 import type { Character, Chat } from '@/lib/types'
-import { SectionPage, PaneTitle } from '@/components/shell/section-page'
+import { SectionPage } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
 import { characterToExportCard } from '@/lib/engine'
@@ -64,6 +62,47 @@ const listText = (c: Character) => (c.stub ? c.blurb ?? '' : c.description)
 /** The card's main texts in tokens: a summary carries the engine's estimate. */
 const cardTokens = (c: Character) => (c.stub ? c.tokens ?? 0 : estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue))
 
+/** The card has a lorebook of its own or a linked one (books that were deleted do not count). */
+const hasBookIn = (c: Character, bookIds: Set<string>) => (!!c.embeddedLorebookId && bookIds.has(c.embeddedLorebookId)) || c.linkedLorebookIds.some((id) => bookIds.has(id))
+/** The card has sprites: a summary carries their count, a whole card the list. */
+const hasSprites = (c: Character) => (c.stub ? (c.spriteCount ?? 0) > 0 : c.expressions.some((e) => !!e.url))
+
+/** The tag chips in at most two rows: a hidden copy measures how many fit, the rest is behind "All tags". */
+function TagRow<T>({ chips, counts, render }: {
+  chips: { name: string; tag: T }[]
+  counts: Map<string, number>
+  render: (name: string, tag: T) => React.ReactNode
+}) {
+  const box = useRef<HTMLDivElement>(null)
+  const twin = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState(chips.length)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const kids = Array.from(twin.current?.children ?? []) as HTMLElement[]
+      if (!kids.length) { setFit(0); return }
+      const tops = [...new Set(kids.map((k) => k.offsetTop))].sort((a, b) => a - b)
+      const limit = tops[1] ?? Infinity
+      setFit(kids.filter((k) => k.offsetTop <= limit).length)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (box.current) ro.observe(box.current)
+    return () => ro.disconnect()
+  }, [chips])
+  return (
+    <div ref={box} className="relative min-w-0 flex-1" data-testid="tag-row">
+      <div className="flex flex-wrap items-center gap-1.5 py-0.5">
+        {chips.slice(0, fit).map(({ name, tag }) => render(name, tag))}
+      </div>
+      <div ref={twin} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 py-0.5">
+        {chips.map(({ name }) => (
+          <span key={name} className="shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px]">{name} <span>{counts.get(name) ?? 0}</span></span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function CharactersView() {
   const characters = useApp((s) => s.characters)
   const chats = useApp((s) => s.chats)
@@ -79,7 +118,6 @@ export function CharactersView() {
   const convertCharacterToPersona = useApp((s) => s.convertCharacterToPersona)
   const loadCharacter = useApp((s) => s.loadCharacter)
   const rosterPending = useApp((s) => s.rosterPending)
-  const settings = useApp((s) => s.settings)
   const tags = useApp((s) => s.tags)
 
   const [query, setQuery] = useState('')
@@ -91,6 +129,7 @@ export function CharactersView() {
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [tagQuery, setTagQuery] = useState('')
+  const [tagSort, setTagSort] = useState<'count' | 'az'>('count')
   const isMobile = useIsMobile()
   const [urlOpen, setUrlOpen] = useState(false)
   const [urlValue, setUrlValue] = useState('')
@@ -160,6 +199,8 @@ export function CharactersView() {
   const [confirmBatch, setConfirmBatch] = useState(false)
   const t = useT()
   const lorebooks = useApp((s) => s.lorebooks)
+  const bookIds = useMemo(() => new Set(lorebooks.map((b) => b.id)), [lorebooks])
+  const hasBook = (c: Character) => hasBookIn(c, bookIds)
   // an own book nobody else uses goes with its card unless the user says no
   const [alsoBook, setAlsoBook] = useState(true)
   useEffect(() => { if (confirmDelete || confirmBatch) setAlsoBook(true) }, [confirmDelete, confirmBatch])
@@ -241,6 +282,18 @@ export function CharactersView() {
       .map((name) => ({ name, tag: meta.get(name) }))
   }, [soloCards, tags])
 
+  const tagCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of soloCards) for (const tg of c.tags) m.set(tg, (m.get(tg) ?? 0) + 1)
+    return m
+  }, [soloCards])
+  const panelChips = useMemo(() => {
+    const q = tagQuery.trim().toLowerCase()
+    const list = tagChips.filter(({ name }) => !q || name.toLowerCase().includes(q))
+    return tagSort === 'az'
+      ? [...list].sort((a, b) => a.name.localeCompare(b.name))
+      : [...list].sort((a, b) => (tagCounts.get(b.name) ?? 0) - (tagCounts.get(a.name) ?? 0) || a.name.localeCompare(b.name))
+  }, [tagChips, tagQuery, tagSort, tagCounts])
   const PAGE_SIZE = 24
   const paged = useMemo(() => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE), [filtered, page])
   // the portraits the list left out, for the cards on this page
@@ -287,29 +340,12 @@ export function CharactersView() {
                 : 'border-border text-muted-foreground hover:bg-accent/60 hover:text-foreground',
             )}
           >
-            <Icon className="size-4 shrink-0" weight={on ? 'fill' : 'regular'} aria-hidden="true" />
+            <Icon className="size-4 shrink-0 max-md:hidden" weight={on ? 'fill' : 'regular'} aria-hidden="true" />
             <span className="truncate">{t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}</span>
             <span className={cn('rounded-full px-1.5 text-[10px] tabular-nums', on ? 'bg-background/60' : 'bg-muted')}>{n}</span>
           </button>
         )
       })}
-    </div>
-  )
-
-  const batchActions = (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">{selected.length} selected</span>
-      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => {
-        const picked = characters.filter((c) => selected.includes(c.id) && !c.isGroup)
-        downloadJson(picked.map((c) => characterToExportCard(c, useApp.getState().lorebooks)), `characters-${picked.length}`)
-        setSelected([])
-        toast.success(`Exported ${picked.length} card${picked.length === 1 ? '' : 's'} as JSON`)
-      }}>
-        <DownloadSimple className="size-3.5" aria-hidden="true" />Export
-      </Button>
-      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => setConfirmBatch(true)}>
-        <Trash className="size-3.5" aria-hidden="true" />Delete
-      </Button>
     </div>
   )
 
@@ -337,6 +373,112 @@ export function CharactersView() {
     )
   }
 
+  const newMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={
+        <Button data-guide="groups.create" className="h-10 shrink-0 md:h-8" data-testid="new-menu">
+          <Plus className="size-4" aria-hidden="true" />{t('characters.new')}<CaretDown className="size-3 max-md:hidden" aria-hidden="true" />
+        </Button>
+      } />
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => { const id = newCharacter(); openCharacter(id) }}>
+          <UserCircle className="size-4" aria-hidden="true" />{t('characters.newCharacter')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setGroupOpen(true)}>
+          <Users className="size-4" aria-hidden="true" />{t('characters.newGroup')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const sortMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={
+        <Button variant="outline" className="size-10 shrink-0 p-0 md:size-8 2xl:w-auto 2xl:gap-1.5 2xl:px-2.5 2xl:text-xs" aria-label={t('characters.sort')} title={t('characters.sort')}>
+          <SortAscending className="size-4" aria-hidden="true" />
+          <span className="max-2xl:hidden">{SORT_OPTIONS.find(([v]) => v === sort)?.[1]}</span>
+        </Button>
+      } />
+      <DropdownMenuContent align="end">
+        {SORT_OPTIONS.map(([v, label]) => (
+          <DropdownMenuItem key={v} onClick={() => { setSort(v); setPage(0) }}>
+            <Check className={cn('size-4', sort !== v && 'opacity-0')} aria-hidden="true" />{label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const viewToggle = (
+    <Button variant="ghost" className="size-10 p-0 md:size-8" onClick={() => setGrid(!grid)} aria-label={grid ? t('characters.viewList') : t('characters.viewGrid')} title={grid ? t('characters.viewList') : t('characters.viewGrid')}>
+      {grid ? <List className="size-4" aria-hidden="true" /> : <SquaresFour className="size-4" aria-hidden="true" />}
+    </Button>
+  )
+
+  const importMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={
+        <Button data-guide="characters.import" variant="outline" className="size-10 shrink-0 p-0 md:h-8 md:w-auto md:gap-1.5 md:px-2.5 md:text-xs" aria-label={t('characters.import')} title={t('characters.import')}>
+          <DownloadSimple className="size-4" aria-hidden="true" /><span className="max-md:hidden">{t('characters.import')}</span>
+        </Button>
+      } />
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => importRef.current?.click()}>
+          <FileCode className="size-4" aria-hidden="true" />{t('characters.importFiles')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setUrlOpen(true)}>
+          <LinkSimple className="size-4" aria-hidden="true" />{t('characters.importUrl')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const tagsPanel = (
+    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4 md:px-0 md:pb-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} placeholder={t('characters.tagsFind')} className="h-10 min-w-40 flex-1 text-sm md:h-8" aria-label={t('characters.tagsFind')} />
+        <div role="group" aria-label={t('characters.tagsTitle')} className="flex gap-1">
+          {(['count', 'az'] as const).map((k) => (
+            <button key={k} type="button" aria-pressed={tagSort === k} onClick={() => setTagSort(k)} className={cn('h-10 rounded-md border px-2.5 text-xs md:h-8', tagSort === k ? 'border-primary/60 bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:bg-accent/60')}>
+              {t(k === 'count' ? 'characters.tagsByCount' : 'characters.tagsByName')}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5" data-testid="all-tags-list">
+        {panelChips.map(({ name, tag }) => tagChip(name, tag, true))}
+        {tagChips.length === 0 && <span className="text-xs text-muted-foreground">{t('characters.tagsNone')}</span>}
+        {tagChips.length > 0 && panelChips.length === 0 && <span className="text-xs text-muted-foreground">{t('characters.tagsNoMatch')}</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" className="h-10 md:h-8" onClick={() => setTagManagerOpen(true)}>
+          <Tag className="size-4" aria-hidden="true" />{t('characters.tagsManage')}
+        </Button>
+        {tagFilter.length > 0 && (
+          <Button variant="ghost" className="h-10 md:h-8" onClick={() => { setTagFilter([]); setPage(0) }}>{t('characters.tagsClear')}</Button>
+        )}
+        <Button className="ml-auto h-10 md:h-8" onClick={() => setFilterOpen(false)}>{t('characters.tagsDone')}</Button>
+      </div>
+    </div>
+  )
+
+  const batchActions = (
+    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">{selected.length} selected</span>
+      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => {
+        const picked = characters.filter((c) => selected.includes(c.id) && !c.isGroup)
+        downloadJson(picked.map((c) => characterToExportCard(c, useApp.getState().lorebooks)), `characters-${picked.length}`)
+        setSelected([])
+        toast.success(`Exported ${picked.length} card${picked.length === 1 ? '' : 's'} as JSON`)
+      }}>
+        <DownloadSimple className="size-3.5" aria-hidden="true" />Export
+      </Button>
+      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => setConfirmBatch(true)}>
+        <Trash className="size-3.5" aria-hidden="true" />Delete
+      </Button>
+    </div>
+  )
+
   return (
     <SectionPage section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined}>
     <div className="flex h-full min-h-0 flex-col">
@@ -352,130 +494,52 @@ export function CharactersView() {
         onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }}
         aria-label="Import character cards"
       />
-      {isMobile ? (
-        // phone: the switch and one primary button, then search, Filter and More; the rest is in the menus
-        <header className="flex flex-col gap-2 border-b border-border px-3 py-2">
-          <div className="flex items-center gap-2">
-            {modeSwitch}
-            {mode === 'characters' ? (
-              <Button className="h-10 shrink-0" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
-                <Plus className="size-4" aria-hidden="true" />New
-              </Button>
-            ) : (
-              <Button data-guide="groups.create" className="h-10 shrink-0 bg-group text-group-foreground hover:bg-group/85" onClick={() => setGroupOpen(true)}>
-                <Users className="size-4" aria-hidden="true" />{t('groups.create')}
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="relative min-w-0 flex-1">
-              <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-10 pl-8 text-sm" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
-            </div>
-            {mode === 'characters' && (
+      <header className="flex flex-col gap-2 border-b border-border px-3 py-2 md:flex-row md:flex-wrap md:items-center md:px-4 md:py-2.5">
+        {/* phone: switch and New on the first row, search on its own, then icon-only tools */}
+        <div className="flex items-center gap-2 max-md:w-full">
+          {modeSwitch}
+          {isMobile && newMenu}
+        </div>
+        <div className="relative w-full md:w-auto md:min-w-36 md:max-w-72 md:flex-1">
+          <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-10 pl-8 text-sm md:h-8" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
+        </div>
+        <div className="flex items-center gap-1.5 md:ml-auto md:shrink-0">
+          {mode === 'characters' && (<>
+            {sortMenu}
+            {viewToggle}
+            <Button variant={batchMode ? 'secondary' : 'ghost'} className="size-10 p-0 md:size-8" onClick={() => { setBatchMode(!batchMode); setSelected([]) }} aria-pressed={batchMode} aria-label={t('characters.selectMode')} title={t('characters.selectMode')}>
+              <CheckSquare className="size-4" weight={batchMode ? 'fill' : 'regular'} aria-hidden="true" />
+            </Button>
+            {importMenu}
+            {isMobile && (
               <Button variant="outline" className="h-10 shrink-0" onClick={() => setFilterOpen(true)}>
-                <Funnel className="size-4" aria-hidden="true" />Filter
+                <Funnel className="size-4" aria-hidden="true" />{t('characters.tagsTitle')}
                 {tagFilter.length > 0 && <Badge className="h-5 min-w-5 px-1 text-[10px]">{tagFilter.length}</Badge>}
               </Button>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger render={
-                <Button data-guide="characters.import" variant="outline" className="size-10 shrink-0 p-0" aria-label="More">
-                  <DotsThreeVertical className="size-5" aria-hidden="true" />
-                </Button>
-              } />
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => importRef.current?.click()}>
-                  <FileCode className="size-4" aria-hidden="true" />Import from files…
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setUrlOpen(true)}>
-                  <LinkSimple className="size-4" aria-hidden="true" />Import from URL (chub)…
-                </DropdownMenuItem>
-                {mode === 'characters' && (<>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setGroupOpen(true)}>
-                    <Users className="size-4" aria-hidden="true" />New group
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setBatchMode(!batchMode); setSelected([]) }}>
-                    <CheckSquare className="size-4" weight={batchMode ? 'fill' : 'regular'} aria-hidden="true" />{batchMode ? 'Stop selecting' : 'Select several'}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setGrid(!grid)}>
-                    {grid ? <List className="size-4" aria-hidden="true" /> : <SquaresFour className="size-4" aria-hidden="true" />}{grid ? 'List view' : 'Grid view'}
-                  </DropdownMenuItem>
-                </>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {/* only the tags in use, each with its own way out */}
-          {mode === 'characters' && tagFilter.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {tagFilter.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => { setTagFilter((f) => f.filter((x) => x !== name)); setPage(0) }}
-                  className="flex h-8 items-center gap-1 rounded-full bg-accent px-2.5 text-xs text-accent-foreground"
-                  aria-label={`Remove the ${name} filter`}
-                >
-                  {name}<X className="size-3" aria-hidden="true" />
-                </button>
-              ))}
-              <Button variant="ghost" className="h-8 px-2 text-xs" onClick={() => { setTagFilter([]); setPage(0) }}>Clear</Button>
-            </div>
-          )}
-          {mode === 'characters' && batchMode && selected.length > 0 && batchActions}
-        </header>
-      ) : (
-      <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-        <PaneTitle section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined} />
-        {modeSwitch}
-        <div className="relative order-last w-full md:order-none md:w-64">
-          <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : 'Search characters…'} className="h-8 pl-8 text-sm" aria-label={mode === 'groups' ? t('groups.search') : 'Search characters'} />
-        </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          {mode === 'characters' && (<>
-          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-            <SelectTrigger className="h-8 w-32 text-xs" aria-label="Sort characters">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map(([v, label]) => <SelectItem key={v} value={v}>{label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button variant={batchMode ? 'secondary' : 'ghost'} size="sm" onClick={() => { setBatchMode(!batchMode); setSelected([]) }} aria-label="Batch select mode">
-            <CheckSquare className="size-4" aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setGrid(!grid)} aria-label={grid ? 'List view' : 'Grid view'}>
-            {grid ? <List className="size-4" aria-hidden="true" /> : <SquaresFour className="size-4" aria-hidden="true" />}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={
-              <Button data-guide="characters.import" variant="outline" size="sm">
-                <UploadSimple className="size-4" aria-hidden="true" />Import
-              </Button>
-            } />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => importRef.current?.click()}>
-                <FileCode className="size-4" aria-hidden="true" />From files…
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setUrlOpen(true)}>
-                <LinkSimple className="size-4" aria-hidden="true" />From URL (chub)…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
           </>)}
-          <Button data-guide="groups.create" variant={mode === 'groups' ? 'default' : 'outline'} size="sm" className={cn(mode === 'groups' ? 'bg-group text-group-foreground hover:bg-group/85' : 'border-group/50 text-group hover:bg-group/10 hover:text-group dark:border-group/50 dark:hover:bg-group/10')} onClick={() => setGroupOpen(true)}>
-            <Users className="size-4" aria-hidden="true" />{mode === 'groups' ? t('groups.create') : 'Group'}
-          </Button>
-          {mode === 'characters' && (
-            <Button size="sm" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
-              <Plus className="size-4" aria-hidden="true" />New
-            </Button>
-          )}
+          {!isMobile && newMenu}
         </div>
+        {/* active filters, each with its own way out (phone: the tag row is in the All tags sheet) */}
+        {isMobile && mode === 'characters' && tagFilter.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tagFilter.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => { setTagFilter((f) => f.filter((x) => x !== name)); setPage(0) }}
+                className="flex h-8 items-center gap-1 rounded-full bg-accent px-2.5 text-xs text-accent-foreground"
+                aria-label={`Remove the ${name} filter`}
+              >
+                {name}<X className="size-3" aria-hidden="true" />
+              </button>
+            ))}
+            <Button variant="ghost" className="h-8 px-2 text-xs" onClick={() => { setTagFilter([]); setPage(0) }}>{t('characters.tagsClear')}</Button>
+          </div>
+        )}
+        {isMobile && mode === 'characters' && batchMode && selected.length > 0 && batchActions}
       </header>
-      )}
 
       <CreateGroupDialog open={groupOpen} onOpenChange={setGroupOpen} />
 
@@ -487,16 +551,19 @@ export function CharactersView() {
         </p>
       )}
 
-      {/* tag filter row (desktop) — tags IN USE on existing cards, horizontally
-          scrollable; on a phone they live in the Filter sheet */}
+      {/* tag filter row (desktop): the tags in use, at most two rows; the rest is behind "All tags" */}
       {mode === 'characters' && !isMobile && (
-      <div className="flex items-center gap-1.5 border-b border-border px-4 py-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-          {tagChips.map(({ name, tag }) => tagChip(name, tag))}
+      <div className="flex items-start gap-1.5 border-b border-border px-4 py-1.5">
+        <TagRow chips={tagChips} counts={tagCounts} render={(name, tag) => tagChip(name, tag)} />
+        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+          <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => setFilterOpen(true)} data-testid="all-tags">
+            <Funnel className="size-3.5" aria-hidden="true" />{t('characters.allTags', { n: tagChips.length })}
+            {tagFilter.length > 0 && <Badge className="h-4 min-w-4 px-1 text-[10px]">{tagFilter.length}</Badge>}
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={() => setTagManagerOpen(true)}>
+            <Tag className="size-3.5" aria-hidden="true" />Manage
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={() => setTagManagerOpen(true)}>
-          <Tag className="size-3.5" aria-hidden="true" />Manage
-        </Button>
         {batchMode && selected.length > 0 && batchActions}
       </div>
       )}
@@ -552,16 +619,16 @@ export function CharactersView() {
                         {c.isGroup && <Badge variant="outline" className="border-group/50 text-[10px] text-group">group</Badge>}
                       </span>
                       <CardKindBadge type={cardTypeOf(c)} className="w-fit" />
-                      <span className="text-[11px] text-muted-foreground">
-                        {settings.charSubheader === 'creator' ? `by ${c.creator}` : `v${c.version}`}
-                      </span>
-                      <span className="line-clamp-2 text-xs text-muted-foreground">{listText(c)}</span>
                       <span className="mt-1 flex flex-wrap gap-1">
                         {c.tags.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
                       </span>
-                      <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{c.stub ? '~' : ''}{formatTokens(tokens)} tokens</span>
-                        <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+                        {chatCount > 0 && (
+                          <span className="flex items-center gap-1 font-semibold tabular-nums text-primary"><Chats className="size-4" weight="fill" aria-hidden="true" />{t('characters.chatsN', { n: chatCount })}</span>
+                        )}
+                        <span className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">{c.stub ? '~' : ''}{t('characters.tokensN', { n: formatTokens(tokens) })}</span>
+                        {hasBook(c) && <BookOpenText className="size-4 text-muted-foreground" aria-label={t('characters.hasLore')} role="img"><title>{t('characters.hasLore')}</title></BookOpenText>}
+                        {hasSprites(c) && <Smiley className="size-4 text-muted-foreground" aria-label={t('characters.hasSprites')} role="img"><title>{t('characters.hasSprites')}</title></Smiley>}
                       </span>
                     </span>
                   </button>
@@ -664,43 +731,26 @@ export function CharactersView() {
       </Dialog>
 
       <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} />
-      {/* phone: sort and every tag, wrapped, instead of a row you swipe sideways */}
-      <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
-        <SheetContent side="bottom" className="max-h-[80dvh]">
-          <SheetHeader>
-            <SheetTitle>Filter and sort</SheetTitle>
-          </SheetHeader>
-          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">Sort</span>
-              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-                <SelectTrigger className="h-10 w-44 text-sm" aria-label="Sort characters">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map(([v, label]) => <SelectItem key={v} value={v}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {tagChips.length > 12 && (
-              <Input value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} placeholder="Find a tag" className="h-10 text-sm" aria-label="Find a tag" />
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {tagChips.filter(({ name }) => !tagQuery.trim() || name.toLowerCase().includes(tagQuery.trim().toLowerCase())).map(({ name, tag }) => tagChip(name, tag, true))}
-              {tagChips.length === 0 && <span className="text-xs text-muted-foreground">No tags on your cards yet.</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" className="h-10" onClick={() => setTagManagerOpen(true)}>
-                <Tag className="size-4" aria-hidden="true" />Manage tags
-              </Button>
-              {tagFilter.length > 0 && (
-                <Button variant="ghost" className="h-10" onClick={() => { setTagFilter([]); setPage(0) }}>Clear</Button>
-              )}
-              <Button className="ml-auto h-10" onClick={() => setFilterOpen(false)}>Done</Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* every tag, searchable and sortable: a sheet on a phone, a dialog on desktop */}
+      {isMobile ? (
+        <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
+          <SheetContent side="bottom" className="max-h-[80dvh]">
+            <SheetHeader>
+              <SheetTitle>{t('characters.tagsTitle')}</SheetTitle>
+            </SheetHeader>
+            {tagsPanel}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={filterOpen} onOpenChange={setFilterOpen}>
+          <DialogContent className="max-h-[80dvh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{t('characters.tagsTitle')}</DialogTitle>
+            </DialogHeader>
+            {tagsPanel}
+          </DialogContent>
+        </Dialog>
+      )}
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
