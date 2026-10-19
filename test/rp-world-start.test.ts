@@ -322,6 +322,8 @@ describe("a world built without a chat", () => {
   it("only a begin with newWorld makes a world", () => {
     expect(world("POST", "/world/start", { begin: true, recipe: "interview" }).error).toBe("chatId or worldId required");
     expect(world("POST", "/world/start", { worldId: "w-nothere" }).error).toBe("chatId or worldId required");
+  });
+});
 
 describe("world records: keys and pins", () => {
   it("a pinned record is always in the book; the build model fills keys for records that have none", () => {
