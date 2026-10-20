@@ -6,7 +6,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 - A thinking model that also writes a preset's inline thinking tags (Vertep Lite's `<plan>`) no longer leaves the plan in the story: the engine splits those tags only when the provider sends no reasoning of its own, and the markdown hid the tag but showed the plan. The app now moves the tagged block into the reply's thinking.
 - Vertep Lite: world info sits below the history, so a lorebook entry that turns on or off no longer makes the provider read the whole history again. Its heading appears only when an entry is active.
-- Chat info (the "i" in the header) shows how much of the last reply's prompt came from the provider's cache, and the chat's total in its tooltip.
+- Chat info (the "i" in the header) shows how much of the last reply's prompt came from the provider's cache, and the chat's total in its tooltip. Its Context line counts the cached part too: it showed only the uncached rest, so a chat with a good cache looked emptier than it was.
 
 ## 4.56.0
 

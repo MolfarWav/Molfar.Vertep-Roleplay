@@ -568,7 +568,7 @@ export function ChatView() {
     const cache: ChatCache | null = lastUsage
       ? { last: lastUsage.cacheRead ?? 0, prompt: lastUsage.input + (lastUsage.cacheRead ?? 0) + (lastUsage.cacheWrite ?? 0), total: cachedAll }
       : null
-    return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: lastUsage ? lastUsage.input : null, cache }
+    return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: cache ? cache.prompt : null, cache }
   }, [chat])
 
   const startIdx = chat ? Math.max(0, chat.messages.length - visibleCount) : 0
