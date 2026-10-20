@@ -56,12 +56,23 @@ export const EMPTY_PROMPT_FORMAT: PromptFormatSequences = {
   systemAsUser: false,
 }
 
+/** Polish my message (#15). Mirrors DEFAULT_POLISH in plugins/polish/plugin.js, which runs it
+ *  whenever a preset's own polish prompt is blank; test/rp-polish.test.ts keeps the two equal. */
+export const DEFAULT_POLISH_PROMPT =
+  "You edit {{user}}'s next message in a roleplay before it is sent. Rewrite the draft so it reads well and can be sent as-is. " +
+  "Fix spelling, grammar and punctuation. Make the prose more vivid: precise verbs, a sensory detail or two, a touch of feeling. " +
+  "Keep every action, fact and spoken line of the draft, and keep its language, its person (I, he, she) and its tense. " +
+  "Keep the formatting the draft and the story use, for example *actions* in asterisks and speech in quotes. " +
+  "Write only for {{user}}: add no new events, do not decide how an action turns out, and never speak or act for other characters. " +
+  "Keep it close to the draft's length, at most about twice as long. Output only the rewritten message, with no notes, title or quotes around it."
+
 export const DEFAULT_UTILITY_PROMPTS: Preset['utilityPrompts'] = {
   impersonation: "Write the next reply from {{user}}'s point of view, using the chat history as a style guide. Do not write as any character. Output only {{user}}'s message.",
   continueNudge: '[Continue your last message without repeating its original content.]',
   newChat: '[Start a new chat]',
   groupNudge: '[Write the next reply only as {{name}}]',
   emptySend: '',
+  polish: DEFAULT_POLISH_PROMPT,
 }
 
 export function buildDefaultPreset(): Preset {

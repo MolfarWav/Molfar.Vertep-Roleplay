@@ -303,7 +303,7 @@ something risky, copy the preset to a new id first.
 | `samplers_override_model` | `true`: this preset's samplers win over the model's parameters (the editor's switch, `studio.samplersOverrideModel`). |
 | `openai_max_tokens`, `openai_max_context` | Reply length limit and context size, in tokens. When the model's context window and its max output are known (0.9.2+), those are used instead. |
 | `reasoning`, `reasoningTags`, `thinkingBudget` | Reasoning effort (`low`, `medium`, `high`), the tags of inline thinking, its token budget. |
-| `utilityPrompts` | Prompts of app features (summary, impersonate, empty send…), lifted from `studio` for the engine. |
+| `utilityPrompts` | Prompts of app features (summary, impersonate, empty send, polish…), lifted from `studio` for the engine. `polish` (#15) is the instruction for Polish in the composer: the chat's model corrects and enriches the player's draft. Blank or missing = the built-in prompt (`plugins/polish/plugin.js`). |
 | `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`), `groups`, `variables` (see Variables), `description`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |
 | other numbers (`top_a`, `typical_p`, `dry_*`, `xtc_*`, `dynatemp_*`, `mirostat_*` …) | Extra samplers from imported presets; sent when set. |
 

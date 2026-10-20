@@ -89,7 +89,7 @@ export function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characte
 
 
 /** Text waiting for a chat's composer (see AppState.composerDrafts). */
-export type ComposerFill = { id: string; chatId: ID; text: string; base: string; kind: 'impersonate' | 'unsent'; attachments?: Message['attachments'] }
+export type ComposerFill = { id: string; chatId: ID; text: string; base: string; kind: 'impersonate' | 'unsent' | 'polish'; attachments?: Message['attachments'] }
 export type SendOutcome = 'sent' | 'not-sent' | 'stopped'
 
 interface AppState {
@@ -252,6 +252,9 @@ interface AppState {
   toggleBookmark: (chatId: ID, messageId: ID, label?: string) => void
   moveMessage: (chatId: ID, messageId: ID, dir: -1 | 1) => void
   impersonate: (chatId: ID) => void
+  /** Polish my message (GitHub #15): the chat's model corrects and enriches this draft; the
+   *  result comes back to the composer as a fill (never sent), with an Undo for the draft */
+  polishDraft: (chatId: ID, text: string) => void
   continueReply: (chatId: ID) => void
   forkChat: (chatId: ID, messageId: ID) => Promise<ID>
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
@@ -1564,6 +1567,29 @@ export const useApp = create<AppState>()(
               method: 'POST', body: JSON.stringify(get().modelFor(chatId) ? { model: get().modelFor(chatId) } : {}),
             })
             set((s) => ({ composerDrafts: { ...s.composerDrafts, [chatId]: { id, chatId, text: r.text, base, kind: 'impersonate' } }, ...clear(s) }))
+          } catch (e) {
+            set(clear)
+            toast.error(String((e as Error).message ?? e))
+          }
+        })()
+      },
+      polishDraft: (chatId, text) => {
+        if (get().streaming?.chatId === chatId || !text.trim()) return
+        // like Write for me (#29): the result belongs to this chat and to the draft as it
+        // reads now; the composer puts it in only while the draft is unchanged
+        const id = uid('fill')
+        const marker = `polish-${id}`
+        const clear = (s: AppState) => (s.streaming?.messageId === marker ? { streaming: null } : {})
+        set({ streaming: { chatId, messageId: marker, full: '', shown: 0, startedAt: Date.now() } })
+        void (async () => {
+          try {
+            const model = get().modelFor(chatId)
+            const r = await j<{ text?: string }>(`/polish/chats/${encodeURIComponent(chatId)}`, {
+              method: 'POST', body: JSON.stringify({ text, ...(model ? { model } : {}) }),
+            })
+            const polished = r?.text?.trim() ? r.text : ''
+            if (!polished) throw new Error('The model returned an empty answer. Try again.')
+            set((s) => ({ composerDrafts: { ...s.composerDrafts, [chatId]: { id, chatId, text: polished, base: text, kind: 'polish' } }, ...clear(s) }))
           } catch (e) {
             set(clear)
             toast.error(String((e as Error).message ?? e))

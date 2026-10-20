@@ -1368,7 +1368,8 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     groups: bag?.groups ?? [],
     variables: bag?.variables ?? [],
     ...(typeof bag?.description === 'string' && bag.description ? { description: bag.description } : {}),
-    utilityPrompts: bag?.utilityPrompts ?? (ep.utilityPrompts as Preset['utilityPrompts'] | undefined) ?? { impersonation: '', continueNudge: '', newChat: '', groupNudge: '', emptySend: '' },
+    // a preset written before a prompt existed (polish, #15) shows it blank: blank = the built-in text
+    utilityPrompts: { impersonation: '', continueNudge: '', newChat: '', groupNudge: '', emptySend: '', polish: '', ...(bag?.utilityPrompts ?? (ep.utilityPrompts as Partial<Preset['utilityPrompts']> | undefined)) },
     samplers,
     // the editor bag first; a preset written before the bag knew the field carries it only at the top level
     samplersOverrideModel: bag?.samplersOverrideModel ?? ep.samplers_override_model === true,

@@ -215,7 +215,7 @@ describe("Marinara import", () => {
     const { presetImport } = await import("../src/lib/import-shapes.ts");
     const base = {
       id: "b", name: "B", readOnly: false, isDefault: false, folderId: null, picture: null, sections: [], groups: [], variables: [],
-      utilityPrompts: { impersonation: "", continueNudge: "", newChat: "", groupNudge: "", emptySend: "" },
+      utilityPrompts: { impersonation: "", continueNudge: "", newChat: "", groupNudge: "", emptySend: "", polish: "" },
       samplers: {
         temperature: { value: 1, enabled: true }, top_p: { value: 1, enabled: true }, top_k: { value: 0, enabled: false }, min_p: { value: 0, enabled: false },
         rep_pen: { value: 1, enabled: false }, freq_pen: { value: 0, enabled: false }, pres_pen: { value: 0, enabled: false },

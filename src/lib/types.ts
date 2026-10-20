@@ -439,7 +439,7 @@ export interface Preset {
   variables: PromptVariable[]
   /** What the preset is for, shown in the chat's preset panel. */
   description?: string
-  utilityPrompts: { impersonation: string; continueNudge: string; newChat: string; groupNudge: string; emptySend: string }
+  utilityPrompts: { impersonation: string; continueNudge: string; newChat: string; groupNudge: string; emptySend: string; polish: string }
   samplers: SamplerSettings
   /** 0.9.2: the engine sends the MODEL's parameters (Settings > connections) and this preset's
    *  samplers only fill what the model leaves unset; on, this preset's samplers win instead. */

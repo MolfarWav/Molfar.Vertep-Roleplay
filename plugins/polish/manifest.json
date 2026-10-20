@@ -1,0 +1,7 @@
+{
+  "name": "Polish message",
+  "version": "1.0.0",
+  "description": "Polish my message (GitHub #15): the chat's own model corrects and enriches the player's draft before it is sent, keeping its language, person, actions and speech. POST /polish/chats/:id { text, model? } returns { text }. Nothing is sent or stored; the composer puts the result back into the box.",
+  "origin": "local",
+  "permissions": ["routes", "llm", "fs"]
+}

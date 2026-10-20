@@ -70,6 +70,11 @@ const UTILITY_PROMPT_META: Record<
     hint: 'Substituted for your message when you send an empty box. Leave blank (the default) to send nothing at all and let the model continue straight from history.',
     placeholder: 'Blank (send no replacement text)',
   },
+  polish: {
+    label: 'Polish prompt',
+    hint: 'Used by Polish in the composer: the chat\'s model rewrites your draft with this instruction before you send it. {{user}} is your name. Leave blank to use the built-in prompt.',
+    placeholder: 'Blank (the built-in polish prompt)',
+  },
 }
 
 export function PresetsView() {

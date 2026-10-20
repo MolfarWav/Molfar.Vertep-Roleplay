@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText } from '@phosphor-icons/react'
+import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -58,6 +58,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   const regenerate = useApp((s) => s.regenerate)
   const continueReply = useApp((s) => s.continueReply)
   const impersonate = useApp((s) => s.impersonate)
+  const polishDraft = useApp((s) => s.polishDraft)
   const addSwipe = useApp((s) => s.addSwipe)
   const sendOnEnter = useApp((s) => s.settings.sendOnEnter)
   const upArrowEditLast = useApp((s) => s.settings.upArrowEditLast)
@@ -169,7 +170,7 @@ export function Composer({ chatId }: { chatId: ID }) {
       put()
       if (fill.kind === 'unsent') toast(t('composer.unsentBack'))
     } else {
-      toast(t(fill.kind === 'unsent' ? 'composer.unsentOffer' : 'composer.writeForMeOffer'), {
+      toast(t(fill.kind === 'unsent' ? 'composer.unsentOffer' : fill.kind === 'polish' ? 'composer.polishOffer' : 'composer.writeForMeOffer'), {
         duration: 20000,
         action: { label: t('composer.putIn'), onClick: put },
       })
@@ -177,6 +178,10 @@ export function Composer({ chatId }: { chatId: ID }) {
   }, [fill, chatId, dropComposerDraft, setValue, t])
   const writeForMe = () => {
     void impersonate(chatId)
+  }
+  const canPolish = !!value.trim()
+  const polish = () => {
+    if (canPolish) polishDraft(chatId, value)
   }
 
   // The shell refused to store this chat's draft (its storage is full): the
@@ -502,6 +507,9 @@ export function Composer({ chatId }: { chatId: ID }) {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
             <DropdownMenuLabel>Compose</DropdownMenuLabel>
+            <DropdownMenuItem onClick={polish} disabled={isStreaming || !canPolish}>
+              <Sparkle className="size-4" /> {t('composer.polish')}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setExpandOpen(true)}>
               <ArrowsOut className="size-4" /> Expand editor
               <span className="ml-auto text-[10px] text-muted-foreground">⇧Tab</span>
@@ -612,6 +620,9 @@ export function Composer({ chatId }: { chatId: ID }) {
             </Button>
             <Button variant="outline" size="sm" className="h-9 gap-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title="Write your next message for you (your draft can be brought back)">
               <User className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Write for me</span>
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 gap-1 border-teal-500/50 bg-teal-500/15 px-2.5 text-xs font-semibold text-teal-700 hover:bg-teal-500/25 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-300" onClick={polish} disabled={!canPolish} title={t('composer.polishTitle')}>
+              <Sparkle className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">{t('composer.polish')}</span>
             </Button>
             {hasReply && (
               <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300" onClick={() => regenerate(chatId)} title="Another version of the last reply">

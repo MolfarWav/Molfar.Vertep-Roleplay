@@ -371,6 +371,8 @@ export function presetImport(json: unknown, name: string, base: Preset): Preset 
       newChat: d.new_chat_prompt ?? base.utilityPrompts.newChat,
       groupNudge: d.group_nudge_prompt ?? base.utilityPrompts.groupNudge,
       emptySend: d.send_if_empty ?? base.utilityPrompts.emptySend,
+      // the portable format carries no polish prompt: it keeps the base value
+      polish: base.utilityPrompts.polish,
     },
     namesBehavior:
       d.names_behavior != null

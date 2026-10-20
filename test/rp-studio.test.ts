@@ -1147,7 +1147,7 @@ describe("rp studio engine: utility prompts", () => {
   const presetWithUtils = (utils: Record<string, string>) => {
     const base = JSON.parse(fs.readFileSync(path.join(root, "presets", "default.json"), "utf8")) as Record<string, unknown>;
     base.utilityPrompts = {
-      impersonation: "", continueNudge: "", newChat: "", groupNudge: "", emptySend: "", ...utils,
+      impersonation: "", continueNudge: "", newChat: "", groupNudge: "", emptySend: "", polish: "", ...utils,
     };
     fs.writeFileSync(path.join(root, "presets", "default.json"), JSON.stringify(base));
   };
