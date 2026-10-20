@@ -432,3 +432,68 @@ describe("fixes after the UI round", () => {
     expect(notes[0].after).toBe(first.id);
   });
 });
+
+describe("built-in Vertep Lite", () => {
+  const shipped = path.join(import.meta.dir, "..", "data", "presets");
+  const read = () => JSON.parse(fs.readFileSync(path.join(shipped, "vertep-lite.json"), "utf8"));
+  const msgs = (chatId: string) => call("POST", "/prompt/preview", { chatId, userText: "Hello there." }).messages as { role: string; content: string }[];
+
+  it("ships as a preset and as the update template, identical, read-only, every option explained", () => {
+    const a = fs.readFileSync(path.join(shipped, "vertep-lite.json"), "utf8");
+    expect(fs.readFileSync(path.join(shipped, "_vertep-lite.json"), "utf8")).toBe(a);
+    const p = JSON.parse(a);
+    expect(p.id).toBe("vertep-lite");
+    expect(p.studio.readOnly).toBe(true);
+    expect(p.reasoningTags).toEqual({ open: "<plan>", close: "</plan>" });
+    for (const v of p.studio.variables) for (const c of v.choices ?? []) {
+      expect(c.hint.length).toBeGreaterThan(5);
+      expect(c.hint.length).toBeLessThanOrEqual(200);
+    }
+  });
+
+  it("stays light: under 3k tokens with the heaviest picks", () => {
+    const p = read();
+    const costs = eng.presetCosts(p, {}, false) as { total: number; vars: Record<string, Record<string, number>> };
+    expect(costs.total).toBeLessThan(2500);
+    const heaviest = Object.entries(costs.vars).map(([name, by]) => {
+      const def = p.studio.variables.find((v: { name: string }) => v.name === name).defaults[0];
+      return Math.max(...Object.values(by)) - (by[def] ?? 0);
+    });
+    expect(costs.total + heaviest.reduce((x, y) => x + y, 0)).toBeLessThan(3000);
+  });
+
+  it("keeps the request start fixed for the prompt cache: only the reply notes follow the newest message", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    const one = msgs(meta.id);
+    const two = msgs(meta.id);
+    const lastUser = one.map((m) => m.role).lastIndexOf("user");
+    // everything up to the newest message is the same from one request to the next (the Muse is random)
+    expect(two.slice(0, lastUser + 1)).toEqual(one.slice(0, lastUser + 1));
+    expect(one[0]!.content.startsWith("# Vertep Lite")).toBe(true);
+    const tail = one.slice(lastUser + 1).map((m) => m.content).join("\n");
+    expect(tail).toContain("<plan>");
+    expect(tail).toContain("[Muse for this reply");
+    expect(tail).toContain("[This reply: at least 700 words");
+    expect(tail.indexOf("[This reply:")).toBeGreaterThan(tail.indexOf("[Muse"));
+    expect(one.map((m) => m.content).join("\n").match(/\{\{(?!suggest:)[^}]*\}\}/g)).toBeNull();
+  });
+
+  it("its picks switch the plan and the Muse off and change the notes", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    call("POST", `/chats/${meta.id}/preset`, { vars: { plan: "plan_off", muse: "false", length: "length_short", language: "language_uk", custom: "No magic here." } });
+    const all = msgs(meta.id).map((m) => m.content).join("\n");
+    expect(all).not.toContain("<plan>");
+    expect(all).not.toContain("[Muse");
+    expect(all).toContain("about 200-300 words");
+    expect(all).toContain("Language: Ukrainian");
+    expect(all).toContain("No magic here.");
+  });
+
+  it("an update seeds it once and keeps a copy the user already has", () => {
+    fs.copyFileSync(path.join(shipped, "_vertep-lite.json"), path.join(root, "presets", "_vertep-lite.json"));
+    expect(eng.onAppUpdate({ from: "4.55.0", to: "4.56.0" }, h()).upgraded).toContain("presets/vertep-lite.json");
+    expect(eng.onAppUpdate({ from: "4.55.0", to: "4.56.0" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+  });
+});

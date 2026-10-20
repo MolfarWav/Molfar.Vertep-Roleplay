@@ -3645,6 +3645,11 @@ export function onAppUpdate(ctx, host) {
       if (out) { writeJsonFile(fsx, "presets/" + pid + ".json", out); done.push("presets/" + pid + ".json hints"); }
     }
   }
+  // 4.56.0: the built-in Vertep Lite preset (template _vertep-lite.json); a copy the user already has stays
+  if (olderThan(from, "4.56.0") && !readJsonFile(fsx, "presets/vertep-lite.json")) {
+    const tpl = readJsonFile(fsx, "presets/_vertep-lite.json");
+    if (tpl) { writeJsonFile(fsx, "presets/vertep-lite.json", tpl); done.push("presets/vertep-lite.json"); }
+  }
   // 4.52.0 (#42): the built-in Molfar copy loses the "━" and "(PICK ONE)" of its section names
   if (olderThan(from, "4.52.0")) {
     const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));

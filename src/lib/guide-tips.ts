@@ -323,6 +323,17 @@ export const TIPS: Tip[] = [
       uk: 'Molfar стоїть поруч із FRANKENX у Пресетах: оберіть його для чату й налаштуйте у «Вибір». Кожен варіант обох тепер пояснює, що робить.',
     },
   },
+  // ── What's new: Vertep Lite
+  {
+    id: 'new.vertep-lite',
+    target: 'nav.presets',
+    open: { view: 'home' },
+    title: { en: 'A light built-in preset: Vertep Lite', uk: 'Легкий вбудований пресет: Vertep Lite' },
+    body: {
+      en: 'Vertep Lite sits next to Molfar and FRANKENX in Presets: about 2k tokens instead of 13k, long replies, a hidden micro plan and a Muse with a fresh idea for each reply. It knows Litopys, the Dashboard and the World DM. Set its options in Choices.',
+      uk: 'Vertep Lite стоїть поруч із Molfar і FRANKENX у Пресетах: близько 2 тис. токенів замість 13 тис., довгі відповіді, прихований мікроплан і Muse зі свіжою ідеєю на кожну відповідь. Він знає Літопис, Дашборд і World DM. Налаштуйте його у «Вибір».',
+    },
+  },
   // ── What's new: the help list itself
   {
     id: 'new.help',
