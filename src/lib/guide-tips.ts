@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.55.0'
+export const APP_VERSION = '4.56.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -326,12 +326,24 @@ export const TIPS: Tip[] = [
   // ── What's new: Vertep Lite
   {
     id: 'new.vertep-lite',
+    since: '4.56.0',
     target: 'nav.presets',
     open: { view: 'home' },
     title: { en: 'A light built-in preset: Vertep Lite', uk: 'Легкий вбудований пресет: Vertep Lite' },
     body: {
       en: 'Vertep Lite sits next to Molfar and FRANKENX in Presets: about 2k tokens instead of 13k, long replies, a hidden micro plan and a Muse with a fresh idea for each reply. It knows Litopys, the Dashboard and the World DM. Set its options in Choices.',
       uk: 'Vertep Lite стоїть поруч із Molfar і FRANKENX у Пресетах: близько 2 тис. токенів замість 13 тис., довгі відповіді, прихований мікроплан і Muse зі свіжою ідеєю на кожну відповідь. Він знає Літопис, Дашборд і World DM. Налаштуйте його у «Вибір».',
+    },
+  },
+  // ── What's new: Polish my message
+  {
+    id: 'new.polish',
+    since: '4.56.0',
+    open: { view: 'home' },
+    title: { en: 'Polish your message before sending', uk: 'Причешіть повідомлення перед надсиланням' },
+    body: {
+      en: 'Write a draft and press Polish next to Send: the chat\u2019s model fixes the mistakes and makes it more vivid, keeping your actions, words and language. Undo brings the draft back. The prompt is in Presets > Utility prompts.',
+      uk: 'Напишіть чернетку й натисніть «Причесати» біля «Надіслати»: модель чату виправить помилки й зробить текст яскравішим, зберігши ваші дії, слова та мову. «Повернути» відновить чернетку. Промпт у «Пресети > Utility prompts».',
     },
   },
   // ── What's new: the help list itself

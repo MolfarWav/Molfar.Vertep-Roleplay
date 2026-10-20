@@ -2,6 +2,13 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.56.0
+
+Polish my message works (#15), and a third built-in preset: Vertep Lite. Needs no engine update.
+
+- Polish (the button next to Send, or + → Compose): the chat's own model corrects the draft and makes it more vivid, keeping its actions, spoken lines, language, person and tense. The result goes back into the box with an Undo; nothing is sent. Before, every press ended in "the helper model gave nothing usable". The prompt is a preset utility prompt (`polish`); blank uses the built-in one. On a phone the button is an icon.
+- Vertep Lite: a built-in preset of about 2k tokens (Molfar and FRANKENX are near 13k). Long replies by default with a length choice (short to epic), a hidden micro plan in the story's language, a Muse with one fresh spark per reply, point of view, tense, style, difficulty, NSFW, language and player control in Choices. It knows the notes Litopys, the Dashboard and the World DM add. Everything that changes per reply sits after the newest message, so the prompt cache holds. Seeded on update when missing; built by `scripts/vertep-lite.ts`.
+
 ## 4.55.0
 
 A world can be built before any chat, and the Characters page gets one header bar. Needs no engine update.
