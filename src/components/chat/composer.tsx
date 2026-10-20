@@ -611,8 +611,8 @@ export function Composer({ chatId }: { chatId: ID }) {
 
         {/* in the two-row layout the space between "+" and send holds the moves
             people use most, out of the "+" menu; this pair sits at the right end.
-            On a phone only Write for me and the big editor: Continue and Another
-            stay in the "+" menu, so the composer keeps to two rows */}
+            On a phone only Write for me, Polish (icon only) and the big editor:
+            Continue and Another stay in the "+" menu, so the composer keeps to two rows */}
         {wide && !isStreaming && (
           <div className="flex min-w-0 items-center gap-1" role="group" aria-label="Quick moves">
             <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-primary/50 bg-primary/15 px-2.5 text-xs font-semibold text-primary hover:bg-primary/25 hover:text-primary" onClick={() => continueReply(chatId)} title="Continue the last reply">
@@ -621,8 +621,8 @@ export function Composer({ chatId }: { chatId: ID }) {
             <Button variant="outline" size="sm" className="h-9 gap-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title="Write your next message for you (your draft can be brought back)">
               <User className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Write for me</span>
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1 border-teal-500/50 bg-teal-500/15 px-2.5 text-xs font-semibold text-teal-700 hover:bg-teal-500/25 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-300" onClick={polish} disabled={!canPolish} title={t('composer.polishTitle')}>
-              <Sparkle className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">{t('composer.polish')}</span>
+            <Button variant="outline" size="sm" className="h-9 gap-1 border-teal-500/50 bg-teal-500/15 px-2.5 text-xs font-semibold text-teal-700 hover:bg-teal-500/25 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-300" onClick={polish} disabled={!canPolish} title={t('composer.polishTitle')} aria-label={t('composer.polish')}>
+              <Sparkle className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">{t('composer.polish')}</span>
             </Button>
             {hasReply && (
               <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300" onClick={() => regenerate(chatId)} title="Another version of the last reply">
