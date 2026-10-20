@@ -30,9 +30,12 @@ function ContextRing({ pct, known }: { pct: number; known: boolean }) {
   )
 }
 
+/** The last reply's prompt and how much of it the provider read from its cache; `total` is the chat's sum. */
+export type ChatCache = { last: number; prompt: number; total: number }
+
 /** The header's "i": what used to be two badges (model, spend) plus the chat's numbers.
  *  `ring` shows how full the context is instead of the "i" (the phone header). */
-export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, costMsgs, tokensIn, tokensOut, context, ring = false }: {
+export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, costMsgs, tokensIn, tokensOut, cache = null, context, ring = false }: {
   title: string
   /** 0-based */
   chatIndex: number
@@ -42,6 +45,7 @@ export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, co
   costMsgs: number
   tokensIn: number | null
   tokensOut: number | null
+  cache?: ChatCache | null
   context: { used: number; total: number } | null
   ring?: boolean
 }) {
@@ -102,6 +106,16 @@ export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, co
                 : none}
             </dd>
           </div>
+          {cache && cache.prompt > 0 && (
+            <div className={row}>
+              <dt className="shrink-0 text-muted-foreground">{t('details.cache')}</dt>
+              <dd className="font-mono text-right" title={t('details.cacheTotal', { n: formatTokens(cache.total) })}>
+                {cache.last > 0
+                  ? t('details.cacheOf', { n: formatTokens(cache.last), m: formatTokens(cache.prompt), pct: Math.round((cache.last / cache.prompt) * 100) })
+                  : <span className="text-muted-foreground">{t('details.cacheNone')}</span>}
+              </dd>
+            </div>
+          )}
           {context && (
             <div className="flex flex-col gap-1">
               <div className={row}>

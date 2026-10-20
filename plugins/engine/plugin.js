@@ -91,6 +91,39 @@ function cutPartsTag(parts) {
   return { parts: out, body, closed };
 }
 
+/**
+ * A thinking model that also writes the preset's inline thinking tags (Vertep Lite's <plan>)
+ * leaves them in its text: the engine splits inline tags only when the provider reported no
+ * reasoning of its own. Each tagged block moves from the text (and the text parts) to the end
+ * of reply.reasoning. An unclosed block stays in the text without its tag: it may be the whole
+ * story. Returns the reply.
+ */
+export function cutInlineThinking(reply, tags) {
+  if (!reply || !tags || !tags.open || !tags.close) return reply;
+  const re = new RegExp(escapeRegExp(tags.open) + "([\\s\\S]*?)" + escapeRegExp(tags.close), "g");
+  const found = [];
+  const cut = (text) =>
+    String(text)
+      .replace(re, (_, inner) => {
+        if (inner.trim()) found.push(inner.trim());
+        return "";
+      })
+      .split(tags.open)
+      .join("")
+      .trim();
+  if (typeof reply.text === "string" && reply.text.includes(tags.open)) reply.text = cut(reply.text);
+  if (Array.isArray(reply.parts)) {
+    reply.parts = reply.parts
+      .map((p) => (p && p.type === "text" && typeof p.text === "string" && p.text.includes(tags.open) ? { ...p, text: cut(p.text) } : p))
+      .filter((p) => !(p && p.type === "text" && typeof p.text === "string" && !p.text));
+  }
+  if (found.length) {
+    const unique = found.filter((t, i) => found.indexOf(t) === i);
+    reply.reasoning = [String(reply.reasoning || "").trim(), ...unique].filter(Boolean).join("\n\n");
+  }
+  return reply;
+}
+
 /** A finished reply with its tag cut from text and parts (reply.parts is replaced): { text, body, closed }. */
 function cutReply(reply) {
   const t = cutStateTag(String(reply.text || "").trim());
@@ -4699,6 +4732,12 @@ export function handleRoute(req, host) {
     const modelOf = () => (body().model != null ? body().model : meta.model);
     // stored-text regex for a message about to be saved in this chat
     const onSave = (text, placement, speaker) => regexOnSave(fsx, meta, members, text, placement, saveMacros(fsx, meta, chat.msgs, speaker));
+    // the preset's inline thinking tags, for replies whose model also thinks on its own
+    const inlineTags = () => {
+      const preset = readJsonFile(fsx, "presets/" + (meta.presetId || defaultPresetId(fsx)) + ".json");
+      const t = preset && preset.reasoningTags;
+      return t && typeof t.open === "string" && typeof t.close === "string" && t.open && t.close ? t : null;
+    };
     // PASS A of a generation writes no transcript — but a page reload inside
     // that window must not let the client's abandoned-chat sweep judge this
     // chat deletable (server-side it is still just a greeting). Persist the
@@ -5003,7 +5042,7 @@ const toolX = (r) => ({
       let speaker = members[0] || null;
       let replyText = String(reply.text || "").trim();
       // fast mode: the state report ends the reply; it is not part of the story
-      const stateTag = cutReply(reply);
+      const stateTag = cutReply(cutInlineThinking(reply, inlineTags()));
       replyText = stateTag.text;
       const plan = group && req.stash && Array.isArray(req.stash.plan) ? req.stash.plan : null;
       if (group) speaker = (plan && voices.find((m) => m.id === plan[0])) || null;
@@ -5067,7 +5106,7 @@ const toolX = (r) => ({
         return pendingOut(meta, a.trimmed ? { trimmed: a.trimmed } : undefined);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      const stateTag = cutReply(reply);
+      const stateTag = cutReply(cutInlineThinking(reply, inlineTags()));
       let replyText = stripEchoedName(stateTag.text, speaker.name);
       const prefill = reply.assistantPrefill;
       if (prefill && !replyText.startsWith(prefill)) replyText = prefill + replyText;
@@ -5148,7 +5187,7 @@ const toolX = (r) => ({
         return pendingOut(meta);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      const stateTag = cutReply(reply);
+      const stateTag = cutReply(cutInlineThinking(reply, inlineTags()));
       let fresh = stripEchoedName(stateTag.text, msg.name);
       const swipPrefill = reply.assistantPrefill;
       if (swipPrefill && !fresh.startsWith(swipPrefill)) fresh = swipPrefill + fresh;
@@ -5271,7 +5310,7 @@ const toolX = (r) => ({
         return pendingOut(meta);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));
-      const extra = onSave(cutReply(reply).text, "ai_output", speaker);
+      const extra = onSave(cutReply(cutInlineThinking(reply, inlineTags())).text, "ai_output", speaker);
       // the report of this reply (if one waits) no longer covers its text: the sensor reads it again
       dropFastState(fsx, id, msg.id + "#" + (msg.swipe || 0));
       // a thinking model may draft the state tag in its reasoning too

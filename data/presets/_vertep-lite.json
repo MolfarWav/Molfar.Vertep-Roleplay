@@ -66,20 +66,21 @@
       "marker": true
     },
     {
+      "identifier": "chatHistory",
+      "name": "Chat history",
+      "role": "system",
+      "marker": true
+    },
+    {
       "identifier": "worldInfoBefore",
       "name": "World info before",
       "role": "system",
-      "marker": true
+      "marker": true,
+      "content": "[World info for this scene: background facts about the world and the characters. Use what fits, do not list it.]"
     },
     {
       "identifier": "worldInfoAfter",
       "name": "World info after",
-      "role": "system",
-      "marker": true
-    },
-    {
-      "identifier": "chatHistory",
-      "name": "Chat history",
       "role": "system",
       "marker": true
     },
@@ -162,15 +163,15 @@
           "enabled": true
         },
         {
+          "identifier": "chatHistory",
+          "enabled": true
+        },
+        {
           "identifier": "worldInfoBefore",
           "enabled": true
         },
         {
           "identifier": "worldInfoAfter",
-          "enabled": true
-        },
-        {
-          "identifier": "chatHistory",
           "enabled": true
         },
         {
@@ -429,15 +430,36 @@
         "groupId": null
       },
       {
+        "id": "chatHistory",
+        "name": "Chat history",
+        "enabled": true,
+        "role": "system",
+        "marker": "chatHistory",
+        "content": "",
+        "position": "relative",
+        "depth": 4,
+        "order": 10,
+        "injectionTriggers": [
+          "normal",
+          "continue",
+          "impersonate",
+          "swipe",
+          "regenerate",
+          "quiet"
+        ],
+        "forbidOverrides": false,
+        "groupId": null
+      },
+      {
         "id": "worldInfoBefore",
         "name": "World info before",
         "enabled": true,
         "role": "system",
         "marker": "wiBefore",
-        "content": "",
+        "content": "[World info for this scene: background facts about the world and the characters. Use what fits, do not list it.]",
         "position": "relative",
         "depth": 4,
-        "order": 10,
+        "order": 11,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -455,27 +477,6 @@
         "enabled": true,
         "role": "system",
         "marker": "wiAfter",
-        "content": "",
-        "position": "relative",
-        "depth": 4,
-        "order": 11,
-        "injectionTriggers": [
-          "normal",
-          "continue",
-          "impersonate",
-          "swipe",
-          "regenerate",
-          "quiet"
-        ],
-        "forbidOverrides": false,
-        "groupId": null
-      },
-      {
-        "id": "chatHistory",
-        "name": "Chat history",
-        "enabled": true,
-        "role": "system",
-        "marker": "chatHistory",
         "content": "",
         "position": "relative",
         "depth": 4,

@@ -53,7 +53,7 @@ import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
 import { ManageChatsDialog } from './manage-chats-dialog'
 import { MarqueeText } from '@/components/ui/marquee-text'
-import { ChatDetailsButton } from './chat-details'
+import { ChatDetailsButton, type ChatCache } from './chat-details'
 import { SceneBefore } from './scene-heading'
 
 /** The chat look. Only 'stage' exists today; a later 'vn' look switches the class and the markup here. */
@@ -545,8 +545,8 @@ export function ChatView() {
   // each swipe. No pricing table is guessed client-side — messages generated
   // before usage tracking simply don't contribute, and if nothing reported
   // cost the badge stays hidden rather than claiming "free".
-  const { chatCost, costMsgs, chatModel, tokensIn, tokensOut, lastInput } = useMemo(() => {
-    if (!chat) return { chatCost: null as number | null, costMsgs: 0, chatModel: '', tokensIn: null as number | null, tokensOut: null as number | null, lastInput: null as number | null }
+  const { chatCost, costMsgs, chatModel, tokensIn, tokensOut, lastInput, cache } = useMemo(() => {
+    if (!chat) return { chatCost: null as number | null, costMsgs: 0, chatModel: '', tokensIn: null as number | null, tokensOut: null as number | null, lastInput: null as number | null, cache: null as ChatCache | null }
     // the ACTIVE swipe of the last reply — swipes can come from different
     // models, so the first swipe's model would mislabel the badge
     const lastAssistant = [...chat.messages].reverse().find((m) => m.role === 'assistant')
@@ -556,14 +556,19 @@ export function ChatView() {
     let tin = 0
     let tout = 0
     let usageN = 0
+    let cachedAll = 0
     for (const m of chat.messages) {
       const usage = m.swipes[m.activeSwipe]?.usage
       const c = knownCost(usage)
       if (c != null) { cost += c; n++ }
-      if (usage) { tin += usage.input; tout += usage.output; usageN++ }
+      if (usage) { tin += usage.input; tout += usage.output; cachedAll += usage.cacheRead ?? 0; usageN++ }
     }
     const lastUsage = lastAssistant?.swipes[lastAssistant.activeSwipe]?.usage
-    return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: lastUsage ? lastUsage.input : null }
+    // the engine's input leaves out what the provider read from its cache, so the prompt is the sum
+    const cache: ChatCache | null = lastUsage
+      ? { last: lastUsage.cacheRead ?? 0, prompt: lastUsage.input + (lastUsage.cacheRead ?? 0) + (lastUsage.cacheWrite ?? 0), total: cachedAll }
+      : null
+    return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: lastUsage ? lastUsage.input : null, cache }
   }, [chat])
 
   const startIdx = chat ? Math.max(0, chat.messages.length - visibleCount) : 0
@@ -710,6 +715,7 @@ export function ChatView() {
               costMsgs={costMsgs}
               tokensIn={tokensIn}
               tokensOut={tokensOut}
+              cache={cache}
               context={chatContext}
             />
             <WorldStatusButton chatId={chat.id} onClick={() => setWorldOpen(true)} />
@@ -768,6 +774,7 @@ export function ChatView() {
           costMsgs={costMsgs}
           tokensIn={tokensIn}
           tokensOut={tokensOut}
+          cache={cache}
           context={chatContext}
         />
         <WorldStatusButton phone chatId={chat.id} onClick={() => { closeDrawer(); setWorldOpen(true) }} />

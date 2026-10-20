@@ -479,6 +479,21 @@ describe("built-in Vertep Lite", () => {
     expect(one.map((m) => m.content).join("\n").match(/\{\{(?!suggest:)[^}]*\}\}/g)).toBeNull();
   });
 
+  it("puts world info below the history, so a change in the active entries keeps the history cached", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    fs.writeFileSync(path.join(root, "lorebooks", "lb.json"), JSON.stringify({ id: "lb", name: "World", entries: [{ uid: 1, title: "Tower", keys: [], content: "The Crimson Tower stands by the sea.", enabled: true, status: "constant", order: 100, position: "before_char" }] }));
+    const meta = newChat({ presetId: "vertep-lite", lorebookIds: ["lb"] });
+    call("PATCH", `/chats/${meta.id}`, { lorebookIds: ["lb"] });
+    const one = msgs(meta.id);
+    const lastUser = one.map((m) => m.role).lastIndexOf("user");
+    const at = one.findIndex((m) => m.content.includes("The Crimson Tower"));
+    expect(at).toBeGreaterThan(lastUser);
+    expect(one[at]!.content).toContain("[World info for this scene");
+    // with no entry active the heading stays out
+    fs.writeFileSync(path.join(root, "lorebooks", "lb.json"), JSON.stringify({ id: "lb", name: "World", entries: [] }));
+    expect(msgs(meta.id).some((m) => m.content.includes("[World info for this scene"))).toBe(false);
+  });
+
   it("its picks switch the plan and the Muse off and change the notes", () => {
     fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
     const meta = newChat({ presetId: "vertep-lite" });

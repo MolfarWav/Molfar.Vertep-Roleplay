@@ -5,9 +5,10 @@
  *   bun scripts/vertep-lite.ts
  *
  * Layout for the provider's prompt cache: everything that is the same on every reply of a
- * chat comes first (the rules, the per-chat picks, the card, the persona, the examples), world
- * info (it changes with the keys in the last messages) sits last above the history, and the
- * only per-reply text (length, plan, muse) rides at depth 0 after the newest message.
+ * chat comes first (the rules, the per-chat picks, the card, the persona, the examples), then
+ * the history. World info changes with the keys in the last messages, so it goes below the
+ * history with the post-history block, and the per-reply text (length, plan, muse) rides at
+ * depth 0 after the newest message.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -173,6 +174,7 @@ const variables = [
 
 const base = buildDefaultPreset()
 const byMarker = new Map(base.sections.map((s) => [s.marker, s]))
+const WI_HEADING = '[World info for this scene: background facts about the world and the characters. Use what fits, do not list it.]'
 const marker = (m: SectionMarker, name: string): PromptSection => ({ ...byMarker.get(m)!, name, content: '' })
 const own = (id: string, name: string, content: string, extra: Partial<PromptSection> = {}): PromptSection => ({
   id,
@@ -203,9 +205,10 @@ const sections: PromptSection[] = [
   marker('scenario', 'Scenario'),
   marker('persona', 'Persona description'),
   marker('exampleDialogue', 'Example dialogue'),
-  marker('wiBefore', 'World info before'),
-  marker('wiAfter', 'World info after'),
   marker('chatHistory', 'Chat history'),
+  // below the history, so a change in the active entries leaves the cache of the history intact
+  { ...marker('wiBefore', 'World info before'), content: WI_HEADING },
+  marker('wiAfter', 'World info after'),
   marker('jailbreak', 'Post-history instructions'),
   own('lite_plan', 'Micro plan', PLAN, { position: 'in-chat', depth: 0, injectionTriggers: replyOnly, condition: 'plan==micro' }),
   own('lite_muse', 'Muse', MUSE, { position: 'in-chat', depth: 0, injectionTriggers: replyOnly, condition: 'muse' }),
