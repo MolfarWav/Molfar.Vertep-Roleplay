@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.56.0'
+export const APP_VERSION = '4.57.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -333,6 +333,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Vertep Lite sits next to Molfar and FRANKENX in Presets: about 2k tokens instead of 13k, long replies, a hidden micro plan and a Muse with a fresh idea for each reply. It knows Litopys, the Dashboard and the World DM. Set its options in Choices.',
       uk: 'Vertep Lite стоїть поруч із Molfar і FRANKENX у Пресетах: близько 2 тис. токенів замість 13 тис., довгі відповіді, прихований мікроплан і Muse зі свіжою ідеєю на кожну відповідь. Він знає Літопис, Дашборд і World DM. Налаштуйте його у «Вибір».',
+    },
+  },
+  // ── What's new: the cache in chat info
+  {
+    id: 'new.cache-info',
+    since: '4.57.0',
+    open: { view: 'home' },
+    title: { en: 'See what the cache saved', uk: 'Видно, скільки взято з кешу' },
+    body: {
+      en: 'The i in a chat\u2019s header shows how much of the last reply\u2019s prompt the provider read from its cache. A cached prompt is cheaper and faster. The Dashboard and Litopys notes now sit below the history, so more of it stays cached.',
+      uk: 'Кнопка i в шапці чату показує, яку частину промпта останньої відповіді провайдер узяв із кешу. Закешований промпт дешевший і швидший. Нотатки Дашборда й Літопису тепер стоять під історією, тож у кеші її лишається більше.',
     },
   },
   // ── What's new: Polish my message

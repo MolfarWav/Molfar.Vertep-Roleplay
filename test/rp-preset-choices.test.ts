@@ -511,4 +511,14 @@ describe("built-in Vertep Lite", () => {
     expect(eng.onAppUpdate({ from: "4.55.0", to: "4.56.0" }, h()).upgraded).toContain("presets/vertep-lite.json");
     expect(eng.onAppUpdate({ from: "4.55.0", to: "4.56.0" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
   });
+
+  it("4.57.0 refreshes the read-only copy and keeps one the user made editable", () => {
+    fs.copyFileSync(path.join(shipped, "_vertep-lite.json"), path.join(root, "presets", "_vertep-lite.json"));
+    const old = { ...read(), prompts: [] };
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify(old));
+    expect(eng.onAppUpdate({ from: "4.56.0", to: "4.57.0" }, h()).upgraded).toContain("presets/vertep-lite.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-lite.json"), "utf8")).prompts.length).toBeGreaterThan(0);
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify({ ...old, studio: { ...old.studio, readOnly: false } }));
+    expect(eng.onAppUpdate({ from: "4.56.0", to: "4.57.0" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+  });
 });

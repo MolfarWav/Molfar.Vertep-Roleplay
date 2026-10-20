@@ -3683,6 +3683,16 @@ export function onAppUpdate(ctx, host) {
     const tpl = readJsonFile(fsx, "presets/_vertep-lite.json");
     if (tpl) { writeJsonFile(fsx, "presets/vertep-lite.json", tpl); done.push("presets/vertep-lite.json"); }
   }
+  // 4.57.0: Vertep Lite's world info moved below the history (prompt cache). The built-in copy is
+  // read-only, so it takes the new template; a copy the user made editable keeps their text.
+  if (olderThan(from, "4.57.0") && !olderThan(from, "4.56.0")) {
+    const have = readJsonFile(fsx, "presets/vertep-lite.json");
+    const tpl = readJsonFile(fsx, "presets/_vertep-lite.json");
+    if (tpl && have && have.studio && have.studio.readOnly === true) {
+      writeJsonFile(fsx, "presets/vertep-lite.json", tpl);
+      done.push("presets/vertep-lite.json");
+    }
+  }
   // 4.52.0 (#42): the built-in Molfar copy loses the "━" and "(PICK ONE)" of its section names
   if (olderThan(from, "4.52.0")) {
     const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));

@@ -2,10 +2,13 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.57.0
 
+The prompt cache works again, and Vertep Lite's plan stays out of the story. Needs no engine update.
+
+- The Dashboard note (and its fast-mode note), Litopys facts and the chapters it picks by relevance go just before the newest turn instead of above the history. They change every reply, so the provider read the whole history again each time, in every preset. The chapter just before the history stays above it: it changes only when a chapter closes. The prompt board lists the parts in the order they really sit. Measured over 40 turns: 78% of the prompt cached instead of 62%.
 - A thinking model that also writes a preset's inline thinking tags (Vertep Lite's `<plan>`) no longer leaves the plan in the story: the engine splits those tags only when the provider sends no reasoning of its own, and the markdown hid the tag but showed the plan. The app now moves the tagged block into the reply's thinking.
-- Vertep Lite: world info sits below the history, so a lorebook entry that turns on or off no longer makes the provider read the whole history again. Its heading appears only when an entry is active.
+- Vertep Lite: world info sits below the history, so a lorebook entry that turns on or off no longer makes the provider read the whole history again. Its heading appears only when an entry is active. The update refreshes the built-in copy; one you made editable keeps your text.
 - Chat info (the "i" in the header) shows how much of the last reply's prompt came from the provider's cache, and the chat's total in its tooltip. Its Context line counts the cached part too: it showed only the uncached rest, so a chat with a good cache looked emptier than it was.
 
 ## 4.56.0
