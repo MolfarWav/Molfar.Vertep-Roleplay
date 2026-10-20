@@ -20,7 +20,7 @@
  *  DELETE /dashboard/nudge?chatId=         take the nudge back
  *
  * Before each reply, the llmRequest hook adds "how the characters are right
- * now" in words as the last leading system message (buildInsert).
+ * now" in words just before the newest turn (buildInsert, withTailInsert).
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
@@ -3418,11 +3418,22 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   return { text, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
-/** The insert goes in as the last of the leading system messages (after the card and preset, before the history). */
-function withInsert(messages, text) {
-  let lead = 0;
-  while (lead < messages.length && messages[lead] && messages[lead].role === "system") lead++;
-  return [...messages.slice(0, lead), { role: "system", content: text }, ...messages.slice(lead)];
+/**
+ * Insert one system message just before the newest turn (the user's line, or the reply that
+ * Continue extends): what changes every reply goes below the history, so the provider's prompt
+ * cache keeps the history above it, and the user's line stays last for the notes that end it.
+ * (The Litopys plugin carries the same function.)
+ */
+function withTailInsert(messages, text) {
+  let last = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i] && messages[i].role !== "system") {
+      last = i;
+      break;
+    }
+  }
+  if (last < 0) return [...messages, { role: "system", content: text }];
+  return [...messages.slice(0, last), { role: "system", content: text }, ...messages.slice(last)];
 }
 
 export function llmRequest(ctx, host) {
@@ -3464,7 +3475,7 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
       if (insert) {
-        messages = withInsert(messages, insert.text);
+        messages = withTailInsert(messages, insert.text);
         promptSources.parts.push({ kind: "dashboard", label: "Relationship dashboard", text: String(insert.text || "").trim() });
         changed = true;
       }
@@ -3479,7 +3490,7 @@ export function llmRequest(ctx, host) {
       const fctx = fastContext(fsx, chatId, turn, cfg);
       if (fctx) {
         const fastText = fastInstructions(fctx);
-        messages = withInsert(messages, fastText);
+        messages = withTailInsert(messages, fastText);
         promptSources.parts.push({ kind: "dashboard", label: "Dashboard · fast sensor", text: String(fastText || "").trim() });
         fast = true;
         changed = true;

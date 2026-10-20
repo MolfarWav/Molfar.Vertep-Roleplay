@@ -1297,28 +1297,28 @@ describe("prompt insert", () => {
     expect(P.contactOf("phone call")).toBe("call");
   });
 
-  it("2. the insert is the last leading system message; only messages are patched", () => {
+  it("2. the insert goes just before the newest turn, below the history (the prompt cache keeps it); only messages are patched", () => {
     const mock = withState();
-    const msgs = [SYS("A"), SYS("B"), { role: "user", content: "X" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }];
+    const msgs = [SYS("A"), SYS("B"), { role: "user", content: "X" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }, SYS("closing")];
     const out = ask(mock, "c1", msgs)!;
     // messages, plus the label of what it inserted for the prompt inspector (host-only)
     expect(Object.keys(out)).toEqual(["messages", "promptSources"]);
     expect(out.promptSources.parts.map((p: { kind: string; label: string }) => [p.kind, p.label])).toEqual([["dashboard", "Relationship dashboard"]]);
-    expect(out.messages[2].content).toContain(out.promptSources.parts[0].text);
-    expect(out.messages.length).toBe(6);
-    expect(out.messages.slice(0, 2)).toEqual([SYS("A"), SYS("B")]);
-    expect(out.messages[2].role).toBe("system");
-    expect(out.messages[2].content.startsWith("[Background, the scene:")).toBe(true);
-    expect(out.messages.slice(3)).toEqual(msgs.slice(2));
+    expect(out.messages[4].content).toContain(out.promptSources.parts[0].text);
+    expect(out.messages.length).toBe(7);
+    expect(out.messages.slice(0, 4)).toEqual(msgs.slice(0, 4));
+    expect(out.messages[4].role).toBe("system");
+    expect(out.messages[4].content.startsWith("[Background, the scene:")).toBe(true);
+    expect(out.messages.slice(5)).toEqual(msgs.slice(4));
     // the request's own array is left as it was
-    expect(msgs.length).toBe(5);
+    expect(msgs.length).toBe(6);
     // with no leading system message the insert comes first
     const bare = ask(mock, "c1", [{ role: "user", content: "X" }, { role: "assistant", content: "Y" }])!;
     expect(Object.keys(bare)).toEqual(["messages", "promptSources"]);
     expect(bare.messages.length).toBe(3);
-    expect(bare.messages[0].role).toBe("system");
-    expect(bare.messages[0].content.startsWith("[Background, the scene:")).toBe(true);
-    expect(bare.messages.slice(1)).toEqual([{ role: "user", content: "X" }, { role: "assistant", content: "Y" }]);
+    expect(bare.messages[1].role).toBe("system");
+    expect(bare.messages[1].content.startsWith("[Background, the scene:")).toBe(true);
+    expect([bare.messages[0], bare.messages[2]]).toEqual([{ role: "user", content: "X" }, { role: "assistant", content: "Y" }]);
     // an empty message list still gets the insert
     expect(ask(mock, "c1", [])!.messages.length).toBe(1);
   });
@@ -3943,7 +3943,7 @@ describe("story, move (nudge)", () => {
     const out = ask(mock, "c1", msgs, { turn: { op: "send" } })!;
     // the insert plus the note: one patch
     expect(out.messages.length).toBe(4);
-    expect(out.messages[1].content.startsWith("[Background, the scene:")).toBe(true);
+    expect(out.messages[2].content.startsWith("[Background, the scene:")).toBe(true);
     const last = out.messages[3];
     expect(last.role).toBe("user");
     expect(last.content.startsWith("Z\n\n" + NOTE)).toBe(true);
@@ -4246,11 +4246,10 @@ describe("fast mode", () => {
     const copy = JSON.parse(JSON.stringify(msgs));
     const out = ask(mock, "c1", msgs, { turn: { op: "send" } })!;
     expect(out.messages.length).toBe(7);
-    expect(out.messages.slice(0, 2)).toEqual([SYS("A"), SYS("B")]);
-    expect(out.messages[2].content.startsWith("[Background, the scene:")).toBe(true);
-    expect(out.messages[3].role).toBe("system");
-    expect(out.messages[3].content.startsWith("Dashboard note:")).toBe(true);
-    expect(out.messages.slice(4, 6)).toEqual(msgs.slice(2, 4));
+    expect(out.messages.slice(0, 4)).toEqual(msgs.slice(0, 4));
+    expect(out.messages[4].content.startsWith("[Background, the scene:")).toBe(true);
+    expect(out.messages[5].role).toBe("system");
+    expect(out.messages[5].content.startsWith("Dashboard note:")).toBe(true);
     expect(out.messages[6]).toEqual({ role: "user", content: "Z\n\n" + REMINDER });
     expect(msgs).toEqual(copy);
     // what the note carries: the tag, the rules, the vocabulary, the shape, the cast, the previous state with thread ids
