@@ -52,6 +52,9 @@ const DRAFT_DIR = "dashboard/soul-drafts/";
 const CONFIG_FILE = "dashboard/config.json";
 const EVENTS_FILE = "dashboard/events.json";
 const DEBUG_FILE = "_debug/dashboard.json";
+const DEBUG_RUNS_FILE = "_debug/dashboard-runs.json";
+const DEBUG_RUNS_KEEP = 10;
+const DEBUG_RUN_TEXT_MAX = 20000;
 // the last time an insert did not fit the user's limit, per chat (the app shows it once)
 const NOTICE_DIR = "dashboard/notice/";
 const NOTES_DIR = "dashboard/notes/";
@@ -554,7 +557,7 @@ export const DEFAULT_PROMPTS = {
     "Scene:",
     "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
     "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
-    "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.",
+    "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list of the other characters, never the user's character itself, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
@@ -566,7 +569,7 @@ export const DEFAULT_PROMPTS = {
     "",
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").",
-    "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who, what), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
+    "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who: the character who learned it, one of those present and never the user's character; what: the fact), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
     "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
@@ -605,8 +608,12 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The eleventh sensor prompt (before it said that `who` of a learned fact is a present character and never the user's, and that present never lists the user, #97).
+const SENSOR_PROMPT_11 = DEFAULT_PROMPTS.sensor
+  .replace("the full list of the other characters, never the user's character itself, [] when the user's character is alone.", "the full list, [] when the user's character is alone.")
+  .replace("(who: the character who learned it, one of those present and never the user's character; what: the fact)", "(who, what)");
 // The tenth sensor prompt (before it told the sensor not to list a thread it resolves, #81).
-const SENSOR_PROMPT_10 = DEFAULT_PROMPTS.sensor.replace(" Never list a thread you resolve in the same report.", "");
+const SENSOR_PROMPT_10 = SENSOR_PROMPT_11.replace(" Never list a thread you resolve in the same report.", "");
 // The ninth sensor prompt (before the scene direction, for the World DM, #52).
 const SENSOR_PROMPT_9 = SENSOR_PROMPT_10.replace(/\n\nDirection:\n[\s\S]*?(?=\n\nKnowledge:)/, "");
 // The eighth sensor prompt (before a character in touch by text, call or letter counted as present, #16).
@@ -656,7 +663,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -1388,6 +1395,7 @@ function normalizeState(raw, chatId) {
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
+  if (!isObj(st.keptOut)) st.keptOut = null;
   return st;
 }
 
@@ -2462,13 +2470,26 @@ function applyNotebook(ctx, out, present, turn, K) {
     if (present.includes(who)) listIn(holders, sameText(l.text)).push(who);
   }
   const generic = Object.keys(holders).filter((t) => unique(holders[t]).length >= 3);
+  // facts the sensor wrote that cannot be kept, counted so the dashboard can say so (#97): the holder is
+  // the user's own character (a notebook holds what the others know about them), or is not in the scene
+  const keptOut = { user: 0, absent: 0 };
+  ctx.keptOut = keptOut;
   let used = 0;
   for (const l of arr(out.learned)) {
     if (used >= 4) break;
-    if (!isObj(l) || sideOf(l.who, userAll(ctx), present) === "user") continue;
+    if (!isObj(l)) continue;
+    if (sideOf(l.who, userAll(ctx), present) === "user") {
+      if (str(l.text)) keptOut.user++;
+      continue;
+    }
     const who = canonName(l.who, present);
     const text = cut(str(l.text), 300);
-    if (!text || !present.includes(who) || generic.includes(sameText(l.text))) continue;
+    if (!text) continue;
+    if (!present.includes(who)) {
+      keptOut.absent++;
+      continue;
+    }
+    if (generic.includes(sameText(l.text))) continue;
     const how = ["saw", "heard", "guess"].includes(l.how) ? l.how : "guess";
     // "heard" with no teller: the user told them
     const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, userAll(ctx), present) : "user";
@@ -2974,7 +2995,12 @@ function askSensor(host, ctx, key) {
 function writeDebug(fsx, ctx, info) {
   if (!ctx.cfg.debug) return;
   try {
-    fsx.write(DEBUG_FILE, JSON.stringify({ at: new Date().toISOString(), chatId: ctx.chatId, input: sensorUser(ctx), ...info }, null, 2));
+    const entry = { at: new Date().toISOString(), chatId: ctx.chatId, input: sensorUser(ctx), ...info };
+    fsx.write(DEBUG_FILE, JSON.stringify(entry, null, 2));
+    // the latest run overwrites the file above, so a reply that went wrong was gone by the next turn:
+    // the last runs are kept in a second file, newest last (#97)
+    const runs = [...arr(readJson(fsx, DEBUG_RUNS_FILE, [])), { ...entry, input: cut(String(entry.input || ""), DEBUG_RUN_TEXT_MAX), raw: cut(String(entry.raw || ""), DEBUG_RUN_TEXT_MAX) }];
+    fsx.write(DEBUG_RUNS_FILE, JSON.stringify(runs.slice(-DEBUG_RUNS_KEEP), null, 1));
   } catch {}
 }
 
@@ -3010,8 +3036,11 @@ function commitUpdate(fsx, ctx, r) {
       ...(r.fast ? { fast: (num(ctx.state.usage.fast) || 0) + 1 } : {}),
     };
     ctx.state.lastError = null;
+    // facts the sensor wrote that could not be kept: the dashboard says so until a report keeps all (#97)
+    const kept = ctx.keptOut || { user: 0, absent: 0 };
+    ctx.state.keptOut = kept.user || kept.absent ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent } : null;
     saveState(fsx, ctx);
-    writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds });
+    writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds, keptOut: kept });
     return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn, ms: ctx.state.usage.lastMs, ...(ctx.reread ? { reread: ctx.reread } : {}) });
   } catch (e) {
     // a half-applied report must not leave notes or history behind
@@ -4043,6 +4072,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     chars,
     usage: state.usage,
     lastError: state.lastError,
+    keptOut: isObj(state.keptOut) ? state.keptOut : null,
     insert,
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
     maxThreads: maxThreadsOf(cfg),

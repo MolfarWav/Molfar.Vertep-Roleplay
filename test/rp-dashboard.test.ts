@@ -3260,7 +3260,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(10);
+    expect(past.length).toBe(11);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limit given in the input");
     expect(text).not.toContain("three open threads");
@@ -4765,9 +4765,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-2)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-3)!;
     expect(ninth).not.toContain("Direction:");
-    expect(P.DEFAULT_PROMPTS.sensor.replace(" Never list a thread you resolve in the same report.", "").replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-2)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -4797,7 +4797,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-5)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-6)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -4842,5 +4842,70 @@ describe("background by scene (World DM backgrounds)", () => {
     expect(sent).not.toContain("elsewhere");
     expect(snapOf("c1").background).toBe("tavern_night");
     expect(P.readBackdrop("elsewhere", P.backdropChoices(mock.host.fs, { autoBackground: { on: true, folderId: "fold_w" } }))).toBeNull();
+  });
+});
+
+describe("facts the sensor wrote that cannot be kept (#97)", () => {
+  it("the prompt says who is the holder of a fact and keeps the previous default as a past default", () => {
+    const text = P.DEFAULT_PROMPTS.sensor as string;
+    expect(text).toContain("the full list of the other characters, never the user's character itself");
+    expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
+    const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
+    const before = past.at(-1)!;
+    expect(before).not.toContain("never the user's character itself");
+    expect(before).toContain("(who, what)");
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-2));
+  });
+
+  it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {
+    writeChat("c1", three());
+    const mock = mockHost([
+      reply({
+        present: ["Aria"],
+        learned: [
+          { who: "user", text: "The market is loud", how: "saw" },
+          { who: "Nobody", text: "The user is a stranger", how: "saw" },
+          { who: "Aria", text: "The user keeps their word", how: "saw" },
+        ],
+      }),
+    ]);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    expect(st.notebook.Aria.map((n: { text: string }) => n.text)).toEqual(["The user keeps their word"]);
+    expect(st.keptOut).toMatchObject({ user: 1, absent: 1, turn: 1 });
+    const v = drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json as { view: { keptOut: { user: number; absent: number } | null } };
+    expect(v.view.keptOut).toMatchObject({ user: 1, absent: 1 });
+  });
+
+  it("a report that keeps every fact clears the notice", () => {
+    writeChat("c1", three());
+    const mock = mockHost([
+      reply({ present: ["Aria"], learned: [{ who: "user", text: "The market is loud", how: "saw" }] }),
+      reply({ present: ["Aria"], learned: [{ who: "Aria", text: "The user keeps their word", how: "saw" }] }),
+    ]);
+    update(mock, "c1");
+    expect(readStateFile("c1").keptOut).toMatchObject({ user: 1, absent: 0 });
+    writeChat("c1", [...three(), A("m4", "Thank you.")]);
+    update(mock, "c1");
+    expect(readStateFile("c1").keptOut).toBeNull();
+  });
+
+  it("debug keeps the last ten runs in a second file, newest last", () => {
+    writeChat("c1", three());
+    const replies = Array.from({ length: 12 }, (_, i) => reply({ present: ["Aria"], place: "p" + i }));
+    const mock = mockHost(replies);
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { debug: true } });
+    for (let i = 0; i < 12; i++) {
+      // a new message each time, so every update reads one more turn
+      writeChat("c1", [...three(), ...Array.from({ length: i }, (_, k) => (k % 2 ? A("x" + k, "Reply " + k) : U("x" + k, "Line " + k)))]);
+      update(mock, "c1");
+    }
+    const runs = JSON.parse(fs.readFileSync(path.join(root, "_debug/dashboard-runs.json"), "utf8")) as { raw: string; chatId: string; keptOut?: unknown }[];
+    expect(runs.length).toBe(10);
+    expect(runs.at(-1)!.raw).toContain("p11");
+    expect(runs[0]!.raw).toContain("p2");
+    expect(runs.every((r) => r.chatId === "c1")).toBe(true);
+    // the latest run is still in the single file, as before
+    expect(JSON.parse(fs.readFileSync(path.join(root, "_debug/dashboard.json"), "utf8")).raw).toContain("p11");
   });
 });

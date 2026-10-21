@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.59.3
+
+The Dashboard says when it had to throw facts away, and the sensor is told more plainly whose facts they are (#97). Needs no engine update.
+
+- The sensor sometimes wrote the "learned" facts with your own character as the holder (and listed your character as present). A notebook holds what the other characters know about you, so those facts were dropped and nothing said so: the notebook stayed empty. Now the Dashboard shows a line under the state ("N facts the sensor wrote for your own character were not kept", and the same for facts written for someone who is not in the scene) until a report keeps all of them.
+- The sensor prompt now says that `who` of a learned fact is a character who is present and never your character, and that `present` never lists your character. The previous text stays a past default, so a copy you never edited follows the new one.
+- With debug on, the last ten sensor runs (the input, the raw reply, what was kept out) are kept in `_debug/dashboard-runs.json`, newest last; `_debug/dashboard.json` still holds the latest one. A failing reply can be read after the next turn.
+
 ## 4.59.2
 
 Small fixes and two background tools: the inbox opens at the first click, the by-scene switch is back on the chat's Backgrounds tab, places you type for a set show up, pictures can be added from other folders, and the Tools > Backgrounds tab has a search. Needs no engine update.

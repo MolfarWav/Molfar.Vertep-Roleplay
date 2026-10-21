@@ -114,6 +114,8 @@ export interface DashView {
   chars: Record<string, DashChar>
   usage: { calls: number; inTokens: number; outTokens: number; lastMs: number }
   lastError: { at: number; message: string } | null
+  /** facts the last report wrote that could not be kept: for the user's own character, or for someone not in the scene (#97); null when all were kept */
+  keptOut?: { at: number; turn: number; user: number; absent: number } | null
   /** what the next reply's prompt insert would weigh; null when there is none */
   insert: { tokens: number; budget: number; trimmed: string[] } | null
   insertEnabled: boolean

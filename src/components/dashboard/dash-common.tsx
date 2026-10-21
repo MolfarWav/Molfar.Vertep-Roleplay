@@ -181,12 +181,15 @@ export function DashError({ message, className }: { message: string; className?:
 
 export function Notices({ view, className }: { view: DashView; className?: string }) {
   const t = useT()
-  if (!view.stale && !view.partial && !view.lastError) return null
+  const kept = view.keptOut
+  if (!view.stale && !view.partial && !view.lastError && !kept) return null
   return (
     <div className={cn('flex flex-col gap-1 text-[11px] text-muted-foreground', className)}>
       {view.stale && <span>{t('dash.stale')}</span>}
       {view.partial && <span>{t('dash.partial')}</span>}
       {view.lastError && <DashError message={view.lastError.message} />}
+      {kept && kept.user > 0 && <span className="text-amber-700 dark:text-amber-300" data-testid="dash-kept-user">{t('dash.keptUser', { n: kept.user })}</span>}
+      {kept && kept.absent > 0 && <span className="text-amber-700 dark:text-amber-300" data-testid="dash-kept-absent">{t('dash.keptAbsent', { n: kept.absent })}</span>}
     </div>
   )
 }
