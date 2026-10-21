@@ -227,10 +227,12 @@ export function MakeSet({
   const addCustom = () => {
     const v = customPlace.trim();
     if (!v) return;
-    setEntries((prev) => [
-      ...prev,
-      { id: `c-${Date.now()}`, kind: 'custom' as const, value: v, ticked: true },
-    ]);
+    setEntries((prev) => {
+      // the same place typed twice ticks the one that is there
+      const same = prev.find((e) => e.kind === 'custom' && e.value.toLowerCase() === v.toLowerCase());
+      if (same) return prev.map((e) => (e.id === same.id ? { ...e, ticked: true } : e));
+      return [...prev, { id: `c-${Date.now()}`, kind: 'custom' as const, value: v, ticked: true }];
+    });
     setCustomPlace('');
   };
 
@@ -516,6 +518,8 @@ export function MakeSet({
                       </Button>
                     );
                   })}
+                  {/* places typed in the field below: a chip each, ticked on add, untick to leave one out */}
+                  {chipEntries.filter((e) => e.kind === 'custom').map(placeChip)}
                 </div>
                 <form
                   onSubmit={(e) => {

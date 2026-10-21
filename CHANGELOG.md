@@ -4,14 +4,17 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
-## 4.59.1
+## 4.59.2
 
-Small fixes: the inbox opens at the first click, the by-scene background switch is back on the chat's Backgrounds tab, one total on the phone's Prompt board, and a Cancel for translations. Needs no engine update.
+Small fixes and two background tools: the inbox opens at the first click, the by-scene switch is back on the chat's Backgrounds tab, places you type for a set show up, pictures can be added from other folders, and the Tools > Backgrounds tab has a search. Needs no engine update.
 
 - The inbox opens at the first click when a card editor or another section is open. The rail button closes the open section just before it opens the inbox, and the inbox closed itself on that change, so it opened and shut in the same tick and the click seemed to do nothing.
 - "Change the background by scene" is on the chat's Backgrounds tab again (World > Chats > a chat > Backgrounds), as a block above the folder. It had moved into the World settings; it is not repeated there any more. The chat's own background picker keeps its copy.
 - The Prompt board on a phone shows the token total once (the sticky line above the list), not twice.
 - A long card, field or lorebook translation can be cancelled: a Cancel button in the progress toast and on the field's Translate button. Cancel starts no new requests and writes nothing; a lorebook's "(original)" copy made for that run is removed. Requests already sent to the model still run to their end.
+- A place typed in "Make a set" (the field with the Add button) shows up as a ticked chip next to the quick ones; before, it was counted in the cost line but never shown. Typing the same place again ticks the one that is there.
+- "Add from existing" in a world's Backgrounds ("Pictures in the folder"): pick pictures from other folders (other worlds' chats, the general library) and copy them into this folder. Search by name or tag, several at once; names are made unique, tags are kept, the file is shared, so deleting one copy never touches the other.
+- Tools > Backgrounds has a search over all pictures: by name, tag or the folder's (chat's, world's) name; several words narrow it; the folder list is set aside while you search and each tile names its folder.
 
 ## 4.59.0
 

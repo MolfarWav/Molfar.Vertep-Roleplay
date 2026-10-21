@@ -33,6 +33,7 @@ import { useConfirm } from '@/components/ui/confirm';
 import { MakeSet } from './world-bg-set';
 import { NameWithVision } from './world-bg-name';
 import { AutoBackground } from './world-auto-bg';
+import { AddExistingDialog } from './world-bg-existing';
 
 type ConfirmFn = (opts: { title: string; description?: string; actionLabel?: string; destructive?: boolean }) => Promise<boolean>;
 
@@ -206,6 +207,7 @@ export function WorldBackgrounds({
 
   const [folderId, setFolderId] = useState<string | null | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [existingOpen, setExistingOpen] = useState(false);
 
   useEffect(() => {
     let stale = false;
@@ -427,15 +429,31 @@ export function WorldBackgrounds({
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-medium">{t('world.bg.images')}</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                className="max-md:h-10"
-                onClick={() => fileInputRef.current?.click()}
-                data-testid="bg-add"
-              >
-                {t('world.bg.add')}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {isLinked && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="max-md:h-10"
+                    onClick={() => setExistingOpen(true)}
+                    data-testid="bg-add-existing"
+                  >
+                    {t('world.bg.addExisting')}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="max-md:h-10"
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="bg-add"
+                >
+                  {t('world.bg.add')}
+                </Button>
+              </div>
+              {isLinked && folder && (
+                <AddExistingDialog open={existingOpen} onOpenChange={setExistingOpen} folderId={folder.id} folderName={folder.name} />
+              )}
               <input
                 ref={fileInputRef}
                 type="file"

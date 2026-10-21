@@ -128,3 +128,66 @@ export async function convertOne(b: BackgroundItem): Promise<{ url: string; save
 }
 
 export const formatBytes = (n: number): string => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
+
+/** A group of pictures from one folder (or from none) offered by "Add from existing". */
+export interface ExistingGroup { folderId: ID | null; name: string; items: BackgroundItem[] }
+
+/**
+ * The pictures a folder could take from elsewhere: every image of the other folders (and the ones in no
+ * folder), minus those whose file is already in the target folder, grouped by folder (named folders by
+ * name, "no folder" last), narrowed by a search over name and tags. Empty groups are dropped.
+ */
+export function existingGroups(
+  backgrounds: BackgroundItem[],
+  folders: { id: ID; name: string; scope?: string }[],
+  targetFolderId: ID,
+  query: string,
+  noFolderName: string,
+): ExistingGroup[] {
+  const here = new Set(backgrounds.filter((b) => b.folderId === targetFolderId).map((b) => b.url))
+  const q = query.trim().toLowerCase()
+  const match = (b: BackgroundItem) => !q || b.name.toLowerCase().includes(q) || (b.tags ?? []).some((t) => t.toLowerCase().includes(q))
+  const usable = backgrounds.filter((b) => b.type === 'image' && b.folderId !== targetFolderId && !here.has(b.url) && match(b))
+  const named = folders
+    .filter((f) => f.id !== targetFolderId && (f.scope === undefined || f.scope === 'backgrounds'))
+    .map((f) => ({ folderId: f.id as ID | null, name: f.name, items: usable.filter((b) => b.folderId === f.id) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const loose = { folderId: null as ID | null, name: noFolderName, items: usable.filter((b) => !b.folderId || !folders.some((f) => f.id === b.folderId)) }
+  return [...named, loose].filter((g) => g.items.length > 0)
+}
+
+/** What copying pictures into a folder creates: the same file under a name that is free there, tags and fitting kept. */
+export function copiesInto(
+  picked: BackgroundItem[],
+  backgrounds: BackgroundItem[],
+  targetFolderId: ID,
+): { name: string; url: string; tags?: string[]; fitting: BackgroundItem['fitting'] }[] {
+  const taken = new Set(backgrounds.filter((b) => b.folderId === targetFolderId).map((b) => b.name))
+  const seenUrls = new Set(backgrounds.filter((b) => b.folderId === targetFolderId).map((b) => b.url))
+  const out: { name: string; url: string; tags?: string[]; fitting: BackgroundItem['fitting'] }[] = []
+  for (const b of picked) {
+    if (seenUrls.has(b.url)) continue
+    const name = uniqueName(b.name, taken)
+    taken.add(name)
+    seenUrls.add(b.url)
+    out.push({ name, url: b.url, ...(b.tags?.length ? { tags: [...b.tags] } : {}), fitting: b.fitting })
+  }
+  return out
+}
+
+/**
+ * Does a picture answer a search? Every word of the query has to appear in its name, one of its tags or the
+ * name of its folder (a chat's or a world's folder carries that name), case-insensitive.
+ */
+export function backgroundMatches(b: BackgroundItem, folderName: string | undefined, query: string): boolean {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const hay = [b.name, folderName ?? '', ...(b.tags ?? [])].map((s) => s.toLowerCase())
+  return words.every((w) => hay.some((h) => h.includes(w)))
+}
+
+/** Pictures of every folder (and of none) that answer a search, in library order. */
+export function searchBackgrounds(backgrounds: BackgroundItem[], folders: { id: ID; name: string }[], query: string): BackgroundItem[] {
+  const nameOf = new Map(folders.map((f) => [f.id, f.name]))
+  return backgrounds.filter((b) => backgroundMatches(b, b.folderId ? nameOf.get(b.folderId) : undefined, query))
+}

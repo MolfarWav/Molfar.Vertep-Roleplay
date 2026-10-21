@@ -47,3 +47,54 @@ describe('world backgrounds helpers', () => {
     expect(convertCandidates(list).map((b) => b.id)).toEqual(['1'])
   })
 })
+
+describe('add from existing', () => {
+  const { existingGroups, copiesInto } = require('../src/lib/world-backgrounds') as typeof import('../src/lib/world-backgrounds')
+  const folders = [{ id: 'fa', name: 'Zed', scope: 'backgrounds' }, { id: 'fb', name: 'Ava', scope: 'backgrounds' }, { id: 'ft', name: 'Target', scope: 'backgrounds' }, { id: 'fx', name: 'Chats', scope: 'chats' }]
+  const all = [
+    bg({ id: '1', name: 'tavern', url: '/u/1', folderId: 'fa', tags: ['inn'] }),
+    bg({ id: '2', name: 'castle', url: '/u/2', folderId: 'fb' }),
+    bg({ id: '3', name: 'loose', url: '/u/3', folderId: null }),
+    bg({ id: '4', name: 'tavern', url: '/u/9', folderId: 'ft' }),
+    bg({ id: '5', name: 'same_file', url: '/u/9', folderId: 'fa' }),
+    bg({ id: '6', name: 'clip', url: '/u/6', folderId: 'fa', type: 'video' }),
+  ]
+  it('groups the other folders by name, no folder last, without what is already there or not an image', () => {
+    const g = existingGroups(all, folders, 'ft', '', 'No folder')
+    expect(g.map((x) => x.name)).toEqual(['Ava', 'Zed', 'No folder'])
+    expect(g.flatMap((x) => x.items.map((i) => i.id))).toEqual(['2', '1', '3'])
+  })
+  it('searches by name and tag, and drops empty groups', () => {
+    expect(existingGroups(all, folders, 'ft', 'inn', 'No folder').flatMap((x) => x.items.map((i) => i.id))).toEqual(['1'])
+    expect(existingGroups(all, folders, 'ft', 'zzz', 'No folder')).toEqual([])
+  })
+  it('copies under free names and keeps tags, skipping a file the folder has', () => {
+    const picked = [all[0]!, all[4]!, all[1]!]
+    const out = copiesInto(picked, all, 'ft')
+    expect(out.map((o) => o.name)).toEqual(['tavern_2', 'castle'])
+    expect(out[0]!.tags).toEqual(['inn'])
+    expect(out.map((o) => o.url)).toEqual(['/u/1', '/u/2'])
+  })
+})
+
+describe('background search', () => {
+  const { backgroundMatches, searchBackgrounds } = require('../src/lib/world-backgrounds') as typeof import('../src/lib/world-backgrounds')
+  const folders = [{ id: 'fa', name: 'Ava Mir' }, { id: 'fb', name: 'New Dawn' }]
+  const all = [
+    bg({ id: '1', name: 'avas_house', folderId: 'fa', tags: ['living room', 'day'] }),
+    bg({ id: '2', name: 'harbour', folderId: 'fb', tags: ['night'] }),
+    bg({ id: '3', name: 'loose_cafe', folderId: null }),
+  ]
+  it('reads the name, the tags and the folder name', () => {
+    expect(searchBackgrounds(all, folders, 'house').map((b) => b.id)).toEqual(['1'])
+    expect(searchBackgrounds(all, folders, 'NIGHT').map((b) => b.id)).toEqual(['2'])
+    expect(searchBackgrounds(all, folders, 'dawn').map((b) => b.id)).toEqual(['2'])
+    expect(searchBackgrounds(all, folders, 'cafe').map((b) => b.id)).toEqual(['3'])
+  })
+  it('needs every word, and an empty search shows everything', () => {
+    expect(searchBackgrounds(all, folders, 'ava day').map((b) => b.id)).toEqual(['1'])
+    expect(searchBackgrounds(all, folders, 'ava night')).toEqual([])
+    expect(searchBackgrounds(all, folders, '  ').length).toBe(3)
+    expect(backgroundMatches(all[2]!, undefined, 'x')).toBe(false)
+  })
+})

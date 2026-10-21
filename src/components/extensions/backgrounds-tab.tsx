@@ -8,11 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Check, FileArrowDown, ImageSquare, PencilSimple, Trash } from '@phosphor-icons/react'
+import { Check, FileArrowDown, ImageSquare, MagnifyingGlass, PencilSimple, Trash, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { storeBackground } from '@/lib/webp'
-import { convertCandidates, convertOne, formatBytes, parseTags, toSnake, uniqueName, type ConvertReport } from '@/lib/world-backgrounds'
+import { convertCandidates, convertOne, formatBytes, parseTags, searchBackgrounds, toSnake, uniqueName, type ConvertReport } from '@/lib/world-backgrounds'
 import { useConfirm } from '@/components/ui/confirm'
 
 export function BackgroundsTab() {
@@ -44,10 +44,16 @@ export function BackgroundsTab() {
     setFilter(focusFolder)
     useApp.setState({ focusBackgroundFolderId: null })
   }, [focusFolder])
+  // a search reads every picture (name, tags, folder name) and puts the folder choice aside
+  const [query, setQuery] = useState('')
+  const searching = query.trim().length > 0
   const shown = useMemo(
-    () => backgrounds.filter((b) => (filter === 'all' ? true : filter === 'none' ? !b.folderId : b.folderId === filter)),
-    [backgrounds, filter],
+    () => (searching
+      ? searchBackgrounds(backgrounds, folders, query)
+      : backgrounds.filter((b) => (filter === 'all' ? true : filter === 'none' ? !b.folderId : b.folderId === filter))),
+    [backgrounds, folders, filter, query, searching],
   )
+  const folderName = (id: string | null) => (id ? folders.find((f) => f.id === id)?.name : undefined) ?? t('bg.tab.folderNone')
   const candidates = useMemo(() => convertCandidates(backgrounds), [backgrounds])
 
   const addFiles = async (files: FileList | null) => {
@@ -127,7 +133,7 @@ export function BackgroundsTab() {
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">{t('bg.tab.folder')}</span>
-          <Select value={filter} onValueChange={(v) => v && setFilter(v)}>
+          <Select value={filter} onValueChange={(v) => v && setFilter(v)} disabled={searching}>
             <SelectTrigger className="h-9 w-48 max-md:h-10" aria-label={t('bg.tab.folder')} data-testid="bg-filter"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -138,6 +144,28 @@ export function BackgroundsTab() {
             </SelectContent>
           </Select>
         </label>
+        <div className="relative min-w-[10rem] flex-1 sm:max-w-xs">
+          <MagnifyingGlass className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('bg.tab.search')}
+            aria-label={t('bg.tab.search')}
+            className="h-9 pl-8 pr-9 max-md:h-10 [&::-webkit-search-cancel-button]:hidden"
+            data-testid="bg-search"
+          />
+          {searching && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label={t('bg.tab.searchClear')}
+              className="absolute right-0 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground max-md:size-10"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
         {candidates.length > 0 && !conv && (
           <Button size="sm" variant="outline" className="max-md:h-10" onClick={() => void convertAll()} data-testid="bg-convert">
             <FileArrowDown className="size-4" aria-hidden="true" /> {t('bg.tab.convert')}
@@ -187,6 +215,12 @@ export function BackgroundsTab() {
         />
       </div>
 
+      {searching && (
+        <p className="-mt-2 text-sm text-muted-foreground" role="status" data-testid="bg-search-status">
+          {shown.length ? t('bg.tab.searchFound', { n: shown.length }) : t('bg.tab.searchNone')}
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {shown.map((bg) => {
           const active = settings.activeBackgroundId === bg.id
@@ -209,6 +243,7 @@ export function BackgroundsTab() {
               </button>
               <figcaption className="flex flex-wrap items-center gap-1.5 p-2">
                 <span className="w-full truncate text-xs font-medium" title={bg.name}>{bg.name}</span>
+                {searching && <span className="w-full truncate text-[11px] text-muted-foreground" title={folderName(bg.folderId)}>{folderName(bg.folderId)}</span>}
                 <Badge variant="outline" className="hidden text-[10px] lg:inline-flex">{bg.type}</Badge>
                 <Select value={bg.fitting} onValueChange={(v) => v && updateBackground(bg.id, { fitting: v as never })}>
                   <SelectTrigger className="h-6 w-20 px-1.5 text-[11px]" aria-label={`Fitting for ${bg.name}`}><SelectValue /></SelectTrigger>
