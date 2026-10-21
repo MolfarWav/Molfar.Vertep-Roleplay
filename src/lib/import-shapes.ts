@@ -400,7 +400,10 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
   note(report, 'came', 'library', library.length)
   note(report, 'dropped', 'extensionMarkers', droppedMarkers.length, droppedMarkers)
   if (entries.some((e) => e.section.marker === 'summary')) note(report, 'dropped', 'summaryMarker', 1)
-  const { sections, groups, variables } = structurePreset(entries, report)
+  const structured = structurePreset(entries, report)
+  const { groups, variables } = structured
+  const macros = readMacros(structured.sections, library, variables, d, report)
+  const { sections } = macros
   // NEVER trim a stop string: leading whitespace is the point of the most
   // common one ("\nUser:" halts the model as it starts the user's turn).
   // Blank entries from splitting the multi-line field are dropped instead.
@@ -425,7 +428,7 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     readOnly: false,
     isDefault: false,
     sections,
-    library,
+    library: macros.library,
     groups,
     variables,
     description: sourceNote(d, name),
@@ -482,6 +485,32 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
   }
   const regex = importPresetRegex(d.extensions?.regex_scripts, report)
   return { preset, regex, report }
+}
+
+/** Macros: the ones that map one to one are rewritten (see rewriteMacros), ST's scoped variables are
+ *  counted, and every other macro this app does not expand is listed (its text stays as written).
+ *  {{summary}} is empty here: the story memory is Litopys. */
+function readMacros(sections: PromptSection[], library: PromptSection[], variables: Preset['variables'], d: WirePresetJson, report: ImportReport) {
+  const total = { noop: 0, globals: 0 }
+  const assigned = new Set<string>()
+  const fix = (s: PromptSection): PromptSection => {
+    const r = rewriteMacros(s.content)
+    total.noop += r.noop
+    total.globals += r.globals
+    r.assigned.forEach((n) => assigned.add(n))
+    return r.text === s.content ? s : { ...s, content: r.text }
+  }
+  const outSections = sections.map(fix)
+  const outLibrary = library.map(fix)
+  const utility = [d.impersonation_prompt, d.continue_nudge_prompt, d.new_chat_prompt, d.group_nudge_prompt, d.send_if_empty]
+  const texts = [...outSections, ...outLibrary].map((s) => s.content).concat(utility.filter((x): x is string => typeof x === 'string'))
+  const unsupported = scanMacros(texts, variables.map((v) => v.name))
+  note(report, 'approx', 'noopMacro', total.noop)
+  note(report, 'approx', 'globalVars', total.globals)
+  note(report, 'approx', 'localVars', assigned.size, [...assigned])
+  if (texts.some((t) => /\{\{\s*summary\s*\}\}/i.test(t))) note(report, 'approx', 'summaryMacro', 1)
+  note(report, 'dropped', 'macros', unsupported.length, unsupported.map((u) => `{{${u.name}}} x${u.count}`))
+  return { sections: outSections, library: outLibrary }
 }
 
 /** The regex scripts that travel with a preset: they run only while it is active. Scripts whose pattern

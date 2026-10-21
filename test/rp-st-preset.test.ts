@@ -196,3 +196,39 @@ describe("step 3: regex scripts", () => {
     expect(regexScriptsOf(st())).toHaveLength(1);
   });
 });
+
+describe("step 4: macros", () => {
+  const withText = (text: string, extra: Record<string, unknown> = {}) => run(make([P("Main", text, { identifier: "main" })], [], extra));
+
+  it("what this app expands passes silently; the rest is listed with counts", () => {
+    const r = withText("{{char}} and {{user}} {{random::a::b}} {{roll:1d6}} {{getvar::x}} {{setvar::y::1}} {{// a note with {{char}} in it }}{{trim}} {{#if x}}ok{{/if}} {{lastMessage}} {{outlet::top}} {{outlet::top}} {{original}} {{Model}}");
+    const macros = r.report.dropped.find((i) => i.id === "macros")!;
+    expect(macros.names).toEqual(["{{outlet}} x2", "{{original}} x1", "{{model}} x1"]);
+  });
+
+  it("{{noop}} is dropped, global variable macros become chat variables", () => {
+    const r = withText("a{{noop}}b {{setglobalvar::mood::calm}}{{getglobalvar::mood}} {{incglobalvar::n}}");
+    expect(r.preset.sections[0]!.content).toBe("ab {{setvar::mood::calm}}{{getvar::mood}} {{incvar::n}}");
+    expect(r.report.approx.find((i) => i.id === "noopMacro")!.n).toBe(1);
+    expect(r.report.approx.find((i) => i.id === "globalVars")!.n).toBe(3);
+    expect(r.report.dropped.find((i) => i.id === "macros")).toBeUndefined();
+  });
+
+  it("ST scoped variables: the assignment is removed (no leak into the prompt), the condition still passes", () => {
+    const text = "{{#if !.pick_pacing}}\n{{.pick_pacing = adaptive}}\n{{.pacing = on}}{{trim}}\nKeep moving.\n{{/if}}";
+    const r = withText(text);
+    const out = r.preset.sections[0]!.content;
+    expect(out).not.toContain(".pick_pacing =");
+    expect(out).toContain("Keep moving.");
+    expect(r.report.approx.find((i) => i.id === "localVars")).toMatchObject({ n: 2, names: ["pick_pacing", "pacing"] });
+    expect(r.report.dropped.find((i) => i.id === "macros")).toBeUndefined();
+    expect(expandIfBlocks(out, () => undefined)).toContain("Keep moving.");
+  });
+
+  it("the preset's own variables and {{summary}} are not reported as unknown", () => {
+    const prompts = [P("Prompt Variables", "{{setvar::lang::English}}"), P("Main", "Write in {{lang}}. {{summary}}", { identifier: "main" })];
+    const r = run(make(prompts));
+    expect(r.report.dropped.find((i) => i.id === "macros")).toBeUndefined();
+    expect(r.report.approx.map((i) => i.id)).toContain("summaryMacro");
+  });
+});
