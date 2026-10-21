@@ -576,7 +576,7 @@ export const DEFAULT_PROMPTS = {
     "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.",
     "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
     "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
-    "- In \"open\", list kept threads with their id and new ones with id null.",
+    "- In \"open\", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.",
     "",
     "Keep the whole reply compact: short values, no filler.",
   ].join("\n"),
@@ -605,8 +605,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The tenth sensor prompt (before it told the sensor not to list a thread it resolves, #81).
+const SENSOR_PROMPT_10 = DEFAULT_PROMPTS.sensor.replace(" Never list a thread you resolve in the same report.", "");
 // The ninth sensor prompt (before the scene direction, for the World DM, #52).
-const SENSOR_PROMPT_9 = DEFAULT_PROMPTS.sensor.replace(/\n\nDirection:\n[\s\S]*?(?=\n\nKnowledge:)/, "");
+const SENSOR_PROMPT_9 = SENSOR_PROMPT_10.replace(/\n\nDirection:\n[\s\S]*?(?=\n\nKnowledge:)/, "");
 // The eighth sensor prompt (before a character in touch by text, call or letter counted as present, #16).
 const SENSOR_PROMPT_8 = SENSOR_PROMPT_9
   .replace("- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.", "- present: everyone physically in the scene at the end of the new messages who acts, speaks or is addressed in them (the full list; [] when the user's character is alone). Everyone in the Previous state stays present unless the text shows them leaving. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep or is otherwise out of it.")
@@ -654,7 +656,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -2514,14 +2516,17 @@ function applyThreads(ctx, out, turn) {
   const closed = all.filter((t) => t.status !== "open").map((t) => ({ ...t, status: "resolved", resolvedAt: Number.isFinite(num(t.resolvedAt)) ? num(t.resolvedAt) : turn }));
   const limit = maxThreadsOf(ctx.cfg);
   const spec = isObj(out.threads) ? out.threads : {};
+  const settled = []; // what the sensor closed in this report (#81)
   for (const id of arr(spec.resolved).map(str)) {
     const t = threads.find((x) => x.id === id);
-    if (t) { t.status = "resolved"; t.resolvedAt = turn; }
+    if (t) { t.status = "resolved"; t.resolvedAt = turn; settled.push({ id: t.id, text: sameText(t.text) }); }
   }
   const openCount = () => threads.filter((t) => t.status === "open").length;
   for (const item of arr(spec.open)) {
     const text = cut(isObj(item) ? str(item.text) : str(item), 300);
     if (!text) continue;
+    // a settled thread listed under "open" too must not come back as a new one
+    if (settled.some((s) => (isObj(item) && str(item.id) === s.id) || sameText(text) === s.text)) continue;
     const known = isObj(item) ? threads.find((t) => t.id === str(item.id) && t.status === "open") : null;
     if (known) known.text = text;
     else if (openCount() < limit) {
