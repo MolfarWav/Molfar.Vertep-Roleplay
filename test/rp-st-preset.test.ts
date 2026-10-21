@@ -232,3 +232,36 @@ describe("step 4: macros", () => {
     expect(r.report.approx.map((i) => i.id)).toContain("summaryMacro");
   });
 });
+
+describe("step 5: samplers, reasoning, prefill, squash", () => {
+  const withKeys = (extra: Record<string, unknown>) => run(make([P("Main", "x", { identifier: "main" })], [], extra));
+
+  it("the sampler knobs, context, prefill, squash, stop strings and extended sweep come over", () => {
+    const r = withKeys({ temperature: 0.8, top_p: 0.9, top_k: 40, min_p: 0.05, top_a: 0.2, repetition_penalty: 1.1, frequency_penalty: 0.3, presence_penalty: 0.2,
+      openai_max_tokens: 1500, openai_max_context: 64000, max_context_unlocked: true, assistant_prefill: "Sure.", squash_system_messages: true,
+      stop: ["\nUser:"], seed: 7, stream_openai: false, dry_multiplier: 0.8 });
+    const s = r.preset.samplers;
+    expect([s.temperature.value, s.top_p.value, s.top_k.value, s.min_p.value, s.rep_pen.value, s.freq_pen.value, s.pres_pen.value]).toEqual([0.8, 0.9, 40, 0.05, 1.1, 0.3, 0.2]);
+    expect([s.maxTokens, s.contextSize, s.contextUnlocked, s.assistantPrefill, s.seed, s.streaming]).toEqual([1500, 64000, true, "Sure.", 7, false]);
+    expect(s.stopStrings).toEqual(["\nUser:"]);
+    expect(r.preset.squashSystemMessages).toBe(true);
+    expect(r.preset.extendedSamplers).toMatchObject({ top_a: 0.2, dry_multiplier: 0.8 });
+    expect(r.report.came.map((i) => i.id)).toEqual(expect.arrayContaining(["samplers", "prefill", "squash"]));
+  });
+
+  it("reasoning effort maps to ours, auto leaves it to the model, show_thoughts off hides the block", () => {
+    expect(withKeys({ reasoning_effort: "max" }).preset.samplers.reasoning).toMatchObject({ enabled: true, effort: "max" });
+    expect(withKeys({ reasoning_effort: "min" }).preset.samplers.reasoning).toMatchObject({ enabled: true, effort: "min" });
+    const auto = withKeys({ reasoning_effort: "auto", show_thoughts: false });
+    expect(auto.preset.samplers.reasoning.enabled).toBe(buildDefaultPreset().samplers.reasoning.enabled);
+    expect(auto.preset.samplers.reasoning.display).toBe("hidden");
+    expect(auto.report.approx.map((i) => i.id)).toContain("reasoningAuto");
+  });
+
+  it("settings with no equivalent are named; ST's own defaults are not", () => {
+    const quiet = withKeys({ wi_format: "{0}", scenario_format: "{{scenario}}", new_example_chat_prompt: "[Example Chat]", function_calling: false });
+    expect(quiet.report.dropped.find((i) => i.id === "settings")).toBeUndefined();
+    const r = withKeys({ wi_format: "[Lore: {0}]", function_calling: true, enable_web_search: true, n: 3, use_sysprompt: false });
+    expect(r.report.dropped.find((i) => i.id === "settings")!.names).toEqual(["wi_format", "function_calling", "enable_web_search", "n"]);
+  });
+});

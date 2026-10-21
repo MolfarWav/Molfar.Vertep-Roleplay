@@ -411,10 +411,14 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     ...(Array.isArray(d.stop) ? d.stop.filter((x) => typeof x === 'string' && x) : []),
     ...(typeof d.custom_stop_strings === 'string' && d.custom_stop_strings.trim() ? d.custom_stop_strings.split('\n') : []),
   ].filter((x) => x.trim())
+  // "auto" (and anything unknown) leaves reasoning to the model
   const effort: Partial<Record<string, Preset['samplers']['reasoning']['effort']>> = {
-    minimal: 'min', low: 'low', medium: 'med', high: 'high', xhigh: 'max',
+    min: 'min', minimal: 'min', low: 'low', medium: 'med', high: 'high', xhigh: 'max', max: 'max', maximum: 'max',
   }
-  const mappedEffort = d.reasoning_effort ? effort[d.reasoning_effort] : undefined
+  const mappedEffort = d.reasoning_effort ? effort[String(d.reasoning_effort).toLowerCase()] : undefined
+  // the reasoning block in the chat: ST's "show thoughts" off hides it
+  const display: Preset['samplers']['reasoning']['display'] | undefined = d.show_thoughts === false ? 'hidden' : undefined
+  notePresetSettings(d, report, !!mappedEffort)
   // the textgen sweep beyond the classic knobs (dry/xtc/dynatemp/mirostat/
   // smoothing/typical/…) — carried verbatim, forwarded only when set
   const extended: Record<string, number | string | boolean> = {}
@@ -472,19 +476,48 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
       pres_pen: { ...base.samplers.pres_pen, value: d.presence_penalty ?? base.samplers.pres_pen.value },
       maxTokens: d.openai_max_tokens ?? base.samplers.maxTokens,
       contextSize: d.openai_max_context ?? base.samplers.contextSize,
+      contextUnlocked: typeof d.max_context_unlocked === 'boolean' ? d.max_context_unlocked : base.samplers.contextUnlocked,
       seed: typeof d.seed === 'number' && d.seed >= 0 ? d.seed : base.samplers.seed,
       streaming: d.stream_openai ?? base.samplers.streaming,
       stopStrings: stops.length ? [...new Set(stops)] : base.samplers.stopStrings,
       assistantPrefill: d.assistant_prefill?.trim() ? d.assistant_prefill : base.samplers.assistantPrefill,
-      reasoning: mappedEffort
-        ? { ...base.samplers.reasoning, enabled: true, effort: mappedEffort }
-        : base.samplers.reasoning,
+      reasoning: {
+        ...base.samplers.reasoning,
+        ...(mappedEffort ? { enabled: true, effort: mappedEffort } : {}),
+        ...(display ? { display } : {}),
+      },
     },
     ...(Object.keys(extended).length ? { extendedSamplers: extended } : {}),
     createdAt: Date.now(),
   }
   const regex = importPresetRegex(d.extensions?.regex_scripts, report)
   return { preset, regex, report }
+}
+
+/** ST's own defaults for the format templates and prompts a preset file always carries: only a changed
+ *  one is worth telling about. */
+const ST_DEFAULTS: Record<string, string> = {
+  wi_format: '{0}', scenario_format: '{{scenario}}', personality_format: '{{personality}}',
+  new_group_chat_prompt: '[Start a new group chat. Group members: {{group}}]', new_example_chat_prompt: '[Example Chat]',
+  continue_postfix: ' ',
+}
+
+/** What the file sets that has no equivalent here, and the samplers that came over. */
+function notePresetSettings(d: WirePresetJson, report: ImportReport, reasoning: boolean): void {
+  const knobs = ['temperature', 'top_p', 'top_k', 'min_p', 'repetition_penalty', 'frequency_penalty', 'presence_penalty', 'openai_max_tokens', 'openai_max_context']
+  note(report, 'came', 'samplers', knobs.filter((k) => typeof d[k] === 'number').length)
+  note(report, 'came', 'reasoning', reasoning ? 1 : 0)
+  if (d.assistant_prefill?.trim()) note(report, 'came', 'prefill', 1)
+  if (d.squash_system_messages) note(report, 'came', 'squash', 1)
+  if (d.reasoning_effort && !reasoning) note(report, 'approx', 'reasoningAuto', 1)
+  const left: string[] = []
+  for (const [k, def] of Object.entries(ST_DEFAULTS)) {
+    if (typeof d[k] === 'string' && d[k] !== def && (d[k] as string).trim() !== '') left.push(k)
+  }
+  for (const k of ['function_calling', 'enable_web_search', 'request_images', 'use_sysprompt', 'media_inlining']) if (d[k] === true) left.push(k)
+  if (typeof d.n === 'number' && d.n > 1) left.push('n')
+  if (typeof d.assistant_impersonation === 'string' && d.assistant_impersonation.trim()) left.push('assistant_impersonation')
+  note(report, 'dropped', 'settings', left.length, left)
 }
 
 /** Macros: the ones that map one to one are rewritten (see rewriteMacros), ST's scoped variables are
