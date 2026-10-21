@@ -23,18 +23,19 @@ import { RegenerateHintDialog } from '@/components/chat/regenerate-hint-dialog'
 import { useApp } from "@/lib/store"
 import { useFinePointer, useLastPointer, useTouchUi } from "@/hooks/use-touch-ui"
 import { uid } from "@/lib/tokens"
-import { fileToRawDataUrl } from "@/lib/engine"
+import { fileToRawDataUrl, storeAttachmentAsset } from "@/lib/engine"
 import { cn } from "@/lib/utils"
 import type { ID, Message, QuickReply } from "@/lib/types"
 import { toast } from "sonner"
 import { useGuidePlace } from '@/components/guide/place'
 import { DEFAULT_AVATAR } from '../../lib/utils'
-import { draftKey, fillAction, readDraft, unsavedKeys } from '@/lib/drafts'
+import { MAX_DRAFT_ATTACHMENTS, draftKey, fillAction, liveAttachments, readAttachmentDraft, readDraft, unsavedKeys, writeAttachmentDraft } from '@/lib/drafts'
 
 type Attachment = NonNullable<Message["attachments"]>[number]
 
-// Unsent text is saved per chat (lib/drafts). Attachments stay in memory
-// only — data-URL bytes would blow the storage quota.
+// Unsent text is saved per chat (lib/drafts). Attachments are saved as small
+// handles to the engine's asset store (#31); data-URL bytes would blow the
+// storage quota, so a file the store refused stays in memory only.
 
 // Touch devices (phones, tablets): Enter inserts a newline — sending is the
 // send button, the mobile chat convention; "send on Enter" stays a desktop
@@ -94,7 +95,29 @@ export function Composer({ chatId }: { chatId: ID }) {
   // a hint regenerates the newest reply, so there must be one
   const hasReply = !!chat?.messages.some((m) => m.role === 'assistant' && !m.picture)
   const [qrOpen, setQrOpen] = useState(false)
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [attached, setAttached] = useState<{ chatId: ID; list: Attachment[] }>(() => ({ chatId, list: readAttachmentDraft(chatId) }))
+  const attachments = attached.chatId === chatId ? attached.list : readAttachmentDraft(chatId)
+  const setAttachments = useCallback((change: (prev: Attachment[]) => Attachment[]) => {
+    setAttached((cur) => {
+      const list = change(cur.chatId === chatId ? cur.list : readAttachmentDraft(chatId))
+      writeAttachmentDraft(chatId, list)
+      return { chatId, list }
+    })
+  }, [chatId])
+  // a saved handle whose asset the engine no longer has is dropped
+  useEffect(() => {
+    const saved = readAttachmentDraft(chatId)
+    if (!saved.length) return
+    let live = true
+    void liveAttachments(saved).then((ok) => {
+      if (!live || ok.length === saved.length) return
+      const kept = new Set(ok.map((a) => a.id))
+      setAttachments((prev) => prev.filter((a) => kept.has(a.id) || !saved.some((x) => x.id === a.id)))
+      toast(t('composer.attachmentGone'))
+    })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId])
   const [acIndex, setAcIndex] = useState(0)
   const [acDismissed, setAcDismissed] = useState(false)
   const [imgOpen, setImgOpen] = useState(false)
@@ -344,16 +367,22 @@ export function Composer({ chatId }: { chatId: ID }) {
 
   const handleFiles = async (files: FileList | null) => {
     if (!files) return
-    // attachments persist on the engine's message records — read them as
-    // data URLs so they survive reloads (object URLs die with the page)
+    // attachments persist on the engine's message records and in the unsent draft: they go into the
+    // asset store and are kept by URL (object URLs die with the page); when the store refuses, the
+    // bytes ride along as a data URL for this page only
     const next: Attachment[] = []
     for (const f of Array.from(files)) {
       if (f.size > 2 * 1024 * 1024) {
         toast.error(`${f.name} is too large`, { description: 'Attachments are capped at 2 MB.' })
         continue
       }
+      if (attachments.length + next.length >= MAX_DRAFT_ATTACHMENTS) {
+        toast.error(t('composer.attachmentsMax'))
+        break
+      }
       try {
-        next.push({ id: uid('att'), name: f.name, type: f.type || 'application/octet-stream', url: await fileToRawDataUrl(f) })
+        const url = await storeAttachmentAsset(f).catch(() => fileToRawDataUrl(f))
+        next.push({ id: uid('att'), name: f.name, type: f.type || 'application/octet-stream', url })
       } catch {
         toast.error(`Could not read ${f.name}`)
       }
@@ -388,7 +417,7 @@ export function Composer({ chatId }: { chatId: ID }) {
     if (text) pushInputHistory(text)
     setValue("")
     dropDraft()
-    setAttachments([])
+    setAttachments(() => [])
     setHistoryIdx(-1)
     setExpandOpen(false)
     // Tapping send blurs the input, so refocusing here would reopen the

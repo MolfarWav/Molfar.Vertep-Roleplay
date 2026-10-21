@@ -1672,6 +1672,18 @@ export async function storeImageAsset(src: File | Blob | string, max = 1024, nam
   return `/v1/assets/${out.id}`
 }
 
+/** An attached file goes into the asset store as it is (no resize, any type) and comes back as
+ *  `/v1/assets/<id>`: a draft keeps that handle, so unsent attachments survive a reload (#31). The store is
+ *  content-addressed, so picking the same file again adds nothing. */
+export async function storeAttachmentAsset(file: File): Promise<string> {
+  const r = await fetch(`/v1/assets?name=${encodeURIComponent(file.name.slice(0, 120))}`, {
+    method: "PUT", headers: { "content-type": file.type || "application/octet-stream" }, body: file,
+  })
+  const out = (await r.json().catch(() => ({}))) as { id?: string; error?: string }
+  if (!r.ok || !out.id) throw new Error(out.error || `could not store the file (${r.status})`)
+  return `/v1/assets/${out.id}`
+}
+
 /** The app's image route for remote art: same-origin and host-allowlisted
  *  engine-side. The fetch rides the frame's bridge shim (its window.fetch),
  *  because the sandbox itself cannot reach another host. */
