@@ -11,6 +11,7 @@ import { useRelativeTime, useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { useApp } from '@/lib/store'
 import { toast } from 'sonner'
 import { ChatShelf } from './chat-shelf'
 import { PromptBoard } from './prompt-board'
@@ -44,6 +45,23 @@ const DRAG_TYPE = 'application/x-vertep-chat'
 const SHELF_COLLAPSED_KEY = 'rp.canvas.shelf.collapsed'
 export const BOARD_KEY = 'rp.canvas.board'
 const PROMPT_CHAT_KEY = 'rp.canvas.prompt.chatId'
+
+/** The Chat links board (which chats sit on it, and where) lives in the app's settings, so it comes
+ *  back on every open and follows the user to another device; the browser copy of older versions is
+ *  read once and moved over by the first save. */
+type BoardState = { placed: string[]; positions: Record<string, { x: number; y: number }> }
+const boardState = (): BoardState => {
+  const saved = useApp.getState().settings.canvasBoard
+  return {
+    placed: saved?.placed ?? storage.get<string[]>(PLACED_KEY, []),
+    positions: saved?.positions ?? storage.get<Record<string, { x: number; y: number }>>(POSITIONS_KEY, {}),
+  }
+}
+const saveBoardState = (part: Partial<BoardState>) => {
+  const next = { ...boardState(), ...part }
+  if (JSON.stringify(next) === JSON.stringify(useApp.getState().settings.canvasBoard)) return
+  useApp.getState().updateSettings({ canvasBoard: next })
+}
 
 /** Every chat linked to `id` through "continues" or "forked from", in either direction (`id` first). */
 const chainIn = (chats: LitChatItem[], id: string): string[] => {
@@ -84,7 +102,7 @@ export function CanvasView() {
   const [infoOpen, setInfoOpen] = useState(true)
   const [fitSignal, setFitSignal] = useState(0)
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
-    storage.get(POSITIONS_KEY, {})
+    boardState().positions
   )
   const [shelfCollapsed, setShelfCollapsed] = useState(
     storage.get<boolean>(SHELF_COLLAPSED_KEY, false)
@@ -151,6 +169,7 @@ export function CanvasView() {
       if (coreReason.includes('output to an input')) return t('canvas.why.direction')
       if (coreReason.includes('do not fit')) return t('canvas.why.type')
       if (coreReason.includes('Already connected')) return t('canvas.why.dup')
+      if (coreReason.includes('Replaces')) return t('canvas.why.replace')
       return t('canvas.why.unknown')
     },
     [t]
@@ -177,9 +196,9 @@ export function CanvasView() {
       const focus = takeCanvasFocus()
       const known = items.some((c) => c.id === focus)
       if (focus && known) setSelectedId(focus)
-      const pos = storage.get<Record<string, { x: number; y: number }>>(POSITIONS_KEY, {})
+      const pos = boardState().positions
       setPositions(pos)
-      const placedIds = new Set(storage.get<string[]>(PLACED_KEY, []).filter((id) => items.some((c) => c.id === id)))
+      const placedIds = new Set(boardState().placed.filter((id) => items.some((c) => c.id === id)))
       // the Library's "Edit links on the canvas" lands on its chat: one not on the board comes with its chain
       if (focus && known && !placedIds.has(focus)) for (const id of chainIn(items, focus)) placedIds.add(id)
       const g = boardFromChats(items.filter((c) => placedIds.has(c.id)), pos)
@@ -202,7 +221,7 @@ export function CanvasView() {
   useEffect(() => {
     if (loadedRef.current) {
       const placedIds = graph.nodes.map((n) => n.id)
-      storage.set(PLACED_KEY, placedIds)
+      saveBoardState({ placed: placedIds })
     }
   }, [graph])
 
@@ -252,7 +271,7 @@ export function CanvasView() {
         pos[n.id] = { x: n.x, y: n.y }
       })
       setPositions(pos)
-      storage.set(POSITIONS_KEY, pos)
+      saveBoardState({ positions: pos })
       persistGraph(prev, next, label)
     },
     [graph, history, persistGraph]
@@ -282,7 +301,7 @@ export function CanvasView() {
       for (const n of own.nodes) newPositions[n.id] = { x: Math.round(n.x + dx), y: Math.round(n.y + dy) }
       const positionsWithNew = { ...positions, ...newPositions }
       setPositions(positionsWithNew)
-      storage.set(POSITIONS_KEY, positionsWithNew)
+      saveBoardState({ positions: positionsWithNew })
       const newOnBoard = new Set([...onBoard, ...validIds])
       const next = boardFromChats(
         allChats.filter((c) => newOnBoard.has(c.id)),

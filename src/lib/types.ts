@@ -845,6 +845,8 @@ export interface AppSettings {
    *  types it into the app's own settings, so it lives in data/settings.json
    *  and app backups, unlike engine credentials which stay in the vault. */
   translation: { provider: 'llm' | 'google' | 'lingva' | 'deepl'; targetLanguage: string; /** the language the model receives when auto-translating inputs */ internalLanguage: string; autoMode: 'none' | 'responses' | 'inputs' | 'both'; deeplKey?: string }
+  /** The Canvas Chat links board: the chats on it and where their cards sit. */
+  canvasBoard?: { placed: string[]; positions: Record<string, { x: number; y: number }> }
   /** Image generation via the engine's pi-ai images bridge (POST /v1/images). */
   imageGen?: { enabled: boolean; model: string; promptPrefix: string; negativePrompt: string; interactive: boolean; saveToGallery?: boolean; promptStyle?: 'auto' | 'description' | 'tags'; modelApi?: string; modelStyle?: 'description' | 'tags'; modelInstructions?: string }
 }

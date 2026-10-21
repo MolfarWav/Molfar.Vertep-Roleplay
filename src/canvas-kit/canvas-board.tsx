@@ -271,7 +271,9 @@ export function CanvasBoard({
         if (toNode && drag.from) {
           const verdict = verdictFor(drag.from, toNode)
           if (verdict.ok) {
-            showReason(verdict.replaces ? reasonText('Already connected') : '', e.clientX, e.clientY)
+            // `replaces` is a list: only a wire that would be replaced says so (an empty one is a plain valid drop)
+            if (verdict.replaces?.length) showReason(reasonText('Replaces its current link'), e.clientX, e.clientY)
+            else clearReason()
           } else {
             showReason(reasonText(verdict.reason), e.clientX, e.clientY, true)
           }
