@@ -4,6 +4,15 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.59.1
+
+Small fixes: the inbox opens at the first click, the by-scene background switch is back on the chat's Backgrounds tab, one total on the phone's Prompt board, and a Cancel for translations. Needs no engine update.
+
+- The inbox opens at the first click when a card editor or another section is open. The rail button closes the open section just before it opens the inbox, and the inbox closed itself on that change, so it opened and shut in the same tick and the click seemed to do nothing.
+- "Change the background by scene" is on the chat's Backgrounds tab again (World > Chats > a chat > Backgrounds), as a block above the folder. It had moved into the World settings; it is not repeated there any more. The chat's own background picker keeps its copy.
+- The Prompt board on a phone shows the token total once (the sticky line above the list), not twice.
+- A long card, field or lorebook translation can be cancelled: a Cancel button in the progress toast and on the field's Translate button. Cancel starts no new requests and writes nothing; a lorebook's "(original)" copy made for that run is removed. Requests already sent to the model still run to their end.
+
 ## 4.59.0
 
 A fuller SillyTavern preset import with a report of what came over, and four fixes. Needs no engine update.
