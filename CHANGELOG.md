@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.58.0
+
+A tidier inbox: dismiss one row or several, and no blank rows for deleted cards. Needs no engine update.
+
 - The inbox can be tidied (engine #82 and the idea in #72). Every row has a Dismiss button now, not only failures: a failure is hidden until that job fails again, a Library row until its pending count changes (the proposals stay in the Library), a Soul review is dismissed in the engine. "Select" turns on checkboxes with Select all / Clear and "Dismiss N" for several rows at once; a batch that includes Soul reviews asks twice, because dismissing one deletes its proposal. The chips (Failures, Approvals, Souls, What's new) filter by type as before, and Select all works on the filtered list.
 - A Soul review for a card that no longer exists is no longer listed (its row showed "..." and opened the Characters list with nothing to open). The relations plugin skips such drafts; a row that still slips through is dismissed with a notice when clicked.
 

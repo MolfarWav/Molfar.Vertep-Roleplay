@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.57.0'
+export const APP_VERSION = '4.58.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -333,6 +333,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Vertep Lite sits next to Molfar and FRANKENX in Presets: about 2k tokens instead of 13k, long replies, a hidden micro plan and a Muse with a fresh idea for each reply. It knows Litopys, the Dashboard and the World DM. Set its options in Choices.',
       uk: 'Vertep Lite стоїть поруч із Molfar і FRANKENX у Пресетах: близько 2 тис. токенів замість 13 тис., довгі відповіді, прихований мікроплан і Muse зі свіжою ідеєю на кожну відповідь. Він знає Літопис, Дашборд і World DM. Налаштуйте його у «Вибір».',
+    },
+  },
+  // ── What's new: a tidy inbox
+  {
+    id: 'new.inbox-tidy',
+    since: '4.58.0',
+    target: 'nav.inbox',
+    open: { view: 'home' },
+    title: { en: 'Tidy the inbox', uk: 'Наведіть лад в Inbox' },
+    body: {
+      en: 'Every row has a Dismiss button now. Press Select to tick several rows (or Select all), then Dismiss them in one go. A failure comes back only if that job fails again, a Library row only when it gets new proposals, and deleting a Soul review asks twice. Rows for deleted cards are gone.',
+      uk: 'Тепер у кожному рядку є кнопка «Закрити». Натисніть «Вибрати», щоб позначити кілька рядків (або «Усі»), і закрийте їх разом. Помилка повернеться, лише якщо та сама задача впаде знову, рядок Бібліотеки — лише коли з’являться нові пропозиції, а видалення Soul-review питає двічі. Рядків для видалених карток більше нема.',
     },
   },
   // ── What's new: the cache in chat info
