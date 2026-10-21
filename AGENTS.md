@@ -81,7 +81,12 @@ The Marketplace (components/views/marketplace-view.tsx) searches chub through
 studio-import plugin routes (/marketplace/search, /marketplace/detail) and
 downloads via the /import/url path; remote art rides the engine's same-origin
 image proxy (/v1/apps/roleplay/img) because app pages are CSP-locked to
-self-origin images. The other sources (RisuRealm, CharaVault, Wyvern, Pygmalion,
+self-origin images. Message bodies obey the same rule: `MessageImage` in
+src/components/markdown.tsx is the `img` component of the markdown renderer, so
+a picture a card writes in its text (`![alt](https://…)` in a greeting, or a raw
+<img>) is fetched through the proxy with `credentials: 'include'` (the route
+needs the session cookie) and degrades to its alt text as a link — never to the
+browser's broken-image icon — when the proxy or the link fails. The other sources (RisuRealm, CharaVault, Wyvern, Pygmalion,
 JannyAI) use the same two routes with a `source`; their installs go through
 /fetch/card and importCardFromLink (src/lib/card-import.ts), one importer for
 dropped files, pasted links and the Store. State per source (query, page, sort,

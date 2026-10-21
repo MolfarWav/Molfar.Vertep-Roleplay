@@ -6,7 +6,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## 4.59.0
 
-A fuller SillyTavern preset import with a report of what came over, and three fixes. Needs no engine update.
+A fuller SillyTavern preset import with a report of what came over, and four fixes. Needs no engine update.
 
 - Importing a SillyTavern preset now brings the structure over, not just the prompt list (#57). The "pick one" blocks that preset authors build from header prompts and toggles become section groups and Choices with options and hints (a header like "=Pick one POV ===" or "PICK: AGENCY"; one option on, or "pick one" in the header, makes a single choice, with a None option when nothing is on; several on makes a multi choice). A prompt of only `{{setvar::name::value}}` lines becomes text variables. Prompts that were not in the order go to the prompt library, the preset keeps its file name and the author and licence the file states, and the preset's regex scripts come over bound to it (a script whose pattern cannot compile is left out and named). Also read: unlocked context, reasoning effort words (min, max, auto), "show thoughts" off.
 - Macros that map one to one work instead of leaking into the prompt: `{{noop}}`, `{{setglobalvar}}` and the other global-variable macros (chat variables here), and ST's scoped variables (`{{.x = v}}` assignments are removed; `{{#if !.x}}` passes). Other macros stay as written and are listed.
@@ -14,6 +14,7 @@ A fuller SillyTavern preset import with a report of what came over, and three fi
 - A Marinara regex file (`{ regexScripts }` with word placements, separate flags and `enabled`) imports now; it was refused as "no valid regex scripts".
 - A thread the Dashboard sensor resolves no longer comes back as a new open one when the model lists it under both `resolved` and `open` (#81). The sensor prompt now tells it not to.
 - Unsent attachments survive a reload (#31): a picked file goes into the engine's asset store and the draft keeps a small handle, per chat, so a reload, a rebuild or a chat switch no longer drops it (and a file picked in one chat no longer rides into another). Up to eight; a file the store refuses stays in memory for the page, as before.
+- Pictures a card carries in its text (`![alt](https://…)` in a greeting, or a raw `<img>`) show up again instead of a broken-image icon (#84, found and fixed by goosebillis through Molfar). The chat loads them through the engine's same-origin image proxy, as the Store already did, because the app page only lets same-origin pictures through. The proxy serves the hosts the Roleplay plugins list (card sites such as Cloudflare Images, JannyAI, Chub); a picture on another host, or a dead link, shows its alt text as a link.
 - Canvas: a wire to a card level with or above its source swings out to the side instead of looping over its own card (#41). The hover test for dropping a card on a wire follows the same curve.
 
 ## 4.58.0

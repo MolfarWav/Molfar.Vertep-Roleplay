@@ -1702,7 +1702,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
  *  JPEG data URL. Keeps a sharp portrait without embedding the multi-MB
  *  original. */
 export async function downscaleRemoteImage(url: string, maxDim = 512): Promise<string> {
-  const res = await fetch(proxyUrl(url))
+  const res = await fetch(proxyUrl(url), { credentials: 'include' })
   if (!res.ok) throw new Error(`image ${res.status}`)
   const objectUrl = URL.createObjectURL(await res.blob())
   try {

@@ -1,5 +1,5 @@
 
-import { Children, createContext, isValidElement, cloneElement, memo, useContext, type ReactNode, type ReactElement } from 'react'
+import { Children, createContext, isValidElement, cloneElement, memo, useContext, useState, type ReactNode, type ReactElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -8,7 +8,8 @@ import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
-import { cn } from '@/lib/utils'
+import { cn, storedMediaUrl } from '@/lib/utils'
+import { proxyUrl } from '@/lib/engine'
 import { scopeCss } from '@/lib/scope-css'
 import { firstVoiceIn, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
@@ -201,9 +202,58 @@ const mdComponents = {
       {children}
     </a>
   ),
+  // Pictures a card carries in its text (`![alt](https://…)` in a greeting,
+  // or a raw <img>): the page is sandboxed and its image policy lets only
+  // same-origin pictures through, so a remote link renders as the browser's
+  // broken-image icon unless the bytes come from our own origin. The engine's
+  // image proxy (/v1/apps/<id>/img) fetches the picture for us. If the proxy
+  // refuses or the picture is gone, the reader still gets a working link
+  // instead of a bare broken icon.
+  img: MessageImage,
   // per-message styles render scoped to the message boundary (selectors rewritten)
   style: ScopedStyle,
 } as const
+
+/** Where a picture in a message body may come from. Mirrors the proxy's own
+ *  rules: http(s) only, no data:/javascript:, and nothing on the user's own
+ *  machine (the proxy refuses those anyway). */
+const REMOTE_IMAGE = /^https?:\/\//i
+
+/** A picture inside a message. Remote pictures go through the engine's image
+ *  proxy because the app page's image policy is same-origin only; a proxy
+ *  failure (or a dead link) degrades to the alt text as a link, never to a
+ *  broken-image icon. Same-origin, data: and blob: sources render directly. */
+function MessageImage({ src, alt, title }: { src?: string; alt?: string; title?: string }) {
+  const remote = typeof src === 'string' && REMOTE_IMAGE.test(src) ? src : null
+  // a failure belongs to the source that failed: a changed link gets its own try
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const failed = failedSrc !== null && failedSrc === src
+  const resolved = remote ? proxyUrl(remote) : (typeof src === 'string' ? storedMediaUrl(src) : '')
+  if (!resolved) return null
+  if (failed) {
+    return (
+      <a href={remote ?? resolved} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline">
+        {alt?.trim() || (remote ? (remote.match(/^https?:\/\/([^/?#]+)/i)?.[1] ?? 'image') : 'image')}
+      </a>
+    )
+  }
+  // A markdown image whose alt text is empty is decorative: keep it out of the a11y tree
+  const altText = alt ?? ''
+  return (
+    <img
+      src={resolved}
+      alt={altText}
+      title={title}
+      loading="lazy"
+      decoding="async"
+      // the sandbox never sends a referrer; say so explicitly, some CDNs
+      // (Cloudflare Image Delivery among them) refuse a foreign one
+      referrerPolicy="no-referrer"
+      onError={() => setFailedSrc(src ?? "")}
+      className="my-1"
+    />
+  )
+}
 
 // memoized: re-parses markdown (remark/rehype/KaTeX/highlight) ONLY when the
 // content string actually changes — not on every parent re-render
