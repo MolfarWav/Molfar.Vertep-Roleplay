@@ -265,3 +265,28 @@ describe("step 5: samplers, reasoning, prefill, squash", () => {
     expect(r.report.dropped.find((i) => i.id === "settings")!.names).toEqual(["wi_format", "function_calling", "enable_web_search", "n"]);
   });
 });
+
+describe("step 6: the report", () => {
+  it("every line the importer can write has a sentence in English and Ukrainian", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { DICTIONARIES } = await import("../src/lib/i18n");
+    const found = new Set<string>();
+    for (const f of ["../src/lib/import-shapes.ts", "../src/lib/st-structure.ts", "../src/lib/preset-report.ts"]) {
+      for (const m of readFileSync(new URL(f, import.meta.url), "utf8").matchAll(/note[(]report, '(?:came|approx|dropped)', '([A-Za-z]+)'/g)) found.add(m[1]!);
+    }
+    expect(found.size).toBeGreaterThan(20);
+    for (const id of found) {
+      expect((DICTIONARIES.en as Record<string, string>)[`presetReport.${id}`], id).toBeTruthy();
+      expect((DICTIONARIES.uk as Record<string, string>)[`presetReport.${id}`], id).toBeTruthy();
+    }
+  });
+
+  it("an import tells where each thing went, in three lists", () => {
+    const prompts = [P("Main", "{{outlet::x}} {{noop}}", { identifier: "main" }), P("━ Style (PICK ONE)", ""), P("Plain", "p"), P("Fancy", "f")];
+    const r = run(make(prompts, ["id_Fancy"], { function_calling: true }));
+    expect(r.report.source).toBe("sillytavern");
+    expect(r.report.came.length).toBeGreaterThan(0);
+    expect(r.report.approx.map((i) => i.id)).toContain("noopMacro");
+    expect(r.report.dropped.map((i) => i.id)).toEqual(expect.arrayContaining(["macros", "settings"]));
+  });
+});

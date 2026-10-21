@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/components/ui/confirm'
 import { useApp } from '@/lib/store'
+import { announceImportReport } from '@/components/presets/import-report-dialog'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_DETAIL_EVENT } from '@/components/guide/events'
 import { useT } from '@/hooks/use-t'
@@ -136,6 +137,7 @@ export function PresetsView() {
       const r = await importPreset(json, file.name.replace(/\.json$/i, ''), preset)
       setSelectedId(r.preset.id)
       toast.success(`Imported ${r.preset.name} (${r.preset.sections.length} prompts${r.scripts ? `, ${r.scripts} regex scripts` : ''})`)
+      announceImportReport(r.preset.name, r.report)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 

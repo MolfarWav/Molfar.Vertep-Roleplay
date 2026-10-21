@@ -32,6 +32,7 @@ import { ExtensionsView } from '@/components/views/extensions-view'
 import { SettingsView } from '@/components/views/settings-view'
 import { ThemeApplier } from '@/components/theme-applier'
 import { GuideHost } from '@/components/guide/guide-host'
+import { PresetImportReportHost } from '@/components/presets/import-report-dialog'
 import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
@@ -168,6 +169,7 @@ export function AppShell() {
       {/* the /help reference (commands + macros): also reachable from the help list, with no chat open */}
       <HelpDialog />
       <GuideHost />
+      <PresetImportReportHost />
       {/* phones: the "needs you" toasts ride bottom-center, above the composer and the tab bar */}
       <Toaster position={isDesktop ? "bottom-right" : "top-center"} visibleToasts={isDesktop ? 3 : 1} closeButton mobileOffset={{ bottom: 'calc(8rem + env(safe-area-inset-bottom))' }} />
     </div>

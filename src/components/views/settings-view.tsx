@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useApp } from "@/lib/store"
+import { announceImportReport } from "@/components/presets/import-report-dialog"
 import { useT } from "@/hooks/use-t"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MasterDetail } from "@/components/shell/master-detail"
@@ -419,6 +420,7 @@ function STImportSection() {
       try {
         const r = await importPreset(JSON.parse(await file.text()), file.name.replace(/\.json$/i, ""))
         toast.success(`Preset imported: ${r.preset.name} (${r.preset.sections.length} prompts${r.scripts ? `, ${r.scripts} regex scripts` : ""})`)
+        announceImportReport(r.preset.name, r.report)
       } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`) }
     }
   }

@@ -101,11 +101,9 @@ export function structurePreset(entries: RawEntry[], report: ImportReport): Stru
   const kept: RawEntry[] = []
 
   // 1. prompts of nothing but {{setvar}} become text variables (a {{getvar::x}} reads the variable)
-  let folded = 0
   for (const e of entries) {
     const vars = !e.header && !e.section.marker ? varsOnly(e.section.content) : null
     if (!vars) { kept.push(e); continue }
-    folded++
     for (const v of vars) {
       if (taken.has(v.name)) continue
       taken.add(v.name)
@@ -214,6 +212,5 @@ export function structurePreset(entries: RawEntry[], report: ImportReport): Stru
   // what the file does not say, guessed from the defaults: the editor can flip either guess
   note(report, 'approx', 'assumedOne', guessedOne.length, guessedOne)
   note(report, 'approx', 'severalAllowed', guessedMulti.length, guessedMulti)
-  if (folded) note(report, 'came', 'settingPrompts', folded)
   return { sections, groups, variables }
 }
