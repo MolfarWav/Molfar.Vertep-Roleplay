@@ -3881,7 +3881,10 @@ function draftsRoute(fsx) {
   for (const f of files.slice(0, 500)) {
     const cardId = f.replace(/\.json$/, "");
     if (!CHAT_ID.test(cardId)) continue;
-    const draft = visibleDraft(fsx, cardId, readCard(fsx, cardId));
+    const card = readCard(fsx, cardId);
+    // a proposal left behind by a deleted card has nothing to open: the inbox row would be a blank name
+    if (!isObj(card)) continue;
+    const draft = visibleDraft(fsx, cardId, card);
     if (!isObj(draft) || draft.dismissedAt) continue;
     const n = isObj(draft.characters) ? Object.keys(draft.characters).length : 0;
     const failed = typeof draft.error === "string" && draft.error !== "";

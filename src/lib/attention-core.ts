@@ -186,6 +186,14 @@ export type InboxRow =
   | { kind: 'litopys'; key: string; chatId: string; name: string; count: number }
   | { kind: 'soul'; key: string; characterId: string; name: string; count: number; at: number }
 
+/** A Library row hidden from the inbox: gone until that chat's pending count changes. */
+export const litDismissKey = (chatId: string, count: number) => `lit:${chatId}:${count}`
+
+/** The local key a row is dismissed by, or null for a Soul review (its proposal is dismissed in the engine). */
+export function rowDismissKey(row: InboxRow): string | null {
+  return row.kind === 'failed' ? failKey(row.item) : row.kind === 'litopys' ? litDismissKey(row.chatId, row.count) : null
+}
+
 export interface InboxInput {
   settings: AttentionSettings | undefined
   /** pending Library proposals per chat id */
@@ -222,7 +230,7 @@ export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number;
   }
   if (attentionOn(input.settings, 'litopys')) {
     const chats = Object.entries(input.litopys).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
-    for (const [chatId, count] of chats) rows.push({ kind: 'litopys', key: `lit:${chatId}`, chatId, name: input.chatName(chatId), count })
+    for (const [chatId, count] of chats) if (!input.dismissed?.has(litDismissKey(chatId, count))) rows.push({ kind: 'litopys', key: `lit:${chatId}`, chatId, name: input.chatName(chatId), count })
   }
   if (attentionOn(input.settings, 'soul')) {
     for (const d of input.soul) {

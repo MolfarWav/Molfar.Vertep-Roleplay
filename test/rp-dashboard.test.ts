@@ -1876,6 +1876,11 @@ describe("souls", () => {
     writeDraft("aria", { v: 1, at: 9, by: "auto", characters: {}, error: "model answer is not JSON" });
     writeDraft("nest", { v: 1, at: 7, by: "auto", characters: { Ki: {} }, dismissedAt: 8 });
     writeDraft("empty", { v: 1, at: 3, by: "auto", characters: {} });
+    // a proposal left behind by a deleted card has nothing to open: it is not listed (#82)
+    writeDraft("ghost", { v: 1, at: 11, by: "auto", characters: { Zed: { class: "ally" } } });
+    fs.rmSync(path.join(root, "characters", "ghost"), { recursive: true, force: true });
+    writeCard("bram", { name: "Bram" });
+    writeCard("aria", { name: "Aria" });
     expect(list()).toEqual([
       { characterId: "aria", at: 9, n: 0, failed: true },
       { characterId: "bram", at: 5, n: 1, failed: false },

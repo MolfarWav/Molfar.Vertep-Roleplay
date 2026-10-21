@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { BellSimple, CaretRight, Scroll, Sparkle, Warning, X } from '@phosphor-icons/react'
-import { useApp } from '@/lib/store'
-import { dismissFailure, failKey, useAttention, useInbox, inboxRows, workerName, type InboxFilter, type InboxRow } from '@/lib/attention'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BellSimple, CaretRight, Check, Scroll, Sparkle, Warning, X } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { dismissInboxRows, useApp } from '@/lib/store'
+import { useAttention, useInbox, inboxRows, workerName, type InboxFilter, type InboxRow } from '@/lib/attention'
 import { APP_VERSION, TIPS } from '@/lib/guide-tips'
 import { tipText } from '@/lib/guide'
-import { resolveLanguage } from '@/lib/i18n'
+import { resolveLanguage, t as translate } from '@/lib/i18n'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { useIsDesktop, useIsWideRail } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -49,7 +50,18 @@ export function useInboxBadge() {
 /** The number on the inbox button. */
 export const useInboxTotal = () => useInboxRows().total
 
+/** A review for a card that is not in the library any more has nothing to open: dismiss it and say so. */
+function dismissIfCardGone(row: InboxRow): boolean {
+  const app = useApp.getState()
+  const id = row.kind === 'soul' ? row.characterId : row.kind === 'failed' && row.item.worker === 'soul' ? row.item.ref : null
+  if (!id || app.characters.some((c) => c.id === id)) return false
+  void dismissInboxRows([row])
+  toast.info(translate('inbox.cardGone', resolveLanguage(app.settings.language)))
+  return true
+}
+
 function openRow(row: InboxRow) {
+  if (dismissIfCardGone(row)) return
   useInbox.getState().setOpen(false)
   const app = useApp.getState()
   if (row.kind === 'litopys') app.focusLibraryChat(row.chatId)
@@ -88,7 +100,7 @@ const KIND_STYLE = {
   },
 } as const
 
-function InboxItem({ row, phone }: { row: InboxRow; phone?: boolean }) {
+function InboxItem({ row, phone, selecting, selected, onToggle }: { row: InboxRow; phone?: boolean; selecting?: boolean; selected?: boolean; onToggle?: () => void }) {
   const t = useT()
   const when = useRelativeTime()
   const lang = resolveLanguage(useApp((s) => s.settings.language))
@@ -103,14 +115,21 @@ function InboxItem({ row, phone }: { row: InboxRow; phone?: boolean }) {
     <li className="flex items-stretch gap-1" data-testid={`inbox-row-${row.kind}`}>
       <button
         type="button"
-        onClick={() => openRow(row)}
-        aria-label={`${kindLabel}${worker ? `, ${worker}` : ''}: ${name}. ${what}. ${t('attn.open')}`}
+        onClick={selecting ? onToggle : () => openRow(row)}
+        aria-pressed={selecting ? !!selected : undefined}
+        aria-label={`${kindLabel}${worker ? `, ${worker}` : ''}: ${name}. ${what}. ${selecting ? t('inbox.select') : t('attn.open')}`}
         className={cn(
           'flex min-w-0 flex-1 items-start gap-3 rounded-lg border px-3 text-left transition-colors',
           style.row,
+          selected && 'ring-2 ring-primary',
           phone ? 'min-h-14 py-2.5' : 'py-2',
         )}
       >
+        {selecting && (
+          <span className={cn('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border', selected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground')} aria-hidden="true">
+            {selected && <Check className="size-3.5" weight="bold" />}
+          </span>
+        )}
         <Icon className={cn('mt-0.5 size-5 shrink-0', style.iconTone)} weight={row.kind === 'failed' ? 'fill' : 'regular'} aria-hidden="true" />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-2">
@@ -121,15 +140,15 @@ function InboxItem({ row, phone }: { row: InboxRow; phone?: boolean }) {
           <span className="truncate text-sm font-medium text-foreground">{name}</span>
           <span className={cn('text-xs text-muted-foreground', row.kind === 'failed' ? 'line-clamp-2' : 'truncate')}>{what}</span>
         </span>
-        <CaretRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        {!selecting && <CaretRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
       </button>
-      {row.kind === 'failed' && (
+      {!selecting && (
         <button
           type="button"
-          onClick={() => dismissFailure(failKey(row.item))}
+          onClick={() => void dismissInboxRows([row])}
           aria-label={`${t('inbox.dismiss')}: ${name}`}
-          title={t('inbox.dismiss')}
-          className="flex w-10 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title={row.kind === 'soul' ? t('inbox.dismissSoul') : row.kind === 'litopys' ? t('inbox.dismissLit') : t('inbox.dismiss')}
+          className={cn('flex shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground', phone ? 'w-11' : 'w-10')}
         >
           <X className="size-4" aria-hidden="true" />
         </button>
@@ -217,11 +236,63 @@ function InboxBody({ phone }: { phone?: boolean }) {
   // a chip that emptied (the failure cleared, the last suggestion was settled) falls back to All
   const active: InboxFilter = filter === 'all' || filter === 'new' ? (filter === 'new' && !hasNew ? 'all' : filter) : counts[filter] > 0 ? filter : 'all'
   const shown = active === 'all' ? rows : rows.filter((r) => r.kind === active)
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [sure, setSure] = useState(false)
+  // only rows still shown count: a row that was dismissed, or sits under another chip, drops out
+  const chosen = shown.filter((r) => picked.has(r.key))
+  const toggle = (key: string) => {
+    setSure(false)
+    setPicked((p) => {
+      const n = new Set(p)
+      if (n.has(key)) n.delete(key)
+      else n.add(key)
+      return n
+    })
+  }
+  const endSelecting = () => { setSelecting(false); setPicked(new Set()); setSure(false) }
+  const dismissChosen = () => {
+    // Soul reviews are deleted in the engine, so that one asks twice
+    if (chosen.some((r) => r.kind === 'soul') && !sure) { setSure(true); return }
+    void dismissInboxRows(chosen)
+    endSelecting()
+  }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="px-4">
-        <FilterChips counts={counts} hasNew={hasNew} value={active} onChange={setFilter} phone={phone} />
+        <FilterChips counts={counts} hasNew={hasNew} value={active} onChange={(f) => { setSure(false); setFilter(f) }} phone={phone} />
       </div>
+      {active !== 'new' && shown.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-4" data-testid="inbox-tools">
+          {!selecting ? (
+            <button type="button" onClick={() => setSelecting(true)} className={cn('ml-auto rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground', phone ? 'h-10' : 'h-8')}>
+              {t('inbox.select')}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => { setSure(false); setPicked(chosen.length === shown.length ? new Set() : new Set(shown.map((r) => r.key))) }}
+                className={cn('rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground', phone ? 'h-10' : 'h-8')}
+              >
+                {chosen.length === shown.length ? t('inbox.selectNone') : t('inbox.selectAll')}
+              </button>
+              <span className="text-xs text-muted-foreground" aria-live="polite">{t('inbox.selected', { n: chosen.length })}</span>
+              <button
+                type="button"
+                disabled={!chosen.length}
+                onClick={dismissChosen}
+                className={cn('ml-auto rounded-md border px-2.5 text-xs font-medium disabled:opacity-40', sure ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-border text-foreground hover:bg-accent', phone ? 'h-10' : 'h-8')}
+              >
+                {sure ? t('inbox.dismissSure', { n: chosen.length }) : t('inbox.dismissN', { n: chosen.length })}
+              </button>
+              <button type="button" onClick={endSelecting} className={cn('rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground', phone ? 'h-10' : 'h-8')}>
+                {t('inbox.selectDone')}
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3" data-testid="inbox-scroll">
         {active === 'new' ? (
           <NewList />
@@ -235,7 +306,7 @@ function InboxBody({ phone }: { phone?: boolean }) {
           </Empty>
         ) : (
           <ul className="flex flex-col gap-1.5" data-testid="inbox-list">
-            {shown.map((row) => <InboxItem key={row.key} row={row} phone={phone} />)}
+            {shown.map((row) => <InboxItem key={row.key} row={row} phone={phone} selecting={selecting} selected={picked.has(row.key)} onToggle={() => toggle(row.key)} />)}
           </ul>
         )}
       </div>

@@ -3,7 +3,7 @@
  * says, the seen list that keeps a proposal from being toasted twice, and the switch.
  */
 import { describe, expect, it } from 'bun:test'
-import { attentionOn, failKey, failReason, inboxRows, litCounts, litopysFailures, soulWaitingOf, takeNew, takeNewFailures, toastPlan, totalOf, waitingOf, worldFailures } from '../src/lib/attention-core'
+import { attentionOn, failKey, failReason, inboxRows, litCounts, litDismissKey, rowDismissKey, litopysFailures, soulWaitingOf, takeNew, takeNewFailures, toastPlan, totalOf, waitingOf, worldFailures } from '../src/lib/attention-core'
 import type { LitFact, LitProposal } from '../src/components/library/litopys-api'
 
 const fact = (id: string, text: string) => ({ id, text } as LitFact)
@@ -118,6 +118,21 @@ describe('needs you: the inbox', () => {
     expect(r.rows.map((x) => x.key)).toEqual(['failed:litopys:c1:300', 'failed:world:w1:100'])
     expect(r.rows[1]).toMatchObject({ name: 'Harbour', reason: 'The provider is busy (rate limit). Try again in a minute.' })
     expect(inboxRows({ ...base, soul: [], litopys: {}, failed, dismissed: new Set([failKey(failed[0]!)]) }).total).toBe(1)
+  })
+
+  it("a dismissed Library row is gone until that chat's pending count changes", () => {
+    const gone = inboxRows({ ...base, dismissed: new Set([litDismissKey('c2', 3)]) })
+    expect(gone.rows.map((r) => r.key)).toEqual(['failed:soul:k2:9', 'lit:c1', 'soul:k1'])
+    expect(gone.total).toBe(3)
+    // a new proposal arrived (3 -> 4): the row is back
+    const back = inboxRows({ ...base, litopys: { ...base.litopys, c2: 4 }, dismissed: new Set([litDismissKey('c2', 3)]) })
+    expect(back.rows.map((r) => r.key)).toContain('lit:c2')
+  })
+
+  it('names the local key a row is dismissed by; a Soul review has none (the engine dismisses it)', () => {
+    const rows = inboxRows(base).rows
+    const failedRow = rows[0] as Extract<(typeof rows)[number], { kind: 'failed' }>
+    expect(rows.map(rowDismissKey)).toEqual([failKey(failedRow.item), litDismissKey('c2', 3), litDismissKey('c1', 1), null])
   })
 
   it('says a failure in plain words', () => {

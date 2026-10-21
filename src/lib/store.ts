@@ -45,7 +45,8 @@ import { triggerDashUpdate } from './dash-live'
 import { applySceneBackground } from './world-backgrounds'
 import { presetImport, regexImport } from './import-shapes'
 import { migrateLook } from './migrate-look'
-import { attentionOn, claimFailure, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
+import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
+import { rowDismissKey, type InboxRow } from './attention-core'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
@@ -490,6 +491,17 @@ async function pollSoulWaiting(on: boolean) {
   } catch {
     setSoulWaiting([])
   }
+}
+/** The inbox's "Dismiss": failures and Library rows are hidden here (gone until they change); a Soul
+ *  review is dismissed in the engine, which keeps the card's other data. Returns how many soul
+ *  dismissals the engine refused (0 when all went through). */
+export async function dismissInboxRows(rows: InboxRow[]): Promise<number> {
+  dismissKeys(rows.map(rowDismissKey).filter((k): k is string => k !== null))
+  const souls = rows.filter((r): r is Extract<InboxRow, { kind: 'soul' }> => r.kind === 'soul')
+  if (!souls.length) return 0
+  const done = await Promise.allSettled(souls.map((r) => j<unknown>(`/dashboard/soul-draft?characterId=${encodeURIComponent(r.characterId)}`, { method: 'DELETE' })))
+  await pollNeedsYou()
+  return done.filter((d) => d.status === 'rejected').length
 }
 /** A proposal for souls is waiting for a card of this chat: say so once per proposal,
  *  with a button that opens the card's Soul tab. "Seen" is the proposal's timestamp, kept

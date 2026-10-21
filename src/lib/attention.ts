@@ -62,6 +62,16 @@ export function dismissFailure(key: string) {
   useAttention.setState({ dismissed, failed: mergeFailed(st.failedBy, dismissed) })
 }
 
+/** Several rows hidden in one go (the inbox's "Dismiss selected"). */
+export function dismissKeys(keys: string[]) {
+  if (!keys.length) return
+  const st = useAttention.getState()
+  const dismissed = new Set(st.dismissed)
+  for (const k of keys) dismissed.add(k)
+  writeDismissed(dismissed)
+  useAttention.setState({ dismissed, failed: mergeFailed(st.failedBy, dismissed) })
+}
+
 const namesOf = (items: Pick<LitChatItem, 'id' | 'name' | 'proposals'>[]) =>
   Object.fromEntries(items.filter((it) => it.proposals > 0 && it.name).map((it) => [it.id, it.name]))
 
