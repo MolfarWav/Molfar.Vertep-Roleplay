@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { BoardKind, Graph, CanvasNode, CanvasEdge, Verdict } from './graph'
 import { splitEnd, canConnect, connect, removeEdge, moveNode, insertOnEdge } from './graph'
+import { wirePath, wirePoint } from './wire'
 
 const CARD_W = 200
 const CARD_H = 74
@@ -104,11 +105,7 @@ export function CanvasBoard({
   }
   const portId = (n: CanvasNode, side: 'in' | 'out') => board.types[n.type]?.ports.find((p) => p.side === side)?.id ?? side
 
-  // Wires leave a card downwards and enter the next one from above.
-  const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const dy = Math.max(40, Math.abs(b.y - a.y) * 0.5)
-    return `M${a.x},${a.y} C${a.x},${a.y + dy} ${b.x},${b.y - dy} ${b.x},${b.y}`
-  }
+  const curve = wirePath
 
   const fitAll = useCallback(() => {
     const nodes = graph.nodes
@@ -220,13 +217,9 @@ export function CanvasBoard({
       const a = outPos(fa)
       const b = inPos(ta)
       if (!a || !b) continue
-      const dy = Math.max(40, Math.abs(b.y - a.y) * 0.5)
       for (let i = 0; i <= 24; i++) {
-        const u = i / 24
-        const m = 1 - u
-        const x = m ** 3 * a.x + 3 * m * m * u * a.x + 3 * m * u * u * b.x + u ** 3 * b.x
-        const y = m ** 3 * a.y + 3 * m * m * u * (a.y + dy) + 3 * m * u * u * (b.y - dy) + u ** 3 * b.y
-        const d = Math.hypot(x - cx, y - cy)
+        const p = wirePoint(a, b, i / 24)
+        const d = Math.hypot(p.x - cx, p.y - cy)
         if (d < bestD) {
           bestD = d
           best = e.id

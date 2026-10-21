@@ -17,6 +17,7 @@ import {
 } from "../src/canvas-kit/graph";
 import type { BoardKind, Graph, History } from "../src/canvas-kit/graph";
 import { CHAT_LINKS, boardFromChats, linkChanges } from "../src/canvas-kit/boards/chat-links";
+import { wireControls, wirePath, wirePoint } from "../src/canvas-kit/wire";
 import type { LitChatItem } from "../src/components/library/litopys-api";
 
 const testBoard: BoardKind = {
@@ -447,5 +448,36 @@ describe("max on an output port", () => {
       edges: [{ id: "e1", from: "x:o", to: "y:i" }],
     };
     expect(canConnect(board, g, "x:o", "z:i")).toEqual({ ok: true, replaces: ["e1"] });
+  });
+});
+
+describe("wires (#41)", () => {
+  const a = { x: 100, y: 100 };
+
+  it("a target well below the source keeps the plain S-curve", () => {
+    const b = { x: 140, y: 300 };
+    const { c1, c2 } = wireControls(a, b);
+    expect(c1).toEqual({ x: 100, y: 200 });
+    expect(c2).toEqual({ x: 140, y: 200 });
+    expect(wirePath(a, b)).toBe("M100,100 C100,200 140,200 140,300");
+  });
+
+  it("a target above (or beside) the source swings out sideways instead of looping over its card", () => {
+    for (const b of [{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 260, y: 40 }, { x: -60, y: 40 }]) {
+      const { c1, c2 } = wireControls(a, b);
+      const side = b.x >= a.x ? 1 : -1;
+      expect(Math.abs(c1.x - a.x)).toBeGreaterThanOrEqual(90);
+      expect(Math.sign(c1.x - a.x)).toBe(side);
+      expect(Math.sign(c2.x - b.x)).toBe(-side);
+      // still leaves downwards and enters from above
+      expect(c1.y).toBeGreaterThan(a.y);
+      expect(c2.y).toBeLessThan(b.y);
+    }
+  });
+
+  it("wirePoint runs from the source to the target", () => {
+    const b = { x: 100, y: 0 };
+    expect(wirePoint(a, b, 0)).toEqual(a);
+    expect(wirePoint(a, b, 1)).toEqual(b);
   });
 });
