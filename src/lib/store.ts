@@ -43,7 +43,8 @@ import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
 import { applySceneBackground } from './world-backgrounds'
-import { presetImport, regexImport } from './import-shapes'
+import { presetImportFull } from './import-shapes'
+import type { ImportReport } from './preset-report'
 import { migrateLook } from './migrate-look'
 import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
 import { rowDismissKey, type InboxRow } from './attention-core'
@@ -294,7 +295,7 @@ interface AppState {
   runAutoExecutes: (event: 'onStartup' | 'onUser' | 'onAi' | 'onChatChange', chatId?: ID | null) => void
   /** Import a portable preset file; regex scripts it carries become scripts
    *  bound to the new preset. `base` fills whatever the file leaves out. */
-  importPreset: (json: unknown, name: string, base?: Preset) => Promise<{ preset: Preset; scripts: number }>
+  importPreset: (json: unknown, name: string, base?: Preset) => Promise<{ preset: Preset; scripts: number; report: ImportReport }>
   /** Post a generated picture as the chat's last speaker (and keep it in
    *  that character's gallery when the setting says so). */
   postPicture: (chatId: ID, image: GeneratedImage) => Promise<void>
@@ -1878,22 +1879,20 @@ export const useApp = create<AppState>()(
       },
       importPreset: async (json, name, base) => {
         const fill = base ?? get().presets.find((p) => !p.readOnly) ?? get().presets[0]
-        const preset = fill ? presetImport(json, name, fill) : null
-        if (!preset) throw new Error('Not a recognizable preset file')
+        const imported = fill ? presetImportFull(json, name, fill) : null
+        if (!imported) throw new Error('Not a recognizable preset file')
+        const { preset, report } = imported
         await j(`/presets/${encodeURIComponent(preset.id)}`, { method: 'PUT', body: JSON.stringify({ ...presetToEngine(preset), id: preset.id }) })
         bumpMutate()
         set((s) => ({ presets: [...s.presets, preset] }))
-        const embedded = (json as { extensions?: { regex_scripts?: unknown[] } }).extensions?.regex_scripts
         const scripts: RegexScript[] = []
-        for (const item of Array.isArray(embedded) ? embedded : []) {
-          const rx = regexImport(item)
-          if (!rx) continue
+        for (const rx of imported.regex) {
           const script: RegexScript = { ...rx, id: uid('rx'), scope: 'preset', scopeTargetId: preset.id, order: scripts.length }
           await j(`/regex/${encodeURIComponent(script.id)}`, { method: 'PUT', body: JSON.stringify({ ...regexToEngine(script), id: script.id }) })
           scripts.push(script)
         }
         if (scripts.length) set((s) => ({ regexScripts: [...s.regexScripts, ...scripts] }))
-        return { preset, scripts: scripts.length }
+        return { preset, scripts: scripts.length, report }
       },
       postPicture: async (chatId, image) => {
         const chat = get().chats.find((c) => c.id === chatId)

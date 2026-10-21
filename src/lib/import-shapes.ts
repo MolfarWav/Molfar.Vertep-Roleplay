@@ -480,7 +480,24 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     ...(Object.keys(extended).length ? { extendedSamplers: extended } : {}),
     createdAt: Date.now(),
   }
-  return { preset, regex: [], report }
+  const regex = importPresetRegex(d.extensions?.regex_scripts, report)
+  return { preset, regex, report }
+}
+
+/** The regex scripts that travel with a preset: they run only while it is active. Scripts whose pattern
+ *  cannot compile are left out and named; disabled ones come over disabled. */
+function importPresetRegex(list: unknown, report: ImportReport): Omit<RegexScript, 'id' | 'order'>[] {
+  const out: Omit<RegexScript, 'id' | 'order'>[] = []
+  const bad: string[] = []
+  for (const item of Array.isArray(list) ? list : []) {
+    const rx = regexImport(item)
+    if (rx) out.push({ ...rx, scope: 'preset' })
+    else bad.push(String((item as { scriptName?: string })?.scriptName ?? 'script'))
+  }
+  note(report, 'came', 'regex', out.length)
+  note(report, 'approx', 'regexOff', out.filter((r) => !r.enabled).length)
+  note(report, 'dropped', 'regexBad', bad.length, bad)
+  return out
 }
 
 /** Where a preset came from, kept on the imported copy: the file's name, and the author and licence the
@@ -507,17 +524,36 @@ function sourceNote(d: WirePresetJson, fileName: string): string {
 // ─── Regex scripts (portable JSON) ───
 interface WireRegex {
   scriptName?: string
+  /** Marinara's name for scriptName */
+  name?: string
   findRegex?: string
   replaceString?: string
   trimStrings?: string[]
-  placement?: number[] // 1 user, 2 ai, 3 slash, 5 wi, 6 reasoning
+  /** numbers (1 user, 2 ai, 3 slash, 5 wi, 6 reasoning), or Marinara's words */
+  placement?: (number | string)[]
   disabled?: boolean
+  /** Marinara: the opposite of disabled */
+  enabled?: boolean
   markdownOnly?: boolean
   promptOnly?: boolean
+  /** Marinara: where the script runs */
+  applyMode?: string
+  /** Marinara keeps the flags apart from the pattern */
+  flags?: string
   runOnEdit?: boolean
   substituteRegex?: number // 0 none, 1 raw, 2 escaped
   minDepth?: number | null
   maxDepth?: number | null
+}
+
+const PLACEMENT_WORDS: Record<string, number> = { user_input: 1, ai_output: 2, slash_command: 3, world_info: 5, reasoning: 6 }
+
+/** The scripts in a regex file: a list, a Marinara export ({ regexScripts }), or one script. */
+export function regexScriptsOf(json: unknown): unknown[] {
+  if (Array.isArray(json)) return json
+  const d = json as { regexScripts?: unknown; scripts?: unknown; extensions?: { regex_scripts?: unknown } } | null
+  for (const list of [d?.regexScripts, d?.scripts, d?.extensions?.regex_scripts]) if (Array.isArray(list)) return list
+  return [json]
 }
 
 export function regexImport(json: unknown): Omit<RegexScript, 'id' | 'order'> | null {
@@ -525,12 +561,15 @@ export function regexImport(json: unknown): Omit<RegexScript, 'id' | 'order'> | 
   if (!d || typeof d.findRegex !== 'string') return null
   // the format stores /pattern/flags or a bare pattern
   let find = d.findRegex
-  let flags = 'g'
+  let flags = typeof d.flags === 'string' && /^[a-z]*$/.test(d.flags) && d.flags ? d.flags : 'g'
   const m = /^\/(.*)\/([a-z]*)$/s.exec(d.findRegex)
   if (m) { find = m[1] ?? d.findRegex; flags = m[2] || 'g' }
-  const placement = d.placement ?? [2]
+  const substitute = d.substituteRegex === 1 ? 'raw' : d.substituteRegex === 2 ? 'escaped' : 'none'
+  // a pattern that does not compile can never match; with macros inside, it is only known after they are filled in
+  if (substitute === 'none') { try { new RegExp(find, flags) } catch { return null } }
+  const placement = (d.placement ?? [2]).map((p) => (typeof p === 'string' ? PLACEMENT_WORDS[p] ?? 0 : p))
   return {
-    name: d.scriptName ?? 'Imported script',
+    name: d.scriptName ?? d.name ?? 'Imported script',
     scope: 'global',
     scopeTargetId: null,
     find,
@@ -543,14 +582,14 @@ export function regexImport(json: unknown): Omit<RegexScript, 'id' | 'order'> | 
       wi: placement.includes(5),
       reasoning: placement.includes(6),
     },
-    markdownOnly: !!d.markdownOnly,
-    promptOnly: !!d.promptOnly,
+    markdownOnly: !!d.markdownOnly || d.applyMode === 'display',
+    promptOnly: !!d.promptOnly || d.applyMode === 'prompt',
     minDepth: d.minDepth ?? null,
     maxDepth: d.maxDepth ?? null,
     trimStrings: d.trimStrings ?? [],
     runOnEdit: !!d.runOnEdit,
-    macroMode: d.substituteRegex === 1 ? 'raw' : d.substituteRegex === 2 ? 'escaped' : 'none',
-    enabled: !d.disabled,
+    macroMode: substitute,
+    enabled: d.enabled === false ? false : !d.disabled,
   }
 }
 

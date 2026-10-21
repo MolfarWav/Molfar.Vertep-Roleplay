@@ -25,7 +25,7 @@ import { MasterDetail } from "@/components/shell/master-detail"
 import { SectionPage } from "@/components/shell/section-page"
 import { resolveLanguage, t, type MsgKey } from "@/lib/i18n"
 import type { AppSettings } from "@/lib/types"
-import { extractCharaFromPng, regexImport } from "@/lib/interop"
+import { extractCharaFromPng, regexExport, regexImport, regexScriptsOf } from "@/lib/interop"
 import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/engine"
 import { cn } from "@/lib/utils"
 import { useConfirm } from "@/components/ui/confirm"
@@ -473,10 +473,15 @@ function STImportSection() {
     for (const file of Array.from(files)) {
       try {
         const json = JSON.parse(await file.text())
-        const arr = Array.isArray(json) ? json : [json]
+        const arr = regexScriptsOf(json)
         // one round trip per FILE, not per script: a shared regex bundle runs
         // to dozens of scripts, and the normalizer takes them as a batch
-        const valid = arr.filter((item: unknown) => regexImport(item) !== null)
+        // every script goes through the importer and comes out in the portable shape (a Marinara file's
+        // word placements and flags become the numbers the normalizer reads)
+        const valid = arr.flatMap((item: unknown, i) => {
+          const rx = regexImport(item)
+          return rx ? [regexExport({ ...rx, id: "", order: i })] : []
+        })
         if (!valid.length) { toast.error(`${file.name}: no valid regex scripts`); continue }
         const r = await j<{ regex: string[] }>("/import/batch", { method: "POST", body: JSON.stringify({ regex: valid }) })
         const ok = r.regex.length

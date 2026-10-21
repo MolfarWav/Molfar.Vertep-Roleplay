@@ -1,7 +1,7 @@
 // SillyTavern preset import (GitHub #57): sections, toggle groups as Choices, regex, macros, samplers, report.
 // Fixtures are small files written here; no real preset is copied into the repo.
 import { describe, expect, it } from "bun:test";
-import { presetImportFull, presetImport } from "../src/lib/import-shapes.js";
+import { presetImportFull, presetImport, regexImport, regexScriptsOf } from "../src/lib/import-shapes.js";
 import { buildDefaultPreset } from "../src/lib/seed.js";
 import { expandIfBlocks } from "../plugins/engine/plugin.js";
 
@@ -155,5 +155,44 @@ describe("step 2: toggle groups become Choices", () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).not.toContain("user");
     expect(ids(r, "came")).toContain("groups");
+  });
+});
+
+describe("step 3: regex scripts", () => {
+  const st = (over: Record<string, unknown> = {}) => ({
+    scriptName: "Hide notes", findRegex: "/<note>(.*?)<\/note>/gi", replaceString: "", trimStrings: [" "], placement: [2], disabled: false,
+    markdownOnly: true, promptOnly: false, runOnEdit: true, substituteRegex: 0, minDepth: 1, maxDepth: 6, ...over,
+  });
+
+  it("the preset's own regex scripts come over bound to the preset, with placement, flags and depth", () => {
+    const r = run(make([P("Main", "x", { identifier: "main" })], [], { extensions: { regex_scripts: [st(), st({ scriptName: "Off", disabled: true, placement: [1, 2, 6] })] } }));
+    expect(r.regex.map((x) => [x.name, x.enabled, x.scope])).toEqual([["Hide notes", true, "preset"], ["Off", false, "preset"]]);
+    expect(r.regex[0]).toMatchObject({ find: "<note>(.*?)<\/note>", flags: "gi", markdownOnly: true, runOnEdit: true, minDepth: 1, maxDepth: 6, trimStrings: [" "] });
+    expect(r.regex[0]!.placements).toMatchObject({ aiOutput: true, userInput: false });
+    expect(r.regex[1]!.placements).toMatchObject({ userInput: true, aiOutput: true, reasoning: true });
+    expect(r.report.came.find((i) => i.id === "regex")!.n).toBe(2);
+    expect(r.report.approx.find((i) => i.id === "regexOff")!.n).toBe(1);
+  });
+
+  it("a script whose pattern cannot compile is left out and named", () => {
+    const r = run(make([P("Main", "x", { identifier: "main" })], [], { extensions: { regex_scripts: [st(), st({ scriptName: "Broken", findRegex: "/(unclosed/g" })] } }));
+    expect(r.regex.map((x) => x.name)).toEqual(["Hide notes"]);
+    expect(r.report.dropped.find((i) => i.id === "regexBad")).toMatchObject({ n: 1, names: ["Broken"] });
+  });
+
+  it("a Marinara regex file reads: word placements, separate flags, enabled, applyMode", () => {
+    const file = { kind: "marinara.regex-scripts", version: 1, regexScripts: [
+      { name: "Clean HTML", enabled: true, findRegex: "<b>", replaceString: "", flags: "gi", placement: ["user_input", "ai_output"], promptOnly: true, applyMode: "prompt" },
+      { name: "Show only", enabled: false, findRegex: "x", replaceString: "y", flags: "g", placement: ["world_info", "reasoning"], applyMode: "display" },
+    ] };
+    const items = regexScriptsOf(file);
+    expect(items).toHaveLength(2);
+    const [a, b] = items.map((i) => regexImport(i)!);
+    expect(a).toMatchObject({ name: "Clean HTML", find: "<b>", flags: "gi", enabled: true, promptOnly: true });
+    expect(a!.placements).toMatchObject({ userInput: true, aiOutput: true, slash: false });
+    expect(b).toMatchObject({ enabled: false, markdownOnly: true });
+    expect(b!.placements).toMatchObject({ wi: true, reasoning: true, aiOutput: false });
+    expect(regexScriptsOf([1, 2])).toEqual([1, 2]);
+    expect(regexScriptsOf(st())).toHaveLength(1);
   });
 });

@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useApp } from "@/lib/store"
-import { regexImport, regexExport, downloadJson } from "@/lib/interop"
+import { regexImport, regexScriptsOf, regexExport, downloadJson } from "@/lib/interop"
 import { uid } from "@/lib/tokens"
 import type { RegexScript } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -129,7 +129,7 @@ export function RegexView() {
     for (const file of Array.from(files)) {
       try {
         const json = JSON.parse(await file.text())
-        const arr = Array.isArray(json) ? json : [json]
+        const arr = regexScriptsOf(json)
         let ok = 0
         for (const item of arr) {
           const rx = regexImport(item)
