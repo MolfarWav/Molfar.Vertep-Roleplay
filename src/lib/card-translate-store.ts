@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { applyPendingTranslation, translateBook, translateInstalled, type PendingTranslation, type Translator } from '@/lib/card-translate'
+import { resolveLanguage, t } from '@/lib/i18n'
 import type { AppSettings } from '@/lib/types'
 
 /** The glue between card-translate.ts and the running app: one request to the
@@ -13,18 +14,53 @@ import type { AppSettings } from '@/lib/types'
 export type TranslationSettings = AppSettings['translation']
 
 export function makeTranslator(target: string, translation: TranslationSettings): Translator {
-  return async (text) => {
+  return async (text, signal) => {
     const r = await j<{ text: string }>('/translate', {
       method: 'POST',
       body: JSON.stringify({ text, target, provider: translation.provider, deeplKey: translation.deeplKey }),
+      signal,
     })
     return r.text
   }
 }
 
-/** Characters with a pass running, so a second one is not started. */
+/** Characters (and books) with a pass running, so a second one is not started. */
 const running = new Set<string>()
 export const isTranslating = (id: string): boolean => running.has(id)
+
+/** The Cancel of a running pass: aborting its requests ends it with nothing written. */
+const controllers = new Map<string, AbortController>()
+export function cancelTranslation(id: string): void { controllers.get(id)?.abort() }
+
+const lang = () => resolveLanguage(useApp.getState().settings.language)
+
+/** The progress toast of a pass, with a Cancel button (a click keeps the toast; the pass then replaces it). */
+function progressToast(id: string, message: string, tid?: string | number): string | number {
+  return toast.loading(message, {
+    ...(tid !== undefined ? { id: tid } : {}),
+    action: { label: t('tr.cancel', lang()), onClick: (e) => { e.preventDefault(); cancelTranslation(id) } },
+    // a 40 px target on a phone
+    classNames: { actionButton: 'max-sm:!h-10 max-sm:!px-4 max-sm:!text-sm' },
+  })
+}
+
+/** The options that turn the progress toast into a final one: same toast, the Cancel gone. */
+const done = (tid: string | number) => ({ id: tid, action: undefined, classNames: undefined })
+
+/** Start a pass: its controller and its progress toast. */
+function begin(id: string, message: string): { ac: AbortController; tid: string | number } {
+  running.add(id)
+  const ac = new AbortController()
+  controllers.set(id, ac)
+  return { ac, tid: progressToast(id, message) }
+}
+
+function end(id: string): void {
+  running.delete(id)
+  controllers.delete(id)
+}
+
+const cancelledToast = (name: string, tid: string | number) => toast.info(t('tr.cancelled', lang(), { name }), { ...done(tid) })
 
 /** Translate a character (and its embedded lorebook) in the library. Never
  *  throws: the card stays as it is whatever happens, and the toasts say what
@@ -35,29 +71,32 @@ export async function translateCharacter(
   opts: { target: string; translation: TranslationSettings; onOpen?: () => void },
 ): Promise<void> {
   if (running.has(id)) return
-  running.add(id)
-  const tid = toast.loading(`Translating ${name}…`)
+  const { ac, tid } = begin(id, `Translating ${name}…`)
   const st = () => useApp.getState()
   try {
     const res = await translateInstalled(id, {
       translate: makeTranslator(opts.target, opts.translation),
+      signal: ac.signal,
       getCharacter: (cid) => st().characters.find((c) => c.id === cid),
       updateCharacter: (cid, patch) => st().updateCharacter(cid, patch),
       getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
       updateBook: (bid, patch) => st().updateLorebook(bid, patch),
-      progress: (done, total) => { toast.loading(`Translating ${name}: ${done}/${total}`, { id: tid }) },
+      progress: (done, total) => { if (!ac.signal.aborted) progressToast(id, `Translating ${name}: ${done}/${total}`, tid) },
     }, { target: opts.target, provider: opts.translation.provider || 'llm', at: new Date().toISOString() })
-    if (res.unchanged) {
-      toast.warning(`${name} is already in ${opts.target}`, { id: tid, description: 'Nothing changed. Pick another language to translate to.' })
+    if (res.cancelled) {
+      cancelledToast(name, tid)
+    } else if (res.unchanged) {
+      toast.warning(`${name} is already in ${opts.target}`, { ...done(tid), description: 'Nothing changed. Pick another language to translate to.' })
     } else if (res.notTranslated.length) {
-      toast.warning(`${name} is only partly translated`, { id: tid, description: `Not translated: ${res.notTranslated.join(', ')}. What was translated is saved.` })
+      toast.warning(`${name} is only partly translated`, { ...done(tid), description: `Not translated: ${res.notTranslated.join(', ')}. What was translated is saved.` })
     } else {
-      toast.success(`${name} translated to ${opts.target}`, { id: tid, ...(opts.onOpen ? { action: { label: 'Open', onClick: opts.onOpen } } : {}) })
+      toast.success(`${name} translated to ${opts.target}`, { ...done(tid), ...(opts.onOpen ? { action: { label: 'Open', onClick: opts.onOpen } } : {}) })
     }
   } catch (e) {
-    toast.error(`Couldn't translate ${name}`, { id: tid, description: `${String((e as Error).message ?? e)} The card is kept as it was.` })
+    if (ac.signal.aborted) cancelledToast(name, tid)
+    else toast.error(`Couldn't translate ${name}`, { ...done(tid), description: `${String((e as Error).message ?? e)} The card is kept as it was.` })
   } finally {
-    running.delete(id)
+    end(id)
   }
 }
 
@@ -69,28 +108,36 @@ export async function translateLorebook(
   opts: { target: string; translation: TranslationSettings; keepCopy: boolean },
 ): Promise<void> {
   if (running.has(bookId)) return
-  running.add(bookId)
-  const tid = toast.loading(`Translating ${name}…`)
+  const { ac, tid } = begin(bookId, `Translating ${name}…`)
   const st = () => useApp.getState()
+  let copyId: string | null = null
   try {
     if (opts.keepCopy) {
-      const copyId = st().duplicateLorebook(bookId)
+      copyId = st().duplicateLorebook(bookId)
       st().updateLorebook(copyId, { name: `${name} (original)` })
     }
     const res = await translateBook(bookId, {
       translate: makeTranslator(opts.target, opts.translation),
+      signal: ac.signal,
       getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
       updateBook: (bid, patch) => st().updateLorebook(bid, patch),
-      progress: (done, total) => { toast.loading(`Translating ${name}: ${done}/${total}`, { id: tid }) },
+      progress: (done, total) => { if (!ac.signal.aborted) progressToast(bookId, `Translating ${name}: ${done}/${total}`, tid) },
     })
-    if (!res.total) toast.info(`${name} has no text to translate`, { id: tid })
-    else if (res.unchanged) toast.warning(`${name} is already in ${opts.target}`, { id: tid })
-    else if (res.missed) toast.warning(`${name} is only partly translated`, { id: tid, description: `${res.missed} entr${res.missed === 1 ? 'y' : 'ies'} stayed as they were. What was translated is saved.` })
-    else toast.success(`${name} translated to ${opts.target}`, { id: tid })
+    if (res.cancelled) {
+      // the copy was made for a translation that did not happen
+      if (copyId) st().deleteLorebook(copyId)
+      cancelledToast(name, tid)
+    } else if (!res.total) toast.info(`${name} has no text to translate`, { ...done(tid) })
+    else if (res.unchanged) toast.warning(`${name} is already in ${opts.target}`, { ...done(tid) })
+    else if (res.missed) toast.warning(`${name} is only partly translated`, { ...done(tid), description: `${res.missed} entr${res.missed === 1 ? 'y' : 'ies'} stayed as they were. What was translated is saved.` })
+    else toast.success(`${name} translated to ${opts.target}`, { ...done(tid) })
   } catch (e) {
-    toast.error(`Couldn't translate ${name}`, { id: tid, description: String((e as Error).message ?? e) })
+    if (ac.signal.aborted) {
+      if (copyId) st().deleteLorebook(copyId)
+      cancelledToast(name, tid)
+    } else toast.error(`Couldn't translate ${name}`, { ...done(tid), description: String((e as Error).message ?? e) })
   } finally {
-    running.delete(bookId)
+    end(bookId)
   }
 }
 
@@ -113,24 +160,28 @@ export async function previewTranslation(
   opts: { target: string; translation: TranslationSettings },
 ): Promise<boolean> {
   if (running.has(id)) return false
-  running.add(id)
-  const tid = toast.loading(`Translating ${name}…`)
+  const { ac, tid } = begin(id, `Translating ${name}…`)
   const st = () => useApp.getState()
   try {
     const res = await translateInstalled(id, {
       translate: makeTranslator(opts.target, opts.translation),
+      signal: ac.signal,
       getCharacter: (cid) => st().characters.find((c) => c.id === cid),
       updateCharacter: () => {},
       getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
       updateBook: () => {},
-      progress: (done, total) => { toast.loading(`Translating ${name}: ${done}/${total}`, { id: tid }) },
+      progress: (done, total) => { if (!ac.signal.aborted) progressToast(id, `Translating ${name}: ${done}/${total}`, tid) },
     }, { target: opts.target, provider: opts.translation.provider || 'llm', at: new Date().toISOString() }, { apply: false })
+    if (res.cancelled) {
+      cancelledToast(name, tid)
+      return false
+    }
     if (res.unchanged) {
-      toast.warning(`${name} is already in ${opts.target}`, { id: tid, description: 'Nothing changed. Pick another language to translate to.' })
+      toast.warning(`${name} is already in ${opts.target}`, { ...done(tid), description: 'Nothing changed. Pick another language to translate to.' })
       return false
     }
     if (!res.pending || !(res.pending.cardAnswers.some(Boolean) || res.pending.bookAnswers.some(Boolean))) {
-      toast.error(`Couldn't translate ${name}`, { id: tid, description: `Not translated: ${res.notTranslated.join(', ') || 'everything'}. The card is kept as it was.` })
+      toast.error(`Couldn't translate ${name}`, { ...done(tid), description: `Not translated: ${res.notTranslated.join(', ') || 'everything'}. The card is kept as it was.` })
       return false
     }
     toast.dismiss(tid)
@@ -138,10 +189,11 @@ export async function previewTranslation(
     setPending(id, res.pending)
     return true
   } catch (e) {
-    toast.error(`Couldn't translate ${name}`, { id: tid, description: `${String((e as Error).message ?? e)} The card is kept as it was.` })
+    if (ac.signal.aborted) cancelledToast(name, tid)
+    else toast.error(`Couldn't translate ${name}`, { ...done(tid), description: `${String((e as Error).message ?? e)} The card is kept as it was.` })
     return false
   } finally {
-    running.delete(id)
+    end(id)
   }
 }
 

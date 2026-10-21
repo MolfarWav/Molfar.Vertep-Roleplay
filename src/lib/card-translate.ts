@@ -29,7 +29,23 @@ export function saveTranslateTo(v: string): void {
   try { localStorage.setItem(TRANSLATE_TO_KEY, v) } catch { /* storage unavailable */ }
 }
 
-export type Translator = (text: string) => Promise<string>
+/** One request to the translator. `signal` aborts it (the Cancel button). */
+export type Translator = (text: string, signal?: AbortSignal) => Promise<string>
+
+/** `p`, or an AbortError the moment `signal` aborts, whatever `p` does after that. A fetch that honours the
+ *  signal rejects by itself; one that goes through a bridge may not, and Cancel must not wait for it. */
+export function raceAbort<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(new DOMException('Aborted', 'AbortError'))
+    if (signal.aborted) { p.catch(() => {}); return abort() }
+    signal.addEventListener('abort', abort, { once: true })
+    p.then(
+      (v) => { signal.removeEventListener('abort', abort); resolve(v) },
+      (e) => { signal.removeEventListener('abort', abort); reject(e) },
+    )
+  })
+}
 
 /** Requests in flight at once, and how many failures end a pass. */
 export const TRANSLATE_CONCURRENCY = 2
@@ -284,23 +300,26 @@ export function applyBookResults(
  *  whatever was translated is saved. */
 export async function translateBook(
   bookId: string,
-  deps: Pick<InstallTranslateDeps, 'translate' | 'getBook' | 'updateBook' | 'progress'>,
-): Promise<{ total: number; done: number; missed: number; unchanged: boolean }> {
+  deps: Pick<InstallTranslateDeps, 'translate' | 'getBook' | 'updateBook' | 'progress' | 'signal'>,
+): Promise<{ total: number; done: number; missed: number; unchanged: boolean; cancelled?: boolean }> {
   const book = deps.getBook(bookId)
   if (!book) return { total: 0, done: 0, missed: 0, unchanged: false }
   const jobs = planBookJobs(book)
   const answers: (string | null)[] = jobs.map(() => null)
   let done = 0
   let failures = 0
+  const aborted = () => deps.signal?.aborted === true
   await runLimited(jobs, TRANSLATE_CONCURRENCY, async (job, i) => {
     try {
-      answers[i] = clean(await deps.translate(job.text))
-      if (!answers[i]) failures++
+      answers[i] = clean(await raceAbort(deps.translate(job.text, deps.signal), deps.signal))
+      if (!answers[i] && !aborted()) failures++
     } catch {
-      failures++
+      if (!aborted()) failures++
     }
     deps.progress(++done, jobs.length)
-  }, () => failures >= TRANSLATE_MAX_FAILURES)
+  }, () => aborted() || failures >= TRANSLATE_MAX_FAILURES)
+  // Cancelled: the book is left exactly as it was, whatever was answered so far is dropped.
+  if (aborted()) return { total: jobs.length, done, missed: 0, unchanged: false, cancelled: true }
   const missed = new Set(jobs.filter((_, i) => !answers[i]).map((j) => j.entry)).size
   const unchanged = answers.some(Boolean) && answers.every((a, i) => a == null || a.trim() === jobs[i]!.text.trim())
   const now = deps.getBook(bookId)
@@ -321,11 +340,15 @@ export interface InstallTranslateDeps {
   updateBook: (id: string, patch: Partial<Lorebook>) => void
   /** called after every finished request */
   progress: (done: number, total: number) => void
+  /** aborts the pass: no new request starts, the ones in flight are cancelled, nothing is saved */
+  signal?: AbortSignal
 }
 
 export interface InstallTranslateResult {
   total: number
   done: number
+  /** the pass was cancelled: nothing was written and there is no `pending` */
+  cancelled?: boolean
   /** what stayed in the original language, in words for a toast */
   notTranslated: string[]
   /** every answer equalled its text: the card is already in the target language */
@@ -386,14 +409,16 @@ export async function translateInstalled(id: string, deps: InstallTranslateDeps,
   const total = cardJobs.length + bookJobs.length
   let done = 0
   let failures = 0
-  const stop = () => failures >= TRANSLATE_MAX_FAILURES
+  const aborted = () => deps.signal?.aborted === true
+  const stop = () => aborted() || failures >= TRANSLATE_MAX_FAILURES
   const ask = async (text: string): Promise<string | null> => {
     try {
-      const r = clean(await deps.translate(text))
+      const r = clean(await raceAbort(deps.translate(text, deps.signal), deps.signal))
       if (r) return r
-      failures++
+      if (!aborted()) failures++
     } catch {
-      failures++
+      // a request cut short by Cancel is not a failure
+      if (!aborted()) failures++
     }
     return null
   }
@@ -414,6 +439,8 @@ export async function translateInstalled(id: string, deps: InstallTranslateDeps,
       deps.progress(++done, total)
     }, stop)
   }
+  // Cancelled: nothing is written and no preview is offered; the card stays as it was.
+  if (aborted()) return { total, done, notTranslated: [], unchanged: false, cancelled: true }
   if (book && bookJobs.length) {
     const missedEntries = new Set(bookJobs.filter((_, i) => !bookAnswers[i]).map((j) => j.entry))
     if (missedEntries.size) notTranslated.push(`${missedEntries.size} lorebook entr${missedEntries.size === 1 ? 'y' : 'ies'}`)
