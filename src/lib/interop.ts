@@ -1,6 +1,6 @@
 // ── Import/export interop: browser downloads, plus re-exports of the pure
 // portable-shape converters (card PNG reading included) ──
-export { presetExport, presetImport, regexImport, regexExport, extractCharaFromPng } from './import-shapes.js'
+export { presetExport, presetImport, presetImportFull, regexImport, regexExport, extractCharaFromPng } from './import-shapes.js'
 import { saveFile } from './export'
 
 // ─── Download helper ───

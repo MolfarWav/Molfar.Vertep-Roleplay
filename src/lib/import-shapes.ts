@@ -3,6 +3,8 @@
 // engine-side test suite typechecks this module directly.
 import type { Preset, PromptSection, RegexScript } from './types.js'
 import { uid } from './tokens.js'
+import { newReport, note, rewriteMacros, scanMacros, type ImportReport } from './preset-report.js'
+import { isHeaderName, structurePreset, type RawEntry } from './st-structure.js'
 
 // ─── Presets ───
 // chat-completion preset shape: prompts[] + prompt_order[]
@@ -196,6 +198,21 @@ export function isMarinaraPreset(json: unknown): boolean {
   return !!d && d.type === 'marinara_preset' && !!d.data && typeof d.data === 'object'
 }
 
+/** What a Marinara import brought over; its own choice blocks and groups map one to one. */
+function marinaraReport(json: unknown, preset: Preset): ImportReport {
+  const report = newReport('marinara')
+  note(report, 'came', 'sections', preset.sections.length)
+  note(report, 'came', 'groups', preset.groups.length)
+  note(report, 'came', 'choices', preset.variables.length, preset.variables.map((v) => v.label))
+  const data = (json as { data: Loose }).data
+  const types = new Set<string>()
+  for (const s of Array.isArray(data.sections) ? (data.sections as Loose[]) : []) {
+    if (truthy(s.isMarker)) types.add(String(parsed<Loose>(s.markerConfig, {}).type ?? ''))
+  }
+  if (types.has('chat_summary')) note(report, 'dropped', 'summaryMarker', 1)
+  return report
+}
+
 function marinaraImport(json: unknown, name: string, base: Preset): Preset | null {
   const data = (json as { data: Loose }).data
   const mp = (data.preset ?? {}) as Loose
@@ -301,21 +318,52 @@ function marinaraImport(json: unknown, name: string, base: Preset): Preset | nul
   }
 }
 
+/** What an import gives back: the preset, the regex scripts that travelled with it (the store saves them
+ *  bound to the preset) and what came over, was approximated or was left behind. */
+export interface PresetImport {
+  preset: Preset
+  regex: Omit<RegexScript, 'id' | 'order'>[]
+  report: ImportReport
+}
+
 export function presetImport(json: unknown, name: string, base: Preset): Preset | null {
-  if (isMarinaraPreset(json)) return marinaraImport(json, name, base)
+  return presetImportFull(json, name, base)?.preset ?? null
+}
+
+/** Markers SillyTavern's own extensions add to the prompt order; their text is not in the file. */
+const ST_EXTENSION_MARKERS: Record<string, string> = {
+  authorsNote: 'authorsNote', vectorsMemory: 'memory', vectorsDataBank: 'memory', smartContext: 'memory', bias: 'bias',
+  impersonate: 'bias', quietPrompt: 'bias', groupNudge: 'bias', continueNudge: 'bias',
+}
+
+export function presetImportFull(json: unknown, name: string, base: Preset): PresetImport | null {
+  if (isMarinaraPreset(json)) {
+    const preset = marinaraImport(json, name, base)
+    return preset ? { preset, regex: [], report: marinaraReport(json, preset) } : null
+  }
   const d = json as WirePresetJson
   if (!d || !Array.isArray(d.prompts)) return null
+  const report = newReport('sillytavern')
   const orderList = activeOrder(d)
   const promptMap = new Map(d.prompts.map((p) => [p.identifier, p]))
-  const sections: PromptSection[] = []
+  const entries: RawEntry[] = []
+  const droppedMarkers: string[] = []
+  const placed = new Set<string>()
   let i = 0
   for (const entry of orderList) {
     const p = promptMap.get(entry.identifier)
     if (!p) continue
+    placed.add(p.identifier)
     const triggers = (p.injection_trigger ?? []).filter((t): t is (typeof TRIGGERS)[number] =>
       (TRIGGERS as readonly string[]).includes(t))
     const marker = MARKER_IDENTIFIERS[p.identifier] ?? null
-    sections.push({
+    if (p.marker && !marker && ST_EXTENSION_MARKERS[p.identifier]) {
+      droppedMarkers.push(p.name || p.identifier)
+      continue
+    }
+    // a marker this app does not know and a name drawn as a rule only head the toggles after them
+    const header = !marker && ((p.marker === true && !(p.content ?? '').trim()) || isHeaderName(p.name || ''))
+    entries.push({ header, section: {
       // marker sections take the CANONICAL identifier as their id — the
       // engine matches markers by identifier ("chatHistory", "main", …), so
       // a generated id would silently detach the section from its engine text
@@ -337,10 +385,22 @@ export function presetImport(json: unknown, name: string, base: Preset): Preset 
       injectionTriggers: triggers.length ? [...triggers] : [...TRIGGERS],
       forbidOverrides: !!p.forbid_overrides,
       groupId: null,
-    })
+    } })
     i++
   }
-  if (sections.length === 0) return null
+  if (entries.length === 0) return null
+  note(report, 'came', 'sections', entries.length)
+  const library: PromptSection[] = d.prompts
+    .filter((p) => !placed.has(p.identifier) && !p.marker)
+    .map((p, k) => ({
+      id: uid('sec'), name: p.name || p.identifier, enabled: false, role: p.role || 'system', marker: null, content: p.content ?? '',
+      position: p.injection_position === 1 ? 'in-chat' as const : 'relative' as const, depth: p.injection_depth ?? 4, order: k,
+      injectionTriggers: [...TRIGGERS], forbidOverrides: !!p.forbid_overrides, groupId: null,
+    }))
+  note(report, 'came', 'library', library.length)
+  note(report, 'dropped', 'extensionMarkers', droppedMarkers.length, droppedMarkers)
+  if (entries.some((e) => e.section.marker === 'summary')) note(report, 'dropped', 'summaryMarker', 1)
+  const { sections, groups, variables } = structurePreset(entries, report)
   // NEVER trim a stop string: leading whitespace is the point of the most
   // common one ("\nUser:" halts the model as it starts the user's turn).
   // Blank entries from splitting the multi-line field are dropped instead.
@@ -358,13 +418,17 @@ export function presetImport(json: unknown, name: string, base: Preset): Preset 
   for (const k of EXTRA_NUM_KEYS) if (typeof d[k] === 'number') extended[k] = d[k] as number
   for (const k of EXTRA_BOOL_KEYS) if (typeof d[k] === 'boolean') extended[k] = d[k] as boolean
   if (typeof d.negative_prompt === 'string' && d.negative_prompt.trim()) extended.negative_prompt = d.negative_prompt
-  return {
+  const preset: Preset = {
     ...base,
     id: uid('preset'),
     name,
     readOnly: false,
     isDefault: false,
     sections,
+    library,
+    groups,
+    variables,
+    description: sourceNote(d, name),
     utilityPrompts: {
       impersonation: d.impersonation_prompt ?? base.utilityPrompts.impersonation,
       continueNudge: d.continue_nudge_prompt ?? base.utilityPrompts.continueNudge,
@@ -416,6 +480,28 @@ export function presetImport(json: unknown, name: string, base: Preset): Preset 
     ...(Object.keys(extended).length ? { extendedSamplers: extended } : {}),
     createdAt: Date.now(),
   }
+  return { preset, regex: [], report }
+}
+
+/** Where a preset came from, kept on the imported copy: the file's name, and the author and licence the
+ *  file states (top-level fields, or lines of its README-style prompts). Authors ask for credit, and a
+ *  licence such as CC BY-NC-ND travels with the text. */
+function sourceNote(d: WirePresetJson, fileName: string): string {
+  const lines: string[] = [`Imported from the SillyTavern preset "${fileName}".`]
+  const field = (k: string) => (typeof d[k] === 'string' && (d[k] as string).trim() ? (d[k] as string).trim() : '')
+  for (const [label, key] of [['Author', 'author'], ['Author', 'creator'], ['License', 'license']] as const) {
+    if (field(key)) lines.push(`${label}: ${field(key).slice(0, 200)}`)
+  }
+  const found: string[] = []
+  for (const p of d.prompts) {
+    if (!/read\s?me|about|credit|licen[cs]e|info/i.test(p.name || '')) continue
+    for (const raw of (p.content ?? '').split('\n')) {
+      const line = raw.replace(/<[^>]+>|[*_#>|]+/g, '').replace(/\s+/g, ' ').trim()
+      if (line.length > 3 && line.length <= 200 && /\b(?:author|created by|made by|written by|licen[cs]e[d]?|CC[- ]BY)\b|©/i.test(line) && !found.includes(line)) found.push(line)
+    }
+  }
+  lines.push(...found.slice(0, 4))
+  return lines.join('\n')
 }
 
 // ─── Regex scripts (portable JSON) ───
