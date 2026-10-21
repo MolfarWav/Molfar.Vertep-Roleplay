@@ -90,3 +90,14 @@ export function rewriteMacros(text: string): MacroRewrite {
   r.text = r.text.replace(/\{\{\s*[.$]([\w.-]+)\s*(?:[-+*/]?=|\+\+|--)[^{}]*\}\}/g, (_, name: string) => { r.assigned.push(name); return '' })
   return r
 }
+
+/** A name no other preset has: "Name", then "Name (2)", "Name (3)" ... (case-insensitive). */
+export function uniquePresetName(name: string, existing: Iterable<string>): string {
+  const taken = new Set([...existing].map((n) => n.trim().toLowerCase()))
+  const base = name.trim() || 'Imported preset'
+  if (!taken.has(base.toLowerCase())) return base
+  for (let i = 2; ; i++) {
+    const candidate = `${base} (${i})`
+    if (!taken.has(candidate.toLowerCase())) return candidate
+  }
+}

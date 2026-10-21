@@ -44,7 +44,7 @@ import { buildImagePrompt, generateImage, modelHints, postPicture, type Generate
 import { triggerDashUpdate } from './dash-live'
 import { applySceneBackground } from './world-backgrounds'
 import { presetImportFull } from './import-shapes'
-import type { ImportReport } from './preset-report'
+import { uniquePresetName, type ImportReport } from './preset-report'
 import { migrateLook } from './migrate-look'
 import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
 import { rowDismissKey, type InboxRow } from './attention-core'
@@ -1881,7 +1881,9 @@ export const useApp = create<AppState>()(
         const fill = base ?? get().presets.find((p) => !p.readOnly) ?? get().presets[0]
         const imported = fill ? presetImportFull(json, name, fill) : null
         if (!imported) throw new Error('Not a recognizable preset file')
-        const { preset, report } = imported
+        const { report } = imported
+        // importing the same file again must not make a second preset with the same name
+        const preset = { ...imported.preset, name: uniquePresetName(imported.preset.name, get().presets.map((p) => p.name)) }
         await j(`/presets/${encodeURIComponent(preset.id)}`, { method: 'PUT', body: JSON.stringify({ ...presetToEngine(preset), id: preset.id }) })
         bumpMutate()
         set((s) => ({ presets: [...s.presets, preset] }))

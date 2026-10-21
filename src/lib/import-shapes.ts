@@ -339,7 +339,12 @@ const ST_EXTENSION_MARKERS: Record<string, string> = {
 export function presetImportFull(json: unknown, name: string, base: Preset): PresetImport | null {
   if (isMarinaraPreset(json)) {
     const preset = marinaraImport(json, name, base)
-    return preset ? { preset, regex: [], report: marinaraReport(json, preset) } : null
+    if (!preset) return null
+    const report = marinaraReport(json, preset)
+    // a Marinara preset can carry its regex scripts the way ST presets do (top-level extensions)
+    const own = (json as { extensions?: { regex_scripts?: unknown }; data?: { regexScripts?: unknown } })
+    const regex = importPresetRegex(own.extensions?.regex_scripts ?? own.data?.regexScripts, report)
+    return { preset, regex, report }
   }
   const d = json as WirePresetJson
   if (!d || !Array.isArray(d.prompts)) return null
