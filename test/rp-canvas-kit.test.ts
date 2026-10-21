@@ -466,9 +466,11 @@ describe("wires (#41)", () => {
     for (const b of [{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 260, y: 40 }, { x: -60, y: 40 }]) {
       const { c1, c2 } = wireControls(a, b);
       const side = b.x >= a.x ? 1 : -1;
-      expect(Math.abs(c1.x - a.x)).toBeGreaterThanOrEqual(90);
-      expect(Math.sign(c1.x - a.x)).toBe(side);
-      expect(Math.sign(c2.x - b.x)).toBe(-side);
+      // both handles on the same side, and the curve's middle clears both cards (200 wide, centred on the ports)
+      expect(c2.x).toBe(c1.x);
+      const mid = wirePoint(a, b, 0.5);
+      const edge = side > 0 ? Math.max(a.x, b.x) + 100 : Math.min(a.x, b.x) - 100;
+      expect((mid.x - edge) * side).toBeGreaterThan(0);
       // still leaves downwards and enters from above
       expect(c1.y).toBeGreaterThan(a.y);
       expect(c2.y).toBeLessThan(b.y);

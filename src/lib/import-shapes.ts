@@ -389,7 +389,6 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     i++
   }
   if (entries.length === 0) return null
-  note(report, 'came', 'sections', entries.length)
   const library: PromptSection[] = d.prompts
     .filter((p) => !placed.has(p.identifier) && !p.marker)
     .map((p, k) => ({
@@ -404,6 +403,7 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
   const { groups, variables } = structured
   const macros = readMacros(structured.sections, library, variables, d, report)
   const { sections } = macros
+  report.came.unshift({ id: 'sections', n: sections.length })
   // NEVER trim a stop string: leading whitespace is the point of the most
   // common one ("\nUser:" halts the model as it starts the user's turn).
   // Blank entries from splitting the multi-line field are dropped instead.
