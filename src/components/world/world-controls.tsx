@@ -41,7 +41,6 @@ import {
   type WorldView,
 } from '@/lib/world'
 import type { MsgKey } from '@/lib/i18n'
-import { AutoBackground } from './world-auto-bg'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -465,7 +464,6 @@ export function WorldControls({
       {events && (
         <SwitchRow label={t('world.insert')} hint={t('world.insertHint')} checked={view.settings.insert} onChange={(v) => void save({ insert: v })} />
       )}
-      <AutoBackground chatId={chatId} />
     </section>
   )
 

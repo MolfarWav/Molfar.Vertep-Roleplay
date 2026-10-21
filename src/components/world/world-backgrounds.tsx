@@ -32,6 +32,7 @@ import {
 import { useConfirm } from '@/components/ui/confirm';
 import { MakeSet } from './world-bg-set';
 import { NameWithVision } from './world-bg-name';
+import { AutoBackground } from './world-auto-bg';
 
 type ConfirmFn = (opts: { title: string; description?: string; actionLabel?: string; destructive?: boolean }) => Promise<boolean>;
 
@@ -314,6 +315,12 @@ export function WorldBackgrounds({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">{t('world.bg.lead')}</p>
+
+      {'chatId' in wref && (
+        <section className="rounded-md border p-3" data-testid="bg-auto-section">
+          <AutoBackground chatId={wref.chatId} />
+        </section>
+      )}
 
       <section className="rounded-md border p-3">
         <h3 className="mb-2 text-sm font-medium">{t('world.bg.folder')}</h3>

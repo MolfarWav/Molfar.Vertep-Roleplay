@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { BellSimple, CaretRight, Check, Scroll, Sparkle, Warning, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { dismissInboxRows, useApp } from '@/lib/store'
-import { useAttention, useInbox, inboxRows, workerName, type InboxFilter, type InboxRow } from '@/lib/attention'
+import { useAttention, useInbox, inboxClosesOn, inboxRows, workerName, type InboxFilter, type InboxRow } from '@/lib/attention'
 import { APP_VERSION, TIPS } from '@/lib/guide-tips'
 import { tipText } from '@/lib/guide'
 import { resolveLanguage, t as translate } from '@/lib/i18n'
@@ -331,9 +331,12 @@ export function InboxDrawer() {
   const view = useApp((s) => s.view)
   const drawer = useApp((s) => s.drawer)
   const first = useRef(true)
+  const prev = useRef({ view, drawer })
   useEffect(() => {
+    const was = prev.current
+    prev.current = { view, drawer }
     if (first.current) { first.current = false; return }
-    useInbox.getState().setOpen(false)
+    if (inboxClosesOn(was, { view, drawer })) useInbox.getState().setOpen(false)
   }, [view, drawer])
   const railOffset = wide ? 'left-[206px]' : 'left-12'
   return (

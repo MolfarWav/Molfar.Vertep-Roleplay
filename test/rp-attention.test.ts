@@ -3,7 +3,7 @@
  * says, the seen list that keeps a proposal from being toasted twice, and the switch.
  */
 import { describe, expect, it } from 'bun:test'
-import { attentionOn, failKey, failReason, inboxRows, litCounts, litDismissKey, rowDismissKey, litopysFailures, soulWaitingOf, takeNew, takeNewFailures, toastPlan, totalOf, waitingOf, worldFailures } from '../src/lib/attention-core'
+import { attentionOn, failKey, inboxClosesOn, failReason, inboxRows, litCounts, litDismissKey, rowDismissKey, litopysFailures, soulWaitingOf, takeNew, takeNewFailures, toastPlan, totalOf, waitingOf, worldFailures } from '../src/lib/attention-core'
 import type { LitFact, LitProposal } from '../src/components/library/litopys-api'
 
 const fact = (id: string, text: string) => ({ id, text } as LitFact)
@@ -163,5 +163,19 @@ describe('needs you: the inbox', () => {
     expect(soulWaitingOf({ drafts: 'x' })).toEqual([])
     const list = soulWaitingOf({ drafts: [{ characterId: 'a', at: 1, n: 1 }, { at: 3, n: 4 }, { characterId: 'b', at: 2, n: 0, failed: false }, { characterId: 'c', at: 7, n: 0, failed: true }] })
     expect(list.map((d) => d.characterId)).toEqual(['c', 'a'])
+  })
+})
+
+describe('inboxClosesOn', () => {
+  it('stays open when the rail button closes the open section just before opening the inbox', () => {
+    expect(inboxClosesOn({ view: 'characters', drawer: 'characters' }, { view: 'characters', drawer: null })).toBe(false)
+  })
+  it('closes when another section opens or the view changes', () => {
+    expect(inboxClosesOn({ view: 'home', drawer: null }, { view: 'home', drawer: 'presets' })).toBe(true)
+    expect(inboxClosesOn({ view: 'home', drawer: null }, { view: 'chat', drawer: null })).toBe(true)
+    expect(inboxClosesOn({ view: 'chat', drawer: 'presets' }, { view: 'canvas', drawer: null })).toBe(true)
+  })
+  it('does nothing when nothing changed', () => {
+    expect(inboxClosesOn({ view: 'home', drawer: null }, { view: 'home', drawer: null })).toBe(false)
   })
 })

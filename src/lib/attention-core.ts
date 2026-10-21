@@ -242,3 +242,13 @@ export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number;
   const total = rows.reduce((a, r) => a + (r.kind === 'litopys' ? r.count : 1), 0)
   return { rows, total, failures }
 }
+
+/**
+ * Moving to another section closes the inbox: the page you asked for is the one to see. The rail button
+ * closes the open section just before it opens the inbox (drawer -> none, same view); that is not a move,
+ * and treating it as one made the inbox open and shut in the same tick.
+ */
+export function inboxClosesOn(was: { view: unknown; drawer: unknown }, now: { view: unknown; drawer: unknown }): boolean {
+  if (was.view === now.view && was.drawer === now.drawer) return false
+  return !(was.view === now.view && now.drawer === null)
+}
