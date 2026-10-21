@@ -105,7 +105,7 @@ export function CanvasBoard({
   }
   const portId = (n: CanvasNode, side: 'in' | 'out') => board.types[n.type]?.ports.find((p) => p.side === side)?.id ?? side
 
-  const curve = wirePath
+  const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => wirePath(a, b, { w: CARD_W, h: CARD_H })
 
   const fitAll = useCallback(() => {
     const nodes = graph.nodes
@@ -218,7 +218,7 @@ export function CanvasBoard({
       const b = inPos(ta)
       if (!a || !b) continue
       for (let i = 0; i <= 24; i++) {
-        const p = wirePoint(a, b, i / 24)
+        const p = wirePoint(a, b, i / 24, { w: CARD_W, h: CARD_H })
         const d = Math.hypot(p.x - cx, p.y - cy)
         if (d < bestD) {
           bestD = d

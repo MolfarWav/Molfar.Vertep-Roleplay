@@ -17,7 +17,7 @@ import {
 } from "../src/canvas-kit/graph";
 import type { BoardKind, Graph, History } from "../src/canvas-kit/graph";
 import { CHAT_LINKS, boardFromChats, linkChanges } from "../src/canvas-kit/boards/chat-links";
-import { wireControls, wirePath, wirePoint } from "../src/canvas-kit/wire";
+import { wireControls, wireCorners, wirePath, wirePoint } from "../src/canvas-kit/wire";
 import type { LitChatItem } from "../src/components/library/litopys-api";
 
 const testBoard: BoardKind = {
@@ -452,34 +452,51 @@ describe("max on an output port", () => {
 });
 
 describe("wires (#41)", () => {
-  const a = { x: 100, y: 100 };
+  const a = { x: 400, y: 500 };
+  const card = { w: 200, h: 74 };
+  // the source card hangs above its port, the target card below its own
+  const rects = (b: { x: number; y: number }) => [
+    { x1: a.x - 100, x2: a.x + 100, y1: a.y - 74, y2: a.y },
+    { x1: b.x - 100, x2: b.x + 100, y1: b.y, y2: b.y + 74 },
+  ];
 
   it("a target well below the source keeps the plain S-curve", () => {
-    const b = { x: 140, y: 300 };
+    const b = { x: 440, y: 700 };
+    expect(wireCorners(a, b)).toBeNull();
     const { c1, c2 } = wireControls(a, b);
-    expect(c1).toEqual({ x: 100, y: 200 });
-    expect(c2).toEqual({ x: 140, y: 200 });
-    expect(wirePath(a, b)).toBe("M100,100 C100,200 140,200 140,300");
+    expect(c1).toEqual({ x: 400, y: 600 });
+    expect(c2).toEqual({ x: 440, y: 600 });
+    expect(wirePath(a, b)).toBe("M400,500 C400,600 440,600 440,700");
   });
 
-  it("a target above (or beside) the source swings out sideways instead of looping over its card", () => {
-    for (const b of [{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 260, y: 40 }, { x: -60, y: 40 }]) {
-      const { c1, c2 } = wireControls(a, b);
-      const side = b.x >= a.x ? 1 : -1;
-      // both handles on the same side, and the curve's middle clears both cards (200 wide, centred on the ports)
-      expect(c2.x).toBe(c1.x);
-      const mid = wirePoint(a, b, 0.5);
-      const edge = side > 0 ? Math.max(a.x, b.x) + 100 : Math.min(a.x, b.x) - 100;
-      expect((mid.x - edge) * side).toBeGreaterThan(0);
-      // still leaves downwards and enters from above
-      expect(c1.y).toBeGreaterThan(a.y);
-      expect(c2.y).toBeLessThan(b.y);
+  it("a target at or above the source is a route round both cards, clear of them by a margin", () => {
+    for (const b of [{ x: 400, y: 150 }, { x: 650, y: 150 }, { x: 150, y: 150 }, { x: 400, y: 400 }, { x: 700, y: 420 }]) {
+      const pts = wireCorners(a, b, card)!;
+      expect(pts[0]).toEqual(a);
+      expect(pts.at(-1)).toEqual(b);
+      const samples = Array.from({ length: 400 }, (_, i) => wirePoint(a, b, i / 399, card));
+      for (const p of samples) {
+        for (const r of rects(b)) {
+          const inside = p.x > r.x1 + 1 && p.x < r.x2 - 1 && p.y > r.y1 + 1 && p.y < r.y2 - 1;
+          expect(inside, `(${p.x.toFixed(0)},${p.y.toFixed(0)}) inside a card for target ${b.x},${b.y}`).toBe(false);
+        }
+      }
+      // it goes out past the cards' outer edge with room to spare
+      const right = b.x >= a.x;
+      const outer = right ? Math.max(a.x, b.x) + 100 : Math.min(a.x, b.x) - 100;
+      const reach = right ? Math.max(...samples.map((p) => p.x)) : Math.min(...samples.map((p) => p.x));
+      expect(Math.abs(reach - outer)).toBeGreaterThanOrEqual(30);
+      // it leaves downwards and enters from above
+      expect(pts[1]!.y).toBeGreaterThan(a.y);
+      expect(pts.at(-2)!.y).toBeLessThan(b.y);
     }
   });
 
-  it("wirePoint runs from the source to the target", () => {
-    const b = { x: 100, y: 0 };
-    expect(wirePoint(a, b, 0)).toEqual(a);
-    expect(wirePoint(a, b, 1)).toEqual(b);
+  it("the path has rounded corners and wirePoint runs from the source to the target", () => {
+    const b = { x: 400, y: 150 };
+    expect(wirePath(a, b, card)).toContain("Q");
+    expect(wirePoint(a, b, 0, card)).toEqual(a);
+    expect(wirePoint(a, b, 1, card)).toEqual(b);
+    expect(wirePoint(a, { x: 440, y: 700 }, 1)).toEqual({ x: 440, y: 700 });
   });
 });
