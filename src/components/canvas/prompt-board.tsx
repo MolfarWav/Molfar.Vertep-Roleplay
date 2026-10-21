@@ -750,7 +750,8 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           </Button>
         )}
         <div className="flex-1" />
-        {sources && !loadingBoard && (
+        {/* on a phone the list's sticky line carries the total: one total, not two */}
+        {sources && !loadingBoard && !phoneList && (
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold" aria-live="polite">
             {t('canvas.prompt.total')}: {formatTokens(totalTokens)} {t('canvas.prompt.tokens')}
           </span>
