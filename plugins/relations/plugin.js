@@ -1410,7 +1410,116 @@ function saveState(fsx, ctx) {
   fsx.write(STATE_DIR + ctx.chatId + ".json", JSON.stringify(ctx.state, null, 2));
 }
 
-const keySet = (keys) => new Set(keys);
+// ---------- a chat that continues another (#100) ----------
+// The end state of the chat it continues is copied in once, at the start: the open threads, the
+// characters' numbers, moods and places (as a base snapshot) and the notes still alive. Carried notes
+// and names have this src, which always counts as active; the base snapshot stands in for the
+// "previous state" until the chat has a snapshot of its own.
+const INHERIT_KEY = "inherit";
+
+/** The carried state when it is on: null for a chat that started clean or carries nothing. */
+export const activeInherit = (state) => (isObj(state.inherited) && state.inherited.off !== true && isObj(state.inherited.snap) ? state.inherited : null);
+
+/** The chat this one continues (the Litopys link), or null. */
+function linkedFrom(fsx, chatId) {
+  const raw = readJson(fsx, "litopys/links.json", null);
+  const link = isObj(raw) && isObj(raw.links) && isObj(raw.links[chatId]) ? raw.links[chatId] : null;
+  const from = link ? str(link.from) : "";
+  return CHAT_ID.test(from) && from !== chatId ? from : null;
+}
+
+/** The end of an earlier chat: its last snapshot on its active line (or what it carried itself) and the keys that count. */
+function endStateOf(fsx, chatId) {
+  const chat = readChat(fsx, chatId);
+  if (!chat) return null;
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed) return null;
+  const keys = activeLine(chat.msgs).map((l) => l.key);
+  const i = nearestSnapshot(state, keys, keys.length);
+  const carried = activeInherit(state);
+  const snap = i >= 0 ? state.snapshots[keys[i]] : carried ? carried.snap : null;
+  if (!snap) return null;
+  return { chat, state, snap, keys: i >= 0 ? keys.slice(0, i + 1) : [], overlay: loadOverlay(fsx, chatId) };
+}
+
+/** What a chat that continues `from` starts with, or null when there is nothing to carry. */
+function buildInherit(fsx, chatId) {
+  const from = linkedFrom(fsx, chatId);
+  const end = from ? endStateOf(fsx, from) : null;
+  if (!end) return null;
+  const cfg = loadConfig(fsx);
+  const alive = freshNotes(effectiveNotebook(end.state, end.keys, end.overlay).live, end.snap.turn, noteAgeOf(cfg));
+  const notebook = {};
+  let notes = 0;
+  for (const [name, list] of Object.entries(alive)) {
+    const kept = arr(list).filter((n) => isObj(n) && str(n.text)).map(({ retiredBy: _r, ...n }) => ({ ...n, src: INHERIT_KEY, fromChat: from }));
+    if (kept.length) {
+      notebook[name] = kept;
+      notes += kept.length;
+    }
+  }
+  const names = {};
+  for (const [name, list] of Object.entries(activeNames(end.state, end.keys))) {
+    const last = arr(list).slice(-1)[0];
+    if (isObj(last)) names[name] = [{ ...last, src: INHERIT_KEY }];
+  }
+  const threads = effectiveThreads(end.overlay, end.snap.threads, end.snap.turn).filter((t) => t.status === "open" && str(t.text));
+  const { sig: _s, base: _b, partial: _p, fast: _f, ...snap } = end.snap;
+  return {
+    inherited: {
+      v: 1,
+      from,
+      title: str(end.chat.meta.title) || from,
+      at: Date.now(),
+      turn: end.snap.turn || 0,
+      notes,
+      threads: threads.length,
+      snap: { ...snap, op: "inherit", events: [], threads },
+    },
+    notebook,
+    names,
+    counters: end.state.counters,
+  };
+}
+
+function applyInherit(state, seed) {
+  state.inherited = seed.inherited;
+  for (const bag of ["notebook", "names"]) {
+    for (const [name, list] of Object.entries(seed[bag])) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
+  }
+  // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
+  for (const k of ["note", "thread"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
+}
+
+/** Switch the carried state off: the chat starts clean. The choice stays, so it is not offered again. */
+function dropInherit(state) {
+  const was = isObj(state.inherited) ? state.inherited : {};
+  state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", at: Date.now() };
+  for (const bag of ["notebook", "names"]) {
+    for (const name of Object.keys(state[bag])) {
+      state[bag][name] = arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY);
+      if (!state[bag][name].length) delete state[bag][name];
+    }
+  }
+}
+
+/**
+ * The state of a chat, with the earlier chat's end state in it when this chat continues one and has not
+ * started its own Dashboard (nothing is written here: `before` is the file as it was, so the first save
+ * of a sensor run writes the carried state with it).
+ */
+function loadStateFor(fsx, chatId) {
+  const loaded = loadState(fsx, chatId);
+  const before = JSON.stringify(loaded.state);
+  if (loaded.state.inherited === undefined && !Object.keys(loaded.state.snapshots).length) {
+    const seed = buildInherit(fsx, chatId);
+    if (seed) applyInherit(loaded.state, seed);
+  }
+  const carried = !!activeInherit(loaded.state);
+  return { ...loaded, existed: loaded.existed || carried, before, carried };
+}
+
+const keySet = (keys) => new Set([...keys, INHERIT_KEY]);
 
 /** Notes that count on this line: the source is active and no active key retired them. */
 export function activeNotebook(state, keys) {
@@ -2923,7 +3032,7 @@ const ok = (json, status) => ({ status: status || 200, json });
 function planUpdate(fsx, chatId, op) {
   const chat = readChat(fsx, chatId);
   if (!chat) return { final: ok({ error: "no such chat" }, 404) };
-  const { state, existed } = loadState(fsx, chatId);
+  const { state, existed, before } = loadStateFor(fsx, chatId);
   const unchanged = () => ({ final: ok({ ok: true, state: existed ? state : null, unchanged: true }) });
   const line = activeLine(chat.msgs);
   if (!line.length) return unchanged();
@@ -2940,13 +3049,15 @@ function planUpdate(fsx, chatId, op) {
   // in one call (standingFrom).
   const { good, cut, at } = standingFrom(state, line);
   const bi = good;
-  const base = bi >= 0 ? { key: keys[bi], snap: state.snapshots[keys[bi]] } : null;
+  // from the line start a chat that continues another reads on from the state it carried (key null = the start)
+  const carried = activeInherit(state);
+  const base = bi >= 0 ? { key: keys[bi], snap: state.snapshots[keys[bi]] } : carried ? { key: null, snap: carried.snap } : null;
   const drop = cut ? dropAfter(state, line, bi) : [];
   const newMsgs = line.slice(bi + 1).map((l) => l.msg).filter((m) => str(m.text));
   // nothing to read after the base (only text-less messages): dropping the stale snapshots needs no call
   if (!newMsgs.length) {
     if (!drop.length) return unchanged();
-    return { fsx, chatId, meta: chat.meta, line, K, base, drop, newMsgs, state, before: JSON.stringify(state) };
+    return { fsx, chatId, meta: chat.meta, line, K, base, drop, newMsgs, state, before };
   }
   const { names, souls } = chatCharacters(fsx, chat.meta);
   const overlay = loadOverlay(fsx, chatId);
@@ -2977,7 +3088,7 @@ function planUpdate(fsx, chatId, op) {
     userName: userNameOf(fsx, chat.meta),
     userNames: userNamesOf(fsx, chat),
     state,
-    before: JSON.stringify(state),
+    before,
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
@@ -3273,7 +3384,10 @@ export function snapshotFor(state, line, turn) {
     if (at >= 0) end = at;
   }
   const i = nearestSnapshot(state, keys, end);
-  return i >= 0 ? { key: keys[i], snap: state.snapshots[keys[i]], keys: keys.slice(0, i + 1) } : null;
+  if (i >= 0) return { key: keys[i], snap: state.snapshots[keys[i]], keys: keys.slice(0, i + 1) };
+  // no snapshot of its own yet: a chat that continues another stands on the state it carried
+  const carried = activeInherit(state);
+  return carried ? { key: INHERIT_KEY, snap: carried.snap, keys: [] } : null;
 }
 
 function knowsLine(name, user, notes, nameEntry, pr) {
@@ -3379,7 +3493,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   if (turn.op === "impersonate") return null;
   const chat = readChat(fsx, chatId);
   if (!chat) return null;
-  const { state, existed } = loadState(fsx, chatId);
+  const { state, existed } = loadStateFor(fsx, chatId);
   if (!existed) return null;
   const line = activeLine(chat.msgs);
   const at = snapshotFor(state, line, turn);
@@ -3558,7 +3672,7 @@ export function llmRequest(ctx, host) {
 function openThreadsAt(fsx, chatId, turn) {
   const chat = readChat(fsx, chatId);
   if (!chat) return [];
-  const { state, existed } = loadState(fsx, chatId);
+  const { state, existed } = loadStateFor(fsx, chatId);
   if (!existed) return [];
   const at = snapshotFor(state, activeLine(chat.msgs), turn);
   if (!at) return [];
@@ -3657,7 +3771,7 @@ export function fastInstructions(ctx) {
 function fastContext(fsx, chatId, turn, cfg) {
   const chat = readChat(fsx, chatId);
   if (!chat) return null;
-  const { state } = loadState(fsx, chatId);
+  const { state } = loadStateFor(fsx, chatId);
   const at = snapshotFor(state, activeLine(chat.msgs), turn);
   const overlay = loadOverlay(fsx, chatId);
   const { names, souls } = chatCharacters(fsx, chat.meta);
@@ -3744,10 +3858,11 @@ function fastReply(host, ctx) {
 /** Names an insert can be built for: the newest snapshot of the active line, present non-compact characters first. */
 function previewSpeakers(fsx, chatId) {
   const chat = readChat(fsx, chatId);
-  const { state, existed } = loadState(fsx, chatId);
+  const { state, existed } = loadStateFor(fsx, chatId);
   if (!chat || !existed) return [];
   const key = activeLine(chat.msgs).map((l) => l.key).reverse().find((k) => state.snapshots[k]);
-  const snap = key ? state.snapshots[key] : null;
+  const carried = activeInherit(state);
+  const snap = key ? state.snapshots[key] : carried ? carried.snap : null;
   if (!snap || !isObj(snap.chars)) return [];
   const chars = snap.chars;
   const first = arr(snap.present).filter((n) => chars[n] && !chars[n].compact);
@@ -3762,8 +3877,8 @@ function previewInsert(req, fsx) {
   const speakers = previewSpeakers(fsx, chatId);
   const insert = buildInsert(fsx, chatId, { op: "send", speakerName, targetId: "", userText: str(req.query && req.query.text) }, loadConfig(fsx));
   if (!insert) return ok({ insert: null, speakers });
-  const { state } = loadState(fsx, chatId);
-  const snap = state.snapshots[insert.key];
+  const { state } = loadStateFor(fsx, chatId);
+  const snap = state.snapshots[insert.key] || (activeInherit(state) || {}).snap;
   const blind = Object.values(snap.chars || {}).map((c) => str(c.blindSpot)).filter(Boolean);
   return ok({
     insert,
@@ -4004,10 +4119,12 @@ const SERIES_TURNS = 10;
  */
 export function stateView(fsx, chatId, state, keys, cfg) {
   const at = keys.map((k, i) => (state.snapshots[k] ? i : -1)).filter((i) => i >= 0);
-  if (!at.length) return null;
-  const idx = at[at.length - 1];
-  const key = keys[idx];
-  const snap = state.snapshots[key];
+  const carried = activeInherit(state);
+  if (!at.length && !carried) return null;
+  // no snapshot of its own yet: a chat that continues another shows the state it carried
+  const idx = at.length ? at[at.length - 1] : -1;
+  const key = at.length ? keys[idx] : INHERIT_KEY;
+  const snap = at.length ? state.snapshots[key] : carried.snap;
   const before = nearestSnapshot(state, keys, idx);
   const prevSnap = before >= 0 ? state.snapshots[keys[before]] : null;
   const overlay = loadOverlay(fsx, chatId);
@@ -4085,10 +4202,53 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   };
 }
 
+/**
+ * What the Dashboard says about carrying the state of an earlier chat: null when this chat continues
+ * nothing. `canSwitch` while the chat has no snapshot of its own (later the choice is made).
+ */
+function inheritInfo(fsx, chatId, state) {
+  const was = isObj(state.inherited) && state.inherited.from ? state.inherited : null;
+  const from = was ? was.from : linkedFrom(fsx, chatId);
+  if (!from) return null;
+  const own = Object.keys(state.snapshots).length > 0;
+  return {
+    from,
+    title: was ? was.title || "" : str((readChat(fsx, from) || { meta: {} }).meta.title),
+    on: !!activeInherit(state),
+    notes: was ? Number(was.notes) || 0 : 0,
+    threads: was ? Number(was.threads) || 0 : 0,
+    canSwitch: !own,
+  };
+}
+
+/** POST /dashboard/inherit { chatId, on }: carry the earlier chat's state in, or start clean. Only before the chat has its own snapshot. */
+function inheritRoute(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!CHAT_ID.test(chatId) || !readChat(fsx, chatId)) return ok({ error: "no such chat" }, 400);
+  const { state } = loadState(fsx, chatId);
+  if (Object.keys(state.snapshots).length) return ok({ error: "this chat has already started its own Dashboard" }, 409);
+  if (b.on === false) {
+    // a chat that never loaded the carried state still remembers where it came from
+    if (!isObj(state.inherited)) {
+      const seed = buildInherit(fsx, chatId);
+      if (seed) applyInherit(state, seed);
+    }
+    dropInherit(state);
+  } else {
+    delete state.inherited;
+    const seed = buildInherit(fsx, chatId);
+    if (!seed) return ok({ error: "the chat it continues has no Dashboard state to carry" }, 404);
+    applyInherit(state, seed);
+  }
+  fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  return ok({ ok: true, inherit: inheritInfo(fsx, chatId, state) });
+}
+
 function readState(req, fsx) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const { state, existed } = loadState(fsx, chatId);
+  const { state, existed } = loadStateFor(fsx, chatId);
   const chat = readChat(fsx, chatId);
   const keys = chat ? activeLine(chat.msgs).map((l) => l.key) : [];
   const current = keys.slice().reverse().find((k) => state.snapshots[k]) || null;
@@ -4099,6 +4259,7 @@ function readState(req, fsx) {
       chat: !!chat,
       messages: keys.length,
       view: existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null,
+      inherit: inheritInfo(fsx, chatId, state),
       lastError: existed ? state.lastError : null,
       // a chat with no state yet can still have "Story, move" armed: the composer shows it from here
       nudge: readNudge(fsx, chatId),
@@ -4162,7 +4323,7 @@ function writeEventRows(fsx, rows) {
 // ---------- route: the user's own notes and threads ----------
 const NO_VIEW = (fsx, chatId) => {
   const chat = readChat(fsx, chatId);
-  const { state, existed } = loadState(fsx, chatId);
+  const { state, existed } = loadStateFor(fsx, chatId);
   const keys = chat ? activeLine(chat.msgs).map((l) => l.key) : [];
   return { chat, state, existed, keys };
 };
@@ -4338,6 +4499,7 @@ export function handleRoute(req, host) {
     return ok({ effects: soulEffects(normalizeSoul(b.soul), loadVocab(fsx)) });
   }
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
+  if (path === "/dashboard/inherit" && method === "POST") return inheritRoute(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/notice" && method === "GET") {
     const chatId = String((req.query && req.query.chatId) || "");
