@@ -150,6 +150,10 @@ export const DEFAULT_CONFIG = {
   arcSizeMin: 5,
   arcSizeMax: 8,
   arcWords: 150,
+  // #106: the chapter worker also watches for habits a character shows again and again (skills); a candidate
+  // is earned (starts to act in the chat) once it was seen in this many chapters
+  skills: true,
+  skillsEarnAfter: 2,
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -196,6 +200,16 @@ export const ARC_SHAPE = '{"arc":{"label":"2-6 words","text":"the arc"}}';
 
 export const WORKER_SHAPE =
   '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
+
+/** Added to the chapter prompt while skills are on (#106), so a customised chapter prompt keeps working. */
+export const SKILLS_RULE = [
+  "Skills (optional, usually none):",
+  "- A skill is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
+  "- Add one only when a character did something characteristic: {who, name, rule, when, evidence}. At most 2 per scene. Never for the user's character.",
+  "- name: 2-6 words. rule: 1-3 short lines saying what they do. when: one short line, or \"\". evidence: a short quote or one line on what they did in this scene.",
+  "- When a Known skill showed again, give {reinforce: its id, evidence} and no new skill.",
+].join("\n");
+export const SKILLS_SHAPE = ',"skills":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
 
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 const PAST_DEFAULT_PROMPTS = {
@@ -291,6 +305,8 @@ export function loadConfig(fsx) {
   cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
   cfg.arcSizeMax = Math.max(cfg.arcSizeMin, clamp(intOf(cfg.arcSizeMax, 8), 2, 30));
   cfg.arcWords = clamp(intOf(cfg.arcWords, 150), 40, 400);
+  cfg.skills = cfg.skills !== false;
+  cfg.skillsEarnAfter = clamp(intOf(cfg.skillsEarnAfter, 2), 1, 5);
   return cfg;
 }
 
@@ -329,6 +345,8 @@ export function patchConfig(fsx, body) {
   if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);
   if (b.arcSizeMax !== undefined) next.arcSizeMax = clamp(intOf(b.arcSizeMax, 8), 2, 30);
   if (b.arcWords !== undefined) next.arcWords = clamp(intOf(b.arcWords, 150), 40, 400);
+  if (b.skills !== undefined) next.skills = b.skills !== false && b.skills !== "off";
+  if (b.skillsEarnAfter !== undefined) next.skillsEarnAfter = clamp(intOf(b.skillsEarnAfter, 2), 1, 5);
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -742,8 +760,16 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   }
   parts.push("Scene messages\n" + msgLines.join("\n"));
 
+  const skillsOn = cfg.skills !== false;
+  if (skillsOn) {
+    const known = (st.skills || [])
+      .filter((k) => k.status !== "rejected" && nameSet.has(str(k.who).toLowerCase()))
+      .slice(0, 12)
+      .map((k) => k.id + ": " + k.who + " - " + k.name + ": " + str(k.rule).split("\n").join(" "));
+    if (known.length) parts.splice(parts.length - 1, 0, "Known skills\n" + known.join("\n"));
+  }
   const userText = parts.join("\n\n");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + "\n\nOutput shape\n" + WORKER_SHAPE;
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (skillsOn ? "\n\n" + SKILLS_RULE : "") + "\n\nOutput shape\n" + (skillsOn ? WORKER_SHAPE.replace(/\}$/, SKILLS_SHAPE + "}") : WORKER_SHAPE);
   // the first answer retold the scene at full length: ask again, shorter
   if (opts.maxWords) systemPrompt += "\n\nSize: the chapter text must be at most " + opts.maxWords + " words, far shorter than the messages. Keep only the consequences.";
 
@@ -1116,7 +1142,7 @@ export function llmRequest(ctx, host) {
     let skills = null;
     if (!offForChat(fsx, chatId, "plugin:cardskills")) {
       try {
-        skills = cardSkillsFor({ fsx, meta: rc.meta, speakerName, chosen: stable });
+        skills = cardSkillsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: stable });
       } catch (e) {
         try {
           host.log("litopys card skills: " + (e && e.message ? e.message : String(e)));
@@ -1248,7 +1274,7 @@ function workerShape(v) {
     text = str(v.text);
   }
   if (!text) return null;
-  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v) };
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), skills: Array.isArray(v.skills) ? v.skills.slice(0, 6) : [] };
 }
 
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
@@ -1421,6 +1447,21 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     }
   }
 
+  // Skills the characters showed (#106), kept on the chat record itself (a rebuild keeps its own generation apart)
+  if (ctx.skills) {
+    const earned = applySkills(ctx.skillsStore || st, parsed.skills, {
+      now,
+      chapterId,
+      earnAfter: ctx.earnAfter || 2,
+      userName: ctx.userName,
+      sources: ctx.sources,
+      cardRules: ctx.cardRules,
+    });
+    // the activity log tells it like a level reached: who earned what, and who was seen with a habit the first time
+    for (const k of earned.earnedList) addActivity(ctx.skillsStore || st, "worker", "skill.earn", k.who + " earned the skill " + quote(k.name), [k.id], now, { who: k.who, name: k.name, seen: k.seen });
+    for (const k of earned.addedList) addActivity(ctx.skillsStore || st, "worker", "skill.seen", k.who + " showed a habit: " + quote(k.name), [k.id], now, { who: k.who, name: k.name });
+  }
+
   // Keep proposals at most 100 entries (drop oldest non-pending first)
   if (st.proposals.length > 100) {
     const nonPending = st.proposals.filter((p) => p.status !== "pending");
@@ -1479,7 +1520,8 @@ export function emptyChat(chatId) {
     proposals: [],
     scene: { openFrom: null },
     arcs: [],
-    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0 },
+    skills: [],
+    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0, skill: 0 },
   };
 }
 
@@ -1499,9 +1541,11 @@ export function loadChatFile(fsx, chatId) {
         fact: Number(st.counters.fact) || 0,
         proposal: Number(st.counters.proposal) || 0,
         arc: Number(st.counters.arc) || 0,
+        skill: Number(st.counters.skill) || 0,
       }
-    : { chapter: 0, fact: 0, proposal: 0, arc: 0 };
+    : { chapter: 0, fact: 0, proposal: 0, arc: 0, skill: 0 };
   st.arcs = arr(st.arcs).filter(isObj);
+  st.skills = arr(st.skills).filter(isObj);
   st.rev = Number(st.rev) || 0;
   st.activity = arr(st.activity);
   st.skipScenes = arr(st.skipScenes);
@@ -2313,7 +2357,20 @@ export function onTick(_ctx, host) {
             if (parsed) {
               const before = new Set(g.facts.map((f) => f.id));
               const pendingBefore = g.proposals.filter((p) => p.status === "pending").length;
-              const chapter = applyWorkerResult(g, w, parsed, { now, model: reply.model, usage: reply.usage, ms: reply.genTimeMs, line, reply: reply.text, sources: sourceSentences(fsx, meta) });
+              const chapter = applyWorkerResult(g, w, parsed, {
+                now,
+                model: reply.model,
+                usage: reply.usage,
+                ms: reply.genTimeMs,
+                line,
+                reply: reply.text,
+                sources: sourceSentences(fsx, meta),
+                skills: cfg.skills !== false,
+                skillsStore: cur,
+                earnAfter: cfg.skillsEarnAfter,
+                userName: meta && meta.userName,
+                cardRules: cfg.skills !== false ? cardSkillRules(fsx, meta) : [],
+              });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
               const span = "messages " + (w.scene.fromIdx + 1) + "-" + (w.scene.toIdx + 1);
@@ -3742,6 +3799,7 @@ export function chatView(fsx, chatId) {
     chapters,
     facts: st ? st.facts : [],
     proposals: st ? st.proposals : [],
+    skills: st ? st.skills.filter((k) => k.status !== "rejected") : [],
     scene: st ? st.scene : { openFrom: null },
     sceneFromNo: st && st.scene && st.scene.openFrom ? line.findIndex((m) => m.id === st.scene.openFrom) + 1 : 0,
     worker: workerView(st, line, next, beatAt(fsx), Date.now()),
@@ -3814,6 +3872,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
+  if (path === "/litopys/skills" && req.method === "POST") return chatSkillRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
     const key = req.query && typeof req.query.key === "string" ? req.query.key : "";
     const cfg = resetPrompts(fsx, key);
@@ -4107,7 +4166,10 @@ export function cardSkillsText(mem, card, opts) {
   const used = [];
   let spent = estimateTokens(head + "]");
   let dupes = 0;
-  for (const k of mem.skills) {
+  const onCard = mem.skills.filter((k) => k.on && k.state === "accepted");
+  // earned in this chat (opts.extra), after the card's own; one the card keeps already is not said twice
+  const extra = arr(opts.extra).filter((k) => !onCard.some((c) => diceSimilarity(c.rule, k.rule) >= CHAT_SKILL_SAME));
+  for (const k of [...mem.skills, ...extra]) {
     if (!k.on || k.state !== "accepted") continue;
     const sentences = RULE_SENTENCES(k.rule);
     if (sentences.length && sentences.every((s) => repeatsSource(s, own) || saidAlready(s, lines))) {
@@ -4126,6 +4188,131 @@ export function cardSkillsText(mem, card, opts) {
   return { text, tokens: estimateTokens(text), dupes, skills: used };
 }
 
+// ---------- skills a character earns in a chat (#106) ----------
+// The chapter worker reports habits a character showed in a scene. A first sighting is only a candidate
+// ("proposed"); seen in `skillsEarnAfter` different chapters it is earned ("active") and starts to act in this chat.
+// The user can switch one off, accept it early, edit it, reject it, or keep it on the card (where it acts in every
+// chat of the card). A rejected one stays as a tombstone so it does not come back.
+const CHAT_SKILL_MAX = 12;
+const CHAT_SKILL_NEW_PER_CHAPTER = 2;
+const CHAT_SKILL_SAME = 0.6;
+
+const skillRule = (v) =>
+  cut(
+    str(v)
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 6)
+      .join("\n"),
+    700,
+  );
+
+/** The rules already on the chat's card(s): a habit the card keeps is not earned a second time. */
+function cardSkillRules(fsx, meta) {
+  const ids = [];
+  if (meta && meta.groupId) for (const id of arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds)) ids.push(str(id));
+  else if (meta && meta.characterId) ids.push(str(meta.characterId));
+  const out = [];
+  for (const id of ids) {
+    if (!SAFE_ID.test(id)) continue;
+    for (const k of loadMemory(fsx, id).skills) if (k.state === "accepted") out.push(k.rule);
+  }
+  return out;
+}
+
+/**
+ * Apply the worker's `skills` list to the chat record. `c` = { now, chapterId, earnAfter, userName, sources, cardRules }.
+ * Returns { added, reinforced, earned }.
+ */
+export function applySkills(st, list, c) {
+  const res = { added: 0, reinforced: 0, earned: 0, addedList: [], earnedList: [] };
+  st.skills = arr(st.skills);
+  st.counters.skill = Number(st.counters.skill) || 0;
+  let fresh = 0;
+  for (const op of arr(list).slice(0, 6)) {
+    if (!isObj(op)) continue;
+    const evidence = cut(str(op.evidence), 200);
+    let target = null;
+    const rid = str(op.reinforce || op.id);
+    if (rid) target = st.skills.find((k) => k.id === rid && k.status !== "rejected") || null;
+    if (!target) {
+      const who = cut(str(op.who), 80);
+      const name = cut(str(op.name).replace(/\s+/g, " "), 80);
+      const rule = skillRule(op.rule);
+      if (!who || !name || !rule) continue;
+      if (c.userName && who.toLowerCase() === str(c.userName).toLowerCase()) continue;
+      const same = st.skills.find((k) => str(k.who).toLowerCase() === who.toLowerCase() && diceSimilarity(k.rule, rule) >= CHAT_SKILL_SAME);
+      if (same) {
+        // seen again, said in other words; one the user rejected does not come back
+        if (same.status === "rejected") continue;
+        target = same;
+      } else {
+        if (repeatsSource(rule, c.sources) || arr(c.cardRules).some((r) => diceSimilarity(r, rule) >= CHAT_SKILL_SAME)) continue;
+        if (fresh >= CHAT_SKILL_NEW_PER_CHAPTER) continue;
+        if (st.skills.filter((k) => k.status !== "rejected").length >= CHAT_SKILL_MAX) continue;
+        const made = {
+          id: "k" + ++st.counters.skill,
+          who,
+          name,
+          rule,
+          when: cut(str(op.when).replace(/\s+/g, " "), 160),
+          status: "proposed",
+          on: true,
+          seen: 1,
+          chapters: [c.chapterId],
+          evidence: evidence ? [{ text: evidence, chapter: c.chapterId }] : [],
+          origin: "chapter",
+          at: c.now,
+          updatedAt: c.now,
+        };
+        st.skills.push(made);
+        fresh++;
+        res.added++;
+        res.addedList.push(made);
+        // a bar of one sighting is already earned
+        if (made.seen >= c.earnAfter) {
+          made.status = "active";
+          made.earnedAt = c.now;
+          res.earned++;
+          res.earnedList.push(made);
+          res.addedList.pop();
+        }
+        continue;
+      }
+    }
+    // a rewrite of the same chapter is not a second sighting
+    if (arr(target.chapters).includes(c.chapterId)) continue;
+    target.chapters = [...arr(target.chapters), c.chapterId];
+    target.seen = target.chapters.length;
+    if (evidence) target.evidence = [...arr(target.evidence), { text: evidence, chapter: c.chapterId }].slice(-3);
+    target.updatedAt = c.now;
+    res.reinforced++;
+    if (target.status === "proposed" && target.seen >= c.earnAfter) {
+      target.status = "active";
+      target.earnedAt = c.now;
+      res.earned++;
+      res.earnedList.push(target);
+    }
+  }
+  // tombstones make room first
+  while (st.skills.length > 3 * CHAT_SKILL_MAX) {
+    const i = st.skills.findIndex((k) => k.status === "rejected");
+    st.skills.splice(i >= 0 ? i : 0, 1);
+  }
+  return res;
+}
+
+/** The skills of this chat that act now for a card: earned, switched on, said by one of the card's names. */
+function chatSkillsFor(fsx, chatId, card) {
+  const st = SAFE_ID.test(str(chatId)) ? loadChatFile(fsx, chatId) : null;
+  if (!st) return [];
+  const names = cardNamesOf(card);
+  return st.skills
+    .filter((k) => k.status === "active" && k.on !== false && names.has(str(k.who).toLowerCase()))
+    .map((k) => ({ id: "c" + k.id, name: k.name, rule: k.rule, when: str(k.when), on: true, state: "accepted" }));
+}
+
 /** The card whose turn it is: in a group only the speaker's own card talks. */
 function cardOfReply(fsx, meta, speakerName) {
   let ids = [];
@@ -4140,12 +4327,14 @@ function cardOfReply(fsx, meta, speakerName) {
 }
 
 /** The skills block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
-export function cardSkillsFor({ fsx, meta, speakerName, chosen }) {
+export function cardSkillsFor({ fsx, chatId, meta, speakerName, chosen }) {
   const hit = cardOfReply(fsx, meta, speakerName);
   if (!hit) return null;
   const mem = loadMemory(fsx, hit.cardId);
-  if (!mem.skills.length) return null;
-  const res = cardSkillsText(mem, hit.card, { cardSentences: sourceSentences(fsx, meta), chosen });
+  // what this character earned in this chat acts here at once, before the user keeps it on the card
+  const extra = chatId ? chatSkillsFor(fsx, chatId, hit.card) : [];
+  if (!mem.skills.length && !extra.length) return null;
+  const res = cardSkillsText(mem, hit.card, { cardSentences: sourceSentences(fsx, meta), chosen, extra });
   return res ? { ...res, cardId: hit.cardId } : null;
 }
 
@@ -4337,6 +4526,71 @@ function cardMemoryRoute(req, fsx) {
   return { status: 405, json: { error: "method not allowed" } };
 }
 
+/** The card (id and file) a character of this chat belongs to, by the name that earned a skill. */
+function cardOfName(fsx, meta, who) {
+  const ids = [];
+  if (meta && meta.groupId) for (const id of arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds)) ids.push(str(id));
+  else if (meta && meta.characterId) ids.push(str(meta.characterId));
+  for (const id of ids) {
+    const card = cardOf(fsx, id);
+    if (isObj(card) && cardNamesOf(card).has(str(who).toLowerCase())) return { cardId: id, card };
+  }
+  return null;
+}
+
+/**
+ * POST /litopys/skills { chatId, op, id, ... }: what the user does with a skill a character earned in this chat.
+ * op: "on" (on: bool), "accept" (earned at once, before the second sighting), "reject" (stays as a tombstone),
+ * "edit" (name, rule, when), "keep" (copy onto the character's card, where it acts in every chat of the card).
+ */
+function chatSkillRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (!["on", "accept", "reject", "edit", "keep"].includes(op)) return bad("unknown op");
+  return mutateChat(fsx, str(b.chatId), (st) => {
+    const now = Date.now();
+    const k = st.skills.find((x) => x.id === str(b.id) && x.status !== "rejected");
+    if (!k) return { status: 404, json: { error: "no such skill" } };
+    if (op === "on") {
+      k.on = b.on !== false;
+    } else if (op === "accept") {
+      if (k.status === "proposed") {
+        k.status = "active";
+        k.earnedAt = now;
+      }
+    } else if (op === "reject") {
+      k.status = "rejected";
+    } else if (op === "edit") {
+      const name = b.name !== undefined ? cut(str(b.name).replace(/\s+/g, " "), 80) : k.name;
+      const rule = b.rule !== undefined ? skillRule(b.rule) : k.rule;
+      if (!name || !rule) return bad("a skill needs a name and a rule");
+      k.name = name;
+      k.rule = rule;
+      if (b.when !== undefined) k.when = cut(str(b.when).replace(/\s+/g, " "), 160);
+      k.edited = true;
+    } else {
+      if (k.status !== "active") return bad("only an earned skill can be kept on the card");
+      const rc = readChat(fsx, st.chatId);
+      const hit = cardOfName(fsx, rc ? rc.meta : null, k.who);
+      if (!hit) return bad("no card for " + k.who);
+      const mem = loadMemory(fsx, hit.cardId);
+      const err = editSkill(mem, {
+        name: k.name,
+        rule: k.rule,
+        when: k.when,
+        origin: "story",
+        state: "accepted",
+        from: { chatId: st.chatId, title: str(rc && rc.meta.title) || st.chatId, at: now },
+      });
+      // the card already keeps this rule: that is as good as kept
+      if (err && !/already there/.test(err)) return bad(err);
+      if (!err) saveMemory(fsx, hit.cardId, mem);
+      k.kept = { cardId: hit.cardId, at: now };
+    }
+    k.updatedAt = now;
+  });
+}
+
 function cardMemoryPostRoute(req, fsx, sub) {
   const b = isObj(req.body) ? req.body : {};
   const cardId = str(b.cardId);
@@ -4415,7 +4669,7 @@ function carriesRoute(fsx, query) {
   }
   let skills = null;
   try {
-    skills = cardSkillsFor({ fsx, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")) });
+    skills = cardSkillsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")) });
   } catch {}
   let skillsName = cardName;
   if (skills && !skillsName) {

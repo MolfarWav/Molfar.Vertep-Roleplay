@@ -154,6 +154,20 @@ line already in the prompt says is left out, and a memory fact that only repeats
 memory part. The text depends only on the file and the card, so it does not move between replies. A skill needs
 no imported story and no Litopys record.
 
+**Skills earned in a chat.** Litopys also watches for them: when it writes a scene's chapter it may report a habit a
+character clearly showed (most scenes give none). They are kept in the chat's own record,
+`litopys/chats/<chatId>.json`, key `skills` (counter `counters.skill`): `{ "id": "k1", "who": "<character>", "name",
+"rule", "when", "status": "proposed"|"active"|"rejected", "on": true, "seen": <chapters>, "chapters": ["c1", ...],
+"evidence": [{ "text", "chapter" }] (the last three), "origin": "chapter", "earnedAt", "kept": { "cardId", "at" } }`.
+A first sighting is a `proposed` candidate; seen in `skillsEarnAfter` different chapters (Litopys setting, default 2,
+1 to 5; `skills: false` stops the watching) it becomes `active` and then acts in this chat at once, in the same
+"Litopys · character skills" part (after the card's own skills; one the card already keeps is not said twice). The
+user can accept it early, switch it off, edit it, reject it (a tombstone: it does not come back) or keep it on the
+card (`POST /litopys/skills { chatId, id, op: "on"|"accept"|"reject"|"edit"|"keep" }`), which copies it into
+`characters/<id>/memory.json` as an accepted skill with `origin: "story"` and `from`. A candidate never acts. The
+activity log notes "skill.seen" and "skill.earn". Not for the user's character, not for what the card says; at most
+two new candidates a chapter and twelve live ones a chat.
+
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
 outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the
