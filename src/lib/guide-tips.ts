@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.60.0'
+export const APP_VERSION = '4.61.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -378,6 +378,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Edits to a card now wait in a draft: press Save changes at the bottom, or Discard to put everything back. Leaving with unsaved changes asks first. A card can also have its own model for Structure it and Fill empty (Profile tab), and exports mark the Profile sections.',
       uk: 'Зміни в картці тепер чекають у чернетці: натисніть «Зберегти зміни» внизу або «Скасувати», щоб усе повернути. Вихід із незбереженими змінами спершу питає. У картки може бути своя модель для «Структурувати» й «Заповнити порожні» (вкладка Profile), а експорт позначає секції профілю.',
+    },
+  },
+  // ── What's new: memory that moves between chats
+  {
+    id: 'new.memory',
+    since: '4.61.0',
+    open: { view: 'characters', list: 'characters' },
+    title: { en: 'Memory that follows the character', uk: 'Пам\'ять, що йде за персонажем' },
+    body: {
+      en: 'A chat linked to an earlier one starts with its Dashboard. In a card\'s Memory tab add a finished chat to the character\'s memory and write or confirm its skills: short rules for how the character acts. Skills are also earned in play: Litopys notices a habit that shows in two scenes, and the Library\'s chat record has a Skills tab for them.',
+      uk: 'Чат, пов\'язаний із попереднім, починається з його Дашборду. У вкладці Memory картки додайте завершений чат до пам\'яті персонажа й напишіть чи підтвердьте його навички: короткі правила, як персонаж діє. Навички ще й здобуваються в грі: Літопис помічає звичку, що проявилась у двох сценах, а в записі чату в Бібліотеці є вкладка «Навички».',
     },
   },
   // ── What's new: the help list itself
