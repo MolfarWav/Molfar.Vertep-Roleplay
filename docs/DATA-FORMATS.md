@@ -134,8 +134,10 @@ when it saves the file. In a reply the Litopys plugin builds one part, "Litopys 
 board switch `plugin:cardmemory`), after the backstory and before the story so far: for the card of a chat (in a
 group, the speaker's card), skipping a source whose `chatId` is the chat itself or a chat of its backstory chain,
 a source that is off, and a `separate` canon unless the chat's meta `memory.sources[<id>]` is `true`; a line is left
-out when the Litopys insert, the Dashboard notes or `said` of the chat, the card's own text or an earlier source
-already say it (Dice similarity 0.85, or contained). Budget `inject.maxTokens` (100 to 1500, default 400).
+out when the chat's Litopys record or its chain's (active facts), the story so far, the notes and said lines the chat carried
+in at its start, the card's own text or an earlier source already say it (Dice similarity 0.85, or contained); the
+Dashboard's live notes are not compared, so the text above the history stays the same from reply to reply and the
+provider's prompt cache holds. Budget `inject.maxTokens` (100 to 1500, default 400).
 
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written

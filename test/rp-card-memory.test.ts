@@ -137,13 +137,12 @@ describe("card memory: the prompt block", () => {
     // the new chat's own record already holds the first fact, nearly word for word, and one that distinguishes nothing
     writeChat("next", story(6, "x"), { title: "Next", characterId: "aria" });
     writeJson("litopys/chats/next.json", { ...L.emptyChat("next"), migrated: true, facts: [fact("f1", "Aria lost her brother at the northern gate!", { weight: "key", pinned: true })] });
-    // the Dashboard of the new chat already holds the note
-    writeJson("dashboard/state/next.json", { v: 2, chatId: "next", snapshots: {}, notebook: { Aria: [{ id: "n1", text: "The courier trusts nobody with the key.", how: "saw", turn: 2, src: "x4#0" }] } });
+    // the new chat carried the note in at its start (a continued chat's Dashboard): the card does not repeat it
+    writeJson("dashboard/state/next.json", { v: 2, chatId: "next", snapshots: {}, notebook: { Aria: [{ id: "n1", text: "The courier trusts nobody with the key.", how: "saw", turn: 2, src: "inherit", fromChat: "other" }] } });
     const text = textOf(L.llmRequest(ctx("next"), host));
     expect(text.split("lost her brother at the northern gate").length - 1).toBe(1);
     expect(text).toContain("brass key on a cord");
-    // the note is in the Dashboard's part (another plugin): here it must not repeat
-    expect(text).not.toContain("Notes: The courier trusts nobody");
+        expect(text).not.toContain("Notes: The courier trusts nobody");
     // the card's own description is not repeated either
     const res = route(host, "PUT", "/litopys/card-memory", { cardId: "aria", source: { id: "s1", on: true } });
     expect(res.status).toBe(200);
@@ -214,5 +213,33 @@ describe("card memory: the prompt block", () => {
     writeChat("grp", story(2, "g"), { title: "Group", groupId: "g1" });
     expect(textOf(L.llmRequest(ctx("grp", "Aria"), host))).toContain("northern gate");
     expect(L.llmRequest(ctx("grp", "Bram"), host)).toBeNull();
+  });
+});
+
+describe("card memory: the block does not move between replies (the provider's prompt cache)", () => {
+  it("is the same text when the scene, the Litopys tail and the Dashboard's live notes change", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1", "f2"], notes: ["n1"], said: ["s1"] });
+    writeChat("next", story(6, "x"), { title: "Next", characterId: "aria" });
+    writeJson("litopys/chats/next.json", { ...L.emptyChat("next"), migrated: true, facts: [fact("f9", "The mill burned down in autumn.", { weight: "key" })] });
+    const card = (res: any) => (res.messages.find((m: any) => String(m.content).includes("character memory")) || {}).content;
+    const first = card(L.llmRequest(ctx("next"), host));
+    expect(first).toContain("northern gate");
+    // another scene: a different last message (the tail follows it) and a live Dashboard note that repeats a card line
+    writeChat("next", [...story(6, "x"), { id: "x7", role: "user", name: "You", text: "We talk about the burned mill and the brass key." }], { title: "Next", characterId: "aria" });
+    writeJson("dashboard/state/next.json", { v: 2, chatId: "next", snapshots: {}, notebook: { Aria: [{ id: "n9", text: "The courier trusts nobody with the key.", how: "saw", turn: 7, src: "x6#0" }] } });
+    expect(card(L.llmRequest(ctx("next"), host))).toBe(first);
+  });
+
+  it("sits with the backstory and the story so far, above the history, never in the per-reply tail", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
+    writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
+    const res = L.llmRequest({ key: "reply", request: { messages: [{ role: "system", content: "preset" }, { role: "user", content: "hello" }] }, turn: { op: "send", chatId: "next", speakerName: "Aria" } }, host);
+    // after the leading system messages, before the first dialogue message
+    expect(res.messages.map((m: any) => m.role)).toEqual(["system", "system", "user"]);
+    expect(String(res.messages[1].content)).toContain("character memory");
   });
 });

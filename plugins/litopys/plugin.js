@@ -1090,16 +1090,17 @@ export function llmRequest(ctx, host) {
     let cardMem = null;
     if (!offForChat(fsx, chatId, "plugin:cardmemory")) {
       try {
-        const lines = [back && back.text, insert && insert.head, insert && insert.tail].filter(Boolean).flatMap((t) => String(t).split("\n"));
+        // Only what does not change from reply to reply is compared with: the block sits above the history
+        // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
+        // prompt cache every turn. The story so far is stable between chapters; the per-reply tail is not used.
+        const stable = [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n"));
         cardMem = cardMemoryFor({
           fsx,
           chatId,
           meta: rc.meta,
           speakerName,
-          chosen: lines,
+          chosen: stable,
           dash: readDash(fsx, chatId),
-          overlay: readJson(fsx, "dashboard/notes/" + chatId + ".json", null),
-          line,
         });
       } catch (e) {
         try {
@@ -4079,7 +4080,7 @@ export function cardMemoryText(mem, card, opts) {
 }
 
 /** The card behind this reply, and what the Litopys insert and the Dashboard already say, for the block above. */
-export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, overlay, line }) {
+export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) {
   let ids = [];
   const grouped = !!str(meta.groupId);
   if (grouped) ids = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str);
@@ -4107,9 +4108,18 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, ov
     exclude.add(cur);
   }
   const mc = isObj(meta.memory) ? meta.memory : {};
-  const dashLines = [...liveNotes(dash, line, overlay, true).map((n) => n.text), ...liveSaid(dash, line, overlay).map((s) => s.text)];
+  // What it is compared with must not move between replies (the block sits above the history, so a moving text
+  // would break the provider's prompt cache every turn): the active facts of the chat's own Litopys record and of
+  // its chain (not the few the scene picks this time), and the notes and said lines the chat carried in at its
+  // start. The Dashboard's live notes change every turn and are left out: a fresh note that repeats a card line
+  // is rare, and the next import of that chat will not offer it twice.
+  const stableFacts = [...seen].flatMap((id) => arr((loadChatFile(fsx, id) || {}).facts).filter((f) => isObj(f) && f.status === "active").map((f) => str(f.text)));
+  const carried = [];
+  for (const bag of [dash && dash.notebook, dash && dash.said]) {
+    for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
+  }
   const own = sourceSentences(fsx, meta);
-  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...dashLines], cardSentences: own });
+  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried].filter(Boolean), cardSentences: own });
   return res ? { ...res, cardId } : null;
 }
 
