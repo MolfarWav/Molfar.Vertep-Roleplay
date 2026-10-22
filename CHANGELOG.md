@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.62.0
+
+Narrator cards with several characters, a coloured Dashboard and a progress card for every import (#115, #116). Needs no engine update.
+
 - Import progress (owner's request, 2026-10-22): every import shows a progress card at the bottom of the app (above the tab bar on a phone): characters, presets, lorebooks, personas, regex scripts, chats, backups and installs from a link or the Store. It names the file and the step, counts "3 of 12" when the files are what you chose, shows a bar, and has Cancel, which stops before the next file (what is already imported stays). One file that cannot be split (a big preset, a chat) shows its steps; a card downloaded from a link moves with the bytes it has read. At the end it says "Imported 30 of 31" and lists the files that failed; a clean run closes by itself. The card sits outside the drawers, so it stays visible and clickable while the Characters drawer is open.
 
 - Dashboard colours (owner's pick "B", 2026-10-22): every titled block sits on a tinted title bar with an icon, one hue per kind of content: scene (blue: What changed, Pulse and state), people (violet: Constellation, Attitude, Our story, Last turns, Ensemble, Between them), memory (green: Notebook, Said) and plot (pink: Threads). The tint is a translucent fill and border over the theme's own surface and the text is the 700/300 step, so every theme keeps its ground; colour never stands alone (the title and the icon name each block). Marks say what they mean: an event's weight (routine plain, significant amber, pivotal red and bold, with a matching edge on its row), its family (bonds green, conflict red, power orange, body pink, knowledge blue), how a note is known (saw green, heard blue, guess amber), what was said (threat and order red, lie and secret amber, vow, promise and confession green) and the character's class badge (romantic pink, ally green, hostile red). Phone and strip views colour the Threads heading and the class badge.
