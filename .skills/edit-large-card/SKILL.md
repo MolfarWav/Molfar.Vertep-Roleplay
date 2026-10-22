@@ -54,7 +54,13 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
   `facts`, `notes` and `said` lines, and a copy of the chat's `title`), edited in the card's Memory tab and
   injected into new chats of the card. Do not write it by hand and do not copy its lines into `description`
   or the Soul: the app already leaves out a memory line that the story, the Dashboard or the card's own text
-  say. A deleted chat does not change it.
+  say. A deleted chat does not change it. The one part you may write there is `skills`: short rules for how
+  the character acts (not abilities), `{ id, name, rule (1-6 lines, one per \n), when (optional, one line),
+  on: true, origin: "molfar", state: "proposed" }` appended to `/skills` (`id` "k" plus the next number after
+  every id in the file, `nextSkill` is the app's counter). Always `state: "proposed"`: the user confirms it in
+  the Memory tab, you never write an accepted one. If the file is missing, write
+  `{"v":1,"sources":[],"skills":[]}` first. Keep a skill to habits and reactions worth reusing in every chat,
+  not a fact about one story, and not a copy of the card's own text.
 - The editor keeps a change as a draft until the user presses Save changes: a card you edit on disk while
   it is open in the editor can meet a draft, and the user then chooses which version to keep.
 

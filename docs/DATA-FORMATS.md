@@ -139,6 +139,21 @@ in at its start, the card's own text or an earlier source already say it (Dice s
 Dashboard's live notes are not compared, so the text above the history stays the same from reply to reply and the
 provider's prompt cache holds. Budget `inject.maxTokens` (100 to 1500, default 400).
 
+**The card's skills** (#106) are in the same file, key `skills`: short rule blocks for how the character acts (not
+abilities): `{ "id": "k1", "name": "<up to 80 characters>", "rule": "<1 to 6 lines, one per \n>", "when": "<optional,
+one line>", "on": true, "origin": "user"|"molfar"|"story", "state": "accepted"|"proposed", "from": { "chatId",
+"title", "at" } }` (`from` only when a story or a chat gave it; the title is a copy, the chat may be gone). At most 30;
+the counter `nextSkill` keeps ids from being reused; `inject.skillsMaxTokens` (50 to 800, default 250) is their room.
+A `proposed` skill (written by Molfar or proposed from a story) waits in the Memory tab for the user's yes and is
+never injected before it; an accepted skill that is `on` is. Routes: `PUT /litopys/card-memory` with `skill: {
+name, rule, when? }` (add), `{ id, name?, rule?, when?, on?, state?: "accepted" }` (change or confirm) and
+`DELETE ...?cardId=&skillId=`. In a reply the Litopys plugin builds one more part, "Litopys · character skills"
+(own Prompt board switch `plugin:cardskills`), right after the character memory: the card's skills that are on and
+accepted, in the order of the file, until the room is spent; a skill whose every sentence the card's own text or a
+line already in the prompt says is left out, and a memory fact that only repeats a skill's rule is left out of the
+memory part. The text depends only on the file and the card, so it does not move between replies. A skill needs
+no imported story and no Litopys record.
+
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
 outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the

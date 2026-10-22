@@ -3,6 +3,7 @@ import { buildCarries, flipOff, parseHidden, type CarriesAnswer } from "../src/l
 
 const labels = {
   memory: (n: string) => `Memory of ${n}`,
+  skills: (n: string) => `Skills of ${n}`,
   backstory: (t: string) => `Backstory “${t}”`,
   litopys: "Litopys",
   dashboard: "Dashboard",
@@ -83,6 +84,22 @@ describe("what a chat carries: the parts", () => {
     const r = run({ carries: answer(), noteText: "Slow burn." });
     expect(r.visible).toBe(true);
     expect(r.parts.map((p) => p.key)).toEqual(["note"]);
+  });
+});
+
+describe("what a chat carries: the card skills", () => {
+  const skills = { cardId: "aria", name: "Aria", tokens: 60, dupes: 0, skills: ["Answers threats with silence"], text: "z" };
+  it("sits right after the card memory, with its own switch, and drops out of the total when it is off", () => {
+    const r = run({ carries: answer({ cardMemory: memory, cardSkills: skills, backstory }) });
+    expect(r.parts.map((p) => p.key)).toEqual(["memory", "skills", "backstory", "note"]);
+    expect(r.parts[1]).toMatchObject({ label: "Skills of Aria", tokens: 60, switchKey: "plugin:cardskills", off: false });
+    expect(r.total).toBe(120 + 60 + 80);
+    const off = run({ carries: answer({ off: ["plugin:cardskills"], cardSkills: skills }) });
+    expect(off.parts[0]).toMatchObject({ key: "skills", off: true });
+    expect(off.total).toBe(0);
+  });
+  it("is left out when the server sends none (the card has no skills, or they are off for the chat)", () => {
+    expect(run({ carries: answer({ cardMemory: memory, cardSkills: null }) }).parts.map((p) => p.key)).toEqual(["memory", "note"]);
   });
 });
 

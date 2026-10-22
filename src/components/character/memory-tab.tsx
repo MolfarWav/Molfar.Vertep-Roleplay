@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowsClockwise, BookOpenText, CaretRight, CheckCircle, CircleNotch, DotsThree, Plus, Trash, Warning, Waves } from '@phosphor-icons/react'
+import { ArrowsClockwise, BookOpenText, CaretRight, CheckCircle, CircleNotch, DotsThree, Trash, Warning, Waves } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,10 +18,14 @@ import {
   type MemSource,
   MEM_MAX_TOKENS,
   MEM_MIN_TOKENS,
+  SKILLS_MAX_TOKENS,
+  SKILLS_MIN_TOKENS,
   deleteCardMemorySource,
   fetchCardMemory,
   putCardMemory,
 } from './memory-api'
+import { AddButton, Block } from './memory-block'
+import { SkillsBlock } from './memory-skills'
 import { MemoryImportDialog } from './memory-import-dialog'
 import { StoryLines } from './memory-story-lines'
 
@@ -174,6 +178,8 @@ export function MemoryTab({ c }: { c: Character }) {
         )}
       </Block>
 
+      <SkillsBlock c={c} data={data} t={t} apply={apply} />
+
       <InjectBlock c={c} data={data} t={t} apply={apply} />
 
       <p className="text-xs text-muted-foreground">{t('mem.saved')}</p>
@@ -217,73 +223,67 @@ function ChatBadge({ exists, t, className }: { exists: boolean; t: ReturnType<ty
   )
 }
 
-function AddButton({ onClick, label, primary }: { onClick: () => void; label: string; primary?: boolean }) {
-  return (
-    <Button variant={primary ? 'default' : 'outline'} size="sm" className="w-fit max-md:h-10" onClick={onClick}>
-      <Plus aria-hidden="true" />{label}
-    </Button>
-  )
-}
-
-const TONES = {
-  sky: { box: 'border-sky-500/40', head: 'border-sky-500/40 bg-sky-500/10', icon: 'bg-sky-500/20 text-sky-700 dark:text-sky-300' },
-  emerald: { box: 'border-emerald-500/40', head: 'border-emerald-500/40 bg-emerald-500/10', icon: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
-} as const
-
-/** A section with a coloured header strip, so the two sections are told apart at a glance. */
-function Block({ tone, icon: Icon, title, count, children }: { tone: keyof typeof TONES; icon: typeof Plus; title: string; count?: number; children: React.ReactNode }) {
-  const k = TONES[tone]
-  return (
-    <section className={cn('overflow-hidden rounded-lg border', k.box)}>
-      <header className={cn('flex items-center gap-2 border-b px-3 py-2', k.head)}>
-        <span className={cn('grid size-7 shrink-0 place-items-center rounded-md', k.icon)}><Icon className="size-4" aria-hidden="true" /></span>
-        <h3 className="text-sm font-medium">{title}</h3>
-        {count !== undefined && <Badge variant="secondary" className="px-1.5">{count}</Badge>}
-      </header>
-      <div className="flex flex-col gap-3 p-3">{children}</div>
-    </section>
-  )
-}
-
-/** "In new chats": the switch and the number field for the memory's room in the prompt. */
+/** "In new chats": the switch for the memory and the room in the prompt for the memory and for the skills. */
 function InjectBlock({ c, data, t, apply }: { c: Character; data: CardMemoryView; t: ReturnType<typeof useT>; apply: (run: () => Promise<CardMemoryView>) => Promise<boolean> }) {
   const { inject } = data.memory
-  const [text, setText] = useState(String(inject.maxTokens))
-  // the server's value wins after every save (it clamps)
-  useEffect(() => { setText(String(inject.maxTokens)) }, [inject.maxTokens])
-  const commit = async () => {
-    const n = Math.round(Number(text))
-    const v = Number.isFinite(n) && text.trim() !== '' ? Math.min(MEM_MAX_TOKENS, Math.max(MEM_MIN_TOKENS, n)) : inject.maxTokens
-    setText(String(v))
-    if (v !== inject.maxTokens) await apply(() => putCardMemory(c.id, { inject: { maxTokens: v } }))
-  }
-  const fieldId = `mem-budget-${c.id}`
   return (
     <Block tone="emerald" icon={Waves} title={t('mem.inject')}>
       <label className="flex min-h-8 items-center gap-3 text-sm max-md:min-h-10">
         <Switch checked={inject.enabled} onCheckedChange={(v) => void apply(() => putCardMemory(c.id, { inject: { enabled: v } }))} aria-label={t('mem.inject.switch')} className="max-md:after:-inset-y-4" />
         {t('mem.inject.switch')}
       </label>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId} className="text-xs font-medium">{t('mem.inject.tokens')}</label>
-        <div className="flex items-center gap-2">
-          <Input
-            id={fieldId}
-            type="number"
-            inputMode="numeric"
-            min={MEM_MIN_TOKENS}
-            max={MEM_MAX_TOKENS}
-            step={50}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={() => void commit()}
-            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-            className="w-28 max-md:h-10"
-          />
-          <span className="text-xs text-muted-foreground">{t('mem.inject.unit')}</span>
-        </div>
-      </div>
+      <TokenField
+        id={`mem-budget-${c.id}`}
+        label={t('mem.inject.tokens')}
+        unit={t('mem.inject.unit')}
+        value={inject.maxTokens}
+        min={MEM_MIN_TOKENS}
+        max={MEM_MAX_TOKENS}
+        onCommit={(v) => apply(() => putCardMemory(c.id, { inject: { maxTokens: v } }))}
+      />
       <p className="text-xs text-muted-foreground">{inject.enabled ? t('mem.inject.hint', { tokens: data.tokens, budget: data.budget }) : t('mem.inject.off')}</p>
+      <TokenField
+        id={`mem-skills-budget-${c.id}`}
+        label={t('mem.inject.skills')}
+        unit={t('mem.inject.skills.unit')}
+        value={inject.skillsMaxTokens}
+        min={SKILLS_MIN_TOKENS}
+        max={SKILLS_MAX_TOKENS}
+        onCommit={(v) => apply(() => putCardMemory(c.id, { inject: { skillsMaxTokens: v } }))}
+      />
     </Block>
+  )
+}
+
+/** A number of tokens that is saved when the field is left (or Enter); the server's clamped value wins after every save. */
+function TokenField({ id, label, unit, value, min, max, onCommit }: { id: string; label: string; unit: string; value: number; min: number; max: number; onCommit: (v: number) => Promise<unknown> }) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => { setText(String(value)) }, [value])
+  const commit = async () => {
+    const n = Math.round(Number(text))
+    const v = Number.isFinite(n) && text.trim() !== '' ? Math.min(max, Math.max(min, n)) : value
+    setText(String(v))
+    if (v !== value) await onCommit(v)
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-xs font-medium">{label}</label>
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          type="number"
+          inputMode="numeric"
+          min={min}
+          max={max}
+          step={50}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => void commit()}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+          className="w-28 max-md:h-10"
+        />
+        <span className="text-xs text-muted-foreground">{unit}</span>
+      </div>
+    </div>
   )
 }

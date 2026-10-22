@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { BookOpenText, Brain, CaretRight, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, Note, SlidersHorizontal } from '@phosphor-icons/react'
+import { BookOpenText, Brain, ListChecks, CaretRight, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, Note, SlidersHorizontal } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,10 +18,11 @@ import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
 
-const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
+const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, skills: ListChecks, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
 /** Colour by kind, tokens only (never colour alone: every chip also has an icon and a word). */
 const TINT: Record<CarryKind, string> = {
   memory: 'border-sky-500/40 bg-sky-500/10',
+  skills: 'border-violet-500/40 bg-violet-500/10',
   backstory: 'border-emerald-500/40 bg-emerald-500/10',
   litopys: 'border-emerald-500/40 bg-emerald-500/10',
   dashboard: 'border-border bg-muted/50',
@@ -78,6 +79,7 @@ export function CarriesStrip({
 
   const labels = useMemo(() => ({
     memory: (name: string) => t('carries.label.memory', { name }),
+    skills: (name: string) => t('carries.label.skills', { name }),
     backstory: (title: string) => t('carries.label.backstory', { title }),
     litopys: t('carries.label.litopys'),
     dashboard: t('carries.label.dashboard'),
@@ -221,18 +223,20 @@ function PartRow({ part, carries, dash, t, onFlip, onLeave }: { part: CarryPart;
   const [shown, setShown] = useState(false)
   const Icon = ICONS[part.kind]
   const cm = carries?.cardMemory
+  const sk = carries?.cardSkills
   const bs = carries?.backstory
   const wd = carries?.world
-  const text = part.kind === 'memory' ? cm?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
+  const text = part.kind === 'memory' ? cm?.text : part.kind === 'skills' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
   const detail =
     part.kind === 'memory' ? t('carries.memory.detail', { n: cm?.sources.length ?? 0 })
+    : part.kind === 'skills' ? t('carries.skills.detail', { n: sk?.skills.length ?? 0, name: sk?.name ?? '' })
     : part.kind === 'backstory' ? t('carries.backstory.detail', { facts: bs?.facts ?? 0, chapters: bs?.chapters ?? 0 })
     : part.kind === 'litopys' ? t('carries.litopys.detail', { facts: carries?.litopys.facts ?? 0, chapters: carries?.litopys.chapters ?? 0 })
     : part.kind === 'dashboard' ? t('carries.dashboard.detail')
     : part.kind === 'world' ? (wd?.level === 'chronicler' ? t('carries.world.chronicler') : wd?.waiting ? t('carries.world.waiting') : t('carries.world.idle'))
     : t('carries.said.detail')
   const inherit = part.kind === 'dashboard' && dash?.inherit?.on ? dash.inherit : null
-  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' ? t('carries.memory.show') : t('carries.backstory.show')
+  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' || part.kind === 'skills' ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' || part.kind === 'skills' ? t('carries.memory.show') : t('carries.backstory.show')
   const textId = `carries-text-${part.key}`
   return (
     <li className="flex flex-col gap-1.5 border-b border-border p-3" data-testid={`carries-row-${part.key}`}>
@@ -250,12 +254,18 @@ function PartRow({ part, carries, dash, t, onFlip, onLeave }: { part: CarryPart;
       {part.kind === 'memory' && !!cm && cm.dupes > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: cm.dupes })}</p>
       )}
+      {part.kind === 'skills' && !!sk && sk.dupes > 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.skills.dupes', { n: sk.dupes })}</p>
+      )}
       <div className="flex flex-wrap gap-1">
-        {(part.kind === 'memory' || part.kind === 'backstory' || part.kind === 'world') && !!text && (
+        {(part.kind === 'memory' || part.kind === 'skills' || part.kind === 'backstory' || part.kind === 'world') && !!text && (
           <Button variant="ghost" size="sm" className="max-md:h-10" aria-expanded={shown} aria-controls={textId} onClick={() => setShown((v) => !v)}>{showLabel}</Button>
         )}
         {part.kind === 'memory' && !!cm && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(cm.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>
+        )}
+        {part.kind === 'skills' && !!sk && (
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(sk.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>
         )}
         {part.kind === 'backstory' && !!bs && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openChat(bs.from) }}>{t('carries.backstory.open')}</Button>

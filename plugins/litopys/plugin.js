@@ -1070,7 +1070,7 @@ export function llmRequest(ctx, host) {
   };
   // the Litopys switch does not take the card's own memory with it: that one has its own (plugin:cardmemory)
   const litOff = offForChat(fsx, chatId, "plugin:litopys");
-  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory")) return null;
+  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory") && offForChat(fsx, chatId, "plugin:cardskills")) return null;
   try {
     const cfg = loadConfig(fsx);
     if (cfg.enabled === false || cfg.insert === false) return null;
@@ -1091,13 +1091,13 @@ export function llmRequest(ctx, host) {
     const used = isObj(prevInsert) && isObj(prevInsert.used) ? prevInsert.used : {};
     const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName, used }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
+    // Only what does not change from reply to reply is compared with: the blocks sit above the history
+    // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
+    // prompt cache every turn. The story so far is stable between chapters; the per-reply tail is not used.
+    const stable = [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n"));
     let cardMem = null;
     if (!offForChat(fsx, chatId, "plugin:cardmemory")) {
       try {
-        // Only what does not change from reply to reply is compared with: the block sits above the history
-        // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
-        // prompt cache every turn. The story so far is stable between chapters; the per-reply tail is not used.
-        const stable = [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n"));
         cardMem = cardMemoryFor({
           fsx,
           chatId,
@@ -1112,7 +1112,18 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem) return null;
+    // what the character does, from its card's skills (#106): rules, so they need no story and no Litopys record
+    let skills = null;
+    if (!offForChat(fsx, chatId, "plugin:cardskills")) {
+      try {
+        skills = cardSkillsFor({ fsx, meta: rc.meta, speakerName, chosen: stable });
+      } catch (e) {
+        try {
+          host.log("litopys card skills: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    if (!insert && !back && !cardMem && !skills) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1127,6 +1138,7 @@ export function llmRequest(ctx, host) {
           cut: insert ? insert.cut : 0,
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
+          ...(skills ? { cardSkills: { cardId: skills.cardId, tokens: skills.tokens, skills: skills.skills, dupes: skills.dupes } } : {}),
         }),
       );
     } catch {}
@@ -1140,6 +1152,10 @@ export function llmRequest(ctx, host) {
     if (cardMem) {
       messages = withInsert(messages, cardMem.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
+    }
+    if (skills) {
+      messages = withInsert(messages, skills.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character skills", text: String(skills.text).trim() });
     }
     if (insert && insert.head) {
       messages = withInsert(messages, insert.head);
@@ -3836,10 +3852,41 @@ function cardNamesOf(card) {
   return names;
 }
 
-/** The file as the code reads it; keys it does not know ride along (skills and changes come later, #106). */
+const SKILLS_TOKENS = 250;
+const SKILL_MAX = 30;
+const SKILL_ORIGINS = new Set(["user", "molfar", "story"]);
+
+/** A skill as the code reads it: a name, 1-6 lines of rule, an optional one-line `when`; null when it has no name or rule. */
+function normalizeSkill(raw) {
+  if (!isObj(raw) || !str(raw.id)) return null;
+  const name = cut(str(raw.name).replace(/\s+/g, " "), 80);
+  const rule = cut(
+    str(raw.rule)
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 6)
+      .join("\n"),
+    700,
+  );
+  if (!name || !rule) return null;
+  const from = isObj(raw.from) && (str(raw.from.chatId) || str(raw.from.title)) ? { chatId: str(raw.from.chatId), title: cut(str(raw.from.title), 120), at: Number(raw.from.at) || 0 } : null;
+  return {
+    id: str(raw.id),
+    name,
+    rule,
+    when: cut(str(raw.when).replace(/\s+/g, " "), 160),
+    on: raw.on !== false,
+    origin: SKILL_ORIGINS.has(raw.origin) ? raw.origin : "user",
+    state: raw.state === "proposed" ? "proposed" : "accepted",
+    ...(from ? { from } : {}),
+  };
+}
+
+/** The file as the code reads it; keys it does not know ride along (changes come later, #106). */
 export function normalizeMemory(raw) {
   const m = isObj(raw) ? raw : {};
-  const { sources: _s, inject: _i, v: _v, next: _n, ...rest } = m;
+  const { sources: _s, inject: _i, v: _v, next: _n, skills: _k, nextSkill: _nk, ...rest } = m;
   const items = (list, pick) => arr(list).filter((x) => isObj(x) && str(x.text)).map(pick);
   const sources = arr(m.sources)
     .filter((s) => isObj(s) && str(s.id))
@@ -3857,12 +3904,24 @@ export function normalizeMemory(raw) {
     }));
   const inj = isObj(m.inject) ? m.inject : {};
   const top = sources.reduce((n, s) => Math.max(n, Number(String(s.id).replace(/\D/g, "")) || 0), 0);
+  const seen = new Set();
+  const skills = arr(m.skills)
+    .map(normalizeSkill)
+    .filter((k) => k && !seen.has(k.id) && seen.add(k.id))
+    .slice(0, SKILL_MAX);
+  const topSkill = skills.reduce((n, k) => Math.max(n, Number(k.id.replace(/\D/g, "")) || 0), 0);
   return {
     ...rest,
     v: 1,
     next: Math.max(Number(m.next) || 0, top),
+    nextSkill: Math.max(Number(m.nextSkill) || 0, topSkill),
     sources,
-    inject: { enabled: inj.enabled !== false, maxTokens: clamp(Math.round(Number(inj.maxTokens)) || CARD_MEMORY_TOKENS, 100, 1500) },
+    skills,
+    inject: {
+      enabled: inj.enabled !== false,
+      maxTokens: clamp(Math.round(Number(inj.maxTokens)) || CARD_MEMORY_TOKENS, 100, 1500),
+      skillsMaxTokens: clamp(Math.round(Number(inj.skillsMaxTokens)) || SKILLS_TOKENS, 50, 800),
+    },
   };
 }
 
@@ -4012,8 +4071,121 @@ export function importChat(fsx, cardId, chatId, sel) {
 /** The card's memory with the chats it can still take one from, and what a new chat would receive. */
 function cardMemoryView(fsx, cardId, mem) {
   const card = cardOf(fsx, cardId);
-  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: [] });
-  return { cardId, memory: mem, chats: cardChats(fsx, cardId, mem), tokens: block ? block.tokens : 0, budget: mem.inject.maxTokens };
+  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: skillLines(mem) });
+  const skills = cardSkillsText(mem, card, { cardSentences: [], chosen: [] });
+  return {
+    cardId,
+    memory: mem,
+    chats: cardChats(fsx, cardId, mem),
+    tokens: block ? block.tokens : 0,
+    budget: mem.inject.maxTokens,
+    skillsTokens: skills ? skills.tokens : 0,
+    skillsBudget: mem.inject.skillsMaxTokens,
+  };
+}
+
+// ---------- card skills (#106): short rule blocks for how a character acts ----------
+const RULE_SENTENCES = (rule) => String(rule).split(SENTENCE_SPLIT).map((s) => s.trim()).filter((s) => s.length >= 12);
+
+/** The rules of the skills that are on, as lines the memory block is compared with (a fact that repeats a rule is left out). */
+function skillLines(mem) {
+  return mem.skills.filter((k) => k.on && k.state === "accepted").flatMap((k) => [k.rule, ...RULE_SENTENCES(k.rule)]);
+}
+
+/**
+ * The block of a character's skills: the ones that are on and accepted, in the order of the file (so the text
+ * does not move between replies), until the budget is spent. A skill whose every sentence repeats the card's own
+ * text or a line already in the prompt is left out and counted in `dupes`. Returns { text, tokens, dupes, skills } or null.
+ */
+export function cardSkillsText(mem, card, opts) {
+  if (!isObj(card)) return null;
+  const own = arr(opts.cardSentences);
+  const lines = arr(opts.chosen);
+  const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
+  const head = "[Character skills: how " + name + " acts, from what happened in earlier stories. Follow these as habits, not as lines to quote:";
+  const out = [];
+  const used = [];
+  let spent = estimateTokens(head + "]");
+  let dupes = 0;
+  for (const k of mem.skills) {
+    if (!k.on || k.state !== "accepted") continue;
+    const sentences = RULE_SENTENCES(k.rule);
+    if (sentences.length && sentences.every((s) => repeatsSource(s, own) || saidAlready(s, lines))) {
+      dupes++;
+      continue;
+    }
+    const line = "- " + k.name + ": " + k.rule.split("\n").join(" ") + (k.when ? " (When: " + k.when + ")" : "");
+    const t = estimateTokens(line + "\n");
+    if (spent + t > mem.inject.skillsMaxTokens) continue;
+    spent += t;
+    out.push(line);
+    used.push(k.id);
+  }
+  if (!out.length) return null;
+  const text = head + "\n" + out.join("\n") + "]";
+  return { text, tokens: estimateTokens(text), dupes, skills: used };
+}
+
+/** The card whose turn it is: in a group only the speaker's own card talks. */
+function cardOfReply(fsx, meta, speakerName) {
+  let ids = [];
+  const grouped = !!str(meta.groupId);
+  if (grouped) ids = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str);
+  else if (str(meta.characterId)) ids = [str(meta.characterId)];
+  for (const id of ids) {
+    const c = cardOf(fsx, id);
+    if (isObj(c) && (!grouped || cardNamesOf(c).has(str(speakerName).toLowerCase()))) return { card: c, cardId: id };
+  }
+  return null;
+}
+
+/** The skills block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
+export function cardSkillsFor({ fsx, meta, speakerName, chosen }) {
+  const hit = cardOfReply(fsx, meta, speakerName);
+  if (!hit) return null;
+  const mem = loadMemory(fsx, hit.cardId);
+  if (!mem.skills.length) return null;
+  const res = cardSkillsText(mem, hit.card, { cardSentences: sourceSentences(fsx, meta), chosen });
+  return res ? { ...res, cardId: hit.cardId } : null;
+}
+
+/** Create or change one skill. `s` = { id?, name?, rule?, when?, on?, state?, origin?, from? }; returns an error text or null. */
+function editSkill(mem, s) {
+  const id = str(s.id);
+  if (id) {
+    const k = mem.skills.find((x) => x.id === id);
+    if (!k) return "no such skill";
+    const next = normalizeSkill({
+      ...k,
+      ...(s.name !== undefined ? { name: s.name } : {}),
+      ...(s.rule !== undefined ? { rule: s.rule } : {}),
+      ...(s.when !== undefined ? { when: s.when } : {}),
+      ...(typeof s.on === "boolean" ? { on: s.on } : {}),
+      // a proposal is confirmed here; nothing turns an accepted skill back into a proposal
+      ...(s.state === "accepted" ? { state: "accepted" } : {}),
+    });
+    if (!next) return "a skill needs a name and a rule";
+    mem.skills[mem.skills.indexOf(k)] = next;
+    return null;
+  }
+  if (mem.skills.length >= SKILL_MAX) return "a card holds at most " + SKILL_MAX + " skills";
+  const nextId = "k" + (mem.nextSkill + 1);
+  const fresh = normalizeSkill({
+    id: nextId,
+    name: s.name,
+    rule: s.rule,
+    when: s.when,
+    on: s.on !== false,
+    origin: s.origin,
+    state: s.state === "proposed" ? "proposed" : "accepted",
+    from: s.from,
+  });
+  if (!fresh) return "a skill needs a name and a rule";
+  // the same rule twice helps nobody (a proposal from a story often comes back)
+  if (mem.skills.some((k) => diceSimilarity(k.rule, fresh.rule) >= DICE_LIMIT)) return "a skill with this rule is already there";
+  mem.nextSkill += 1;
+  mem.skills.push(fresh);
+  return null;
 }
 
 /**
@@ -4086,22 +4258,9 @@ export function cardMemoryText(mem, card, opts) {
 
 /** The card behind this reply, and what the Litopys insert and the Dashboard already say, for the block above. */
 export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) {
-  let ids = [];
-  const grouped = !!str(meta.groupId);
-  if (grouped) ids = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str);
-  else if (str(meta.characterId)) ids = [str(meta.characterId)];
-  let card = null;
-  let cardId = "";
-  for (const id of ids) {
-    const c = cardOf(fsx, id);
-    // in a group only the speaker's own card talks
-    if (isObj(c) && (!grouped || cardNamesOf(c).has(str(speakerName).toLowerCase()))) {
-      card = c;
-      cardId = id;
-      break;
-    }
-  }
-  if (!card) return null;
+  const hit = cardOfReply(fsx, meta, speakerName);
+  if (!hit) return null;
+  const { card, cardId } = hit;
   const mem = loadMemory(fsx, cardId);
   if (!mem.sources.length) return null;
   // the story this chat already carries by itself: itself and the chats of its backstory chain
@@ -4124,7 +4283,7 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) 
     for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
   }
   const own = sourceSentences(fsx, meta);
-  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried].filter(Boolean), cardSentences: own });
+  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...skillLines(mem)].filter(Boolean), cardSentences: own });
   return res ? { ...res, cardId } : null;
 }
 
@@ -4140,6 +4299,11 @@ function cardMemoryRoute(req, fsx) {
     if (isObj(b.inject)) {
       if (typeof b.inject.enabled === "boolean") mem.inject.enabled = b.inject.enabled;
       if (Number.isFinite(Number(b.inject.maxTokens))) mem.inject.maxTokens = clamp(Math.round(Number(b.inject.maxTokens)), 100, 1500);
+      if (b.inject.skillsMaxTokens !== undefined && Number.isFinite(Number(b.inject.skillsMaxTokens))) mem.inject.skillsMaxTokens = clamp(Math.round(Number(b.inject.skillsMaxTokens)), 50, 800);
+    }
+    if (isObj(b.skill)) {
+      const err = editSkill(mem, b.skill);
+      if (err) return { status: err === "no such skill" ? 404 : 400, json: { error: err } };
     }
     if (isObj(b.source)) {
       const s = mem.sources.find((x) => x.id === str(b.source.id));
@@ -4157,6 +4321,13 @@ function cardMemoryRoute(req, fsx) {
   }
   if (method === "DELETE") {
     const mem = loadMemory(fsx, cardId);
+    const skillId = str(q.skillId);
+    if (skillId) {
+      if (!mem.skills.some((k) => k.id === skillId)) return { status: 404, json: { error: "no such skill" } };
+      mem.skills = mem.skills.filter((k) => k.id !== skillId);
+      saveMemory(fsx, cardId, mem);
+      return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
+    }
     const id = str(q.sourceId);
     if (!mem.sources.some((s) => s.id === id)) return { status: 404, json: { error: "no such source" } };
     mem.sources = mem.sources.filter((s) => s.id !== id);
@@ -4242,6 +4413,15 @@ function carriesRoute(fsx, query) {
     const c = cardOf(fsx, card.cardId);
     cardName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
   }
+  let skills = null;
+  try {
+    skills = cardSkillsFor({ fsx, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")) });
+  } catch {}
+  let skillsName = cardName;
+  if (skills && !skillsName) {
+    const c = cardOf(fsx, skills.cardId);
+    skillsName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
+  }
   const titleOf = (id) => str((readChat(fsx, id) || { meta: {} }).meta.title) || id;
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
   const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
@@ -4263,6 +4443,7 @@ function carriesRoute(fsx, query) {
       backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
+      cardSkills: skills ? { cardId: skills.cardId, name: skillsName, tokens: skills.tokens, dupes: skills.dupes, skills: skills.skills, text: skills.text } : null,
     },
   };
 }

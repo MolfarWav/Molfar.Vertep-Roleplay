@@ -501,7 +501,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
       const omitted = sources?.omitted.filter(o => o.key === item.key) ?? []
       const tokens = parts.reduce((sum, p) => sum + estimateTokens(p.text), 0)
       const isLitopys = item.key === 'plugin:litopys'
-      const isDashboard = item.key === 'plugin:relations' || item.key === 'plugin:said' || item.key === 'plugin:cardmemory'
+      const isDashboard = item.key === 'plugin:relations' || item.key === 'plugin:said' || item.key === 'plugin:cardmemory' || item.key === 'plugin:cardskills'
       const on = isOn(item, boardState.off)
       return { item, parts, omitted, tokens, on, isLitopys: isLitopys || isDashboard }
     })

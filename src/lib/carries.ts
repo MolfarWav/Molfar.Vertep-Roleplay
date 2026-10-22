@@ -9,6 +9,8 @@ export interface CarriesAnswer {
   litopys: { tokens: number; facts: number; chapters: number }
   backstory: { from: string; title: string; tokens: number; facts: number; chapters: number; text: string } | null
   cardMemory: { cardId: string; name: string; tokens: number; dupes: number; sources: string[]; text: string } | null
+  /** The card's skills (#106): null when the card has none, or when they are off for the chat (so an off chip cannot be told from no skills). */
+  cardSkills?: { cardId: string; name: string; tokens: number; dupes: number; skills: string[]; text: string } | null
   /** The chat's World DM: null when it is off for the chat. */
   world?: { level: WorldLevel; insert: boolean; waiting: boolean; tokens: number; text: string } | null
 }
@@ -23,10 +25,10 @@ export interface DashCarries {
   inherit?: { title?: string; from?: string; on?: boolean } | null
 }
 
-export type CarryKind = 'memory' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
+export type CarryKind = 'memory' | 'skills' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
 /** Every kind, in strip order. */
-export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
-export type CarrySwitch = 'plugin:cardmemory' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
+export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'skills', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
+export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardskills' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
 
 export interface CarryPart {
   key: CarryKind
@@ -42,6 +44,7 @@ export interface CarryPart {
 
 export interface CarriesLabels {
   memory: (name: string) => string
+  skills: (name: string) => string
   backstory: (title: string) => string
   litopys: string
   dashboard: string
@@ -67,7 +70,7 @@ export interface CarriesResult {
   visible: boolean
 }
 
-/** Parts in order: card memory, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
+/** Parts in order: card memory, card skills, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
  *  not exist is left out, but one the user switched off stays so it can be switched back on. */
 export function buildCarries({ carries, dash, noteText, estimate, labels }: CarriesInput): CarriesResult {
   const offKeys = carries?.off ?? []
@@ -76,6 +79,9 @@ export function buildCarries({ carries, dash, noteText, estimate, labels }: Carr
 
   const cm = carries?.cardMemory
   if (cm) parts.push({ key: 'memory', kind: 'memory', label: labels.memory(cm.name), tokens: cm.tokens, off: isOff('plugin:cardmemory'), switchKey: 'plugin:cardmemory' })
+
+  const sk = carries?.cardSkills
+  if (sk) parts.push({ key: 'skills', kind: 'skills', label: labels.skills(sk.name), tokens: sk.tokens, off: isOff('plugin:cardskills'), switchKey: 'plugin:cardskills' })
 
   const bs = carries?.backstory
   if (bs) parts.push({ key: 'backstory', kind: 'backstory', label: labels.backstory(bs.title), tokens: bs.tokens, off: isOff('plugin:litopys'), switchKey: 'plugin:litopys' })
