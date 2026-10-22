@@ -386,3 +386,20 @@ Regex scripts are `data/regex/<id>.json` (copy `data/regex/_example.json`): `fin
 `replaceString`, `placement` (`user_input`, `ai_output`, `prompt`, `display`), `scope` (`global`,
 `character`, `chat`, `preset`) with `scopeTargetId`, `minDepth` / `maxDepth`. A script with
 placement `display` hides or restyles text on screen only; `prompt` changes what the model gets.
+
+## Dashboard state: `data/dashboard/state/<chatId>.json`
+
+Written by the Dashboard plugin, one file per chat. Besides `snapshots` (one per message key), `notebook` (what each
+character saw, heard or guessed), `names` and `history`:
+
+- `said`: `{ "<character>": [ { id: "s1", text, kind, hidden?, turn, src, source: "chat" } ] }`, what the character said
+  and is held to (#98). `kind` is `vow`, `promise`, `threat`, `confession`, `secret`, `order`, `refusal`, `lie` or
+  `other`; a `lie` is stored `hidden: true` (the user sees it only after revealing). `src` is the message key that wrote
+  it (the entry counts only while that message is on the chat's line), `source` is `chat` today and may be another kind
+  of writer later. Its own part in the reply prompt (`Dashboard · said`), not the notebook's budget. The sensor
+  reports it in the `said` list; `said.perTurn` (1-4, default 2) and `said.inject` are in `data/dashboard/config.json`.
+- `inherited` (#100): present when the chat continues another one (the link in `data/litopys/links.json`):
+  `{ from, title, at, turn, notes, threads, snap }` with `snap` = the earlier chat's last snapshot (numbers, moods,
+  scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
+  Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
+  backstory of that chat off.

@@ -534,6 +534,11 @@ const SENSOR_PROMPT_6 = [
   "Keep the whole reply compact: short values, no filler.",
 ].join("\n");
 
+// What a character said and is held to (#98): its own list in the report, never the user's character.
+export const SAID_KINDS = ["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie"];
+const SAID_RULE =
+  "- said: the strong statements a present character made in these messages and should be held to, the strongest only: a vow or promise, a threat, a confession or a revealed secret, an order, a refusal that matters, a lie they told (who: the speaker, one of those present and never the user's character; text: a short quote or a close paraphrase in the character's own words; kind: one of vow, promise, threat, confession, secret, order, refusal, lie). Set lie to true only when the text itself shows the statement is a lie. Ordinary dialogue is not said; none when nothing strong was said.";
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -570,6 +575,7 @@ export const DEFAULT_PROMPTS = {
     "Knowledge:",
     "- A character learns only what happened while they were present (\"saw\"), what they were told (\"heard\", \"from\" is the teller), or what they guess (\"guess\"). Never give knowledge to someone absent, asleep or struck. Someone in touch from elsewhere sees nothing of the user's character: they learn only what is said or sent to them (\"heard\").",
     "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who: the character who learned it, one of those present and never the user's character; what: the fact), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
+    SAID_RULE,
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
     "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
@@ -608,8 +614,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The twelfth sensor prompt (before the `said` list of what a character said, #98).
+const SENSOR_PROMPT_12 = DEFAULT_PROMPTS.sensor.replace(SAID_RULE + "\n", "");
 // The eleventh sensor prompt (before it said that `who` of a learned fact is a present character and never the user's, and that present never lists the user, #97).
-const SENSOR_PROMPT_11 = DEFAULT_PROMPTS.sensor
+const SENSOR_PROMPT_11 = SENSOR_PROMPT_12
   .replace("the full list of the other characters, never the user's character itself, [] when the user's character is alone.", "the full list, [] when the user's character is alone.")
   .replace("(who: the character who learned it, one of those present and never the user's character; what: the fact)", "(who, what)");
 // The tenth sensor prompt (before it told the sensor not to list a thread it resolves, #81).
@@ -663,7 +671,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -674,6 +682,7 @@ const OUTPUT_SHAPE = [
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
   "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": \"text\", \"holding\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\" } },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
+  "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"lie\": false } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
   "  \"retire\": [\"entry id\"],",
   "  \"names\": [ { \"who\": \"name\", \"heardUserName\": true, \"calls\": \"text\" } ],",
@@ -1381,7 +1390,8 @@ function emptyState(chatId) {
     notebook: {},
     names: {},
     history: {},
-    counters: { note: 0, thread: 0 },
+    said: {},
+    counters: { note: 0, thread: 0, said: 0 },
     lastError: null,
     usage: { calls: 0, inTokens: 0, outTokens: 0, lastMs: 0 },
   };
@@ -1391,7 +1401,7 @@ function emptyState(chatId) {
 function normalizeState(raw, chatId) {
   const base = emptyState(chatId);
   const st = { ...base, ...(isObj(raw) ? raw : {}), v: 2, chatId };
-  for (const k of ["snapshots", "places", "notebook", "names", "history"]) if (!isObj(st[k])) st[k] = {};
+  for (const k of ["snapshots", "places", "notebook", "names", "history", "said"]) if (!isObj(st[k])) st[k] = {};
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
@@ -1463,6 +1473,12 @@ function buildInherit(fsx, chatId) {
     const last = arr(list).slice(-1)[0];
     if (isObj(last)) names[name] = [{ ...last, src: INHERIT_KEY }];
   }
+  // what the characters said and are held to: kept as it stands, the earlier chat's own source stays on each entry
+  const said = {};
+  for (const [name, list] of Object.entries(activeBySrc(end.state.said, end.keys))) {
+    const kept = arr(list).filter((s) => isObj(s) && str(s.text)).map((s) => ({ ...s, src: INHERIT_KEY, fromChat: from }));
+    if (kept.length) said[name] = kept;
+  }
   const threads = effectiveThreads(end.overlay, end.snap.threads, end.snap.turn).filter((t) => t.status === "open" && str(t.text));
   const { sig: _s, base: _b, partial: _p, fast: _f, ...snap } = end.snap;
   return {
@@ -1478,24 +1494,25 @@ function buildInherit(fsx, chatId) {
     },
     notebook,
     names,
+    said,
     counters: end.state.counters,
   };
 }
 
 function applyInherit(state, seed) {
   state.inherited = seed.inherited;
-  for (const bag of ["notebook", "names"]) {
-    for (const [name, list] of Object.entries(seed[bag])) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
+  for (const bag of ["notebook", "names", "said"]) {
+    for (const [name, list] of Object.entries(seed[bag] || {})) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
   }
   // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
-  for (const k of ["note", "thread"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
+  for (const k of ["note", "thread", "said"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
 }
 
 /** Switch the carried state off: the chat starts clean. The choice stays, so it is not offered again. */
 function dropInherit(state) {
   const was = isObj(state.inherited) ? state.inherited : {};
   state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", notes: was.notes || 0, threads: was.threads || 0, at: Date.now() };
-  for (const bag of ["notebook", "names"]) {
+  for (const bag of ["notebook", "names", "said"]) {
     for (const name of Object.keys(state[bag])) {
       state[bag][name] = arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY);
       if (!state[bag][name].length) delete state[bag][name];
@@ -1945,6 +1962,8 @@ const DEFAULT_CONFIG = {
   mode: "sensor",
   families: { trust: true, warmth: true, power: true, body: true, conflict: true, care: true, knowledge: true },
   injection: { enabled: true, maxTokens: 300 },
+  // what characters said (#98): how many strong statements a turn may add, and whether they go into the reply prompt
+  said: { perTurn: 2, inject: true },
   catchUp: true,
   // rate a card's main characters by itself when it has no soul yet
   autoSoul: true,
@@ -1986,7 +2005,9 @@ const mergeConfig = (stored) => ({
   sensorParts: isObj(stored.sensorParts) ? stored.sensorParts : {},
   families: { ...DEFAULT_CONFIG.families, ...(isObj(stored.families) ? stored.families : {}) },
   injection: { ...DEFAULT_CONFIG.injection, ...(isObj(stored.injection) ? stored.injection : {}) },
+  said: { ...DEFAULT_CONFIG.said, ...(isObj(stored.said) ? stored.said : {}) },
 });
+export const saidPerTurnOf = (cfg) => clamp(Math.round(num(cfg && cfg.said && cfg.said.perTurn)) || DEFAULT_CONFIG.said.perTurn, 1, 4);
 const loadConfig = (fsx) => mergeConfig(storedConfig(fsx));
 const customPrompts = (fsx) => {
   const stored = storedConfig(fsx);
@@ -2060,6 +2081,13 @@ function nextConfig(stored, b) {
     if (Number.isFinite(num(b.injection.maxTokens))) inj.maxTokens = clamp(Math.round(num(b.injection.maxTokens)), 50, 2000);
     for (const k of Object.keys(inj)) if (inj[k] === DEFAULT_CONFIG.injection[k]) delete inj[k];
     put("injection", inj, {});
+  }
+  if (isObj(b.said)) {
+    const sd = { ...(isObj(next.said) ? next.said : {}) };
+    if (Number.isFinite(num(b.said.perTurn))) sd.perTurn = clamp(Math.round(num(b.said.perTurn)), 1, 4);
+    if (parseBool(b.said.inject) !== undefined) sd.inject = parseBool(b.said.inject);
+    for (const k of Object.keys(sd)) if (sd[k] === DEFAULT_CONFIG.said[k]) delete sd[k];
+    put("said", sd, {});
   }
   for (const key of PROMPT_KEYS) {
     if (typeof b[key] !== "string") continue;
@@ -2619,6 +2647,40 @@ function applyNotebook(ctx, out, present, turn, K) {
   for (const notes of Object.values(raw)) for (const n of notes) if (retiring(n)) n.retiredBy = K;
 }
 
+/** What a present character said and is held to (#98): the strongest few of a turn; the user's own words are never kept. */
+function applySaid(ctx, out, present, turn, K) {
+  const { state } = ctx;
+  const live = activeBySrc(state.said, ctx.line.map((l) => l.key));
+  const limit = saidPerTurnOf(ctx.cfg);
+  const fresh = {};
+  const kept = ctx.keptOut || { user: 0, absent: 0 };
+  let used = 0;
+  for (const s of arr(out.said)) {
+    if (used >= limit) break;
+    if (!isObj(s)) continue;
+    const text = cut(str(s.text), 300);
+    if (!text) continue;
+    if (sideOf(s.who, userAll(ctx), present) === "user") {
+      kept.user++;
+      continue;
+    }
+    const who = canonName(s.who, present);
+    if (!present.includes(who)) {
+      kept.absent++;
+      continue;
+    }
+    if (duplicateNote(text, live[who]) || duplicateNote(text, fresh[who])) continue;
+    const said = str(s.kind).toLowerCase();
+    const lie = s.lie === true || said === "lie";
+    const kind = lie ? "lie" : SAID_KINDS.includes(said) ? said : "other";
+    state.counters.said += 1;
+    // a lie is stored hidden: the user sees it only after asking to reveal, the character still holds to it
+    listIn(state.said, who).push({ id: "s" + state.counters.said, text, kind, ...(lie ? { hidden: true } : {}), turn, src: K, source: "chat" });
+    listIn(fresh, who).push({ text });
+    used++;
+  }
+}
+
 function applyNames(ctx, out, present, turn, K) {
   const live = activeNames(ctx.state, ctx.line.map((l) => l.key));
   for (const n of arr(out.names)) {
@@ -2725,6 +2787,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
   for (const name of names) if (!present.includes(name) && chars[name]) chars[name].compact = true;
 
   applyNotebook(ctx, out, present, turn, K);
+  applySaid(ctx, out, present, turn, K);
   applyNames(ctx, out, present, turn, K);
   const snapshot = {
     turn,
@@ -3492,6 +3555,28 @@ function compactLine(ctx, name) {
  * The insert for one reply, or null. turn = {op, speakerName, targetId, userText, recent?}.
  * Returns { text, tokens, focus, notebookOf, key }.
  */
+const SAID_TOKENS = 120;
+const SAID_KEEP = 4;
+const SAID_LABEL = { vow: "vow", promise: "promise", threat: "threat", confession: "confession", secret: "secret revealed", order: "order", refusal: "refusal", lie: "a lie they told", other: "said" };
+
+/**
+ * "What <name> has said, and is held to" for the characters whose notebook shows: the newest few, one line
+ * each holder, the oldest dropped first until it fits. A hidden lie goes in too (the character knows what
+ * they said); hiding is only for the user's eyes. Empty when there is nothing.
+ */
+export function saidBlock(state, keys, holders, maxTokens) {
+  const live = activeBySrc(state.said, keys);
+  const lines = [];
+  for (const name of holders) {
+    const items = arr(live[name]).slice(-SAID_KEEP);
+    const line = (list) => "[What " + name + " has said, and is held to: " + list.map((s) => SAID_LABEL[s.kind] + " “" + s.text + "”").join("; ") + ".]";
+    let list = items;
+    while (list.length > 1 && estimateTokens(line(list)) > maxTokens) list = list.slice(1);
+    if (list.length) lines.push(line(list));
+  }
+  return lines.join("\n");
+}
+
 export function buildInsert(fsx, chatId, turn, cfg) {
   if (turn.op === "impersonate") return null;
   const chat = readChat(fsx, chatId);
@@ -3568,7 +3653,9 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const notesCut = trimmed.includes("notebooks") ? notesWanted - shownAt(limit) : 0;
   // even with every unpinned line gone it does not fit: only a bigger limit helps
   const overEvenBare = estimateTokens(text) > budget;
-  return { text, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
+  // what the speakers said and are held to: its own part, outside the notebook's budget
+  const saidText = cfg.said && cfg.said.inject === false ? "" : saidBlock(state, at.keys, notes.filter((n) => focus.includes(n)), SAID_TOKENS);
+  return { text, saidText, saidTokens: saidText ? estimateTokens(saidText) : 0, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
 /**
@@ -3630,6 +3717,10 @@ export function llmRequest(ctx, host) {
       if (insert) {
         messages = withTailInsert(messages, insert.text);
         promptSources.parts.push({ kind: "dashboard", label: "Relationship dashboard", text: String(insert.text || "").trim() });
+        if (insert.saidText) {
+          messages = withTailInsert(messages, insert.saidText);
+          promptSources.parts.push({ kind: "dashboard", label: "Dashboard · said", text: String(insert.saidText).trim() });
+        }
         changed = true;
       }
     }
@@ -4145,6 +4236,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   });
   const names = activeNames(state, keys);
   const history = activeHistory(state, keys);
+  const saidLive = activeBySrc(state.said, keys);
   const chat = readChat(fsx, chatId);
   const souls = chat ? chatCharacters(fsx, chat.meta).souls : {};
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
@@ -4161,6 +4253,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       prev: isObj(p) ? { stats: p.stats, pulse: p.pulse, hostility: p.hostility ?? null, constellation: p.constellation ?? null } : null,
       notebook: arr(book.live[name]).map(noteItem),
       retired: arr(book.retired[name]).map(noteItem),
+      said: arr(saidLive[name]).map(({ id, text, kind, hidden, turn, source }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat" })),
       name: arr(names[name]).slice(-1).map(({ knowsUserName, calls }) => ({ knowsUserName: !!knowsUserName, calls: calls || "" }))[0] || null,
       history: arr(history[name]).map(({ src: _src, ...line }) => line),
       series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
@@ -4199,6 +4292,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
     maxThreads: maxThreadsOf(cfg),
     noteAgeTurns: noteAgeOf(cfg),
+    saidPerTurn: saidPerTurnOf(cfg),
     mode: cfg.mode,
     // reading only: an expired file is removed by the hook, not here
     nudge: readNudge(fsx, chatId),

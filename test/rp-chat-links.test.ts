@@ -97,6 +97,16 @@ describe("backstory", () => {
     expect(side.tokens).toBe(0);
   });
 
+  it("gives no backstory once the Dashboard of the chat started clean (#100), and gives it back when carried again", () => {
+    seed();
+    const m = mockHost();
+    route(m.host, "POST", "/litopys/links", { chatId: "new", from: "old" });
+    writeJson("dashboard/state/new.json", { v: 2, chatId: "new", snapshots: {}, inherited: { v: 1, off: true, from: "old", title: "The mill" } });
+    expect(L.llmRequest(ctx("new"), m.host)).toBeNull();
+    writeJson("dashboard/state/new.json", { v: 2, chatId: "new", snapshots: {}, inherited: { v: 1, from: "old", title: "The mill", snap: {} } });
+    expect((L.llmRequest(ctx("new"), m.host).messages[1].content as string)).toContain("[Backstory (Litopys)");
+  });
+
   it("goes before the chat's own record, and a tight budget keeps the last chapter first", () => {
     seed();
     writeChat("new", story(30, "n"), { title: "After the mill" });

@@ -3118,6 +3118,9 @@ const CHAIN_SHARES = [[1], [0.65, 0.35], [0.5, 0.3, 0.2]];
 export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
   const budget = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
   if (!budget) return null;
+  // "Start clean" in the chat's Dashboard (#100) is one switch for the whole carried memory: the story too
+  const dash = readDash(fsx, chatId);
+  if (isObj(dash) && isObj(dash.inherited) && dash.inherited.off === true) return null;
   const links = loadLinks(fsx);
   // nearest first; the link route refuses loops, the seen set guards files written before it did
   const chain = [];
