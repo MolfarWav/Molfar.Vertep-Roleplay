@@ -49,6 +49,12 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - The model a card's tasks (Structure it, Fill empty, the Soul rating) run on is not in `card.json`: it is in
   `characters/<id>/card-tasks.json` (`model`, `maxInput`, `maxOutput`), written by the editor's Save changes.
   Leave that file alone.
+- What the character remembers from finished stories is not in `card.json` either: it is in
+  `characters/<id>/memory.json` (a list of `sources`, each a snapshot of one chat: a short `arc`, the strongest
+  `facts`, `notes` and `said` lines, and a copy of the chat's `title`), edited in the card's Memory tab and
+  injected into new chats of the card. Do not write it by hand and do not copy its lines into `description`
+  or the Soul: the app already leaves out a memory line that the story, the Dashboard or the card's own text
+  say. A deleted chat does not change it.
 - The editor keeps a change as a draft until the user presses Save changes: a card you edit on disk while
   it is open in the editor can meet a draft, and the user then chooses which version to keep.
 

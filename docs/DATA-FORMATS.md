@@ -122,6 +122,21 @@ Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model`. The e
 with a request (`limits: { inputChars, outputTokens }`); a card longer than `inputChars` is read in parts
 (`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft.
 
+**The card's long memory.** Not part of the card either: `characters/<id>/memory.json`, written by the Litopys
+plugin (`GET/PUT/DELETE /litopys/card-memory`, `POST /litopys/card-memory/preview` and `/import`) and edited in the
+card's Memory tab; it is never in `card.json` or in an export. Shape: `{ "v": 1, "next": <n>, "sources": [ { "id":
+"s1", "chatId", "title", "importedAt", "on": true, "canon": "main"|"separate", "arc": "<a short summary>", "facts":
+[{ "text", "subject" }], "notes": [{ "who", "how", "text" }], "said": [{ "who", "text", "kind" }] } ], "inject": {
+"enabled": true, "maxTokens": 400 } }`. A source is a snapshot taken when a chat is imported (the arc, the
+strongest facts, the character's own live notes and said lines of that chat); it keeps `chatId` and a copy of the
+`title` and never reads the chat again, so deleting the chat changes nothing. Keys the app does not know are kept
+when it saves the file. In a reply the Litopys plugin builds one part, "Litopys · character memory" (own Prompt
+board switch `plugin:cardmemory`), after the backstory and before the story so far: for the card of a chat (in a
+group, the speaker's card), skipping a source whose `chatId` is the chat itself or a chat of its backstory chain,
+a source that is off, and a `separate` canon unless the chat's meta `memory.sources[<id>]` is `true`; a line is left
+out when the Litopys insert, the Dashboard notes or `said` of the chat, the card's own text or an earlier source
+already say it (Dice similarity 0.85, or contained). Budget `inject.maxTokens` (100 to 1500, default 400).
+
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
 outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the
