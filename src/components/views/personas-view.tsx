@@ -1,4 +1,6 @@
 
+import { forEachImport } from '@/lib/import-progress'
+import { t as tNow } from '@/lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle, CaretRight } from '@phosphor-icons/react'
 import { toast } from 'sonner'
@@ -57,7 +59,7 @@ export function PersonasView() {
   const importFiles = async (files: FileList | null) => {
     if (!files) return
     let added = 0
-    for (const file of Array.from(files)) {
+    await forEachImport(tNow('imp.title.personas'), Array.from(files), (f) => f.name, async (file) => {
       try {
         const json: unknown = JSON.parse(await file.text())
         if (Array.isArray(json)) {
@@ -71,8 +73,9 @@ export function PersonasView() {
             setSelectedId(addPersona({ name, description: String(description ?? '') })); added++
           }
         }
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? 'invalid JSON'}`) }
-    }
+        return true
+      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? 'invalid JSON'}`); return false }
+    })
     if (added) { toast.success(`Imported ${added} persona${added > 1 ? 's' : ''}`); setDetailOpen(true) }
   }
 
