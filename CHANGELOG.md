@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.60.0
+
 The card editor keeps a draft until you press Save, the Profile sections are marked in exported cards, and a card can choose the model for its own tasks (#103, #104, #105). Needs no engine update.
 
 - Save changes (#103): edits in any tab of the card editor wait in a draft. A bar at the bottom (above the keyboard on a phone) shows how many fields changed with **Discard** and **Save changes**; the header says "Unsaved changes" and a dot marks each tab that holds one. Save writes the changed fields once. Leaving the card with changes asks (Save and leave, Discard and leave, Keep editing): the back arrow, another section or card, a chat, the phone's back gesture; a page reload gets the browser's own question. If the card changed in the meantime (Molfar, sync, another tab) the save asks which version to keep for the fields both sides touched; the rest is saved either way. Export and Duplicate work on the saved card and ask first. The star (favourite), the card kind and the Soul tab are separate actions and still act at once; Translate waits until the changes are saved or discarded.

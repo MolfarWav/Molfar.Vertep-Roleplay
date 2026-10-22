@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.59.3'
+export const APP_VERSION = '4.60.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -367,6 +367,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Write a draft and press Polish next to Send: the chat\u2019s model fixes the mistakes and makes it more vivid, keeping your actions, words and language. Undo brings the draft back. The prompt is in Presets > Utility prompts.',
       uk: 'Напишіть чернетку й натисніть «Причесати» біля «Надіслати»: модель чату виправить помилки й зробить текст яскравішим, зберігши ваші дії, слова та мову. «Повернути» відновить чернетку. Промпт у «Пресети > Utility prompts».',
+    },
+  },
+  // ── What's new: Save changes in the card editor
+  {
+    id: 'new.card-save',
+    since: '4.60.0',
+    open: { view: 'characters', list: 'characters' },
+    title: { en: 'The card editor saves when you say so', uk: 'Редактор картки зберігає, коли ви скажете' },
+    body: {
+      en: 'Edits to a card now wait in a draft: press Save changes at the bottom, or Discard to put everything back. Leaving with unsaved changes asks first. A card can also have its own model for Structure it and Fill empty (Profile tab), and exports mark the Profile sections.',
+      uk: 'Зміни в картці тепер чекають у чернетці: натисніть «Зберегти зміни» внизу або «Скасувати», щоб усе повернути. Вихід із незбереженими змінами спершу питає. У картки може бути своя модель для «Структурувати» й «Заповнити порожні» (вкладка Profile), а експорт позначає секції профілю.',
     },
   },
   // ── What's new: the help list itself
