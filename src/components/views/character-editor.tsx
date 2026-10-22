@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, Brain, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +28,7 @@ import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { ALL_PANELS, EDITOR_TABS, TAB_PANELS, panelGroup, panelStep, tabOfPanel } from '@/lib/editor-tabs'
 import { SoulTab, type SoulStatus } from '@/components/dashboard/soul-tab'
+import { MemoryTab } from '@/components/character/memory-tab'
 import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
@@ -61,17 +62,18 @@ function TokenBadge({ text }: { text: string }) {
 }
 
 const TAB_ICONS: Record<string, PhosphorIcon> = {
-  core: UserCircle, profile: Smiley, dialogue: ChatsCircle, advanced: SlidersHorizontal, soul: Sparkle,
+  core: UserCircle, profile: Smiley, dialogue: ChatsCircle, advanced: SlidersHorizontal, soul: Sparkle, memory: Brain,
   lorebook: BookOpen, colors: Palette, sprites: Images, gallery: ImageIcon, regex: Code, voice: SpeakerHigh,
   more: ListBullets,
 }
-/** The tinted border and fill per group: Core sky, Profile emerald, Soul violet, Lorebook amber,
- *  everything else slate. The desktop strip paints all eleven panels with their group's
- *  color; the phone strip paints the five groups the same way. */
+/** The tinted border and fill per group: Core sky, Profile emerald, Soul violet, Memory pink, Lorebook amber,
+ *  everything else slate. The desktop strip paints all twelve panels with their group's
+ *  color; the phone strip paints the six groups the same way. */
 const GROUP_TINT: Record<string, string> = {
   core: 'border-sky-500/30 bg-sky-500/10 data-active:bg-sky-500/25',
   profile: 'border-emerald-500/30 bg-emerald-500/10 data-active:bg-emerald-500/25',
   soul: 'border-violet-500/30 bg-violet-500/10 data-active:bg-violet-500/25',
+  memory: 'border-pink-500/30 bg-pink-500/10 data-active:bg-pink-500/25',
   lorebook: 'border-amber-500/30 bg-amber-500/10 data-active:bg-amber-500/25',
   more: 'border-slate-500/30 bg-slate-500/10 data-active:bg-slate-500/25',
 }
@@ -84,20 +86,20 @@ const TAB_BUTTON = 'inline-flex items-center justify-center gap-1.5 rounded-md b
 /** The readable name of one panel: single panels reuse their group label. */
 function panelLabel(panel: string, t: (key: MsgKey) => string): string {
   if (panel === 'soul') return t('soul.tab')
-  if (panel === 'profile' || panel === 'lorebook') return t(`editor.tab.${panel}` as MsgKey)
+  if (panel === 'profile' || panel === 'lorebook' || panel === 'memory') return t(`editor.tab.${panel}` as MsgKey)
   return t(`editor.panel.${panel}` as MsgKey)
 }
 
 export function CharacterEditor({ character, onClose }: { character: Character; onClose: () => void }) {
   const t = useT()
-  // the open panel (core, dialogue, advanced…); the five tabs are derived from it
+  // the open panel (core, dialogue, advanced…); the six tabs are derived from it
   const [tab, setTab] = useState('core')
   // the last panel of the More tab, so that tab opens where the user left it
   const [lastMore, setLastMore] = useState('advanced')
   // the Soul tab stays mounted while hidden: only its own visit counts for the tour
   useGuidePlace('soul', tab === 'soul')
   const [soulStatus, setSoulStatus] = useState<SoulStatus>(null)
-  /** Opens a panel: a panel name (a link, the store, an older build) or one of the five
+  /** Opens a panel: a panel name (a link, the store, an older build) or one of the six
    *  tabs. Panels keep the old names, so anything that asked for an old tab still lands
    *  on the panel it asked for, inside the tab that now holds it. */
   const openPanel = (asked: string | null | undefined) => {
@@ -112,7 +114,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     setTab(panel)
     if (group === 'more') setLastMore(panel)
   }
-  /** A click on one of the eleven desktop buttons: that very panel. (`openPanel('core')` reads the word as the
+  /** A click on one of the twelve desktop buttons: that very panel. (`openPanel('core')` reads the word as the
    *  Core tab and keeps the open panel, so a click on Core while Example dialogue was open did nothing.) */
   const showPanel = (panel: string) => {
     setTab(panel)
@@ -374,18 +376,18 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
       </header>
 
         <div className="mt-2 hidden max-w-full px-4 md:block">
-          {/* Desktop: all eleven panels, wrapping to two rows so every tab fits without
+          {/* Desktop: all twelve panels, wrapping to two rows so every tab fits without
               scrolling. Plain buttons, not Base UI tabs — the panels stay the editor
               Tabs' content. */}
           <div
             data-guide="editor.tabs"
             role="tablist"
             aria-label={t('editor.tabs')}
-            onKeyDown={(e) => { const next = panelStep((ALL_PANELS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))), tab, e.key); if (next) { e.preventDefault(); showPanel(next); focusTab(e.currentTarget, next) } }}
+            onKeyDown={(e) => { const next = panelStep((ALL_PANELS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul' || p === 'memory'))), tab, e.key); if (next) { e.preventDefault(); showPanel(next); focusTab(e.currentTarget, next) } }}
             // the variant's own h-8 would clip the second row and let the panel overlap it: h-auto has to name the same variant to win
             className={cn(tabsListVariants(), 'h-auto w-full flex-wrap items-center gap-1 group-data-horizontal/tabs:h-auto')}
           >
-            {ALL_PANELS.filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))).map((p) => {
+            {ALL_PANELS.filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul' || p === 'memory'))).map((p) => {
               const Icon = TAB_ICONS[p] ?? UserCircle
               const on = tab === p
               const g = panelGroup(p)
@@ -419,15 +421,15 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </div>
         <div className="mt-2 max-w-full md:hidden">
         <ScrollStrip className="px-4">
-          {/* Phone: five groups in one row, no icons so they fit 390px. Groups that hold
+          {/* Phone: six groups in one row, no icons so they fit 390px. Groups that hold
               more than one panel open a dropdown — nothing overlaps the content anymore. */}
           <div
             role="tablist"
             aria-label={t('editor.tabs')}
-            onKeyDown={(e) => { const next = panelStep((EDITOR_TABS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul'))), tabOfPanel(tab), e.key); if (next) { e.preventDefault(); openPanel(next); focusTab(e.currentTarget, next) } }}
+            onKeyDown={(e) => { const next = panelStep((EDITOR_TABS as unknown as readonly string[]).filter((p) => !(c.isGroup && (p === 'profile' || p === 'soul' || p === 'memory'))), tabOfPanel(tab), e.key); if (next) { e.preventDefault(); openPanel(next); focusTab(e.currentTarget, next) } }}
             className={cn(tabsListVariants(), 'h-8 w-max max-w-full flex-nowrap items-center gap-1')}
           >
-            {EDITOR_TABS.filter((tabName) => !(c.isGroup && (tabName === 'profile' || tabName === 'soul'))).map((tabName) => {
+            {EDITOR_TABS.filter((tabName) => !(c.isGroup && (tabName === 'profile' || tabName === 'soul' || tabName === 'memory'))).map((tabName) => {
               const panels = TAB_PANELS[tabName]
               const on = tabOfPanel(tab) === tabName
               if (panels.length === 1) {
@@ -643,6 +645,14 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               <TabsContent value="soul" keepMounted className="min-w-0">
                 <ErrorBoundary resetKey={c.id} what="The soul">
                   <SoulTab key={c.id} c={character} active={tab === 'soul'} onStatus={setSoulStatus} />
+                </ErrorBoundary>
+              </TabsContent>
+            )}
+
+            {!c.isGroup && (
+              <TabsContent value="memory" className="flex flex-col gap-4">
+                <ErrorBoundary resetKey={c.id} what="The memory">
+                  <MemoryTab key={c.id} c={c} />
                 </ErrorBoundary>
               </TabsContent>
             )}
