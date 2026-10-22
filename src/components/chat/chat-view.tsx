@@ -1158,14 +1158,15 @@ export function ChatView() {
                 <FieldVariantPicker chat={chat} character={character} />
               </div>
               <Field>
-                <FieldLabel htmlFor="an-char">Character-private note: {character.name}</FieldLabel>
+                <FieldLabel htmlFor="an-char">Depth prompt of the card: {character.name}</FieldLabel>
                 <Textarea
                   id="an-char"
                   rows={3}
                   value={character.depthPrompt.text}
                   onChange={(e) => updateCharacter(character.id, { depthPrompt: { ...character.depthPrompt, text: e.target.value } })}
-                  placeholder="Travels with the character card, not the chat…"
+                  placeholder="A standing note placed inside the history, e.g. a speech habit to keep…"
                 />
+                <p className="text-[11px] text-muted-foreground">Saved in the card and exported with it (the same field as Advanced &gt; Depth prompt in the card editor), so it applies to every chat of this card. For this chat only, use the note above.</p>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-muted-foreground">@ depth</span>
                   <Input
