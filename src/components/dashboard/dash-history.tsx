@@ -1,3 +1,4 @@
+import { ChartLine, ClockCounterClockwise } from '@phosphor-icons/react'
 import type { DashChar } from '@/lib/dashboard'
 import { DISPOSITION, signed } from '@/lib/dashboard'
 import type { DispositionStat } from '@/lib/soul'
@@ -19,7 +20,7 @@ export function StoryList({ char, className, compact }: { char: DashChar; classN
     return moved.length ? t('dash.story.seed', { changes: moved.join(', ') }) : t('dash.story.seedNone')
   }
   return (
-    <Box title={t('dash.story')} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
+    <Box title={t('dash.story')} tone="people" icon={ClockCounterClockwise} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
       {lines.length === 0 ? (
         <div className="text-sm text-muted-foreground">{t('dash.story.none')}</div>
       ) : (
@@ -66,7 +67,7 @@ export function StatChart({ char, stat, onStat, className }: {
   const yPct = (v: number) => 100 - (Math.max(-100, Math.min(100, v)) + 100) / 2
   const pts = series.map((p, i) => ({ x: xPct(i), y: yPct(p.stats[stat]), turn: p.turn, v: p.stats[stat] }))
   return (
-    <Box title={t('dash.chart')} className={className}>
+    <Box title={t('dash.chart')} tone="people" icon={ChartLine} className={className}>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {DISPOSITION.map((s) => (
           <button

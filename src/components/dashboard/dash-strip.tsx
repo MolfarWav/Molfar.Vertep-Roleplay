@@ -1,4 +1,4 @@
-import { ArrowClockwise, ArrowsOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowsOut, CaretLeft, CaretRight, Flag } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +9,7 @@ import { canEditNotes, noteCounts, sortedThreads, type DashView } from '@/lib/da
 import { DISPOSITION } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { CarriedBanner } from './dash-carried'
-import { AgeText, AvatarButton, FooterLine, Label, LiveDot, NameChip, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { AgeText, AvatarButton, CLASS_MARK, FooterLine, LiveDot, MARK, NameChip, Notices, SceneBlock, ToneLabel, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 
 export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, onRefresh, refreshing, collapsed, onCollapse, now, avatars, onPortrait }: {
@@ -105,7 +105,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
           <div className={cn(section, 'flex flex-col gap-2')}>
             <div className="flex min-w-0 items-center justify-between gap-2">
               <span className="min-w-0 truncate font-heading text-base">{focus}</span>
-              <Badge variant="outline" className="rounded-none text-[10px]">{t(`soul.class.${char.cls}`)}</Badge>
+              <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
             </div>
             <div className="flex justify-center">
               <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={128} />
@@ -124,7 +124,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
           </div>
 
           <div className={cn(section, 'flex flex-col gap-1.5')}>
-            <Label>{t('dash.threads')}</Label>
+            <ToneLabel tone="plot" icon={Flag}>{t('dash.threads')}</ToneLabel>
             <ThreadList threads={sortedThreads(view.threads)} limit={3} openOnly editable={canEditNotes(view)} />
           </div>
 

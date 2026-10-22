@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CaretDown, CaretRight, DotsThree, Eye, EyeSlash } from '@phosphor-icons/react'
+import { CaretDown, CaretRight, DotsThree, Eye, EyeSlash, Quotes } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -7,18 +7,17 @@ import { Textarea } from '@/components/ui/textarea'
 import type { DashChar, SaidNote } from '@/lib/dashboard'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { Label, useTx } from './dash-common'
+import { MARK, SAID_MARK, TitleBar, useTx } from './dash-common'
 import { useNotesAct } from './dash-context'
 
 const FIELD = 'rounded-none'
 const NOTE_MAX = 300
 
-/** threats and lies read amber, the rest neutral: colour never carries the kind alone, the word is always there. */
+/** dangers (threat, order) read red, a hidden truth (lie, secret) amber, a pledge or an open word (vow, promise, confession) green, the rest neutral: colour never carries the kind alone, the word is always there. */
 function KindChip({ kind }: { kind: SaidNote['kind'] }) {
   const tx = useTx()
-  const warm = kind === 'threat' || kind === 'lie'
   return (
-    <span className={cn('inline-flex shrink-0 items-center border px-1 py-px font-sans text-[10px] uppercase tracking-wide', warm ? 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-border text-muted-foreground')}>
+    <span className={cn('inline-flex shrink-0 items-center border px-1 py-px font-sans text-[10px] uppercase tracking-wide', MARK[SAID_MARK[kind] ?? 'neutral'])}>
       {tx('dash.said.kind', kind)}
     </span>
   )
@@ -91,9 +90,10 @@ export function SaidBlock({ name, char }: { name: string; char: DashChar }) {
   const hiddenCount = char.said.filter((s) => s.hidden).length
   const removed = char.saidRemoved ?? []
   return (
-    <div className="mt-3 border-t border-border pt-2" data-guide="dash.said" data-testid="dash-said">
+    <div className="mt-3" data-guide="dash.said" data-testid="dash-said">
+      <TitleBar tone="memory" icon={Quotes} className="-mx-3 mb-2 border-t">{t('dash.said', { name })}</TitleBar>
       <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Label>{t('dash.said', { name })}</Label>
+        <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">{t('dash.said.hint', { name })}</p>
         {hiddenCount > 0 && (
           <button
             type="button"
@@ -106,7 +106,6 @@ export function SaidBlock({ name, char }: { name: string; char: DashChar }) {
           </button>
         )}
       </div>
-      <p className="mb-2 text-[11px] text-muted-foreground">{t('dash.said.hint', { name })}</p>
       {char.said.length === 0 ? (
         <div className="text-sm text-muted-foreground">{t('dash.said.none', { name })}</div>
       ) : (
