@@ -268,3 +268,15 @@ describe("card memory: lines of a story can be read, edited, removed and added b
     expect(text).not.toContain("lost her brother at the northern gate");
   });
 });
+
+describe("memory goes above the preset's chat-start line", () => {
+  it("is put before a trailing [Start a new chat] message, and below the preset text", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
+    writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
+    const res = L.llmRequest({ key: "reply", request: { messages: [{ role: "system", content: "preset text" }, { role: "system", content: "[Start a new chat]" }, { role: "user", content: "hello" }] }, turn: { op: "send", chatId: "next", speakerName: "Aria" } }, host);
+    const order = res.messages.map((m: any) => String(m.content).slice(0, 12));
+    expect(order).toEqual(["preset text", "[What Aria r", "[Start a new", "hello"]);
+  });
+});

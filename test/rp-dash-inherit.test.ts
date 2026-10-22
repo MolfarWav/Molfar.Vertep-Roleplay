@@ -266,7 +266,15 @@ describe("linking late: rebuild the Dashboard on top of the earlier chat (#100)"
     writeChat("c2", [A("n1", "A stranger lies in the glade."), U("n2", "Who are you?")]);
     mock.push(reply({ present: ["Aria"], minutes: 1, learned: [{ who: "Aria", text: "A stranger lies in the glade.", how: "saw", weight: "key" }], names: [{ who: "Aria", calls: "stranger" }] }));
     update(mock, "c2");
+    const turn = { op: "send", speakerName: "Aria", targetId: "", userText: "Do we know each other?" };
+    const cfg = { injection: {}, said: { inject: true } };
+    // before it is linked the Dashboard says what it believes: the name was never heard
+    expect(P.buildInsert(mock.host.fs, "c2", turn, cfg).text).toContain("never heard");
     link("c1", "c2");
+    // linked, but built without the earlier chat: it must not claim the characters know nothing of each other
+    const soft = P.buildInsert(mock.host.fs, "c2", turn, cfg).text;
+    expect(soft).not.toContain("never heard");
+    expect(soft).not.toContain("does not know");
     const v = view(mock, "c2");
     expect(v.inherit).toMatchObject({ from: "c1", on: false, canSwitch: false, canRebase: true });
     // refused where it does not apply

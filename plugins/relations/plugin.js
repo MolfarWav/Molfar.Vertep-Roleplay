@@ -3458,7 +3458,13 @@ export function snapshotFor(state, line, turn) {
   return carried ? { key: INHERIT_KEY, snap: carried.snap, keys: [] } : null;
 }
 
-function knowsLine(name, user, notes, nameEntry, pr) {
+/**
+ * What a character knows about the user. `soft` = this chat continues another one and its Dashboard was not built on
+ * that chat (linked late): what it says the character does NOT know is only what it saw in this chat's own turns, and
+ * the story so far says otherwise, so the "never heard the name" and "nothing else is known" claims are left out (the
+ * Dashboard sits next to the user's line and would outrank the backstory).
+ */
+function knowsLine(name, user, notes, nameEntry, pr, soft) {
   const saw = notes.filter((n) => n.how === "saw").map((n) => n.text);
   const heard = notes.filter((n) => n.how === "heard");
   const guess = notes.filter((n) => n.how === "guess").map((n) => n.text);
@@ -3466,11 +3472,11 @@ function knowsLine(name, user, notes, nameEntry, pr) {
   if (saw.length) parts.push("Saw: " + saw.join("; ") + ".");
   for (const n of heard) parts.push((n.from && n.from !== "user" ? n.from : user) + " told " + pr.them + ": " + n.text + ".");
   if (guess.length) parts.push("Guesses: " + guess.join("; ") + ".");
-  if (nameEntry && !nameEntry.knowsUserName) {
+  if (nameEntry && !nameEntry.knowsUserName && !soft) {
     parts.push((nameEntry.calls ? "Knows " + user + " only as \"" + nameEntry.calls + "\" and" : "Has") + " never heard " + user + "'s name.");
   }
-  if (!parts.length) return "What " + name + " knows about " + user + ": nothing yet beyond what happens in front of " + pr.them + ".";
-  return "What " + name + " knows about " + user + ": " + parts.join(" ") + " Anything else about " + user + ", " + name + " does not know.";
+  if (!parts.length) return soft ? "" : "What " + name + " knows about " + user + ": nothing yet beyond what happens in front of " + pr.them + ".";
+  return "What " + name + " knows about " + user + ": " + parts.join(" ") + (soft ? "" : " Anything else about " + user + ", " + name + " does not know.");
 }
 
 // a feeling this close to neutral is not worth a phrase
@@ -3538,7 +3544,8 @@ function characterBlock(ctx, name, withNotes, limit) {
   if (withNotes) {
     const notes = pickNotes(arr(ctx.notebook[name]), limit === undefined ? NOTE_LIMIT : limit, ctx.sceneText);
     const nameEntry = arr(ctx.names[name]).slice(-1)[0];
-    lines.push(knowsLine(name, user, notes, nameEntry, pr));
+    const known = knowsLine(name, user, notes, nameEntry, pr, ctx.soft);
+    if (known) lines.push(known);
   }
   // the form of address, when the character knows the name and uses another word
   const asked = arr(ctx.names[name]).slice(-1)[0];
@@ -3634,6 +3641,8 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     user: userNameOf(fsx, chat.meta),
     notebook: freshNotes(effectiveNotebook(state, at.keys, overlay).live, snap.turn, noteAgeOf(cfg)),
     names: activeNames(state, at.keys),
+    // linked to an earlier chat but never started from it: the Dashboard cannot say what is unknown (see knowsLine)
+    soft: !isObj(state.inherited) && !!linkedFrom(fsx, chatId),
     // the notes follow the scene: the user's message, the newest messages, who is here
     sceneText: [str(turn.userText), typeof turn.recent === "string" ? turn.recent : line.slice(-3).map((m) => str(m.text)).join("\n"), ...present].join("\n"),
   };

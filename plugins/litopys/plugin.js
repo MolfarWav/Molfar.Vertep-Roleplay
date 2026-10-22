@@ -1025,10 +1025,14 @@ export function markUsed(used, factIds, turn) {
 }
 
 /** Insert one system message after the leading system block (ported from relations withInsert). */
+// the line a preset puts right before the story starts ("[Start a new chat]"): memory belongs above it
+const CHAT_START_MARK = /^[?s*start a new (chat|story|roleplay|scene)s*]?$/i;
 function withInsert(messages, text) {
   let lead = 0;
   while (lead < messages.length && messages[lead] && messages[lead].role === "system") lead++;
-  return [...messages.slice(0, lead), { role: "system", content: text }, ...messages.slice(lead)];
+  let at = lead;
+  while (at > 0 && typeof messages[at - 1].content === "string" && CHAT_START_MARK.test(messages[at - 1].content.trim())) at--;
+  return [...messages.slice(0, at), { role: "system", content: text }, ...messages.slice(at)];
 }
 
 /**
