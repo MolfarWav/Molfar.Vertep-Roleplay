@@ -230,7 +230,10 @@ describe("chapters", () => {
   it("blocks chapter edits while rebuilding", () => {
     seedChapter();
     const { host } = mockHost();
-    route(host, "POST", "/litopys/rebuild", { chatId: "c1" });
+    // a rebuild in progress (the route itself refuses to start one in a chat with no closed scene)
+    const st0 = readJson("litopys/chats/c1.json");
+    st0.rebuild = { startedAt: 1, chapters: [], facts: [], proposals: [], carried: [], skipScenes: [], counters: { chapter: 1, fact: 1, proposal: 0 } };
+    writeJson("litopys/chats/c1.json", st0);
     const r = route(host, "POST", "/litopys/chapters", { chatId: "c1", op: "edit", id: "c1", text: "x" });
     expect(r.status).toBe(409);
     expect(r.json.error).toBe("rebuilding");
