@@ -32,6 +32,7 @@ export function requestOrder<T extends { item: { key: string } }>(
     if (first.has(key)) return first.get(key)
     if (key === 'plugin:litopys' && historyStart !== Infinity) return historyStart - 0.5
     if (key === 'plugin:relations' && historyEnd !== -Infinity) return historyEnd + 0.5
+    if (key === 'plugin:said' && historyEnd !== -Infinity) return historyEnd + 0.6
     return undefined
   }
   return rows

@@ -56,6 +56,8 @@ interface DashConfig {
   sensorParts?: { key: string; title: string; text: string; default: string; custom: boolean }[]
   /** 4.34: absent on an older plugin */
   noteAgeTurns?: number
+  /** #98: what characters said; absent on an older plugin */
+  said?: { perTurn: number; inject: boolean }
   soul?: string
   nudge?: string
   fast?: string
@@ -75,6 +77,7 @@ interface Form {
   maxThreads: number
   threadCheckEvery: number
   noteAgeTurns: number
+  said: { perTurn: number; inject: boolean }
   catchUp: boolean
   autoSoul: boolean
   /** the whole prompt: only sent in "whole" and legacy mode */
@@ -113,6 +116,7 @@ const DEFAULT_SENSOR_TOKENS = 3000
 const DEFAULT_MAX_THREADS = 3
 const DEFAULT_THREAD_CHECK = 5
 const DEFAULT_NOTE_AGE = 30
+const DEFAULT_SAID = 2
 const FIELD = 'rounded-none'
 
 function readTab(): Section {
@@ -132,6 +136,7 @@ function pickForm(c: DashConfig): Form {
     maxThreads: c.maxThreads ?? DEFAULT_MAX_THREADS,
     threadCheckEvery: c.threadCheckEvery ?? DEFAULT_THREAD_CHECK,
     noteAgeTurns: c.noteAgeTurns ?? DEFAULT_NOTE_AGE,
+    said: { perTurn: c.said?.perTurn ?? DEFAULT_SAID, inject: c.said?.inject !== false },
     catchUp: c.catchUp !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
@@ -152,7 +157,8 @@ const clampTokens = (n: number) => Math.min(MAX_TOKENS, Math.max(MIN_TOKENS, Mat
 const clampSensorTokens = (n: number) => Math.min(MAX_SENSOR_TOKENS, Math.max(MIN_SENSOR_TOKENS, Math.round(Number.isFinite(n) ? n : DEFAULT_SENSOR_TOKENS)))
 const clampThreads = (n: number) => Math.min(6, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MAX_THREADS)))
 const clampNoteAge = (n: number) => Math.min(500, Math.max(5, Math.round(Number.isFinite(n) ? n : DEFAULT_NOTE_AGE)))
-const clampCheck = (n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
+const clampSaid = (n: number) => Math.min(4, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_SAID)))
+const clampCheck =(n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** The rows PUT /dashboard/events takes: only what differs from the defaults. */
@@ -223,6 +229,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
         ...rest,
         ...prompts,
         noteAgeTurns: clampNoteAge(form.noteAgeTurns),
+        said: { ...form.said, perTurn: clampSaid(form.said.perTurn) },
         injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) },
         sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens),
         maxThreads: clampThreads(form.maxThreads),
@@ -543,6 +550,18 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                 </label>
               </>
             )}
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>{t('dash.set.said')}</span>
+              <Input
+                type="number" min={1} max={4} step={1}
+                value={form.said.perTurn}
+                onChange={(e) => patch({ said: { ...form.said, perTurn: Number(e.target.value) } })}
+                onBlur={() => patch({ said: { ...form.said, perTurn: clampSaid(form.said.perTurn) } })}
+                className={cn(FIELD, 'w-24')}
+              />
+            </label>
+            <p className="-mt-1 text-[11px] text-muted-foreground">{t('dash.set.said.hint')}</p>
+            <SwitchRow label={t('dash.set.saidInject')} hint={t('dash.set.saidInject.hint')} checked={form.said.inject} onChange={(v) => patch({ said: { ...form.said, inject: v } })} />
             <SwitchRow label={t('dash.set.catchUp')} hint={t('dash.set.catchUp.hint')} checked={form.catchUp} onChange={(v) => patch({ catchUp: v })} />
             <SwitchRow label={t('dash.set.autoSoul')} hint={t('dash.set.autoSoul.hint')} checked={form.autoSoul} onChange={(v) => patch({ autoSoul: v })} />
           </div>

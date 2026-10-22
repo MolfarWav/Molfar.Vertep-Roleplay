@@ -3555,6 +3555,31 @@ function compactLine(ctx, name) {
  * The insert for one reply, or null. turn = {op, speakerName, targetId, userText, recent?}.
  * Returns { text, tokens, focus, notebookOf, key }.
  */
+/** What the characters said as it counts: the active entries with the user's edits, the ones the user removed left out. */
+export function effectiveSaid(state, keys, ov) {
+  const edits = isObj(ov && ov.edits) ? ov.edits : {};
+  const out = {};
+  for (const [name, list] of Object.entries(activeBySrc(state.said, keys))) {
+    for (const s of arr(list)) {
+      const e = isObj(edits[s.id]) ? edits[s.id] : null;
+      if (e && e.retired === true) continue;
+      const text = e && str(e.text) ? cut(str(e.text), 300) : s.text;
+      listIn(out, name).push(text === s.text ? s : { ...s, text, edited: true });
+    }
+  }
+  return out;
+}
+
+/** What the user removed, to bring back. */
+export function removedSaid(state, keys, ov) {
+  const edits = isObj(ov && ov.edits) ? ov.edits : {};
+  const out = {};
+  for (const [name, list] of Object.entries(activeBySrc(state.said, keys))) {
+    for (const s of arr(list)) if (isObj(edits[s.id]) && edits[s.id].retired === true) listIn(out, name).push(s);
+  }
+  return out;
+}
+
 const SAID_TOKENS = 120;
 const SAID_KEEP = 4;
 const SAID_LABEL = { vow: "vow", promise: "promise", threat: "threat", confession: "confession", secret: "secret revealed", order: "order", refusal: "refusal", lie: "a lie they told", other: "said" };
@@ -3564,8 +3589,8 @@ const SAID_LABEL = { vow: "vow", promise: "promise", threat: "threat", confessio
  * each holder, the oldest dropped first until it fits. A hidden lie goes in too (the character knows what
  * they said); hiding is only for the user's eyes. Empty when there is nothing.
  */
-export function saidBlock(state, keys, holders, maxTokens) {
-  const live = activeBySrc(state.said, keys);
+export function saidBlock(state, keys, holders, maxTokens, ov) {
+  const live = effectiveSaid(state, keys, ov);
   const lines = [];
   for (const name of holders) {
     const items = arr(live[name]).slice(-SAID_KEEP);
@@ -3654,7 +3679,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   // even with every unpinned line gone it does not fit: only a bigger limit helps
   const overEvenBare = estimateTokens(text) > budget;
   // what the speakers said and are held to: its own part, outside the notebook's budget
-  const saidText = cfg.said && cfg.said.inject === false ? "" : saidBlock(state, at.keys, notes.filter((n) => focus.includes(n)), SAID_TOKENS);
+  const saidText = cfg.said && cfg.said.inject === false ? "" : saidBlock(state, at.keys, notes.filter((n) => focus.includes(n)), SAID_TOKENS, overlay);
   return { text, saidText, saidTokens: saidText ? estimateTokens(saidText) : 0, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
@@ -3717,7 +3742,7 @@ export function llmRequest(ctx, host) {
       if (insert) {
         messages = withTailInsert(messages, insert.text);
         promptSources.parts.push({ kind: "dashboard", label: "Relationship dashboard", text: String(insert.text || "").trim() });
-        if (insert.saidText) {
+        if (insert.saidText && !offForChat(fsx, chatId, "plugin:said")) {
           messages = withTailInsert(messages, insert.saidText);
           promptSources.parts.push({ kind: "dashboard", label: "Dashboard · said", text: String(insert.saidText).trim() });
         }
@@ -4236,7 +4261,9 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   });
   const names = activeNames(state, keys);
   const history = activeHistory(state, keys);
-  const saidLive = activeBySrc(state.said, keys);
+  const saidLive = effectiveSaid(state, keys, overlay);
+  const saidGone = removedSaid(state, keys, overlay);
+  const saidItem = ({ id, text, kind, hidden, turn, source, edited }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat", ...(edited ? { edited: true } : {}) });
   const chat = readChat(fsx, chatId);
   const souls = chat ? chatCharacters(fsx, chat.meta).souls : {};
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
@@ -4253,7 +4280,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       prev: isObj(p) ? { stats: p.stats, pulse: p.pulse, hostility: p.hostility ?? null, constellation: p.constellation ?? null } : null,
       notebook: arr(book.live[name]).map(noteItem),
       retired: arr(book.retired[name]).map(noteItem),
-      said: arr(saidLive[name]).map(({ id, text, kind, hidden, turn, source }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat" })),
+      said: arr(saidLive[name]).map(saidItem),
+      saidRemoved: arr(saidGone[name]).map(saidItem),
       name: arr(names[name]).slice(-1).map(({ knowsUserName, calls }) => ({ knowsUserName: !!knowsUserName, calls: calls || "" }))[0] || null,
       history: arr(history[name]).map(({ src: _src, ...line }) => line),
       series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
@@ -4451,7 +4479,8 @@ function notesRoute(req, fsx) {
   const noteId = safeKey(str(b.id)) ? str(b.id) : "";
   const knownNote = () => {
     if (/^u\d+$/.test(noteId)) return Object.values(ov.added).some((l) => arr(l).some((a) => isObj(a) && a.id === noteId));
-    return Object.values(state.notebook).some((l) => arr(l).some((n) => isObj(n) && n.id === noteId));
+    // notes and what characters said share the edit overlay: their ids never meet (n..., s..., u...)
+    return [state.notebook, state.said].some((bag) => Object.values(bag).some((l) => arr(l).some((n) => isObj(n) && n.id === noteId)));
   };
   const editOf = (id) => (isObj(ov.edits[id]) ? { ...ov.edits[id] } : {});
   const putEdit = (id, e) => {

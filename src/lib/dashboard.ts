@@ -52,6 +52,19 @@ export interface Note {
   by?: 'user'
   edited?: boolean
 }
+export const SAID_KINDS = ['vow', 'promise', 'threat', 'confession', 'secret', 'order', 'refusal', 'lie', 'other'] as const
+export type SaidKind = (typeof SAID_KINDS)[number]
+/** A strong statement a character made (#98). A lie is `hidden` until the user asks to see it. */
+export interface SaidNote {
+  id: string
+  text: string
+  kind: SaidKind
+  hidden: boolean
+  turn: number
+  /** where it was written: the chat, later maybe a messenger plugin */
+  source: string
+  edited?: boolean
+}
 export interface NameInfo { knowsUserName: boolean; calls: string }
 export type HistoryLine =
   | { turn: number; kind: 'tier'; stat: DispositionStat; from: number; to: number }
@@ -88,6 +101,9 @@ export interface DashChar {
   notebook: Note[]
   /** notes the user removed (restorable); absent on an older plugin, which also means notes cannot be edited */
   retired?: Note[]
+  /** what the character said and is held to (#98); absent on an older plugin */
+  said?: SaidNote[]
+  saidRemoved?: SaidNote[]
   name: NameInfo | null
   history: HistoryLine[]
   /** up to the last 10 snapshots that have this character, oldest first */

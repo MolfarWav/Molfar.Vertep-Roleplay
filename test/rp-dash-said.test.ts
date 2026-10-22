@@ -176,3 +176,41 @@ describe("what a character said (#98)", () => {
     expect(readStateFile("c2").said.Aria[0]).toMatchObject({ src: "inherit", fromChat: "c1" });
   });
 });
+
+describe("the user's edits of what was said (#98)", () => {
+  const notes = (m: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(m, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", ...body } });
+  it("edit, remove and bring back go through the notes route and reach the view and the prompt part", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], said: [said("Aria", "I will not run.", "vow"), said("Aria", "Touch it and I end you.", "threat")] })]);
+    update(mock, "c1");
+    const edit = notes(mock, { op: "edit", id: "s1", text: "I will never run." });
+    expect(edit.json.ok).toBe(true);
+    const chars = () => view(mock, "c1").view.chars.Aria;
+    expect(chars().said[0]).toMatchObject({ id: "s1", text: "I will never run.", edited: true });
+    expect(P.saidBlock(readStateFile("c1"), ["m3#0"], ["Aria"], 120, { edits: { s1: { text: "I will never run." } } })).toContain("I will never run.");
+    expect(notes(mock, { op: "retire", id: "s2" }).json.ok).toBe(true);
+    expect(chars().said.map((s: any) => s.id)).toEqual(["s1"]);
+    expect(chars().saidRemoved.map((s: any) => s.id)).toEqual(["s2"]);
+    expect(notes(mock, { op: "restore", id: "s2" }).json.ok).toBe(true);
+    expect(chars().said.map((s: any) => s.id)).toEqual(["s1", "s2"]);
+    expect(notes(mock, { op: "retire", id: "s99" }).status).toBe(404);
+  });
+});
+
+describe("the Prompt board switch for the said part (#98)", () => {
+  it("leaves the said part out of the request when the chat switched it off, and keeps the Dashboard's own part", () => {
+    writeChat("c1", three(), { promptBoard: { v: 1, off: ["plugin:said"] } });
+    const mock = mockHost([reply({ present: ["Aria"], said: [said("Aria", "I will not run.", "vow")] })]);
+    update(mock, "c1");
+    const request = { sessionId: "c1", messages: [{ role: "system", content: "sys" }, { role: "user", content: "hi" }] };
+    const turn = { op: "send", speakerName: "Aria" };
+    const off = P.llmRequest({ key: "reply", request, turn }, mock.host);
+    const textOff = JSON.stringify(off.messages);
+    expect(textOff).not.toContain("has said, and is held to");
+    expect(off.promptSources.parts.some((p: any) => p.label === "Dashboard · said")).toBe(false);
+    writeChat("c1", three(), { promptBoard: { v: 1, off: [] } });
+    const on = P.llmRequest({ key: "reply", request, turn }, mock.host);
+    expect(JSON.stringify(on.messages)).toContain("has said, and is held to");
+    expect(on.promptSources.parts.some((p: any) => p.label === "Dashboard · said")).toBe(true);
+  });
+});

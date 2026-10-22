@@ -234,9 +234,9 @@ describe("prompt board: keys, board list, history filter", () => {
     const book = board.find((x) => x.key === "book:b")!;
     expect(book).toEqual({ key: "book:b", label: "City", kind: "lorebook", state: "on" });
 
-    // last four fixed keys
-    const fixed = board.slice(-4).map((x) => x.key);
-    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations"]);
+    // last five fixed keys
+    const fixed = board.slice(-5).map((x) => x.key);
+    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said"]);
     const authorNote = board.find((x) => x.key === "authorNote")!;
     expect(authorNote.state).toBe("empty");
   });

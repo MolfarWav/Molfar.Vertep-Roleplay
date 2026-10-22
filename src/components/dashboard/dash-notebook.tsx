@@ -10,6 +10,7 @@ import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { Box, GOLD_TEXT, Label, useTx } from './dash-common'
 import { useNotesAct } from './dash-context'
+import { SaidBlock } from './dash-said'
 
 const FIELD = 'rounded-none'
 const NOTE_MAX = 300
@@ -210,6 +211,7 @@ export function Notebook({ name, char, userName, className, id, compact }: {
           </CollapsibleContent>
         </Collapsible>
       )}
+      <SaidBlock name={name} char={char} />
       {char.blindSpot && (
         <div className="mt-3 border-t border-border pt-2">
           <button
