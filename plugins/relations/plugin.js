@@ -538,8 +538,11 @@ const SENSOR_PROMPT_6 = [
 
 // What a character said and is held to (#98): its own list in the report, never the user's character.
 export const SAID_KINDS = ["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie"];
-const SAID_RULE =
+// the first wording, before it named what is NOT said and asked for a strength (#98, owner's check 2026-10-22: a self-introduction and an ordinary request were stored)
+const SAID_RULE_13 =
   "- said: the strong statements a present character made in these messages and should be held to, the strongest only: a vow or promise, a threat, a confession or a revealed secret, an order, a refusal that matters, a lie they told (who: the speaker, one of those present and never the user's character; text: a short quote or a close paraphrase in the character's own words; kind: one of vow, promise, threat, confession, secret, order, refusal, lie). Set lie to true only when the text itself shows the statement is a lie. Ordinary dialogue is not said; none when nothing strong was said.";
+const SAID_RULE =
+  "- said: only a statement that binds the speaker or changes the story, and rarely more than one a turn: a vow or promise, a threat, a confession of something hidden or a revealed secret, an order that binds someone, a refusal that closes a door, a lie they told. NOT said, never report: a greeting or an introduction (\"I am the keeper of this glade\"), an ordinary request or question, a warning with no threat behind it, a description of habits, feelings or things, small talk, a joke, anything the Notebook already holds. Fields: who: the speaker, one of those present and never the user's character; text: a short quote or a close paraphrase in the character's own words; kind: one of vow, promise, threat, confession, secret, order, refusal, lie; strength: 1 to 3 (3 = the story will hinge on it, 2 = it matters, 1 = minor; report only 2 or 3). Set lie to true only when the text itself shows the statement is a lie. None when nothing strong was said, which is most turns.";
 
 export const DEFAULT_PROMPTS = {
   sensor: [
@@ -616,6 +619,8 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
+const SENSOR_PROMPT_13 = DEFAULT_PROMPTS.sensor.replace(SAID_RULE, SAID_RULE_13);
 // The twelfth sensor prompt (before the `said` list of what a character said, #98).
 const SENSOR_PROMPT_12 = DEFAULT_PROMPTS.sensor.replace(SAID_RULE + "\n", "");
 // The eleventh sensor prompt (before it said that `who` of a learned fact is a present character and never the user's, and that present never lists the user, #97).
@@ -673,7 +678,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -684,7 +689,7 @@ const OUTPUT_SHAPE = [
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
   "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": \"text\", \"holding\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\" } },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
-  "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"lie\": false } ],",
+  "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
   "  \"retire\": [\"entry id\"],",
   "  \"names\": [ { \"who\": \"name\", \"heardUserName\": true, \"calls\": \"text\" } ],",
@@ -1965,7 +1970,7 @@ const DEFAULT_CONFIG = {
   families: { trust: true, warmth: true, power: true, body: true, conflict: true, care: true, knowledge: true },
   injection: { enabled: true, maxTokens: 300 },
   // what characters said (#98): how many strong statements a turn may add, and whether they go into the reply prompt
-  said: { perTurn: 2, inject: true },
+  said: { perTurn: 1, inject: true },
   catchUp: true,
   // rate a card's main characters by itself when it has no soul yet
   autoSoul: true,
@@ -2649,6 +2654,8 @@ function applyNotebook(ctx, out, present, turn, K) {
   for (const notes of Object.values(raw)) for (const n of notes) if (retiring(n)) n.retiredBy = K;
 }
 
+const SAID_COOLDOWN = 3;
+const SAID_CAP = 8;
 /** What a present character said and is held to (#98): the strongest few of a turn; the user's own words are never kept. */
 function applySaid(ctx, out, present, turn, K) {
   const { state } = ctx;
@@ -2656,10 +2663,18 @@ function applySaid(ctx, out, present, turn, K) {
   const limit = saidPerTurnOf(ctx.cfg);
   const fresh = {};
   const kept = ctx.keptOut || { user: 0, absent: 0 };
+  const notes = activeBySrc(state.notebook, ctx.line.map((l) => l.key));
   let used = 0;
-  for (const s of arr(out.said)) {
+  // the strongest first, so the turn's room goes to what matters
+  const reported = arr(out.said)
+    .filter(isObj)
+    .map((s, i) => ({ s, i, strength: Number(s.strength) }))
+    .sort((a, b) => (Number.isFinite(b.strength) ? b.strength : 2) - (Number.isFinite(a.strength) ? a.strength : 2) || a.i - b.i)
+    .map((x) => x.s);
+  for (const s of reported) {
     if (used >= limit) break;
-    if (!isObj(s)) continue;
+    // a weak one (strength 1) is not kept; one without a strength counts as 2 (an older reply)
+    if (Number.isFinite(Number(s.strength)) && Number(s.strength) < 2) continue;
     const text = cut(str(s.text), 300);
     if (!text) continue;
     if (sideOf(s.who, userAll(ctx), present) === "user") {
@@ -2671,10 +2686,15 @@ function applySaid(ctx, out, present, turn, K) {
       kept.absent++;
       continue;
     }
-    if (duplicateNote(text, live[who]) || duplicateNote(text, fresh[who])) continue;
+    if (duplicateNote(text, live[who]) || duplicateNote(text, fresh[who]) || duplicateNote(text, notes[who])) continue;
     const said = str(s.kind).toLowerCase();
     const lie = s.lie === true || said === "lie";
     const kind = lie ? "lie" : SAID_KINDS.includes(said) ? said : "other";
+    // a cooldown and a cap per character: the same kind from the same speaker within three turns is the same moment,
+    // and a character holds about eight live entries (a strength-3 one may go to twelve)
+    const mine = arr(live[who]);
+    if (mine.some((e) => e.kind === kind && turn - (Number(e.turn) || 0) <= SAID_COOLDOWN && Number(s.strength) < 3)) continue;
+    if (mine.length >= (Number(s.strength) >= 3 ? SAID_CAP + 4 : SAID_CAP)) continue;
     state.counters.said += 1;
     // a lie is stored hidden: the user sees it only after asking to reveal, the character still holds to it
     listIn(state.said, who).push({ id: "s" + state.counters.said, text, kind, ...(lie ? { hidden: true } : {}), turn, src: K, source: "chat" });

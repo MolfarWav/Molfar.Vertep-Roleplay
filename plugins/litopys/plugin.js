@@ -202,6 +202,10 @@ export const WORKER_SHAPE =
   '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
 
 /** Added to the chapter prompt while skills are on (#106), so a customised chapter prompt keeps working. */
+// What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
+export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
+export const CONTINUES =
+  "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 export const SKILLS_RULE = [
   "Skills (optional, usually none):",
   "- A skill is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
@@ -995,9 +999,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the
   // chapters picked by relevance change every reply, so they ride after the newest turn.
-  const headHeader = "[Story record (Litopys): what happened just before the messages below. Background for the next reply: do not retell it, do not contradict it.]";
-  const tailHeader =
-    "[Story record (Litopys): earlier chapters and what stays true. Background for the next reply: do not retell it, do not contradict it.]";
+  const headHeader = "[Story record (Litopys): what happened just before the messages below. " + REMEMBERS + "]";
+  const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + REMEMBERS + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const facts = [];
@@ -3315,8 +3318,8 @@ function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle }) {
 
   const title = str(prc.meta && prc.meta.title) || from;
   const header = nearerTitle
-    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". Background for the next reply: do not retell it, do not contradict it.]"
-    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". Background for the next reply: do not retell it, do not contradict it.]";
+    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + CONTINUES + "]"
+    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + CONTINUES + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const facts = [];
   const story = [];
@@ -4417,7 +4420,7 @@ export function cardMemoryText(mem, card, opts) {
     return true;
   };
   const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
-  const head = "[What " + name + " remembers from earlier stories (character memory):";
+  const head = "[What " + name + " remembers from earlier stories (character memory): " + name + " lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
   const out = [];
   const used = [];
   let spent = estimateTokens(head + "]");

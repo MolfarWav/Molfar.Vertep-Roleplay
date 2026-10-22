@@ -325,3 +325,20 @@ describe("what a chat carries: the World DM", () => {
     expect(route(host, "GET", "/litopys/carries", undefined, { chatId: "dm" }).json.world).toMatchObject({ level: "chronicler", waiting: false });
   });
 });
+
+describe("the memory parts say what they are for (#110)", () => {
+  it("the backstory says the chat continues the story and the characters remember it; the card memory says the character lived it", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
+    writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
+    // the card memory alone
+    expect(textOf(L.llmRequest(ctx("next"), host))).toContain("Aria lived through these; recognise them when reminded or asked");
+    // a chat that continues the story gets the explicit instruction in the backstory header
+    writeChat("cont", story(2, "y"), { title: "Cont", characterId: "aria" });
+    route(host, "POST", "/litopys/links", { chatId: "cont", from: "winter" });
+    const text = textOf(L.llmRequest(ctx("cont"), host));
+    expect(text).toContain("This chat CONTINUES that story. The characters remember it");
+    expect(text).toContain("The opening messages of this chat may read like a first meeting");
+  });
+});

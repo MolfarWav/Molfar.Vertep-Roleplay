@@ -175,10 +175,10 @@ describe("backstory along a chain (0.9.5)", () => {
 
   it("keeps to the one budget, the nearest chat first in line for it", () => {
     chain();
-    writeJson("litopys/config.json", { linkBudget: 120 });
+    writeJson("litopys/config.json", { linkBudget: 220 });
     const res = L.llmRequest(ctx("new"), mockHost().host);
     const text = res.messages[1].content as string;
-    expect(L.estimateTokens(text)).toBeLessThanOrEqual(122);
+    expect(L.estimateTokens(text)).toBeLessThanOrEqual(222);
     expect(text).toContain("Aria left the valley.");
   });
 

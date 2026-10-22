@@ -90,6 +90,7 @@ const said = (who: string, text: string, kind = "promise", extra: Record<string,
 
 describe("what a character said (#98)", () => {
   it("is its own list: kept for a present character, at most the setting per turn, near copies once", () => {
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, said: { perTurn: 2 } }));
     writeChat("c1", three());
     const mock = mockHost([
       reply({
@@ -153,9 +154,13 @@ describe("what a character said (#98)", () => {
   it("the sensor prompt asks for it, the shape names it, and the old default is a past default", () => {
     expect(P.DEFAULT_PROMPTS.sensor).toContain("- said:");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.at(-1)).not.toContain("- said:");
-    expect(past.at(-1)).toContain("who: the character who learned it");
-    expect(P.DEFAULT_PROMPTS.sensor.replace(/- said:.*\n/, "")).toBe(past.at(-1));
+    expect(past.at(-2)).not.toContain("- said:");
+    expect(past.at(-2)).toContain("who: the character who learned it");
+    expect(P.DEFAULT_PROMPTS.sensor.replace(/- said:.*\n/, "")).toBe(past.at(-2));
+    // the first wording of the rule is a past default too: it did not name what is not said
+    expect(past.at(-1)).toContain("- said: the strong statements");
+    expect(P.DEFAULT_PROMPTS.sensor).toContain("NOT said, never report");
+    expect(P.DEFAULT_PROMPTS.sensor).toContain("strength: 1 to 3");
     writeChat("c1", three());
     const mock = mockHost([reply({ present: ["Aria"] })]);
     update(mock, "c1");
@@ -180,6 +185,7 @@ describe("what a character said (#98)", () => {
 describe("the user's edits of what was said (#98)", () => {
   const notes = (m: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(m, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", ...body } });
   it("edit, remove and bring back go through the notes route and reach the view and the prompt part", () => {
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, said: { perTurn: 2 } }));
     writeChat("c1", three());
     const mock = mockHost([reply({ present: ["Aria"], said: [said("Aria", "I will not run.", "vow"), said("Aria", "Touch it and I end you.", "threat")] })]);
     update(mock, "c1");
@@ -212,5 +218,47 @@ describe("the Prompt board switch for the said part (#98)", () => {
     const on = P.llmRequest({ key: "reply", request, turn }, mock.host);
     expect(JSON.stringify(on.messages)).toContain("has said, and is held to");
     expect(on.promptSources.parts.some((p: any) => p.label === "Dashboard · said")).toBe(true);
+  });
+});
+
+describe("said stays rare (#98, owner's check 2026-10-22)", () => {
+  it("one a turn by default; the strongest wins; a weak one is never kept; no strength counts as kept", () => {
+    writeChat("c1", three());
+    const mock = mockHost([
+      reply({
+        present: ["Aria"],
+        said: [said("Aria", "I am Aria, keeper of this glade.", "confession", { strength: 1 }), said("Aria", "I will not run from this gate.", "vow", { strength: 2 }), said("Aria", "Touch the gate and I will end you.", "threat", { strength: 3 })],
+      }),
+    ]);
+    update(mock, "c1");
+    expect(readStateFile("c1").said.Aria.map((s: any) => s.text)).toEqual(["Touch the gate and I will end you."]);
+    writeChat("c2", three());
+    const older = mockHost([reply({ present: ["Aria"], said: [said("Aria", "I will not run from this gate.", "vow")] })]);
+    update(older, "c2");
+    expect(readStateFile("c2").said.Aria).toHaveLength(1);
+  });
+
+  it("a line the notebook already holds is not said again", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], learned: [{ who: "Aria", text: "Aria keeps a brass key on a cord around her neck.", how: "saw" }], said: [said("Aria", "Aria keeps a brass key on a cord around her neck.", "secret", { strength: 3 })] })]);
+    update(mock, "c1");
+    expect(readStateFile("c1").said).toEqual({});
+  });
+
+  it("the same kind from the same speaker within three turns is one moment; a character holds about eight", () => {
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, said: { perTurn: 4 } }));
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria"], said: [said("Aria", "I promise to guard the gate tonight.", "promise", { strength: 2 }), said("Aria", "I promise to bring the key back by dawn.", "promise", { strength: 2 }), said("Aria", "Another vow entirely about the river.", "vow", { strength: 2 })] })]);
+    update(mock, "c1");
+    // two promises in one report: the cooldown only looks at earlier turns, so both are the same turn; the cap and the
+    // cooldown are checked against what was stored before this report
+    expect(readStateFile("c1").said.Aria.length).toBeGreaterThanOrEqual(2);
+    const seeded = readStateFile("c1");
+    seeded.said.Aria = Array.from({ length: 8 }, (_, i) => ({ id: "s" + (i + 20), text: "Old oath number " + i + " about " + "abcdefgh"[i].repeat(5), kind: ["vow", "threat", "order", "refusal", "secret", "confession", "lie", "other"][i], turn: 0, src: seeded.said.Aria[0].src, source: "chat" }));
+    fs.writeFileSync(path.join(root, "dashboard/state/c1.json"), JSON.stringify(seeded));
+    writeChat("c1", [...three(), U("m4", "And then?"), A("m5", "Fine.")]);
+    const again = mockHost([reply({ present: ["Aria"], said: [said("Aria", "Brand new threat about the harbour.", "threat", { strength: 2 })] })]);
+    update(again, "c1");
+    expect(readStateFile("c1").said.Aria).toHaveLength(8);
   });
 });

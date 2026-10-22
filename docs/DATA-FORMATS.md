@@ -443,7 +443,7 @@ character saw, heard or guessed), `names` and `history`:
   `other`; a `lie` is stored `hidden: true` (the user sees it only after revealing). `src` is the message key that wrote
   it (the entry counts only while that message is on the chat's line), `source` is `chat` today and may be another kind
   of writer later. Its own part in the reply prompt (`Dashboard · said`), not the notebook's budget. The sensor
-  reports it in the `said` list; `said.perTurn` (1-4, default 2) and `said.inject` are in `data/dashboard/config.json`.
+  reports it in the `said` list; `said.perTurn` (1-4, default 1; the sensor also gives each a `strength` 1-3 and only 2 or 3 is kept, one kind per speaker within 3 turns counts once, a speaker holds about 8 live entries, a line the Notebook holds is skipped) and `said.inject` are in `data/dashboard/config.json`.
 - `inherited` (#100): present when the chat continues another one (the link in `data/litopys/links.json`):
   `{ from, title, at, turn, notes, threads, snap }` with `snap` = the earlier chat's last snapshot (numbers, moods,
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
