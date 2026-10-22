@@ -210,6 +210,12 @@ export function profileName(p: Profile, index = 0): string {
   return name || list(id.nicknames).map((x) => x.trim()).find(Boolean) || `Character ${index + 1}`
 }
 
+/** The name written in the Identity fields (first and family name); "" while there is none. `profileName` falls back to "Character n". */
+export function personName(p: Profile): string {
+  const id = isObj(p.identity) ? p.identity : {}
+  return [filled(id.first), filled(id.family)].filter(Boolean).join(' ')
+}
+
 /** The card's other characters, as saved (see `Profile.cast`). */
 export function castOf(p: Profile): Profile[] {
   return Array.isArray(p.cast) ? p.cast.filter(isObj) : []
@@ -604,6 +610,10 @@ export interface ProfileDraft {
   model?: string
   note?: string
   profile: Profile
+  /** Structure it on a narrator card: the card's other characters, one profile each (`Profile.cast`) */
+  cast?: Profile[]
+  /** a fill for one of the card's other characters: its place in the cast, 1 = the first */
+  member?: number
   leftover?: { description?: string; personality?: string }
 }
 
@@ -622,6 +632,8 @@ export function acceptDraft(c: Pick<Character, 'cardExtras' | 'versions'> & Reco
   const comment = prev.identity?.comment
   if (comment) next.identity = { ...next.identity, comment }
   next.notes = { description: draft.leftover?.description ?? '', personality: draft.leftover?.personality ?? '' }
+  // a narrator card: the other characters come with it (the old cast was blank, or Structure it was not offered)
+  if (draft.cast?.length) next.cast = normalizeProfile({ cast: draft.cast }).cast
   return { ...applyProfile(c, next, now), versions: [versionOf(c, 'Before Structure it', now), ...c.versions] }
 }
 
@@ -700,7 +712,18 @@ const versionOf = (c: Record<VersionField, string>, label: string, now: number) 
 export function acceptFill(c: Pick<Character, 'cardExtras' | 'versions' | 'description' | 'personality'> & Record<VersionField, string>, draft: ProfileDraft, now = Date.now()): Partial<Character> {
   const prev = profileOf(c) ?? startProfile(c)
   const label = draft.replace ? 'Before Read from picture' : 'Before Fill empty'
-  return { ...applyProfile(c, mergeFill(prev, draft.profile, draft.replace === true), now), versions: [versionOf(c, label, now), ...c.versions] }
+  const at = typeof draft.member === 'number' && draft.member >= 1 ? draft.member - 1 : -1
+  const cast = castOf(prev)
+  // a fill for another character of the card goes to that one; one whose place is gone is dropped, not put on the first
+  const next = at < 0 ? mergeFill(prev, draft.profile, draft.replace === true) : at < cast.length ? { ...prev, cast: cast.map((m, i) => (i === at ? mergeFill(m, draft.profile) : m)) } : prev
+  return { ...applyProfile(c, next, now), versions: [versionOf(c, label, now), ...c.versions] }
+}
+
+/** A profile with nothing in it: no field, no relationship, no note (a character just added, still unnamed). */
+export function isBlankProfile(p: Profile): boolean {
+  const empty = (v: unknown): boolean =>
+    Array.isArray(v) ? v.every(empty) : isObj(v) ? Object.entries(v).every(([k, x]) => k === 'v' || k === 'enabled' || empty(x)) : typeof v === 'string' ? !v.trim() : v == null || v === false
+  return empty(p)
 }
 
 /** The fields a version snapshot holds (as the editor's "Save current as version"). */

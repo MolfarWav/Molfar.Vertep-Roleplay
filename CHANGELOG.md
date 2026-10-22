@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Narrator cards with several characters (engine GitHub #115): Structure it now reads a card that describes several named characters (a narrator card: one `[Name ...]` block each) and files the first as the profile and the others as the cast, instead of one character only; the draft says how many it found and Accept writes one part per character. A long card read in parts matches the characters of each part by name (a part that names nobody continues the last one; the next part's lead lists the names found so far). Structure it stays available while the other characters are blank (a character just added by hand no longer switches it off); with filled characters it would replace them, so it stays off. A persona is one character and gets no cast.
+- Fill empty works on every character of a card, not only the first (#115): the character is found in the text by the name in its Identity (type the first name first; without one the tab says so), from the parts of a long card that mention that name; the portrait is not theirs, so only the text is read and the portrait picker is hidden. Read from picture stays on the first character.
+- The card task panel says what to do when the model's window is not known (the card is read in parts of about 6k tokens): raise "Card text per call" if the model takes more.
+
 ## 4.61.0
 
 The memory bridge: a continued chat carries its Dashboard, a card has a long memory and skills (written, proposed and earned in play), a stricter list of what was said, a strip of what a chat carries, and memory parts that say what they are for (#98, #100, #102, #106, #107, #110). Needs no engine update.

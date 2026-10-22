@@ -11,7 +11,8 @@
  *
  * Routes (relative to /v1/apps/roleplay); a target is {characterId} or {personaId}:
  *   POST   /profile/structure {target}                         split the text, file the draft
- *   POST   /profile/fill {target, fields, image?, model?, replace?}  fill empty fields, file the draft
+ *   POST   /profile/fill {target, fields, image?, model?, replace?, member?}  fill empty fields, file the draft
+ *          (member: {index, name}: fill the card's index-th other character (1 = the first in `cast`), found in the text by name)
  *          (replace: "Read from picture" describes the listed fields anew, filled or not)
  *   GET    /profile/draft?characterId= | ?personaId= | ?groupId=  the draft, or null
  *   DELETE /profile/draft?characterId= | ?personaId= | ?groupId=  discard it
@@ -74,6 +75,7 @@ const SUMMARY_MAX = 3000;
 const LIST_MAX = 12;
 const ITEM_MAX = 120;
 const LEFTOVER_MAX = 12000;
+const CAST_MAX = 12;
 
 function cleanList(v) {
   const out = [];
@@ -130,6 +132,8 @@ export const SYSTEM = [
   "You split a roleplay character card into structured fields.",
   "Copy the card's own words; shorten only where a field needs a short value. Never invent anything the card does not say.",
   "Put each fact in ONE field only: never repeat it in another field or in the backstory.",
+  "A narrator card may describe several named characters, each with a part of the text of their own. Then `profile` is the character described first and `cast` lists every other one, one profile each, with identity.first (and family) filled. Never merge two characters into one profile, and never copy one character's facts into another's. A card about one character has no `cast`.",
+  "Facts about the world, the setting or the group that belong to no single character go to the leftover.",
   "Write every value in the card's language. Keep {{char}} and {{user}} as they are.",
   "A birthday is not an age: put a date in birthday.",
   "Fields:",
@@ -137,7 +141,7 @@ export const SYSTEM = [
   "relationships: a list of { name, relation, notes } for named people.",
   "Fill sexuality and trauma only when the card states them.",
   "leftover: the text of the description and of the personality that fits no field (world facts, rules for the narrator, formatting notes), copied as it is.",
-  "Reply with JSON only: {\"profile\": {<sections>}, \"leftover\": {\"description\": \"\", \"personality\": \"\"}, \"note\": \"one line on what did not fit\"}",
+  "Reply with JSON only: {\"profile\": {<sections>}, \"cast\": [{<sections>}], \"leftover\": {\"description\": \"\", \"personality\": \"\"}, \"note\": \"one line on what did not fit\"} (leave `cast` out for a card about one character)",
   "Leave out any field the card does not fill.",
 ].join("\n");
 
@@ -289,12 +293,51 @@ export function cardParts(card, max) {
   return groups.map((g, i) => [name, ...g, ...(i === 0 ? context : [])].join("\n\n"));
 }
 
-/** Two parts' proposals as one: a text field keeps both when they differ, a list is the union, the leftover adds up. */
-export function mergeProposals(a, b) {
+/** For a character picked by name: the parts of the card that mention them (as many as fit `max`), else the first part. */
+export function partsAbout(card, max, name) {
+  const parts = cardParts(card, max);
+  const words = str(name).toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
+  if (parts.length < 2 || !words.length) return parts[0];
+  const hit = parts.filter((p) => {
+    const t = p.toLowerCase();
+    return words.some((w) => t.includes(w));
+  });
+  if (!hit.length) return parts[0];
+  const out = [];
+  let len = 0;
+  for (const p of hit) {
+    if (out.length && len + p.length > max) break;
+    out.push(p);
+    len += p.length + 2;
+  }
+  return out.join("\n\n");
+}
+
+/** The words a profile's name is made of (first and family name, lower case). */
+const nameWords = (p) => {
+  const id = isObj(p) && isObj(p.identity) ? p.identity : {};
+  return [str(id.first), str(id.family)].join(" ").toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
+};
+/** Two profiles name the same person: they share a word of their names. */
+const sameWho = (x, y) => {
+  const b = nameWords(y);
+  return nameWords(x).some((w) => b.includes(w));
+};
+const fullName = (p) => {
+  const id = isObj(p) && isObj(p.identity) ? p.identity : {};
+  return [str(id.first), str(id.family)].filter(Boolean).join(" ");
+};
+/** Every character a draft holds: the profile itself, then the cast. */
+const peopleOf = (d) => [isObj(d && d.profile) ? d.profile : {}, ...(Array.isArray(d && d.cast) ? d.cast.filter(isObj) : [])];
+/** The names a partial draft has so far, for the next part's lead. */
+export const namesIn = (d) => peopleOf(d).map(fullName).filter(Boolean);
+
+/** Two proposals for ONE character as one: a text field keeps both when they differ, a list is the union. */
+function mergeProfile(pa, pb) {
   const profile = {};
-  for (const sec of new Set([...Object.keys(a.profile || {}), ...Object.keys(b.profile || {})])) {
-    const x = a.profile && a.profile[sec];
-    const y = b.profile && b.profile[sec];
+  for (const sec of new Set([...Object.keys(pa || {}), ...Object.keys(pb || {})])) {
+    const x = pa && pa[sec];
+    const y = pb && pb[sec];
     if (Array.isArray(x) || Array.isArray(y)) {
       const seen = new Set();
       profile[sec] = [...(Array.isArray(x) ? x : []), ...(Array.isArray(y) ? y : [])].filter((r) => {
@@ -318,11 +361,26 @@ export function mergeProposals(a, b) {
     }
     profile[sec] = bag;
   }
+  return profile;
+}
+
+/** Two parts' proposals as one. Each part's characters are matched to the earlier ones by name (a part that names
+ *  nobody continues the last character); a new name joins the cast. Per character: see `mergeProfile`. The leftover adds up. */
+export function mergeProposals(a, b) {
+  const people = peopleOf(a);
+  for (const p of peopleOf(b)) {
+    let at = people.findIndex((m) => sameWho(m, p));
+    if (at < 0 && !nameWords(p).length) at = people.length - 1;
+    if (at < 0) {
+      if (people.length < CAST_MAX + 1) people.push(p);
+    } else people[at] = mergeProfile(people[at], p);
+  }
   const lo = (d, k) => str(d.leftover && d.leftover[k]);
   const leftover = {};
   for (const k of ["description", "personality"]) leftover[k] = cut([lo(a, k), lo(b, k)].filter(Boolean).join("\n\n"), LEFTOVER_MAX);
   const note = [str(a.note), str(b.note)].filter(Boolean).join(" ");
-  return { ...a, profile, leftover, ...(note ? { note: cut(note, 300) } : {}), ...(str(b.model) ? { model: str(b.model) } : {}) };
+  const { cast: _cast, ...rest } = a;
+  return { ...rest, profile: people[0], ...(people.length > 1 ? { cast: people.slice(1) } : {}), leftover, ...(note ? { note: cut(note, 300) } : {}), ...(str(b.model) ? { model: str(b.model) } : {}) };
 }
 
 /** The working text from the editor, laid over the stored card (characters only). */
@@ -387,11 +445,14 @@ export function draftFromReply(reply, now) {
         : "the model did not answer in the expected format (JSON). Try again, or pick another model",
     };
   }
-  const profile = cleanProfile(out.profile);
+  let profile = cleanProfile(out.profile);
+  // the other characters of a narrator card; one that filled nothing is not a character
+  const cast = (Array.isArray(out.cast) ? out.cast : []).slice(0, CAST_MAX).map(cleanProfile).filter((m) => Object.keys(m).length);
+  if (!Object.keys(profile).length && cast.length) profile = cast.shift();
   const lo = isObj(out.leftover) ? out.leftover : {};
   const leftover = { description: cut(str(lo.description), LEFTOVER_MAX), personality: cut(str(lo.personality), LEFTOVER_MAX) };
   if (!Object.keys(profile).length) return { v: 1, at, error: "the reply filled no field" };
-  return { v: 1, at, ...(str(r.model) ? { model: str(r.model) } : {}), ...(str(out.note) ? { note: cut(str(out.note), 300) } : {}), profile, leftover };
+  return { v: 1, at, ...(str(r.model) ? { model: str(r.model) } : {}), ...(str(out.note) ? { note: cut(str(out.note), 300) } : {}), profile, ...(cast.length ? { cast } : {}), leftover };
 }
 
 function loadTarget(req, fsx) {
@@ -416,10 +477,18 @@ function structureRoute(req, host) {
   if (!r) {
     if (!str(src.description) && !str(src.personality)) return ok({ error: t.kind === "persona" ? "the persona has no description" : "the card has no description or personality" }, 400);
     const model = modelOf(fsx, t.kind === "character" ? t.id : "", b.taskModel);
-    const lead = parts.length > 1 ? "Part " + (part + 1) + " of " + parts.length + " of this card; it is read in parts because it is long. Fill only the fields this part supports and leave the others out. Text that fits no field goes to the leftover.\n\n" : "";
+    // later parts learn the names found so far, so a character that goes on keeps its name and a new one joins the cast
+    const before = part > 0 ? readJson(fsx, draftPath(t), null) : null;
+    const known = isObj(before) && before.partial === true && before.part === part - 1 ? namesIn(before) : [];
+    const lead = parts.length > 1
+      ? "Part " + (part + 1) + " of " + parts.length + " of this card; it is read in parts because it is long. Fill only the fields this part supports and leave the others out. Text that fits no field goes to the leftover."
+        + (known.length ? " Characters found in the earlier parts: " + known.join(", ") + ". When this part goes on about one of them, give that character the same name; a character not in the list goes to `cast`." : "")
+        + "\n\n"
+      : "";
     host.llm.request("structure", {
       ...(model ? { model } : {}),
-      systemPrompt: SYSTEM,
+      // a persona is one character: it gets no cast
+      systemPrompt: t.kind === "persona" ? SYSTEM + "\nThis text is about one character: leave `cast` out." : SYSTEM,
       messages: [{ role: "user", content: lead + parts[part] }],
       presetParams: { temperature: 0.2, max_tokens: limits.outputTokens },
     });
@@ -431,6 +500,7 @@ function structureRoute(req, host) {
     return ok(parts.length > 1 ? { ok: false, error: "part " + (part + 1) + " of " + parts.length + ": " + draft.error, part, parts: parts.length } : { ok: false, error: draft.error });
   }
   draft.kind = "structure";
+  if (t.kind === "persona") delete draft.cast;
   let filed = draft;
   if (part > 0) {
     const before = readJson(fsx, draftPath(t), null);
@@ -447,6 +517,17 @@ function structureRoute(req, host) {
   return ok({ ok: true, draft: filed, part, parts: parts.length, done });
 }
 
+/** The card's other character a fill is for: {index (1 = the first in `cast`), name}; null for the card's own character. */
+function memberOf(v, t) {
+  if (t.kind !== "character" || !isObj(v)) return null;
+  const index = Number(v.index);
+  const name = cut(str(v.name).replace(/[\u0000-\u001f]/g, " "), 120);
+  return Number.isInteger(index) && index >= 1 && index <= CAST_MAX && name ? { index, name } : null;
+}
+const memberLead = (name) =>
+  "\n\nThe card describes several characters. Fill the fields for " + name + " only, from the part of the text that is about " + name +
+  ". Never take another character's facts. Where the text is silent about " + name + ", stay consistent with what is said about the others and invent only what fits.";
+
 function fillRoute(req, host) {
   const fsx = host.fs;
   const { t, src, fail } = loadTarget(req, fsx);
@@ -456,8 +537,10 @@ function fillRoute(req, host) {
   if (!fields) return ok({ error: "no empty field to fill" }, 400);
   const r = host.llm.results.fill;
   if (!r) {
-    const img = isObj(b.image) ? { data: String(b.image.data || ""), mimeType: String(b.image.mimeType || "") } : null;
+    // the portrait is the card's own character's: another character of the card is read from the text only
+    const img = isObj(b.image) && !memberOf(b.member, t) ? { data: String(b.image.data || ""), mimeType: String(b.image.mimeType || "") } : null;
     // a picture with no model named goes to the engine's Vision model (Settings), not the chat model
+    const member = memberOf(b.member, t);
     const model = MODEL_REF.test(str(b.model)) ? str(b.model) : img ? "" : modelOf(fsx, t.kind === "character" ? t.id : "", b.taskModel);
     const limits = limitsOf(b, 8000);
     const ask = Object.entries(fields).map(([s, keys]) => s + ": " + keys.join(", ")).join("\n");
@@ -467,18 +550,20 @@ function fillRoute(req, host) {
     host.llm.request("fill", {
       ...(model ? { model } : {}),
       systemPrompt: FILL_SYSTEM,
-      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : cardParts(src, limits.inputChars)[0]) + head + ask }],
+      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : member ? partsAbout(src, limits.inputChars, member.name) : cardParts(src, limits.inputChars)[0]) + (member ? memberLead(member.name) : "") + head + ask }],
       ...(img ? { images: [img] } : {}),
       presetParams: { temperature: 0.7, max_tokens: limits.outputTokens },
     });
-    return { __llmPending: true, stash: { replace: b.replace === true && !!img } };
+    return { __llmPending: true, stash: { replace: b.replace === true && !!img, ...(member ? { member: member.index } : {}) } };
   }
   const draft = draftFromReply(r);
   if (draft.error) return ok({ ok: false, error: draft.error });
   const profile = onlyFields(draft.profile, fields);
   if (!Object.keys(profile).length) return ok({ ok: false, error: "the reply filled none of the empty fields" });
-  const filed = { ...draft, kind: "fill", ...(isObj(req.stash) && req.stash.replace ? { replace: true } : {}), profile, leftover: undefined };
+  const stash = isObj(req.stash) ? req.stash : {};
+  const filed = { ...draft, kind: "fill", ...(stash.replace ? { replace: true } : {}), ...(Number.isInteger(stash.member) ? { member: stash.member } : {}), profile, leftover: undefined };
   delete filed.leftover;
+  delete filed.cast;
   fsx.write(draftPath(t), JSON.stringify(filed, null, 2));
   return ok({ ok: true, draft: filed });
 }
