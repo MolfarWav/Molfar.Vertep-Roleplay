@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { canEditNotes, noteCounts, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
+import { CarriedBanner } from './dash-carried'
 import { AgeText, AvatarButton, FooterLine, Label, LiveDot, NameChip, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 
@@ -87,6 +88,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex w-[271px] flex-col">
+          {view.inherit && <CarriedBanner chatId={chatId} inherit={view.inherit} className="m-3" />}
           {(view.clock || present.length > 0) && (
             <div className={cn(section, 'flex flex-col gap-2.5')}>
               <SceneBlock clock={view.clock} />

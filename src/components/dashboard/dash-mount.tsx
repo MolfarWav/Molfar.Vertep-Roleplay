@@ -14,6 +14,7 @@ import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portrait
 import { reportDashFailure, useApp } from '@/lib/store'
 import { PortraitDialog } from '@/components/library/portrait-dialog'
 import { DashCtx, useDashMaybe } from './dash-context'
+import { CarriedBack, CarriedBanner } from './dash-carried'
 import { DashEmpty } from './dash-empty'
 import { DashPhoneBar, DashPhoneSheet } from './dash-phone'
 import { DashSettings } from './dash-settings'
@@ -179,6 +180,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
+          <CarriedBanner chatId={chatId} inherit={dash.data?.inherit} className="m-3" />
           <DashEmpty
             hasMessages={(dash.data?.messages ?? 0) > 0}
             onBuild={() => { void dash.refresh() }}
@@ -282,6 +284,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
     return (
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-sm lg:hidden">
         <span className="min-w-0 flex-1 truncate text-muted-foreground">{t('dash.empty.title')}</span>
+        {dash.data?.inherit?.off && dash.data.inherit.canSwitch && <CarriedBack chatId={chatId} />}
         {hasMessages && (
           <Button size="sm" variant="outline" className="h-10 rounded-none" disabled={dash.refreshing} onClick={() => { void dash.refresh() }}>
             {dash.refreshing ? t('dash.refreshing') : t('dash.empty.build')}
@@ -335,6 +338,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
               </SheetHeader>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <DashPhoneSheet
+                  chatId={chatId}
                   view={view}
                   focus={dash.focus}
                   onFocus={dash.setFocus}

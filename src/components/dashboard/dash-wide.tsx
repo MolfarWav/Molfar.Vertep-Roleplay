@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { BANDS, canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
+import { CarriedBanner } from './dash-carried'
 import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 import { useGuidePlace } from '@/components/guide/place'
@@ -87,6 +88,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
       </div>
 
       <div className="flex flex-col gap-3 p-4">
+        <CarriedBanner chatId={chatId} inherit={view.inherit} />
         {view.clock && (
           <Box>
             <div className="flex flex-wrap items-start gap-x-8 gap-y-3">

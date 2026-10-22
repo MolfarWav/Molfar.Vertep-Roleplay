@@ -46,6 +46,12 @@ export function onDashReload(chatId: string, fn: () => Promise<void>): () => voi
   return () => { if (reloaders.get(chatId) === fn) reloaders.delete(chatId) }
 }
 
+/** Read the open chat's state again now (after a change made outside the update loop). */
+export async function reloadDash(chatId: string): Promise<void> {
+  const fn = reloaders.get(chatId)
+  if (fn) await fn()
+}
+
 /** 'wait' = in the delay (more calls fold into it), 'run' = request in flight. */
 const phase = new Map<string, 'wait' | 'run'>()
 /** a call arrived while a request ran: one more update when it ends */

@@ -1494,7 +1494,7 @@ function applyInherit(state, seed) {
 /** Switch the carried state off: the chat starts clean. The choice stays, so it is not offered again. */
 function dropInherit(state) {
   const was = isObj(state.inherited) ? state.inherited : {};
-  state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", at: Date.now() };
+  state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", notes: was.notes || 0, threads: was.threads || 0, at: Date.now() };
   for (const bag of ["notebook", "names"]) {
     for (const name of Object.keys(state[bag])) {
       state[bag][name] = arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY);
@@ -4215,11 +4215,16 @@ function inheritInfo(fsx, chatId, state) {
     from,
     title: was ? was.title || "" : str((readChat(fsx, from) || { meta: {} }).meta.title),
     on: !!activeInherit(state),
+    // the user chose to start clean (an earlier chat with no Dashboard state to carry is neither on nor off)
+    off: !!was && was.off === true,
     notes: was ? Number(was.notes) || 0 : 0,
     threads: was ? Number(was.threads) || 0 : 0,
     canSwitch: !own,
   };
 }
+
+/** The view carries the same note, so every layout of the Dashboard can show it without another prop. */
+const withInherit = (view, info) => (view && info ? { ...view, inherit: info } : view);
 
 /** POST /dashboard/inherit { chatId, on }: carry the earlier chat's state in, or start clean. Only before the chat has its own snapshot. */
 function inheritRoute(req, fsx) {
@@ -4258,7 +4263,7 @@ function readState(req, fsx) {
       exists: existed,
       chat: !!chat,
       messages: keys.length,
-      view: existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null,
+      view: existed ? withInherit(stateView(fsx, chatId, state, keys, loadConfig(fsx)), inheritInfo(fsx, chatId, state)) : null,
       inherit: inheritInfo(fsx, chatId, state),
       lastError: existed ? state.lastError : null,
       // a chat with no state yet can still have "Story, move" armed: the composer shows it from here

@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
+import { CarriedBanner } from './dash-carried'
 import { AvatarButton, BandMark, bandTextClass, CharFields, Label, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 import { useGuidePlace } from '@/components/guide/place'
@@ -53,7 +54,8 @@ export function DashPhoneBar({ view, focus, onOpen }: {
   )
 }
 
-export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, avatars, onPortrait, userName }: {
+export function DashPhoneSheet({ chatId, view, focus, onFocus, onRefresh, refreshing, avatars, onPortrait, userName }: {
+  chatId: string
   view: DashView
   focus: string
   onFocus: (name: string) => void
@@ -108,6 +110,7 @@ export function DashPhoneSheet({ view, focus, onFocus, onRefresh, refreshing, av
 
         <TabsContent value="scene">
           <div className="flex flex-col gap-4 pt-4">
+            <CarriedBanner chatId={chatId} inherit={view.inherit} />
             <SceneBlock clock={view.clock} />
             {present.length > 0 && (
               <div className="flex flex-wrap gap-1.5">

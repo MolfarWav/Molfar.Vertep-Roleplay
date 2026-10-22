@@ -224,3 +224,18 @@ describe("a chat that continues another (#100)", () => {
     expect(drive(mock, { method: "POST", path: "/dashboard/inherit", body: { chatId: "c2", on: true } }).status).toBe(404);
   });
 });
+
+describe("the carried banner strings (#100)", () => {
+  it("exist in English and Ukrainian and fill their values", async () => {
+    const { t } = await import("../src/lib/i18n");
+    const p = { title: "Winter watch", notes: 12, threads: 2 };
+    for (const key of ["dash.carried.on", "dash.carried.line"] as const) {
+      for (const lang of ["en", "uk"] as const) {
+        const s = t(key, lang, p);
+        expect(s).toContain("Winter watch");
+        expect(s).toContain("12");
+        expect(s).not.toContain("{");
+      }
+    }
+  });
+});

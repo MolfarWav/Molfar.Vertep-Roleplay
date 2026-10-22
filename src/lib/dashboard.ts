@@ -116,6 +116,8 @@ export interface DashView {
   lastError: { at: number; message: string } | null
   /** facts the last report wrote that could not be kept: for the user's own character, or for someone not in the scene (#97); null when all were kept */
   keptOut?: { at: number; turn: number; user: number; absent: number } | null
+  /** the earlier chat this one continues and whether its Dashboard state was carried in (#100); absent when it continues nothing */
+  inherit?: DashInherit | null
   /** what the next reply's prompt insert would weigh; null when there is none */
   insert: { tokens: number; budget: number; trimmed: string[] } | null
   insertEnabled: boolean
@@ -144,11 +146,25 @@ export function sortedNotes(list: Note[]): Note[] {
   return [...list].sort((a, b) => rank(a) - rank(b) || (b.turn ?? 0) - (a.turn ?? 0))
 }
 
+export interface DashInherit {
+  from: string
+  title: string
+  /** the earlier chat's state is in this chat's Dashboard */
+  on: boolean
+  /** the user chose to start clean */
+  off: boolean
+  notes: number
+  threads: number
+  /** true until the chat has a Dashboard snapshot of its own */
+  canSwitch: boolean
+}
+
 export interface DashResponse {
   exists: boolean
   chat: boolean
   messages: number
   view: DashView | null
+  inherit?: DashInherit | null
   lastError: { at: number; message: string } | null
   /** the pending "Story, move" nudge, also before the chat has any state (the view's copy needs one) */
   nudge?: Nudge | null
