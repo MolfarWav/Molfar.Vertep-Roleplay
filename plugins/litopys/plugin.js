@@ -4243,6 +4243,12 @@ function carriesRoute(fsx, query) {
     cardName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
   }
   const titleOf = (id) => str((readChat(fsx, id) || { meta: {} }).meta.title) || id;
+  // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
+  const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
+  const wset = isObj(wr) && isObj(wr.settings) ? wr.settings : {};
+  const level = str(wset.level) || "off";
+  const ev = isObj(wr) && isObj(wr.event) ? wr.event : null;
+  const waiting = !!ev && Number(ev.sent) === 0 && !!str(ev.text) && wset.insert !== false && level !== "off" && level !== "chronicler";
   return {
     status: 200,
     json: {
@@ -4255,6 +4261,7 @@ function carriesRoute(fsx, query) {
         chapters: isObj(last) ? Number(last.chapters) || 0 : 0,
       },
       backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
+      world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
     },
   };

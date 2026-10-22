@@ -307,3 +307,21 @@ describe("what a chat carries (the strip under the chat header, #107)", () => {
     expect(plain.backstory).toBeNull();
   });
 });
+
+describe("what a chat carries: the World DM", () => {
+  it("reports the DM's level and the event waiting for the next reply; nothing when it is off", () => {
+    seedWinter();
+    const { host } = mockHost();
+    writeChat("dm", story(2, "d"), { title: "DM", characterId: "aria" });
+    expect(route(host, "GET", "/litopys/carries", undefined, { chatId: "dm" }).json.world).toBeNull();
+    writeJson("world/state/dm.json", { v: 1, settings: { level: "director", insert: true }, event: { text: "A bell rings at the northern gate.", hard: false, sent: 0, retried: false, at: 1 } });
+    let w = route(host, "GET", "/litopys/carries", undefined, { chatId: "dm" }).json.world;
+    expect(w).toMatchObject({ level: "director", waiting: true, text: "A bell rings at the northern gate." });
+    expect(w.tokens).toBeGreaterThan(0);
+    writeJson("world/state/dm.json", { v: 1, settings: { level: "director", insert: true }, event: { text: "A bell rings.", sent: 1 } });
+    w = route(host, "GET", "/litopys/carries", undefined, { chatId: "dm" }).json.world;
+    expect(w).toMatchObject({ level: "director", waiting: false, tokens: 0 });
+    writeJson("world/state/dm.json", { v: 1, settings: { level: "chronicler" }, event: null });
+    expect(route(host, "GET", "/litopys/carries", undefined, { chatId: "dm" }).json.world).toMatchObject({ level: "chronicler", waiting: false });
+  });
+});
