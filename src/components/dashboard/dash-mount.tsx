@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useT } from '@/hooks/use-t'
+import { cn } from '@/lib/utils'
 import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
 import { reportDashFailure, useApp } from '@/lib/store'
 import { PortraitDialog } from '@/components/library/portrait-dialog'
@@ -281,10 +282,12 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
 
   if (dash.status === 'empty') {
     const hasMessages = (dash.data?.messages ?? 0) > 0
+    const carriedBack = !!(dash.data?.inherit?.off && dash.data.inherit.canSwitch)
     return (
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-sm lg:hidden">
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">{t('dash.empty.title')}</span>
-        {dash.data?.inherit?.off && dash.data.inherit.canSwitch && <CarriedBack chatId={chatId} />}
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-card px-3 py-1 text-sm lg:hidden">
+        {/* with the "carry it over again" button the bar holds three things: the title takes its own line instead of a cut "T…" */}
+        <span className={cn('min-w-0 flex-1 text-muted-foreground', carriedBack ? 'basis-full' : 'truncate')}>{t('dash.empty.title')}</span>
+        {carriedBack && <CarriedBack chatId={chatId} />}
         {hasMessages && (
           <Button size="sm" variant="outline" className="h-10 rounded-none" disabled={dash.refreshing} onClick={() => { void dash.refresh() }}>
             {dash.refreshing ? t('dash.refreshing') : t('dash.empty.build')}

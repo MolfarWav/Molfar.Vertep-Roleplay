@@ -239,3 +239,20 @@ describe("the carried banner strings (#100)", () => {
     }
   });
 });
+
+describe("the background catch-up and a carried state (#100)", () => {
+  it("leaves a chat that only holds a greeting alone, so the choice to start clean stays open; a user message ends the wait", () => {
+    const mock = mockHost();
+    playFirstChat(mock);
+    writeChat("c2", [A("n1", "A new morning.")]);
+    link("c1", "c2");
+    const out = drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c2", op: "catchup" } });
+    expect(out.json.unchanged).toBe(true);
+    expect(mock.requests.length).toBe(1);
+    expect(view(mock, "c2").inherit.canSwitch).toBe(true);
+    writeChat("c2", [A("n1", "A new morning."), U("n2", "Hi")]);
+    mock.push(reply({ present: ["Aria"], minutes: 1 }));
+    expect(drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c2", op: "catchup" } }).json.ok).toBe(true);
+    expect(view(mock, "c2").inherit.canSwitch).toBe(false);
+  });
+});

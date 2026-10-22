@@ -3036,6 +3036,9 @@ function planUpdate(fsx, chatId, op) {
   const unchanged = () => ({ final: ok({ ok: true, state: existed ? state : null, unchanged: true }) });
   const line = activeLine(chat.msgs);
   if (!line.length) return unchanged();
+  // a chat that carried an earlier chat's state keeps the choice to start clean open until the user has
+  // played in it: the background catch-up does not read a lone greeting (a real turn or a button still does)
+  if (op === "catchup" && activeInherit(state) && !Object.keys(state.snapshots).length && !line.some((l) => l.msg.role === "user")) return unchanged();
   // a reply with no text (only reasoning, or a cut-off stream) has nothing to read: no sensor call
   if (!str(line[line.length - 1].msg.text)) return { final: ok({ ok: true, state: existed ? state : null, unchanged: true, skipped: "empty" }) };
   const keys = line.map((l) => l.key);

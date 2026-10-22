@@ -76,7 +76,7 @@ export function CarriedBanner({ chatId, inherit, className }: { chatId: string; 
           {inherit.on && <span className="text-[11px] text-muted-foreground">{t('dash.carried.hint')}</span>}
         </div>
       </div>
-      <Button variant="outline" size="sm" className="w-full rounded-none sm:w-fit" disabled={busy} onClick={() => void set(!inherit.on)}>
+      <Button variant="outline" size="sm" className="h-10 w-full rounded-none md:h-7 md:w-fit" disabled={busy} onClick={() => void set(!inherit.on)}>
         {inherit.on ? t('dash.carried.clean') : t('dash.carried.back')}
       </Button>
     </div>
