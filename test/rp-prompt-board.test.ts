@@ -234,9 +234,9 @@ describe("prompt board: keys, board list, history filter", () => {
     const book = board.find((x) => x.key === "book:b")!;
     expect(book).toEqual({ key: "book:b", label: "City", kind: "lorebook", state: "on" });
 
-    // last five fixed keys
-    const fixed = board.slice(-5).map((x) => x.key);
-    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said"]);
+    // last six fixed keys
+    const fixed = board.slice(-6).map((x) => x.key);
+    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory"]);
     const authorNote = board.find((x) => x.key === "authorNote")!;
     expect(authorNote.state).toBe("empty");
   });
@@ -360,10 +360,16 @@ describe("prompt board: plugins honour their own switch", () => {
   const request = { sessionId: "c1", messages: [{ role: "user", content: "hi" }] };
   const turn = { op: "send", chatId: "c1", speakerId: "", speakerName: "" };
 
-  it("Litopys switched off returns nothing and reads nothing else", () => {
-    const h = hostWith(["plugin:litopys"]);
+  it("Litopys and the card memory both switched off returns nothing and reads nothing else", () => {
+    const h = hostWith(["plugin:litopys", "plugin:cardmemory"]);
     expect(lit.llmRequest({ key: "reply", request, turn }, h.host)).toBeNull();
     expect(h.reads).toEqual([]);
+  });
+
+  it("Litopys switched off alone leaves the card memory its own switch: nothing without a card, and no Litopys file read", () => {
+    const h = hostWith(["plugin:litopys"]);
+    expect(lit.llmRequest({ key: "reply", request, turn }, h.host)).toBeNull();
+    expect(h.reads.filter((p) => p.startsWith("litopys/") && p !== "litopys/config.json")).toEqual([]);
   });
 
   it("the Dashboard switched off returns nothing and reads nothing else", () => {

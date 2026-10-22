@@ -1064,7 +1064,9 @@ export function llmRequest(ctx, host) {
     const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
     return off.includes(key);
   };
-  if (offForChat(fsx, chatId, "plugin:litopys")) return null;
+  // the Litopys switch does not take the card's own memory with it: that one has its own (plugin:cardmemory)
+  const litOff = offForChat(fsx, chatId, "plugin:litopys");
+  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory")) return null;
   try {
     const cfg = loadConfig(fsx);
     if (cfg.enabled === false || cfg.insert === false) return null;
@@ -1073,18 +1075,39 @@ export function llmRequest(ctx, host) {
     const line = activeLine(rc.msgs);
     const speakerName = str(ctx.turn.speakerName);
     // a chat that continues an earlier one gets its story from the first reply on, with or without a record of its own
-    const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
-    const st = loadChatFile(fsx, chatId);
+    const back = litOff ? null : buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
+    const st = litOff ? null : loadChatFile(fsx, chatId);
     const scanText = req.messages
       .filter((m) => m && m.role !== "system" && typeof m.content === "string")
       .slice(-6)
       .map((m) => m.content)
       .join("\n");
     // the use record (#50) lives in the insert file: one write per reply, gone with the chat
-    const prevInsert = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+    const prevInsert = litOff ? null : readJson(fsx, INSERT_DIR + chatId + ".json", null);
     const used = isObj(prevInsert) && isObj(prevInsert.used) ? prevInsert.used : {};
-    const insert = st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName, used }) : null;
-    if (!insert && !back) return null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName, used }) : null;
+    // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
+    let cardMem = null;
+    if (!offForChat(fsx, chatId, "plugin:cardmemory")) {
+      try {
+        const lines = [back && back.text, insert && insert.head, insert && insert.tail].filter(Boolean).flatMap((t) => String(t).split("\n"));
+        cardMem = cardMemoryFor({
+          fsx,
+          chatId,
+          meta: rc.meta,
+          speakerName,
+          chosen: lines,
+          dash: readDash(fsx, chatId),
+          overlay: readJson(fsx, "dashboard/notes/" + chatId + ".json", null),
+          line,
+        });
+      } catch (e) {
+        try {
+          host.log("litopys card memory: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    if (!insert && !back && !cardMem) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1098,6 +1121,7 @@ export function llmRequest(ctx, host) {
           arcs: insert ? insert.arcs : 0,
           cut: insert ? insert.cut : 0,
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
+          ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
         }),
       );
     } catch {}
@@ -1107,6 +1131,10 @@ export function llmRequest(ctx, host) {
     if (back) {
       messages = withInsert(messages, back.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: String(back.text || "").trim() });
+    }
+    if (cardMem) {
+      messages = withInsert(messages, cardMem.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
     }
     if (insert && insert.head) {
       messages = withInsert(messages, insert.head);
@@ -1952,8 +1980,10 @@ export function repeatsSource(text, sentences) {
 }
 
 /** Notebook notes as they count (ported from relations activeNotebook + effectiveNotebook, reading only). */
-function liveNotes(dash, line, overlay) {
+function liveNotes(dash, line, overlay, withCarried) {
   const keys = new Set(line.map((m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)));
+  // notes a continued chat carried in count for a card's memory, not for the notes-to-facts move (#100)
+  if (withCarried) keys.add("inherit");
   const edits = isObj(overlay && overlay.edits) ? overlay.edits : {};
   const out = [];
   for (const [holder, notes] of Object.entries(isObj(dash && dash.notebook) ? dash.notebook : {})) {
@@ -1961,7 +1991,7 @@ function liveNotes(dash, line, overlay) {
       if (!isObj(n) || !keys.has(n.src) || (n.retiredBy && keys.has(n.retiredBy))) continue;
       const e = isObj(edits[n.id]) ? edits[n.id] : null;
       if (e && e.retired === true) continue;
-      out.push({ holder, id: str(n.id), text: e && str(e.text) ? str(e.text) : str(n.text), turn: Number(n.turn), weight: n.weight, tag: e && e.tag !== undefined ? e.tag : n.tag });
+      out.push({ holder, id: str(n.id), how: n.how, text: e && str(e.text) ? str(e.text) : str(n.text), turn: Number(n.turn), weight: n.weight, tag: e && e.tag !== undefined ? e.tag : n.tag });
     }
   }
   for (const [holder, list] of Object.entries(isObj(overlay && overlay.added) ? overlay.added : {})) {
@@ -3752,6 +3782,9 @@ export function handleRoute(req, host) {
   if (path === "/litopys/search" && req.method === "GET") return searchView(fsx, req.query || {});
   if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
+  if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
+  if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview");
+  if (path === "/litopys/card-memory/import" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "import");
   if (path === "/litopys/links" && req.method === "GET") return { status: 200, json: { links: loadLinks(fsx) } };
   if (path === "/litopys/links" && req.method === "POST") return linkRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
@@ -3765,4 +3798,361 @@ export function handleRoute(req, host) {
     return { status: 200, json: { ...cfg, custom: customPrompts(fsx) } };
   }
   return null;
+}
+
+// ---------- the card's long memory (memory bridge, #102) ----------
+// characters/<cardId>/memory.json: stories the character remembers, each a snapshot imported from a chat
+// (a compressed arc, the strongest facts, notes and said lines), kept with a copy of the chat's title so a
+// deleted chat breaks nothing. Never in card.json or the card's export. The prompt block is built here, next
+// to the Litopys insert, so one pass sees what the story already carries and nothing is said twice.
+const CARD_MEMORY_TOKENS = 400;
+const IMPORT_TOP = { facts: 9, notes: 6, said: 4 };
+const IMPORT_LIST = 30;
+const memoryPath = (cardId) => "characters/" + cardId + "/memory.json";
+
+function cardOf(fsx, cardId) {
+  return SAFE_ID.test(cardId) ? readJson(fsx, "characters/" + cardId + "/card.json", null) : null;
+}
+
+/** The names a card answers to: its own, and the characters of its Soul (a narrator card has several). */
+function cardNamesOf(card) {
+  const names = new Set();
+  const add = (n) => {
+    const s = str(n).toLowerCase();
+    if (s) names.add(s);
+  };
+  if (isObj(card)) {
+    add(card.name);
+    if (isObj(card.data)) add(card.data.name);
+    const soul = isObj(card.extensions) ? card.extensions.molfar_soul : null;
+    for (const k of Object.keys(isObj(soul) && isObj(soul.characters) ? soul.characters : {})) add(k);
+  }
+  return names;
+}
+
+/** The file as the code reads it; keys it does not know ride along (skills and changes come later, #106). */
+export function normalizeMemory(raw) {
+  const m = isObj(raw) ? raw : {};
+  const { sources: _s, inject: _i, v: _v, next: _n, ...rest } = m;
+  const items = (list, pick) => arr(list).filter((x) => isObj(x) && str(x.text)).map(pick);
+  const sources = arr(m.sources)
+    .filter((s) => isObj(s) && str(s.id))
+    .map((s) => ({
+      id: str(s.id),
+      chatId: str(s.chatId),
+      title: cut(str(s.title), 120),
+      importedAt: Number(s.importedAt) || 0,
+      on: s.on !== false,
+      canon: s.canon === "separate" ? "separate" : "main",
+      arc: cut(str(s.arc), 1500),
+      facts: items(s.facts, (f) => ({ text: cut(str(f.text), 300), subject: cut(str(f.subject), 80) })),
+      notes: items(s.notes, (n) => ({ who: cut(str(n.who), 80), how: ["saw", "heard", "guess"].includes(n.how) ? n.how : "saw", text: cut(str(n.text), 300) })),
+      said: items(s.said, (x) => ({ who: cut(str(x.who), 80), text: cut(str(x.text), 300), kind: cut(str(x.kind), 20) || "other" })),
+    }));
+  const inj = isObj(m.inject) ? m.inject : {};
+  const top = sources.reduce((n, s) => Math.max(n, Number(String(s.id).replace(/\D/g, "")) || 0), 0);
+  return {
+    ...rest,
+    v: 1,
+    next: Math.max(Number(m.next) || 0, top),
+    sources,
+    inject: { enabled: inj.enabled !== false, maxTokens: clamp(Math.round(Number(inj.maxTokens)) || CARD_MEMORY_TOKENS, 100, 1500) },
+  };
+}
+
+export const loadMemory = (fsx, cardId) => normalizeMemory(readJson(fsx, memoryPath(cardId), null));
+const saveMemory = (fsx, cardId, mem) => fsx.write(memoryPath(cardId), JSON.stringify(mem, null, 2));
+
+/** Whether a text is already said by one of the lines (a copy, a near copy, or contained in a longer line). */
+function saidAlready(text, lines) {
+  const n = normText(text);
+  return arr(lines).some((l) => {
+    const t = String(l);
+    return (n.length > 12 && normText(t).includes(n)) || diceSimilarity(text, t) >= DICE_LIMIT;
+  });
+}
+
+const rankFact = (f) => (f.pinned ? 100 : 0) + (f.weight === "key" ? 20 : f.weight === "important" ? 10 : 0) + (Number(f.updatedAt) || 0) / 1e14;
+const rankNote = (n) => (n.tag === "pinned" ? 100 : n.tag === "important" ? 50 : 0) + (n.weight === "key" ? 40 : n.weight === "important" ? 20 : 0) + (Number(n.turn) || 0) / 1e6;
+
+/** What the chat said and is held to (the Dashboard's `said`, ported reading only), carried entries included. */
+function liveSaid(dash, line, overlay) {
+  const keys = new Set(line.map((m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)));
+  keys.add("inherit");
+  const edits = isObj(overlay && overlay.edits) ? overlay.edits : {};
+  const out = [];
+  for (const [holder, list] of Object.entries(isObj(dash && dash.said) ? dash.said : {})) {
+    for (const s of arr(list)) {
+      if (!isObj(s) || !keys.has(s.src) || !str(s.text)) continue;
+      const e = isObj(edits[s.id]) ? edits[s.id] : null;
+      if (e && e.retired === true) continue;
+      out.push({ holder, id: str(s.id), text: e && str(e.text) ? str(e.text) : str(s.text), kind: str(s.kind) || "other", turn: Number(s.turn) || 0 });
+    }
+  }
+  return out;
+}
+
+/** The chats a card can take a memory from: the ones with this card, newest first. */
+function cardChats(fsx, cardId, mem) {
+  let files = [];
+  try {
+    files = fsx.list("chats").filter((f) => f.endsWith(".meta.json"));
+  } catch {}
+  const out = [];
+  for (const f of files) {
+    const id = f.replace(/\.meta\.json$/, "");
+    const meta = readJson(fsx, "chats/" + f, null);
+    if (!SAFE_ID.test(id) || !isObj(meta) || meta.temporary) continue;
+    let mine = str(meta.characterId) === cardId;
+    if (!mine && str(meta.groupId)) mine = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str).includes(cardId);
+    if (!mine) continue;
+    const src = mem.sources.find((s) => s.chatId === id);
+    out.push({ id, title: str(meta.title) || id, updatedAt: Number(meta.updatedAt) || 0, imported: src ? src.id : null });
+  }
+  out.sort((a, b) => b.updatedAt - a.updatedAt);
+  return out.slice(0, 200);
+}
+
+/** What an import of this chat would take, before anything is written. Items carry the chat's own ids. */
+export function previewImport(fsx, cardId, chatId) {
+  const card = cardOf(fsx, cardId);
+  const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
+  if (!isObj(card) || !rc) return null;
+  const mem = loadMemory(fsx, cardId);
+  const names = cardNamesOf(card);
+  const mine = (holder) => names.has(str(holder).toLowerCase());
+  const line = activeLine(rc.msgs);
+  const st = loadChatFile(fsx, chatId);
+  const dash = readDash(fsx, chatId);
+  const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
+  // what the card memory already holds from other chats: the same line is not offered twice
+  const others = mem.sources.filter((s) => s.chatId !== chatId);
+  const held = (list) => others.flatMap((s) => arr(s[list]).map((x) => x.text));
+  const flag = (text, lines) => (saidAlready(text, lines) ? "memory" : null);
+
+  let arc = "";
+  if (st) {
+    const arcs = arr(st.arcs).filter((a) => isObj(a) && str(a.text) && a.stale !== true);
+    arc = arcs.length ? arcs.map((a) => str(a.text)).join(" ") : arr(st.chapters).slice(-3).map((c) => str(c.text)).filter(Boolean).join(" ");
+  }
+  arc = cut(arc, 1200);
+
+  const facts = (st ? st.facts : [])
+    .filter((f) => isObj(f) && f.status === "active" && str(f.text) && (f.knownBy === "all" || f.knownBy === undefined))
+    .sort((a, b) => rankFact(b) - rankFact(a))
+    .slice(0, IMPORT_LIST)
+    .map((f, i) => {
+      const dup = flag(f.text, held("facts"));
+      return { id: str(f.id), text: str(f.text), subject: str(f.subject), weight: f.weight || null, dup, checked: !dup && i < IMPORT_TOP.facts };
+    });
+  const notes = liveNotes(dash, line, overlay, true)
+    .filter((n) => mine(n.holder) && n.text)
+    .sort((a, b) => rankNote(b) - rankNote(a))
+    .slice(0, IMPORT_LIST)
+    .map((n, i) => {
+      const dup = flag(n.text, held("notes"));
+      return { id: n.id, who: n.holder, text: n.text, how: n.how || "saw", dup, checked: !dup && i < IMPORT_TOP.notes };
+    });
+  const said = liveSaid(dash, line, overlay)
+    .filter((s) => mine(s.holder))
+    .sort((a, b) => b.turn - a.turn)
+    .slice(0, IMPORT_LIST)
+    .map((s, i) => {
+      const dup = flag(s.text, held("said"));
+      return { id: s.id, who: s.holder, text: s.text, kind: s.kind, dup, checked: !dup && i < IMPORT_TOP.said };
+    });
+  const already = mem.sources.find((s) => s.chatId === chatId);
+  return {
+    chat: { id: chatId, title: str(rc.meta.title) || chatId },
+    already: already ? already.id : null,
+    arc: arc ? { text: arc, tokens: estimateTokens(arc) } : null,
+    facts,
+    notes,
+    said,
+  };
+}
+
+/** Write the chosen items as a source (a second import of the same chat refreshes that source). */
+export function importChat(fsx, cardId, chatId, sel) {
+  const prev = previewImport(fsx, cardId, chatId);
+  if (!prev) return { status: 404, json: { error: "no such card or chat" } };
+  const pick = (items, ids) => items.filter((x) => arr(ids).map(str).includes(x.id));
+  const facts = pick(prev.facts, sel.facts);
+  const notes = pick(prev.notes, sel.notes);
+  const said = pick(prev.said, sel.said);
+  const arc = sel.arc !== false && prev.arc ? prev.arc.text : "";
+  if (!arc && !facts.length && !notes.length && !said.length) return { status: 400, json: { error: "nothing selected to remember" } };
+  const mem = loadMemory(fsx, cardId);
+  const body = {
+    chatId,
+    title: prev.chat.title,
+    importedAt: Date.now(),
+    arc,
+    facts: facts.map((f) => ({ text: f.text, subject: f.subject })),
+    notes: notes.map((n) => ({ who: n.who, how: n.how, text: n.text })),
+    said: said.map((s) => ({ who: s.who, text: s.text, kind: s.kind })),
+  };
+  const at = mem.sources.findIndex((s) => s.chatId === chatId);
+  if (at >= 0) mem.sources[at] = { ...mem.sources[at], ...body };
+  else {
+    mem.next += 1;
+    mem.sources.push({ id: "s" + mem.next, on: true, canon: "main", ...body });
+  }
+  const out = normalizeMemory(mem);
+  saveMemory(fsx, cardId, out);
+  return { status: 200, json: cardMemoryView(fsx, cardId, out) };
+}
+
+/** The card's memory with the chats it can still take one from, and what a new chat would receive. */
+function cardMemoryView(fsx, cardId, mem) {
+  const card = cardOf(fsx, cardId);
+  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: [] });
+  return { cardId, memory: mem, chats: cardChats(fsx, cardId, mem), tokens: block ? block.tokens : 0, budget: mem.inject.maxTokens };
+}
+
+/**
+ * The block a reply gets: for each active source, its arc, then the strongest facts, notes and said lines,
+ * in that order, until the budget is spent. `exclude` = chats whose story the chat already carries (itself,
+ * its backstory chain); `only` = per-chat choice of sources (a "separate" canon needs it); `chosen` = the lines
+ * Litopys and the Dashboard already put in this prompt: a card line that repeats one is left out.
+ * Returns { text, tokens, dupes, sources } or null.
+ */
+export function cardMemoryText(mem, card, opts) {
+  if (!mem.inject.enabled || !isObj(card)) return null;
+  const { exclude, only, chosen } = opts;
+  const own = arr(opts.cardSentences);
+  const live = mem.sources.filter((s) => {
+    if (!s.on || (s.chatId && exclude.has(s.chatId))) return false;
+    if (only && only[s.id] === false) return false;
+    return s.canon !== "separate" || (only && only[s.id] === true);
+  });
+  if (!live.length) return null;
+  const lines = [...arr(chosen)];
+  let dupes = 0;
+  // a line goes in once: not in the story already, not in the card's own text, not from an earlier source
+  const fresh = (text) => {
+    if (saidAlready(text, lines) || repeatsSource(text, own)) {
+      dupes++;
+      return false;
+    }
+    lines.push(text);
+    return true;
+  };
+  const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
+  const head = "[What " + name + " remembers from earlier stories (character memory):";
+  const out = [];
+  const used = [];
+  let spent = estimateTokens(head + "]");
+  const room = mem.inject.maxTokens;
+  const add = (text) => {
+    const t = estimateTokens(text + "\n");
+    if (spent + t > room) return false;
+    spent += t;
+    out.push(text);
+    return true;
+  };
+  // arcs first, shortest first, so the most stories fit
+  for (const s of [...live].sort((a, b) => a.arc.length - b.arc.length)) {
+    if (s.arc && fresh(s.arc) && add((s.title ? s.title + ": " : "") + s.arc)) used.push(s.id);
+  }
+  for (const [label, list, fmt] of [
+    ["Facts", "facts", (x) => x.text],
+    ["Notes", "notes", (x) => x.text],
+    ["Said", "said", (x) => x.kind + " “" + x.text + "”"],
+  ]) {
+    const picked = [];
+    for (const s of live) {
+      for (const x of s[list]) {
+        if (!fresh(x.text)) continue;
+        const line = fmt(x);
+        if (spent + estimateTokens(line + "; ") > room) break;
+        spent += estimateTokens(line + "; ");
+        picked.push(line);
+        if (!used.includes(s.id)) used.push(s.id);
+      }
+    }
+    if (picked.length) out.push(label + ": " + picked.join("; ") + ".");
+  }
+  if (!out.length) return null;
+  const text = head + "\n" + out.join("\n") + "]";
+  return { text, tokens: estimateTokens(text), dupes, sources: used };
+}
+
+/** The card behind this reply, and what the Litopys insert and the Dashboard already say, for the block above. */
+export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, overlay, line }) {
+  let ids = [];
+  const grouped = !!str(meta.groupId);
+  if (grouped) ids = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str);
+  else if (str(meta.characterId)) ids = [str(meta.characterId)];
+  let card = null;
+  let cardId = "";
+  for (const id of ids) {
+    const c = cardOf(fsx, id);
+    // in a group only the speaker's own card talks
+    if (isObj(c) && (!grouped || cardNamesOf(c).has(str(speakerName).toLowerCase()))) {
+      card = c;
+      cardId = id;
+      break;
+    }
+  }
+  if (!card) return null;
+  const mem = loadMemory(fsx, cardId);
+  if (!mem.sources.length) return null;
+  // the story this chat already carries by itself: itself and the chats of its backstory chain
+  const exclude = new Set([chatId]);
+  const links = loadLinks(fsx);
+  const seen = new Set([chatId]);
+  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && seen.size <= CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
+    seen.add(cur);
+    exclude.add(cur);
+  }
+  const mc = isObj(meta.memory) ? meta.memory : {};
+  const dashLines = [...liveNotes(dash, line, overlay, true).map((n) => n.text), ...liveSaid(dash, line, overlay).map((s) => s.text)];
+  const own = sourceSentences(fsx, meta);
+  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...dashLines], cardSentences: own });
+  return res ? { ...res, cardId } : null;
+}
+
+function cardMemoryRoute(req, fsx) {
+  const method = req.method;
+  const q = req.query || {};
+  const b = isObj(req.body) ? req.body : {};
+  const cardId = str(method === "GET" || method === "DELETE" ? q.cardId : b.cardId);
+  if (!cardOf(fsx, cardId)) return { status: 404, json: { error: "no such card" } };
+  if (method === "GET") return { status: 200, json: cardMemoryView(fsx, cardId, loadMemory(fsx, cardId)) };
+  if (method === "PUT") {
+    const mem = loadMemory(fsx, cardId);
+    if (isObj(b.inject)) {
+      if (typeof b.inject.enabled === "boolean") mem.inject.enabled = b.inject.enabled;
+      if (Number.isFinite(Number(b.inject.maxTokens))) mem.inject.maxTokens = clamp(Math.round(Number(b.inject.maxTokens)), 100, 1500);
+    }
+    if (isObj(b.source)) {
+      const s = mem.sources.find((x) => x.id === str(b.source.id));
+      if (!s) return { status: 404, json: { error: "no such source" } };
+      if (typeof b.source.on === "boolean") s.on = b.source.on;
+      if (b.source.canon === "main" || b.source.canon === "separate") s.canon = b.source.canon;
+    }
+    saveMemory(fsx, cardId, mem);
+    return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
+  }
+  if (method === "DELETE") {
+    const mem = loadMemory(fsx, cardId);
+    const id = str(q.sourceId);
+    if (!mem.sources.some((s) => s.id === id)) return { status: 404, json: { error: "no such source" } };
+    mem.sources = mem.sources.filter((s) => s.id !== id);
+    saveMemory(fsx, cardId, mem);
+    return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
+  }
+  return { status: 405, json: { error: "method not allowed" } };
+}
+
+function cardMemoryPostRoute(req, fsx, sub) {
+  const b = isObj(req.body) ? req.body : {};
+  const cardId = str(b.cardId);
+  const chatId = str(b.chatId);
+  if (sub === "preview") {
+    const p = previewImport(fsx, cardId, chatId);
+    return p ? { status: 200, json: p } : { status: 404, json: { error: "no such card or chat" } };
+  }
+  return importChat(fsx, cardId, chatId, b);
 }
