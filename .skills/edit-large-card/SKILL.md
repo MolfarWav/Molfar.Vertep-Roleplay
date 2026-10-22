@@ -60,7 +60,8 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
   every id in the file, `nextSkill` is the app's counter). Always `state: "proposed"`: the user confirms it in
   the Memory tab, you never write an accepted one. If the file is missing, write
   `{"v":1,"sources":[],"skills":[]}` first. Keep a skill to habits and reactions worth reusing in every chat,
-  not a fact about one story, and not a copy of the card's own text.
+  not a fact about one story, and not a copy of the card's own text. To choose and write skills, use the skill
+  `card-skills`.
 - The editor keeps a change as a draft until the user presses Save changes: a card you edit on disk while
   it is open in the editor can meet a draft, and the user then chooses which version to keep.
 
