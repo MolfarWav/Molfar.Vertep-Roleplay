@@ -173,6 +173,8 @@ export interface DashInherit {
   threads: number
   /** true until the chat has a Dashboard snapshot of its own */
   canSwitch: boolean
+  /** linked after the chat read turns of its own: its Dashboard can be rebuilt on top of the earlier chat */
+  canRebase?: boolean
 }
 
 export interface DashResponse {

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowUUpLeft, Eraser } from '@phosphor-icons/react'
+import { ArrowUUpLeft, ArrowsClockwise, Eraser } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { reloadDash } from '@/lib/dash-live'
@@ -38,6 +39,45 @@ export function CarriedBack({ chatId }: { chatId: string }) {
 export function CarriedBanner({ chatId, inherit, className }: { chatId: string; inherit: DashInherit | null | undefined; className?: string }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
+  const [confirm, dialog] = useConfirm()
+  // linked after the chat had read turns of its own: offer to rebuild its Dashboard on top of the earlier chat
+  if (inherit?.canRebase) {
+    const rebuild = async () => {
+      const ok = await confirm({
+        title: t('dash.rebase.confirmTitle', { title: inherit.title || inherit.from }),
+        description: t('dash.rebase.confirmBody'),
+        actionLabel: t('dash.rebase.action'),
+        destructive: false,
+      })
+      if (!ok) return
+      setBusy(true)
+      try {
+        await j('/dashboard/inherit', { method: 'POST', body: JSON.stringify({ chatId, rebase: true }) })
+        // the chat is read again from the carried state, one sensor call
+        await j('/dashboard/update', { method: 'POST', body: JSON.stringify({ chatId, op: 'send' }) }).catch(() => null)
+        await reloadDash(chatId)
+      } catch (e) {
+        toast.error(t('dash.carried.error', { message: String((e as Error)?.message ?? e) }))
+      } finally {
+        setBusy(false)
+      }
+    }
+    return (
+      <div className={cn('flex flex-col gap-2 border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs', className)} data-testid="dash-rebase">
+        <div className="flex items-start gap-2">
+          <ArrowsClockwise className="mt-px size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="break-words">{t('dash.rebase.on', { title: inherit.title || inherit.from })}</span>
+            <span className="text-[11px] text-muted-foreground">{t('dash.rebase.hint')}</span>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" className="h-10 w-full rounded-none md:h-7 md:w-fit" disabled={busy} onClick={() => { void rebuild() }}>
+          {t('dash.rebase.action')}
+        </Button>
+        {dialog}
+      </div>
+    )
+  }
   // an earlier chat with no Dashboard state to carry: nothing to say
   if (!inherit || (!inherit.on && !inherit.off)) return null
   const title = inherit.title || inherit.from

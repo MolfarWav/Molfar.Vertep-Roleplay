@@ -256,3 +256,37 @@ describe("the background catch-up and a carried state (#100)", () => {
     expect(view(mock, "c2").inherit.canSwitch).toBe(false);
   });
 });
+
+describe("linking late: rebuild the Dashboard on top of the earlier chat (#100)", () => {
+  it("a chat that read turns before it was linked can be rebuilt on the earlier state, once, keeping a copy", () => {
+    const mock = mockHost();
+    playFirstChat(mock);
+    const trust = readStateFile("c1").snapshots["m3#0"].chars.Aria.stats.trust;
+    // c2 played on its own first: it reads the greeting as a first meeting
+    writeChat("c2", [A("n1", "A stranger lies in the glade."), U("n2", "Who are you?")]);
+    mock.push(reply({ present: ["Aria"], minutes: 1, learned: [{ who: "Aria", text: "A stranger lies in the glade.", how: "saw", weight: "key" }], names: [{ who: "Aria", calls: "stranger" }] }));
+    update(mock, "c2");
+    link("c1", "c2");
+    const v = view(mock, "c2");
+    expect(v.inherit).toMatchObject({ from: "c1", on: false, canSwitch: false, canRebase: true });
+    // refused where it does not apply
+    expect(drive(mock, { method: "POST", path: "/dashboard/inherit", body: { chatId: "c2", on: true } }).status).toBe(409);
+
+    const out = drive(mock, { method: "POST", path: "/dashboard/inherit", body: { chatId: "c2", rebase: true } });
+    expect(out.json).toMatchObject({ ok: true, rebuilt: true });
+    expect(out.json.inherit).toMatchObject({ on: true, canRebase: false });
+    expect(fs.existsSync(path.join(root, "dashboard/rebase/c2.json"))).toBe(true);
+    const st = readStateFile("c2");
+    expect(Object.keys(st.snapshots)).toEqual([]);
+    expect(st.notebook.Aria.map((n: any) => n.text)).toEqual(["The user keeps their word"]);
+
+    // the next read goes on from the carried numbers and the carried name, and the greeting's own note is gone
+    mock.push(reply({ present: ["Aria"], minutes: 1 }));
+    expect(update(mock, "c2").json.ok).toBe(true);
+    const after = readStateFile("c2");
+    expect(after.snapshots["n2#0"].chars.Aria.stats.trust).toBe(trust);
+    expect(after.notebook.Aria.map((n: any) => n.text)).toEqual(["The user keeps their word"]);
+    // a second rebuild is refused: it already took its start from the earlier chat
+    expect(drive(mock, { method: "POST", path: "/dashboard/inherit", body: { chatId: "c2", rebase: true } }).status).toBe(409);
+  });
+});

@@ -243,3 +243,28 @@ describe("card memory: the block does not move between replies (the provider's p
     expect(String(res.messages[1].content)).toContain("character memory");
   });
 });
+
+describe("card memory: lines of a story can be read, edited, removed and added by hand", () => {
+  it("edits, removes and adds lines of a story, also when its chat is gone", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1", "f2"], notes: ["n1"], said: ["s1"] });
+    for (const f of ["chats/winter.meta.json", "chats/winter.jsonl", "litopys/chats/winter.json", "dashboard/state/winter.json"]) fs.rmSync(abs(f), { force: true });
+    const put = (line: any) => route(host, "PUT", "/litopys/card-memory", { cardId: "aria", source: { id: "s1", line } });
+    let v = put({ list: "facts", index: 0, text: "Aria lost her younger brother at the gate." }).json;
+    expect(v.memory.sources[0].facts[0].text).toBe("Aria lost her younger brother at the gate.");
+    v = put({ list: "facts", index: 1, remove: true }).json;
+    expect(v.memory.sources[0].facts).toHaveLength(1);
+    v = put({ list: "facts", add: true, text: "Aria hates crowded rooms.", subject: "Aria" }).json;
+    expect(v.memory.sources[0].facts.map((f: any) => f.text)).toEqual(["Aria lost her younger brother at the gate.", "Aria hates crowded rooms."]);
+    v = put({ list: "said", add: true, text: "I will come back for you.", who: "Aria", kind: "promise" }).json;
+    expect(v.memory.sources[0].said.at(-1)).toMatchObject({ kind: "promise", who: "Aria" });
+    v = put({ list: "arc", text: "A shorter summary." }).json;
+    expect(v.memory.sources[0].arc).toBe("A shorter summary.");
+    expect(put({ list: "facts", index: 9, remove: true }).status).toBe(400);
+    expect(put({ list: "facts", index: 0, text: "" }).status).toBe(400);
+    expect(put({ list: "nope", add: true, text: "x" }).status).toBe(400);
+    const text = textOf(L.llmRequest(ctx("next"), host) ?? { messages: [] });
+    expect(text).not.toContain("lost her brother at the northern gate");
+  });
+});

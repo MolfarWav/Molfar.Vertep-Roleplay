@@ -4141,6 +4141,11 @@ function cardMemoryRoute(req, fsx) {
       if (!s) return { status: 404, json: { error: "no such source" } };
       if (typeof b.source.on === "boolean") s.on = b.source.on;
       if (b.source.canon === "main" || b.source.canon === "separate") s.canon = b.source.canon;
+      // one line of a story: edit its text, remove it, or add a line by hand (the story keeps working when its chat is gone)
+      if (isObj(b.source.line)) {
+        const err = editStoryLine(s, b.source.line);
+        if (err) return { status: 400, json: { error: err } };
+      }
     }
     saveMemory(fsx, cardId, mem);
     return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
@@ -4166,3 +4171,36 @@ function cardMemoryPostRoute(req, fsx, sub) {
   }
   return importChat(fsx, cardId, chatId, b);
 }
+
+/**
+ * Change one line of a story kept in the card's memory. `line` = { list: "arc"|"facts"|"notes"|"said",
+ * index?, text?, remove?, add?, who?, kind? }: `add` appends (a line written by hand), `remove` drops the line at
+ * `index`, otherwise `text` replaces it. Returns an error text or null.
+ */
+function editStoryLine(source, line) {
+  const list = str(line.list);
+  if (!["arc", "facts", "notes", "said"].includes(list)) return "list must be arc, facts, notes or said";
+  const text = cut(str(line.text), list === "arc" ? 1500 : 300);
+  if (list === "arc") {
+    if (line.remove === true) source.arc = "";
+    else if (text) source.arc = text;
+    else return "text required";
+    return null;
+  }
+  const items = source[list];
+  if (line.add === true) {
+    if (!text) return "text required";
+    if (items.length >= 60) return "a story holds at most 60 lines of one kind";
+    if (list === "facts") items.push({ text, subject: cut(str(line.subject), 80) });
+    else if (list === "notes") items.push({ who: cut(str(line.who), 80), how: ["saw", "heard", "guess"].includes(line.how) ? line.how : "saw", text });
+    else items.push({ who: cut(str(line.who), 80), text, kind: SAID_KIND_SET.has(str(line.kind)) ? str(line.kind) : "other" });
+    return null;
+  }
+  const i = Number(line.index);
+  if (!Number.isInteger(i) || i < 0 || i >= items.length) return "no such line";
+  if (line.remove === true) items.splice(i, 1);
+  else if (text) items[i] = { ...items[i], text };
+  else return "text required";
+  return null;
+}
+const SAID_KIND_SET = new Set(["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie", "other"]);

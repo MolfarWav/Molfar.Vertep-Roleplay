@@ -58,6 +58,8 @@ const DEBUG_RUN_TEXT_MAX = 20000;
 // the last time an insert did not fit the user's limit, per chat (the app shows it once)
 const NOTICE_DIR = "dashboard/notice/";
 const NOTES_DIR = "dashboard/notes/";
+// the state a rebuild on top of an earlier chat replaced (one copy per chat, gone with the chat)
+const REBASE_DIR = "dashboard/rebase/";
 // the user's one-time "Story, move" nudge per chat: rides the next reply request only, never the chat file
 const NUDGE_DIR = "dashboard/nudge/";
 const NUDGE_TTL_MS = 30 * 60 * 1000;
@@ -3325,7 +3327,7 @@ function pickChat(fsx) {
 /** State and notice files of chats that no longer exist (at most 20 per tick). */
 function removeOrphans(fsx) {
   let removed = 0;
-  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR, NUDGE_DIR, FAST_DIR]) {
+  for (const dir of [STATE_DIR, NOTICE_DIR, NOTES_DIR, NUDGE_DIR, FAST_DIR, REBASE_DIR]) {
     let files = [];
     try {
       files = fsx.list(dir.slice(0, -1)).filter((f) => f.endsWith(".json"));
@@ -4345,6 +4347,9 @@ function inheritInfo(fsx, chatId, state) {
     notes: was ? Number(was.notes) || 0 : 0,
     threads: was ? Number(was.threads) || 0 : 0,
     canSwitch: !own,
+    // linked after the chat had read turns of its own: its Dashboard was built without the earlier chat, and can be
+    // rebuilt on top of it (the chat is read again, one sensor call; the user's own notes stay)
+    canRebase: own && !was && !!endStateOf(fsx, from),
   };
 }
 
@@ -4357,7 +4362,33 @@ function inheritRoute(req, fsx) {
   const chatId = str(b.chatId);
   if (!CHAT_ID.test(chatId) || !readChat(fsx, chatId)) return ok({ error: "no such chat" }, 400);
   const { state } = loadState(fsx, chatId);
-  if (Object.keys(state.snapshots).length) return ok({ error: "this chat has already started its own Dashboard" }, 409);
+  const own = Object.keys(state.snapshots).length > 0;
+  if (own && b.rebase !== true) return ok({ error: "this chat has already started its own Dashboard" }, 409);
+  if (own && b.on === false) return ok({ error: "this chat has already started its own Dashboard" }, 409);
+  if (b.rebase === true) {
+    if (!own) return ok({ error: "nothing to rebuild: the chat has no Dashboard of its own yet" }, 409);
+    if (isObj(state.inherited)) return ok({ error: "this chat already took its start from an earlier chat" }, 409);
+    const seed = buildInherit(fsx, chatId);
+    if (!seed) return ok({ error: "the chat it continues has no Dashboard state to carry" }, 404);
+    // the state the chat had is kept once, so a rebuild can be undone by hand
+    try {
+      fsx.write(REBASE_DIR + chatId + ".json", JSON.stringify(state));
+    } catch {}
+    // everything the messages produced is dropped and read again on top of the carried state; usage and the user's
+    // own notes (dashboard/notes) are not touched
+    state.snapshots = {};
+    state.places = {};
+    state.notebook = {};
+    state.names = {};
+    state.history = {};
+    state.said = {};
+    state.counters = { note: 0, thread: 0, said: 0 };
+    state.keptOut = null;
+    state.lastError = null;
+    applyInherit(state, seed);
+    fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+    return ok({ ok: true, rebuilt: true, inherit: inheritInfo(fsx, chatId, state) });
+  }
   if (b.on === false) {
     // a chat that never loaded the carried state still remembers where it came from
     if (!isObj(state.inherited)) {
