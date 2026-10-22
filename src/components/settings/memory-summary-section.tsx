@@ -79,6 +79,33 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           </div>
           <Switch id="lit-insert" checked={cfg.insert} onCheckedChange={(v) => save({ insert: v })} />
         </Field>
+        <Field orientation="horizontal">
+          <div className="flex flex-col gap-0.5">
+            <FieldLabel htmlFor="lit-skills">{t('lit.set.skills')}</FieldLabel>
+            <p className="text-xs text-muted-foreground">{t('lit.set.skillsHint')}</p>
+          </div>
+          <Switch id="lit-skills" checked={cfg.skills !== false} onCheckedChange={(v) => save({ skills: v })} />
+        </Field>
+        {cfg.skills !== false && (
+          <Field>
+            <FieldLabel htmlFor="lit-skills-after">{t('lit.set.skillsAfter')}</FieldLabel>
+            <Input
+              id="lit-skills-after"
+              type="number"
+              min={1}
+              max={5}
+              value={cfg.skillsEarnAfter ?? 2}
+              onChange={(e) => setCfg({ ...cfg, skillsEarnAfter: Number(e.target.value) })}
+              onBlur={(e) => {
+                const v = clamp(Math.round(Number(e.target.value)) || 2, 1, 5)
+                setCfg({ ...cfg, skillsEarnAfter: v })
+                save({ skillsEarnAfter: v })
+              }}
+              className="w-32"
+            />
+            <p className="text-xs text-muted-foreground">{t('lit.set.skillsAfterHint')}</p>
+          </Field>
+        )}
         <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
         <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
         <Field>

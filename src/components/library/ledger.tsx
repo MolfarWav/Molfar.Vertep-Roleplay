@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { announceEarned } from '@/lib/skill-earned-toast'
+import { skillCounts } from '@/lib/skill-earned'
 import { distinctName, fetchLitChat, type LitChat } from './litopys-api'
 import { WorkerLine } from './worker-line'
 import { ArcNotice } from './arcs'
@@ -13,16 +15,18 @@ import { FactsTab } from './ledger-facts'
 import { ChaptersTab } from './ledger-chapters'
 import { ProposalsTab } from './ledger-proposals'
 import { ActivityTab } from './ledger-activity'
+import { SkillsTab } from './ledger-skills'
 import { OverviewBody } from './overview'
 
-const TAB_IDS = ['chapters', 'facts', 'proposals', 'activity'] as const
+const TAB_IDS = ['chapters', 'facts', 'proposals', 'skills', 'activity'] as const
 type TabId = (typeof TAB_IDS)[number]
 
-function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.proposals' | 'lit.activity' {
+function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.proposals' | 'lit.skills' | 'lit.activity' {
   switch (id) {
     case 'chapters': return 'lit.chapters'
     case 'facts': return 'lit.facts'
     case 'proposals': return 'lit.proposals'
+    case 'skills': return 'lit.skills'
     case 'activity': return 'lit.activity'
   }
 }
@@ -55,6 +59,15 @@ export function LedgerChat({
   const [tab, setTab] = useState<TabId>(readStoredTab)
   const [bump, setBump] = useState(0)
   const seq = useRef(0)
+  // the "earned a skill" toast asks for the Skills tab
+  const tabRequest = useApp((s) => s.ledgerTabRequest)
+  useEffect(() => {
+    if (!tabRequest) return
+    useApp.setState({ ledgerTabRequest: null })
+    if (TAB_IDS.includes(tabRequest as TabId)) setTab(tabRequest as TabId)
+  }, [tabRequest])
+  const tabNow = useRef(tab)
+  tabNow.current = tab
 
   // poll faster while the worker writes or a rebuild runs
   const active = chat?.worker?.state === 'working' || !!chat?.rebuilding
@@ -70,6 +83,8 @@ export function LedgerChat({
           setChat(data)
           setError(null)
           onLoaded?.(data)
+          // a skill earned since this browser last showed one: one toast (quiet while the Skills tab is open)
+          announceEarned(chatId, data.skills, { quiet: tabNow.current === 'skills' })
         }
       } catch (e) {
         if (!cancelled && seq.current === my) {
@@ -105,6 +120,8 @@ export function LedgerChat({
     seq.current++
     setChat(c)
     onLoaded?.(c)
+    // what the user just did (accepting a candidate early) is not news
+    announceEarned(c.chatId, c.skills, { quiet: true })
   }
 
   const refresh = () => setBump((n) => n + 1)
@@ -121,10 +138,12 @@ export function LedgerChat({
   // a record file with nothing in it yet reads as empty: one explanation instead of three "none yet" lines
   const empty = !chat.hasData || (chat.chapters.length === 0 && activeFacts === 0 && pending === 0)
 
+  const sk = skillCounts(chat.skills)
   const tabs: { id: TabId; count: number }[] = [
     { id: 'chapters', count: chat.chapters.length },
     { id: 'facts', count: activeFacts },
     { id: 'proposals', count: pending },
+    { id: 'skills', count: sk.earned },
     { id: 'activity', count: chat.activity.length },
   ]
 
@@ -197,6 +216,11 @@ export function LedgerChat({
                 >
                   {t(tabLabel(id))}
                   {(id !== 'proposals' || count === 0) && <span className="text-[10px] tabular-nums opacity-70">{count}</span>}
+                  {id === 'skills' && sk.candidates > 0 && (
+                    <span className="rounded-full bg-violet-600 px-1.5 py-px text-[10px] leading-none text-white" title={t('lit.skills.candPill', { n: sk.candidates })} data-testid="skills-candidates-pill">
+                      +{sk.candidates}
+                    </span>
+                  )}
                   {id === 'proposals' && count > 0 && (
                     <span className="rounded-full bg-primary px-1.5 py-px text-[10px] leading-none text-primary-foreground">
                       {count}
@@ -209,6 +233,7 @@ export function LedgerChat({
             {tab === 'chapters' && <ChaptersTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'facts' && <FactsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'proposals' && <ProposalsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
+            {tab === 'skills' && <SkillsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'activity' && <ActivityTab chat={chat} onChat={onChat} onRefresh={refresh} />}
           </>
         )}

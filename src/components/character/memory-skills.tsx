@@ -25,7 +25,7 @@ const RULE_LINES = 6
 /** How many non-empty lines a rule has (the server keeps the first six and drops the empty ones). */
 const countLines = (rule: string) => rule.split(/\r?\n/).filter((l) => l.trim()).length
 
-interface Values { name: string; rule: string; when: string }
+export interface Values { name: string; rule: string; when: string }
 
 /** The card's skills: short rules for how the character acts. Proposals wait for a yes at the top; the
  *  accepted ones have a switch each. Changes act at once, like the rest of the Memory tab. */
@@ -197,7 +197,7 @@ function SkillText({ k, t, muted, full }: { k: MemSkill; t: T; muted?: boolean; 
 
 /** The form for one skill, used to add, to edit and to edit-then-accept a proposal. It is not a <form>: Enter in
  *  a single-line field does nothing, Save is the button (Esc cancels). */
-function SkillForm({ t, name: cardName, initial, submitLabel, onCancel, onSubmit, onCard }: { onCard?: boolean; t: T; name: string; initial: Values; submitLabel: string; onCancel: () => void; onSubmit: (v: Values) => Promise<boolean> }) {
+export function SkillForm({ t, name: cardName, initial, submitLabel, onCancel, onSubmit, onCard }: { onCard?: boolean; t: T; name: string; initial: Values; submitLabel: string; onCancel: () => void; onSubmit: (v: Values) => Promise<boolean> }) {
   const uid = useId()
   const [v, setV] = useState<Values>(initial)
   const [busy, setBusy] = useState(false)

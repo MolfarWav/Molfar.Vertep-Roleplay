@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Eye, Trophy } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { useT, useRelativeTime } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
@@ -67,11 +68,21 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'arc.delete': return t('lit.act.arcDelete', { label })
     case 'arc.drop': return t('lit.act.arcDrop', { label })
     case 'arc.fail': return t('lit.act.arcFail', { error })
+    case 'skill.seen': return t('lit.act.skillSeen', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
+    case 'skill.earn': return t('lit.act.skillEarn', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'consolidate.ask': return t('lit.act.consolidateAsk', { n: num(d.facts) })
     case 'consolidate.done': return Number(d.proposed) > 0 ? t('lit.act.consolidateDone', { n: num(d.proposed) }) : t('lit.consolidate.nothing')
     case 'consolidate.fail': return t('lit.act.consolidateFail', { error })
     default: return a.text
   }
+}
+
+/** A small icon for the rows about skills (the other rows have none): a glance tells a habit seen from a skill earned. */
+function SkillIcon({ kind }: { kind: string }) {
+  const cls = 'size-4 shrink-0 text-violet-700 dark:text-violet-300'
+  if (kind === 'skill.earn') return <Trophy className={cls} weight="fill" aria-hidden="true" />
+  if (kind === 'skill.seen') return <Eye className={cls} aria-hidden="true" />
+  return null
 }
 
 export function ActivityTab({ chat }: TabProps) {
@@ -132,6 +143,7 @@ export function ActivityTab({ chat }: TabProps) {
                 <Badge variant="secondary" className="text-[10px]">
                   {t(byKeys[a.by] ?? 'lit.by.worker')}
                 </Badge>
+                <SkillIcon kind={a.kind} />
                 <span className="text-sm break-words">{activityText(a, t)}</span>
               </div>
             </li>

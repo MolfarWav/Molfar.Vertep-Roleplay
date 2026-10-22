@@ -13,7 +13,10 @@ import { buildCarries, flipOff, parseHidden, CARRY_KINDS, HIDDEN_KEY, type Carri
 import type { MsgKey } from '@/lib/i18n'
 import { getChatPromptBoard, j, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
+import { skillCounts } from '@/lib/skill-earned'
+import { announceEarned } from '@/lib/skill-earned-toast'
 import { estimateTokens } from '@/lib/tokens'
+import { fetchLitChat } from '@/components/library/litopys-api'
 import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
@@ -35,7 +38,7 @@ interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
   inherit?: DashCarries['inherit']
 }
-interface Loaded { chatId: string; carries: CarriesAnswer | null; dash: DashCarries | null }
+interface Loaded { chatId: string; carries: CarriesAnswer | null; dash: DashCarries | null; skills: { earned: number; candidates: number } | null }
 
 /** The strip under the chat header: what the chat carries into the prompt besides the history, and the
  *  panel that opens from a chip, with a switch per part. Hidden in a plain chat. */
@@ -63,16 +66,19 @@ export function CarriesStrip({
   const refetch = useCallback(async () => {
     const mine = ++seq.current
     // each answer may fail on its own: the strip shows what it has, silently
-    const [carries, dash] = await Promise.all([
+    const [carries, dash, rec] = await Promise.all([
       j<CarriesAnswer>(`/litopys/carries?chatId=${encodeURIComponent(chatId)}`).catch(() => null),
       j<DashAnswer>(`/dashboard/state?chatId=${encodeURIComponent(chatId)}&view=1`).catch(() => null),
+      // the chat's Litopys record: the skills earned in it (one toast when a new one was earned, and a line in the Skills row)
+      fetchLitChat(chatId).catch(() => null),
     ])
     if (mine !== seq.current) return
     const view = dash?.view
     const dashPart: DashCarries | null = view
       ? { tokens: Number(view.insert?.tokens) || 0, saidTokens: Number(view.insert?.saidTokens) || 0, inherit: view.inherit ?? dash?.inherit ?? null }
       : null
-    setLoaded({ chatId, carries, dash: dashPart })
+    if (rec) announceEarned(chatId, rec.skills)
+    setLoaded({ chatId, carries, dash: dashPart, skills: rec?.skills ? skillCounts(rec.skills) : null })
   }, [chatId])
   useEffect(() => { void refetch() }, [refetch, msgCount, open])
   useEffect(() => { setOpen(false) }, [chatId])
@@ -197,6 +203,7 @@ export function CarriesStrip({
                 key={p.key}
                 part={p}
                 carries={mine?.carries ?? null}
+                chatSkills={mine?.skills ?? null}
                 dash={mine?.dash ?? null}
                 t={t}
                 onFlip={() => p.switchKey && void flip(p.switchKey)}
@@ -219,7 +226,7 @@ export function CarriesStrip({
   )
 }
 
-function PartRow({ part, carries, dash, t, onFlip, onLeave }: { part: CarryPart; carries: CarriesAnswer | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
+function PartRow({ part, carries, chatSkills, dash, t, onFlip, onLeave }: { part: CarryPart; carries: CarriesAnswer | null; chatSkills: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
   const [shown, setShown] = useState(false)
   const Icon = ICONS[part.kind]
   const cm = carries?.cardMemory
@@ -253,6 +260,9 @@ function PartRow({ part, carries, dash, t, onFlip, onLeave }: { part: CarryPart;
       {inherit && <p className="text-xs text-muted-foreground">{t('carries.dashboard.inherit', { title: inherit.title || inherit.from || '' })}</p>}
       {part.kind === 'memory' && !!cm && cm.dupes > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: cm.dupes })}</p>
+      )}
+      {part.kind === 'skills' && !!chatSkills && (chatSkills.earned > 0 || chatSkills.candidates > 0) && (
+        <p className="text-xs text-muted-foreground" data-testid="carries-skills-earned">{t('carries.skills.chat', { earned: chatSkills.earned, candidates: chatSkills.candidates })}</p>
       )}
       {part.kind === 'skills' && !!sk && sk.dupes > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.skills.dupes', { n: sk.dupes })}</p>

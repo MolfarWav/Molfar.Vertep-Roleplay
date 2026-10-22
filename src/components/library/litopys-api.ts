@@ -175,6 +175,7 @@ export type LitActivityKind =
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
+  | 'skill.seen' | 'skill.earn'
 
 /**
  * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
@@ -194,6 +195,30 @@ export interface LitActivity {
   data?: Record<string, string | number | boolean>
 }
 
+/** A habit a character showed in this chat (#106): a candidate (proposed, seen once) or an earned skill (active, acts in this chat). */
+export interface LitSkill {
+  id: string
+  /** the character it belongs to */
+  who: string
+  name: string
+  /** 1 to 6 lines joined by a newline */
+  rule: string
+  when: string
+  status: 'proposed' | 'active'
+  on: boolean
+  /** in how many different chapters it showed */
+  seen: number
+  chapters: string[]
+  /** the last three sightings: a short quote and the chapter id */
+  evidence: { text: string; chapter: string }[]
+  origin: 'chapter'
+  /** when it was earned (epoch ms) */
+  earnedAt?: number
+  /** copied to the character's card */
+  kept?: { cardId: string; at: number }
+  edited?: boolean
+}
+
 export interface LitChat {
   chatId: string
   title: string
@@ -205,6 +230,8 @@ export interface LitChat {
   chapters: LitChapter[]
   facts: LitFact[]
   proposals: LitProposal[]
+  /** skills the characters showed (rejected ones left out); missing from an engine before #106 */
+  skills?: LitSkill[]
   /** The scene in progress (never compressed); sceneFromNo is 1-based, 0 = unknown. */
   scene: { openFrom: string | null; label?: string }
   sceneFromNo: number
@@ -257,6 +284,9 @@ export interface LitConfig {
   arcSizeMax: number
   arcWords: number
   arc: string
+  /** #106: look for skills in scenes (default on), and in how many different scenes a habit becomes a skill (1 to 5, default 2); missing from an older plugin */
+  skills?: boolean
+  skillsEarnAfter?: number
   /** which prompts differ from the default (4.34; absent on an older plugin) */
   custom?: string[]
 }
@@ -310,6 +340,10 @@ export const deleteLitArc = (chatId: string, id: string) => post<LitChat>('/lito
 
 export const acceptLitProposal = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'accept', ...(replace ? { replace } : {}) })
 export const rejectLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'reject' })
+
+/** #106 skills earned in a chat. keep copies an earned skill to the character's card (400 with a text when there is no card). */
+export type LitSkillOp = { op: 'on'; on: boolean } | { op: 'accept' } | { op: 'reject' } | { op: 'keep' } | { op: 'edit'; name?: string; rule?: string; when?: string }
+export const litSkillOp = (chatId: string, id: string, o: LitSkillOp) => post<LitChat>('/litopys/skills', { chatId, id, ...o })
 
 // ---------- M4d: the original messages ----------
 export interface LitMessage {

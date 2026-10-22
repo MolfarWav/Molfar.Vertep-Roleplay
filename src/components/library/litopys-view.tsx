@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowsClockwise, CaretRight, GearSix, Graph, Scroll } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -110,10 +110,15 @@ export function LitopysView() {
   useEffect(() => { if (items) setLitCounts(items, attentionOn) }, [items, attentionOn])
   // "Open" on a needs-you toast: that chat's Overview, where its proposals are
   const focusChat = useApp((s) => s.focusLibraryChatId)
+  // the "earned a skill" toast: the tabs (Ledger) hold the Skills tab, the Overview does not
+  const wantsTab = useApp((s) => s.ledgerTabRequest)
+  const wantsRef = useRef(wantsTab)
+  wantsRef.current = wantsTab
+  useEffect(() => { if (wantsTab) setModeState('ledger') }, [wantsTab])
   useEffect(() => {
     if (!focusChat) return
     useApp.setState({ focusLibraryChatId: null })
-    setMode('overview')
+    if (!wantsRef.current) setMode('overview')
     select(focusChat)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusChat])
