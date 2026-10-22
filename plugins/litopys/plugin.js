@@ -2181,6 +2181,9 @@ export function rebuildChat(fsx, chatId, cfg) {
   if (!SAFE_ID.test(chatId)) return null;
   const rc = readChat(fsx, chatId);
   if (!rc) return null;
+  // no closed scene to write from: a rebuild would swap in an empty record over the one in use (it did, 2026-10-22)
+  const closed = findScenes(activeLine(rc.msgs), readDash(fsx, chatId), cfg).filter((s) => s.closed).length;
+  if (!closed) return { none: true };
   for (let attempt = 0; attempt < 3; attempt++) {
     const st = loadChatFile(fsx, chatId);
     if (!st) return null;
@@ -2302,6 +2305,13 @@ export function onTick(_ctx, host) {
         if (!work && gen.inFlight) {
           delete gen.inFlight;
           changed = true;
+        }
+        if (!work && gen !== st && !arr(gen.chapters).length && arr(st.chapters).length) {
+          // the new generation wrote nothing (no closed scene, or the worker failed): never swap it over a record that has chapters
+          delete st.rebuild;
+          addActivity(st, "rebuild", "rebuild.abort", "Rebuild stopped: it had no chapter to put in place of " + st.chapters.length + "; the record is untouched", [], now);
+          if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
+          continue;
         }
         if (!work && gen !== st) {
           finishRebuild(st, now);
@@ -3855,6 +3865,7 @@ export function handleRoute(req, host) {
     const res = rebuildChat(fsx, str(body.chatId), loadConfig(fsx));
     if (!res) return { status: 404, json: { error: "chat not found" } };
     if (res.busy) return { status: 409, json: { error: "busy, try again" } };
+    if (res.none) return { status: 409, json: { error: "no closed scene to rebuild from; the record is untouched", none: true } };
     return { status: 200, json: res };
   }
   if (path === "/litopys/messages" && req.method === "GET") return messagesView(fsx, req.query || {});
