@@ -2255,6 +2255,18 @@ export function cleanPromptBoard(x) {
   }
   return out.off || out.history ? out : null;
 }
+/** Per-chat choice of the card's stories (meta.memory.sources): { "<sourceId>": true|false }, false = this chat
+ *  leaves the story out, true = a story marked canon "separate" is allowed in. Returns the cleaned map or null. */
+export function cleanChatMemorySources(x) {
+  const raw = x && typeof x === "object" && !Array.isArray(x) && x.sources && typeof x.sources === "object" && !Array.isArray(x.sources) ? x.sources : null;
+  if (!raw) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (Object.keys(out).length >= 60) break;
+    if (/^s\d+$/.test(k) && typeof v === "boolean") out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
 /** The group as this chat plays it: the group file with the chat's own turn
  *  settings on top. The order override keeps only current members and puts
  *  members added since at the end. */
@@ -4881,7 +4893,10 @@ const toolX = (r) => ({
       // promptBoard: per-chat prompt switches, cleaned like turns
       const promptBoard = "promptBoard" in b ? cleanPromptBoard(b.promptBoard) : undefined;
       const promptBoardSame = promptBoard === undefined || same(promptBoard, meta.promptBoard);
-      if (turnsSame && promptBoardSame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      // memory: which of the card's stories feed this chat; only `sources` is ours, other keys of meta.memory stay
+      const memorySources = "memory" in b ? cleanChatMemorySources(b.memory) : undefined;
+      const memorySame = memorySources === undefined || same(memorySources, meta.memory && meta.memory.sources);
+      if (turnsSame && promptBoardSame && memorySame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
       if (!turnsSame) {
         if (turns) meta.turns = turns;
         else delete meta.turns;
@@ -4889,6 +4904,13 @@ const toolX = (r) => ({
       if (!promptBoardSame) {
         if (promptBoard) meta.promptBoard = promptBoard;
         else delete meta.promptBoard;
+      }
+      if (!memorySame) {
+        const mem = meta.memory && typeof meta.memory === "object" && !Array.isArray(meta.memory) ? { ...meta.memory } : {};
+        if (memorySources) mem.sources = memorySources;
+        else delete mem.sources;
+        if (Object.keys(mem).length) meta.memory = mem;
+        else delete meta.memory;
       }
       const prevPersonaId = meta.personaId;
       for (const k of keys) {

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useT } from '@/hooks/use-t'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -47,9 +48,9 @@ export function useConfirm() {
           {state?.description && <AlertDialogDescription>{state.description}</AlertDialogDescription>}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => settle(false)}>{t('home.cancel')}</AlertDialogCancel>
+          <AlertDialogCancel className="max-md:h-10" onClick={() => settle(false)}>{t('home.cancel')}</AlertDialogCancel>
           <AlertDialogAction
-            className={state?.destructive === false ? undefined : 'bg-destructive text-white hover:bg-destructive/90'}
+            className={cn('max-md:h-10', state?.destructive !== false && 'bg-destructive text-white hover:bg-destructive/90')}
             onClick={() => settle(true)}
           >
             {state?.actionLabel ?? 'Delete'}

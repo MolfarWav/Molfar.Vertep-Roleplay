@@ -9,14 +9,16 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Switch } from '@/components/ui/switch'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
-import { buildCarries, flipOff, parseHidden, CARRY_KINDS, HIDDEN_KEY, type CarriesAnswer, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
+import { buildCarries, flipOff, ownStoryChats, parseHidden, CARRY_KINDS, HIDDEN_KEY, type CarriesAnswer, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
 import type { MsgKey } from '@/lib/i18n'
 import { getChatPromptBoard, j, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { skillCounts } from '@/lib/skill-earned'
 import { announceEarned } from '@/lib/skill-earned-toast'
 import { estimateTokens } from '@/lib/tokens'
-import { fetchLitChat } from '@/components/library/litopys-api'
+import { fetchLitChat, fetchLitLinks } from '@/components/library/litopys-api'
+import { fetchCardMemory } from '@/components/character/memory-api'
+import { StoryChoices } from './carries-stories'
 import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
@@ -38,6 +40,23 @@ interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
   inherit?: DashCarries['inherit']
 }
+/** The card has stories that would normally reach this chat but none does now (the chat left them out, or a "separate" one is not let in):
+ *  the answer carries no memory, so the part is made up with 0 tokens, to let the user choose stories again. */
+async function withIdleMemory(c: CarriesAnswer, chatId: string): Promise<CarriesAnswer> {
+  const st = useApp.getState()
+  const chat = st.chats.find((x) => x.id === chatId)
+  const card = chat?.characterId ? st.characters.find((x) => x.id === chat.characterId) : undefined
+  if (!card || c.off.includes('plugin:cardmemory')) return c
+  try {
+    const [mem, links] = await Promise.all([fetchCardMemory(card.id), fetchLitLinks().then((r) => r.links).catch(() => ({}))])
+    const mine = ownStoryChats(chatId, links)
+    if (!mem.memory.inject.enabled || !mem.memory.sources.some((s) => s.on && !(s.chatId && mine.has(s.chatId)))) return c
+    return { ...c, cardMemory: { cardId: card.id, name: card.name, tokens: 0, dupes: 0, sources: [], text: '' } }
+  } catch {
+    return c
+  }
+}
+
 interface Loaded { chatId: string; carries: CarriesAnswer | null; dash: DashCarries | null; skills: { earned: number; candidates: number } | null }
 
 /** The strip under the chat header: what the chat carries into the prompt besides the history, and the
@@ -73,12 +92,14 @@ export function CarriesStrip({
       fetchLitChat(chatId).catch(() => null),
     ])
     if (mine !== seq.current) return
+    const carriesOut = carries && !carries.cardMemory ? await withIdleMemory(carries, chatId) : carries
+    if (mine !== seq.current) return
     const view = dash?.view
     const dashPart: DashCarries | null = view
       ? { tokens: Number(view.insert?.tokens) || 0, saidTokens: Number(view.insert?.saidTokens) || 0, inherit: view.inherit ?? dash?.inherit ?? null }
       : null
     if (rec) announceEarned(chatId, rec.skills)
-    setLoaded({ chatId, carries, dash: dashPart, skills: rec?.skills ? skillCounts(rec.skills) : null })
+    setLoaded({ chatId, carries: carriesOut, dash: dashPart, skills: rec?.skills ? skillCounts(rec.skills) : null })
   }, [chatId])
   useEffect(() => { void refetch() }, [refetch, msgCount, open])
   useEffect(() => { setOpen(false) }, [chatId])
@@ -206,6 +227,8 @@ export function CarriesStrip({
                 chatSkills={mine?.skills ?? null}
                 dash={mine?.dash ?? null}
                 t={t}
+                chatId={chatId}
+                onChanged={() => void refetch()}
                 onFlip={() => p.switchKey && void flip(p.switchKey)}
                 onLeave={() => setOpen(false)}
               />
@@ -226,7 +249,7 @@ export function CarriesStrip({
   )
 }
 
-function PartRow({ part, carries, chatSkills, dash, t, onFlip, onLeave }: { part: CarryPart; carries: CarriesAnswer | null; chatSkills: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
+function PartRow({ part, chatId, carries, chatSkills, dash, t, onFlip, onLeave, onChanged }: { part: CarryPart; chatId: string; onChanged: () => void; carries: CarriesAnswer | null; chatSkills: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
   const [shown, setShown] = useState(false)
   const Icon = ICONS[part.kind]
   const cm = carries?.cardMemory
@@ -235,7 +258,7 @@ function PartRow({ part, carries, chatSkills, dash, t, onFlip, onLeave }: { part
   const wd = carries?.world
   const text = part.kind === 'memory' ? cm?.text : part.kind === 'skills' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
   const detail =
-    part.kind === 'memory' ? t('carries.memory.detail', { n: cm?.sources.length ?? 0 })
+    part.kind === 'memory' ? (cm && cm.sources.length === 0 ? t('carries.memory.none') : t('carries.memory.detail', { n: cm?.sources.length ?? 0 }))
     : part.kind === 'skills' ? t('carries.skills.detail', { n: sk?.skills.length ?? 0, name: sk?.name ?? '' })
     : part.kind === 'backstory' ? t('carries.backstory.detail', { facts: bs?.facts ?? 0, chapters: bs?.chapters ?? 0 })
     : part.kind === 'litopys' ? t('carries.litopys.detail', { facts: carries?.litopys.facts ?? 0, chapters: carries?.litopys.chapters ?? 0 })
@@ -284,6 +307,7 @@ function PartRow({ part, carries, chatSkills, dash, t, onFlip, onLeave }: { part
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openDashboard() }}>{t('carries.dashboard.open')}</Button>
         )}
       </div>
+      {part.kind === 'memory' && !!cm && <StoryChoices chatId={chatId} cardId={cm.cardId} t={t} onChanged={onChanged} />}
       {shown && !!text && (
         <pre id={textId} aria-label={t('carries.text')} tabIndex={0} data-testid={textId} className="max-h-56 overflow-y-auto rounded-md border border-border bg-muted p-2 text-xs break-words whitespace-pre-wrap">{text}</pre>
       )}

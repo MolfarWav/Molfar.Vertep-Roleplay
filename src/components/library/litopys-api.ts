@@ -394,3 +394,6 @@ export const distinctName = (title: string, name: string): string => {
   const n = name.trim()
   return n && !title.toLowerCase().includes(n.toLowerCase()) ? n : ''
 }
+
+/** The backstory links the user set: chat id -> the earlier chat it continues. */
+export const fetchLitLinks = () => j<{ links: Record<string, { from: string; at?: number }> }>('/litopys/links')

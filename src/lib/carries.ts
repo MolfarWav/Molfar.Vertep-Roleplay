@@ -125,3 +125,39 @@ export function parseHidden(raw: string | null | undefined): CarryKind[] {
 export function flipOff(off: readonly string[], key: string): string[] {
   return off.includes(key) ? off.filter((k) => k !== key) : [...off, key]
 }
+
+/** The chats whose story this chat already carries by itself: the chat and its backstory chain (the server stops after three links). */
+export function ownStoryChats(chatId: string, links: Record<string, { from: string } | undefined>): Set<string> {
+  const out = new Set([chatId])
+  for (let cur = links[chatId]?.from; cur && !out.has(cur) && out.size <= 3; cur = links[cur]?.from) out.add(cur)
+  return out
+}
+
+export interface StoryRow { id: string; chatId: string; title: string; on: boolean; canon: 'main' | 'separate' }
+export interface StoryChoice extends StoryRow {
+  /** the chat already has this story itself (its own record or its backstory): no switch */
+  own: boolean
+  /** switched off on the card: this chat cannot let it in */
+  cardOff: boolean
+  /** what this chat does with it now */
+  checked: boolean
+}
+
+/** One line per story with what this chat does with it: an override wins, else the default of the story (on, and canon main). */
+export function storyChoices(sources: StoryRow[], chatId: string, links: Record<string, { from: string } | undefined>, overrides: Record<string, boolean> | null): StoryChoice[] {
+  const mine = ownStoryChats(chatId, links)
+  return sources.map((s) => ({
+    ...s,
+    own: !!s.chatId && mine.has(s.chatId),
+    cardOff: !s.on,
+    checked: s.on && (overrides?.[s.id] ?? s.canon !== 'separate'),
+  }))
+}
+
+/** The overrides after the user sets one story; a value equal to the default of the story is not stored. null = nothing left. */
+export function withStoryChoice(overrides: Record<string, boolean> | null, story: Pick<StoryRow, 'id' | 'canon'>, value: boolean): Record<string, boolean> | null {
+  const next = { ...(overrides ?? {}) }
+  if (value === (story.canon !== 'separate')) delete next[story.id]
+  else next[story.id] = value
+  return Object.keys(next).length ? next : null
+}

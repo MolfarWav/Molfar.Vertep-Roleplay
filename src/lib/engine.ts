@@ -1088,6 +1088,23 @@ export async function setChatPromptBoard(chatId: string, board: PromptBoardConfi
   })
   return meta.promptBoard ?? null
 }
+
+/** Which of the card's stories feed this chat (chat meta `memory.sources`): false = left out, true = a "separate" story let in. */
+export type ChatMemorySources = Record<string, boolean>
+
+export async function getChatMemorySources(chatId: string): Promise<ChatMemorySources | null> {
+  const r = await j<{ meta: { memory?: { sources?: ChatMemorySources } } }>(`/chats/${encodeURIComponent(chatId)}`)
+  return r.meta.memory?.sources ?? null
+}
+
+/** Replaces the chat's story choice whole; the engine cleans it (null = every story back to its own default). */
+export async function setChatMemorySources(chatId: string, sources: ChatMemorySources | null): Promise<ChatMemorySources | null> {
+  const meta = await j<{ memory?: { sources?: ChatMemorySources } }>(`/chats/${encodeURIComponent(chatId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ memory: sources ? { sources } : null }),
+  })
+  return meta.memory?.sources ?? null
+}
 export interface PromptSourceSpan { msg: number; start: number; end: number; part: number }
 
 /** The EXACT prompt the engine would send for this chat right now (macros
