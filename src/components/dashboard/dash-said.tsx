@@ -66,7 +66,7 @@ function SaidRow({ item, revealed, editable }: { item: SaidNote; revealed: boole
       {editable && !editing && !covered && (
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon-xs" className={FIELD} aria-label={t('dash.said.menu')} title={t('dash.said.menu')}><DotsThree weight="bold" aria-hidden="true" /></Button>}
+            render={<Button variant="ghost" size="icon-xs" className={cn(FIELD, 'max-md:size-10')} aria-label={t('dash.said.menu')} title={t('dash.said.menu')}><DotsThree weight="bold" aria-hidden="true" /></Button>}
           />
           <DropdownMenuContent align="end" className="min-w-48">
             <DropdownMenuItem onClick={() => setEditing(true)}>{t('dash.note.edit')}</DropdownMenuItem>
@@ -99,7 +99,7 @@ export function SaidBlock({ name, char }: { name: string; char: DashChar }) {
             type="button"
             onClick={() => setReveal((v) => !v)}
             aria-pressed={reveal}
-            className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+            className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground max-md:min-h-10"
           >
             {reveal ? <Eye className="size-3.5" aria-hidden="true" /> : <EyeSlash className="size-3.5" aria-hidden="true" />}
             {reveal ? t('dash.said.hide', { n: hiddenCount }) : t('dash.said.show', { n: hiddenCount })}
@@ -116,7 +116,7 @@ export function SaidBlock({ name, char }: { name: string; char: DashChar }) {
       )}
       {removed.length > 0 && (
         <Collapsible className="mt-2">
-          <CollapsibleTrigger className="group/rm flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <CollapsibleTrigger className="group/rm flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground max-md:min-h-10">
             <CaretRight className="size-3 group-data-[panel-open]/rm:hidden" aria-hidden="true" />
             <CaretDown className="hidden size-3 group-data-[panel-open]/rm:block" aria-hidden="true" />
             {t('dash.note.removed', { n: removed.length })}
@@ -126,7 +126,7 @@ export function SaidBlock({ name, char }: { name: string; char: DashChar }) {
               {removed.map((s) => (
                 <li key={s.id} className="flex min-w-0 items-start gap-2 border-b border-dashed border-border py-1 text-muted-foreground last:border-b-0">
                   <span className="min-w-0 flex-1 text-xs break-words line-through">{s.hidden && !reveal ? t('dash.said.coveredRow') : s.text}</span>
-                  <Button size="xs" variant="ghost" className={FIELD} onClick={() => { void act({ op: 'restore', id: s.id }) }}>{t('dash.note.restore')}</Button>
+                  <Button size="xs" variant="ghost" className={cn(FIELD, 'max-md:h-10')} onClick={() => { void act({ op: 'restore', id: s.id }) }}>{t('dash.note.restore')}</Button>
                 </li>
               ))}
             </ul>

@@ -208,8 +208,9 @@ function PartRow({ m, guide, highlighted, status, editable, onActivate, onToggle
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
         {iconFor(m.item.kind)}
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm" title={m.item.label}>{m.item.label}</span>
-      <span className="shrink-0 text-xs text-muted-foreground">{status}</span>
+      {/* the name keeps room: a long status ("added when a reply is generated") gives way, not the name */}
+      <span className="min-w-[8rem] flex-1 truncate text-sm" title={m.item.label}>{m.item.label}</span>
+      <span className="min-w-0 shrink truncate text-xs text-muted-foreground" title={typeof status === 'string' ? status : undefined}>{status}</span>
       {switchable(m.item) && (
         <BoardSwitch checked={m.on} disabled={!editable} label={m.item.label} onFlip={onToggle} big={roomy} />
       )}
