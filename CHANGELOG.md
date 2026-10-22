@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+Memory bridge, part 1 (#100, plan #102). Needs no engine update.
+
+- A chat that continues another starts from that chat's end state. The first Dashboard of a linked chat (the link set on the Canvas or the chats map) already holds the open threads, the characters' numbers, moods and places, the names they call each other, and the notes still alive; the first sensor run reads on from there instead of from zero. It is copied once, before the chat has a Dashboard snapshot of its own (the source chat is never changed), and each carried note keeps the chat it came from. `POST /dashboard/inherit { chatId, on }` starts the chat clean or brings the carried state back, until the first snapshot. A chain takes the nearest chat's end state. The Dashboard's banner and switch (the UI) come next.
+
 ## 4.60.0
 
 The card editor keeps a draft until you press Save, the Profile sections are marked in exported cards, and a card can choose the model for its own tasks (#103, #104, #105). Needs no engine update.
