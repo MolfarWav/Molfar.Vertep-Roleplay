@@ -49,6 +49,7 @@ import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
+import { CarriesStrip } from '@/components/chat/carries-strip'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
 import { ManageChatsDialog } from './manage-chats-dialog'
@@ -782,6 +783,9 @@ export function ChatView() {
           <List className="size-4.5" aria-hidden="true" /> Menu
         </Button>
       </nav>
+
+      {/* what the chat carries into the prompt besides the history (#107): chips, and a panel with a switch per part */}
+      <CarriesStrip chatId={chat.id} noteText={chat.authorNote.text} msgCount={chat.messages.length} onOpenNote={() => setNotesOpen(true)} />
 
       <Sheet open={menuOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d?.event)) return; setMenuOpen(o) }}>
         <SheetContent data-guide="chat.menu" side="right" className="w-[min(320px,88vw)] gap-0 p-0">
