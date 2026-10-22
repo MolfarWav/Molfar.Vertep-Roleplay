@@ -4303,7 +4303,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   let insert = null;
   try {
     const built = buildInsert(fsx, chatId, { op: "send", speakerName: "", targetId: "", userText: "" }, cfg);
-    if (built) insert = { tokens: built.tokens, budget: built.budget, trimmed: built.trimmed };
+    if (built) insert = { tokens: built.tokens, budget: built.budget, trimmed: built.trimmed, saidTokens: built.saidTokens || 0 };
   } catch {}
   return {
     key,

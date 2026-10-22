@@ -3787,6 +3787,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/search" && req.method === "GET") return searchView(fsx, req.query || {});
   if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
+  if (path === "/litopys/carries" && req.method === "GET") return carriesRoute(fsx, req.query || {});
   if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
   if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview");
   if (path === "/litopys/card-memory/import" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "import");
@@ -4208,3 +4209,53 @@ function editStoryLine(source, line) {
   return null;
 }
 const SAID_KIND_SET = new Set(["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie", "other"]);
+
+// ---------- what a chat carries (the strip under the chat header, #107) ----------
+/**
+ * GET /litopys/carries?chatId=&speaker=: the parts that go into a reply besides the history, as they would be built
+ * now (reading only): the card's memory, the Litopys backstory and the chat's own Litopys insert, with their token
+ * counts and exact texts, and the chat's own switches. The Dashboard and the said part report their own numbers
+ * (/dashboard/state, insert.tokens and insert.saidTokens).
+ */
+function carriesRoute(fsx, query) {
+  const chatId = str(query.chatId);
+  const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
+  if (!rc) return { status: 404, json: { error: "no such chat" } };
+  const cfg = loadConfig(fsx);
+  const line = activeLine(rc.msgs);
+  const speakerName = str(query.speaker);
+  const off = isObj(rc.meta.promptBoard) && Array.isArray(rc.meta.promptBoard.off) ? rc.meta.promptBoard.off : [];
+  const dash = readDash(fsx, chatId);
+  const st = loadChatFile(fsx, chatId);
+  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  let insert = null;
+  try {
+    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {} }) : null;
+  } catch {}
+  const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
+  let card = null;
+  try {
+    card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash });
+  } catch {}
+  let cardName = "";
+  if (card) {
+    const c = cardOf(fsx, card.cardId);
+    cardName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
+  }
+  const titleOf = (id) => str((readChat(fsx, id) || { meta: {} }).meta.title) || id;
+  return {
+    status: 200,
+    json: {
+      chatId,
+      off,
+      litopys: {
+        // the chat's own record (story so far, facts), as the last reply carried it; the two links below are separate parts
+        tokens: isObj(last) ? Number(last.tokens) || 0 : 0,
+        facts: isObj(last) ? Number(last.facts) || 0 : 0,
+        chapters: isObj(last) ? Number(last.chapters) || 0 : 0,
+      },
+      backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
+      cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
+    },
+  };
+}

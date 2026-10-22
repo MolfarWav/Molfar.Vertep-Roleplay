@@ -280,3 +280,30 @@ describe("memory goes above the preset's chat-start line", () => {
     expect(order).toEqual(["preset text", "[What Aria r", "[Start a new", "hello"]);
   });
 });
+
+describe("what a chat carries (the strip under the chat header, #107)", () => {
+  it("reports the card memory, the backstory and the chat's switches, with the exact texts", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"], said: ["s1"] });
+    // a second story of the card, told in a chat that the new chat continues
+    writeChat("spring", story(4, "p"), { title: "Spring market", characterId: "aria" });
+    writeJson("litopys/chats/spring.json", { ...L.emptyChat("spring"), migrated: true, facts: [fact("f1", "Aria sells honey at the market.")], chapters: [{ id: "c1", from: "p1", to: "p4", count: 4, kind: "scene", text: "Aria sold honey.", label: "Honey", at: 1 }] });
+    writeChat("next", story(2, "x"), { title: "Next", characterId: "aria", promptBoard: { v: 1, off: ["plugin:said"] } });
+    route(host, "POST", "/litopys/links", { chatId: "next", from: "spring" });
+    const r = route(host, "GET", "/litopys/carries", undefined, { chatId: "next", speaker: "Aria" });
+    expect(r.status).toBe(200);
+    expect(r.json.off).toEqual(["plugin:said"]);
+    expect(r.json.cardMemory).toMatchObject({ cardId: "aria", name: "Aria", sources: ["s1"] });
+    expect(r.json.cardMemory.tokens).toBeGreaterThan(0);
+    expect(r.json.cardMemory.text).toContain("northern gate");
+    expect(r.json.backstory).toMatchObject({ from: "spring", title: "Spring market" });
+    expect(r.json.backstory.text).toContain("Aria sold honey.");
+    expect(route(host, "GET", "/litopys/carries", undefined, { chatId: "nope" }).status).toBe(404);
+    // a chat with nothing to carry reports nulls
+    writeChat("plain", story(2, "y"), { title: "Plain", characterId: "nobody" });
+    const plain = route(host, "GET", "/litopys/carries", undefined, { chatId: "plain" }).json;
+    expect(plain.cardMemory).toBeNull();
+    expect(plain.backstory).toBeNull();
+  });
+});

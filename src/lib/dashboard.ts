@@ -135,7 +135,7 @@ export interface DashView {
   /** the earlier chat this one continues and whether its Dashboard state was carried in (#100); absent when it continues nothing */
   inherit?: DashInherit | null
   /** what the next reply's prompt insert would weigh; null when there is none */
-  insert: { tokens: number; budget: number; trimmed: string[] } | null
+  insert: { tokens: number; budget: number; trimmed: string[]; saidTokens?: number } | null
   insertEnabled: boolean
   mode: 'sensor' | 'fast' | 'manual' | string
   /** the open-thread limit (config `maxThreads`), when the plugin says */
