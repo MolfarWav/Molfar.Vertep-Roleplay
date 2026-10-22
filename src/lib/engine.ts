@@ -15,6 +15,8 @@ import { uid } from './tokens'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
 import { DEFAULT_AVATAR, storedMediaUrl } from './utils'
 import { saveFile } from './export'
+import { markedExport } from './profile'
+import { markProfileSections } from './export-prefs'
 
 // frame URL is /app/<user>/<app>/ (cookieless sandboxed origin)
 export const APP_ID = decodeURIComponent(location.pathname.split('/').filter(Boolean)[2] ?? 'roleplay')
@@ -857,9 +859,17 @@ export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
 /** The card as exported (PNG chunk, JSON file): a chara_card_v2 envelope with the
  *  fields under `data` (V1 fields mirrored on top, like other apps write), the
  *  card's own lorebook as `data.character_book`. The app's own `studio` bag rides
- *  inside `data`, so re-importing here keeps sprites, gallery and the rest. */
-export function characterToExportCard(c: Character, books: Lorebook[]): EngineCard {
+ *  inside `data`, so re-importing here keeps sprites, gallery and the rest.
+ *  `markSections` puts a heading in front of each Profile section in the exported text
+ *  (GitHub #105); the default is the user's "Mark the profile sections" choice. The card
+ *  itself keeps its plain text. */
+export function characterToExportCard(c: Character, books: Lorebook[], opts?: { markSections?: boolean }): EngineCard {
   const { spec: _spec, ...fields } = characterToCard(c)
+  const marks = (opts?.markSections ?? markProfileSections()) ? markedExport(c) : null
+  if (marks) {
+    ;(fields as Record<string, unknown>).description = marks.description
+    ;(fields as Record<string, unknown>).personality = marks.personality
+  }
   // the edit history (old texts, drafts) stays home: a shared card carries the current text only
   if (fields.studio && typeof fields.studio === 'object') {
     const { versions: _versions, ...studio } = fields.studio as Record<string, unknown>

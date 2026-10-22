@@ -15,6 +15,15 @@
  *          (replace: "Read from picture" describes the listed fields anew, filled or not)
  *   GET    /profile/draft?characterId= | ?personaId= | ?groupId=  the draft, or null
  *   DELETE /profile/draft?characterId= | ?personaId= | ?groupId=  discard it
+ *   GET    /profile/card-tasks?characterId=                     the card's own task settings and the model that will run
+ *   PUT    /profile/card-tasks {characterId, model?, maxInput?, maxOutput?}  save them (characters/<id>/card-tasks.json)
+ *
+ * The model for a card's tasks: the one named in the request (an unsaved pick in the editor), else the card's own
+ * (card-tasks.json), else the app-wide "Card tasks" model (settings.json ui.cardTasks.model), else the Dashboard
+ * sensor's, else the app's default. The request may carry the editor's working text (card: {name, description,
+ * personality, scenario, mes_example}) so a proposal reads what is on screen, and limits: {inputChars, outputTokens}
+ * from the chosen model's real window. A card longer than inputChars is read in parts: Structure it takes
+ * {part} (0 first) and answers {part, parts, done}; each part's fields merge into one draft.
  *
  * Group scene (the group editor's Scene tab): one model call writes a proposal
  * the user accepts or discards; the plugin never writes the group file.
@@ -175,21 +184,154 @@ function personaText(p) {
   ].filter(Boolean).join("\n\n");
 }
 
-function userText(card) {
-  const field = (label, v, max) => (str(v) ? label + "\n" + cut(str(v), max) : "");
-  return [
-    "Card: " + (str(card.name) || "unnamed"),
-    field("Description", card.description, 8000),
-    field("Personality", card.personality, 4000),
-    field("Scenario (context only, do not move it)", card.scenario, 1500),
-    field("Example dialogue (for speech only)", card.mes_example, 1500),
-  ].filter(Boolean).join("\n\n");
+const cardTasksPath = (id) => "characters/" + id + "/card-tasks.json";
+
+/** The card's own task settings: {model?, maxInput?, maxOutput?}; empty when it has none. */
+export function readCardTasks(fsx, id) {
+  const raw = CARD_ID.test(String(id || "")) ? readJson(fsx, cardTasksPath(id), null) : null;
+  const o = isObj(raw) ? raw : {};
+  const out = {};
+  if (MODEL_REF.test(str(o.model))) out.model = str(o.model);
+  for (const k of ["maxInput", "maxOutput"]) if (Number.isFinite(Number(o[k])) && Number(o[k]) > 0) out[k] = Math.floor(Number(o[k]));
+  return out;
 }
 
-function modelOf(fsx) {
-  const dash = readJson(fsx, "dashboard/config.json", null);
+/** Which model runs a card's task, and why: {model, source}. `pick` is an unsaved choice from the editor. */
+export function resolveTaskModel(fsx, characterId, pick) {
+  if (MODEL_REF.test(str(pick))) return { model: str(pick), source: "card" };
+  const own = characterId ? readCardTasks(fsx, characterId).model : "";
+  if (own) return { model: own, source: "card" };
   const settings = readJson(fsx, "settings.json", null);
-  return str(isObj(dash) ? dash.sensorModel : "") || str(isObj(settings) ? settings.model : "");
+  const ui = isObj(settings) && isObj(settings.ui) ? settings.ui : {};
+  const app = isObj(ui.cardTasks) ? str(ui.cardTasks.model) : "";
+  if (app) return { model: app, source: "app" };
+  const dash = readJson(fsx, "dashboard/config.json", null);
+  const sensor = str(isObj(dash) ? dash.sensorModel : "");
+  if (sensor) return { model: sensor, source: "sensor" };
+  const dflt = str(isObj(settings) ? settings.model : "");
+  return { model: dflt, source: dflt ? "default" : "none" };
+}
+
+const modelOf = (fsx, characterId, pick) => resolveTaskModel(fsx, characterId, pick).model;
+
+const CHUNK_DEFAULT = 12000;
+const clampInt = (v, lo, hi, dflt) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.min(hi, Math.max(lo, Math.floor(n))) : dflt;
+};
+
+/** The request's limits, kept to sane bounds: how many characters of the card go in one call, and the reply size. */
+export function limitsOf(body, outDefault) {
+  const l = isObj(body) && isObj(body.limits) ? body.limits : {};
+  return { inputChars: clampInt(l.inputChars, 3000, 400000, CHUNK_DEFAULT), outputTokens: clampInt(l.outputTokens, 800, 64000, outDefault) };
+}
+
+/** Text cut into pieces of at most `max` characters: at a paragraph, else a line, else a space. */
+export function splitText(text, max) {
+  const t = String(text || "");
+  if (t.length <= max) return [t];
+  const units = [];
+  const hard = (piece) => {
+    let rest = piece;
+    while (rest.length > max) {
+      let at = rest.lastIndexOf(" ", max);
+      if (at < max / 2) at = max;
+      units.push(rest.slice(0, at));
+      rest = rest.slice(at).replace(/^ /, "");
+    }
+    if (rest) units.push(rest);
+  };
+  for (const para of t.split(/\n{2,}/)) {
+    if (para.length <= max) units.push(para);
+    else for (const line of para.split("\n")) (line.length <= max ? units.push(line) : hard(line));
+  }
+  const out = [];
+  let cur = "";
+  for (const u of units) {
+    if (cur && cur.length + u.length + 2 > max) {
+      out.push(cur);
+      cur = "";
+    }
+    cur = cur ? cur + "\n\n" + u : u;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** The card's text for the model as one message per part. A card that fits `max` is one part; a longer one is
+ *  cut at paragraph edges, each piece under its field's label. Scenario and example dialogue are context for
+ *  the first part only. */
+export function cardParts(card, max) {
+  const name = "Card: " + (str(card.name) || "unnamed");
+  const segs = [];
+  for (const [label, v] of [["Description", card.description], ["Personality", card.personality]]) {
+    const t = str(v);
+    if (!t) continue;
+    splitText(t, Math.max(500, max - 200)).forEach((piece, i) => segs.push(label + (i ? " (continued)" : "") + "\n" + piece));
+  }
+  const context = [
+    str(card.scenario) ? "Scenario (context only, do not move it)\n" + cut(str(card.scenario), 1500) : "",
+    str(card.mes_example) ? "Example dialogue (for speech only)\n" + cut(str(card.mes_example), 1500) : "",
+  ].filter(Boolean);
+  const groups = [];
+  let cur = [];
+  let len = name.length;
+  for (const seg of segs) {
+    if (cur.length && len + seg.length + 2 > max) {
+      groups.push(cur);
+      cur = [];
+      len = name.length;
+    }
+    cur.push(seg);
+    len += seg.length + 2;
+  }
+  if (cur.length || !groups.length) groups.push(cur);
+  return groups.map((g, i) => [name, ...g, ...(i === 0 ? context : [])].join("\n\n"));
+}
+
+/** Two parts' proposals as one: a text field keeps both when they differ, a list is the union, the leftover adds up. */
+export function mergeProposals(a, b) {
+  const profile = {};
+  for (const sec of new Set([...Object.keys(a.profile || {}), ...Object.keys(b.profile || {})])) {
+    const x = a.profile && a.profile[sec];
+    const y = b.profile && b.profile[sec];
+    if (Array.isArray(x) || Array.isArray(y)) {
+      const seen = new Set();
+      profile[sec] = [...(Array.isArray(x) ? x : []), ...(Array.isArray(y) ? y : [])].filter((r) => {
+        const k = isObj(r) ? str(r.name).toLowerCase() : "";
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      continue;
+    }
+    if (!isObj(x) || !isObj(y)) {
+      profile[sec] = isObj(x) ? x : y;
+      continue;
+    }
+    const bag = { ...x };
+    for (const [k, v] of Object.entries(y)) {
+      const u = bag[k];
+      if (u === undefined) bag[k] = v;
+      else if (Array.isArray(u) && Array.isArray(v)) bag[k] = [...u, ...v.filter((i) => !u.some((j) => String(j).toLowerCase() === String(i).toLowerCase()))].slice(0, LIST_MAX);
+      else if (typeof u === "string" && typeof v === "string" && v && v !== u && !u.includes(v)) bag[k] = cut(u + "; " + v, SUMMARY_MAX);
+    }
+    profile[sec] = bag;
+  }
+  const lo = (d, k) => str(d.leftover && d.leftover[k]);
+  const leftover = {};
+  for (const k of ["description", "personality"]) leftover[k] = cut([lo(a, k), lo(b, k)].filter(Boolean).join("\n\n"), LEFTOVER_MAX);
+  const note = [str(a.note), str(b.note)].filter(Boolean).join(" ");
+  return { ...a, profile, leftover, ...(note ? { note: cut(note, 300) } : {}), ...(str(b.model) ? { model: str(b.model) } : {}) };
+}
+
+/** The working text from the editor, laid over the stored card (characters only). */
+function withWorkingText(src, body, t) {
+  const over = t.kind === "character" && isObj(body) && isObj(body.card) ? body.card : null;
+  if (!over) return src;
+  const out = { ...src };
+  for (const k of ["name", "description", "personality", "scenario", "mes_example"]) if (typeof over[k] === "string") out[k] = over[k];
+  return out;
 }
 
 /** The first JSON object in a reply (fenced or not); null when there is none. */
@@ -255,32 +397,54 @@ export function draftFromReply(reply, now) {
 function loadTarget(req, fsx) {
   const t = targetOf(req.body);
   if (!t) return { fail: ok({ error: "characterId or personaId required" }, 400) };
-  const src = readJson(fsx, sourcePath(t), null);
-  if (!isObj(src)) return { fail: ok({ error: t.kind === "persona" ? "no such persona" : "no such character" }, 404) };
-  return { t, src };
+  const stored = readJson(fsx, sourcePath(t), null);
+  if (!isObj(stored)) return { fail: ok({ error: t.kind === "persona" ? "no such persona" : "no such character" }, 404) };
+  return { t, src: withWorkingText(stored, req.body, t) };
 }
 
 function structureRoute(req, host) {
   const fsx = host.fs;
   const { t, src, fail } = loadTarget(req, fsx);
   if (fail) return fail;
+  const b = isObj(req.body) ? req.body : {};
+  const limits = limitsOf(b, 12000);
+  // a persona is read whole, as before; a card longer than one call holds is read in parts
+  const parts = t.kind === "persona" ? [personaText(src)] : cardParts(src, limits.inputChars);
+  const part = Number.isInteger(b.part) && b.part >= 0 ? b.part : 0;
+  if (part >= parts.length) return ok({ error: "no such part" }, 400);
   const r = host.llm.results.structure;
   if (!r) {
     if (!str(src.description) && !str(src.personality)) return ok({ error: t.kind === "persona" ? "the persona has no description" : "the card has no description or personality" }, 400);
-    const model = modelOf(fsx);
+    const model = modelOf(fsx, t.kind === "character" ? t.id : "", b.taskModel);
+    const lead = parts.length > 1 ? "Part " + (part + 1) + " of " + parts.length + " of this card; it is read in parts because it is long. Fill only the fields this part supports and leave the others out. Text that fits no field goes to the leftover.\n\n" : "";
     host.llm.request("structure", {
       ...(model ? { model } : {}),
       systemPrompt: SYSTEM,
-      messages: [{ role: "user", content: t.kind === "persona" ? personaText(src) : userText(src) }],
-      presetParams: { temperature: 0.2, max_tokens: 12000 },
+      messages: [{ role: "user", content: lead + parts[part] }],
+      presetParams: { temperature: 0.2, max_tokens: limits.outputTokens },
     });
     return { __llmPending: true, stash: {} };
   }
   const draft = draftFromReply(r);
-  if (draft.error) return ok({ ok: false, error: draft.error });
+  if (draft.error) {
+    if (part > 0) fsx.remove(draftPath(t));
+    return ok(parts.length > 1 ? { ok: false, error: "part " + (part + 1) + " of " + parts.length + ": " + draft.error, part, parts: parts.length } : { ok: false, error: draft.error });
+  }
   draft.kind = "structure";
-  fsx.write(draftPath(t), JSON.stringify(draft, null, 2));
-  return ok({ ok: true, draft });
+  let filed = draft;
+  if (part > 0) {
+    const before = readJson(fsx, draftPath(t), null);
+    if (isObj(before) && before.partial === true && before.part === part - 1) filed = { ...mergeProposals(before, draft), kind: "structure", v: 1, at: draft.at };
+  }
+  const done = part + 1 >= parts.length;
+  if (!done) filed = { ...filed, partial: true, part, parts: parts.length };
+  else {
+    delete filed.partial;
+    delete filed.part;
+    delete filed.parts;
+  }
+  fsx.write(draftPath(t), JSON.stringify(filed, null, 2));
+  return ok({ ok: true, draft: filed, part, parts: parts.length, done });
 }
 
 function fillRoute(req, host) {
@@ -294,7 +458,8 @@ function fillRoute(req, host) {
   if (!r) {
     const img = isObj(b.image) ? { data: String(b.image.data || ""), mimeType: String(b.image.mimeType || "") } : null;
     // a picture with no model named goes to the engine's Vision model (Settings), not the chat model
-    const model = MODEL_REF.test(str(b.model)) ? str(b.model) : img ? "" : modelOf(fsx);
+    const model = MODEL_REF.test(str(b.model)) ? str(b.model) : img ? "" : modelOf(fsx, t.kind === "character" ? t.id : "", b.taskModel);
+    const limits = limitsOf(b, 8000);
     const ask = Object.entries(fields).map(([s, keys]) => s + ": " + keys.join(", ")).join("\n");
     const head = b.replace === true && img
       ? "\n\nDescribe these fields from the attached picture; where the text says otherwise, the picture wins (these fields are NOT empty, rewrite them):\n"
@@ -302,9 +467,9 @@ function fillRoute(req, host) {
     host.llm.request("fill", {
       ...(model ? { model } : {}),
       systemPrompt: FILL_SYSTEM,
-      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : userText(src)) + head + ask }],
+      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : cardParts(src, limits.inputChars)[0]) + head + ask }],
       ...(img ? { images: [img] } : {}),
-      presetParams: { temperature: 0.7, max_tokens: 8000 },
+      presetParams: { temperature: 0.7, max_tokens: limits.outputTokens },
     });
     return { __llmPending: true, stash: { replace: b.replace === true && !!img } };
   }
@@ -465,6 +630,23 @@ function openingRoute(req, host) {
   return fileSceneDraft(fsx, id, "opening", r, {});
 }
 
+/** GET: the card's own settings and the model that will run. PUT: save them (a model, and the input and output sizes). */
+function cardTasksRoute(req, fsx) {
+  const q = isObj(req.query) ? req.query : {};
+  const b = isObj(req.body) ? req.body : {};
+  const id = String(req.method === "PUT" ? b.characterId : q.characterId);
+  if (!CARD_ID.test(id)) return ok({ error: "characterId required" }, 400);
+  if (!isObj(readJson(fsx, "characters/" + id + "/card.json", null))) return ok({ error: "no such character" }, 404);
+  if (req.method === "PUT") {
+    const next = {};
+    if (MODEL_REF.test(str(b.model))) next.model = str(b.model);
+    for (const k of ["maxInput", "maxOutput"]) if (Number.isFinite(Number(b[k])) && Number(b[k]) > 0) next[k] = Math.min(1000000, Math.floor(Number(b[k])));
+    if (Object.keys(next).length) fsx.write(cardTasksPath(id), JSON.stringify(next, null, 2));
+    else fsx.remove(cardTasksPath(id));
+  }
+  return ok({ own: readCardTasks(fsx, id), resolved: resolveTaskModel(fsx, id, "") });
+}
+
 function draftRoute(req, fsx) {
   const q = isObj(req.query) ? req.query : {};
   if (q.groupId !== undefined) {
@@ -496,5 +678,6 @@ export function handleRoute(req, host) {
   if (path === "/profile/group-scene" && req.method === "POST") return sceneRoute(req, host);
   if (path === "/profile/group-opening" && req.method === "POST") return openingRoute(req, host);
   if (path === "/profile/draft" && (req.method === "GET" || req.method === "DELETE")) return draftRoute(req, host.fs);
+  if (path === "/profile/card-tasks" && (req.method === "GET" || req.method === "PUT")) return cardTasksRoute(req, host.fs);
   return ok({ error: "not found" }, 404);
 }

@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +37,9 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
 import { TranslateMenu } from '@/components/character/translate-menu'
+import { useCardDraft } from '@/components/character/use-card-draft'
+import { useCardTasks } from '@/components/character/use-card-tasks'
+import { DraftDialogs } from '@/components/character/draft-dialogs'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
 import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
@@ -46,7 +49,9 @@ import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
 import { buildCharx, cardJson } from '@/lib/charx'
 import { saveFile } from '@/lib/export'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { markProfileSections, setMarkProfileSections } from '@/lib/export-prefs'
+import { profileOf } from '@/lib/profile'
 import type { Character } from '@/lib/types'
 import { copyText, DEFAULT_AVATAR } from '@/lib/utils'
 import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
@@ -84,7 +89,6 @@ function panelLabel(panel: string, t: (key: MsgKey) => string): string {
 }
 
 export function CharacterEditor({ character, onClose }: { character: Character; onClose: () => void }) {
-  useBackClose(true, onClose)
   const t = useT()
   // the open panel (core, dialogue, advanced…); the five tabs are derived from it
   const [tab, setTab] = useState('core')
@@ -130,7 +134,13 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     () => (pending ? previewPendingTranslation(pending, character, lorebooks.find((b) => b.id === pending.bookId)) : null),
     [pending, character, lorebooks],
   )
-  const c: Character = preview ? { ...character, ...preview.patch } : character
+  // every edit goes to the draft; the card is written once, by Save changes (GitHub #103)
+  const tasks = useCardTasks(character.id)
+  const draftState = useCardDraft(character, { frozen: !!preview, side: tasks.side })
+  const { up, dirty, dirtyNow, count: changeCount, panels: changedPanelSet, cRef } = draftState
+  const c: Character = preview ? { ...draftState.c, ...preview.patch } : draftState.c
+  // the phone's back gesture asks about unsaved changes and stays when there are some
+  useBackClose(true, () => { onClose(); return dirtyNow() ? false : undefined })
   const regexScripts = useApp((s) => s.regexScripts)
   const chats = useApp((s) => s.chats)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
@@ -163,29 +173,37 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     })
     return () => { alive = false }
   }, [])
+  // "Mark the profile sections" (#105): a choice kept between exports, shown only for a card with a profile
+  const [markSections, setMarkSections] = useState(markProfileSections)
+  const hasProfile = !!profileOf(character)
   const avatarInput = useRef<HTMLInputElement>(null)
   const spriteInput = useRef<HTMLInputElement>(null)
   const galleryInput = useRef<HTMLInputElement>(null)
 
   const exportPng = async () => {
     try {
-      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToExportCard(c, lorebooks))
-      downloadCardPng(bytes, c.name)
-      toast.success(`Exported ${c.name} as a PNG card`)
+      const s = savedCard()
+      const bytes = await buildCardPng(s.avatar || DEFAULT_AVATAR, characterToExportCard(s, lorebooks))
+      downloadCardPng(bytes, s.name)
+      toast.success(`Exported ${s.name} as a PNG card`)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 
-  const fileBase = c.name.replace(/[^\p{L}\p{N}-]+/gu, '_').slice(0, 60) || 'character'
+  /** Exports and Duplicate work on the card as saved; the editor asks first when there are unsaved changes. */
+  const savedCard = (): Character => useApp.getState().characters.find((x) => x.id === character.id) ?? character
+  const fileBaseOf = (card: Character) => card.name.replace(/[^\p{L}\p{N}-]+/gu, '_').slice(0, 60) || 'character'
   const exportCharx = async () => {
     try {
-      const bytes = await buildCharx(c, lorebooks)
-      saveFile(new Blob([bytes as BlobPart], { type: 'application/zip' }), `${fileBase}.charx`)
-      toast.success(`Exported ${c.name} as CHARX with ${c.expressions.length} emotion image${c.expressions.length === 1 ? '' : 's'}`)
+      const s = savedCard()
+      const bytes = await buildCharx(s, lorebooks)
+      saveFile(new Blob([bytes as BlobPart], { type: 'application/zip' }), `${fileBaseOf(s)}.charx`)
+      toast.success(`Exported ${s.name} as CHARX with ${s.expressions.length} emotion image${s.expressions.length === 1 ? '' : 's'}`)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
   const exportJson = () => {
-    saveFile(new Blob([cardJson(c, lorebooks)], { type: 'application/json' }), `${fileBase}.json`)
-    toast.success(`Exported ${c.name} as JSON`)
+    const s = savedCard()
+    saveFile(new Blob([cardJson(s, lorebooks)], { type: 'application/json' }), `${fileBaseOf(s)}.json`)
+    toast.success(`Exported ${s.name} as JSON`)
   }
 
   const changeAvatar = async (file: File | undefined) => {
@@ -248,17 +266,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     if (failed) toast.error(`Not added: ${failed}`)
   }
 
-  // every edit is written at once; "Saved" shows for a moment so the user knows there is no Save button to find
-  const [savedFlash, setSavedFlash] = useState(false)
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
-  const up = (patch: Partial<Character>) => {
-    if (preview) return
-    updateCharacter(c.id, patch)
-    setSavedFlash(true)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    savedTimer.current = setTimeout(() => setSavedFlash(false), 2500)
-  }
   const lightboxIndex = c.gallery.findIndex((g) => g.id === lightboxId)
   const lightboxItem = lightboxIndex >= 0 ? c.gallery[lightboxIndex]! : null
   const totalTokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue + c.systemPromptOverride + c.postHistoryInstructions)
@@ -285,7 +292,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </Button>
         <img src={c.avatar || DEFAULT_AVATAR} alt="" className="size-8 rounded-md object-cover" />
         <h1 className="text-sm font-semibold" style={{ color: c.colors.name || undefined }}>{c.name}</h1>
-        {!c.isGroup && <CardKindMenu c={c} />}
+        {!c.isGroup && <CardKindMenu c={character} />}
         <Badge variant="secondary" title="Estimated size of the whole card">{formatTokens(totalTokens)} tokens</Badge>
         <Badge variant="outline" title="Description and personality: sent with every reply">{formatTokens(permanentTokens)} permanent tokens</Badge>
         <Badge variant="outline">{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</Badge>
@@ -306,23 +313,25 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </button>
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
           {/* every icon says what it does: a tooltip always, a word beside it where there is room */}
-          <Button variant="ghost" size="sm" onClick={() => up({ favorite: !c.favorite })} aria-pressed={c.favorite} aria-label={t(c.favorite ? 'editor.unfavorite' : 'editor.favorite')} title={t(c.favorite ? 'editor.unfavorite' : 'editor.favorite')}>
-            <Star weight={c.favorite ? 'fill' : 'regular'} className={c.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
+          <Button variant="ghost" size="sm" onClick={() => updateCharacter(c.id, { favorite: !character.favorite })} aria-pressed={character.favorite} aria-label={t(character.favorite ? 'editor.unfavorite' : 'editor.favorite')} title={t(character.favorite ? 'editor.unfavorite' : 'editor.favorite')}>
+            <Star weight={character.favorite ? 'fill' : 'regular'} className={character.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.favoriteShort')}</span>
           </Button>
-          {!c.isGroup && <TranslateMenu c={character} />}
+          {!c.isGroup && <TranslateMenu c={character} blocked={dirty} />}
           <Button variant="ghost" size="sm" onClick={() => setVersionsOpen(true)} aria-label={t('editor.versions')} title={t('editor.versions')}>
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.versionsShort')}</span>
           </Button>
-          <span role="status" aria-live="polite" className="flex min-w-16 items-center gap-1 text-[11px] text-muted-foreground">
-            {savedFlash && !preview && <><Check className="size-3.5 text-primary" aria-hidden="true" />Saved</>}
+          <span role="status" aria-live="polite" className="flex min-w-16 items-center gap-1 text-[11px] text-muted-foreground" data-testid="draft-state">
+            {dirty
+              ? <span className="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"><span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />{t('cd.unsaved')} ({changeCount})</span>
+              : draftState.savedFlash && !preview && <><Check className="size-3.5 text-primary" aria-hidden="true" />{t('cd.saved')}</>}
           </span>
           <Button variant="ghost" size="sm" onClick={() => setTokenReportOpen(true)}>Token report</Button>
           {/* a group is not a card: no copy, no card export */}
           {!c.isGroup && (
             <>
-            <Button variant="ghost" size="sm" onClick={() => { duplicateCharacter(c.id); toast.success('Duplicated') }} aria-label={t('editor.duplicate')} title={t('editor.duplicate')}>
+            <Button variant="ghost" size="sm" onClick={() => draftState.withSavedCard(t('cd.act.duplicate'), () => { duplicateCharacter(c.id); toast.success('Duplicated') })} aria-label={t('editor.duplicate')} title={t('editor.duplicate')}>
               <Copy className="size-4" aria-hidden="true" />
               <span className="hidden lg:inline">{t('editor.duplicateShort')}</span>
             </Button>
@@ -334,15 +343,23 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                 </Button>
               } />
               <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem onClick={() => void exportPng()} className="flex-col items-start gap-0">
+                {hasProfile && (
+                  <>
+                    <DropdownMenuCheckboxItem checked={markSections} onCheckedChange={(v) => { setMarkSections(v); setMarkProfileSections(v) }} title={t('ex.markSectionsTip')}>
+                      {t('ex.markSections')}
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem onClick={() => draftState.withSavedCard(t('cd.act.export'), () => void exportPng())} className="flex-col items-start gap-0">
                   <span>PNG card</span>
                   <span className="text-xs text-muted-foreground">The portrait with the card inside</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void exportCharx()} className="flex-col items-start gap-0">
+                <DropdownMenuItem onClick={() => draftState.withSavedCard(t('cd.act.export'), () => void exportCharx())} className="flex-col items-start gap-0">
                   <span>CHARX</span>
                   <span className="text-xs text-muted-foreground">With the emotion images and gallery</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportJson} className="flex-col items-start gap-0">
+                <DropdownMenuItem onClick={() => draftState.withSavedCard(t('cd.act.export'), exportJson)} className="flex-col items-start gap-0">
                   <span>JSON</span>
                   <span className="text-xs text-muted-foreground">The card file alone (V2)</span>
                 </DropdownMenuItem>
@@ -394,6 +411,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                   {p === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
                   {p === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
                   {p === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
+                  {changedPanelSet.has(p) && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('cd.unsavedTab')} title={t('cd.unsavedTab')} data-testid="tab-dot" />}
                 </button>
               )
             })}
@@ -429,6 +447,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                     {tabName === 'soul' && soulStatus === 'unrated' && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-amber-500 motion-reduce:animate-none" role="img" aria-label={t('soul.unratedDot')} title={t('soul.unratedDot')} />}
                     {tabName === 'soul' && soulStatus === 'pending' && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('soul.proposalDot')} title={t('soul.proposalDot')} />}
                     {tabName === 'soul' && soulStatus === 'failed' && <span className="ml-1 size-1.5 rounded-full bg-red-500" role="img" aria-label={t('soul.failedDot')} title={t('soul.failedDot')} />}
+                    {TAB_PANELS[tabName].some((q) => changedPanelSet.has(q)) && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('cd.unsavedTab')} title={t('cd.unsavedTab')} data-testid="tab-dot" />}
                   </button>
                 )
               }
@@ -446,6 +465,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       className={cn(TAB_BUTTON, GROUP_TINT[tabName], 'h-[calc(100%-1px)] flex-none gap-1 px-1.5')}
                     >
                       {t(`editor.tab.${tabName}` as MsgKey)}
+                      {TAB_PANELS[tabName].some((q) => changedPanelSet.has(q)) && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('cd.unsavedTab')} title={t('cd.unsavedTab')} data-testid="tab-dot" />}
                       <CaretDown className="size-3 shrink-0 opacity-70" aria-hidden="true" />
                     </button>
                   } />
@@ -457,6 +477,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                         <DropdownMenuItem key={p} onClick={() => openPanel(p)} className="gap-2">
                           <Icon className="size-3.5 shrink-0" aria-hidden="true" />
                           <span>{panelLabel(p, t)}</span>
+                          {changedPanelSet.has(p) && <span className="ml-1 size-1.5 rounded-full bg-amber-500" role="img" aria-label={t('cd.unsavedTab')} title={t('cd.unsavedTab')} data-testid="tab-dot" />}
                           {active && <Check className="ml-auto size-3.5" aria-hidden="true" />}
                         </DropdownMenuItem>
                       )
@@ -512,7 +533,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       <Button variant="ghost" size="sm" onClick={() => up({ altGreetings: c.altGreetings.filter((_, j) => j !== i) })} aria-label={`Delete greeting ${i + 1}`}>
                         <Trash className="size-4" aria-hidden="true" />
                       </Button>
-                      <FieldTranslateButton label={`Alternate greeting ${i + 1}`} value={g} onChange={(v) => up({ altGreetings: useApp.getState().characters.find((x) => x.id === c.id)?.altGreetings.map((x, j) => j === i ? v : x) ?? c.altGreetings })} />
+                      <FieldTranslateButton label={`Alternate greeting ${i + 1}`} value={g} onChange={(v) => up({ altGreetings: cRef.current.altGreetings.map((x, j) => j === i ? v : x) })} />
                     </div>
                   </div>
                 ))}
@@ -529,7 +550,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                       <Button variant="ghost" size="sm" onClick={() => up({ groupGreetings: c.groupGreetings.filter((_, j) => j !== i) })} aria-label={`Delete group greeting ${i + 1}`}>
                         <Trash className="size-4" aria-hidden="true" />
                       </Button>
-                      <FieldTranslateButton label={`Group greeting ${i + 1}`} value={g} onChange={(v) => up({ groupGreetings: useApp.getState().characters.find((x) => x.id === c.id)?.groupGreetings.map((x, j) => j === i ? v : x) ?? c.groupGreetings })} />
+                      <FieldTranslateButton label={`Group greeting ${i + 1}`} value={g} onChange={(v) => up({ groupGreetings: cRef.current.groupGreetings.map((x, j) => j === i ? v : x) })} />
                     </div>
                   </div>
                 ))}
@@ -542,7 +563,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {!c.isGroup && (
               <TabsContent value="profile" className="flex flex-col gap-4">
                 <ErrorBoundary resetKey={c.id} what="The profile">
-                  <ProfileTab c={c} up={up} />
+                  <ProfileTab c={c} up={up} tasks={tasks} />
                 </ErrorBoundary>
               </TabsContent>
             )}
@@ -621,7 +642,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {!c.isGroup && (
               <TabsContent value="soul" keepMounted className="min-w-0">
                 <ErrorBoundary resetKey={c.id} what="The soul">
-                  <SoulTab key={c.id} c={c} active={tab === 'soul'} onStatus={setSoulStatus} />
+                  <SoulTab key={c.id} c={character} active={tab === 'soul'} onStatus={setSoulStatus} />
                 </ErrorBoundary>
               </TabsContent>
             )}
@@ -878,6 +899,25 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           </fieldset>
         </ScrollArea>
       </Tabs>
+
+      {/* Save changes: always within reach, on a phone above the keyboard (GitHub #103) */}
+      {dirty && !preview && (
+        <div role="region" aria-label={t('cd.unsaved')} data-testid="save-bar" className="flex shrink-0 items-center gap-2 border-t border-amber-500/40 bg-amber-500/10 px-4 py-2">
+          <span className="min-w-0 flex-1 text-sm leading-tight"><span className="mr-1.5 inline-block size-1.5 rounded-full bg-amber-500 align-middle" aria-hidden="true" />{t('cd.unsaved')} ({changeCount})</span>
+          <Button variant="outline" size="sm" className="max-md:h-10" disabled={draftState.saving} title={t('cd.discardTip')} onClick={draftState.discard}>{t('cd.discard')}</Button>
+          <Button size="sm" className="max-md:h-10" disabled={draftState.saving} onClick={() => void draftState.saveNow()}>
+            {draftState.saving ? <><CircleNotch className="size-4 animate-spin" aria-hidden="true" />{t('cd.saving')}</> : t('cd.save')}
+          </Button>
+        </div>
+      )}
+      <DraftDialogs
+        prompt={draftState.prompt}
+        labels={draftState.labels}
+        saving={draftState.saving}
+        onSaveThen={(then) => void draftState.saveThen(then)}
+        onDiscardThen={draftState.discardThen}
+        onClose={draftState.closePrompt}
+      />
 
       {/* Version compare: snapshot fields against the live card */}
       <Dialog open={!!compareVersion} onOpenChange={(o) => { if (!o) setCompareVersion(null) }}>

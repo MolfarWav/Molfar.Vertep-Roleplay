@@ -41,6 +41,16 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
   To change or add a second character, edit `/extensions/molfar_profile/cast/<n>/...` or append
   to `cast`; the texts get a `### Name` part per character. Shared world text stays in the
   profile's `notes`.
+- A card exported with "Mark the profile sections" (the default) carries a heading before each part of
+  `description` and `personality` (`## Identity`, `## Appearance`, `## Personality`, `## Behaviors`, ...; a cast
+  uses `####` inside its `### Name` parts). The app takes them out again when such a file is imported. In a
+  card that is already installed the two texts have no headings: never add them by hand, and do not move
+  text between them.
+- The model a card's tasks (Structure it, Fill empty, the Soul rating) run on is not in `card.json`: it is in
+  `characters/<id>/card-tasks.json` (`model`, `maxInput`, `maxOutput`), written by the editor's Save changes.
+  Leave that file alone.
+- The editor keeps a change as a draft until the user presses Save changes: a card you edit on disk while
+  it is open in the editor can meet a draft, and the user then chooses which version to keep.
 
 ## The calls
 1. Read: ONE `json_get` with every pointer you need, for example

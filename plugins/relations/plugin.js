@@ -2788,10 +2788,12 @@ function soulUser(fsx, cardId, opts) {
   return sections.join("\n\n");
 }
 
-/** Who rates: the sensor model, else the chat's model, else the app's default model. */
-function soulModel(fsx, cfg, meta) {
+/** Who rates: the card's own model for its tasks, else the app-wide Card tasks model, else the sensor model, else the chat's model, else the app's default model. */
+function soulModel(fsx, cfg, meta, cardId) {
   const settings = readJson(fsx, "settings.json", null);
-  return str(cfg.sensorModel) || str(meta && meta.model) || (isObj(settings) ? str(settings.model) : "");
+  const own = cardId && /^[A-Za-z0-9_-]{1,120}$/.test(String(cardId)) ? readJson(fsx, "characters/" + cardId + "/card-tasks.json", null) : null;
+  const ui = isObj(settings) && isObj(settings.ui) ? settings.ui : {};
+  return (isObj(own) ? str(own.model) : "") || (isObj(ui.cardTasks) ? str(ui.cardTasks.model) : "") || str(cfg.sensorModel) || str(meta && meta.model) || (isObj(settings) ? str(settings.model) : "");
 }
 
 /** The preset a chat replies with (the default preset when there is no chat), as the chat plugin picks it. */
@@ -2837,7 +2839,7 @@ function callParams(fsx, cfg, meta, temperature) {
 function askSoul(host, cfg, cardId, meta, key, opts) {
   const fsx = host.fs;
   const o = isObj(opts) ? opts : {};
-  const model = soulModel(fsx, cfg, meta);
+  const model = soulModel(fsx, cfg, meta, cardId);
   const userName = meta ? userNameOf(fsx, meta) : "";
   const rateNames = Array.isArray(o.names) ? o.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : undefined;
   host.llm.request(key, {

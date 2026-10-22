@@ -316,7 +316,7 @@ export function CharactersView() {
     )
   }
   if (active) {
-    return <CharacterEditor character={active} onClose={() => openCharacter(null)} />
+    return <CharacterEditor key={active.id} character={active} onClose={() => openCharacter(null)} />
   }
 
   // two clearly separate tabs, each in its own colour: characters take the

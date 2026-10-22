@@ -11,6 +11,7 @@
 // (app_stream) and render live. Stop aborts the request.
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { guardLeaving } from '@/lib/leave-guard'
 import { readDraft, unsavedKeys } from './drafts'
 import { toast } from 'sonner'
 import { resolveLanguage, t, type Lang } from './i18n'
@@ -27,7 +28,7 @@ import {
 } from './seed'
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
-import { compileIfWrittenElsewhere } from './profile'
+import { adoptMarkedSections, compileIfWrittenElsewhere } from './profile'
 import { shellLocale } from './shell-bridge'
 import {
   j, fetchModels, fetchImageModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
@@ -303,12 +304,15 @@ interface AppState {
   /** The whole card of a character the list holds only as a summary (`stub`); the character
    *  itself when it is already whole, or a group. One request per id at a time. */
   loadCharacter: (id: ID) => Promise<Character | null>
+  /** Fetches the card again whether or not it is a summary (the editor's Save compares with what is stored now). */
+  refreshCharacter: (id: ID) => Promise<Character | null>
   /** Fetch the portraits of these characters when the list left them out (`avatarLazy`): for
    *  what is on screen. Queued and batched; the list fills in as they land. */
   wantAvatars: (ids: ID[]) => void
   /** Characters the start-up list does not hold yet (the index is still being built). */
   rosterPending: number
-  updateCharacter: (id: ID, patch: Partial<Character>) => void
+  /** `onDone` hears whether the engine took the change (the editor keeps its draft when it did not). */
+  updateCharacter: (id: ID, patch: Partial<Character>, onDone?: (saved: boolean) => void) => void
   newCharacter: () => ID
   duplicateCharacter: (id: ID) => void
   /** withBook: also delete the card's own lorebook when no other card uses it */
@@ -591,7 +595,10 @@ const quietStorage = {
 
 export const useApp = create<AppState>()(
   persist(
-    (set, get) => ({
+    (rawSet, get) => {
+    // a change that takes the user away from a card editor holding unsaved changes asks first (#103)
+    const set = guardLeaving(rawSet as never, get as never) as typeof rawSet
+    return ({
       boot: 'loading',
       bootError: null,
       hydrated: false,
@@ -849,7 +856,7 @@ export const useApp = create<AppState>()(
           // other hydrate-time repairs, and the old text lands in the card's versions
           for (const c of solo) {
             if (c.stub) continue // loadCharacter runs the same repair when the card comes
-            const patch = compileIfWrittenElsewhere(c)
+            const patch = adoptMarkedSections(c) ?? compileIfWrittenElsewhere(c)
             if (patch) get().updateCharacter(c.id, patch)
           }
           // a whole card held from before is fetched again only when it changed on disk (Molfar, a
@@ -1918,6 +1925,7 @@ export const useApp = create<AppState>()(
       },
 
       // ─────────────────────────────────────────────────────── entity CRUD ──
+      refreshCharacter: (id) => (get().characters.some((c) => c.id === id) ? reloadCharacter(set, get, id) : Promise.resolve(null)),
       loadCharacter: (id) => {
         const have = get().characters.find((c) => c.id === id)
         if (!have) return Promise.resolve(null)
@@ -1933,7 +1941,7 @@ export const useApp = create<AppState>()(
         }
         if (added) void drainAvatars(set, get)
       },
-      updateCharacter: (id, patch) => {
+      updateCharacter: (id, patch, onDone) => {
         const held = get().characters.find((x) => x.id === id)
         if (held?.stub && !held.isGroup && Object.keys(patch).some((k) => !STUB_SAFE_KEYS.has(k as keyof Character))) {
           // a summary has none of the card's texts: a change computed from it would blank them.
@@ -1941,13 +1949,14 @@ export const useApp = create<AppState>()(
           console.error(`[roleplay] refused a change to ${id}: the card is not loaded (${Object.keys(patch).join(', ')})`)
           toast.error('The card is still loading. Try again in a moment.')
           void get().loadCharacter(id)
+          onDone?.(false)
           return
         }
         bumpMutate()
         const before = get().characters.find((x) => x.id === id)
         set((s) => ({ characters: s.characters.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))
         let c = get().characters.find((x) => x.id === id)
-        if (!c) return
+        if (!c) { onDone?.(false); return }
         if (c.isGroup) {
           // the card-shaped fields a group has live in its group file (so card widgets such as the
           // book links work for a group); everything else goes through updateGroup
@@ -1959,6 +1968,7 @@ export const useApp = create<AppState>()(
           if (patch.embeddedLorebookId !== undefined) gp.embeddedLorebookId = patch.embeddedLorebookId
           if (patch.linkedLorebookIds != null) gp.linkedLorebookIds = patch.linkedLorebookIds
           if (Object.keys(gp).length) get().updateGroup(id, gp)
+          onDone?.(true)
           return
         }
         // self-filling version history: snapshot the writing fields when they
@@ -1986,7 +1996,7 @@ export const useApp = create<AppState>()(
         // only the changed fields: a whole card with its emotion images inside
         // passes the engine's 1 MB cap on app requests
         const diff = before ? cardPatch(characterToCard(before), characterToCard(c)) : null
-        if (before && !diff) return
+        if (before && !diff) { onDone?.(true); return }
         const body = JSON.stringify(diff ?? characterToCard(c))
         // a failed save must not leave the change on screen: it vanished on the next refresh and
         // looked saved until then (GitHub #17). Put back what this edit changed, unless a later
@@ -1994,6 +2004,7 @@ export const useApp = create<AppState>()(
         const saved = c
         const rollBack = (msg: string) => {
           toast.error(msg)
+          onDone?.(false)
           if (!before) return
           set((s) => ({ characters: s.characters.map((x) => {
             if (x.id !== id) return x
@@ -2009,7 +2020,7 @@ export const useApp = create<AppState>()(
           return
         }
         const req = j(`/characters/${encodeURIComponent(id)}`, { method: diff ? 'PATCH' : 'PUT', body })
-        void req.catch((e) => rollBack(String((e as Error).message ?? e)))
+        void req.then(() => onDone?.(true), (e) => rollBack(String((e as Error).message ?? e)))
       },
       newCharacter: () => {
         bumpMutate()
@@ -2396,7 +2407,8 @@ export const useApp = create<AppState>()(
         set({ ...localSeed(), view: 'home', activeChatId: null, activeCharacterId: null, drawer: null })
         toast.success('Local UI state reset, server data (characters, chats, presets…) untouched')
       },
-    }),
+    })
+    },
     {
       name: 'chrysalis-store-v2',
       version: 4,
@@ -2980,7 +2992,7 @@ function reloadCharacter(set: SetFn, get: GetFn, id: ID): Promise<Character | nu
         return { characters: characters.map((c) => (c.isGroup && c.group?.memberIds.includes(id) ? groupToCharacter(c.group, characters) : c)) }
       })
       // the hydrate-time repair, now that the card is here
-      const patch = compileIfWrittenElsewhere(full)
+      const patch = adoptMarkedSections(full) ?? compileIfWrittenElsewhere(full)
       if (patch) get().updateCharacter(id, patch)
       return get().characters.find((c) => c.id === id) ?? null
     } catch (e) {

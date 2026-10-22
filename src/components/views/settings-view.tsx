@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Archive, BookOpen, MagnifyingGlass, Check, DownloadSimple, UploadSimple, Trash, FileCode, FileImage, FileText, Asterisk as RegexIcon, ArrowCounterClockwise, CaretRight } from '@phosphor-icons/react'
 import { ProseColorsSection } from "@/components/settings/prose-colors-section"
 import { CustomCssSection } from "@/components/settings/custom-css-section"
+import { CardTasksSection } from "@/components/settings/card-tasks-section"
 import { PROSE_FONTS } from "@/components/theme-applier"
 import { toast } from "sonner"
 import { canOpenSettingsTab, openSettingsTab } from "@/lib/shell-bridge"
@@ -130,6 +131,7 @@ export function SettingsView() {
     { id: "themes", label: "Themes" },
     { id: "prose", label: "Prose Colors" },
     { id: "custom-css", label: "Custom CSS" },
+    { id: "card-tasks", label: t("ct.app.nav", resolveLanguage(settings.language)) },
     { id: "studio-import", label: "Import" },
     { id: "data", label: "Data" },
     { id: "guide", label: t("guide.settings.title", resolveLanguage(settings.language)) },
@@ -342,6 +344,8 @@ export function SettingsView() {
               <ProseColorsSection />
             ) : section === "custom-css" ? (
               <CustomCssSection />
+            ) : section === "card-tasks" ? (
+              <CardTasksSection />
             ) : section === "studio-import" ? (
               <STImportSection />
             ) : section === "data" ? (

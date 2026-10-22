@@ -848,6 +848,8 @@ export interface AppSettings {
   /** The Canvas Chat links board: the chats on it and where their cards sit. */
   canvasBoard?: { placed: string[]; positions: Record<string, { x: number; y: number }> }
   /** Image generation via the engine's pi-ai images bridge (POST /v1/images). */
+  /** The model for card tasks (Structure it, Fill empty, the Soul rating) when a card names none; empty = the sensor's, then the default. */
+  cardTasks?: { model: string }
   imageGen?: { enabled: boolean; model: string; promptPrefix: string; negativePrompt: string; interactive: boolean; saveToGallery?: boolean; promptStyle?: 'auto' | 'description' | 'tags'; modelApi?: string; modelStyle?: 'description' | 'tags'; modelInstructions?: string }
 }
 

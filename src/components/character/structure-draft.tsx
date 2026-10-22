@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { fetchModels, fetchVisionModel, j } from '@/lib/engine'
+import { useT } from '@/hooks/use-t'
 import { readImage } from '@/lib/charx'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR } from '@/lib/utils'
@@ -19,9 +20,11 @@ export type Image = { data: string; mimeType: string }
 
 /** "Structure it" and "Fill empty": one model call each (plugins/profile). The
  *  result is a draft shown in the panel below; nothing changes until Accept. */
-export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft) => void) {
+export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft) => void, extra?: (kind: 'structure' | 'fill') => Record<string, unknown>) {
   const [draft, setDraft] = useState<ProfileDraft | null>(null)
   const [busy, setBusy] = useState<Busy>(null)
+  /** Which part of a long card Structure it is on: { part: 2, parts: 4 }. */
+  const [progress, setProgress] = useState<{ part: number; parts: number } | null>(null)
   const ids: Record<string, string> = 'characterId' in target ? { characterId: target.characterId } : { personaId: target.personaId }
   const [[idKey, idValue]] = Object.entries(ids) as [[string, string]]
   const query = `/profile/draft?${idKey}=${encodeURIComponent(idValue)}`
@@ -36,7 +39,7 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
   const post = async (kind: 'structure' | 'fill', body: Record<string, unknown>, what: string): Promise<boolean> => {
     setBusy(kind)
     try {
-      const r = await j<{ ok?: boolean; draft?: ProfileDraft; error?: string }>(`/profile/${kind}`, { method: 'POST', body: JSON.stringify({ [idKey]: idValue, ...body }) })
+      const r = await j<{ ok?: boolean; draft?: ProfileDraft; error?: string }>(`/profile/${kind}`, { method: 'POST', body: JSON.stringify({ [idKey]: idValue, ...extra?.(kind), ...body }) })
       if (r.ok && r.draft) { setDraft(r.draft); return true }
       toast.error(`${what} failed: ${r.error ?? 'no answer'}`)
     } catch (e) {
@@ -46,7 +49,29 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
     }
     return false
   }
-  const runStructure = () => post('structure', {}, 'Structure it')
+  /** A card longer than one call holds is read in parts, one request each; the plugin merges them into one proposal. */
+  const runStructure = async (): Promise<boolean> => {
+    setBusy('structure')
+    try {
+      for (let part = 0; ; ) {
+        const r = await j<{ ok?: boolean; draft?: ProfileDraft; error?: string; part?: number; parts?: number; done?: boolean }>('/profile/structure', { method: 'POST', body: JSON.stringify({ [idKey]: idValue, ...extra?.('structure'), part }) })
+        if (!r.ok || !r.draft) { toast.error(`Structure it failed: ${r.error ?? 'no answer'}`); return false }
+        if (r.done === false && typeof r.parts === 'number') {
+          part = (r.part ?? part) + 1
+          setProgress({ part: part + 1, parts: r.parts })
+          continue
+        }
+        setDraft(r.draft)
+        return true
+      }
+    } catch (e) {
+      toast.error(`Structure it failed: ${String((e as Error).message ?? e)}`)
+      return false
+    } finally {
+      setBusy(null)
+      setProgress(null)
+    }
+  }
   const runFill = (fields: Record<string, string[]>, image?: Image, model?: string, replace = false) =>
     post('fill', { fields, ...(image ? { image } : {}), ...(model ? { model } : {}), ...(replace ? { replace: true } : {}) }, replace ? 'Read from picture' : 'Fill empty')
   const drop = () => { setDraft(null); void j(query, { method: 'DELETE' }).catch(() => {}) }
@@ -55,7 +80,7 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
     onAccept(draft)
     drop()
   }
-  return { draft, busy, runStructure, runFill, drop, accept }
+  return { draft, busy, progress, runStructure, runFill, drop, accept }
 }
 export type ProfileDraftState = ReturnType<typeof useProfileDraft>
 
@@ -125,11 +150,12 @@ export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avat
   return { busy: d.busy === 'fill', run: (section?: SectionKey) => { void run(section) } }
 }
 
-export function StructureButton({ busy, onClick, variant = 'outline', disabled }: { busy: boolean; onClick: () => void; variant?: 'outline' | 'default'; disabled?: boolean }) {
+export function StructureButton({ busy, onClick, variant = 'outline', disabled, progress }: { busy: boolean; onClick: () => void; variant?: 'outline' | 'default'; disabled?: boolean; progress?: { part: number; parts: number } | null }) {
+  const t = useT()
   return (
     <Button variant={variant} size="sm" className="w-fit" disabled={busy || disabled} onClick={onClick} title="A model reads the text and proposes the fields; you review before anything changes">
       {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
-      {busy ? 'Reading the card…' : 'Structure it'}
+      {busy ? (progress ? t('ct.reading', progress) : 'Reading the card…') : 'Structure it'}
     </Button>
   )
 }

@@ -232,7 +232,12 @@ export function compileProfile(p: Profile): { description: string; personality: 
   return { description: join('description'), personality: join('personality') }
 }
 
-function compileOne(p: Profile): { description: string; personality: string } {
+/** One run of lines under a heading: the unit the text is built from and the unit the export marks. */
+interface Part { title: string; lines: string[] }
+
+/** What one character writes, in order: the parts of `description` and the parts of `personality`. The
+ *  titles are the Profile tab's sections; an empty part writes nothing. */
+function partsOf(p: Profile): { description: Part[]; personality: Part[] } {
   const id = isObj(p.identity) ? p.identity : {}
   const name = [filled(id.title), filled(id.first), filled(id.family)].filter(Boolean).join(' ')
   const gender = [filled(id.gender), filled(id.pronouns) && `(${filled(id.pronouns)})`].filter(Boolean).join(' ')
@@ -277,9 +282,234 @@ function compileOne(p: Profile): { description: string; personality: string } {
   const notes = isObj(p.notes) ? p.notes : {}
   const part = (id: SectionId, rows: readonly (readonly [string, string])[], bag: unknown, value: (v: unknown) => string) => (on(id) ? lines(rows, bag, value) : [])
   return {
-    description: block(identity, part('appearance', APPEARANCE, p.appearance, filled), background, circles, rel.length ? ['Relationships:', ...rel] : [], [filled(notes.description)].filter(Boolean)),
-    personality: block(part('personality', LISTS, p.lists, joined), part('behaviors', BEHAVIORS, p.behaviors, filled), part('goals', GOALS, p.goals, filled), trauma, sexuality, [filled(notes.personality)].filter(Boolean)),
+    description: [
+      { title: 'Identity', lines: identity },
+      { title: 'Appearance', lines: part('appearance', APPEARANCE, p.appearance, filled) },
+      { title: 'Background', lines: background },
+      { title: 'Circles', lines: circles },
+      { title: 'Relationships', lines: rel.length ? ['Relationships:', ...rel] : [] },
+      { title: 'Notes', lines: [filled(notes.description)].filter(Boolean) },
+    ],
+    personality: [
+      { title: 'Personality', lines: part('personality', LISTS, p.lists, joined) },
+      { title: 'Behaviors', lines: part('behaviors', BEHAVIORS, p.behaviors, filled) },
+      { title: 'Goals', lines: part('goals', GOALS, p.goals, filled) },
+      { title: 'Trauma', lines: trauma },
+      { title: 'Sexuality', lines: sexuality },
+      { title: 'Notes', lines: [filled(notes.personality)].filter(Boolean) },
+    ],
   }
+}
+
+const plain = (parts: Part[]): string => block(...parts.map((x) => x.lines))
+const marked = (parts: Part[], level: number): string =>
+  parts.filter((x) => x.lines.length).map((x) => `${'#'.repeat(level)} ${x.title}\n${x.lines.join('\n')}`).join('\n\n')
+
+function compileOne(p: Profile): { description: string; personality: string } {
+  const parts = partsOf(p)
+  return { description: plain(parts.description), personality: plain(parts.personality) }
+}
+
+/**
+ * The same text with a heading in front of each section's lines (GitHub #105), for the exported card only:
+ * the live `description` and `personality` stay as they are. One character: `## Identity`, `## Appearance`,
+ * `## Background`, `## Circles`, `## Relationships`, `## Notes` in the description; `## Personality`,
+ * `## Behaviors`, `## Goals`, `## Trauma`, `## Sexuality`, `## Notes` in the personality. A cast keeps its
+ * `### <name>` parts and puts the headings inside each at `####`, the shared notes last at `##`.
+ * Taking the heading lines out gives `compileProfile` exactly.
+ */
+export function compileProfileMarked(p: Profile): { description: string; personality: string } {
+  const cast = castOf(p)
+    .map((m, i) => ({ name: profileName(m, i + 1), parts: partsOf(m) }))
+    .filter((m) => m.parts.description.some((x) => x.lines.length) || m.parts.personality.some((x) => x.lines.length))
+  if (!cast.length) {
+    const parts = partsOf(p)
+    return { description: marked(parts.description, 2), personality: marked(parts.personality, 2) }
+  }
+  const all = [{ name: profileName(p), parts: partsOf({ ...p, notes: {} }) }, ...cast]
+  const notes = isObj(p.notes) ? p.notes : {}
+  const join = (key: 'description' | 'personality') => [
+    ...all.filter((m) => m.parts[key].some((x) => x.lines.length)).map((m) => `### ${m.name}\n${marked(m.parts[key], 4)}`),
+    filled(notes[key]) && `## Notes\n${filled(notes[key])}`,
+  ].filter(Boolean).join('\n\n')
+  return { description: join('description'), personality: join('personality') }
+}
+
+/** The texts an export writes for a profiled card, with the section headings; null when the card has no
+ *  profile that wrote its text (Free write, a hand edit since, nothing to write), so it exports as it is. */
+export function markedExport(c: Pick<Character, 'cardExtras' | 'description' | 'personality'>): { description: string; personality: string } | null {
+  const p = profileOf(c)
+  if (!p || p.free || profileOutOfDate(c)) return null
+  const m = compileProfileMarked(p)
+  return m.description || m.personality ? m : null
+}
+
+const MARK_TITLES = ['Identity', 'Appearance', 'Background', 'Circles', 'Relationships', 'Personality', 'Behaviors', 'Goals', 'Trauma', 'Sexuality', 'Notes']
+const MARK = new RegExp(`^#{2,4} (?:${MARK_TITLES.join('|')})[ \\t]*$`)
+
+/** Whether the text carries one of the section headings the export writes. */
+export function hasMarks(text: string): boolean {
+  return text.split('\n').some((l) => MARK.test(l))
+}
+
+/** The text without the section headings (the export's marks), so it reads as the profile compiled it. */
+export function unmarkText(text: string): string {
+  return text.split('\n').filter((l) => !MARK.test(l)).join('\n')
+}
+
+type Fields = Record<string, string>
+
+/** Reads `Label: value` lines against a table of labels; a line with no known label continues the previous
+ *  value. Null when a line fits nowhere (the section was not written by the profile). */
+function readLabeled(body: string[], labels: Record<string, string>): Fields | null {
+  const out: Fields = {}
+  let last = ''
+  for (const line of body) {
+    const m = /^([^:]{1,40}): (.*)$/.exec(line)
+    const id = m && Object.prototype.hasOwnProperty.call(labels, m[1]!) ? labels[m[1]!] : undefined
+    if (m && id) {
+      if (id in out) return null
+      out[id] = m[2]!
+      last = id
+    } else if (last) out[last] += `\n${line}`
+    else return null
+  }
+  return out
+}
+
+const toLabels = (rows: readonly (readonly [string, string])[], extra: Record<string, string> = {}): Record<string, string> =>
+  ({ ...Object.fromEntries(rows.map(([id, label]) => [label, id])), ...extra })
+const items = (v: string): string[] => v.split(', ').map((x) => x.trim()).filter(Boolean)
+
+/** The sections of one text, by title, or null when it has text outside a section or a heading twice. */
+function sectionsOf(text: string): Map<string, string[]> | null {
+  const out = new Map<string, string[]>()
+  let at: string[] | null = null
+  for (const line of text.split('\n')) {
+    if (MARK.test(line)) {
+      const title = line.replace(/^#+ /, '').trim()
+      if (out.has(title)) return null
+      at = []
+      out.set(title, at)
+    } else if (at) at.push(line)
+    else if (line.trim()) return null
+  }
+  // blank lines between sections belong to no one
+  for (const body of out.values()) while (body.length && !body[body.length - 1]!.trim()) body.pop()
+  return out
+}
+
+/**
+ * Rebuilds the profile an export wrote its headings from (GitHub #105): for a card whose description and
+ * personality carry the section headings and whose profile is gone (another client, a stripped extension).
+ * Null when the text does not read back as what the profile writes, line for line, or when a cast is in it.
+ */
+export function profileFromMarked(description: string, personality: string): Profile | null {
+  if (/^### /m.test(description) || /^### /m.test(personality)) return null
+  const d = sectionsOf(description)
+  const pe = sectionsOf(personality)
+  if (!d || !pe || (!d.size && !pe.size)) return null
+  const p: Profile = {}
+  const sections: Partial<Record<SectionId, boolean>> = {}
+  const id = d.get('Identity')
+  if (id) {
+    const f = readLabeled(id, { 'Full name': 'first', 'Also called': 'nicknames', Occupation: 'occupation', Age: 'age', Birthday: 'birthday', Gender: 'gender' })
+    if (!f) return null
+    const g = f.gender !== undefined ? /^(.*?)(?: ?\(([^()]*)\))?$/.exec(f.gender) : null
+    p.identity = {
+      ...(f.first !== undefined ? { first: f.first } : {}),
+      ...(f.nicknames !== undefined ? { nicknames: items(f.nicknames) } : {}),
+      ...(f.occupation !== undefined ? { occupation: f.occupation } : {}),
+      ...(f.age !== undefined ? { age: f.age } : {}),
+      ...(f.birthday !== undefined ? { birthday: f.birthday } : {}),
+      ...(g ? { gender: g[1] ?? '', ...(g[2] ? { pronouns: g[2] } : {}) } : {}),
+    }
+  }
+  const ap = d.get('Appearance')
+  if (ap) { const f = readLabeled(ap, toLabels(APPEARANCE)); if (!f) return null; p.appearance = f }
+  const bgFields: Record<string, string | string[]> = {}
+  const bgRead = d.get('Background')
+  if (bgRead) { const f = readLabeled(bgRead, toLabels(BACKGROUND, { Backstory: 'summary' })); if (!f) return null; Object.assign(bgFields, f) }
+  const ci = d.get('Circles')
+  if (ci) {
+    const f = readLabeled(ci, toLabels(CIRCLES, { Affiliations: 'affiliations' }))
+    if (!f) return null
+    const { affiliations, ...rest } = f
+    Object.assign(bgFields, rest)
+    if (affiliations !== undefined) bgFields.affiliations = items(affiliations)
+    sections.circles = true
+  }
+  if (Object.keys(bgFields).length) p.background = bgFields as Profile['background']
+  const rl = d.get('Relationships')
+  if (rl) {
+    if (rl[0] !== 'Relationships:') return null
+    const rows: Relationship[] = []
+    for (const line of rl.slice(1)) {
+      const m = /^- (.+?)(?: \((.*?)\))?(?:: (.*))?$/.exec(line)
+      if (!m) return null
+      rows.push({ name: m[1]!, relation: m[2] ?? '', notes: m[3] ?? '' })
+    }
+    p.relationships = rows
+  }
+  const lists = pe.get('Personality')
+  if (lists) {
+    const f = readLabeled(lists, toLabels(LISTS))
+    if (!f) return null
+    p.lists = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, items(v)]))
+  }
+  const bh = pe.get('Behaviors')
+  if (bh) { const f = readLabeled(bh, toLabels(BEHAVIORS)); if (!f) return null; p.behaviors = f }
+  const gl = pe.get('Goals')
+  if (gl) { const f = readLabeled(gl, toLabels(GOALS)); if (!f) return null; p.goals = f }
+  const tr = pe.get('Trauma')
+  if (tr) {
+    const f = readLabeled(tr, { Trauma: 'experiences', 'Triggered by': 'triggers', 'Copes by': 'coping' })
+    if (!f) return null
+    p.trauma = {
+      ...(f.experiences !== undefined ? { experiences: items(f.experiences) } : {}),
+      ...(f.triggers !== undefined ? { triggers: items(f.triggers) } : {}),
+      ...(f.coping !== undefined ? { coping: f.coping } : {}),
+    }
+    sections.trauma = true
+  }
+  const sx = pe.get('Sexuality')
+  if (sx) {
+    const f = readLabeled(sx, toLabels(SEXUALITY, { 'Turn-ons': 'turnOns', 'Turn-offs': 'turnOffs', Kinks: 'kinks', Boundaries: 'boundaries', 'Intimacy notes': 'notes' }))
+    if (!f) return null
+    const { turnOns, turnOffs, kinks, ...rest } = f
+    p.sexuality = {
+      ...rest,
+      ...(turnOns !== undefined ? { turnOns: items(turnOns) } : {}),
+      ...(turnOffs !== undefined ? { turnOffs: items(turnOffs) } : {}),
+      ...(kinks !== undefined ? { kinks: items(kinks) } : {}),
+    }
+    sections.sexuality = true
+  }
+  const nd = d.get('Notes')
+  const np = pe.get('Notes')
+  if (nd || np) p.notes = { ...(nd ? { description: nd.join('\n') } : {}), ...(np ? { personality: np.join('\n') } : {}) }
+  if (Object.keys(sections).length) p.sections = sections
+  return p
+}
+
+/**
+ * The patch that takes the section headings out of a card that came with them (an import of an export
+ * with "Mark the profile sections" on), or null when the card is left alone. With the profile still on the
+ * card, the headings go when the text without them is what the profile wrote. Without it, the profile is
+ * rebuilt from the headings, but only when it compiles back to exactly the text under them: a card that
+ * merely uses headings like these (many community cards do) is never touched.
+ */
+export function adoptMarkedSections(c: Pick<Character, 'cardExtras' | 'description' | 'personality'>, now = Date.now()): Partial<Character> | null {
+  if (!hasMarks(c.description) && !hasMarks(c.personality)) return null
+  const description = unmarkText(c.description)
+  const personality = unmarkText(c.personality)
+  const had = profileOf(c)
+  if (had) return !had.free && had.compiled?.hash === textHash(description, personality) ? { description, personality } : null
+  const built = profileFromMarked(c.description, c.personality)
+  if (!built) return null
+  const back = compileProfile(built)
+  if (back.description !== description || back.personality !== personality) return null
+  return applyProfile(c, built, now)
 }
 
 /** One text for a persona: both halves of the profile. */

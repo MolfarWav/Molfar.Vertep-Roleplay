@@ -99,6 +99,29 @@ text. Every key is optional; unknown keys are kept. Code: `src/lib/profile.ts`.
 | `cast` | More characters on the same card (a narrator card that describes several people). Each member has the same keys as the profile itself, except `free`, `compiled`, `v` and `cast`. The profile's own fields are the first character. With a member that writes something, both texts are written in parts: `### <name>` and that character's lines, the first character first, then each member in order. The profile's own `notes` come after all parts as shared text; a member's `notes` stay inside its part. The name is `title first family`, else the first nickname, else `Character <n>`. A member that writes nothing is skipped; with no such member, the text is the same as without `cast`. Structure it is offered only for a profile without a cast; Fill empty and Read from picture fill the first character only. |
 | `compiled` | When the profile last wrote the card and an FNV-1a hash of `description` + `personality` as written. A different hash means the text was edited by hand; the tab then offers to keep the additions, rewrite, or switch to Free write. |
 
+**Section headings in exports.** The live `description` and `personality` are the plain compiled text above.
+When a card is exported (PNG, CHARX, JSON) with "Mark the profile sections" on (the default, kept per browser),
+the exported text gets a heading before each section's lines, so another client shows where a line comes from:
+`description`: `## Identity`, `## Appearance`, `## Background`, `## Circles`, `## Relationships`, `## Notes`;
+`personality`: `## Personality`, `## Behaviors`, `## Goals`, `## Trauma`, `## Sexuality`, `## Notes`. A section that writes
+nothing has no heading. With a `cast`, each `### <name>` part keeps its place and has `####` headings inside, and the
+shared notes come last under `## Notes`. The exported card still carries `extensions.molfar_profile`. A card with
+Free write, or whose text was edited by hand after the profile wrote it, is exported as it is. Taking the heading
+lines out gives exactly the plain text. On load, a card whose text carries these headings loses them: with the
+profile on the card when the text without them is what the profile wrote (the hash in `compiled`); without the
+profile, when the lines read back into a profile that compiles to exactly the same text (a line no field owns, text
+before the first heading or a cast stops it, and the card is left as it came). Code: `compileProfileMarked`,
+`adoptMarkedSections` in `src/lib/profile.ts`.
+
+**The model for a card's tasks.** Not part of the card: `characters/<id>/card-tasks.json`
+(`{ "model": "<ref>", "maxInput": <tokens>, "maxOutput": <tokens> }`, every key optional; the file is absent when
+the card has no choice of its own). It is read and written by the profile plugin (`GET/PUT /profile/card-tasks`)
+and saved by the editor's Save changes. Structure it, Fill empty and the Soul rating run on: the model in the
+request (an unsaved pick) -> the card's `model` -> the app-wide `ui.cardTasks.model` in `settings.json` (Settings,
+Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model`. The editor sends the model's real limits
+with a request (`limits: { inputChars, outputTokens }`); a card longer than `inputChars` is read in parts
+(`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft.
+
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
 outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the

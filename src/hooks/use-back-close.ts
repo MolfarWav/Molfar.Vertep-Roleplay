@@ -11,7 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
  * Those returns are batched into one traversal: a section closing with a
  * dialog inside it gives back two entries in the same frame.
  */
-type Layer = { close: () => void }
+type Layer = { close: () => void | false }
 
 const stack: Layer[] = []
 let listening = false
@@ -20,7 +20,13 @@ let ownPops = 0
 
 function onPop() {
   if (ownPops > 0) { ownPops--; return }
-  stack.pop()?.close()
+  const layer = stack.pop()
+  if (!layer) return
+  // a layer that answers false stays open (the card editor asking about unsaved changes): it gets its entry back
+  if (layer.close() === false) {
+    history.pushState({ backLayer: true }, '')
+    stack.push(layer)
+  }
 }
 
 function giveBack() {
@@ -35,7 +41,7 @@ function giveBack() {
 }
 
 /** While `open` (on a phone), back runs `close` instead of leaving the page. */
-export function useBackClose(open: boolean, close: () => void) {
+export function useBackClose(open: boolean, close: () => void | false) {
   const isMobile = useIsMobile()
   const closeRef = useRef(close)
   closeRef.current = close

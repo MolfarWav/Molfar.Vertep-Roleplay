@@ -14,11 +14,11 @@ import { useT } from '@/hooks/use-t'
 import type { Character } from '@/lib/types'
 
 /** Translate an installed card into the Store's language, or put the original
- *  texts back. The editor saves every edit at once, so nothing is pending when
- *  a pass starts; a field edited while it runs is left as the user wrote it. */
+ *  texts back. It works on the saved card (the editor blocks it while it holds unsaved
+ *  changes); a field edited while it runs is left as the user wrote it. */
 installTranslationToasts()
 
-export function TranslateMenu({ c }: { c: Character }) {
+export function TranslateMenu({ c, blocked = false }: { c: Character; /** the editor holds unsaved changes: the translation works on the saved card */ blocked?: boolean }) {
   const t = useT()
   const appLanguage = useApp((s) => s.settings.language)
   const waiting = usePendingTranslations((s) => !!s.byId[c.id])
@@ -63,7 +63,7 @@ export function TranslateMenu({ c }: { c: Character }) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
-            <Button variant="ghost" size="sm" disabled={busy} aria-label="Translate this card" title="Translate this card" className="gap-1.5 bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300">
+            <Button variant="ghost" size="sm" disabled={busy || blocked} aria-label="Translate this card" title={blocked ? t('cd.translateNeedsSave') : 'Translate this card'} className="gap-1.5 bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300">
               {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Translate className="size-4" aria-hidden="true" />}
               <span className="max-sm:sr-only">{t('tr.button')}</span>
             </Button>

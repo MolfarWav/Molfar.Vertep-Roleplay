@@ -18,12 +18,15 @@ import {
   acceptFill,
 } from '@/lib/profile'
 import { ProfileForm } from '@/components/profile/profile-form'
+import { CardModelPanel } from '@/components/character/card-model-panel'
+import type { CardTasksState } from '@/components/character/use-card-tasks'
 import { ReadPictureDialog } from '@/components/profile/read-picture-dialog'
 import { FillControls, ProfileDraftPanel, StructureButton, useFillEmpty, useProfileDraft, useVisionModel } from '@/components/character/structure-draft'
 
-export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Character>) => void }) {
+export function ProfileTab({ c, up, tasks }: { c: Character; up: (patch: Partial<Character>) => void; tasks: CardTasksState }) {
   const p = profileOf(c)
   const [adoptMsg, setAdoptMsg] = useState<string | null>(null)
+  // the working text goes with the request, so a proposal reads what is on screen, not only what was saved
   const draft = useProfileDraft({ characterId: c.id }, (d) => {
     if (d.kind === 'fill') {
       up(acceptFill(c, d))
@@ -32,14 +35,18 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
       up(acceptDraft(c, d))
       toast.success('Profile filled. The old text is in Versions.')
     }
-  })
+  }, (kind) => ({
+    card: { name: c.name, description: c.description, personality: c.personality, scenario: c.scenario, mes_example: c.exampleDialogue },
+    ...tasks.requestFor(kind, `${c.description}\n${c.personality}`),
+  }))
   const vision = useVisionModel()
   const fill = useFillEmpty(draft, p, c.avatar, vision)
   // which character of the card the form shows: 0 the profile itself, n the cast's n-th
   const [sel, setSel] = useState(0)
   const [readOpen, setReadOpen] = useState(false)
   const [reading, setReading] = useState(false)
-  const structureButton = <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} onClick={() => void draft.runStructure()} />
+  const structureButton = <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} progress={draft.progress} onClick={() => void draft.runStructure()} />
+  const modelPanel = <CardModelPanel tasks={tasks} c={c} />
   const draftPanel = draft.draft && (
     <ProfileDraftPanel draft={draft.draft} before={c} mode="character" onAccept={draft.accept} onDiscard={draft.drop} />
   )
@@ -47,6 +54,7 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
   if (!p) {
     return (
       <div className="flex flex-col gap-4">
+        {modelPanel}
         <p className="text-sm text-muted-foreground">
           A profile splits the card into fields (identity, looks, personality, background). It writes Description and Personality for you; the text they hold now is kept as notes.
         </p>
@@ -85,6 +93,7 @@ export function ProfileTab({ c, up }: { c: Character; up: (patch: Partial<Charac
 
   return (
     <div className="flex flex-col gap-4">
+      {modelPanel}
       <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
         <label className="flex items-center gap-2 text-xs">
           <Switch checked={!!p.free} onCheckedChange={(v) => save({ ...p, free: v })} aria-label="Free write" />
