@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowsClockwise, BookOpenText, CheckCircle, CircleNotch, DotsThree, Plus, Trash, Warning, Waves } from '@phosphor-icons/react'
+import { ArrowsClockwise, BookOpenText, CaretRight, CheckCircle, CircleNotch, DotsThree, Plus, Trash, Warning, Waves } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +23,13 @@ import {
   putCardMemory,
 } from './memory-api'
 import { MemoryImportDialog } from './memory-import-dialog'
+import { StoryLines } from './memory-story-lines'
+
+const openKey = (cardId: string) => `rp-mem-open:${cardId}`
+const readOpen = (cardId: string): string[] => {
+  try { const v = JSON.parse(sessionStorage.getItem(openKey(cardId)) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [] } catch { return [] }
+}
+const writeOpen = (cardId: string, ids: string[]) => { try { sessionStorage.setItem(openKey(cardId), JSON.stringify(ids)) } catch { /* private window */ } }
 
 const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e))
 
@@ -36,6 +43,9 @@ export function MemoryTab({ c }: { c: Character }) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ chatId: string | null } | null>(null)
   const [confirm, confirmDialog] = useConfirm()
+  // which stories are opened, remembered per card for this browser tab
+  const [open, setOpen] = useState<string[]>(() => readOpen(c.id))
+  const toggle = (id: string) => setOpen((cur) => { const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]; writeOpen(c.id, next); return next })
   const alive = useRef(true)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
 
@@ -117,30 +127,43 @@ export function MemoryTab({ c }: { c: Character }) {
               {sources.map((s) => {
                 const title = s.title || t('mem.untitled')
                 const exists = chatIds.has(s.chatId)
+                const isOpen = open.includes(s.id)
                 return (
-                  <li key={s.id} className="flex items-center gap-3 border-t border-border py-2 first:border-t-0 first:pt-0" data-testid="mem-story">
-                    <Switch checked={s.on} onCheckedChange={(v) => setOn(s, v)} aria-label={t('mem.story.use', { title })} className="max-md:after:-inset-y-4" />
-                    <div className="min-w-0 flex-1">
-                      <div className={cn('truncate text-sm font-medium', !s.on && 'text-muted-foreground')}>{title}</div>
-                      <div className="text-xs text-muted-foreground">{summary(s, t, lang)}</div>
-                      <ChatBadge exists={exists} t={t} className="mt-1 md:hidden" />
-                    </div>
-                    <ChatBadge exists={exists} t={t} className="max-md:hidden" />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="max-md:size-10" aria-label={t('mem.menu', { title })} />}>
-                        <DotsThree className="size-5" weight="bold" aria-hidden="true" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-52">
-                        {exists && (
-                          <DropdownMenuItem className="max-md:min-h-10" onClick={() => setDialog({ chatId: s.chatId })}>
-                            <ArrowsClockwise aria-hidden="true" />{t('mem.again')}
+                  <li key={s.id} className="border-t border-border py-2 first:border-t-0 first:pt-0" data-testid="mem-story">
+                    <div className="flex items-center gap-3">
+                      <Switch checked={s.on} onCheckedChange={(v) => setOn(s, v)} aria-label={t('mem.story.use', { title })} className="max-md:after:-inset-y-4" />
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-label={t(isOpen ? 'mem.story.collapse' : 'mem.story.expand', { title })}
+                        onClick={() => toggle(s.id)}
+                        className="flex min-h-10 min-w-0 flex-1 items-start gap-1 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                      >
+                        <CaretRight className={cn('mt-1 size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', isOpen && 'rotate-90')} aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className={cn('block truncate text-sm font-medium', !s.on && 'text-muted-foreground')}>{title}</span>
+                          <span className="block text-xs text-muted-foreground">{summary(s, t, lang)}</span>
+                          <ChatBadge exists={exists} t={t} className="mt-1 md:hidden" />
+                        </span>
+                      </button>
+                      <ChatBadge exists={exists} t={t} className="max-md:hidden" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="max-md:size-10" aria-label={t('mem.menu', { title })} />}>
+                          <DotsThree className="size-5" weight="bold" aria-hidden="true" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-52">
+                          {exists && (
+                            <DropdownMenuItem className="max-md:min-h-10" onClick={() => setDialog({ chatId: s.chatId })}>
+                              <ArrowsClockwise aria-hidden="true" />{t('mem.again')}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem className="text-destructive max-md:min-h-10" onClick={() => void remove(s)}>
+                            <Trash aria-hidden="true" />{t('mem.remove')}
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem className="text-destructive max-md:min-h-10" onClick={() => void remove(s)}>
-                          <Trash aria-hidden="true" />{t('mem.remove')}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    {isOpen && <StoryLines cardId={c.id} cardName={c.name} source={s} t={t} apply={apply} />}
                   </li>
                 )
               })}

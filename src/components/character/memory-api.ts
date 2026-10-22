@@ -58,7 +58,10 @@ const q = (s: string) => encodeURIComponent(s)
 
 export const fetchCardMemory = (cardId: string) => j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}`)
 
-export const putCardMemory = (cardId: string, patch: { source?: { id: string; on?: boolean; canon?: 'main' | 'separate' }; inject?: { enabled?: boolean; maxTokens?: number } }) =>
+/** One line of a story: edit by index (text), remove by index, or add. 'arc' has no index: text replaces, remove clears. */
+export interface MemLinePatch { list: 'arc' | 'facts' | 'notes' | 'said'; index?: number; text?: string; remove?: boolean; add?: boolean; who?: string; kind?: string; subject?: string; how?: string }
+
+export const putCardMemory = (cardId: string, patch: { source?: { id: string; on?: boolean; canon?: 'main' | 'separate'; line?: MemLinePatch }; inject?: { enabled?: boolean; maxTokens?: number } }) =>
   j<CardMemoryView>('/litopys/card-memory', { method: 'PUT', body: JSON.stringify({ cardId, ...patch }) })
 
 export const deleteCardMemorySource = (cardId: string, sourceId: string) =>

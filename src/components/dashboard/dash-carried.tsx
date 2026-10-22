@@ -68,7 +68,7 @@ export function CarriedBanner({ chatId, inherit, className }: { chatId: string; 
           <ArrowsClockwise className="mt-px size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="break-words">{t('dash.rebase.on', { title: inherit.title || inherit.from })}</span>
-            <span className="text-[11px] text-muted-foreground">{t('dash.rebase.hint')}</span>
+            <span className="text-[11px] text-muted-foreground">{t('dash.rebase.hint', { title: inherit.title || inherit.from })}</span>
           </div>
         </div>
         <Button variant="outline" size="sm" className="h-10 w-full rounded-none md:h-7 md:w-fit" disabled={busy} onClick={() => { void rebuild() }}>
