@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.64.0
+
+Groups get their own section in the menu.
+
 - Groups have their own section in the menu, right after Characters (on a phone: in More). They used to sit behind a Characters | Groups switch inside Characters, which was hard to find. Characters now lists only single characters and has a plain New character button; Groups has New group. A card opened from a chat (edit group, open a member) lands in its own section, and the guide's Groups tips point at the new section. Icons: Characters one person, Groups three.
 
 ## 4.63.0
