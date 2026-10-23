@@ -4,7 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
-Quests (#117, with #86): the server side and the Dashboard panel.
+## 4.65.0
+
+Threads become quests: kinds, steps, suggestions, a Twist for Story, move, and the event ids the sensor makes up are matched and listed (#117, #86).
 
 - Threads are quests: each is main, side or everyday, and a main quest can have steps. The sensor gives a new thread its kind; a thread with no kind (everything before this) is a side quest. Limits: 1 main (setting 1-2), 3 side (the old open-thread limit), 4 steps per main quest (1-6); everyday quests are not counted, at most 5 are open and each closes by itself after 8 turns (0-30, 0 = never).
 - A new quest above its limit is no longer dropped in silence: it waits as a proposal, and so does a quest you add yourself at a full limit (it used to fail). Accepting one at a full kind asks which open quest it replaces.

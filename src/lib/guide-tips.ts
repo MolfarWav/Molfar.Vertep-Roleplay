@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.64.0'
+export const APP_VERSION = '4.65.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -400,6 +400,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Importing cards, presets, lorebooks, personas, regex, chats or a backup now shows a card at the bottom: the file, the step, how many are done, and Cancel between files. The Dashboard blocks have colours by kind, and a narrator card with several characters is split by Structure it, with Fill empty on each.',
       uk: 'Імпорт карток, пресетів, лорбуків, персон, regex, чатів і бекапів тепер показує внизу картку: файл, крок, скільки готово, і «Скасувати» між файлами. Блоки Dashboard мають кольори за змістом, а картку-оповідача з кількома персонажами «Структурувати» розбиває, а «Заповнити порожні» працює для кожного.',
+    },
+  },
+  // ── What's new: quests
+  {
+    id: 'new.quests',
+    since: '4.65.0',
+    target: 'dash.threads',
+    open: { view: 'chat', panel: 'dashboard' },
+    title: { en: 'Story threads are quests now', uk: 'Сюжетні лінії тепер — квести' },
+    body: {
+      en: 'The Dashboard\'s threads are quests: main, side and everyday, and a main quest can have steps. A quest that does not fit its limit, or that the story left alone for long, waits under Suggestions for your answer. Story, move can pick a quest or a step, or add a Twist: something outside the quests.',
+      uk: 'Сюжетні лінії Дашборду тепер квести: головні, побічні й буденні, а головний квест може мати кроки. Квест, для якого немає місця, або який історія давно не торкалась, чекає вашої відповіді серед пропозицій. «Історія, рухайся» вміє обрати квест чи крок або додати Поворот: щось поза квестами.',
     },
   },
   // ── What's new: the chat header's story tools
