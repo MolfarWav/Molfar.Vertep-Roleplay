@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { PencilSimple } from '@phosphor-icons/react'
+import { PencilSimple, type Icon } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { ageSeconds, type Clock, type DashChar, type DashView } from '@/lib/dashboard'
@@ -232,15 +232,79 @@ export function Label({ children, className }: { children: ReactNode; className?
   return <h3 className={cn('text-[11px] uppercase tracking-wide text-muted-foreground', className)}>{children}</h3>
 }
 
-/** A titled box of the wide view and the phone sheet. */
-export function Box({ title, children, className, id, 'data-guide': guide }: { title?: ReactNode; children: ReactNode; className?: string; id?: string; 'data-guide'?: string }) {
+/**
+ * One hue per kind of content, not per box: scene = what is going on now, people = how they stand to each
+ * other, memory = what is known and promised, plot = what is still open. The hue is only a tint over the
+ * theme's own surface (a translucent fill and border) and its text is the 700/300 step, so every theme keeps
+ * its own ground; the title and its icon always name the block, colour never carries it alone.
+ */
+export type Tone = 'scene' | 'people' | 'memory' | 'plot'
+export const TONE: Record<Tone, { bar: string; text: string }> = {
+  scene: { bar: 'border-sky-500/35 bg-sky-500/12', text: 'text-sky-700 dark:text-sky-300' },
+  people: { bar: 'border-violet-500/35 bg-violet-500/12', text: 'text-violet-700 dark:text-violet-300' },
+  memory: { bar: 'border-emerald-500/35 bg-emerald-500/12', text: 'text-emerald-700 dark:text-emerald-300' },
+  plot: { bar: 'border-pink-500/35 bg-pink-500/12', text: 'text-pink-700 dark:text-pink-300' },
+}
+
+/** A block's title on a tinted bar with its icon; `className` places it (a box bleeds it to its edges). */
+export function TitleBar({ tone, icon: Glyph, children, className }: { tone: Tone; icon?: Icon; children: ReactNode; className?: string }) {
+  const look = TONE[tone]
+  return (
+    <div className={cn('flex min-w-0 items-center gap-2 border-b px-3 py-1.5', look.bar, className)}>
+      {Glyph ? <Glyph className={cn('size-4 shrink-0', look.text)} aria-hidden="true" /> : null}
+      <Label className={cn('min-w-0 font-semibold break-words', look.text)}>{children}</Label>
+    </div>
+  )
+}
+
+/** A titled box of the wide view and the phone sheet; with a `tone` the title sits on a tinted bar. */
+export function Box({ title, tone, icon, children, className, id, 'data-guide': guide }: { title?: ReactNode; tone?: Tone; icon?: Icon; children: ReactNode; className?: string; id?: string; 'data-guide'?: string }) {
   return (
     <section id={id} data-guide={guide} tabIndex={id ? -1 : undefined} className={cn('min-w-0 border border-border bg-card p-3 outline-none', className)}>
-      {title ? <Label className="mb-2">{title}</Label> : null}
+      {title && tone ? <TitleBar tone={tone} icon={icon} className="-mx-3 -mt-3 mb-3">{title}</TitleBar> : title ? <Label className="mb-2">{title}</Label> : null}
       {children}
     </section>
   )
 }
+
+/** A heading with no box of its own (the phone and strip views): the tone's text colour and icon, no bar. */
+export function ToneLabel({ tone, icon: Glyph, children }: { tone: Tone; icon?: Icon; children: ReactNode }) {
+  const look = TONE[tone]
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      {Glyph ? <Glyph className={cn('size-3.5 shrink-0', look.text)} aria-hidden="true" /> : null}
+      <Label className={cn('font-semibold', look.text)}>{children}</Label>
+    </div>
+  )
+}
+
+/** A mark's colour by what it says, as border + tint + text like the other chips. Always beside its word. */
+export const MARK = {
+  neutral: 'border-border text-muted-foreground',
+  good: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  warn: 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  bad: 'border-rose-500/50 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  strong: 'border-rose-500/70 bg-rose-500/20 font-semibold text-rose-700 dark:text-rose-200',
+  power: 'border-orange-500/50 bg-orange-500/10 text-orange-700 dark:text-orange-300',
+  body: 'border-pink-500/50 bg-pink-500/10 text-pink-700 dark:text-pink-300',
+  info: 'border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+} as const
+export type Mark = keyof typeof MARK
+
+/** How much an event weighs: routine is quiet, significant is amber, pivotal is the loudest. */
+export const WEIGHT_MARK: Record<string, Mark> = { routine: 'neutral', significant: 'warn', pivotal: 'strong' }
+/** What an event is about: bonds green, a fight red, power orange, the body pink, knowledge blue. */
+export const FAMILY_MARK: Record<string, Mark> = { trust: 'good', warmth: 'good', care: 'good', conflict: 'bad', power: 'power', body: 'body', knowledge: 'info' }
+/** How a character knows a note: saw it, heard it, or only guesses. */
+export const HOW_TEXT: Record<string, string> = {
+  saw: 'text-emerald-700 dark:text-emerald-300',
+  heard: 'text-sky-700 dark:text-sky-300',
+  guess: 'text-amber-700 dark:text-amber-300',
+}
+/** What was said: dangers red, a hidden truth amber, a pledge or an open word green. */
+export const SAID_MARK: Record<string, Mark> = { threat: 'bad', order: 'bad', lie: 'warn', secret: 'warn', vow: 'good', promise: 'good', confession: 'good' }
+/** How a character stands to you, as the class badge and tab text. */
+export const CLASS_MARK: Record<string, Mark> = { romantic: 'body', ally: 'good', hostile: 'bad' }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowClockwise, CaretDown, Gauge } from '@phosphor-icons/react'
+import { ArrowClockwise, CaretDown, Flag, Gauge } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Constellation } from './constellation'
@@ -12,7 +12,7 @@ import { canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { CarriedBanner } from './dash-carried'
-import { AvatarButton, BandMark, bandTextClass, CharFields, Label, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { AvatarButton, BandMark, bandTextClass, CharFields, Notices, SceneBlock, ToneLabel, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 import { useGuidePlace } from '@/components/guide/place'
 
@@ -120,7 +120,7 @@ export function DashPhoneSheet({ chatId, view, focus, onFocus, onRefresh, refres
               </div>
             )}
             <div className="flex flex-col gap-1.5" data-guide="dash.threads">
-              <Label>{t('dash.threads')}</Label>
+              <ToneLabel tone="plot" icon={Flag}>{t('dash.threads')}</ToneLabel>
               <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
             </div>
             <Notices view={view} />

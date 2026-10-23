@@ -1,4 +1,6 @@
 
+import { beginImport, forEachImport } from "@/lib/import-progress"
+import { t as tNow } from "@/lib/i18n"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { cleanPreview } from '@/lib/preview'
 import { Check, Flag, GitBranch, ChatCenteredText, PencilSimple, Trash, ArrowElbowDownRight, BookmarkSimple, FileText, FileCode, UploadSimple, BoxArrowUp } from '@phosphor-icons/react'
@@ -314,36 +316,49 @@ export function ManageChatsDialog({
   // JSONL transcripts attach to THIS character (the importer links by name)
   const importChats = async (files: FileList | null) => {
     if (!files || !character) return
-    for (const file of Array.from(files)) {
+    await forEachImport(tNow("imp.title.chats"), Array.from(files), (f) => f.name, async (file, run) => {
       try {
         const lines = (await file.text())
           .split("\n").filter((l) => l.trim())
           .map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
-        if (!lines.length) { toast.error(`${file.name}: no messages found`); continue }
+        if (!lines.length) { toast.error(`${file.name}: no messages found`); return false }
+        run.step(tNow("imp.step.saving"), 0.5)
         const r = await j<{ chats: string[] }>("/import/batch", {
           method: "POST",
           body: JSON.stringify({ chats: [{ character: character.name, file: file.name.replace(/\.jsonl$/i, ""), lines }] }),
         })
         toast.success(`Imported to ${character.name} (${r.chats.length} new)`)
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "could not parse JSONL"}`) }
-    }
+        return true
+      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "could not parse JSONL"}`); return false }
+    })
     await hydrate()
   }
 
   const importBackup = async (files: FileList | null) => {
     const f = files?.[0]
     if (!f) return
+    const run = beginImport(tNow("imp.title.backup"), 1)
+    run.start(f.name, tNow("imp.step.reading"))
     try {
+      const zipBase64 = await fileToRawBase64(f)
+      run.step(tNow("imp.step.unpacking"), 0.3)
       const r = await j<Record<string, unknown>>("/import/zip", {
         method: "POST",
-        body: JSON.stringify({ zipBase64: await fileToRawBase64(f) }),
+        body: JSON.stringify({ zipBase64 }),
       })
       const parts = Object.entries(r)
         .filter(([, v]) => Array.isArray(v) && v.length)
         .map(([k, v]) => `${(v as unknown[]).length} ${k}`)
       toast.success(parts.length ? `Imported ${parts.join(", ")}` : "Nothing recognized in that zip")
+      run.step(tNow("imp.step.refreshing"), 0.9)
       await hydrate()
-    } catch (e) { toast.error(String((e as Error).message ?? e)) }
+      run.finish(true)
+      run.end(parts.length ? `Imported ${parts.join(", ")}` : "Nothing recognized in that zip")
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e))
+      run.finish(false, String((e as Error).message ?? e))
+      run.end()
+    }
   }
 
   // Build root list + fork tree for this character

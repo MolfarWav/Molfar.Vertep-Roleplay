@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowClockwise, GearSix, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Flag, GearSix, Heart, LinkSimple, Pulse, Star, UsersThree, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
@@ -12,7 +12,7 @@ import { BANDS, canEditNotes, sortedThreads, type DashView } from '@/lib/dashboa
 import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { CarriedBanner } from './dash-carried'
-import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, FooterLine, LiveDot, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, CLASS_MARK, FooterLine, LiveDot, MARK, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
 import { ThreadList } from './dash-threads'
 import { useGuidePlace } from '@/components/guide/place'
 
@@ -123,7 +123,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         )}
 
         <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
-          <Box data-guide="dash.constellation" title={t('dash.tab.constellation')}>
+          <Box data-guide="dash.constellation" title={t('dash.tab.constellation')} tone="people" icon={Star}>
             <div className="flex flex-col items-center gap-1 px-10 pt-2">
               <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={250} labels />
               <div className={cn('font-heading text-xl', GOLD_TEXT)}>{constName}</div>
@@ -135,10 +135,10 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
             </div>
           </Box>
 
-          <Box data-guide="dash.attitude" title={t('dash.attitude')}>
+          <Box data-guide="dash.attitude" title={t('dash.attitude')} tone="people" icon={Heart}>
             <div className="flex flex-col gap-2.5">
               <div>
-                <Badge variant="outline" className="rounded-none text-[10px]">{t(`soul.class.${char.cls}`)}</Badge>
+                <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
               </div>
               {DISPOSITION.map((stat) => (
                 <SignedBar key={stat} stat={stat} value={char.stats[stat]} prev={char.prev?.stats[stat]} tier />
@@ -147,7 +147,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
             </div>
           </Box>
 
-          <Box title={t('dash.pulse')}>
+          <Box title={t('dash.pulse')} tone="scene" icon={Pulse}>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 {PULSE.map((stat) => (
@@ -170,11 +170,11 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
           <Notebook id="dash-notebook" compact className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
-            <Box data-guide="dash.threads" title={t('dash.threads')}>
+            <Box data-guide="dash.threads" title={t('dash.threads')} tone="plot" icon={Flag}>
               <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
             </Box>
 
-            <Box title={t('dash.ensemble')}>
+            <Box title={t('dash.ensemble')} tone="people" icon={UsersThree}>
               {others.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('dash.ensemble.none')}</p>
               ) : (
@@ -212,7 +212,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
             </Box>
 
             {view.edges.length > 0 && (
-              <Box title={t('dash.edges')}>
+              <Box title={t('dash.edges')} tone="people" icon={LinkSimple}>
                 <ul className="flex flex-col gap-1 text-xs">
                   {view.edges.map((e) => (
                     <li key={`${e.from}>${e.to}`} className="min-w-0 break-words">

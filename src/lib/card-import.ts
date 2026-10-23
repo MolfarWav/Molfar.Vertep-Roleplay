@@ -1,6 +1,8 @@
 import { toast } from 'sonner'
 import { API, j, fileToDataUrl, fileToRawBase64, downscaleRemoteImage } from '@/lib/engine'
 import { extractCharaFromPng } from '@/lib/interop'
+import { beginImport, type ImportRun } from '@/lib/import-progress'
+import { t } from '@/lib/i18n'
 import { unzipSync, zipSync } from 'fflate'
 
 /** Ask the dashboard plugin to rate an imported card, without waiting: the plugin
@@ -170,12 +172,21 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
   const cardNames: string[] = []
   const errors: string[] = []
   const notes: string[] = []
-  for (const f of Array.from(files)) {
+  // in batches: one request for a few hundred cards ran the plugin out of its time or memory
+  // halfway, with part of the cards written and an error on screen (a retry then doubled them)
+  const BATCH = 25
+  const list = Array.from(files)
+  // one unit per file read, one per batch sent: the bar moves by both
+  const run = beginImport(t('imp.title.cards'), list.length + Math.ceil(list.length / BATCH), { count: false })
+  for (const f of list) {
+    if (run.cancelled()) break
+    run.start(f.name, t('imp.step.reading'))
+    const before = errors.length
     try {
       const lower = f.name.toLowerCase()
       if (lower.endsWith('.png')) {
         const card = await extractCharaFromPng(f)
-        if (!card) { errors.push(`${f.name}: no embedded card data`); continue }
+        if (!card) { errors.push(`${f.name}: no embedded card data`); run.finish(false, 'no embedded card data'); continue }
         let avatar: string | undefined
         try { avatar = await fileToDataUrl(f, 512) } catch { /* keep card without avatar */ }
         const assets = await pngCardAssets(f, card)
@@ -185,16 +196,17 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
         // a charx package IS a zip with card.json; the plugin unpacks it
         const bytes = new Uint8Array(await f.arrayBuffer())
         const start = zipStartOf(bytes)
-        if (start < 0) { errors.push(`${f.name}: not a charx package (no zip inside)`); continue }
+        if (start < 0) { errors.push(`${f.name}: not a charx package (no zip inside)`); run.finish(false, 'not a charx package'); continue }
         const zipBytes = start === 0 ? bytes : bytes.subarray(start)
         const zip = start === 0 ? f : new Blob([zipBytes])
         const { avatar, assets, slim } = await charxExtras(zipBytes)
+        run.step(t('imp.step.saving'), 0.5)
         const r = await j<{ characters?: string[]; name?: string; notes?: string[] }>('/import/zip', {
           method: 'POST', body: JSON.stringify({ zipBase64: await fileToRawBase64(slim ? new Blob([slim as Uint8Array<ArrayBuffer>]) : zip), ...(avatar ? { avatar } : {}), ...(assets ? { assets } : {}) }),
         })
         notes.push(...(r.notes ?? []))
         const got = r.characters ?? []
-        if (!got.length) { errors.push(`${f.name}: no card.json in the package`); continue }
+        if (!got.length) { errors.push(`${f.name}: no card.json in the package`); run.finish(false, 'no card.json in the package'); continue }
         out.characters.push(...got)
         out.names.push(r.name ?? f.name.replace(/\.charx$/i, ''))
         if (!quiet) toast.success(`Imported ${r.name ?? f.name}`)
@@ -208,14 +220,15 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
     } catch (e) {
       errors.push(`${f.name}: ${e instanceof SyntaxError ? 'could not parse' : String((e as Error).message ?? e)}`)
     }
+    run.finish(errors.length === before, errors[errors.length - 1]?.replace(`${f.name}: `, '') ?? '')
   }
-  // in batches: one request for a few hundred cards ran the plugin out of its time or memory
-  // halfway, with part of the cards written and an error on screen (a retry then doubled them)
-  const BATCH = 25
   let imported = 0
   for (let at = 0; at < cards.length; at += BATCH) {
+    if (run.cancelled()) break
     const part = cards.slice(at, at + BATCH)
     const partNames = cardNames.slice(at, at + BATCH)
+    run.start(partNames.length > 1 ? t('imp.cards', undefined, { n: partNames.length }) : partNames[0] ?? '', t('imp.step.saving'))
+    const errorsBefore = errors.length
     try {
       const r = await j<{ characters: string[]; name?: string; errors?: string[]; notes?: string[] }>('/import/batch', {
         method: 'POST', body: JSON.stringify({ cards: part }),
@@ -230,12 +243,15 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
       const which = partNames.length > 1 ? `${partNames[0]} … ${partNames[partNames.length - 1]}` : partNames[0] ?? ''
       errors.push(`${which}: ${String((e as Error).message ?? e)}`)
     }
+    run.finish(errors.length === errorsBefore, errors[errors.length - 1] ?? '')
   }
   if (imported && !quiet) toast.success(`Imported ${imported} character${imported === 1 ? '' : 's'}`)
   if (out.characters.length) {
+    run.start('', t('imp.step.refreshing'))
     await hydrate()
     rateImported(out.characters)
   }
+  run.end(t(run.cancelled() ? 'imp.cancelled' : 'imp.done', undefined, { ok: out.characters.length, total: list.length }))
   out.errors = errors
   out.notes = notes
   if (!quiet) for (const e of errors) toast.error(e)
@@ -290,7 +306,41 @@ async function fileRouteError(res: Response, label: string): Promise<string> {
  *  dropped file. Wyvern and Pygmalion have no file: the plugin builds a JSON
  *  card from their fields. Chub links keep their own route (POST /import/url)
  *  and are not handled here. Throws with a plain-words message. */
+/** The body of a response, with the share read so far when the server said how long it is. */
+async function readBody(res: Response, onShare: (share: number) => void): Promise<Uint8Array<ArrayBuffer>> {
+  const total = Number(res.headers.get('content-length')) || 0
+  if (!res.body || !total) return new Uint8Array(await res.arrayBuffer())
+  const reader = res.body.getReader()
+  const parts: Uint8Array[] = []
+  let got = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parts.push(value)
+    got += value.length
+    onShare(Math.min(1, got / total))
+  }
+  const out = new Uint8Array(got)
+  let at = 0
+  for (const p of parts) { out.set(p, at); at += p.length }
+  return out
+}
+
 export async function importCardFromLink(url: string, hydrate: () => Promise<void>): Promise<ImportResult & { sourceLabel: string; skippedBooks?: number }> {
+  // the link's own job covers finding and downloading the file; the import after it is its own job
+  const run = beginImport(t('imp.title.link'), 1)
+  run.start(url.trim(), t('imp.step.downloading'))
+  try {
+    return await importFromLinkIn(run, url, hydrate)
+  } catch (e) {
+    run.finish(false, String((e as Error)?.message ?? e))
+    run.end()
+    throw e
+  }
+}
+
+async function importFromLinkIn(run: ImportRun, url: string, hydrate: () => Promise<void>): Promise<ImportResult & { sourceLabel: string; skippedBooks?: number }> {
+  run.step(t('imp.step.downloading'), 0.05)
   const where = await j<{ sourceLabel: string; api?: boolean; downloadUrl?: string; fileBase?: string }>('/fetch/card', {
     method: 'POST', body: JSON.stringify({ url: url.trim(), resolve: true }),
   })
@@ -306,6 +356,7 @@ export async function importCardFromLink(url: string, hydrate: () => Promise<voi
     const bin = atob(r.base64)
     const bytes = new Uint8Array(bin.length)
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    run.drop()
     // quiet: the caller shows one result (success or the thrown message)
     const res = await importCardFiles([new File([bytes], r.fileName)], hydrate, { quiet: true, ...(avatars ? { avatars } : {}) })
     if (!res.characters.length) throw new Error(res.errors[0] ?? `The card from ${r.sourceLabel} could not be imported.`)
@@ -318,10 +369,12 @@ export async function importCardFromLink(url: string, hydrate: () => Promise<voi
     throw new Error('Connection lost. Is the engine running?')
   }
   if (!res.ok) throw new Error(await fileRouteError(res, where.sourceLabel))
-  const bytes = new Uint8Array(await res.arrayBuffer())
+  // a file of a known size moves the bar as it arrives
+  const bytes = await readBody(res, (share) => run.step(t('imp.step.downloading'), 0.1 + 0.85 * share))
   const kind = cardFileKind(bytes)
   if ('error' in kind) throw new Error(kind.error)
   const name = `${where.fileBase || 'card'}.${kind.ext}`
+  run.drop()
   const out = await importCardFiles([new File([bytes], name)], hydrate, { quiet: true })
   if (!out.characters.length) throw new Error(out.errors[0] ?? `The card from ${where.sourceLabel} could not be imported.`)
   return { ...out, sourceLabel: where.sourceLabel }

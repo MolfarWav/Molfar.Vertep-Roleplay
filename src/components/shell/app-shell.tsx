@@ -38,6 +38,7 @@ import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
 import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 import { InboxDrawer, useInbox, useInboxBadge } from '@/components/shell/inbox'
+import { ImportProgressCard } from '@/components/shell/import-progress-card'
 import { pollNeedsYou } from '@/lib/store'
 
 export function AppShell() {
@@ -156,6 +157,7 @@ export function AppShell() {
       {view !== 'chat' && !keyboardOpen && <MobileTabBar />}
       <SectionDrawer isDesktop={isDesktop} />
       <InboxDrawer />
+      <ImportProgressCard />
       <NewChatStep />
       <WorldOpeningDialog />
       {/* Live generation status, below the header line at the right edge:

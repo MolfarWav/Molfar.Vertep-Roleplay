@@ -12,6 +12,8 @@ import type {
   Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
+import { beginImport } from './import-progress'
+import { t } from './i18n'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
 import { DEFAULT_AVATAR, storedMediaUrl } from './utils'
 import { saveFile } from './export'
@@ -1446,9 +1448,15 @@ export async function importLorebookFiles(
   onError: (message: string) => void,
 ): Promise<string[]> {
   const ids: string[] = []
+  const run = beginImport(t('imp.title.lorebooks'), files.length)
+  try {
   for (const file of files) {
+    if (run.cancelled()) break
+    run.start(file.name, t('imp.step.reading'))
+    let ok = true
     try {
       const json = JSON.parse(await file.text()) as Record<string, unknown>
+      run.step(t('imp.step.saving'), 0.5)
       const isNative = 'settings' in json && 'vectorized' in json && Array.isArray(json.entries)
       if (isNative) {
         const id = uid('book')
@@ -1466,8 +1474,13 @@ export async function importLorebookFiles(
         ids.push(...r.lorebooks)
       }
     } catch (e) {
+      ok = false
       onError(`${file.name}: ${(e as Error).message ?? 'could not parse'}`)
     }
+    run.finish(ok, ok ? '' : 'not imported')
+  }
+  } finally {
+    run.end(t(run.cancelled() ? 'imp.cancelled' : 'imp.done', undefined, { ok: ids.length, total: files.length }))
   }
   return ids
 }

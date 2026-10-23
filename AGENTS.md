@@ -108,6 +108,11 @@ list; Open goes where it is fixed; not when the player is already there; the sam
 within 10 minutes); "Dismiss" stores the key. Rows and the badge total come from `inboxRows` in lib/attention-core.ts
 and respect the per-kind switches in settings.attention (litopys, soul, failed). Toast colours by type are in
 components/ui/sonner.tsx: use toast.error / warning / success / info, a plain toast() is a neutral note.
+Imports (cards, presets, lorebooks, personas, regex, chats, backups, links) report to one progress card
+(`components/shell/import-progress-card.tsx`, state in `lib/import-progress.ts`: `beginImport`, `forEachImport`): a job counts
+whole files (cards: files plus batches of 25), a file that cannot be split shows its steps, a link download moves with the bytes
+it has read, and Cancel stops between units. The card is a portal on the body (an open drawer makes #app inert), above the tab
+bar on a phone. A new import path calls `forEachImport` or `beginImport` instead of keeping its own spinner.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
 to it on every change. Messages are a FLAT list with swipes.
 

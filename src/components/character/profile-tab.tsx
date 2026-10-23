@@ -8,6 +8,8 @@ import type { Character } from '@/lib/types'
 import {
   type Profile,
   castOf,
+  isBlankProfile,
+  personName,
   profileName,
   profileOf,
   profileOutOfDate,
@@ -40,9 +42,14 @@ export function ProfileTab({ c, up, tasks }: { c: Character; up: (patch: Partial
     ...tasks.requestFor(kind, `${c.description}\n${c.personality}`),
   }))
   const vision = useVisionModel()
-  const fill = useFillEmpty(draft, p, c.avatar, vision)
   // which character of the card the form shows: 0 the profile itself, n the cast's n-th
   const [sel, setSel] = useState(0)
+  const cast = p ? castOf(p) : []
+  const at = sel > cast.length ? 0 : sel
+  const current = p ? (at === 0 ? p : cast[at - 1]!) : null
+  // another character is found in the text by the name typed in Identity; without one there is nothing to look for
+  const member = current && at > 0 && personName(current) ? { index: at, name: personName(current) } : undefined
+  const fill = useFillEmpty(draft, current, c.avatar, vision, member)
   const [readOpen, setReadOpen] = useState(false)
   const [reading, setReading] = useState(false)
   const structureButton = <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} progress={draft.progress} onClick={() => void draft.runStructure()} />
@@ -69,9 +76,7 @@ export function ProfileTab({ c, up, tasks }: { c: Character; up: (patch: Partial
   }
 
   const save = (next: Profile) => up(applyProfile(c, next))
-  const cast = castOf(p)
-  const at = sel > cast.length ? 0 : sel
-  const shown = at === 0 ? p : cast[at - 1]!
+  const shown = current!
   const saveShown = (next: Profile) => (at === 0 ? save(next) : save({ ...p, cast: cast.map((m, i) => (i === at - 1 ? next : m)) }))
   const addCharacter = () => {
     save({ ...p, cast: [...cast, {}] })
@@ -85,11 +90,11 @@ export function ProfileTab({ c, up, tasks }: { c: Character; up: (patch: Partial
     setSel(at - 1)
     toast(`${gone} removed from the profile.`, { action: { label: 'Undo', onClick: () => { save(before); setSel(at) } } })
   }
-  // Structure it splits the card's whole text: with a cast it would put everyone into
-  // the first character, so it is offered only for a one-character profile.
-  // Fill empty and Read from picture fill the first character only, for now.
-  const structurable = cast.length === 0
-  const fillable = at === 0
+  // Structure it splits the card's whole text and writes the characters it finds: with a cast that already holds
+  // something it would replace the cast, so it is offered while the other characters are still blank.
+  // Fill empty works on any character (another one is found in the text by name); Read from picture on the first.
+  const structurable = cast.every(isBlankProfile)
+  const fillable = at === 0 || !!member
 
   return (
     <div className="flex flex-col gap-4">
@@ -100,15 +105,12 @@ export function ProfileTab({ c, up, tasks }: { c: Character; up: (patch: Partial
           Free write: edit Description and Personality by hand; the profile stops writing them
         </label>
         {p.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the card's text.</p>}
-        {fillable ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {structurable && structureButton}
-            <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Fill empty works on the first character only.</p>
-        )}
-        {!structurable && fillable && <p className="text-xs text-muted-foreground">Structure it is off while the profile has more than one character: it would put everyone into the first.</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          {structurable && structureButton}
+          {fillable && <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} member={at > 0} />}
+        </div>
+        {!fillable && <p className="text-xs text-muted-foreground">Type this character's first name in Identity, then Fill empty finds them in the text by that name.</p>}
+        {!structurable && <p className="text-xs text-muted-foreground">Structure it is off while the other characters have fields filled: it would replace them.</p>}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -179,7 +181,7 @@ export function ProfileTab({ c, up, tasks }: { c: Character; up: (patch: Partial
         p={shown}
         save={saveShown}
         mode="character"
-        fill={fillable ? { busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } } : undefined}
+        fill={fillable ? { busy: fill.busy || !!draft.busy, run: fill.run, ...(at === 0 ? { readPicture: { busy: reading, open: () => setReadOpen(true) } } : {}) } : undefined}
       />
       <ReadPictureDialog
         open={readOpen}

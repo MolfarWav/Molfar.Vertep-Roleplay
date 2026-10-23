@@ -1,4 +1,6 @@
 
+import { beginImport, forEachImport } from '@/lib/import-progress'
+import { t as tNow } from '@/lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { SlidersHorizontal, Plus, Copy, Trash, Lock, SealCheck, Eye, CaretDown, DownloadSimple, UploadSimple, ArrowsOut, X, GitDiff, Books as LibraryIcon, DotsSixVertical, Star, DotsThreeVertical, PencilSimple, ChatCircle, CaretRight } from '@phosphor-icons/react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -131,14 +133,22 @@ export function PresetsView() {
   const handleImport = async (files: FileList | null) => {
     const file = files?.[0]
     if (!file || !preset) return
-    let json: unknown
-    try { json = JSON.parse(await file.text()) } catch { toast.error('Invalid JSON file'); return }
+    // one file cannot be split: the bar moves by its steps
+    const run = beginImport(tNow('imp.title.presets'), 1)
+    run.start(file.name, tNow('imp.step.reading'))
     try {
-      const r = await importPreset(json, file.name.replace(/\.json$/i, ''), preset)
-      setSelectedId(r.preset.id)
-      toast.success(`Imported ${r.preset.name} (${r.preset.sections.length} prompts${r.scripts ? `, ${r.scripts} regex scripts` : ''})`)
-      announceImportReport(r.preset.name, r.report)
-    } catch (e) { toast.error(String((e as Error).message ?? e)) }
+      let json: unknown
+      try { json = JSON.parse(await file.text()) } catch { toast.error('Invalid JSON file'); run.finish(false, 'invalid JSON'); return }
+      run.step(tNow('imp.step.checking'), 0.3)
+      try {
+        const r = await importPreset(json, file.name.replace(/\.json$/i, ''), preset)
+        run.step(tNow('imp.step.saving'), 0.9)
+        setSelectedId(r.preset.id)
+        toast.success(`Imported ${r.preset.name} (${r.preset.sections.length} prompts${r.scripts ? `, ${r.scripts} regex scripts` : ''})`)
+        announceImportReport(r.preset.name, r.report)
+        run.finish(true)
+      } catch (e) { toast.error(String((e as Error).message ?? e)); run.finish(false, String((e as Error).message ?? e)) }
+    } finally { run.end() }
   }
 
     // presets accumulate for years; the sidebar pages through them

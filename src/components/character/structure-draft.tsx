@@ -9,7 +9,7 @@ import { useT } from '@/hooks/use-t'
 import { readImage } from '@/lib/charx'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR } from '@/lib/utils'
-import { compileProfile, compileProfileText, emptyFields, type Profile, type ProfileDraft } from '@/lib/profile'
+import { compileProfile, compileProfileText, emptyFields, profileName, type Profile, type ProfileDraft } from '@/lib/profile'
 import { fieldLabel, type SectionKey } from '@/components/profile/profile-form'
 import type { ModelInfo } from '@/lib/types'
 
@@ -17,6 +17,8 @@ import type { ModelInfo } from '@/lib/types'
 export type DraftTarget = { characterId: string } | { personaId: string }
 type Busy = null | 'structure' | 'fill'
 export type Image = { data: string; mimeType: string }
+/** One of the card's other characters, for a fill: its place in the cast (1 = the first) and the name to find in the text. */
+export type Member = { index: number; name: string }
 
 /** "Structure it" and "Fill empty": one model call each (plugins/profile). The
  *  result is a draft shown in the panel below; nothing changes until Accept. */
@@ -72,8 +74,8 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
       setProgress(null)
     }
   }
-  const runFill = (fields: Record<string, string[]>, image?: Image, model?: string, replace = false) =>
-    post('fill', { fields, ...(image ? { image } : {}), ...(model ? { model } : {}), ...(replace ? { replace: true } : {}) }, replace ? 'Read from picture' : 'Fill empty')
+  const runFill = (fields: Record<string, string[]>, image?: Image, model?: string, replace = false, member?: Member) =>
+    post('fill', { fields, ...(image ? { image } : {}), ...(model ? { model } : {}), ...(replace ? { replace: true } : {}), ...(member ? { member } : {}) }, replace ? 'Read from picture' : 'Fill empty')
   const drop = () => { setDraft(null); void j(query, { method: 'DELETE' }).catch(() => {}) }
   const accept = () => {
     if (!draft) return
@@ -129,10 +131,12 @@ export function toBase64(bytes: Uint8Array): string {
 
 /** "Fill empty" for the whole profile or one section: asks only for the empty
  *  fields, with the portrait when a vision model is chosen and there is one. */
-export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avatar: string | undefined, vision: VisionModel) {
+export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avatar: string | undefined, vision: VisionModel, member?: Member) {
   const run = async (section?: SectionKey) => {
     const fields = emptyFields(profile ?? {}, section)
     if (!Object.keys(fields).length) { toast.info('Nothing is empty here.'); return }
+    // another character of the card: the portrait is not theirs, so the text alone is read (found by name)
+    if (member) { await d.runFill(fields, undefined, undefined, false, member); return }
     let image: Image | undefined
     let model: string | undefined
     let textOnly = false
@@ -161,7 +165,7 @@ export function StructureButton({ busy, onClick, variant = 'outline', disabled, 
 }
 
 /** The whole-profile "Fill empty" button and the portrait model picker. */
-export function FillControls({ busy, disabled, onFill, vision }: { busy: boolean; disabled?: boolean; onFill: () => void; vision: VisionModel }) {
+export function FillControls({ busy, disabled, onFill, vision, member }: { busy: boolean; disabled?: boolean; onFill: () => void; vision: VisionModel; member?: boolean }) {
   const none = vision.models.length === 0 && !vision.engineRef
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -169,7 +173,7 @@ export function FillControls({ busy, disabled, onFill, vision }: { busy: boolean
         {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
         {busy ? 'Filling…' : 'Fill empty'}
       </Button>
-      <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty'}>
+      {!member && <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty'}>
         Portrait:
         <Select value={none ? 'none' : vision.value} onValueChange={(v) => vision.setValue(v ? String(v) : 'settings')} disabled={none}>
           <SelectTrigger size="sm" className="h-7 max-w-60 text-xs" aria-label="Portrait model"><SelectValue /></SelectTrigger>
@@ -179,7 +183,7 @@ export function FillControls({ busy, disabled, onFill, vision }: { busy: boolean
             {vision.models.map((m) => <SelectItem key={m.ref} value={m.ref}>{`${m.provider} · ${m.id}`}</SelectItem>)}
           </SelectContent>
         </Select>
-      </span>
+      </span>}
     </div>
   )
 }
@@ -239,9 +243,10 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
       </ul>
     )
   } else {
-    const next = { ...draft.profile, notes: draft.leftover }
+    const next = { ...draft.profile, ...(draft.cast?.length ? { cast: draft.cast } : {}), notes: draft.leftover }
     const filled = Object.keys(draft.profile).length
-    summary = `${filled} section${filled === 1 ? '' : 's'} filled${by}. Text that fit no field stays as notes. Accepting rewrites ${mode === 'persona' ? 'the description' : 'Description and Personality'} as shown${mode === 'character' ? '; the current text goes to Versions' : ''}.`
+    const people = draft.cast?.length ? `${draft.cast.length + 1} characters found (${[draft.profile, ...draft.cast].map((m, i) => profileName(m, i)).join(', ')})` : ''
+    summary = `${people}${draft.cast?.length ? '' : `${filled} section${filled === 1 ? '' : 's'} filled`}${by}. Text that fit no field stays as notes. Accepting rewrites ${mode === 'persona' ? 'the description' : 'Description and Personality'}${draft.cast?.length ? ', one part per character,' : ''} as shown${mode === 'character' ? '; the current text goes to Versions' : ''}.`
     if (mode === 'persona') {
       const notes = [draft.leftover?.description ?? '', draft.leftover?.personality ?? ''].map((x) => x.trim()).filter(Boolean).join('\n\n')
       body = block('Description would become', before.description, compileProfileText({ ...draft.profile, notes: { description: notes } }))

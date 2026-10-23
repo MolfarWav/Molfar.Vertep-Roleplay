@@ -53,7 +53,7 @@ export function CardModelPanel({ tasks, c }: { tasks: CardTasksState; c: Pick<Ch
         <p className="text-xs text-muted-foreground">
           {lim.context
             ? t('ct.window', { context: shortTokens(lim.context), out: shortTokens(lim.maxOut ?? lim.outputTokens) })
-            : t('ct.windowUnknown')}
+            : t('ct.windowUnknown', { n: shortTokens(lim.inputTokens) })}
           {' · '}
           {t('ct.size', { tokens: shortTokens(cardTokens) })}
           {' '}

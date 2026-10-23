@@ -1,4 +1,6 @@
 
+import { beginImport } from '@/lib/import-progress'
+import { t as tNow } from '@/lib/i18n'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ImgHTMLAttributes } from 'react'
 import { MagnifyingGlass, Storefront, DownloadSimple, CircleNotch, ArrowSquareOut, Check, Heart, X, CaretLeft, CaretRight, BookOpenText, BookBookmark, User, Tag, Plus, SlidersHorizontal, Fire, UploadSimple, LinkSimple, Translate, Smiley } from '@phosphor-icons/react'
 import { toast } from 'sonner'
@@ -676,13 +678,22 @@ export function MarketplaceView() {
         if (item.maxRes) {
           try { avatar = await downscaleRemoteImage(item.maxRes) } catch { /* keep the thumbnail */ }
         }
-        const r = await j<{ characters: string[]; name?: string }>('/import/url', {
-          method: 'POST',
-          body: JSON.stringify({ url: `https://chub.ai/characters/${item.id}`, ...(avatar ? { avatar } : {}) }),
-        })
-        name = r.name ?? name
-        id = r.characters?.[0]
-        await hydrate()
+        const run = beginImport(tNow('imp.title.link'), 1)
+        run.start(item.name, tNow('imp.step.downloading'))
+        try {
+          const r = await j<{ characters: string[]; name?: string }>('/import/url', {
+            method: 'POST',
+            body: JSON.stringify({ url: `https://chub.ai/characters/${item.id}`, ...(avatar ? { avatar } : {}) }),
+          })
+          name = r.name ?? name
+          id = r.characters?.[0]
+          run.step(tNow('imp.step.refreshing'), 0.8)
+          await hydrate()
+          run.finish(true)
+        } catch (e) {
+          run.finish(false, String((e as Error).message ?? e))
+          throw e
+        } finally { run.end() }
       } else {
         if (!item.pageUrl) throw new Error('This listing has no download link.')
         const r = await importCardFromLink(item.pageUrl, hydrate)

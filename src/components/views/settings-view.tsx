@@ -1,4 +1,6 @@
 
+import { beginImport, forEachImport } from "@/lib/import-progress"
+import { t as tNow } from "@/lib/i18n"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Archive, BookOpen, MagnifyingGlass, Check, DownloadSimple, UploadSimple, Trash, FileCode, FileImage, FileText, Asterisk as RegexIcon, ArrowCounterClockwise, CaretRight } from '@phosphor-icons/react'
 import { ProseColorsSection } from "@/components/settings/prose-colors-section"
@@ -420,24 +422,34 @@ function STImportSection() {
   const handlePresets = async (files: FileList | null) => {
     if (!files) return
     const importPreset = useApp.getState().importPreset
-    for (const file of Array.from(files)) {
+    await forEachImport(tNow("imp.title.presets"), Array.from(files), (f) => f.name, async (file, run) => {
       try {
-        const r = await importPreset(JSON.parse(await file.text()), file.name.replace(/\.json$/i, ""))
+        run.step(tNow("imp.step.reading"), 0.1)
+        const json = JSON.parse(await file.text())
+        run.step(tNow("imp.step.checking"), 0.4)
+        const r = await importPreset(json, file.name.replace(/\.json$/i, ""))
         toast.success(`Preset imported: ${r.preset.name} (${r.preset.sections.length} prompts${r.scripts ? `, ${r.scripts} regex scripts` : ""})`)
         announceImportReport(r.preset.name, r.report)
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`) }
-    }
+        return true
+      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`); return false }
+    })
   }
 
   const handleCharacters = async (files: FileList | null) => {
     if (!files) return
     const cards: unknown[] = []
+    // one unit per file read, one for the batch that saves them
+    const run = beginImport(tNow("imp.title.cards"), files.length + 1, { count: false })
+    try {
     for (const file of Array.from(files)) {
+      if (run.cancelled()) break
+      run.start(file.name, tNow("imp.step.reading"))
+      let ok = true
       try {
         const lower = file.name.toLowerCase()
         if (lower.endsWith(".png")) {
           const json = await extractCharaFromPng(file)
-          if (!json) { toast.error(`${file.name}: no embedded character data found`); continue }
+          if (!json) { toast.error(`${file.name}: no embedded character data found`); run.finish(false, "no embedded character data"); continue }
           cards.push(json)
         } else if (lower.endsWith(".charx")) {
           // a charx package IS a zip with card.json — the plugin unpacks it
@@ -448,6 +460,7 @@ function STImportSection() {
           const got = (r.characters as string[] | undefined)?.length ?? 0
           if (got) toast.success(`${file.name}: card imported`)
           else toast.error(`${file.name}: no card.json in package`)
+          run.finish(got > 0, got > 0 ? "" : "no card.json in package")
           continue
         } else {
           let json = JSON.parse(await file.text()) as Record<string, unknown>
@@ -460,23 +473,28 @@ function STImportSection() {
           }
           cards.push(json)
         }
-      } catch { toast.error(`${file.name}: could not parse`) }
+      } catch { ok = false; toast.error(`${file.name}: could not parse`) }
+      run.finish(ok, ok ? "" : "could not parse")
     }
-    if (cards.length) {
+    if (cards.length && !run.cancelled()) {
+      run.start("", tNow("imp.step.saving"))
       try {
         // the studio-import plugin normalizes raw card JSON into card.json files
         const r = await j<{ characters: string[]; regex: string[] }>("/import/batch", { method: "POST", body: JSON.stringify({ cards }) })
         // regex scripts a card carries arrive as that character's scripts
         const nScripts = r.regex?.length ?? 0
         toast.success(`Imported ${r.characters.length} character${r.characters.length === 1 ? "" : "s"}${nScripts ? `, ${nScripts} regex script${nScripts === 1 ? "" : "s"}` : ""}`)
+        run.step(tNow("imp.step.refreshing"))
         await useApp.getState().hydrate()
-      } catch (e) { toast.error(String((e as Error).message ?? e)) }
+        run.finish(true)
+      } catch (e) { toast.error(String((e as Error).message ?? e)); run.finish(false, String((e as Error).message ?? e)) }
     }
+    } finally { run.end() }
   }
 
   const handleRegex = async (files: FileList | null) => {
     if (!files) return
-    for (const file of Array.from(files)) {
+    await forEachImport(tNow("imp.title.regex"), Array.from(files), (f) => f.name, async (file, run) => {
       try {
         const json = JSON.parse(await file.text())
         const arr = regexScriptsOf(json)
@@ -488,15 +506,19 @@ function STImportSection() {
           const rx = regexImport(item)
           return rx ? [regexExport({ ...rx, id: "", order: i })] : []
         })
-        if (!valid.length) { toast.error(`${file.name}: no valid regex scripts`); continue }
+        if (!valid.length) { toast.error(`${file.name}: no valid regex scripts`); return false }
+        run.step(tNow("imp.step.saving"), 0.5)
         const r = await j<{ regex: string[] }>("/import/batch", { method: "POST", body: JSON.stringify({ regex: valid }) })
         const ok = r.regex.length
         if (ok > 0) {
           toast.success(`${file.name}: ${ok} regex script${ok > 1 ? "s" : ""} imported`)
           await useApp.getState().hydrate()
-        } else toast.error(`${file.name}: no valid regex scripts`)
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`) }
-    }
+          return true
+        }
+        toast.error(`${file.name}: no valid regex scripts`)
+        return false
+      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`); return false }
+    })
   }
 
   const handleLorebooks = async (files: FileList | null) => {
@@ -512,20 +534,23 @@ function STImportSection() {
     const state = useApp.getState()
     const char = state.characters.find((c) => c.id === state.activeCharacterId) ?? state.characters.find((c) => !c.isGroup)
     if (!char) { toast.error("No character available to attach the chat to"); return }
-    for (const file of Array.from(files)) {
+    await forEachImport(tNow("imp.title.chats"), Array.from(files), (f) => f.name, async (file, run) => {
       try {
         const text = await file.text()
+        run.step(tNow("imp.step.checking"), 0.3)
         // public chat jsonl: one message object per line — posted raw, the
         // studio-import plugin rebuilds the chat server-side and links it by name
         const lines = text.split("\n").filter((l) => l.trim()).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
-        if (!lines.length) { toast.error(`${file.name}: no messages found`); continue }
+        if (!lines.length) { toast.error(`${file.name}: no messages found`); return false }
+        run.step(tNow("imp.step.saving"), 0.5)
         const r = await j<{ chats: string[] }>("/import/batch", {
           method: "POST",
           body: JSON.stringify({ chats: [{ character: char.name, file: file.name.replace(/\.jsonl$/i, ""), lines }] }),
         })
         toast.success(`Chat imported to ${char.name} (${r.chats.length} new)`)
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "could not parse JSONL"}`) }
-    }
+        return true
+      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "could not parse JSONL"}`); return false }
+    })
     await useApp.getState().hydrate()
   }
 
@@ -541,18 +566,27 @@ function STImportSection() {
   const handleBackupZip = async (files: FileList | null) => {
     const f = files?.[0]
     if (!f) return
+    const run = beginImport(tNow("imp.title.backup"), 1)
+    run.start(f.name, tNow("imp.step.reading"))
     try {
+      const zipBase64 = await fileToRawBase64(f)
+      run.step(tNow("imp.step.unpacking"), 0.3)
       const r = await j<Record<string, unknown>>("/import/zip", {
         method: "POST",
-        body: JSON.stringify({ zipBase64: await fileToRawBase64(f) }),
+        body: JSON.stringify({ zipBase64 }),
       })
       const parts = Object.entries(r)
         .filter(([, v]) => Array.isArray(v) && v.length)
         .map(([k, v]) => `${(v as unknown[]).length} ${k}`)
       toast.success(parts.length ? `Imported ${parts.join(", ")}` : "Nothing recognized in that zip")
+      run.step(tNow("imp.step.refreshing"), 0.9)
       await useApp.getState().hydrate()
+      run.finish(true)
+      run.end(parts.length ? `Imported ${parts.join(", ")}` : "Nothing recognized in that zip")
     } catch (e) {
       toast.error(String((e as Error).message ?? e))
+      run.finish(false, String((e as Error).message ?? e))
+      run.end()
     }
   }
 
@@ -630,15 +664,24 @@ function DataSection() {
     const file = files?.[0]
     if (!file) return
     setBusy(true)
+    const run = beginImport(tNow("imp.title.backup"), 1)
+    run.start(file.name, tNow("imp.step.reading"))
     try {
+      const zipBase64 = await fileToRawBase64(file)
+      run.step(tNow("imp.step.unpacking"), 0.3)
       const summary = await j<{ characters: string[]; lorebooks: string[]; presets: string[]; regex: string[]; personas: string[]; chats: string[]; databank?: string[]; errors: string[] }>("/import/zip", {
-        method: "POST", body: JSON.stringify({ zipBase64: await fileToRawBase64(file) }),
+        method: "POST", body: JSON.stringify({ zipBase64 }),
       })
       const n = summary.characters.length + summary.lorebooks.length + summary.presets.length + summary.regex.length + summary.personas.length + summary.chats.length + (summary.databank?.length ?? 0)
       toast.success(`Restored ${n} items`, { description: summary.errors.length ? `${summary.errors.length} skipped (incl. PNG cards, import those from Characters → Import)` : undefined })
+      run.step(tNow("imp.step.refreshing"), 0.9)
       await hydrate()
+      run.finish(true)
+      run.end(`Restored ${n} items`)
     } catch (e) {
       toast.error(String((e as Error).message ?? e))
+      run.finish(false, String((e as Error).message ?? e))
+      run.end()
     } finally { setBusy(false) }
   }
 

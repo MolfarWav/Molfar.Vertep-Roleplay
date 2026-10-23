@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Brain, CaretDown, CaretRight, DotsThree, Ear, Eye, EyeSlash, Plus, PushPin } from '@phosphor-icons/react'
+import { Brain, CaretDown, CaretRight, DotsThree, Ear, Eye, EyeSlash, Notebook as NotebookIcon, Plus, PushPin } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { NOTE_TAGS, sortedNotes, type DashChar, type How, type Note, type NoteTag } from '@/lib/dashboard'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import { Box, GOLD_TEXT, Label, useTx } from './dash-common'
+import { Box, GOLD_TEXT, HOW_TEXT, Label, useTx } from './dash-common'
 import { useNotesAct } from './dash-context'
 import { SaidBlock } from './dash-said'
 
@@ -16,7 +16,7 @@ const FIELD = 'rounded-none'
 const NOTE_MAX = 300
 
 function HowIcon({ how }: { how: How }) {
-  const cls = 'mt-0.5 size-3.5 shrink-0 text-muted-foreground'
+  const cls = cn('mt-0.5 size-3.5 shrink-0', HOW_TEXT[how])
   if (how === 'saw') return <Eye className={cls} aria-hidden="true" />
   if (how === 'heard') return <Ear className={cls} aria-hidden="true" />
   return <Brain className={cls} aria-hidden="true" />
@@ -80,7 +80,7 @@ function NoteRow({ note, you, editable }: { note: Note; you: string; editable: b
         )}
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10.5px] text-muted-foreground">
           {note.tag && <TagChip tag={note.tag} />}
-          <span>{source}</span>
+          <span className={cn(!mine && HOW_TEXT[note.how])}>{source}</span>
           {note.believes === false && <span>{t('dash.how.doubts')}</span>}
           {note.edited && <span>{t('dash.note.edited')}</span>}
           {!mine && <span>{t('dash.story.turn', { n: note.turn })}</span>}
@@ -179,7 +179,7 @@ export function Notebook({ name, char, userName, className, id, compact }: {
   const entries = sortedNotes(char.notebook)
   const removed = char.retired ?? []
   return (
-    <Box id={id} data-guide="dash.notebook" title={t('dash.notebook', { name })} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
+    <Box id={id} data-guide="dash.notebook" title={t('dash.notebook', { name })} tone="memory" icon={NotebookIcon} className={cn(compact && 'max-h-[360px] overflow-y-auto', className)}>
       <div className="mb-2 min-w-0 text-sm break-words">
         {char.name?.knowsUserName ? t('dash.name.known') : t('dash.name.unknown')}
         {char.name?.calls ? <span className="text-muted-foreground"> · {t('dash.name.calls', { calls: char.name.calls })}</span> : null}

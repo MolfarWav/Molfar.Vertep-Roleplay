@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.61.0'
+export const APP_VERSION = '4.62.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -389,6 +389,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'A chat linked to an earlier one starts with its Dashboard. In a card\'s Memory tab add a finished chat to the character\'s memory and write or confirm its skills: short rules for how the character acts. Skills are also earned in play: Litopys notices a habit that shows in two scenes, and the Library\'s chat record has a Skills tab for them.',
       uk: 'Чат, пов\'язаний із попереднім, починається з його Дашборду. У вкладці Memory картки додайте завершений чат до пам\'яті персонажа й напишіть чи підтвердьте його навички: короткі правила, як персонаж діє. Навички ще й здобуваються в грі: Літопис помічає звичку, що проявилась у двох сценах, а в записі чату в Бібліотеці є вкладка «Навички».',
+    },
+  },
+  // ── What's new: imports with progress, Dashboard colours, narrator cards
+  {
+    id: 'new.import-progress',
+    since: '4.62.0',
+    open: { view: 'characters', list: 'characters' },
+    title: { en: 'Imports show their progress', uk: 'Імпорт показує прогрес' },
+    body: {
+      en: 'Importing cards, presets, lorebooks, personas, regex, chats or a backup now shows a card at the bottom: the file, the step, how many are done, and Cancel between files. The Dashboard blocks have colours by kind, and a narrator card with several characters is split by Structure it, with Fill empty on each.',
+      uk: 'Імпорт карток, пресетів, лорбуків, персон, regex, чатів і бекапів тепер показує внизу картку: файл, крок, скільки готово, і «Скасувати» між файлами. Блоки Dashboard мають кольори за змістом, а картку-оповідача з кількома персонажами «Структурувати» розбиває, а «Заповнити порожні» працює для кожного.',
     },
   },
   // ── What's new: the help list itself
