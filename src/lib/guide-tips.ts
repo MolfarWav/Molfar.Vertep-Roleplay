@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.62.0'
+export const APP_VERSION = '4.63.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -400,6 +400,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'Importing cards, presets, lorebooks, personas, regex, chats or a backup now shows a card at the bottom: the file, the step, how many are done, and Cancel between files. The Dashboard blocks have colours by kind, and a narrator card with several characters is split by Structure it, with Fill empty on each.',
       uk: 'Імпорт карток, пресетів, лорбуків, персон, regex, чатів і бекапів тепер показує внизу картку: файл, крок, скільки готово, і «Скасувати» між файлами. Блоки Dashboard мають кольори за змістом, а картку-оповідача з кількома персонажами «Структурувати» розбиває, а «Заповнити порожні» працює для кожного.',
+    },
+  },
+  // ── What's new: the chat header's story tools
+  {
+    id: 'new.chat-header',
+    since: '4.63.0',
+    target: 'chat.story-tools',
+    open: { view: 'chat', narrowPanel: 'chat-menu' },
+    title: { en: 'The story tools are in the chat header', uk: 'Інструменти історії — у шапці чату' },
+    body: {
+      en: 'Note, Lore, Record and World moved out of the three-dots menu into the header, each with its state: a dot when the note has text, how many lorebook entries fired, how many chapters the record has, the World DM’s status. The dashed button shows what the chat carries into the prompt. On a phone they are tiles at the top of the Menu.',
+      uk: '«Нотатка», «Лор», «Запис» і «Світ» вийшли з меню з трьома крапками в шапку, кожна зі своїм станом: крапка, коли в нотатці є текст, скільки записів лорбука спрацювало, скільки розділів у записі, стан майстра світу. Пунктирна кнопка показує, що чат несе в запит. На телефоні це плитки вгорі меню.',
     },
   },
   // ── What's new: the help list itself
