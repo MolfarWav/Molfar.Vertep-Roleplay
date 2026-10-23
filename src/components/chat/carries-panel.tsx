@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { BookOpenText, Brain, ListChecks, CaretRight, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, Note, SlidersHorizontal } from '@phosphor-icons/react'
+import { BookOpenText, Brain, ListChecks, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, Note } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
-import { buildCarries, flipOff, ownStoryChats, parseHidden, CARRY_KINDS, HIDDEN_KEY, type CarriesAnswer, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
+import { buildCarries, flipOff, ownStoryChats, type CarriesAnswer, type CarriesResult, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
 import type { MsgKey } from '@/lib/i18n'
-import { getChatPromptBoard, j, setChatPromptBoard } from '@/lib/engine'
+import { fetchWIStatus, getChatPromptBoard, j, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { skillCounts } from '@/lib/skill-earned'
 import { announceEarned } from '@/lib/skill-earned-toast'
@@ -24,17 +21,6 @@ import { cn } from '@/lib/utils'
 type T = ReturnType<typeof useT>
 
 const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, skills: ListChecks, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
-/** Colour by kind, tokens only (never colour alone: every chip also has an icon and a word). */
-const TINT: Record<CarryKind, string> = {
-  memory: 'border-sky-500/40 bg-sky-500/10',
-  skills: 'border-violet-500/40 bg-violet-500/10',
-  backstory: 'border-emerald-500/40 bg-emerald-500/10',
-  litopys: 'border-emerald-500/40 bg-emerald-500/10',
-  dashboard: 'border-border bg-muted/50',
-  said: 'border-border bg-muted/50',
-  world: 'border-border bg-muted/50',
-  note: 'border-amber-500/40 bg-amber-500/10',
-}
 
 interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
@@ -57,39 +43,44 @@ async function withIdleMemory(c: CarriesAnswer, chatId: string): Promise<Carries
   }
 }
 
-interface Loaded { chatId: string; carries: CarriesAnswer | null; dash: DashCarries | null; skills: { earned: number; candidates: number } | null }
-
-/** The strip under the chat header: what the chat carries into the prompt besides the history, and the
- *  panel that opens from a chip, with a switch per part. Hidden in a plain chat. */
-export function CarriesStrip({
-  chatId,
-  noteText,
-  msgCount,
-  onOpenNote,
-}: {
+interface Loaded {
   chatId: string
-  noteText: string
-  /** Changes after each new message: the numbers are read again. */
-  msgCount: number
-  onOpenNote: () => void
-}) {
+  carries: CarriesAnswer | null
+  dash: DashCarries | null
+  skills: { earned: number; candidates: number } | null
+  /** Lorebook entries that fired on the latest scan, and chapters in the chat's own record; null = not known (yet). */
+  loreFired: number | null
+  chapters: number | null
+}
+
+export interface CarriesState {
+  result: CarriesResult
+  /** The numbers the header tools show next to their names. */
+  loreFired: number | null
+  chapters: number | null
+  open: boolean
+  setOpen: (open: boolean) => void
+}
+
+/** What the chat carries into the prompt besides the history (#107), read again after each message, with the counters
+ *  the header's story tools show (#109). The header and the phone menu show them; `CarriesPanel` is the panel behind. */
+export function useCarries(chatId: string, noteText: string, msgCount: number): CarriesState & { mine: Loaded | null; refetch: () => Promise<void>; flip: (key: string) => Promise<void> } {
   const t = useT()
-  const isMobile = useIsMobile()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [open, setOpen] = useState(false)
   const seq = useRef(0)
-  // chip kinds this viewer hid in the strip (the panel and its total still list everything)
-  const [hidden, setHidden] = useState<CarryKind[]>(() => { try { return parseHidden(localStorage.getItem(HIDDEN_KEY)) } catch { return [] } })
-  const saveHidden = (next: CarryKind[]) => { setHidden(next); try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(next)) } catch { /* no storage: the choice lasts until reload */ } }
 
   const refetch = useCallback(async () => {
+    if (!chatId) return
     const mine = ++seq.current
-    // each answer may fail on its own: the strip shows what it has, silently
-    const [carries, dash, rec] = await Promise.all([
+    // each answer may fail on its own: the tools show what they have, silently
+    const [carries, dash, rec, lore] = await Promise.all([
       j<CarriesAnswer>(`/litopys/carries?chatId=${encodeURIComponent(chatId)}`).catch(() => null),
       j<DashAnswer>(`/dashboard/state?chatId=${encodeURIComponent(chatId)}&view=1`).catch(() => null),
       // the chat's Litopys record: the skills earned in it (one toast when a new one was earned, and a line in the Skills row)
       fetchLitChat(chatId).catch(() => null),
+      // the same scan a generation runs: how many entries fire now
+      fetchWIStatus(chatId).catch(() => null),
     ])
     if (mine !== seq.current) return
     const carriesOut = carries && !carries.cardMemory ? await withIdleMemory(carries, chatId) : carries
@@ -99,7 +90,7 @@ export function CarriesStrip({
       ? { tokens: Number(view.insert?.tokens) || 0, saidTokens: Number(view.insert?.saidTokens) || 0, inherit: view.inherit ?? dash?.inherit ?? null }
       : null
     if (rec) announceEarned(chatId, rec.skills)
-    setLoaded({ chatId, carries: carriesOut, dash: dashPart, skills: rec?.skills ? skillCounts(rec.skills) : null })
+    setLoaded({ chatId, carries: carriesOut, dash: dashPart, skills: rec?.skills ? skillCounts(rec.skills) : null, loreFired: lore ? lore.fired.length : null, chapters: rec ? rec.chapters.length : null })
   }, [chatId])
   useEffect(() => { void refetch() }, [refetch, msgCount, open])
   useEffect(() => { setOpen(false) }, [chatId])
@@ -122,7 +113,7 @@ export function CarriesStrip({
 
   /** Flips one key of the chat's prompt switches through the same calls the Prompt board saves with. */
   const flip = async (key: string) => {
-    // the switch and the chip turn at once; a failed save puts them back
+    // the switch turns at once; a failed save puts it back
     seq.current++ // an answer still on its way was asked before this switch
     const before = mine?.carries?.off ?? []
     const optimistic = flipOff(before, key)
@@ -139,113 +130,53 @@ export function CarriesStrip({
     void refetch()
   }
 
-  if (!result.visible && !open) return null
+  return { result, loreFired: mine?.loreFired ?? null, chapters: mine?.chapters ?? null, open, setOpen, mine, refetch, flip }
+}
+
+/** The panel "What this chat carries": a switch per part, the exact lines, and shortcuts. Opens from the header's
+ *  "~N tok" button (the phone menu's row); the Author's note has its own drawer, linked from here. */
+export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; state: ReturnType<typeof useCarries>; onOpenNote: () => void }) {
+  const t = useT()
+  const { result, mine, open, setOpen, refetch, flip } = state
   const chipText = (p: CarryPart) => (p.empty ? t('carries.empty') : t('carries.tok', { n: p.tokens }))
 
   return (
-    <>
-      {result.visible && (
-        isMobile ? (
-          <div className="relative z-10 shrink-0 border-b border-border bg-card px-2 py-1.5" data-testid="carries-strip">
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              aria-haspopup="dialog"
-              className="flex min-h-10 w-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 text-left text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-            >
-              <span className="min-w-0 flex-1 truncate font-medium">{t('carries.phone', { total: result.total })}</span>
-              <CaretRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            </button>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[420px]" data-testid="carries-panel">
+        <SheetHeader className="border-b border-border p-4 pr-14">
+          <div className="flex items-baseline justify-between gap-3">
+            <SheetTitle>{t('carries.title')}</SheetTitle>
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground" data-testid="carries-total">{t('carries.total', { n: result.total })}</span>
           </div>
-        ) : (
-          <div role="group" aria-label={t('carries.strip')} className="relative z-10 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-card px-3 py-1.5" data-testid="carries-strip">
-            {result.parts.filter((p) => !hidden.includes(p.kind)).map((p) => {
-              const Icon = ICONS[p.kind]
-              return (
-                <button
-                  key={p.key}
-                  type="button"
-                  data-chip={p.key}
-                  data-off={p.off || undefined}
-                  onClick={p.kind === 'note' ? onOpenNote : () => setOpen(true)}
-                  aria-label={`${p.label}, ${chipText(p)}${p.off ? `, ${t('carries.chipOff')}` : ''}`}
-                  className={cn(
-                    'inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border px-2.5 text-[11px] outline-none transition-colors hover:brightness-125 focus-visible:ring-2 focus-visible:ring-ring/60',
-                    TINT[p.kind],
-                    p.off && 'opacity-60',
-                  )}
-                >
-                  <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-                  <span className={cn('truncate font-medium', p.off && 'line-through')}>{p.label}</span>
-                  <span className={cn('shrink-0 text-muted-foreground', p.off && 'line-through')}>{chipText(p)}</span>
-                </button>
-              )
-            })}
-            <Popover>
-              <PopoverTrigger render={<Button variant="ghost" size="icon-sm" aria-label={t('carries.customize')} title={t('carries.customize')} data-testid="carries-customize" />}>
-                <SlidersHorizontal aria-hidden="true" />
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 gap-2">
-                <p className="text-sm font-medium">{t('carries.customize.title')}</p>
-                <ul className="flex flex-col">
-                  {CARRY_KINDS.map((k) => (
-                    <li key={k}>
-                      <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox checked={!hidden.includes(k)} onCheckedChange={(v) => saveHidden(v === true ? hidden.filter((x) => x !== k) : [...hidden, k])} aria-label={t(`carries.kind.${k}` as MsgKey)} />
-                        {t(`carries.kind.${k}` as MsgKey)}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-muted-foreground">{t('carries.customize.hint')}</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="ghost" size="sm" className="w-fit" disabled={hidden.length === 0} onClick={() => saveHidden([])}>{t('carries.customize.all')}</Button>
-                  {/* the way into the panel stays here even when every chip is hidden */}
-                  <Button variant="outline" size="sm" className="w-fit" onClick={() => setOpen(true)}>{t('carries.customize.panel')}</Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        )
-      )}
-
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[420px]" data-testid="carries-panel">
-          <SheetHeader className="border-b border-border p-4 pr-14">
-            <div className="flex items-baseline justify-between gap-3">
-              <SheetTitle>{t('carries.title')}</SheetTitle>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground" data-testid="carries-total">{t('carries.total', { n: result.total })}</span>
+          <SheetDescription className="text-xs">{t('carries.subtitle')}</SheetDescription>
+        </SheetHeader>
+        <ul className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {result.parts.filter((p) => p.kind !== 'note').map((p) => (
+            <PartRow
+              key={p.key}
+              part={p}
+              carries={mine?.carries ?? null}
+              chatSkills={mine?.skills ?? null}
+              dash={mine?.dash ?? null}
+              t={t}
+              chatId={chatId}
+              onChanged={() => void refetch()}
+              onFlip={() => p.switchKey && void flip(p.switchKey)}
+              onLeave={() => setOpen(false)}
+            />
+          ))}
+          <li className="flex flex-col gap-1.5 p-3" data-testid="carries-row-note">
+            <div className="flex min-h-10 items-center gap-3">
+              <Note className="size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+              <span className="min-w-0 flex-1 text-sm font-medium">{t('carries.note.title')}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">{chipText(result.parts.find((p) => p.kind === 'note') ?? { key: 'note', kind: 'note', label: '', tokens: 0, off: false, switchKey: null, empty: true })}</span>
             </div>
-            <SheetDescription className="text-xs">{t('carries.subtitle')}</SheetDescription>
-          </SheetHeader>
-          <ul className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {result.parts.filter((p) => p.kind !== 'note').map((p) => (
-              <PartRow
-                key={p.key}
-                part={p}
-                carries={mine?.carries ?? null}
-                chatSkills={mine?.skills ?? null}
-                dash={mine?.dash ?? null}
-                t={t}
-                chatId={chatId}
-                onChanged={() => void refetch()}
-                onFlip={() => p.switchKey && void flip(p.switchKey)}
-                onLeave={() => setOpen(false)}
-              />
-            ))}
-            <li className="flex flex-col gap-1.5 p-3" data-testid="carries-row-note">
-              <div className="flex min-h-10 items-center gap-3">
-                <Note className="size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
-                <span className="min-w-0 flex-1 text-sm font-medium">{t('carries.note.title')}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">{chipText(result.parts.find((p) => p.kind === 'note') ?? { key: 'note', kind: 'note', label: '', tokens: 0, off: false, switchKey: null, empty: true })}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">{t('carries.note.detail')}</p>
-              <Button variant="outline" size="sm" className="w-fit max-md:h-10" onClick={() => { setOpen(false); onOpenNote() }}>{t('carries.note.open')}</Button>
-            </li>
-          </ul>
-        </SheetContent>
-      </Sheet>
-    </>
+            <p className="text-xs text-muted-foreground">{t('carries.note.detail')}</p>
+            <Button variant="outline" size="sm" className="w-fit max-md:h-10" onClick={() => { setOpen(false); onOpenNote() }}>{t('carries.note.open')}</Button>
+          </li>
+        </ul>
+      </SheetContent>
+    </Sheet>
   )
 }
 

@@ -3,7 +3,7 @@
 import { X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/hooks/use-t'
-import { tipText, type Tip } from '@/lib/guide'
+import { canShowMe, tipText, type Tip } from '@/lib/guide'
 import type { Lang } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -12,16 +12,19 @@ interface Props {
   index: number
   lang: Lang
   mobile: boolean
+  hasChats: boolean
   onShowMe: (tip: Tip) => void
   onNext: () => void
   onClose: () => void
 }
 
-export function WhatsNewCard({ tips, index, lang, mobile, onShowMe, onNext, onClose }: Props) {
+export function WhatsNewCard({ tips, index, lang, mobile, hasChats, onShowMe, onNext, onClose }: Props) {
   const t = useT()
   const tip = tips[index]
   if (!tip) return null
   const last = index === tips.length - 1
+  // a tip about a chat has nowhere to take a user who has no chat yet: say so instead of a button that does nothing
+  const showMe = canShowMe(tip.open, { hasChats, narrow: mobile })
   return (
     <div
       role="dialog"
@@ -48,8 +51,9 @@ export function WhatsNewCard({ tips, index, lang, mobile, onShowMe, onNext, onCl
       </div>
       <div className="font-heading text-[17px] leading-tight text-foreground">{tipText(tip.title, lang)}</div>
       <p className="text-sm leading-relaxed text-muted-foreground">{tipText(tip.body, lang)}</p>
+      {tip.open && !showMe && <p className="text-xs text-muted-foreground">{t('guide.needsChat')}</p>}
       <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-        {tip.open && (
+        {tip.open && showMe && (
           <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => onShowMe(tip)}>
             {t('guide.showMe')}
           </Button>

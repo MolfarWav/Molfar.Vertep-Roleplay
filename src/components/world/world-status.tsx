@@ -8,16 +8,26 @@ import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { loadWorld, useWorldLive } from '@/lib/world'
 
-export function WorldStatusButton({ chatId, onClick, phone }: { chatId: string; onClick: () => void; phone?: boolean }) {
-  const t = useT()
+/** The World DM's state in this chat: null = off (or the plugin is missing). */
+export type WorldDot = 'ok' | 'failed' | 'running' | null
+
+export function useWorldDot(chatId: string, load = true): WorldDot {
   const view = useWorldLive((s) => s.views[chatId])
   const running = useWorldLive((s) => !!s.running[chatId])
   // once per opened chat; answers null without the plugin and nothing shows
   useEffect(() => {
-    loadWorld(chatId).catch(() => {})
-  }, [chatId])
+    if (chatId && load) loadWorld(chatId).catch(() => {})
+  }, [chatId, load])
   if (!view || view.settings.level === 'off') return null
-  const failed = !!view.lastError
+  return running ? 'running' : view.lastError ? 'failed' : 'ok'
+}
+
+export function WorldStatusButton({ chatId, onClick, phone }: { chatId: string; onClick: () => void; phone?: boolean }) {
+  const t = useT()
+  const dot = useWorldDot(chatId, false)
+  if (!dot) return null
+  const running = dot === 'running'
+  const failed = dot === 'failed'
   const label = running ? t('world.status.running') : failed ? t('world.status.failed') : t('world.status.on')
   return (
     <Button

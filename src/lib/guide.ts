@@ -175,3 +175,13 @@ export function searchHelp(tips: Tip[], query: string): Tip[] {
     .sort((a, b) => order(a.tip) - order(b.tip) || a.i - b.i)
     .map(({ tip }) => tip)
 }
+
+/** Whether "Show me" can take the user to a tip's place (#87). A chat panel, the card editor of the open
+ *  chat and the open chat itself all need a chat to exist; without one the button is replaced by a line saying so. */
+export function canShowMe(open: GuideOpen | undefined, ctx: { hasChats: boolean; narrow: boolean }): boolean {
+  if (!open) return true
+  const panel = open.panel ?? (ctx.narrow ? open.narrowPanel : undefined)
+  if (panel === 'reference') return true
+  if (panel || open.view === 'chat') return ctx.hasChats
+  return true
+}

@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenText, Plus, Trash, Copy, MagnifyingGlass, Globe, Flask, Pulse, CaretDown, CaretRight, Funnel,
-  PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut, Sparkle, DotsThreeVertical, UploadSimple,
+  PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut, Sparkle, DotsThreeVertical, UploadSimple, DownloadSimple,
+  UserCircle, UsersThree, LinkBreak, type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -29,7 +30,9 @@ import { MasterDetail } from '@/components/shell/master-detail'
 import { LoreStatusIcon } from '@/components/lore-status-icon'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
-import { bookUsage } from '@/lib/lore-usage'
+import type { MsgKey } from '@/lib/i18n'
+import { bookKind, bookUsage, type BookKind } from '@/lib/lore-usage'
+import { downloadJson } from '@/lib/interop'
 import { askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import { BookTranslateMenu } from '@/components/lore/book-translate-menu'
 import { BookSettings } from '@/components/lore/book-settings'
@@ -37,6 +40,16 @@ import { EntryEditor } from '@/components/lore/entry-editor'
 import { KeywordTest } from '@/components/lore/keyword-test'
 import { WiStatusView } from '@/components/lore/wi-status-view'
 import { POSITION_SHORT_KEY, STATUS_KEY, canonicalPosition, entriesKey } from '@/components/lore/lore-labels'
+
+/** Icon and colour per way a book is tied to cards; the words stay next to them (colour is never alone). */
+const KIND_ICON: Record<BookKind | 'global', { icon: PhosphorIcon; cls: string }> = {
+  own: { icon: UserCircle, cls: 'text-amber-600 dark:text-amber-300' },
+  shared: { icon: UsersThree, cls: 'text-sky-600 dark:text-sky-300' },
+  unlinked: { icon: LinkBreak, cls: 'text-muted-foreground' },
+  global: { icon: Globe, cls: 'text-emerald-600 dark:text-emerald-300' },
+}
+type BookFilter = 'all' | 'global' | 'own' | 'shared' | 'unlinked'
+const BOOK_FILTERS: readonly BookFilter[] = ['all', 'global', 'own', 'shared', 'unlinked']
 
 export function LorebooksView() {
   const t = useT()
@@ -54,7 +67,7 @@ export function LorebooksView() {
   const [confirm, confirmDialog] = useConfirm()
   const [activeViewerOpen, setActiveViewerOpen] = useState(false)
   const [bookQuery, setBookQuery] = useState('')
-  const [bookFilter, setBookFilter] = useState<'all' | 'global' | 'used' | 'unused'>('all')
+  const [bookFilter, setBookFilter] = useState<BookFilter>('all')
   const importInput = useRef<HTMLInputElement>(null)
   const refreshLorebooks = useApp((s) => s.refreshLorebooks)
   const hydrate = useApp((s) => s.hydrate)
@@ -108,9 +121,7 @@ export function LorebooksView() {
   const shownBooks = lorebooks.filter((b) => {
     if (bq && !b.name.toLowerCase().includes(bq)) return false
     if (bookFilter === 'global') return b.globalActive
-    const usage = bookUsage(characters, b.id)
-    if (bookFilter === 'used') return usage.users.length > 0
-    if (bookFilter === 'unused') return usage.users.length === 0
+    if (bookFilter === 'own' || bookFilter === 'shared' || bookFilter === 'unlinked') return bookKind(characters, b.id) === bookFilter
     return true
   })
   const safeBookPage = clampPage(bookPage, shownBooks.length, BOOK_PAGE)
@@ -139,17 +150,18 @@ export function LorebooksView() {
       detailOpen={detailOpen && !!book}
       onBack={() => setDetailOpen(false)}
       detailTitle={book?.name}
-      masterWidth="w-60"
+      masterWidth="w-72 2xl:w-80"
       master={
         <aside data-guide="lore.list" className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <PaneTitle section="lorebooks" icon={<BookOpenText className="size-4 text-primary" aria-hidden="true" />} />
           <div className="ml-auto flex items-center gap-1">
-            {canAskMolfar() && (
-              <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => void createWithMolfar()} title={t('lore.molfar.tip')} aria-label={t('lore.molfar.tip')}>
-                <Sparkle className="size-3.5" aria-hidden="true" />{t('lore.molfar')}
-              </Button>
-            )}
+            <Button variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" onClick={() => importInput.current?.click()} aria-label={t('lore.import')} title={t('lore.import')}>
+              <UploadSimple className="size-4" aria-hidden="true" />
+            </Button>
+            <Button data-guide="lore.new" variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
+              <Plus className="size-4" aria-hidden="true" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={
                 <Button variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" aria-label="More" title="More">
@@ -157,10 +169,6 @@ export function LorebooksView() {
                 </Button>
               } />
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => importInput.current?.click()}>
-                  <UploadSimple className="size-4" aria-hidden="true" />
-                  Import…
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setActiveViewerOpen(true)}>
                   <Pulse className="size-4 self-start mt-0.5" aria-hidden="true" />
                   <span className="flex max-w-64 flex-col">
@@ -170,25 +178,26 @@ export function LorebooksView() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button data-guide="lore.new" variant="ghost" size="sm" className="size-7 p-0 max-md:size-10" onClick={() => select(addLorebook())} aria-label="New lorebook" title="New lorebook">
-              <Plus className="size-4" aria-hidden="true" />
-            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
-          <div className="relative flex-1">
+        {canAskMolfar() && (
+          <div className="border-b border-border px-2 py-1.5">
+            <Button variant="outline" size="sm" className="h-7 w-full justify-center gap-1.5 px-2 text-xs max-md:h-10" onClick={() => void createWithMolfar()} title={t('lore.molfar.tip')} aria-label={t('lore.molfar.tip')}>
+              <Sparkle className="size-3.5" aria-hidden="true" />{t('lore.molfar')}
+            </Button>
+          </div>
+        )}
+        <div className="flex flex-col gap-1.5 border-b border-border px-2 py-1.5">
+          <div className="relative">
             <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input value={bookQuery} onChange={(e) => { setBookQuery(e.target.value); setBookPage(0) }} placeholder={t('lore.books.search')} className="h-7 pl-7 text-xs max-md:h-10" aria-label={t('lore.books.search')} />
           </div>
           <Select value={bookFilter} onValueChange={(v) => { setBookFilter(v as typeof bookFilter); setBookPage(0) }}>
-            <SelectTrigger className="h-7 w-28 text-xs max-md:h-10" aria-label="Filter books">
-              <SelectValue>{(v: string) => v === 'all' ? 'All' : v === 'global' ? 'Global' : v === 'used' ? 'On a card' : 'Not linked'}</SelectValue>
+            <SelectTrigger className="h-7 w-full text-xs max-md:h-10" aria-label="Filter books">
+              <SelectValue>{(v: string) => <FilterLabel value={v as BookFilter} t={t} />}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="global">Global</SelectItem>
-              <SelectItem value="used">On a card</SelectItem>
-              <SelectItem value="unused">Not linked</SelectItem>
+              {BOOK_FILTERS.map((f) => <SelectItem key={f} value={f}><FilterLabel value={f} t={t} /></SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -197,25 +206,29 @@ export function LorebooksView() {
           <ul className="flex flex-col p-1.5">
             {pagedBooks.map((b) => {
               const use = usageLabel(b)
+              const kind = KIND_ICON[bookKind(characters, b.id)]
               return (
                 <li key={b.id}>
                   <button
                     type="button"
                     onClick={() => select(b.id)}
-                    className={cn('relative flex min-h-11 w-full flex-col justify-center gap-0.5 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7', b.id === book?.id ? 'bg-accent' : 'hover:bg-accent/50')}
+                    className={cn('relative flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7', b.id === book?.id ? 'bg-accent' : 'hover:bg-accent/50')}
                   >
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <span className="min-w-0 truncate">{b.name}</span>
-                      {b.globalActive && (
-                        <span role="img" aria-label={t('lore.global.tip')} title={t('lore.global.tip')} className="shrink-0">
-                          <Globe className="size-3 text-primary" aria-hidden="true" />
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex flex-wrap gap-x-1.5 text-[11px] text-muted-foreground">
-                      <span>{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className={use.muted ? 'opacity-70' : undefined}>{use.text}</span>
+                    <kind.icon className={cn('size-4 shrink-0', kind.cls)} aria-hidden="true" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span className="min-w-0 truncate">{b.name}</span>
+                        {b.globalActive && (
+                          <span role="img" aria-label={t('lore.global.tip')} title={t('lore.global.tip')} className="shrink-0">
+                            <Globe className={cn('size-3.5', KIND_ICON.global.cls)} aria-hidden="true" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex min-w-0 gap-x-1.5 text-[11px] text-muted-foreground">
+                        <span className="shrink-0">{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className={cn('min-w-0 truncate', use.muted && 'opacity-70')} title={use.text}>{use.text}</span>
+                      </span>
                     </span>
                     <CaretRight className="absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
                   </button>
@@ -255,6 +268,16 @@ export function LorebooksView() {
       {confirmDialog}
     </>
     </SectionPage>
+  )
+}
+
+function FilterLabel({ value, t }: { value: BookFilter; t: ReturnType<typeof useT> }) {
+  const meta = value === 'all' ? null : KIND_ICON[value]
+  return (
+    <span className="flex items-center gap-1.5">
+      {meta ? <meta.icon className={cn('size-3.5 shrink-0', meta.cls)} aria-hidden="true" /> : <BookOpenText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+      {t(`lore.bookFilter.${value}` as MsgKey)}
+    </span>
   )
 }
 
@@ -361,7 +384,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           toolbar pinning at the top was eating the viewport on mobile */}
       <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
-        <Input value={book.name} onChange={(e) => onUpdate({ name: e.target.value })} className="h-8 w-full min-w-0 text-sm font-medium md:w-auto md:max-w-md md:min-w-56 md:flex-1" aria-label="Book name" />
+        <Input value={book.name} onChange={(e) => onUpdate({ name: e.target.value })} className="h-9 w-full min-w-0 basis-full text-base font-medium md:text-base" aria-label="Book name" />
         <label data-guide="lore.global" className="flex items-center gap-1.5 text-xs text-muted-foreground" title={t('lore.global.tip')}>
           <Switch tone="cta" checked={book.globalActive} onCheckedChange={(v) => onUpdate({ globalActive: v })} aria-label={t('lore.global.label')} />
           {t('lore.global.label')}
@@ -396,6 +419,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             </PopoverContent>
           </Popover>
           <BookTranslateMenu book={book} />
+          <Button variant="ghost" size="sm" onClick={() => downloadJson({ ...book, linkedCharacterIds: [], isEmbedded: false, globalActive: false }, book.name || 'lorebook')} aria-label={t('lore.export')} title={t('lore.export')}><DownloadSimple className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" onClick={onDuplicate} aria-label="Duplicate book" title="Duplicate book"><Copy className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete} aria-label="Delete book" title="Delete book"><Trash className="size-4" aria-hidden="true" /></Button>
         </div>

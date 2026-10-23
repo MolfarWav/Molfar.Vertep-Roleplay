@@ -22,3 +22,12 @@ export function ownBookOnlyFor(characters: Character[], characterId: ID): ID | n
   const { users } = bookUsage(characters, own)
   return users.every((c) => c.id === characterId) ? own : null
 }
+
+/** How a book is tied to cards, for the icon in the list and the filter: the own book of one card, a book several
+ *  cards use (or one card links), or one no card uses. Global is a separate flag on the book (it can also be on a card). */
+export type BookKind = 'own' | 'shared' | 'unlinked'
+export function bookKind(characters: Character[], bookId: ID): BookKind {
+  const { owners, users } = bookUsage(characters, bookId)
+  if (users.length === 0) return 'unlinked'
+  return owners.length === 1 && users.length === 1 ? 'own' : 'shared'
+}

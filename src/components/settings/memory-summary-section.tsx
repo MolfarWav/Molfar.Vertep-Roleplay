@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -58,110 +58,63 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
     )
   }
 
+  /** A number field that edits the local copy while typing and saves, clamped, when the field is left. */
+  const numField = (o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number; value: number | undefined; setLocal: (v: number) => void; commit: (v: number) => void }) => (
+    <Field key={o.id}>
+      <FieldLabel htmlFor={o.id}>{o.label}</FieldLabel>
+      <Input
+        id={o.id}
+        type="number"
+        min={o.min}
+        max={o.max}
+        value={o.value ?? o.fallback ?? o.min}
+        onChange={(e) => o.setLocal(Number(e.target.value))}
+        onBlur={(e) => {
+          const raw = e.target.value.trim()
+          const v = clamp(raw === '' || Number.isNaN(Number(raw)) ? (o.fallback ?? o.min) : Math.round(Number(raw)), o.min, o.max)
+          o.setLocal(v)
+          o.commit(v)
+        }}
+        className="w-32"
+      />
+      {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
+    </Field>
+  )
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'skillsEarnAfter', o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number }) =>
+    numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
+  const sceneField = (key: 'minMessages' | 'maxMessages', o: { id: string; label: string; min: number; max: number }) =>
+    numField({ ...o, value: cfg.scene[key], setLocal: (v) => setCfg({ ...cfg, scene: { ...cfg.scene, [key]: v } }), commit: (v) => saveScene({ [key]: v }) })
+  const switchRow = (id: string, label: string, hint: string, checked: boolean, onChange: (v: boolean) => void) => (
+    <Field orientation="horizontal">
+      <div className="flex flex-col gap-0.5">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </Field>
+  )
+
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-5">
-      <div className="flex flex-col gap-3 rounded-md border border-border p-3">
-        <div className="flex flex-col gap-0.5">
-          {!inDialog && <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>}
-          <p className="text-xs text-muted-foreground">{t('lit.set.hint')}</p>
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <div className="flex flex-col gap-0.5">
+        {!inDialog && <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>}
+        <p className="text-xs text-muted-foreground">{t('lit.set.hint')}</p>
+      </div>
+
+      <Block title={t('lit.blk.record')} hint={t('lit.blk.recordHint')}>
+        {switchRow('lit-enabled', t('lit.set.enabled'), t('lit.set.enabledHint'), cfg.enabled !== false, (v) => save({ enabled: v }))}
+        {switchRow('lit-insert', t('lit.set.insert'), t('lit.set.insertHint'), cfg.insert, (v) => save({ insert: v }))}
+      </Block>
+
+      <Block title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {keyField('budget', { id: 'lit-budget', label: t('lit.set.budget'), hint: t('lit.set.budgetHint'), min: 200, max: 4000 })}
+          {keyField('linkBudget', { id: 'lit-link-budget', label: t('lit.set.linkBudget'), hint: t('lit.set.linkBudgetHint'), min: 0, max: 3000 })}
+          {keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
         </div>
-        <Field orientation="horizontal">
-          <div className="flex flex-col gap-0.5">
-            <FieldLabel htmlFor="lit-enabled">{t('lit.set.enabled')}</FieldLabel>
-            <p className="text-xs text-muted-foreground">{t('lit.set.enabledHint')}</p>
-          </div>
-          <Switch id="lit-enabled" checked={cfg.enabled !== false} onCheckedChange={(v) => save({ enabled: v })} />
-        </Field>
-        <Field orientation="horizontal">
-          <div className="flex flex-col gap-0.5">
-            <FieldLabel htmlFor="lit-insert">{t('lit.set.insert')}</FieldLabel>
-            <p className="text-xs text-muted-foreground">{t('lit.set.insertHint')}</p>
-          </div>
-          <Switch id="lit-insert" checked={cfg.insert} onCheckedChange={(v) => save({ insert: v })} />
-        </Field>
-        <Field orientation="horizontal">
-          <div className="flex flex-col gap-0.5">
-            <FieldLabel htmlFor="lit-skills">{t('lit.set.skills')}</FieldLabel>
-            <p className="text-xs text-muted-foreground">{t('lit.set.skillsHint')}</p>
-          </div>
-          <Switch id="lit-skills" checked={cfg.skills !== false} onCheckedChange={(v) => save({ skills: v })} />
-        </Field>
-        {cfg.skills !== false && (
-          <Field>
-            <FieldLabel htmlFor="lit-skills-after">{t('lit.set.skillsAfter')}</FieldLabel>
-            <Input
-              id="lit-skills-after"
-              type="number"
-              min={1}
-              max={5}
-              value={cfg.skillsEarnAfter ?? 2}
-              onChange={(e) => setCfg({ ...cfg, skillsEarnAfter: Number(e.target.value) })}
-              onBlur={(e) => {
-                const v = clamp(Math.round(Number(e.target.value)) || 2, 1, 5)
-                setCfg({ ...cfg, skillsEarnAfter: v })
-                save({ skillsEarnAfter: v })
-              }}
-              className="w-32"
-            />
-            <p className="text-xs text-muted-foreground">{t('lit.set.skillsAfterHint')}</p>
-          </Field>
-        )}
-        <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
-        <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
-        <Field>
-          <FieldLabel htmlFor="lit-budget">{t('lit.set.budget')}</FieldLabel>
-          <Input
-            id="lit-budget"
-            type="number"
-            min={200}
-            max={4000}
-            value={cfg.budget}
-            onChange={(e) => setCfg({ ...cfg, budget: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 200, 4000)
-              setCfg({ ...cfg, budget: v })
-              save({ budget: v })
-            }}
-            className="w-32"
-          />
-          <p className="text-xs text-muted-foreground">{t('lit.set.budgetHint')}</p>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="lit-link-budget">{t('lit.set.linkBudget')}</FieldLabel>
-          <Input
-            id="lit-link-budget"
-            type="number"
-            min={0}
-            max={3000}
-            value={cfg.linkBudget}
-            onChange={(e) => setCfg({ ...cfg, linkBudget: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 0, 3000)
-              setCfg({ ...cfg, linkBudget: v })
-              save({ linkBudget: v })
-            }}
-            className="w-32"
-          />
-          <p className="text-xs text-muted-foreground">{t('lit.set.linkBudgetHint')}</p>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="lit-recent">{t('lit.set.recent')}</FieldLabel>
-          <Input
-            id="lit-recent"
-            type="number"
-            min={6}
-            max={200}
-            value={cfg.recentMessages}
-            onChange={(e) => setCfg({ ...cfg, recentMessages: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 6, 200)
-              setCfg({ ...cfg, recentMessages: v })
-              save({ recentMessages: v })
-            }}
-            className="w-32"
-          />
-          <p className="text-xs text-muted-foreground">{t('lit.set.recentHint')}</p>
-        </Field>
+      </Block>
+
+      <Block title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')}>
         <Field>
           <div className="flex flex-col gap-0.5">
             <FieldLabel>{t('lit.set.model')}</FieldLabel>
@@ -174,58 +127,23 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="lit-scene-min">{t('lit.set.sceneMin')}</FieldLabel>
-            <Input
-              id="lit-scene-min"
-              type="number"
-              min={1}
-              max={40}
-              value={cfg.scene.minMessages}
-              onChange={(e) => setCfg({ ...cfg, scene: { ...cfg.scene, minMessages: Number(e.target.value) } })}
-              onBlur={(e) => {
-                const v = clamp(Number(e.target.value), 1, 40)
-                setCfg({ ...cfg, scene: { ...cfg.scene, minMessages: v } })
-                saveScene({ minMessages: v })
-              }}
-              className="w-32"
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="lit-scene-max">{t('lit.set.sceneMax')}</FieldLabel>
-            <Input
-              id="lit-scene-max"
-              type="number"
-              min={10}
-              max={200}
-              value={cfg.scene.maxMessages}
-              onChange={(e) => setCfg({ ...cfg, scene: { ...cfg.scene, maxMessages: Number(e.target.value) } })}
-              onBlur={(e) => {
-                const v = clamp(Number(e.target.value), 10, 200)
-                setCfg({ ...cfg, scene: { ...cfg.scene, maxMessages: v } })
-                saveScene({ maxMessages: v })
-              }}
-              className="w-32"
-            />
-          </Field>
+          {sceneField('minMessages', { id: 'lit-scene-min', label: t('lit.set.sceneMin'), min: 1, max: 40 })}
+          {sceneField('maxMessages', { id: 'lit-scene-max', label: t('lit.set.sceneMax'), min: 10, max: 200 })}
         </div>
         <Field>
-          <FieldLabel htmlFor="lit-pin-limit">{t('lit.set.pinLimit')}</FieldLabel>
-          <Input
-            id="lit-pin-limit"
-            type="number"
-            min={1}
-            max={20}
-            value={cfg.pinLimit}
-            onChange={(e) => setCfg({ ...cfg, pinLimit: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 1, 20)
-              setCfg({ ...cfg, pinLimit: v })
-              save({ pinLimit: v })
-            }}
-            className="w-32"
+          <PromptLabel id="lit-chapter" label={t('lit.set.prompt')} changed={changed('chapter')} onRestore={() => restore('chapter')} />
+          <Textarea
+            id="lit-chapter"
+            rows={5}
+            value={cfg.chapter}
+            onChange={(e) => setCfg({ ...cfg, chapter: e.target.value })}
+            onBlur={() => save({ chapter: cfg.chapter })}
+            className="text-xs"
           />
         </Field>
+      </Block>
+
+      <Block title={t('lit.blk.arcs')} hint={t('lit.blk.arcsHint')}>
         <Field>
           <FieldLabel htmlFor="lit-arc-mode">{t('lit.set.arcMode')}</FieldLabel>
           <select
@@ -244,105 +162,13 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           </select>
           <p className="text-xs text-muted-foreground">{t('lit.set.arcHint')}</p>
         </Field>
-        <Field>
-          <FieldLabel htmlFor="lit-arc-keep">{t('lit.set.arcKeep')}</FieldLabel>
-          <Input
-            id="lit-arc-keep"
-            type="number"
-            min={1}
-            max={50}
-            value={cfg.arcKeep}
-            onChange={(e) => setCfg({ ...cfg, arcKeep: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 1, 50)
-              setCfg({ ...cfg, arcKeep: v })
-              save({ arcKeep: v })
-            }}
-            className="w-32"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="lit-arc-threshold">{t('lit.set.arcThreshold')}</FieldLabel>
-          <Input
-            id="lit-arc-threshold"
-            type="number"
-            min={0}
-            max={40000}
-            value={cfg.arcThreshold}
-            onChange={(e) => setCfg({ ...cfg, arcThreshold: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 0, 40000)
-              setCfg({ ...cfg, arcThreshold: v })
-              save({ arcThreshold: v })
-            }}
-            className="w-32"
-          />
-          <p className="text-xs text-muted-foreground">{t('lit.set.arcThresholdHint', { n: 2 * cfg.budget })}</p>
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="lit-arc-size-min">{t('lit.set.arcSizeMin')}</FieldLabel>
-            <Input
-              id="lit-arc-size-min"
-              type="number"
-              min={2}
-              max={20}
-              value={cfg.arcSizeMin}
-              onChange={(e) => setCfg({ ...cfg, arcSizeMin: Number(e.target.value) })}
-              onBlur={(e) => {
-                const v = clamp(Number(e.target.value), 2, 20)
-                setCfg({ ...cfg, arcSizeMin: v })
-                save({ arcSizeMin: v })
-              }}
-              className="w-32"
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="lit-arc-size-max">{t('lit.set.arcSizeMax')}</FieldLabel>
-            <Input
-              id="lit-arc-size-max"
-              type="number"
-              min={2}
-              max={30}
-              value={cfg.arcSizeMax}
-              onChange={(e) => setCfg({ ...cfg, arcSizeMax: Number(e.target.value) })}
-              onBlur={(e) => {
-                const v = clamp(Number(e.target.value), 2, 30)
-                setCfg({ ...cfg, arcSizeMax: v })
-                save({ arcSizeMax: v })
-              }}
-              className="w-32"
-            />
-          </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {keyField('arcKeep', { id: 'lit-arc-keep', label: t('lit.set.arcKeep'), min: 1, max: 50 })}
+          {keyField('arcThreshold', { id: 'lit-arc-threshold', label: t('lit.set.arcThreshold'), hint: t('lit.set.arcThresholdHint', { n: 2 * cfg.budget }), min: 0, max: 40000 })}
+          {keyField('arcSizeMin', { id: 'lit-arc-size-min', label: t('lit.set.arcSizeMin'), min: 2, max: 20 })}
+          {keyField('arcSizeMax', { id: 'lit-arc-size-max', label: t('lit.set.arcSizeMax'), min: 2, max: 30 })}
+          {keyField('arcWords', { id: 'lit-arc-words', label: t('lit.set.arcWords'), min: 40, max: 400 })}
         </div>
-        <Field>
-          <FieldLabel htmlFor="lit-arc-words">{t('lit.set.arcWords')}</FieldLabel>
-          <Input
-            id="lit-arc-words"
-            type="number"
-            min={40}
-            max={400}
-            value={cfg.arcWords}
-            onChange={(e) => setCfg({ ...cfg, arcWords: Number(e.target.value) })}
-            onBlur={(e) => {
-              const v = clamp(Number(e.target.value), 40, 400)
-              setCfg({ ...cfg, arcWords: v })
-              save({ arcWords: v })
-            }}
-            className="w-32"
-          />
-        </Field>
-        <Field>
-          <PromptLabel id="lit-chapter" label={t('lit.set.prompt')} changed={changed('chapter')} onRestore={() => restore('chapter')} />
-          <Textarea
-            id="lit-chapter"
-            rows={5}
-            value={cfg.chapter}
-            onChange={(e) => setCfg({ ...cfg, chapter: e.target.value })}
-            onBlur={() => save({ chapter: cfg.chapter })}
-            className="text-xs"
-          />
-        </Field>
         <Field>
           <PromptLabel id="lit-arc-prompt" label={t('lit.set.arcPrompt')} changed={changed('arc')} onRestore={() => restore('arc')} />
           <Textarea
@@ -354,14 +180,37 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
             className="text-xs"
           />
         </Field>
-      </div>
+      </Block>
 
-      <div className="flex flex-col gap-3 rounded-md border border-border p-3">
-        <p className="text-sm font-medium">Facts</p>
-        <p className="text-xs text-muted-foreground">Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.</p>
+      <Block title={t('lit.blk.skills')} hint={t('lit.blk.skillsHint')}>
+        {switchRow('lit-skills', t('lit.set.skills'), t('lit.set.skillsHint'), cfg.skills !== false, (v) => save({ skills: v }))}
+        {cfg.skills !== false && keyField('skillsEarnAfter', { id: 'lit-skills-after', label: t('lit.set.skillsAfter'), hint: t('lit.set.skillsAfterHint'), min: 1, max: 5, fallback: 2 })}
+      </Block>
+
+      <Block title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
+        <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
+        <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
+      </Block>
+
+      <Block title="Facts" hint="Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.">
+        {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         <EmbedRow />
-      </div>
+      </Block>
     </div>
+  )
+}
+
+/** One block of the settings: a short title and what it is for at the top, its own border. */
+function Block({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  const id = useId()
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-md border border-border p-3">
+      <header className="flex flex-col gap-0.5 border-b border-border pb-2">
+        <h3 id={id} className="text-sm font-semibold">{title}</h3>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </header>
+      {children}
+    </section>
   )
 }
 

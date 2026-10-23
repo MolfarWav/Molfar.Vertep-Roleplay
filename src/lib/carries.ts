@@ -110,17 +110,6 @@ export function buildCarries({ carries, dash, noteText, estimate, labels }: Carr
   return { parts, total: parts.reduce((sum, p) => sum + (p.off ? 0 : p.tokens), 0), visible: true }
 }
 
-/** Chip kinds a viewer hid in the strip (a viewer choice, kept in localStorage); never throws. */
-export const HIDDEN_KEY = 'rp.carries.hidden'
-export function parseHidden(raw: string | null | undefined): CarryKind[] {
-  try {
-    const v = JSON.parse(raw || '[]')
-    return Array.isArray(v) ? v.filter((k): k is CarryKind => (CARRY_KINDS as readonly unknown[]).includes(k)) : []
-  } catch {
-    return []
-  }
-}
-
 /** The chat's `promptBoard.off` list with one key flipped. */
 export function flipOff(off: readonly string[], key: string): string[] {
   return off.includes(key) ? off.filter((k) => k !== key) : [...off, key]

@@ -65,6 +65,15 @@ export function ChatsView() {
   const [sort, setSortState] = useState<ChatSort>(readSort)
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
   const [filter, setFilter] = useState<ChatFilter>(NO_FILTER)
+  // "N chats" in a card's editor lands here with that card chosen
+  const wantsCharacter = useApp((s) => s.chatsCharacterFilter)
+  useEffect(() => {
+    if (!wantsCharacter) return
+    setFilter({ ...NO_FILTER, characterId: wantsCharacter })
+    setQuery('')
+    setActiveFolderId(null)
+    useApp.setState({ chatsCharacterFilter: null })
+  }, [wantsCharacter])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selecting, setSelecting] = useState(false)

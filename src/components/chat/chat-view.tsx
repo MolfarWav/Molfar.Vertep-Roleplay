@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -40,7 +40,7 @@ import { Composer } from './composer'
 import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { WorldSheet } from '@/components/chat/world-sheet'
-import { WorldStatusButton } from '@/components/world/world-status'
+import { WorldStatusButton, useWorldDot } from '@/components/world/world-status'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_MENU_EVENT, guideTarget } from '@/components/guide/events'
 import { ExpressionPanel } from './expression-panel'
@@ -49,7 +49,8 @@ import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
-import { CarriesStrip } from '@/components/chat/carries-strip'
+import { CarriesPanel, useCarries } from '@/components/chat/carries-panel'
+import { ChatToolButtons, ChatToolTiles, TOOL_KEYS, useToolMode, type ToolHandlers, type ToolState } from '@/components/chat/chat-tools'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
 import { ManageChatsDialog } from './manage-chats-dialog'
@@ -192,6 +193,11 @@ export function ChatView() {
   const autoMode = (gsNow?.autoMode ?? false) && !(gsNow?.activation === 'manual' && gsNow.generationMode !== 'narrator')
   const autoDelaySec = Math.max(2, chat?.groupSettings?.autoDelaySec ?? 5)
   const msgCount = chat?.messages.length ?? 0
+  // what the chat carries and the counters of the header's story tools (#109); the width decides how much of them the header shows
+  const carries = useCarries(chat?.id ?? '', chat?.authorNote.text ?? '', msgCount)
+  const worldDot = useWorldDot(chat?.id ?? '')
+  const [headerEl, setHeaderEl] = useState<HTMLElement | null>(null)
+  const toolMode = useToolMode(headerEl)
   const sendMessage = useApp((s) => s.sendMessage)
   useEffect(() => {
     if (!autoMode || !chat || isStreaming) return
@@ -617,6 +623,7 @@ export function ChatView() {
     { key: 'lore', icon: BookOpenText, label: t('lore.activity.title'), onSelect: () => setLoreOpen(true) },
     { key: 'record', icon: Brain, label: t('lit.recordTitle'), onSelect: () => setSummaryOpen(true) },
     { key: 'world', icon: GlobeHemisphereWest, label: t('world.menu'), onSelect: () => setWorldOpen(true) },
+    ...(carries.result.visible ? [{ key: 'carries', icon: Stack, label: t('carries.title'), onSelect: () => carries.setOpen(true) }] : []),
     ...(!character.isGroup ? [{ key: 'convert', icon: UserPlus, label: 'Convert to group', onSelect: () => setConvertOpen(true) }] : []),
     { key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },
     { key: 'bookmarks', icon: BookmarkSimple, label: 'Bookmarks', onSelect: () => setBookmarksOpen(true) },
@@ -628,6 +635,18 @@ export function ChatView() {
     { key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },
     { key: 'files', icon: FolderOpen, label: 'Manage chat files', onSelect: () => setManageOpen(true) },
   ]
+  // the story tools sit in the header (desktop, when it is wide enough) or on top of the phone menu; the lists keep the rest
+  const inHeader = (a: ChatAction) => a.key === 'carries' || TOOL_KEYS.some((k) => k === a.key)
+  const kebabActions = toolMode === 'none' ? chatActions : chatActions.filter((a) => !inHeader(a))
+  const phoneActions = chatActions.filter((a) => !inHeader(a))
+  const toolState: ToolState = {
+    noteWritten: chat.authorNote.text.trim() !== '',
+    loreFired: carries.loreFired,
+    chapters: carries.chapters,
+    world: worldDot,
+    total: carries.result.visible ? carries.result.total : null,
+  }
+  const toolHandlers: ToolHandlers = { note: () => setNotesOpen(true), lore: () => setLoreOpen(true), record: () => setSummaryOpen(true), world: () => setWorldOpen(true), carries: () => carries.setOpen(true) }
   const menuItem = (a: ChatAction) => (
     <DropdownMenuItem key={a.key} onClick={a.onSelect} disabled={a.disabled}>
       <a.icon className="size-4" aria-hidden="true" /> {a.label}
@@ -635,7 +654,7 @@ export function ChatView() {
   )
   const chatTools = (
     <>
-      <DropdownMenuGroup data-guide="menu.tools">{chatActions.map(menuItem)}</DropdownMenuGroup>
+      <DropdownMenuGroup data-guide="menu.tools">{kebabActions.map(menuItem)}</DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuGroup data-guide="menu.manage">{chatManage.map(menuItem)}</DropdownMenuGroup>
     </>
@@ -674,7 +693,7 @@ export function ChatView() {
           the top row stays visible at all times (back, name, search, preset
           switcher are crucial chrome). `text-sm` & co are rem-based, so the
           log's fontScale doesn't resize them. */}
-      <header className="relative z-10 hidden h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:flex">
+      <header ref={setHeaderEl} className="relative z-10 hidden h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:flex">
           <Button variant="ghost" size="icon-sm" onClick={closeChat} aria-label="Back to chats">
             <ArrowLeft aria-hidden="true" />
           </Button>
@@ -705,6 +724,7 @@ export function ChatView() {
               </button>
             </p>
           </div>
+          {toolMode !== 'none' && <ChatToolButtons state={toolState} on={toolHandlers} labelled={toolMode === 'labelled'} />}
           <div className="flex shrink-0 items-center gap-1.5">
             <div data-guide="chat.switch" className="flex"><ChatQuickSwitch chatId={chat.id} /></div>
             <ChatDetailsButton
@@ -719,7 +739,7 @@ export function ChatView() {
               cache={cache}
               context={chatContext}
             />
-            <WorldStatusButton chatId={chat.id} onClick={() => setWorldOpen(true)} />
+            {toolMode === 'none' && <WorldStatusButton chatId={chat.id} onClick={() => setWorldOpen(true)} />}
             <HeaderIcon label="Find in chat (Ctrl+F)" onClick={() => setFindOpen((o) => !o)}>
               <MagnifyingGlass aria-hidden="true" />
             </HeaderIcon>
@@ -728,8 +748,9 @@ export function ChatView() {
               <DropdownMenu open={kebabOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d.event)) return; setKebabOpen(o) }}>
                 <DropdownMenuTrigger
                   render={
-                    <Button data-guide="chat.menu" variant="ghost" size="icon-sm" aria-label="Chat tools">
-                      <DotsThreeVertical aria-hidden="true" />
+                    <Button data-guide="chat.menu" variant="outline" size={toolMode === 'labelled' ? 'sm' : 'icon-sm'} aria-label="Chat tools">
+                      {toolMode === 'labelled' ? <DotsThree aria-hidden="true" /> : <DotsThreeVertical aria-hidden="true" />}
+                      {toolMode === 'labelled' && t('tools.more')}
                     </Button>
                   }
                 />
@@ -784,8 +805,8 @@ export function ChatView() {
         </Button>
       </nav>
 
-      {/* what the chat carries into the prompt besides the history (#107): chips, and a panel with a switch per part */}
-      <CarriesStrip chatId={chat.id} noteText={chat.authorNote.text} msgCount={chat.messages.length} onOpenNote={() => setNotesOpen(true)} />
+      {/* what the chat carries into the prompt besides the history (#107): the panel behind the header's "~N tok" button and the phone menu's row */}
+      <CarriesPanel chatId={chat.id} state={carries} onOpenNote={() => setNotesOpen(true)} />
 
       <Sheet open={menuOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d?.event)) return; setMenuOpen(o) }}>
         <SheetContent data-guide="chat.menu" side="right" className="w-[min(320px,88vw)] gap-0 p-0">
@@ -798,6 +819,7 @@ export function ChatView() {
             </div>
             <div className="flex flex-col p-2">
               <p className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">This chat</p>
+              <ChatToolTiles state={toolState} on={toolHandlers} closeMenu={() => setMenuOpen(false)} />
               {sheetRow({ key: 'find', icon: MagnifyingGlass, label: 'Find in chat', onSelect: () => setFindOpen(true) })}
               {charChats.length > 1 && sheetRow({
                 key: 'next',
@@ -805,7 +827,7 @@ export function ChatView() {
                 label: `Next chat (${((chatIndex + 1) % charChats.length) + 1} of ${charChats.length})`,
                 onSelect: () => { const next = charChats[(chatIndex + 1) % charChats.length]; if (next) openChat(next.id) },
               })}
-              <div data-guide="menu.tools" className="flex flex-col">{chatActions.map(sheetRow)}</div>
+              <div data-guide="menu.tools" className="flex flex-col">{phoneActions.map(sheetRow)}</div>
               <div className="my-1 h-px bg-border" />
               <div data-guide="menu.manage" className="flex flex-col">{chatManage.map(sheetRow)}</div>
             </div>

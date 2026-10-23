@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildCarries, flipOff, parseHidden, type CarriesAnswer } from "../src/lib/carries";
+import { buildCarries, flipOff, type CarriesAnswer } from "../src/lib/carries";
 
 const labels = {
   memory: (n: string) => `Memory of ${n}`,
@@ -121,16 +121,6 @@ describe("what a chat carries: the World DM", () => {
   });
   it("leaves it out when the World DM is off for the chat", () => {
     expect(run({ carries: answer({ world: null }) }).visible).toBe(false);
-  });
-});
-
-describe("what a chat carries: hidden chip kinds", () => {
-  it("reads the viewer's choice and survives bad storage", () => {
-    expect(parseHidden('["said","world"]')).toEqual(["said", "world"]);
-    expect(parseHidden('["nope",1,"memory"]')).toEqual(["memory"]);
-    expect(parseHidden("{not json")).toEqual([]);
-    expect(parseHidden(null)).toEqual([]);
-    expect(parseHidden('{"a":1}')).toEqual([]);
   });
 });
 

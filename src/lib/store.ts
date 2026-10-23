@@ -148,6 +148,8 @@ interface AppState {
   ledgerTabRequest: string | null
   /** the World section opens on this chat (set by the chat's World DM sheet) */
   focusWorldChatId: ID | null
+  /** Set by openChatsFor: the Chats list narrows to this card once, then the view clears it. */
+  chatsCharacterFilter: ID | null
   /** the World section opens its Profiles tab on this profile (a level id or an own id) */
   focusWorldProfileId: string | null
   /** the World section opens its Worlds tab on this saved world */
@@ -220,6 +222,8 @@ interface AppState {
   /** open the Library on one chat's Overview (its proposals) */
   focusLibraryChat: (chatId: ID) => void
   focusWorldChat: (chatId: ID) => void
+  /** The Chats list, narrowed to one card's chats (from the card editor's chat count). */
+  openChatsFor: (characterId: ID) => void
   focusWorldProfile: (profileId: string) => void
   focusWorldWorld: (worldId: string) => void
   focusBackgroundFolder: (folderId: ID) => void
@@ -629,6 +633,7 @@ export const useApp = create<AppState>()(
       focusLibraryChatId: null,
       ledgerTabRequest: null,
       focusWorldChatId: null,
+      chatsCharacterFilter: null,
       focusWorldProfileId: null,
       focusWorldWorldId: null,
       focusBackgroundFolderId: null,
@@ -1218,6 +1223,7 @@ export const useApp = create<AppState>()(
         if (opensAsDrawer(get().view)) set({ focusLibraryChatId: chatId, drawer: 'litopys' })
         else set({ view: 'litopys', focusLibraryChatId: chatId })
       },
+      openChatsFor: (characterId) => set({ view: 'chats', drawer: null, chatsCharacterFilter: characterId }),
       focusWorldChat: (chatId) => {
         if (opensAsDrawer(get().view)) set({ focusWorldChatId: chatId, drawer: 'world' })
         else set({ view: 'world', focusWorldChatId: chatId })

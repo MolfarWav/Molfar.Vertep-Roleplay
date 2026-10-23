@@ -37,7 +37,7 @@ function useAskMolfar() {
   return { ask, error, clear: () => setError(null) }
 }
 
-/** New character (red), Import card, With Molfar. */
+/** New character (the primary), Import card, With Molfar. */
 export function CreateButtons({ className }: { className?: string }) {
   const t = useT()
   const newCharacter = useApp((s) => s.newCharacter)
@@ -50,7 +50,6 @@ export function CreateButtons({ className }: { className?: string }) {
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <Button
-          variant="accent"
           size="lg"
           className="h-10 gap-2 px-4 font-heading text-[15px]"
           onClick={() => { const id = newCharacter(); openCharacter(id); setView('characters') }}

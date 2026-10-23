@@ -7,7 +7,7 @@ import { useT } from '@/hooks/use-t'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { resolveLanguage } from '@/lib/i18n'
 import {
-  markSeen, markTourDone, tipText, tourFor, tourSteps, whatsNew,
+  canShowMe, markSeen, markTourDone, tipText, tourFor, tourSteps, whatsNew,
   type GuideOpen, type GuideState, type Place, type Tip,
 } from '@/lib/guide'
 import { APP_VERSION, TIPS, TOURS } from '@/lib/guide-tips'
@@ -33,15 +33,31 @@ const TOUR_TRIES = 5
 const guideNow = (): GuideState | undefined => useApp.getState().settings.guide
 const save = (next: GuideState) => useApp.getState().updateSettings({ guide: next })
 
-/** A panel that lives inside the open chat takes this long to mount after the chat opens. */
-const CHAT_MOUNT_MS = 450
+/** A panel that lives inside the open chat (or a list's first entry) takes a while to mount after the chat opens (longer on a slow phone or in a
+ *  heavy chat): the ask is repeated every RETRY_MS until the tip's target is on screen, at most RETRIES times. */
+const RETRY_MS = 150
+const RETRIES = 20
+
+/** Run `act` (it only ever sets something open) again and again until the target shows. A tip with no target
+ *  has nothing to wait for: two tries, then it is left as it is. */
+function untilTarget(act: () => void, target: string | undefined) {
+  const max = target ? RETRIES : 2
+  let n = 0
+  const tick = () => {
+    act()
+    if (++n < max && !(target && findTarget(target))) setTimeout(tick, RETRY_MS)
+  }
+  setTimeout(tick, RETRY_MS)
+}
+
+const isNarrow = () => window.matchMedia('(max-width: 767px)').matches
 
 /** "Show me": take the user to the place a tip is about. A panel of a chat with no chat
  *  to open is skipped: the spotlight then falls back to the centred bubble. */
-function openPlace(open: GuideOpen) {
+function openPlace(open: GuideOpen, target?: string) {
   const app = useApp.getState()
   if (open.panel === 'reference') { app.setHelpOpen(true); return }
-  const narrow = window.matchMedia('(max-width: 767px)').matches
+  const narrow = isNarrow()
   const panel = open.panel ?? (narrow ? open.narrowPanel : undefined)
   if (panel) {
     // the open chat, else the newest one
@@ -50,10 +66,10 @@ function openPlace(open: GuideOpen) {
     if (panel === 'editor') { app.openCharacterOnTab(chat.characterId, open.tab ?? 'core'); return }
     if (app.view === 'chat' && app.activeChatId === chat.id) app.closeDrawer()
     else app.openChat(chat.id)
-    setTimeout(() => {
+    untilTarget(() => {
       if (panel === 'dashboard') useApp.getState().openDashboard()
       else window.dispatchEvent(new CustomEvent(GUIDE_MENU_EVENT))
-    }, CHAT_MOUNT_MS)
+    }, target)
     return
   }
   if (open.board) {
@@ -66,9 +82,13 @@ function openPlace(open: GuideOpen) {
     app.openCharacter(null)
     showCharactersList(open.list)
   }
-  // 'chat' = the last open chat, which is what the Chats rail item does
-  app.navigate(open.view === 'chat' ? 'chats' : open.view)
-  if (open.detail) setTimeout(() => window.dispatchEvent(new CustomEvent(GUIDE_DETAIL_EVENT, { detail: open.view })), CHAT_MOUNT_MS)
+  // 'chat' = the open chat; with none open (the Chats item would only show the list) the newest one
+  if (open.view === 'chat') {
+    const newest = app.activeChatId ? null : [...app.chats].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    if (newest) app.openChat(newest.id)
+    else app.navigate('chats')
+  } else app.navigate(open.view)
+  if (open.detail) untilTarget(() => window.dispatchEvent(new CustomEvent(GUIDE_DETAIL_EVENT, { detail: open.view })), target)
 }
 
 export function GuideHost() {
@@ -127,7 +147,7 @@ export function GuideHost() {
 
   const showFromHelp = (tip: Tip) => {
     setHelpOpen(false)
-    if (tip.open) openPlace(tip.open)
+    if (tip.open) openPlace(tip.open, tip.target)
     // an element to point at: spotlight it; otherwise the place itself is the answer
     if (tip.target) setSpot({ kind: 'single', tip, from: 'help' })
   }
@@ -211,7 +231,8 @@ export function GuideHost() {
         index={card.index}
         lang={lang}
         mobile={mobile}
-        onShowMe={(tip) => { if (tip.open) openPlace(tip.open); setSpot({ kind: 'single', tip, from: 'card' }) }}
+        hasChats={hasChats}
+        onShowMe={(tip) => { if (tip.open) openPlace(tip.open, tip.target); setSpot({ kind: 'single', tip, from: 'card' }) }}
         onNext={() => setCard({ ...card, index: card.index + 1 })}
         onClose={closeCard}
       />

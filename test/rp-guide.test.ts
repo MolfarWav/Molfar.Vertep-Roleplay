@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  compareVersions, GUIDE_BASELINE, HELP_GROUPS, markSeen, markTourDone, resetTours, searchHelp, tipText, tourFor, tourSteps, whatsNew,
+  canShowMe, compareVersions, GUIDE_BASELINE, HELP_GROUPS, markSeen, markTourDone, resetTours, searchHelp, tipText, tourFor, tourSteps, whatsNew,
   type Tip, type Tour,
 } from "../src/lib/guide";
 import { APP_VERSION, TIPS, TOURS } from "../src/lib/guide-tips";
@@ -62,6 +62,27 @@ describe("guide", () => {
 
   it("falls back to English when a translation is empty", () => {
     expect(tipText({ en: "Hi", uk: "" }, "uk")).toBe("Hi");
+  });
+});
+
+describe("show me (#87)", () => {
+  const yes = { hasChats: true, narrow: false };
+  const none = { hasChats: false, narrow: false };
+  it("needs a chat for a chat panel, the editor and the open chat; not for the rest", () => {
+    expect(canShowMe(undefined, none)).toBe(true);
+    expect(canShowMe({ view: "home" }, none)).toBe(true);
+    expect(canShowMe({ view: "lorebooks", detail: true }, none)).toBe(true);
+    expect(canShowMe({ view: "chat" }, none)).toBe(false);
+    expect(canShowMe({ view: "chat" }, yes)).toBe(true);
+    expect(canShowMe({ view: "chat", panel: "dashboard" }, none)).toBe(false);
+    expect(canShowMe({ view: "chat", panel: "editor" }, none)).toBe(false);
+    expect(canShowMe({ view: "chat", panel: "reference" }, none)).toBe(true);
+  });
+  it("a narrow-only panel counts only on a narrow screen", () => {
+    const tipOpen = { view: "chat" as const, narrowPanel: "chat-menu" as const };
+    expect(canShowMe(tipOpen, { hasChats: false, narrow: true })).toBe(false);
+    expect(canShowMe(tipOpen, { hasChats: false, narrow: false })).toBe(false); // view 'chat' itself needs the chat
+    expect(canShowMe({ view: "home", narrowPanel: "chat-menu" }, { hasChats: false, narrow: false })).toBe(true);
   });
 });
 

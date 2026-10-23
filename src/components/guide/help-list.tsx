@@ -8,9 +8,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
-import { HELP_GROUPS, searchHelp, tipText, type HelpGroup, type Tip } from '@/lib/guide'
+import { HELP_GROUPS, canShowMe, searchHelp, tipText, type HelpGroup, type Tip } from '@/lib/guide'
 import type { Lang, MsgKey } from '@/lib/i18n'
 import { TIPS } from '@/lib/guide-tips'
+import { useApp } from '@/lib/store'
 
 const GROUP_KEY: Record<HelpGroup, MsgKey> = {
   chat: 'guide.group.chat',
@@ -36,6 +37,7 @@ interface Props {
 
 export function HelpList(p: Props) {
   const t = useT()
+  const hasChats = useApp((s) => s.chats.length > 0)
   const searchRef = useRef<HTMLInputElement>(null)
   const found = useMemo(() => searchHelp(TIPS, p.query), [p.query])
   const groups = HELP_GROUPS.map((g) => ({ id: g, tips: found.filter((tip) => tip.help === g) })).filter((g) => g.tips.length > 0)
@@ -73,9 +75,13 @@ export function HelpList(p: Props) {
                     <p className="text-sm leading-relaxed text-muted-foreground">{tipText(tip.body, p.lang)}</p>
                     {(tip.open || tip.target) && (
                       <div>
-                        <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => p.onShowMe(tip)}>
-                          {t('guide.showMe')}
-                        </Button>
+                        {canShowMe(tip.open, { hasChats, narrow: p.mobile }) ? (
+                          <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => p.onShowMe(tip)}>
+                            {t('guide.showMe')}
+                          </Button>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">{t('guide.needsChat')}</p>
+                        )}
                       </div>
                     )}
                   </li>

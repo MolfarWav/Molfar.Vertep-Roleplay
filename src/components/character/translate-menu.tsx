@@ -63,7 +63,7 @@ export function TranslateMenu({ c, blocked = false }: { c: Character; /** the ed
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
-            <Button variant="ghost" size="sm" disabled={busy || blocked} aria-label="Translate this card" title={blocked ? t('cd.translateNeedsSave') : 'Translate this card'} className="gap-1.5 bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300">
+            <Button variant="ghost" size="sm" disabled={busy || blocked} aria-label="Translate this card" title={blocked ? t('cd.translateNeedsSave') : 'Translate this card'} className="gap-1.5 bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300 max-md:size-10 max-md:shrink-0 max-md:px-0">
               {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Translate className="size-4" aria-hidden="true" />}
               <span className="max-sm:sr-only">{t('tr.button')}</span>
             </Button>

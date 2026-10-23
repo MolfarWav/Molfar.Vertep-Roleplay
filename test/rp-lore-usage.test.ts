@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { bookUsage, ownBookOnlyFor } from "../src/lib/lore-usage";
+import { bookKind, bookUsage, ownBookOnlyFor } from "../src/lib/lore-usage";
 import type { Character } from "../src/lib/types";
 
 const card = (id: string, own: string | null, linked: string[] = []) =>
@@ -17,5 +17,15 @@ describe("who uses a lorebook", () => {
     expect(ownBookOnlyFor(cards, "a")).toBeNull();
     expect(ownBookOnlyFor(cards, "c")).toBe("b3");
     expect(ownBookOnlyFor(cards, "b")).toBeNull();
+  });
+});
+
+describe("what kind of book it is", () => {
+  const cards = [card("a", "b1"), card("b", null, ["b1", "b2"]), card("c", "b3")];
+  it("own book of one card, shared by cards, or not linked", () => {
+    expect(bookKind(cards, "b3")).toBe("own");
+    expect(bookKind(cards, "b1")).toBe("shared"); // its owner and another card
+    expect(bookKind(cards, "b2")).toBe("shared"); // linked, not embedded
+    expect(bookKind(cards, "nope")).toBe("unlinked");
   });
 });

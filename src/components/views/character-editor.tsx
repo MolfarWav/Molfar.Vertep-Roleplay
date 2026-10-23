@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, Brain, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Gauge, ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, Brain, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -273,6 +273,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const totalTokens = estimateTokens(c.description + c.personality + c.scenario + c.firstMessage + c.exampleDialogue + c.systemPromptOverride + c.postHistoryInstructions)
   const permanentTokens = estimateTokens(c.description + c.personality)
   const chatCount = chats.filter((ch) => ch.characterId === c.id).length
+  const openChatsFor = useApp((s) => s.openChatsFor)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -293,11 +294,44 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           <ArrowLeft className="size-4" aria-hidden="true" />
         </Button>
         <img src={c.avatar || DEFAULT_AVATAR} alt="" className="size-8 rounded-md object-cover" />
-        <h1 className="text-sm font-semibold" style={{ color: c.colors.name || undefined }}>{c.name}</h1>
+        <h1 className="text-sm font-semibold max-md:min-w-0 max-md:flex-1 max-md:truncate" style={{ color: c.colors.name || undefined }}>{c.name}</h1>
         {!c.isGroup && <CardKindMenu c={character} />}
-        <Badge variant="secondary" title="Estimated size of the whole card">{formatTokens(totalTokens)} tokens</Badge>
-        <Badge variant="outline" title="Description and personality: sent with every reply">{formatTokens(permanentTokens)} permanent tokens</Badge>
-        <Badge variant="outline">{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</Badge>
+        {/* phone: the three counts are one line, the tools one row under it, so the header is three rows, not a pile of chips */}
+        <div className="grid basis-full grid-cols-3 gap-2 md:hidden max-md:order-1" data-testid="card-facts">
+          <div className="flex min-w-0 flex-col rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5" title="Estimated size of the whole card">
+            <span className="truncate text-[11px] text-muted-foreground">tokens</span>
+            <span className="text-sm font-semibold tabular-nums">{formatTokens(totalTokens)}</span>
+          </div>
+          <div className="flex min-w-0 flex-col rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5" title="Description and personality: sent with every reply">
+            <span className="truncate text-[11px] text-muted-foreground">permanent</span>
+            <span className="text-sm font-semibold tabular-nums">{formatTokens(permanentTokens)}</span>
+          </div>
+          <button
+            type="button"
+            disabled={chatCount === 0}
+            onClick={() => openChatsFor(c.id)}
+            aria-label={`Show the chats of ${c.name} (${chatCount})`}
+            className="flex min-h-10 min-w-0 items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-60"
+          >
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[11px] text-muted-foreground">{chatCount === 1 ? 'chat' : 'chats'}</span>
+              <span className="text-sm font-semibold tabular-nums">{chatCount}</span>
+            </span>
+            {chatCount > 0 && <CaretRight className="size-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />}
+          </button>
+        </div>
+        <Badge variant="secondary" title="Estimated size of the whole card" className="max-md:hidden">{formatTokens(totalTokens)} tokens</Badge>
+        <Badge variant="outline" title="Description and personality: sent with every reply" className="max-md:hidden">{formatTokens(permanentTokens)} permanent tokens</Badge>
+        <button
+          type="button"
+          disabled={chatCount === 0}
+          onClick={() => openChatsFor(c.id)}
+          title="Show the chats of this card"
+          aria-label={`Show the chats of ${c.name} (${chatCount})`}
+          className="rounded-4xl outline-none focus-visible:ring-2 focus-visible:ring-ring/60 max-md:hidden"
+        >
+          <Badge variant="outline" className="font-semibold hover:bg-muted">{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</Badge>
+        </button>
         {/* the id is the card's folder: what to give Molfar so it edits this
             card and not one with a similar name */}
         <button
@@ -308,38 +342,41 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
           }}
           title={t('editor.copyId')}
           aria-label={t('editor.copyId')}
-          className="inline-flex max-w-48 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex max-w-48 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-md:order-2 max-md:size-10 max-md:max-w-none max-md:shrink-0 max-md:justify-center max-md:border-0"
         >
-          <span className="truncate">{c.id}</span>
+          <span className="truncate max-md:sr-only">{c.id}</span>
           <ClipboardText className="size-3 shrink-0" aria-hidden="true" />
         </button>
-        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 max-md:order-2 max-md:ml-0 max-md:flex-1 max-md:flex-nowrap max-md:justify-start max-md:overflow-x-auto">
           {/* every icon says what it does: a tooltip always, a word beside it where there is room */}
-          <Button variant="ghost" size="sm" onClick={() => updateCharacter(c.id, { favorite: !character.favorite })} aria-pressed={character.favorite} aria-label={t(character.favorite ? 'editor.unfavorite' : 'editor.favorite')} title={t(character.favorite ? 'editor.unfavorite' : 'editor.favorite')}>
+          <Button variant="ghost" size="sm" className="max-md:size-10 max-md:shrink-0 max-md:px-0" onClick={() => updateCharacter(c.id, { favorite: !character.favorite })} aria-pressed={character.favorite} aria-label={t(character.favorite ? 'editor.unfavorite' : 'editor.favorite')} title={t(character.favorite ? 'editor.unfavorite' : 'editor.favorite')}>
             <Star weight={character.favorite ? 'fill' : 'regular'} className={character.favorite ? 'size-4 text-primary' : 'size-4'} aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.favoriteShort')}</span>
           </Button>
           {!c.isGroup && <TranslateMenu c={character} blocked={dirty} />}
-          <Button variant="ghost" size="sm" onClick={() => setVersionsOpen(true)} aria-label={t('editor.versions')} title={t('editor.versions')}>
+          <Button variant="ghost" size="sm" className="max-md:size-10 max-md:shrink-0 max-md:px-0" onClick={() => setVersionsOpen(true)} aria-label={t('editor.versions')} title={t('editor.versions')}>
             <ClockCounterClockwise className="size-4" aria-hidden="true" />
             <span className="hidden lg:inline">{t('editor.versionsShort')}</span>
           </Button>
-          <span role="status" aria-live="polite" className="flex min-w-16 items-center gap-1 text-[11px] text-muted-foreground" data-testid="draft-state">
+          <span role="status" aria-live="polite" className="flex min-w-16 items-center gap-1 text-[11px] text-muted-foreground max-md:sr-only" data-testid="draft-state">
             {dirty
               ? <span className="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"><span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />{t('cd.unsaved')} ({changeCount})</span>
               : draftState.savedFlash && !preview && <><Check className="size-3.5 text-primary" aria-hidden="true" />{t('cd.saved')}</>}
           </span>
-          <Button variant="ghost" size="sm" onClick={() => setTokenReportOpen(true)}>Token report</Button>
+          <Button variant="ghost" size="sm" className="max-md:size-10 max-md:shrink-0 max-md:px-0" onClick={() => setTokenReportOpen(true)} aria-label="Token report" title="Token report">
+            <Gauge className="size-4 md:hidden" aria-hidden="true" />
+            <span className="max-md:hidden">Token report</span>
+          </Button>
           {/* a group is not a card: no copy, no card export */}
           {!c.isGroup && (
             <>
-            <Button variant="ghost" size="sm" onClick={() => draftState.withSavedCard(t('cd.act.duplicate'), () => { duplicateCharacter(c.id); toast.success('Duplicated') })} aria-label={t('editor.duplicate')} title={t('editor.duplicate')}>
+            <Button variant="ghost" size="sm" className="max-md:size-10 max-md:shrink-0 max-md:px-0" onClick={() => draftState.withSavedCard(t('cd.act.duplicate'), () => { duplicateCharacter(c.id); toast.success('Duplicated') })} aria-label={t('editor.duplicate')} title={t('editor.duplicate')}>
               <Copy className="size-4" aria-hidden="true" />
               <span className="hidden lg:inline">{t('editor.duplicateShort')}</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={
-                <Button variant="ghost" size="sm" aria-label={t('editor.export')} title={t('editor.export')}>
+                <Button variant="ghost" size="sm" className="max-md:size-10 max-md:shrink-0 max-md:px-0" aria-label={t('editor.export')} title={t('editor.export')}>
                   <Export className="size-4" aria-hidden="true" />
                   <span className="hidden lg:inline">{t('editor.exportShort')}</span>
                 </Button>
@@ -369,10 +406,10 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             </DropdownMenu>
             </>
           )}
-          <Button size="sm" onClick={() => { void startChatAndOpen(c.id) }}>
-            <Chats className="size-4" aria-hidden="true" />Chat
-          </Button>
         </div>
+        <Button size="sm" variant={dirty ? 'outline' : 'default'} className="max-md:h-10 max-md:shrink-0" onClick={() => { void startChatAndOpen(c.id) }}>
+          <Chats className="size-4" aria-hidden="true" />Chat
+        </Button>
       </header>
 
         <div className="mt-2 hidden max-w-full px-4 md:block">
@@ -493,17 +530,17 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         </div>
           <fieldset disabled={!!preview} className={`mx-auto flex w-full min-w-0 flex-col gap-4 border-0 p-4 ${tab === 'soul' ? 'max-w-5xl' : 'max-w-3xl'} ${preview ? 'bg-sky-500/5 ring-1 ring-sky-500/40' : ''}`}>
             <TabsContent value="core" className="flex flex-col gap-4">
-              <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
+              <div className="grid grid-cols-[84px_1fr] gap-3 sm:grid-cols-[120px_1fr] sm:gap-4">
                 <div className="flex flex-col items-center gap-2">
                   <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={(e) => { void changeAvatar(e.target.files?.[0]); e.target.value = '' }} />
                   {c.avatar ? (
                     <button type="button" onClick={() => setZoom({ src: c.avatar, title: `${c.name}: portrait` })} className="cursor-zoom-in rounded-lg" aria-label="Open the portrait at full size">
-                      <img src={c.avatar} alt={`${c.name} avatar`} className="size-28 rounded-lg object-cover" />
+                      <img src={c.avatar} alt={`${c.name} avatar`} className="size-20 rounded-lg object-cover sm:size-28" />
                     </button>
                   ) : (
-                    <img src={DEFAULT_AVATAR} alt={`${c.name} avatar`} className="size-28 rounded-lg object-cover" />
+                    <img src={DEFAULT_AVATAR} alt={`${c.name} avatar`} className="size-20 rounded-lg object-cover sm:size-28" />
                   )}
-                  <Button variant="outline" size="sm" className="text-xs" onClick={() => avatarInput.current?.click()}>Change</Button>
+                  <Button variant="outline" size="sm" className="text-xs max-md:h-10" onClick={() => avatarInput.current?.click()}>Change</Button>
                 </div>
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1">
