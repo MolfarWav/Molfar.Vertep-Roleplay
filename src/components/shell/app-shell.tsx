@@ -186,7 +186,8 @@ function renderView(v: ViewKey) {
     case 'home': return <HomeView />
     case 'chats': return <ChatsView />
     case 'chat': return <ChatView />
-    case 'characters': return <CharactersView />
+    case 'characters': return <CharactersView mode="characters" />
+    case 'groups': return <CharactersView mode="groups" />
     case 'marketplace': return <MarketplaceView />
     case 'personas': return <PersonasView />
     case 'presets': return <PresetsView />

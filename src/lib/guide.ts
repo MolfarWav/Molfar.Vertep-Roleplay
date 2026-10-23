@@ -15,7 +15,7 @@ export type Text = Record<Lang, string>
 /** Where "Show me" takes the user before the tip is drawn. */
 export interface GuideOpen {
   /** A rail section, or 'chat' for the last open chat. */
-  view: 'home' | 'chats' | 'chat' | 'characters' | 'lorebooks' | 'litopys' | 'canvas' | 'presets' | 'quickreplies' | 'extensions' | 'settings' | 'personas' | 'marketplace'
+  view: 'home' | 'chats' | 'chat' | 'characters' | 'groups' | 'lorebooks' | 'litopys' | 'canvas' | 'presets' | 'quickreplies' | 'extensions' | 'settings' | 'personas' | 'marketplace'
   /** On the Canvas: which board. */
   board?: 'links' | 'prompt'
   /** Something to open on top of the view: a panel of the open chat, the character
@@ -23,8 +23,8 @@ export interface GuideOpen {
   panel?: 'dashboard' | 'chat-menu' | 'editor' | 'reference'
   /** With panel 'editor': the tab, by the editor's own tab key. */
   tab?: string
-  /** With view 'characters': the Characters or the Groups list. */
-  list?: 'characters' | 'groups'
+  /** With view 'characters' or 'groups': the list, not a card editor left open. */
+  list?: true
   /** The panel to open instead of `panel` on a narrow screen (< 768 px). */
   narrowPanel?: 'chat-menu'
   /** With view 'lorebooks' or 'presets': open the first entry, since phones show the list first. */

@@ -12,7 +12,6 @@ import {
 } from '@/lib/guide'
 import { APP_VERSION, TIPS, TOURS } from '@/lib/guide-tips'
 import { BOARD_KEY } from '@/components/canvas/canvas-view'
-import { showCharactersList } from '@/components/views/characters-view'
 import { GUIDE_DETAIL_EVENT, GUIDE_MENU_EVENT } from './events'
 import { HelpList } from './help-list'
 import { useCurrentPlace } from './place'
@@ -80,7 +79,6 @@ function openPlace(open: GuideOpen, target?: string) {
   if (open.list) {
     // a card editor left open would hide the list
     app.openCharacter(null)
-    showCharactersList(open.list)
   }
   // 'chat' = the open chat; with none open (the Chats item would only show the list) the newest one
   if (open.view === 'chat') {

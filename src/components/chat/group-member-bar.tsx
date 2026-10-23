@@ -40,8 +40,7 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
   const setChatTurns = useApp((s) => s.setChatTurns)
   const triggerMember = useApp((s) => s.triggerMember)
   const moveChatMember = useApp((s) => s.moveChatMember)
-  const openCharacter = useApp((s) => s.openCharacter)
-  const setView = useApp((s) => s.setView)
+  const openCard = useApp((s) => s.openCard)
   const isStreaming = useApp((s) => s.streaming?.chatId === chat.id)
   const t = useT()
 
@@ -93,7 +92,7 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
                     size="sm"
                     variant="outline"
                     className="w-full"
-                    onClick={() => { openCharacter(m.id); setView('characters') }}
+                    onClick={() => openCard(m.id)}
                   >
                     <IdentificationCard className="size-4" aria-hidden="true" /> {t('turns.viewCard')}
                   </Button>
@@ -119,7 +118,7 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
           )
         })}
       </div>
-      <TurnsButton chat={chat} gs={gs} onChange={(patch) => setChatTurns(chat.id, patch)} onOpenGroup={() => { openCharacter(group.id); setView('characters') }} />
+      <TurnsButton chat={chat} gs={gs} onChange={(patch) => setChatTurns(chat.id, patch)} onOpenGroup={() => openCard(group.id)} />
     </div>
   )
 }

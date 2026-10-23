@@ -1,7 +1,7 @@
 
 import type * as React from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, CaretDown, Check, SortAscending, BookOpenText, Smiley } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, BookOpenText, Smiley } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
-import { GUIDE_LIST_EVENT } from '@/components/guide/events'
 import type { Character, Chat } from '@/lib/types'
 import { SectionPage } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
@@ -40,16 +39,6 @@ import { useT } from '@/hooks/use-t'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 import { GroupEditor } from '@/components/groups/group-editor'
-
-/** Characters | Groups: kept per page session, so coming back from an editor lands on the same side. */
-let lastMode: 'characters' | 'groups' = 'characters'
-
-/** The guide's "Show me": a Characters view that is not mounted yet reads this when it
- *  opens; one that is, listens for GUIDE_LIST_EVENT. */
-export function showCharactersList(m: 'characters' | 'groups') {
-  lastMode = m
-  window.dispatchEvent(new CustomEvent(GUIDE_LIST_EVENT, { detail: m }))
-}
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
 const SORT_OPTIONS: [SortKey, string][] = [
@@ -103,7 +92,10 @@ function TagRow<T>({ chips, counts, render }: {
   )
 }
 
-export function CharactersView() {
+/** The Characters section, or the Groups section (#groups-section): the same
+ *  page over one kind of card each, so a group is found in the menu rather
+ *  than behind a switch inside Characters. */
+export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const characters = useApp((s) => s.characters)
   const chats = useApp((s) => s.chats)
   const activeCharacterId = useApp((s) => s.activeCharacterId)
@@ -135,16 +127,6 @@ export function CharactersView() {
   const [urlValue, setUrlValue] = useState('')
   const [urlBusy, setUrlBusy] = useState(false)
   const [page, setPage] = useState(0)
-  const [mode, setModeState] = useState<'characters' | 'groups'>(lastMode)
-  const setMode = (m: 'characters' | 'groups') => { lastMode = m; setModeState(m); setPage(0) }
-  useEffect(() => {
-    const on = (e: Event) => {
-      const m = (e as CustomEvent<string>).detail
-      if (m === 'characters' || m === 'groups') { lastMode = m; setModeState(m); setPage(0) }
-    }
-    window.addEventListener(GUIDE_LIST_EVENT, on)
-    return () => window.removeEventListener(GUIDE_LIST_EVENT, on)
-  }, [])
   const hydrated = useApp((s) => s.hydrated)
   const importRef = useRef<HTMLInputElement>(null)
 
@@ -231,7 +213,9 @@ export function CharactersView() {
     })
   }
 
-  const active = characters.find((c) => c.id === activeCharacterId)
+  // the open card belongs to one section: a group left open does not cover the Characters list
+  const open = characters.find((c) => c.id === activeCharacterId)
+  const active = open && !!open.isGroup === (mode === 'groups') ? open : undefined
 
   // chats per character, counted once: per card it was a pass over every chat (2,000 cards x
   // thousands of chats froze the page, more so in the sort)
@@ -319,36 +303,6 @@ export function CharactersView() {
     return <CharacterEditor key={active.id} character={active} onClose={() => openCharacter(null)} />
   }
 
-  // two clearly separate tabs, each in its own colour: characters take the
-  // theme's accent, groups the group hue the group tiles and group chats share
-  const modeSwitch = (
-    <div data-guide="characters.switch" role="group" aria-label={t('groups.switch')} className="flex gap-1 max-md:min-w-0 max-md:flex-1">
-      {(['characters', 'groups'] as const).map((m) => {
-        const on = mode === m
-        const Icon = m === 'groups' ? Users : UserCircle
-        const n = m === 'groups' ? groupCards.length : soloCards.length
-        return (
-          <button
-            key={m}
-            type="button"
-            aria-pressed={on}
-            onClick={() => { setMode(m); setPage(0) }}
-            className={cn(
-              'flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors max-md:h-10 max-md:min-w-0 max-md:flex-1 max-md:justify-center',
-              on
-                ? m === 'groups' ? 'border-group/60 bg-group/15 text-group' : 'border-primary/60 bg-primary/15 text-primary'
-                : 'border-border text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-            )}
-          >
-            <Icon className="size-4 shrink-0 max-md:hidden" weight={on ? 'fill' : 'regular'} aria-hidden="true" />
-            <span className="truncate">{t(m === 'groups' ? 'groups.switchGroups' : 'groups.switchCharacters')}</span>
-            <span className={cn('rounded-full px-1.5 text-[10px] tabular-nums', on ? 'bg-background/60' : 'bg-muted')}>{n}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-
   const tagChip = (name: string, tag: (typeof tagChips)[number]['tag'], big?: boolean) => {
     const n = soloCards.filter((c) => c.tags.includes(name)).length
     const active = tagFilter.includes(name)
@@ -373,22 +327,14 @@ export function CharactersView() {
     )
   }
 
-  const newMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={
-        <Button data-guide="groups.create" className="h-10 shrink-0 md:h-8" data-testid="new-menu">
-          <Plus className="size-4" aria-hidden="true" />{t('characters.new')}<CaretDown className="size-3 max-md:hidden" aria-hidden="true" />
-        </Button>
-      } />
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => { const id = newCharacter(); openCharacter(id) }}>
-          <UserCircle className="size-4" aria-hidden="true" />{t('characters.newCharacter')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setGroupOpen(true)}>
-          <Users className="size-4" aria-hidden="true" />{t('characters.newGroup')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+  const newButton = mode === 'groups' ? (
+    <Button data-guide="groups.create" className="h-10 shrink-0 md:h-8" data-testid="new-group" onClick={() => setGroupOpen(true)}>
+      <Plus className="size-4" aria-hidden="true" />{t('groups.create')}
+    </Button>
+  ) : (
+    <Button data-guide="characters.new" className="h-10 shrink-0 md:h-8" data-testid="new-character" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
+      <Plus className="size-4" aria-hidden="true" />{t('characters.createCharacter')}
+    </Button>
   )
 
   const sortMenu = (
@@ -480,7 +426,7 @@ export function CharactersView() {
   )
 
   return (
-    <SectionPage section="characters" count={shownCount} title={mode === 'groups' ? t('groups.switchGroups') : undefined}>
+    <SectionPage section={mode} count={shownCount}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tag filter + favorites scroll WITH the grid — a pinned
           toolbar eats the viewport on mobile once the keyboard opens */}
@@ -495,14 +441,13 @@ export function CharactersView() {
         aria-label="Import character cards"
       />
       <header className="flex flex-col gap-2 border-b border-border px-3 py-2 md:flex-row md:flex-wrap md:items-center md:px-4 md:py-2.5">
-        {/* phone: switch and New on the first row, search on its own, then icon-only tools */}
-        <div className="flex items-center gap-2 max-md:w-full">
-          {modeSwitch}
-          {isMobile && newMenu}
-        </div>
-        <div className="relative w-full md:w-auto md:min-w-36 md:max-w-72 md:flex-1">
-          <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : t('characters.search')} className="h-10 pl-8 text-sm md:h-8" aria-label={mode === 'groups' ? t('groups.search') : t('characters.search')} />
+        {/* phone: search and New on the first row, then icon-only tools */}
+        <div className="flex items-center gap-2 max-md:w-full md:min-w-36 md:max-w-72 md:flex-1">
+          <div className="relative min-w-0 flex-1">
+            <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : t('characters.search')} className="h-10 pl-8 text-sm md:h-8" aria-label={mode === 'groups' ? t('groups.search') : t('characters.search')} />
+          </div>
+          {isMobile && newButton}
         </div>
         <div className="flex items-center gap-1.5 md:ml-auto md:shrink-0">
           {mode === 'characters' && (<>
@@ -519,7 +464,7 @@ export function CharactersView() {
               </Button>
             )}
           </>)}
-          {!isMobile && newMenu}
+          {!isMobile && newButton}
         </div>
         {/* active filters, each with its own way out (phone: the tag row is in the All tags sheet) */}
         {isMobile && mode === 'characters' && tagFilter.length > 0 && (

@@ -51,13 +51,13 @@ import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDa
 import { rowDismissKey, type InboxRow } from './attention-core'
 
 export type ViewKey =
-  | 'home' | 'chats' | 'characters' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
+  | 'home' | 'chats' | 'characters' | 'groups' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
   | 'quickreplies' | 'extensions' | 'connections' | 'settings' | 'chat'
 
 /** Sections that can be a drawer (see opensAsDrawer). Home and the chat
  *  surfaces are always pages. */
 export const DRAWER_VIEWS = new Set<ViewKey>([
-  'characters', 'marketplace', 'personas', 'presets', 'lorebooks', 'litopys', 'canvas', 'world', 'quickreplies', 'extensions', 'connections', 'settings',
+  'characters', 'groups', 'marketplace', 'personas', 'presets', 'lorebooks', 'litopys', 'canvas', 'world', 'quickreplies', 'extensions', 'connections', 'settings',
 ])
 
 const isDesktopViewport = () =>
@@ -208,6 +208,8 @@ interface AppState {
   ensureChatMessages: (chatId: ID) => Promise<void>
   closeChat: () => void
   openCharacter: (charId: ID | null) => void
+  /** Open a card's editor in its own section: a group in Groups, any other card in Characters. */
+  openCard: (charId: ID) => void
   /** Opens a card's editor on a given tab (the chat's "souls proposed" toast uses it). */
   openCharacterOnTab: (charId: ID, tab: string) => void
   /** A tab the character editor should switch to once; it clears the field. */
@@ -1203,6 +1205,10 @@ export const useApp = create<AppState>()(
         set({ view: 'chats', activeChatId: null })
       },
       openCharacter: (charId) => set({ activeCharacterId: charId }),
+      openCard: (charId) => {
+        set({ activeCharacterId: charId })
+        get().setView(get().characters.find((c) => c.id === charId)?.isGroup ? 'groups' : 'characters')
+      },
       openCharacterOnTab: (charId, tab) => {
         set({ activeCharacterId: charId, characterEditorTab: tab })
         get().setView('characters')

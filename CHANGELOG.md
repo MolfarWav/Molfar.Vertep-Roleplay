@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Groups have their own section in the menu, right after Characters (on a phone: in More). They used to sit behind a Characters | Groups switch inside Characters, which was hard to find. Characters now lists only single characters and has a plain New character button; Groups has New group. A card opened from a chat (edit group, open a member) lands in its own section, and the guide's Groups tips point at the new section. Icons: Characters one person, Groups three.
+
 ## 4.63.0
 
 The chat header gets the story tools, lorebooks and the card editor on a phone get tidier, the Litopys settings are in blocks, and "Show me" stops promising places it cannot open (#109, #63, #87). Needs no engine update.

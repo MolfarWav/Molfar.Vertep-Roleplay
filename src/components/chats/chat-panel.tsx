@@ -99,8 +99,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
   const ensureChatMessages = useApp((s) => s.ensureChatMessages)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
   const forkAndOpen = useApp((s) => s.forkAndOpen)
-  const openCharacter = useApp((s) => s.openCharacter)
-  const setView = useApp((s) => s.setView)
+  const openCard = useApp((s) => s.openCard)
   const focusPreset = useApp((s) => s.focusPreset)
   const focusPersona = useApp((s) => s.focusPersona)
   const focusLorebook = useApp((s) => s.focusLorebook)
@@ -132,8 +131,6 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
   const model = models.find((m) => m.ref === modelRef)
   const history = shown.reduce((n, m) => n + estimateTokens(m.swipes[m.activeSwipe]?.content), 0)
   const books = scopeBookIds(lorebooks, chat, characters).map((id) => lorebooks.find((b) => b.id === id)).filter((b): b is NonNullable<typeof b> => !!b)
-  // a card opens its editor, a group its group editor (the Characters section shows whichever is active)
-  const openCard = (id: string) => { openCharacter(id); setView('characters') }
   const chatFolders = folders.filter((f) => f.scope === 'chats')
   const lastSpeaker = [...chat.messages].reverse().find((m) => m.role === 'assistant' && !m.picture)
 

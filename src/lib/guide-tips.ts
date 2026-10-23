@@ -292,7 +292,7 @@ export const TIPS: Tip[] = [
     id: 'new.profile-cast',
     since: '4.51.0',
     target: 'characters.title',
-    open: { view: 'characters', list: 'characters' },
+    open: { view: 'characters', list: true },
     title: { en: 'Several characters in one Profile', uk: 'Кілька персонажів в одному Профілі' },
     body: {
       en: 'Open a card → Profile → Add character: a narrator card can describe its whole cast, each with the same fields. Description and Personality get one part per character.',
@@ -373,7 +373,7 @@ export const TIPS: Tip[] = [
   {
     id: 'new.card-save',
     since: '4.60.0',
-    open: { view: 'characters', list: 'characters' },
+    open: { view: 'characters', list: true },
     title: { en: 'The card editor saves when you say so', uk: 'Редактор картки зберігає, коли ви скажете' },
     body: {
       en: 'Edits to a card now wait in a draft: press Save changes at the bottom, or Discard to put everything back. Leaving with unsaved changes asks first. A card can also have its own model for Structure it and Fill empty (Profile tab), and exports mark the Profile sections.',
@@ -384,7 +384,7 @@ export const TIPS: Tip[] = [
   {
     id: 'new.memory',
     since: '4.61.0',
-    open: { view: 'characters', list: 'characters' },
+    open: { view: 'characters', list: true },
     title: { en: 'Memory that follows the character', uk: 'Пам\'ять, що йде за персонажем' },
     body: {
       en: 'A chat linked to an earlier one starts with its Dashboard. In a card\'s Memory tab add a finished chat to the character\'s memory and write or confirm its skills: short rules for how the character acts. Skills are also earned in play: Litopys notices a habit that shows in two scenes, and the Library\'s chat record has a Skills tab for them.',
@@ -395,7 +395,7 @@ export const TIPS: Tip[] = [
   {
     id: 'new.import-progress',
     since: '4.62.0',
-    open: { view: 'characters', list: 'characters' },
+    open: { view: 'characters', list: true },
     title: { en: 'Imports show their progress', uk: 'Імпорт показує прогрес' },
     body: {
       en: 'Importing cards, presets, lorebooks, personas, regex, chats or a backup now shows a card at the bottom: the file, the step, how many are done, and Cancel between files. The Dashboard blocks have colours by kind, and a narrator card with several characters is split by Structure it, with Fill empty on each.',
@@ -696,7 +696,7 @@ export const TIPS: Tip[] = [
   {
     id: 'help.characters',
     target: 'characters.title',
-    open: { view: 'characters', list: 'characters' },
+    open: { view: 'characters', list: true },
     help: 'characters',
     title: { en: 'Your characters', uk: 'Ваші персонажі' },
     body: {
@@ -708,7 +708,7 @@ export const TIPS: Tip[] = [
   {
     id: 'help.import',
     target: 'characters.import',
-    open: { view: 'characters', list: 'characters' },
+    open: { view: 'characters', list: true },
     help: 'characters',
     title: { en: 'Import cards', uk: 'Імпорт карток' },
     body: {
@@ -731,19 +731,19 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'help.groups',
-    target: 'characters.switch',
-    open: { view: 'characters', list: 'groups' },
+    target: 'nav.groups',
+    open: { view: 'groups', list: true },
     help: 'characters',
     title: { en: 'Groups', uk: 'Групи' },
     body: {
-      en: 'The switch at the top of Characters flips between Characters and Groups. A group puts several characters into one chat. Create one with the group button in the toolbar; its editor has Overview, Members, Scene, Turns, Lore and Chats.',
-      uk: 'Перемикач угорі розділу «Персонажі» змінює список: персонажі чи групи. Група збирає кількох персонажів в один чат. Створіть її кнопкою групи на панелі угорі; у редакторі є вкладки: огляд, учасники, сцена, черги, книги, чати.',
+      en: 'Groups have their own section in the menu, right after Characters. A group puts several characters into one chat. Create one with New group; its editor has Overview, Members, Scene, Turns, Lore and Chats.',
+      uk: 'Групи мають власний розділ у меню, одразу після «Персонажів». Група збирає кількох персонажів в один чат. Створіть її кнопкою «Нова група»; у редакторі є вкладки: огляд, учасники, сцена, черги, книги, чати.',
     },
     keywords: { en: 'multi character party ensemble group chat', uk: 'кілька персонажів компанія ансамбль груповий чат' },
   },
   {
     id: 'help.group-turns',
-    open: { view: 'characters', list: 'groups' },
+    open: { view: 'groups', list: true },
     help: 'characters',
     title: { en: 'Who answers in a group', uk: 'Хто відповідає в групі' },
     body: {
@@ -956,17 +956,8 @@ export const TIPS: Tip[] = [
     },
   },
   {
-    id: 'tour.chars.switch',
-    target: 'characters.switch',
-    title: { en: 'Characters or Groups', uk: 'Персонажі чи групи' },
-    body: {
-      en: 'Flip between your single characters and your groups, which put several characters into one chat.',
-      uk: 'Перемикайтесь між окремими персонажами й групами, які збирають кількох персонажів в один чат.',
-    },
-  },
-  {
     id: 'tour.groups.list',
-    target: 'characters.title',
+    target: 'groups.title',
     title: { en: 'Your groups', uk: 'Ваші групи' },
     body: {
       en: 'Open a group to edit its members, scene and turns. The ⋯ on a tile starts a new chat with the group.',
@@ -1041,7 +1032,7 @@ export const TOURS: Tour[] = [
   {
     id: 'characters',
     place: 'characters',
-    steps: ['help.characters', 'help.import', 'tour.chars.switch'],
+    steps: ['help.characters', 'help.import'],
   },
   {
     id: 'groups',

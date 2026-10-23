@@ -1,8 +1,6 @@
 // Window events the guide's "Show me" sends to a screen that is already (or about to be)
 // mounted: the screen owns its own state, the guide only asks.
 
-/** detail: 'characters' | 'groups'. The Characters view switches to that list. */
-export const GUIDE_LIST_EVENT = 'rp-guide-list'
 /** The open chat opens its menu (the desktop kebab, the phone sheet). */
 export const GUIDE_MENU_EVENT = 'rp-guide-chat-menu'
 

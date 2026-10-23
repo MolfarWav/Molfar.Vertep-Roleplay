@@ -15,8 +15,7 @@ export function ConvertToGroupDialog({
 }: { chat: Chat; character: Character; open: boolean; onOpenChange: (o: boolean) => void }) {
   const characters = useApp((s) => s.characters)
   const convertToGroup = useApp((s) => s.convertToGroup)
-  const openCharacter = useApp((s) => s.openCharacter)
-  const setView = useApp((s) => s.setView)
+  const openCard = useApp((s) => s.openCard)
   const t = useT()
   const [selected, setSelected] = useState<string[]>([])
 
@@ -32,7 +31,7 @@ export function ConvertToGroupDialog({
     void convertToGroup(chat.id, picked).then((gid) => {
       if (!gid) return
       toast.success('Converted to group chat', {
-        action: { label: t('groups.editGroup'), onClick: () => { openCharacter(gid); setView('characters') } },
+        action: { label: t('groups.editGroup'), onClick: () => openCard(gid) },
       })
     })
   }
