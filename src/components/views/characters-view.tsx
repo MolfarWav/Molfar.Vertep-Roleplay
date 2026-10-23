@@ -92,7 +92,7 @@ function TagRow<T>({ chips, counts, render }: {
   )
 }
 
-/** The Characters section, or the Groups section (#groups-section): the same
+/** The Characters section, or the Groups section: the same
  *  page over one kind of card each, so a group is found in the menu rather
  *  than behind a switch inside Characters. */
 export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
