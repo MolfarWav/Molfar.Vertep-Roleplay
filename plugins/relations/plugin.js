@@ -16,7 +16,7 @@
  *  GET  /dashboard/state?chatId=           state + active keys + current key
  *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets, and the speakers it can be built for
  *  GET  /dashboard/notice?chatId=          the last insert that did not fit the limit
- *  POST /dashboard/nudge {chatId, threadId?}  "Story, move": the next reply moves the story (one open thread, or null = all)
+ *  POST /dashboard/nudge {chatId, threadId?, twist?}  "Story, move": the next reply moves the story (one open thread or step, null = all; twist = an event in none of them)
  *  DELETE /dashboard/nudge?chatId=         take the nudge back
  *
  * Before each reply, the llmRequest hook adds "how the characters are right
@@ -40,7 +40,7 @@
  *  dashboard/state/<chatId>.json   one chat
  *  dashboard/soul-drafts/<characterId>.json  proposed souls waiting for review
  *  dashboard/notes/<chatId>.json   what the user added or changed (notes, tags, threads); updates never write it
- *  dashboard/nudge/<chatId>.json   one pending "Story, move" nudge {v, threadId, at}; removed when used, 30 minutes to live
+ *  dashboard/nudge/<chatId>.json   one pending "Story, move" nudge {v, threadId, twist?, at}; removed when used, 30 minutes to live
  *  dashboard/fast/<chatId>.json    fast mode: the state a story reply carried, {v, entries: {"<msgId>#<swipe>": {body, at, model, closed}}}; the chat plugin writes it, the update uses and removes it
  *  dashboard/config.json           only what differs from the defaults
  *  dashboard/events.json           optional own event vocabulary
@@ -623,6 +623,9 @@ export const DEFAULT_PROMPTS = {
   // what happens grows out of the scene: with nothing to stand on, a model invented a messenger out of nowhere
   nudge:
     "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Build it from what is already present or under way: a character's intent, a danger, promise or plan already set up, the place itself. Bring in nothing from nowhere. Stay in character and in the scene, and keep to what each character can know; never mention this note.]",
+  // "Story, move" with a twist (#117): something that belongs to none of the open quests, still grown from what is present
+  nudgeTwist:
+    "[For this reply only: do not just react to the last message. Let something happen that belongs to none of the open threads: a development the world itself produces, out of the place, a character's habit or goal, or a loose end already set up. Make it concrete and let it change the situation, so the story goes somewhere new. Bring in nothing from nowhere. Stay in character and in the scene, and keep to what each character can know; never mention this note.]",
   // fast mode: what the story model is told about the state tag; the sensor's rules, the event list, the output shape and
   // the previous state are added in code (see fastInstructions)
   fast:
@@ -689,7 +692,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -4010,14 +4013,14 @@ function openThreadsAt(fsx, chatId, turn) {
   if (!at) return [];
   return effectiveThreads(loadOverlay(fsx, chatId), at.snap.threads, at.snap.turn)
     .filter((t) => t.status === "open" && str(t.text))
-    .map((t) => ({ id: String(t.id), text: cut(str(t.text), 300) }));
+    .map((t) => ({ id: String(t.id), text: cut(str(t.text), 300), kind: questKind(t), ...(t.parent ? { parent: String(t.parent) } : {}) }));
 }
 
 /** The pending nudge as stored, or null: missing, malformed or older than the limit. Never removes. */
 function readNudge(fsx, chatId) {
   const n = readJson(fsx, NUDGE_DIR + chatId + ".json", null);
   if (!isObj(n) || !Number.isFinite(n.at) || Date.now() - n.at > NUDGE_TTL_MS) return null;
-  return { threadId: typeof n.threadId === "string" && n.threadId ? n.threadId : null, at: n.at };
+  return { threadId: typeof n.threadId === "string" && n.threadId ? n.threadId : null, ...(n.twist === true ? { twist: true } : {}), at: n.at };
 }
 
 /** The note for one reply. open = [{id, text}]; a picked thread that is no longer open falls back to all. */
@@ -4025,8 +4028,19 @@ export function nudgeText(cfg, threadId, open) {
   const picked = threadId ? open.find((t) => t.id === threadId) : null;
   // no ids, no digits from code; a trailing dot would double the one after {threads}
   const clean = (t) => t.text.replace(/[.\s]+$/, "");
-  const where = picked ? ", pulling on this open thread: " + clean(picked) : open.length ? ", pulling on one of these open threads: " + open.map(clean).join("; ") : "";
+  // a main quest brings its open steps; "any" means the quests that matter, not steps (they ride their main quest) or
+  // everyday errands, unless nothing else is open
+  const stepsOf = (t) => open.filter((x) => x.parent === t.id);
+  const main = open.filter((t) => !t.parent && t.kind !== "everyday");
+  const pool = main.length ? main : open;
+  const named = (t) => clean(t) + (stepsOf(t).length ? " (next steps: " + stepsOf(t).map(clean).join("; ") + ")" : "");
+  const where = picked ? ", pulling on this open thread: " + named(picked) : pool.length ? ", pulling on one of these open threads: " + pool.map(named).join("; ") : "";
   return promptOf("nudge", cfg).split("{threads}").join(where);
+}
+
+/** The note of "Story, move" with a twist: an event in none of the open threads. */
+export function twistText(cfg) {
+  return promptOf("nudgeTwist", cfg);
 }
 
 // continue extends a reply and impersonate writes the user's own line: no nudge there
@@ -4056,7 +4070,7 @@ function takeNudge(fsx, chatId, turn, cfg) {
     return null;
   }
   if (!NUDGE_OPS.includes(turn.op)) return null;
-  const text = nudgeText(cfg, n.threadId, openThreadsAt(fsx, chatId, turn));
+  const text = n.twist ? twistText(cfg) : nudgeText(cfg, n.threadId, openThreadsAt(fsx, chatId, turn));
   drop();
   return text;
 }
@@ -4902,10 +4916,11 @@ function armNudge(req, fsx) {
   const chatId = String(b.chatId || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   if (!readChat(fsx, chatId)) return ok({ error: "no such chat" }, 404);
-  const threadId = typeof b.threadId === "string" && b.threadId ? b.threadId : null;
+  const twist = b.twist === true;
+  const threadId = !twist && typeof b.threadId === "string" && b.threadId ? b.threadId : null;
   // the same threads the view shows: the newest snapshot of the active line, the user's edits applied
   if (threadId && !openThreadsAt(fsx, chatId, { op: "send" }).some((t) => t.id === threadId)) return ok({ error: "thread not open" }, 409);
-  const nudge = { threadId, at: Date.now() };
+  const nudge = { threadId, ...(twist ? { twist: true } : {}), at: Date.now() };
   fsx.write(NUDGE_DIR + chatId + ".json", JSON.stringify({ v: 1, ...nudge }));
   return ok({ ok: true, nudge });
 }

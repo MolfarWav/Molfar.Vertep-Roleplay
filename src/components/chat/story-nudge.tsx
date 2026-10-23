@@ -3,15 +3,15 @@
 // reaches the chat. Two parts, both rendered in composer.tsx: the chip above the input row
 // (what is armed, with an ×) and the split button left of send (arm: any thread, or one).
 
-import { CaretDown, Wind, X } from '@phosphor-icons/react'
+import { CaretDown, Sparkle, Wind, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useT } from '@/hooks/use-t'
-import { armNudge, clearNudge, type Nudge, type Thread } from '@/lib/dashboard'
+import { armNudge, clearNudge, questGroups, questKindOf, type Nudge, type Thread } from '@/lib/dashboard'
 import { cn } from '@/lib/utils'
 
 /** The dashboard of this chat when the plugin is there ('absent' and 'loading' render nothing). */
@@ -30,7 +30,7 @@ export function StoryNudgeChip({ chatId }: { chatId: string }) {
   const { dash, usable, view, nudge } = useNudgeState()
   if (!dash || !usable || !nudge) return null
   const picked = nudge.threadId ? view?.threads.find((th) => th.id === nudge.threadId) : undefined
-  const text = t('dash.nudge.armed', { what: picked ? picked.text : t('dash.nudge.all') })
+  const text = nudge.twist ? t('dash.nudge.armedTwist') : t('dash.nudge.armed', { what: picked ? picked.text : t('dash.nudge.all') })
   const cancel = async () => {
     try {
       await clearNudge(chatId)
@@ -69,11 +69,17 @@ export function StoryNudgeButton({ chatId, isStreaming }: {
   const t = useT()
   const { dash, usable, nudge, open } = useNudgeState()
   if (!dash || !usable) return null
+  const g = questGroups(open)
+  const picks = [
+    ...g.main.flatMap((m) => [{ th: m.quest, step: false }, ...m.steps.map((th) => ({ th, step: true }))]),
+    ...g.side.map((th) => ({ th, step: false })),
+    ...g.everyday.map((th) => ({ th, step: false })),
+  ]
 
-  const arm = async (threadId: string | null) => {
+  const arm = async (threadId: string | null, twist = false) => {
     if (isStreaming) return
     try {
-      await armNudge(chatId, threadId)
+      await armNudge(chatId, threadId, twist)
     } catch {
       toast.error(t('dash.nudge.error'))
       void dash.reload()
@@ -121,13 +127,17 @@ export function StoryNudgeButton({ chatId, isStreaming }: {
             </DropdownMenuItem>
           ) : (
             <>
-              <DropdownMenuItem disabled={isStreaming} onClick={() => void arm(null)}>
+              <DropdownMenuItem disabled={isStreaming} onClick={() => void arm(null)} className="max-md:min-h-10">
                 <Wind className="size-4" />
                 <span className="min-w-0 flex-1 truncate">{t('dash.nudge.any')}</span>
               </DropdownMenuItem>
-              {open.map((th) => (
-                <DropdownMenuItem key={th.id} disabled={isStreaming} onClick={() => void arm(th.id)}>
+              {/* main quests with their steps under them, then side, then everyday ones */}
+              {picks.map(({ th, step }) => (
+                <DropdownMenuItem key={th.id} disabled={isStreaming} onClick={() => void arm(th.id)} className={cn('max-md:min-h-10', step && 'pl-7')}>
                   <span className="min-w-0 flex-1 truncate" title={th.text}>{th.text}</span>
+                  {!step && questKindOf(th) !== 'side' && (
+                    <span className="ml-1.5 shrink-0 border border-border px-1 text-[10px] uppercase tracking-wide">{t(`dash.quest.kind.${questKindOf(th)}`)}</span>
+                  )}
                   {th.by === 'user' && (
                     <span className="ml-1.5 shrink-0 border border-border px-1 text-[10px] uppercase tracking-wide">{t('dash.thread.yours')}</span>
                   )}
@@ -136,6 +146,11 @@ export function StoryNudgeButton({ chatId, isStreaming }: {
             </>
           )}
           </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={isStreaming} onClick={() => void arm(null, true)} className="max-md:min-h-10">
+            <Sparkle className="size-4" />
+            <span className="min-w-0 flex-1 whitespace-normal">{t('dash.nudge.twist')}</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

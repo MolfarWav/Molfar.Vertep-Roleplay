@@ -65,11 +65,12 @@ interface DashConfig {
   said?: { perTurn: number; inject: boolean }
   soul?: string
   nudge?: string
+  nudgeTwist?: string
   fast?: string
 }
 
 /** The prompts besides the sensor's, each edited and restored on its own. */
-const OTHER_PROMPTS = ['soul', 'nudge', 'fast'] as const
+const OTHER_PROMPTS = ['soul', 'nudge', 'nudgeTwist', 'fast'] as const
 type OtherPrompt = (typeof OTHER_PROMPTS)[number]
 
 /** The part of the config the Sensor section edits and PUT /dashboard/config takes. */
@@ -691,7 +692,7 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                 <p className="text-[11px] text-muted-foreground">{t(`dash.set.prompt.${k}.hint`)}</p>
                 <Textarea
                   id={`dash-prompt-${k}`}
-                  rows={k === 'nudge' ? 5 : 10}
+                  rows={k === 'nudge' || k === 'nudgeTwist' ? 5 : 10}
                   value={form.prompts[k]}
                   maxLength={8000}
                   onChange={(e) => patch({ prompts: { ...form.prompts, [k]: e.target.value } })}

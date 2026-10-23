@@ -167,7 +167,7 @@ export interface DashView {
   scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null }[]
 }
 
-export interface Nudge { threadId: string | null; at: number }
+export interface Nudge { threadId: string | null; /** a twist: an event in none of the quests (#117) */ twist?: boolean; at: number }
 
 /** The plugin has the user overlay (notes and threads can be edited). */
 export function canEditNotes(view: DashView | null): boolean {
@@ -325,8 +325,8 @@ export function starRadius(v: number): number {
 }
 
 /** Arm the one-time "Story, move" nudge for the next reply (POST /dashboard/nudge). Throws with the server's message (409 when the thread is no longer open). */
-export async function armNudge(chatId: string, threadId: string | null): Promise<Nudge | null> {
-  const r = await j<{ ok?: boolean; nudge?: Nudge | null }>('/dashboard/nudge', { method: 'POST', body: JSON.stringify({ chatId, threadId }) })
+export async function armNudge(chatId: string, threadId: string | null, twist = false): Promise<Nudge | null> {
+  const r = await j<{ ok?: boolean; nudge?: Nudge | null }>('/dashboard/nudge', { method: 'POST', body: JSON.stringify({ chatId, threadId, ...(twist ? { twist: true } : {}) }) })
   return r?.nudge ?? null
 }
 

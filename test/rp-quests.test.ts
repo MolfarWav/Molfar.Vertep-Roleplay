@@ -355,3 +355,78 @@ describe("what the sensor and the story model read", () => {
     expect(Object.values(st.snapshots).every((s: any) => s.proposals === undefined)).toBe(true);
   });
 });
+
+describe("Story, move with quests and a twist (#117)", () => {
+  const ask = (mock: Mock, messages: any = [{ role: "system", content: "card" }, { role: "assistant", content: "Y" }, { role: "user", content: "Z" }]) =>
+    P.llmRequest({ key: "reply", request: { sessionId: "c1", messages }, turn: { op: "send" } }, mock.host) as { messages: any[] };
+  const arm = (mock: Mock, body: Record<string, unknown> = {}) => drive(mock, { method: "POST", path: "/dashboard/nudge", body: { chatId: "c1", ...body } });
+  const lastText = (out: { messages: any[] }) => String(out.messages[out.messages.length - 1].content);
+  const nudgeFile = () => path.join(root, "dashboard/nudge/c1.json");
+  /** t1 main with steps t5 and t6, side t2 and t3, everyday t4 */
+  function started() {
+    const mock = mockHost();
+    play(mock, { open: [item("Find the key", "main"), item("A side line", "side"), item("Another line", "side"), item("Feed the cat", "everyday")] });
+    play(mock, {
+      open: [
+        item("Find the key", "main", undefined, "t1"), item("A side line", "side", undefined, "t2"), item("Another line", "side", undefined, "t3"), item("Feed the cat", "everyday", undefined, "t4"),
+        item("Search the cellar", "side", "t1"), item("Ask the innkeeper", "side", "t1"),
+      ],
+    });
+    return mock;
+  }
+
+  it("a twist is armed on its own and the next reply gets the twist note, once", () => {
+    const mock = started();
+    const armed = arm(mock, { twist: true, threadId: "t1" });
+    expect(armed.json.nudge).toMatchObject({ threadId: null, twist: true });
+    expect(JSON.parse(fs.readFileSync(nudgeFile(), "utf8"))).toMatchObject({ v: 1, threadId: null, twist: true });
+    expect(view(mock).nudge).toMatchObject({ twist: true });
+    const text = lastText(ask(mock));
+    expect(text.startsWith("Z\n\n[For this reply only:")).toBe(true);
+    expect(text).toContain("belongs to none of the open threads");
+    expect(text).not.toContain("pulling on");
+    expect(fs.existsSync(nudgeFile())).toBe(false);
+    expect(lastText(ask(mock))).not.toContain("For this reply only");
+  });
+
+  it("arming a thread after a twist replaces it, and a plain nudge has no twist flag", () => {
+    const mock = started();
+    arm(mock, { twist: true });
+    const next = arm(mock, { threadId: "t2" });
+    expect(next.json.nudge.twist).toBeUndefined();
+    expect(JSON.parse(fs.readFileSync(nudgeFile(), "utf8"))).toEqual({ v: 1, threadId: "t2", at: next.json.nudge.at });
+  });
+
+  it("a step can be picked; a main quest brings its steps; any means main and side quests, not steps or everyday", () => {
+    const mock = started();
+    expect(arm(mock, { threadId: "t5" }).status).toBe(200);
+    expect(lastText(ask(mock))).toContain("pulling on this open thread: Search the cellar.");
+    arm(mock, { threadId: "t1" });
+    expect(lastText(ask(mock))).toContain("pulling on this open thread: Find the key (next steps: Search the cellar; Ask the innkeeper).");
+    arm(mock);
+    const any = lastText(ask(mock));
+    expect(any).toContain("pulling on one of these open threads: Find the key (next steps: Search the cellar; Ask the innkeeper); A side line; Another line.");
+    expect(any).not.toContain("Feed the cat");
+  });
+
+  it("with only everyday quests open, any still names them; with none, nothing", () => {
+    const mock = mockHost();
+    play(mock, { open: [item("Feed the cat", "everyday")] });
+    arm(mock);
+    expect(lastText(ask(mock))).toContain("pulling on one of these open threads: Feed the cat.");
+  });
+
+  it("the twist prompt is a setting with a default, and the old nudge prompt is untouched", () => {
+    const mock = mockHost();
+    const get = () => drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    expect(get().nudgeTwist).toBe(P.DEFAULT_PROMPTS.nudgeTwist);
+    expect(get().custom).not.toContain("nudgeTwist");
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { nudgeTwist: "Surprise me." } });
+    expect(get().nudgeTwist).toBe("Surprise me.");
+    expect(get().custom).toContain("nudgeTwist");
+    expect(get().nudge).toBe(P.DEFAULT_PROMPTS.nudge);
+    expect(P.twistText(P.loadConfig ? P.loadConfig(mock.host.fs) : { nudgeTwist: "Surprise me." })).toBe("Surprise me.");
+    drive(mock, { method: "DELETE", path: "/dashboard/config/prompts", query: { key: "nudgeTwist" } });
+    expect(get().nudgeTwist).toBe(P.DEFAULT_PROMPTS.nudgeTwist);
+  });
+});
