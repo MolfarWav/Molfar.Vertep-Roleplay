@@ -554,10 +554,10 @@ export const TIPS: Tip[] = [
     target: 'dash.threads',
     open: { view: 'chat', panel: 'dashboard' },
     help: 'story',
-    title: { en: 'Story threads', uk: 'Сюжетні лінії' },
+    title: { en: 'Quests', uk: 'Квести' },
     body: {
-      en: 'Threads are open questions or promises that drive the story. You can add your own, mark one resolved or reopen it. Only a limited number can be open at once.',
-      uk: 'Сюжетні лінії — це відкриті питання чи обіцянки, що ведуть історію. Можна додавати свої, позначати вирішеними й відкривати знову. Відкритими одночасно може бути лише обмежена кількість.',
+      en: 'Quests are the open questions and promises that drive the story: main ones (what it is about now), side ones, and small everyday ones that end by themselves. A main quest can have steps. You can add your own, resolve or reopen one. When there is no room for a new one, or the story has left one alone for long, it shows up under Suggestions and waits for your answer.',
+      uk: 'Квести — це відкриті питання й обіцянки, що ведуть історію: головні (про що вона зараз), побічні та дрібні буденні, що закриваються самі. Головний квест може мати кроки. Можна додавати свої, закривати й відкривати знову. Коли для нового немає місця або історія давно не торкалася старого, він з’являється серед пропозицій і чекає вашої відповіді.',
     },
     keywords: { en: 'plot quest goal promise open question', uk: 'сюжет квест ціль обіцянка питання' },
   },
@@ -580,7 +580,7 @@ export const TIPS: Tip[] = [
     help: 'story',
     title: { en: 'Push the story on', uk: 'Підштовхнути історію' },
     body: {
-      en: 'The Story, move button next to Send (with the dashboard plugin) arms a one-time nudge: press it, then Send (an empty box works), and the next reply moves the story on. The arrow beside it picks one open thread to pull on. On a phone it is an icon. The nudge is not saved in the chat.',
+      en: 'The Story, move button next to Send (with the dashboard plugin) arms a one-time nudge: press it, then Send (an empty box works), and the next reply moves the story on. The arrow beside it picks one open quest to pull on. On a phone it is an icon. The nudge is not saved in the chat.',
       uk: 'Кнопка «Історія, рухайся» біля «Надіслати» (з плагіном дашборду) готує одноразовий поштовх: натисніть її, потім «Надіслати» (порожнє поле теж підходить), і наступна відповідь зрушить історію. Стрілка поруч дає вибрати одну відкриту сюжетну лінію. На телефоні це лише значок. У чаті поштовх не зберігається.',
     },
     keywords: { en: 'nudge advance plot continue without message', uk: 'поштовх рухати сюжет без повідомлення' },

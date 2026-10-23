@@ -447,7 +447,8 @@ character saw, heard or guessed), `names` and `history`:
 - Threads are quests (#117). A thread in a snapshot's `threads` is `{ id, text, since, status: open|resolved, kind?,
   parent?, checked?, keptAt?, by?, resolvedAt? }`. `kind` is `main`, `side` or `everyday` (missing = `side`, so every
   older file reads as side quests); `parent` is the id of an open main quest and makes the thread a step of it (a step
-  whose main quest is closed stands alone). Limits (config): `maxMain` 1-2 (default 1), `maxThreads` 1-6 side quests
+  closes with its main quest while that is resolved and is open again if it is reopened; when the parent is gone or no
+  longer main, the step stands alone). Limits (config): `maxMain` 1-2 (default 1), `maxThreads` 1-6 side quests
   (default 3), `maxSteps` 1-6 per main quest (default 4); everyday ones are not counted, at most 5 stay open and each
   is closed by code after `everydayTurns` (0-30, default 8; 0 = never). `checked` counts Thread checks the story left
   the thread unchanged; at `retireAfter` (0-10, default 3; 0 = never) a main or side quest gets a `close` proposal.

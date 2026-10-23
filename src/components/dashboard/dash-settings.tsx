@@ -52,6 +52,11 @@ interface DashConfig {
   /** round 3 plugin: absent on an older one */
   maxThreads?: number
   threadCheckEvery?: number
+  /** quests (#117): absent on an older plugin */
+  maxMain?: number
+  maxSteps?: number
+  everydayTurns?: number
+  retireAfter?: number
   sensorMode?: 'parts' | 'whole'
   sensorParts?: { key: string; title: string; text: string; default: string; custom: boolean }[]
   /** 4.34: absent on an older plugin */
@@ -76,6 +81,10 @@ interface Form {
   sensorMaxTokens: number
   maxThreads: number
   threadCheckEvery: number
+  maxMain: number
+  maxSteps: number
+  everydayTurns: number
+  retireAfter: number
   noteAgeTurns: number
   said: { perTurn: number; inject: boolean }
   catchUp: boolean
@@ -96,7 +105,7 @@ interface PromptMeta {
 }
 
 /** What the sections need besides the form and the rows. */
-interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean; fastTokens: number | null }
+interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean; questCfg: boolean; fastTokens: number | null }
 
 interface Preview {
   insert: { text: string; tokens: number; budget: number; trimmed: string[]; notebookOf: string | null } | null
@@ -115,9 +124,22 @@ const MAX_SENSOR_TOKENS = 8000
 const DEFAULT_SENSOR_TOKENS = 3000
 const DEFAULT_MAX_THREADS = 3
 const DEFAULT_THREAD_CHECK = 5
+const DEFAULT_MAX_MAIN = 1
+const DEFAULT_MAX_STEPS = 4
+const DEFAULT_EVERYDAY = 8
+const DEFAULT_RETIRE = 3
 const DEFAULT_NOTE_AGE = 30
 const DEFAULT_SAID = 2
 const FIELD = 'rounded-none'
+
+function NumRow({ label, value, min, max, onChange, onBlur }: { label: string; value: number; min: number; max: number; onChange: (n: number) => void; onBlur: () => void }) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-sm">
+      <span>{label}</span>
+      <Input type="number" min={min} max={max} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} onBlur={onBlur} className={cn(FIELD, 'w-24 max-md:h-10')} />
+    </label>
+  )
+}
 
 function readTab(): Section {
   try {
@@ -135,6 +157,10 @@ function pickForm(c: DashConfig): Form {
     sensorMaxTokens: c.sensorMaxTokens ?? DEFAULT_SENSOR_TOKENS,
     maxThreads: c.maxThreads ?? DEFAULT_MAX_THREADS,
     threadCheckEvery: c.threadCheckEvery ?? DEFAULT_THREAD_CHECK,
+    maxMain: c.maxMain ?? DEFAULT_MAX_MAIN,
+    maxSteps: c.maxSteps ?? DEFAULT_MAX_STEPS,
+    everydayTurns: c.everydayTurns ?? DEFAULT_EVERYDAY,
+    retireAfter: c.retireAfter ?? DEFAULT_RETIRE,
     noteAgeTurns: c.noteAgeTurns ?? DEFAULT_NOTE_AGE,
     said: { perTurn: c.said?.perTurn ?? DEFAULT_SAID, inject: c.said?.inject !== false },
     catchUp: c.catchUp !== false,
@@ -159,6 +185,11 @@ const clampThreads = (n: number) => Math.min(6, Math.max(1, Math.round(Number.is
 const clampNoteAge = (n: number) => Math.min(500, Math.max(5, Math.round(Number.isFinite(n) ? n : DEFAULT_NOTE_AGE)))
 const clampSaid = (n: number) => Math.min(4, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_SAID)))
 const clampCheck =(n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
+const clampTo = (lo: number, hi: number, dflt: number) => (n: number) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : dflt)))
+const clampMain = clampTo(1, 2, DEFAULT_MAX_MAIN)
+const clampSteps = clampTo(1, 6, DEFAULT_MAX_STEPS)
+const clampEveryday = clampTo(0, 30, DEFAULT_EVERYDAY)
+const clampRetire = clampTo(0, 10, DEFAULT_RETIRE)
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** The rows PUT /dashboard/events takes: only what differs from the defaults. */
@@ -199,7 +230,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
    * sent: edits typed while it ran stay in the form and stay unsaved against the new base.
    */
   const apply = useCallback((c: DashConfig, what: { form?: boolean; rows?: boolean; sentForm?: Form; sentRows?: VocabRow[] }) => {
-    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, fastTokens: typeof c.fastTokens === 'number' ? c.fastTokens : null, ...promptMeta(c) })
+    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, questCfg: c.maxMain !== undefined, fastTokens: typeof c.fastTokens === 'number' ? c.fastTokens : null, ...promptMeta(c) })
     if (what.form) {
       const f = pickForm(c)
       setFormBase(f)
@@ -234,6 +265,10 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
         sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens),
         maxThreads: clampThreads(form.maxThreads),
         threadCheckEvery: clampCheck(form.threadCheckEvery),
+        maxMain: clampMain(form.maxMain),
+        maxSteps: clampSteps(form.maxSteps),
+        everydayTurns: clampEveryday(form.everydayTurns),
+        retireAfter: clampRetire(form.retireAfter),
         // blocks, or the one custom text: never both (a whole prompt would shadow the blocks)
         ...(meta?.sensorMode === 'parts' ? { sensorParts: parts } : { sensor }),
       }
@@ -518,16 +553,16 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
             <p className="-mt-1 text-[11px] text-amber-600 dark:text-amber-400">{t('dash.set.sensorTokens.warn')}</p>
             {meta.threadCfg && (
               <>
-                <label className="flex items-center justify-between gap-3 text-sm">
-                  <span>{t('dash.set.maxThreads')}</span>
-                  <Input
-                    type="number" min={1} max={6} step={1}
-                    value={form.maxThreads}
-                    onChange={(e) => patch({ maxThreads: Number(e.target.value) })}
-                    onBlur={() => patch({ maxThreads: clampThreads(form.maxThreads) })}
-                    className={cn(FIELD, 'w-24')}
-                  />
-                </label>
+                {meta.questCfg && (
+                  <>
+                    <NumRow label={t('dash.set.maxMain')} min={1} max={2} value={form.maxMain} onChange={(n) => patch({ maxMain: n })} onBlur={() => patch({ maxMain: clampMain(form.maxMain) })} />
+                    <NumRow label={t('dash.set.maxThreads')} min={1} max={6} value={form.maxThreads} onChange={(n) => patch({ maxThreads: n })} onBlur={() => patch({ maxThreads: clampThreads(form.maxThreads) })} />
+                    <NumRow label={t('dash.set.maxSteps')} min={1} max={6} value={form.maxSteps} onChange={(n) => patch({ maxSteps: n })} onBlur={() => patch({ maxSteps: clampSteps(form.maxSteps) })} />
+                    <NumRow label={t('dash.set.everydayTurns')} min={0} max={30} value={form.everydayTurns} onChange={(n) => patch({ everydayTurns: n })} onBlur={() => patch({ everydayTurns: clampEveryday(form.everydayTurns) })} />
+                    <NumRow label={t('dash.set.retireAfter')} min={0} max={10} value={form.retireAfter} onChange={(n) => patch({ retireAfter: n })} onBlur={() => patch({ retireAfter: clampRetire(form.retireAfter) })} />
+                  </>
+                )}
+                {!meta.questCfg && <NumRow label={t('dash.set.maxThreads')} min={1} max={6} value={form.maxThreads} onChange={(n) => patch({ maxThreads: n })} onBlur={() => patch({ maxThreads: clampThreads(form.maxThreads) })} />}
                 <label className="flex items-center justify-between gap-3 text-sm">
                   <span>{t('dash.set.threadCheck')}</span>
                   <Input

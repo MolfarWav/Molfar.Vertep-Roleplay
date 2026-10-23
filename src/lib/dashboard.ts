@@ -266,6 +266,50 @@ export function sortedThreads(list: Thread[]): Thread[] {
   return [...open, ...list.filter((t) => t.status !== 'open')]
 }
 
+export const QUEST_KINDS: readonly QuestKind[] = ['main', 'side', 'everyday']
+/** The kind of a thread: one with none (everything before quests) is a side quest. */
+export const questKindOf = (t: Thread): QuestKind => (t.kind && QUEST_KINDS.includes(t.kind) ? t.kind : 'side')
+/** The limits when the plugin sends none (an older one): the defaults, with its one open-thread limit as the side limit. */
+export const questLimitsOf = (limits: QuestLimits | undefined, maxThreads?: number): QuestLimits =>
+  limits ?? { main: 1, side: maxThreads ?? 3, steps: 4, everydayTurns: 8, retireAfter: 3 }
+
+export interface QuestGroups {
+  /** each open main quest with its open steps and how many of its steps are done */
+  main: { quest: Thread; steps: Thread[]; done: number }[]
+  side: Thread[]
+  everyday: Thread[]
+  resolved: Thread[]
+}
+/** Open quests by kind, steps under their main quest; resolved ones apart (a resolved step is history, but counts as done). */
+export function questGroups(threads: Thread[]): QuestGroups {
+  const sorted = sortedThreads(threads)
+  const open = sorted.filter((t) => t.status === 'open')
+  const mains = open.filter((t) => !t.parent && questKindOf(t) === 'main')
+  return {
+    main: mains.map((quest) => ({
+      quest,
+      steps: open.filter((t) => t.parent === quest.id).reverse(),
+      done: sorted.filter((t) => t.status !== 'open' && t.parent === quest.id).length,
+    })),
+    side: open.filter((t) => !t.parent && questKindOf(t) === 'side'),
+    everyday: open.filter((t) => !t.parent && questKindOf(t) === 'everyday'),
+    resolved: sorted.filter((t) => t.status !== 'open'),
+  }
+}
+
+/** Is this kind full (a step: this main quest's steps)? Everyday quests have no limit. */
+export function questFull(limits: QuestLimits, threads: Thread[], kind: QuestKind, parent?: string): boolean {
+  const open = threads.filter((t) => t.status === 'open')
+  if (parent) return open.filter((t) => t.parent === parent).length >= limits.steps
+  const n = open.filter((t) => !t.parent && questKindOf(t) === kind).length
+  return kind === 'main' ? n >= limits.main : kind === 'side' ? n >= limits.side : false
+}
+
+/** The open quests a new one of this kind could replace (same kind, or the same main quest's steps). */
+export function questReplaceable(threads: Thread[], kind: QuestKind, parent?: string): Thread[] {
+  return threads.filter((t) => t.status === 'open' && (parent ? t.parent === parent : !t.parent && questKindOf(t) === kind))
+}
+
 /** The dashed zero ring and the outer edge of the constellation, in viewBox units (the box is 100 wide). */
 export const ZERO_RADIUS = 21.5
 export const EDGE_RADIUS = 43

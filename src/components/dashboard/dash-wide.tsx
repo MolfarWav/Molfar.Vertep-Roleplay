@@ -171,7 +171,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
           <Notebook id="dash-notebook" compact className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
             <Box data-guide="dash.threads" title={t('dash.threads')} tone="plot" icon={Flag}>
-              <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
+              <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} limits={view.limits} proposals={view.proposals} />
             </Box>
 
             <Box title={t('dash.ensemble')} tone="people" icon={UsersThree}>

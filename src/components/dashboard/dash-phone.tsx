@@ -121,7 +121,7 @@ export function DashPhoneSheet({ chatId, view, focus, onFocus, onRefresh, refres
             )}
             <div className="flex flex-col gap-1.5" data-guide="dash.threads">
               <ToneLabel tone="plot" icon={Flag}>{t('dash.threads')}</ToneLabel>
-              <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} />
+              <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} limits={view.limits} proposals={view.proposals} />
             </div>
             <Notices view={view} />
           </div>

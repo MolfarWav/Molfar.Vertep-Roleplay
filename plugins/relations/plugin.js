@@ -1904,9 +1904,17 @@ export function effectiveThreads(ov, base, turn) {
       }),
     );
   }
-  // a step lives under an open main quest; when that is gone (resolved, or no longer main) it stands alone
+  // a step lives under a main quest. While that is resolved the step goes with it (and comes back if the quest is
+  // reopened); when the parent is gone or is no longer main, the step stands alone
   for (const t of out) {
-    if (t.status === "open" && t.parent && !out.some((p) => p.id === t.parent && p.status === "open" && !p.parent && questKind(p) === "main")) delete t.parent;
+    if (t.status !== "open" || !t.parent) continue;
+    const p = out.find((x) => x.id === t.parent);
+    if (p && !p.parent && questKind(p) === "main") {
+      if (p.status !== "open") {
+        t.status = "resolved";
+        t.resolvedAt = Number.isFinite(num(p.resolvedAt)) ? num(p.resolvedAt) : turn || 0;
+      }
+    } else delete t.parent;
   }
   return out;
 }

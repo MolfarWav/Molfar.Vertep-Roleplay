@@ -4,11 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
-Quests, server side first (#117, with #86). The panel for them comes next.
+Quests (#117, with #86): the server side and the Dashboard panel.
 
 - Threads are quests: each is main, side or everyday, and a main quest can have steps. The sensor gives a new thread its kind; a thread with no kind (everything before this) is a side quest. Limits: 1 main (setting 1-2), 3 side (the old open-thread limit), 4 steps per main quest (1-6); everyday quests are not counted, at most 5 are open and each closes by itself after 8 turns (0-30, 0 = never).
 - A new quest above its limit is no longer dropped in silence: it waits as a proposal, and so does a quest you add yourself at a full limit (it used to fail). Accepting one at a full kind asks which open quest it replaces.
 - A main or side quest the story leaves alone through 3 thread checks (setting 0-10, 0 = never) gets a proposal to close. Nothing is closed without your word except everyday quests. "Keep open" asks again after as many turns as it took to get there.
+- The Quests box in the Dashboard (wide, strip and phone): main quests with their steps and a "N of M steps done" line, side quests with "3/3" counts, everyday ones folded, resolved ones folded. A Suggestions box lists what the story proposed (a new quest with no room: Add it / Not now, asking which open quest it replaces when its kind is full; a quest left alone: Close it / Keep open). Add quest has a kind choice and an (i) explanation, Add step sits under each main quest, the pencil edits text and kind. Dashboard settings got Main quests, Steps per main quest, Everyday quests end after, and Ask to close after; the guide tip and the Story, move texts say quests. Closing a main quest closes its open steps with it; reopening it brings them back.
 - The reply model gets main quests first with their steps, then side quests; everyday ones stay on the Dashboard.
 - The sensor prompt changed (the previous one is a past default, so a stored copy follows the update); the notes route has `proposal-accept` and `proposal-reject`.
 

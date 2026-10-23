@@ -130,12 +130,25 @@ describe("kinds and steps from the sensor's report", () => {
     expect(P.questKind({ kind: "nonsense" })).toBe("side");
   });
 
-  it("a step whose main quest is resolved stands alone", () => {
+  it("a step goes with its main quest when that is resolved, and comes back when it is reopened", () => {
     const mock = mockHost();
     play(mock, { open: [item("Find the key", "main")] });
     play(mock, { open: [item("Find the key", "main", undefined, "t1"), item("Search the cellar", "side", "t1")] });
-    const v = play(mock, { resolved: ["t1"], open: [item("Search the cellar", undefined, undefined, "t2")] });
-    expect(open(v).map((t: any) => [t.text, t.parent])).toEqual([["Search the cellar", undefined]]);
+    // the owner closes the main quest: its open step closes with it, it is not left as a side quest
+    notes(mock, { op: "thread-edit", id: "t1", status: "resolved" });
+    const v = view(mock);
+    expect(open(v)).toEqual([]);
+    expect(v.threads.find((t: any) => t.text === "Search the cellar")).toMatchObject({ status: "resolved", parent: "t1" });
+    notes(mock, { op: "thread-edit", id: "t1", status: "open" });
+    expect(open(view(mock)).map((t: any) => [t.text, t.parent])).toEqual([["Find the key", undefined], ["Search the cellar", "t1"]]);
+  });
+
+  it("a step whose main quest is no longer main stands alone", () => {
+    const mock = mockHost();
+    play(mock, { open: [item("Find the key", "main")] });
+    play(mock, { open: [item("Find the key", "main", undefined, "t1"), item("Search the cellar", "side", "t1")] });
+    notes(mock, { op: "thread-edit", id: "t1", kind: "side" });
+    expect(open(view(mock)).map((t: any) => [t.text, t.parent])).toEqual([["Find the key", undefined], ["Search the cellar", undefined]]);
   });
 });
 

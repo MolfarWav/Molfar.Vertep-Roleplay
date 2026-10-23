@@ -125,7 +125,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
 
           <div className={cn(section, 'flex flex-col gap-1.5')}>
             <ToneLabel tone="plot" icon={Flag}>{t('dash.threads')}</ToneLabel>
-            <ThreadList threads={sortedThreads(view.threads)} limit={3} openOnly editable={canEditNotes(view)} />
+            <ThreadList threads={sortedThreads(view.threads)} limit={3} openOnly editable={canEditNotes(view)} limits={view.limits} proposals={view.proposals} />
           </div>
 
           <div className={cn(section, 'flex flex-wrap items-center gap-1.5')}>
