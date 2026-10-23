@@ -430,3 +430,63 @@ describe("Story, move with quests and a twist (#117)", () => {
     expect(get().nudgeTwist).toBe(P.DEFAULT_PROMPTS.nudgeTwist);
   });
 });
+
+describe("event ids the sensor makes up (#86)", () => {
+  const ev = (id: string, extra: Record<string, unknown> = {}) => ({ id, weight: "routine", from: "user", to: "Aria", quote: "a line", ...extra });
+  const cfg = (m: Mock) => drive(m, { method: "GET", path: "/dashboard/config" }).json;
+
+  it("a close id is the known event; an unclear one stays other", () => {
+    const vocab = P.buildVocab([]);
+    expect(P.matchEventId("jealousy", vocab)).toBe("jealous_scene");
+    expect(P.matchEventId("check_on_her", vocab)).toBe("checked_on_her");
+    expect(P.matchEventId("kept_her_promise", vocab)).toBe("kept_promise");
+    expect(P.matchEventId("threatened", vocab)).toBe("threat");
+    expect(P.matchEventId("gave_gift", vocab)).toBe("gift");
+    // touched_her fits gentle_touch and unwanted_touch equally well: no guess
+    expect(P.matchEventId("touched_her", vocab)).toBeNull();
+    for (const bad of ["greeted", "", "the_her", "zzzz", "other"]) expect(P.matchEventId(bad, vocab)).toBeNull();
+  });
+
+  it("a report with made-up ids lands on the nearest event, or on other", () => {
+    const mock = mockHost();
+    const v = play(mock, null, { events: [ev("jealousy"), ev("check_on_her"), ev("greeted")] });
+    expect(v.events.map((e: any) => [e.id, e.family])).toEqual([["jealous_scene", "conflict"], ["checked_on_her", "warmth"], ["other", "other"]]);
+  });
+
+  it("what nobody could place is counted across chats, with the last quote; matched ids are not in it", () => {
+    const mock = mockHost();
+    play(mock, null, { events: [ev("greeted", { quote: "Hello there" }), ev("jealousy")] });
+    play(mock, null, { events: [ev("greeted", { quote: "Hi again" })] });
+    expect(cfg(mock).otherSeen).toMatchObject([{ id: "greeted", n: 2, quote: "Hi again" }]);
+    // once it is an event of its own, it leaves the list
+    drive(mock, { method: "PUT", path: "/dashboard/events", body: { events: [{ id: "greeted", family: "warmth", meaning: "said hello", deltas: { trust: 1 } }] } });
+    expect(cfg(mock).otherSeen).toEqual([]);
+  });
+
+  it("one id, or all of them, can be forgotten", () => {
+    const mock = mockHost();
+    play(mock, null, { events: [ev("greeted"), ev("waved")] });
+    expect(cfg(mock).otherSeen.map((r: any) => r.id).sort()).toEqual(["greeted", "waved"]);
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/other-seen", body: { id: "nope" } }).status).toBe(404);
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/other-seen", body: { id: "greeted" } }).json.otherSeen.map((r: any) => r.id)).toEqual(["waved"]);
+    expect(drive(mock, { method: "DELETE", path: "/dashboard/other-seen", body: {} }).json.otherSeen).toEqual([]);
+  });
+
+  it("a significant event with no quote counts as routine and the view says so; a quoted one and a pivotal one stay", () => {
+    const mock = mockHost();
+    const v = play(mock, null, { events: [ev("kept_promise", { weight: "significant", quote: "" }), ev("compliment", { weight: "significant", quote: "You did well" }), ev("kept_promise", { weight: "pivotal", quote: "" })] });
+    expect(v.events.map((e: any) => e.weight)).toEqual(["routine", "significant", "pivotal"]);
+    expect(v.keptOut).toMatchObject({ noQuote: 1, user: 0, absent: 0 });
+    // the next report that has none clears the notice
+    expect(play(mock, null, { events: [ev("compliment")] }).keptOut).toBeNull();
+  });
+
+  it("the list is bounded and ignores odd keys", () => {
+    const mock = mockHost();
+    play(mock, null, { events: Array.from({ length: 40 }, (_, i) => ev("odd_thing_" + String.fromCharCode(97 + (i % 26)) + i)).concat([ev("__proto__"), ev("Has Spaces!!")]) });
+    const rows = cfg(mock).otherSeen;
+    expect(rows.length).toBeLessThanOrEqual(30);
+    expect(rows.some((r: any) => r.id.startsWith("__"))).toBe(false);
+    expect(Object.getPrototypeOf(JSON.parse(fs.readFileSync(path.join(root, "dashboard/other-seen.json"), "utf8")).seen)).toBe(Object.prototype);
+  });
+});

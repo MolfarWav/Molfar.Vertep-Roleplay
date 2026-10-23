@@ -462,6 +462,13 @@ character saw, heard or guessed), `names` and `history`:
   `thread-edit {id, text?, status?, kind?, parent?}`, `proposal-accept {id, replace?}` (a full kind names the open quest
   it replaces) and `proposal-reject {id}`. The sensor's `threads.open` items may carry `kind` and `parent`; a kept
   thread ignores them.
+- Event ids the vocabulary does not have (#86): the sensor's id is first matched to the nearest known event (words of
+  the id compared by stem, at least half of each side's words, a tie means no match: `jealousy` is `jealous_scene`,
+  `check_on_her` is `checked_on_her`); what is still unknown counts as `other`. Those ids are counted across all chats
+  in `data/dashboard/other-seen.json`: `{ v: 1, seen: { "<id>": { n, at, quote } } }` (30 most seen ids,
+  lower-case words joined by `_`), listed in `GET /dashboard/config` as `otherSeen` without the ones that are events by
+  now; `DELETE /dashboard/other-seen {id?}` forgets one or all. A `significant` event with an empty quote counts as
+  `routine` (a `pivotal` one is kept); `keptOut.noQuote` says how many in the last report.
 - `inherited` (#100): present when the chat continues another one (the link in `data/litopys/links.json`):
   `{ from, title, at, turn, notes, threads, snap }` with `snap` = the earlier chat's last snapshot (numbers, moods,
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".

@@ -28,11 +28,11 @@ export function EventList({ events, userName, className, compact }: {
         <div className="text-sm text-muted-foreground">{t('dash.changed.none')}</div>
       ) : (
         <ul className="flex flex-col">
-          {events.map((ev) => {
+          {events.map((ev, i) => {
             const from = side(ev.from)
             const to = side(ev.to)
             return (
-              <li key={`${ev.id}|${ev.from}|${ev.to}|${ev.quote}`} className={cn('relative min-w-0 border-b border-dashed border-border py-2 pl-2.5 first:pt-0 last:border-b-0 last:pb-0', EDGE[ev.weight])}>
+              <li key={`${i}|${ev.id}|${ev.from}|${ev.to}|${ev.quote}`} className={cn('relative min-w-0 border-b border-dashed border-border py-2 pl-2.5 first:pt-0 last:border-b-0 last:pb-0', EDGE[ev.weight])}>
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                   <span className="font-heading text-sm break-words">{ev.id.replace(/_/g, ' ')}</span>
                   <span className={cn(chip, MARK[FAMILY_MARK[ev.family] ?? 'neutral'])}>{tx('dash.family', ev.family)}</span>

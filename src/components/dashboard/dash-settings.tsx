@@ -52,6 +52,8 @@ interface DashConfig {
   /** round 3 plugin: absent on an older one */
   maxThreads?: number
   threadCheckEvery?: number
+  /** event ids no one could place (#86): absent on an older plugin */
+  otherSeen?: OtherSeen[]
   /** quests (#117): absent on an older plugin */
   maxMain?: number
   maxSteps?: number
@@ -106,7 +108,9 @@ interface PromptMeta {
 }
 
 /** What the sections need besides the form and the rows. */
-interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean; questCfg: boolean; fastTokens: number | null }
+/** An event id the sensor used that the vocabulary does not have, and how often (#86). */
+export interface OtherSeen { id: string; n: number; at: number; quote: string }
+interface Meta extends PromptMeta { familyList: string[]; deltaKeys: string[]; threadCfg: boolean; questCfg: boolean; fastTokens: number | null; otherSeen: OtherSeen[] }
 
 interface Preview {
   insert: { text: string; tokens: number; budget: number; trimmed: string[]; notebookOf: string | null } | null
@@ -231,7 +235,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
    * sent: edits typed while it ran stay in the form and stay unsaved against the new base.
    */
   const apply = useCallback((c: DashConfig, what: { form?: boolean; rows?: boolean; sentForm?: Form; sentRows?: VocabRow[] }) => {
-    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, questCfg: c.maxMain !== undefined, fastTokens: typeof c.fastTokens === 'number' ? c.fastTokens : null, ...promptMeta(c) })
+    setMeta({ familyList: c.familyList ?? [], deltaKeys: c.deltaKeys ?? [], threadCfg: c.maxThreads !== undefined, questCfg: c.maxMain !== undefined, otherSeen: c.otherSeen ?? [], fastTokens: typeof c.fastTokens === 'number' ? c.fastTokens : null, ...promptMeta(c) })
     if (what.form) {
       const f = pickForm(c)
       setFormBase(f)
@@ -361,6 +365,13 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
     } catch (e) { fail(e) }
   }
 
+  const ignoreSeen = async (id?: string) => {
+    try {
+      const r = await j<{ otherSeen?: OtherSeen[] }>('/dashboard/other-seen', { method: 'DELETE', body: JSON.stringify(id ? { id } : {}) })
+      setMeta((m) => (m ? { ...m, otherSeen: r.otherSeen ?? [] } : m))
+    } catch (e) { fail(e) }
+  }
+
   const restoreAllRows = async () => {
     if (!(await confirm({ title: t('dash.set.restoreAllTitle'), description: t('dash.set.restoreAllBody'), actionLabel: t('dash.set.restoreAll') }))) return
     try {
@@ -394,7 +405,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
   } else if (section === 'events') {
     body = (
       <EventsSection
-        meta={meta} rows={rows} setRows={setRows} saving={saving}
+        meta={meta} rows={rows} setRows={setRows} saving={saving} onIgnore={ignoreSeen}
         dirty={!same(eventsPayload(rows), eventsPayload(rowsBase))} onSave={saveRows} onReset={resetRow} onRestoreAll={restoreAllRows}
       />
     )
@@ -837,9 +848,17 @@ function EventRowView({ row, meta, open, onOpen, onChange, onReset, onDelete }: 
   )
 }
 
-function AddEvent({ meta, rows, onAdd }: { meta: Meta; rows: VocabRow[]; onAdd: (r: VocabRow) => void }) {
+function AddEvent({ meta, rows, onAdd, startId, onStarted }: { meta: Meta; rows: VocabRow[]; onAdd: (r: VocabRow) => void; startId?: string | null; onStarted?: () => void }) {
   const t = useT()
   const [draft, setDraft] = useState<VocabRow | null>(null)
+  const box = useRef<HTMLDivElement>(null)
+  // "Add as event" on a not-recognised id opens the form with that id filled in
+  useEffect(() => {
+    if (!startId) return
+    setDraft({ id: startId, family: meta.familyList[0] ?? 'trust', meaning: '', deltas: {}, source: 'custom', off: false })
+    onStarted?.()
+  }, [startId, meta.familyList, onStarted])
+  useEffect(() => { if (draft) box.current?.scrollIntoView({ block: 'nearest' }) }, [draft === null])
   if (!draft) {
     return (
       <Button size="sm" variant="outline" className={cn(FIELD, 'w-fit')} onClick={() => setDraft({ id: '', family: meta.familyList[0] ?? 'trust', meaning: '', deltas: {}, source: 'custom', off: false })}>
@@ -850,7 +869,7 @@ function AddEvent({ meta, rows, onAdd }: { meta: Meta; rows: VocabRow[]; onAdd: 
   const idError = draft.id === '' ? null : !ID_RE.test(draft.id) ? t('dash.set.idInvalid') : rows.some((r) => r.id === draft.id) ? t('dash.set.idTaken') : null
   const ready = ID_RE.test(draft.id) && !idError && draft.meaning.trim() !== ''
   return (
-    <div className="flex flex-col gap-2 border border-cta bg-card p-2.5">
+    <div ref={box} className="flex scroll-mb-16 flex-col gap-2 border border-cta bg-card p-2.5">
       <EventFields row={draft} meta={meta} onChange={(p) => setDraft({ ...draft, ...p })} onId={(id) => setDraft({ ...draft, id })} idError={idError} />
       <div className="flex gap-2">
         <Button size="sm" className={FIELD} disabled={!ready} onClick={() => { onAdd({ ...draft, meaning: draft.meaning.trim() }); setDraft(null) }}>{t('dash.set.addRow')}</Button>
@@ -860,10 +879,11 @@ function AddEvent({ meta, rows, onAdd }: { meta: Meta; rows: VocabRow[]; onAdd: 
   )
 }
 
-function EventsSection({ meta, rows, setRows, saving, dirty, onSave, onReset, onRestoreAll }: {
+function EventsSection({ meta, rows, setRows, saving, dirty, onSave, onReset, onRestoreAll, onIgnore }: {
   meta: Meta
   rows: VocabRow[]
   setRows: (f: (cur: VocabRow[]) => VocabRow[]) => void
+  onIgnore: (id?: string) => void
   saving: boolean
   dirty: boolean
   onSave: () => void
@@ -874,7 +894,10 @@ function EventsSection({ meta, rows, setRows, saving, dirty, onSave, onReset, on
   const tx = useTx()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [startId, setStartId] = useState<string | null>(null)
   const q = query.trim().toLowerCase()
+  // an id already taken by a row (added meanwhile, not saved yet) is not offered again
+  const unseen = meta.otherSeen.filter((o) => !rows.some((r) => r.id === o.id))
   const shown = rows.filter((r) => !q || r.id.includes(q) || r.meaning.toLowerCase().includes(q))
   const order = [...meta.familyList, ...new Set(rows.map((r) => r.family).filter((f) => !meta.familyList.includes(f)))]
 
@@ -908,7 +931,29 @@ function EventsSection({ meta, rows, setRows, saving, dirty, onSave, onReset, on
           )
         })}
         {shown.length === 0 && <p className="text-sm text-muted-foreground">{t('dash.set.noEvents')}</p>}
-        <AddEvent meta={meta} rows={rows} onAdd={(r) => { setRows((cur) => [...cur, r]); setOpen(r.id); setQuery('') }} />
+        {unseen.length > 0 && (
+          <section className="flex flex-col gap-1.5 border border-amber-500/50 bg-amber-500/10 p-2.5" data-testid="events-unseen">
+            <h3 className="font-heading text-[13px]">{t('dash.set.unseen')}</h3>
+            <p className="text-[11px] text-muted-foreground">{t('dash.set.unseen.note')}</p>
+            <ul className="flex flex-col gap-2">
+              {unseen.map((o) => (
+                <li key={o.id} className="flex flex-col gap-1.5 text-xs">
+                  <span className="flex flex-wrap items-baseline gap-x-2">
+                    <code className="break-all font-mono">{o.id}</code>
+                    <span className="text-[11px] text-muted-foreground">{t('dash.set.unseen.seen', { n: o.n })}</span>
+                  </span>
+                  {o.quote && <span className="break-words text-[11px] text-muted-foreground">“{o.quote}”</span>}
+                  <span className="flex gap-2">
+                    <Button size="sm" className={cn(FIELD, 'max-md:min-h-10')} onClick={() => setStartId(o.id)}>{t('dash.set.unseen.add')}</Button>
+                    <Button size="sm" variant="ghost" className={cn(FIELD, 'max-md:min-h-10')} onClick={() => onIgnore(o.id)}>{t('dash.set.unseen.ignore')}</Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {unseen.length > 1 && <Button size="sm" variant="outline" className={cn(FIELD, 'w-fit max-md:min-h-10')} onClick={() => onIgnore()}>{t('dash.set.unseen.ignoreAll')}</Button>}
+          </section>
+        )}
+        <AddEvent meta={meta} rows={rows} startId={startId} onStarted={() => setStartId(null)} onAdd={(r) => { setRows((cur) => [...cur, r]); setOpen(r.id); setQuery('') }} />
       </div>
       <SaveBar dirty={dirty} saving={saving} onSave={onSave}>
         <Button size="sm" variant="outline" className={FIELD} onClick={onRestoreAll}>{t('dash.set.restoreAll')}</Button>

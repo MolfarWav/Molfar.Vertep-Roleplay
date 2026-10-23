@@ -146,7 +146,7 @@ export interface DashView {
   usage: { calls: number; inTokens: number; outTokens: number; lastMs: number }
   lastError: { at: number; message: string } | null
   /** facts the last report wrote that could not be kept: for the user's own character, or for someone not in the scene (#97); null when all were kept */
-  keptOut?: { at: number; turn: number; user: number; absent: number } | null
+  keptOut?: { at: number; turn: number; user: number; absent: number; /** significant events that came with no quote and counted as routine (#86) */ noQuote?: number } | null
   /** the earlier chat this one continues and whether its Dashboard state was carried in (#100); absent when it continues nothing */
   inherit?: DashInherit | null
   /** what the next reply's prompt insert would weigh; null when there is none */

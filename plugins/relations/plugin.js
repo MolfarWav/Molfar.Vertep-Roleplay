@@ -26,6 +26,7 @@
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
  *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
+ *  DELETE /dashboard/other-seen {id?}      forget one event id the sensor invented that nobody could place, or all (GET /dashboard/config lists them as otherSeen)
  *  DELETE /dashboard/events                back to the default vocabulary
  *
  * Souls (docs/SOUL.md): who a character is. A card holds them; a rating call proposes them.
@@ -790,6 +791,74 @@ const userEventRows = (fsx) => {
   return isObj(raw) ? arr(raw.events) : [];
 };
 const loadVocab = (fsx) => buildVocab(userEventRows(fsx));
+
+// ---------- ids the sensor made up (#86): a close match counts as the known event ----------
+// "jealousy" is jealous_scene, "check_on_her" is checked_on_her. Words of the id are compared by stem; a match needs at
+// least half of each side's words, and two equally good candidates mean no match (the event stays "other").
+const ID_STOP = new Set(["her", "his", "him", "their", "them", "she", "he", "it", "the", "a", "an", "to", "on", "of", "up", "at", "for", "with", "and", "in", "my", "your", "you", "user"]);
+const idStem = (w) => (w.length > 4 ? w.replace(/(ing|ed|es|s)$/, "") : w);
+const idTokens = (id) => unique(String(id).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !ID_STOP.has(w)).map(idStem));
+function tokenLike(a, b) {
+  if (a === b) return true;
+  const m = Math.min(a.length, b.length);
+  if (m < 5) return false;
+  let i = 0;
+  while (i < m && a[i] === b[i]) i++;
+  return i >= m - 1;
+}
+const idTokenCache = new WeakMap();
+/** The id of the known event this made-up id stands for, or null. */
+export function matchEventId(raw, vocab) {
+  const u = idTokens(raw);
+  if (!u.length) return null;
+  let known = idTokenCache.get(vocab);
+  if (!known) {
+    known = Object.keys(vocab).filter((id) => id !== "other").map((id) => ({ id, tokens: idTokens(id) }));
+    idTokenCache.set(vocab, known);
+  }
+  let best = null;
+  let tie = false;
+  for (const c of known) {
+    if (!c.tokens.length) continue;
+    const mu = u.filter((x) => c.tokens.some((y) => tokenLike(x, y))).length;
+    const mc = c.tokens.filter((y) => u.some((x) => tokenLike(x, y))).length;
+    if (mu / u.length < 0.5 || mc / c.tokens.length < 0.5) continue;
+    const score = mu / u.length + mc / c.tokens.length;
+    if (!best || score > best.score) {
+      best = { id: c.id, score };
+      tie = false;
+    } else if (score === best.score) tie = true;
+  }
+  return best && !tie ? best.id : null;
+}
+
+// the ids no one could place, across all chats: what the sensor keeps inventing, to turn into events or ignore
+const OTHER_SEEN_FILE = "dashboard/other-seen.json";
+const OTHER_SEEN_MAX = 30;
+function noteUnknownEvents(fsx, ids, quotes) {
+  if (!ids.length) return;
+  try {
+    const raw = readJson(fsx, OTHER_SEEN_FILE, null);
+    const seen = isObj(raw) && isObj(raw.seen) ? raw.seen : {};
+    for (const id of unique(ids)) {
+      const key = str(id).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
+      if (!key || key.startsWith("__")) continue;
+      const was = ownKey(seen, key) && isObj(seen[key]) ? seen[key] : { n: 0 };
+      seen[key] = { n: (num(was.n) || 0) + 1, at: Date.now(), quote: cut(str(quotes && quotes[id]), 200) || str(was.quote) };
+    }
+    const rows = Object.entries(seen).sort((a, b) => b[1].n - a[1].n || b[1].at - a[1].at).slice(0, OTHER_SEEN_MAX);
+    fsx.write(OTHER_SEEN_FILE, JSON.stringify({ v: 1, seen: Object.fromEntries(rows) }, null, 2));
+  } catch {}
+}
+/** For the UI: the ids not recognised, most seen first, without the ones that are events by now. */
+function otherSeenRows(fsx, vocab) {
+  const raw = readJson(fsx, OTHER_SEEN_FILE, null);
+  const seen = isObj(raw) && isObj(raw.seen) ? raw.seen : {};
+  return Object.entries(seen)
+    .filter(([id, v]) => isObj(v) && !vocab[id] && !matchEventId(id, vocab))
+    .map(([id, v]) => ({ id, n: num(v.n) || 1, at: num(v.at) || 0, quote: str(v.quote) }))
+    .sort((a, b) => b.n - a.n || b.at - a.at);
+}
 
 const sameRow = (a, b) => a.family === b.family && a.meaning === b.meaning && canonJson(a.deltas) === canonJson(b.deltas);
 
@@ -2553,18 +2622,30 @@ function readEvents(list, ctx, known, unknownIds) {
     // small models sometimes copy the family in front: "trust.shared_secret"
     const raw = str(e.id);
     const id = ctx.vocab[raw] ? raw : raw.slice(raw.lastIndexOf(".") + 1).trim();
-    const entry = ctx.vocab[id];
+    const quote = cut(str(e.quote), 200);
+    // an id the vocabulary does not have, but one known event is plainly meant by it (#86)
+    const entry = ctx.vocab[id] || (raw && ctx.vocab[matchEventId(id, ctx.vocab)]) || undefined;
     // a family switched off for this chat counts as "other"
     const def = entry && ctx.cfg.families[entry.family] !== false ? entry : null;
-    if (!entry && raw) unknownIds.push(raw);
+    if (!entry && raw) {
+      unknownIds.push(raw);
+      if (!ctx.unknownQuotes) ctx.unknownQuotes = {};
+      ctx.unknownQuotes[raw] = quote;
+    }
     const use = def || ctx.vocab.other;
+    // "significant" is a claim about what people will remember: with no line from the text to show for it, it counts as routine
+    let weight = WEIGHTS[e.weight] ? e.weight : "routine";
+    if (weight === "significant" && !quote) {
+      weight = "routine";
+      ctx.noQuote = (ctx.noQuote || 0) + 1;
+    }
     events.push({
       id: use.id,
       family: use.family,
-      weight: WEIGHTS[e.weight] ? e.weight : "routine",
+      weight,
       from: sideOf(e.from, userAll(ctx), known),
       to: sideOf(e.to, userAll(ctx), known),
-      quote: cut(str(e.quote), 200),
+      quote,
       math: [],
     });
   }
@@ -3418,8 +3499,10 @@ function commitUpdate(fsx, ctx, r) {
     ctx.state.lastError = null;
     // facts the sensor wrote that could not be kept: the dashboard says so until a report keeps all (#97)
     const kept = ctx.keptOut || { user: 0, absent: 0 };
-    ctx.state.keptOut = kept.user || kept.absent ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent } : null;
+    const lowered = ctx.noQuote || 0;
+    ctx.state.keptOut = kept.user || kept.absent || lowered ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent, ...(lowered ? { noQuote: lowered } : {}) } : null;
     saveState(fsx, ctx);
+    noteUnknownEvents(fsx, unknownIds, ctx.unknownQuotes);
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds, keptOut: kept });
     return ok({ ok: true, state: ctx.state, snapshot: ctx.K, turn: snapshot.turn, ms: ctx.state.usage.lastMs, ...(ctx.reread ? { reread: ctx.reread } : {}) });
   } catch (e) {
@@ -4679,6 +4762,7 @@ function configBody(fsx) {
     fast: promptOf("fast", cfg),
     custom: customPrompts(fsx),
     events: vocabRows(userEventRows(fsx)),
+    otherSeen: otherSeenRows(fsx, loadVocab(fsx)),
     deltaKeys: DELTA_KEYS,
     familyList: FAMILIES,
   };
@@ -4866,6 +4950,25 @@ function notesRoute(req, fsx) {
   return ok({ ok: true, ...(queued ? { queued: true } : {}), view: existed ? viewOf(fsx, chatId) : null });
 }
 
+/** DELETE /dashboard/other-seen {id?}: forget one unrecognised id, or all of them. */
+function clearOtherSeen(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const q = isObj(req.query) ? req.query : {};
+  const id = str(b.id !== undefined ? b.id : q.id);
+  const raw = readJson(fsx, OTHER_SEEN_FILE, null);
+  const seen = isObj(raw) && isObj(raw.seen) ? raw.seen : {};
+  if (id) {
+    if (!ownKey(seen, id)) return ok({ error: "no such id" }, 404);
+    delete seen[id];
+    fsx.write(OTHER_SEEN_FILE, JSON.stringify({ v: 1, seen }, null, 2));
+  } else {
+    try {
+      fsx.remove(OTHER_SEEN_FILE);
+    } catch {}
+  }
+  return ok({ ok: true, otherSeen: otherSeenRows(fsx, loadVocab(fsx)) });
+}
+
 function putEvents(req, fsx) {
   const b = isObj(req.body) ? req.body : {};
   const list = arr(b.events);
@@ -4959,6 +5062,7 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/config" && method === "GET") return ok(configBody(fsx));
   if (path === "/dashboard/config" && method === "PUT") return putConfig(req, fsx);
   if (path === "/dashboard/events" && method === "PUT") return putEvents(req, fsx);
+  if (path === "/dashboard/other-seen" && method === "DELETE") return clearOtherSeen(req, fsx);
   if (path === "/dashboard/events" && method === "DELETE") {
     writeEventRows(fsx, []);
     return ok(configBody(fsx));

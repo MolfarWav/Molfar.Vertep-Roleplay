@@ -190,6 +190,7 @@ export function Notices({ view, className }: { view: DashView; className?: strin
       {view.lastError && <DashError message={view.lastError.message} />}
       {kept && kept.user > 0 && <span className="text-amber-700 dark:text-amber-300" data-testid="dash-kept-user">{t('dash.keptUser', { n: kept.user })}</span>}
       {kept && kept.absent > 0 && <span className="text-amber-700 dark:text-amber-300" data-testid="dash-kept-absent">{t('dash.keptAbsent', { n: kept.absent })}</span>}
+      {kept && (kept.noQuote ?? 0) > 0 && <span className="text-amber-700 dark:text-amber-300" data-testid="dash-kept-noquote">{t('dash.keptNoQuote', { n: kept.noQuote ?? 0 })}</span>}
     </div>
   )
 }
