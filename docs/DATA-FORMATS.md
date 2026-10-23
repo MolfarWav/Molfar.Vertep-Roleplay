@@ -444,6 +444,23 @@ character saw, heard or guessed), `names` and `history`:
   it (the entry counts only while that message is on the chat's line), `source` is `chat` today and may be another kind
   of writer later. Its own part in the reply prompt (`Dashboard · said`), not the notebook's budget. The sensor
   reports it in the `said` list; `said.perTurn` (1-4, default 1; the sensor also gives each a `strength` 1-3 and only 2 or 3 is kept, one kind per speaker within 3 turns counts once, a speaker holds about 8 live entries, a line the Notebook holds is skipped) and `said.inject` are in `data/dashboard/config.json`.
+- Threads are quests (#117). A thread in a snapshot's `threads` is `{ id, text, since, status: open|resolved, kind?,
+  parent?, checked?, keptAt?, by?, resolvedAt? }`. `kind` is `main`, `side` or `everyday` (missing = `side`, so every
+  older file reads as side quests); `parent` is the id of an open main quest and makes the thread a step of it (a step
+  whose main quest is closed stands alone). Limits (config): `maxMain` 1-2 (default 1), `maxThreads` 1-6 side quests
+  (default 3), `maxSteps` 1-6 per main quest (default 4); everyday ones are not counted, at most 5 stay open and each
+  is closed by code after `everydayTurns` (0-30, default 8; 0 = never). `checked` counts Thread checks the story left
+  the thread unchanged; at `retireAfter` (0-10, default 3; 0 = never) a main or side quest gets a `close` proposal.
+  `keptAt` is the turn the owner said "keep open".
+- `proposals`: `[ { id: "p1", type: "open"|"close", why: "limit"|"stale", turn, text, kind?, parent?, threadId? } ]`,
+  at most 8, newest last; `proposalsDropped` counts unanswered ones pushed out. An `open` proposal is a new quest that
+  did not fit its limit (it is kept, not lost); a `close` proposal is a quest the story left alone. The owner's
+  answers live in the notes overlay `data/dashboard/notes/<chatId>.json` (`threads.dismissed` ids, `threads.queued`
+  quests the owner added at a full limit, `threads.added[].kind|parent|proposed`, `threads.edits[id].kind|parent|keptAt`),
+  never in this file. Ops of `POST /dashboard/notes`: `thread-add {text, kind?, parent?}` (a full limit queues it),
+  `thread-edit {id, text?, status?, kind?, parent?}`, `proposal-accept {id, replace?}` (a full kind names the open quest
+  it replaces) and `proposal-reject {id}`. The sensor's `threads.open` items may carry `kind` and `parent`; a kept
+  thread ignores them.
 - `inherited` (#100): present when the chat continues another one (the link in `data/litopys/links.json`):
   `{ from, title, at, turn, notes, threads, snap }` with `snap` = the earlier chat's last snapshot (numbers, moods,
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".

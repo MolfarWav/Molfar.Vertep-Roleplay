@@ -442,7 +442,7 @@ describe("update route", () => {
     expect(s1.clock).toMatchObject({ day: 1, minutes: 10, place: "Hall" });
     expect(s1.events[0]).toMatchObject({ id: "kept_promise", family: "trust", weight: "significant", from: "user", to: "Aria" });
     expect(s1.events[0].math).toContain("x2 significant");
-    expect(s1.threads).toEqual([{ id: "t1", text: "Who has the key?", since: 1, status: "open" }]);
+    expect(s1.threads).toEqual([{ id: "t1", text: "Who has the key?", since: 1, status: "open", kind: "side" }]);
     expect(st.notebook.Aria[0]).toMatchObject({ id: "n1", how: "saw", src: "m3#0", turn: 1 });
     expect(st.usage).toEqual({ calls: 1, inTokens: 100, outTokens: 20, lastMs: 42 });
     expect(st.lastError).toBeNull();
@@ -488,7 +488,7 @@ describe("update route", () => {
     expect(req.systemPrompt).toContain("\"open\": [ { \"id\": \"t1 or null\"");
     expect(req.systemPrompt.endsWith("Leave out any key the new messages give nothing for.")).toBe(true);
     const user = req.messages[0].content as string;
-    expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\nOpen thread limit: 3.\n\nNew messages\n[user] Hello.")).toBe(true);
+    expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\nOpen thread limits: main 0/1, side 0/3, steps per main thread 4 (everyday threads are not counted).\n\nNew messages\n[user] Hello.")).toBe(true);
     expect(CYRILLIC.test(req.systemPrompt)).toBe(false);
   });
 
@@ -3260,9 +3260,9 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(13);
+    expect(past.length).toBe(14);
     expect(past[4]).toContain("Keep up to three open threads");
-    expect(text).toContain("the open thread limit given in the input");
+    expect(text).toContain("the open thread limits given in the input");
     expect(text).not.toContain("three open threads");
     expect(past[3]).toContain("already knows the user's character personally");
     expect(past[3]).not.toContain("the exact form of address");
@@ -3617,16 +3617,19 @@ describe("the user's notes and threads (overlay)", () => {
     const mock = started();
     const add = notes(mock, { op: "thread-add", text: "Find the missing letter" });
     expect(add.json.view.threads.find((t: any) => t.id === "ut1")).toMatchObject({ text: "Find the missing letter", status: "open", by: "user" });
-    // limit 3: t1 and ut1 are open, one more fits, the next is refused
+    // limit 3: t1 and ut1 are open, one more fits, the next waits among the proposals
     expect(notes(mock, { op: "thread-add", text: "Second" }).status).toBe(200);
-    expect(notes(mock, { op: "thread-add", text: "Third" }).status).toBe(409);
+    const third = notes(mock, { op: "thread-add", text: "Third" });
+    expect(third.status).toBe(200);
+    expect(third.json.queued).toBe(true);
+    expect(third.json.view.proposals).toMatchObject([{ type: "open", why: "limit", by: "user", text: "Third" }]);
     expect(notes(mock, { op: "thread-add", text: "  " }).status).toBe(400);
     writeChat("c1", grow(2));
     mock.push(reply({ present: ["Aria"], minutes: 1, threads: { resolved: ["ut1"], open: [{ id: "t1", text: "Who has the key?" }] } }));
     update(mock, "c1");
     const input = mock.requests.at(-1)!.req.messages[0].content as string;
-    expect(input).toContain('ut1 "Find the missing letter"');
-    expect(input).toContain('ut2 "Second"');
+    expect(input).toContain('ut1 [side] "Find the missing letter"');
+    expect(input).toContain('ut2 [side] "Second"');
     const snap = readStateFile("c1").snapshots["x1#0"];
     expect(snap.threads.find((t: any) => t.id === "ut1").status).toBe("resolved");
     expect(snap.threads.find((t: any) => t.id === "ut2")).toMatchObject({ status: "open", by: "user" });
@@ -3661,7 +3664,7 @@ describe("the user's notes and threads (overlay)", () => {
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: 2 } });
     update(mock, "c1");
     expect(readStateFile("c1").snapshots["m3#0"].threads.length).toBe(2);
-    expect(notes(mock, { op: "thread-add", text: "More" }).status).toBe(409);
+    expect(notes(mock, { op: "thread-add", text: "More" }).json.queued).toBe(true);
     const body = (v: unknown) => drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: v } }).json.maxThreads;
     expect([body(9), body(0), body("x"), body(3)]).toEqual([6, 1, 1, 3]);
     expect(stored().maxThreads).toBeUndefined();
@@ -3896,12 +3899,12 @@ describe("overlay keys and the open thread limit line", () => {
     writeChat("c1", three());
     const mock = mockHost([keptPromise, reply({ present: ["Aria"], minutes: 1 })]);
     update(mock, "c1");
-    expect(mock.requests[0]!.req.messages[0].content).toContain("Open thread limit: 3.");
+    expect(mock.requests[0]!.req.messages[0].content).toContain("/3, steps per main thread 4");
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: 5 } });
     writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes.")]);
     update(mock, "c1");
-    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Open thread limit: 5.");
-    expect(P.DEFAULT_PROMPTS.sensor).toContain("up to the open thread limit given in the input");
+    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("/5, steps per main thread 4");
+    expect(P.DEFAULT_PROMPTS.sensor).toContain("up to the open thread limits given in the input");
   });
 });
 
@@ -4275,8 +4278,8 @@ describe("fast mode", () => {
     expect(text).toContain("</vertep_state>");
     for (const head of ["Truth:", "Events:", "Scene:", "Knowledge:", "Threads:", "Event vocabulary\n", "Output shape\n", "Characters\nuser: You.", "Previous state\n"]) expect(text).toContain(head);
     expect(text).toContain("kept_promise");
-    expect(text).toContain("Open threads: t1 \"Who has the key?\"");
-    expect(text).toContain("Open thread limit: 3.");
+    expect(text).toContain("Open threads: t1 [side] \"Who has the key?\"");
+    expect(text).toContain("Open thread limits: main 0/1, side 1/3, steps per main thread 4");
     expect(text).toContain("Aria (ally)");
     expect(text).toContain("Present: Aria.");
     // not the sensor's own role, language or size lines
@@ -4765,9 +4768,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-5)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-6)!;
     expect(ninth).not.toContain("Direction:");
-    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-4)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-5)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -4797,7 +4800,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-8)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-9)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -4851,10 +4854,10 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(text).toContain("the full list of the other characters, never the user's character itself");
     expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-3)!;
+    const before = past.at(-4)!;
     expect(before).not.toContain("never the user's character itself");
     expect(before).toContain("(who, what)");
-    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-4));
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-5));
   });
 
   it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {

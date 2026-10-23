@@ -36,7 +36,22 @@ export interface DashEvent {
 }
 
 /** A thread; `by: 'user'` when the user added it (round 3 plugin). */
-export interface Thread { id: string; text: string; since: number; status: 'open' | 'resolved'; by?: 'user'; /** the turn it closed on (resolved threads stay as history, the newest 20) */ resolvedAt?: number }
+export interface Thread {
+  id: string
+  text: string
+  since: number
+  status: 'open' | 'resolved'
+  by?: 'user'
+  /** quests (#117): missing = side; a thread with a parent is a step of that open main quest */
+  kind?: QuestKind
+  parent?: string
+  /** the turn it closed on (resolved threads stay as history, the newest 20) */
+  resolvedAt?: number
+}
+export type QuestKind = 'main' | 'side' | 'everyday'
+/** What waits for the user (#117, #86): a quest that did not fit its limit, or one the story left alone. */
+export interface QuestProposal { id: string; type: 'open' | 'close'; why: 'limit' | 'stale'; text: string; kind: QuestKind; parent?: string; threadId?: string; by?: 'user'; turn: number }
+export interface QuestLimits { main: number; side: number; steps: number; everydayTurns: number; retireAfter: number }
 export interface Edge { from: string; to: string; role: string; warmth: string }
 export type NoteTag = 'pinned' | 'important' | 'everyday'
 export const NOTE_TAGS: readonly NoteTag[] = ['pinned', 'important', 'everyday']
@@ -140,6 +155,10 @@ export interface DashView {
   mode: 'sensor' | 'fast' | 'manual' | string
   /** the open-thread limit (config `maxThreads`), when the plugin says */
   maxThreads?: number
+  /** proposals waiting for the user and the quest limits (#117); absent on an older plugin */
+  proposals?: QuestProposal[]
+  proposalsDropped?: number
+  limits?: QuestLimits
   /** the newest snapshot was read from the story reply itself (fast mode), not by a sensor call; absent on an older plugin */
   fast?: boolean
   /** the pending "Story, move" nudge (threadId null = all open threads); absent on an older plugin */

@@ -168,7 +168,7 @@ describe("memory prompts write English (user, 2026-10-07)", () => {
       expect(text).toContain("in its own script");
     }
     expect(R.DEFAULT_PROMPTS.sensor).toContain("label: 2 to 5 words in English");
-    expect(R.PAST_DEFAULT_PROMPTS.sensor.at(-7)).toContain("in the language the story is written in");
+    expect(R.PAST_DEFAULT_PROMPTS.sensor.at(-8)).toContain("in the language the story is written in");
     expect(R.PAST_DEFAULT_PROMPTS.fast[0]).toContain("in the language the story is written in");
   });
 

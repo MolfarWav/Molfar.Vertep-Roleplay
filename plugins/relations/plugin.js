@@ -24,7 +24,7 @@
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
- *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit)
+ *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/events                back to the default vocabulary
  *
@@ -544,6 +544,15 @@ const SAID_RULE_13 =
 const SAID_RULE =
   "- said: only a statement that binds the speaker or changes the story, and rarely more than one a turn: a vow or promise, a threat, a confession of something hidden or a revealed secret, an order that binds someone, a refusal that closes a door, a lie they told. NOT said, never report: a greeting or an introduction (\"I am the keeper of this glade\"), an ordinary request or question, a warning with no threat behind it, a description of habits, feelings or things, small talk, a joke, anything the Notebook already holds. Fields: who: the speaker, one of those present and never the user's character; text: a short quote or a close paraphrase in the character's own words; kind: one of vow, promise, threat, confession, secret, order, refusal, lie; strength: 1 to 3 (3 = the story will hinge on it, 2 = it matters, 1 = minor; report only 2 or 3). Set lie to true only when the text itself shows the statement is a lie. None when nothing strong was said, which is most turns.";
 
+// How threads become quests (#117): a kind for each new one, and steps under a main one.
+const QUEST_RULES = [
+  "- Keep open threads, up to the open thread limits given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.",
+  "- Give each new thread a kind: main (what the story is about now), side (an optional line the story could drop) or everyday (a small errand or chore of the moment, gone in a few turns). Kept threads keep their kind.",
+  "- A concrete next step of a main thread is a new thread with parent set to that main thread's id. Only main threads have steps.",
+];
+// the wording before quests: one limit, no kinds
+const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.";
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -587,7 +596,7 @@ export const DEFAULT_PROMPTS = {
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
     "",
     "Threads:",
-    "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.",
+    ...QUEST_RULES,
     "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
     "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
     "- In \"open\", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.",
@@ -619,10 +628,12 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The fourteenth sensor prompt (before threads became quests with kinds and steps, #117).
+const SENSOR_PROMPT_14 = DEFAULT_PROMPTS.sensor.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
 // The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
-const SENSOR_PROMPT_13 = DEFAULT_PROMPTS.sensor.replace(SAID_RULE, SAID_RULE_13);
+const SENSOR_PROMPT_13 = SENSOR_PROMPT_14.replace(SAID_RULE, SAID_RULE_13);
 // The twelfth sensor prompt (before the `said` list of what a character said, #98).
-const SENSOR_PROMPT_12 = DEFAULT_PROMPTS.sensor.replace(SAID_RULE + "\n", "");
+const SENSOR_PROMPT_12 = SENSOR_PROMPT_14.replace(SAID_RULE + "\n", "");
 // The eleventh sensor prompt (before it said that `who` of a learned fact is a present character and never the user's, and that present never lists the user, #97).
 const SENSOR_PROMPT_11 = SENSOR_PROMPT_12
   .replace("the full list of the other characters, never the user's character itself, [] when the user's character is alone.", "the full list, [] when the user's character is alone.")
@@ -678,7 +689,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -693,7 +704,7 @@ const OUTPUT_SHAPE = [
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
   "  \"retire\": [\"entry id\"],",
   "  \"names\": [ { \"who\": \"name\", \"heardUserName\": true, \"calls\": \"text\" } ],",
-  "  \"threads\": { \"open\": [ { \"id\": \"t1 or null\", \"text\": \"...\" } ], \"resolved\": [\"thread id\"] },",
+  "  \"threads\": { \"open\": [ { \"id\": \"t1 or null\", \"text\": \"...\", \"kind\": \"main|side|everyday\", \"parent\": \"main thread id, only for a step\" } ], \"resolved\": [\"thread id\"] },",
   "  \"blindSpot\": { \"name\": \"text\" },",
   "  \"edges\": [ { \"from\": \"name\", \"to\": \"name\", \"role\": \"word\", \"warmth\": \"word\" } ] }",
 ].join("\n");
@@ -1398,7 +1409,8 @@ function emptyState(chatId) {
     names: {},
     history: {},
     said: {},
-    counters: { note: 0, thread: 0, said: 0 },
+    counters: { note: 0, thread: 0, said: 0, proposal: 0 },
+    proposals: [],
     lastError: null,
     usage: { calls: 0, inTokens: 0, outTokens: 0, lastMs: 0 },
   };
@@ -1413,6 +1425,7 @@ function normalizeState(raw, chatId) {
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
   if (!isObj(st.keptOut)) st.keptOut = null;
+  if (!Array.isArray(st.proposals)) st.proposals = [];
   return st;
 }
 
@@ -1798,7 +1811,7 @@ const safeBag = (v) => {
   return out;
 };
 
-const emptyOverlay = () => ({ v: 1, counter: 0, added: {}, edits: {}, threads: { added: [], edits: {} } });
+const emptyOverlay = () => ({ v: 1, counter: 0, added: {}, edits: {}, threads: { added: [], edits: {}, dismissed: [], queued: [] } });
 function normalizeOverlay(raw) {
   if (!isObj(raw)) return emptyOverlay();
   const t = isObj(raw.threads) ? raw.threads : {};
@@ -1809,7 +1822,7 @@ function normalizeOverlay(raw) {
     counter: Number.isFinite(counter) ? Math.max(0, Math.trunc(counter)) : 0,
     added: safeBag(raw.added),
     edits: safeBag(raw.edits),
-    threads: { ...t, added: arr(t.added), edits: safeBag(t.edits) },
+    threads: { ...t, added: arr(t.added), edits: safeBag(t.edits), dismissed: arr(t.dismissed).map(String).slice(-200), queued: arr(t.queued) },
   };
 }
 const loadOverlay = (fsx, chatId) => normalizeOverlay(readJson(fsx, NOTES_DIR + chatId + ".json", null));
@@ -1866,15 +1879,102 @@ export function effectiveThreads(ov, base, turn) {
     const e = isObj(edits[t.id]) ? edits[t.id] : null;
     if (e && str(e.text)) t.text = cut(str(e.text), 300);
     if (e && (e.status === "open" || e.status === "resolved")) t.status = e.status;
-    if (/^ut\d+$/.test(String(t.id))) t.by = "user";
+    if (e && THREAD_KINDS.includes(e.kind)) t.kind = e.kind;
+    if (e && e.parent !== undefined) {
+      if (typeof e.parent === "string" && e.parent) t.parent = e.parent;
+      else delete t.parent;
+    }
+    if (e && Number.isFinite(num(e.keptAt))) t.keptAt = num(e.keptAt);
+    // proposals the owner accepted are the story's own threads, not "yours"
+    if (/^ut\d+$/.test(String(t.id)) && !t.proposed) t.by = "user";
     return t;
   };
   const out = arr(base).filter(isObj).map((t) => fix({ ...t }));
   for (const a of arr(ov && ov.threads && ov.threads.added)) {
     if (!isObj(a) || typeof a.id !== "string" || !str(a.text) || out.some((t) => t.id === a.id)) continue;
-    out.push(fix({ id: a.id, text: cut(str(a.text), 300), since: Number.isFinite(num(a.since)) ? num(a.since) : turn || 0, status: "open" }));
+    out.push(
+      fix({
+        id: a.id,
+        text: cut(str(a.text), 300),
+        since: Number.isFinite(num(a.since)) ? num(a.since) : turn || 0,
+        status: "open",
+        ...(THREAD_KINDS.includes(a.kind) ? { kind: a.kind } : {}),
+        ...(typeof a.parent === "string" && a.parent ? { parent: a.parent } : {}),
+        ...(a.proposed ? { proposed: true } : {}),
+      }),
+    );
+  }
+  // a step lives under an open main quest; when that is gone (resolved, or no longer main) it stands alone
+  for (const t of out) {
+    if (t.status === "open" && t.parent && !out.some((p) => p.id === t.parent && p.status === "open" && !p.parent && questKind(p) === "main")) delete t.parent;
   }
   return out;
+}
+
+/**
+ * What waits for the owner: the sensor's proposals (state) minus the ones answered (overlay), plus what the owner
+ * queued by hand at a full limit. A "close" proposal for a thread that is no longer open is not shown.
+ */
+export function effectiveProposals(state, ov, threads) {
+  const t = isObj(ov && ov.threads) ? ov.threads : {};
+  const dismissed = arr(t.dismissed).map(String);
+  const open = arr(threads).filter((x) => isObj(x) && x.status === "open");
+  const out = [];
+  for (const p of arr(state && state.proposals)) {
+    if (!isObj(p) || typeof p.id !== "string" || dismissed.includes(p.id)) continue;
+    if (p.type === "close") {
+      const th = open.find((x) => x.id === p.threadId);
+      if (th) out.push({ ...p, text: th.text, kind: questKind(th), ...(th.parent ? { parent: th.parent } : {}) });
+    } else if (p.type === "open" && str(p.text)) out.push({ ...p, kind: THREAD_KINDS.includes(p.kind) ? p.kind : "side" });
+  }
+  for (const q of arr(t.queued)) {
+    if (!isObj(q) || typeof q.id !== "string" || !str(q.text)) continue;
+    out.push({ id: q.id, type: "open", why: "limit", by: "user", text: cut(str(q.text), 300), kind: THREAD_KINDS.includes(q.kind) ? q.kind : "side", ...(q.parent ? { parent: String(q.parent) } : {}), turn: num(q.turn) || 0 });
+  }
+  return out;
+}
+
+// ---------- quests (#117): a thread is main, side or everyday; a step has a main quest as parent ----------
+export const THREAD_KINDS = ["main", "side", "everyday"];
+/** "main", "side" or "everyday"; a thread with no kind (everything before quests) is a side quest. */
+export const questKind = (t) => (isObj(t) && THREAD_KINDS.includes(t.kind) ? t.kind : "side");
+const EVERYDAY_OPEN_MAX = 5;
+const PROPOSALS_KEPT = 8;
+
+/** What is open, counted the way the limits count it: main, side (steps and everyday are counted apart). */
+function questCounts(threads) {
+  const open = arr(threads).filter((t) => isObj(t) && t.status === "open");
+  const steps = {};
+  let main = 0;
+  let side = 0;
+  let everyday = 0;
+  for (const t of open) {
+    if (t.parent) steps[t.parent] = (steps[t.parent] || 0) + 1;
+    else if (questKind(t) === "main") main += 1;
+    else if (questKind(t) === "everyday") everyday += 1;
+    else side += 1;
+  }
+  return { main, side, everyday, steps };
+}
+
+/** Is there room for a new open quest of this kind (a step: under this parent)? */
+function questRoom(cfg, counts, kind, parent) {
+  if (parent) return (counts.steps[parent] || 0) < maxStepsOf(cfg);
+  if (kind === "main") return counts.main < maxMainOf(cfg);
+  if (kind === "everyday") return true;
+  return counts.side < maxThreadsOf(cfg);
+}
+
+/** The line the sensor reads: which limits stand and how full they are. */
+function limitsLine(cfg, threads) {
+  const c = questCounts(threads);
+  return "Open thread limits: main " + c.main + "/" + maxMainOf(cfg) + ", side " + c.side + "/" + maxThreadsOf(cfg) + ", steps per main thread " + maxStepsOf(cfg) + " (everyday threads are not counted).";
+}
+
+/** One thread as the sensor reads it. */
+function threadLabel(t) {
+  const kind = t.parent ? "step of " + t.parent : questKind(t);
+  return t.id + " [" + kind + "] \"" + t.text + "\"";
 }
 
 /** The newest active key that has a snapshot, searching keys[0..before). */
@@ -1962,6 +2062,12 @@ const DEFAULT_CONFIG = {
   // open threads at most (the user's own count too); and: every N turns the sensor is asked about old threads (0 = never)
   maxThreads: 3,
   threadCheckEvery: 5,
+  // quests (#117): open main quests, open steps under one main quest, turns an everyday quest lives (0 = never closed),
+  // and thread checks without change before the owner is asked to close one (0 = never asked)
+  maxMain: 1,
+  maxSteps: 4,
+  everydayTurns: 8,
+  retireAfter: 3,
   // notes older than this many turns leave the insert (pinned ones stay); Litopys keeps the important ones as facts
   noteAgeTurns: 30,
   // only the parts of the sensor prompt the user changed: { key: text }
@@ -2038,6 +2144,14 @@ const threadCheckOf = (cfg) => {
   const n = num(cfg && cfg.threadCheckEvery);
   return Number.isFinite(n) ? clamp(Math.round(n), 0, 50) : DEFAULT_CONFIG.threadCheckEvery;
 };
+const cfgInt = (cfg, key, lo, hi) => {
+  const n = num(cfg && cfg[key]);
+  return Number.isFinite(n) ? clamp(Math.round(n), lo, hi) : DEFAULT_CONFIG[key];
+};
+const maxMainOf = (cfg) => cfgInt(cfg, "maxMain", 1, 2);
+const maxStepsOf = (cfg) => cfgInt(cfg, "maxSteps", 1, 6);
+const everydayTurnsOf = (cfg) => cfgInt(cfg, "everydayTurns", 0, 30);
+const retireAfterOf = (cfg) => cfgInt(cfg, "retireAfter", 0, 10);
 
 function parseBool(v) {
   if (v === true || v === false) return v;
@@ -2059,6 +2173,10 @@ function nextConfig(stored, b) {
   if (Number.isFinite(num(b.maxThreads))) put("maxThreads", maxThreadsOf(b), DEFAULT_CONFIG.maxThreads);
   if (Number.isFinite(num(b.noteAgeTurns))) put("noteAgeTurns", noteAgeOf(b), DEFAULT_CONFIG.noteAgeTurns);
   if (Number.isFinite(num(b.threadCheckEvery))) put("threadCheckEvery", threadCheckOf(b), DEFAULT_CONFIG.threadCheckEvery);
+  if (Number.isFinite(num(b.maxMain))) put("maxMain", maxMainOf(b), DEFAULT_CONFIG.maxMain);
+  if (Number.isFinite(num(b.maxSteps))) put("maxSteps", maxStepsOf(b), DEFAULT_CONFIG.maxSteps);
+  if (Number.isFinite(num(b.everydayTurns))) put("everydayTurns", everydayTurnsOf(b), DEFAULT_CONFIG.everydayTurns);
+  if (Number.isFinite(num(b.retireAfter))) put("retireAfter", retireAfterOf(b), DEFAULT_CONFIG.retireAfter);
   if (isObj(b.sensorParts)) {
     const sp = { ...(isObj(next.sensorParts) ? next.sensorParts : {}) };
     for (const part of SENSOR_PARTS) {
@@ -2137,7 +2255,7 @@ function clockLine(c) {
 
 function previousStateText(ctx) {
   const B = ctx.base && ctx.base.snap;
-  if (!B) return "Previous state\n(none: this is the start)\nOpen thread limit: " + maxThreadsOf(ctx.cfg) + ".";
+  if (!B) return "Previous state\n(none: this is the start)\n" + limitsLine(ctx.cfg, []);
   const who = { user: ctx.userName, their: "their", self: "themself" };
   const lines = [clockLine(B.clock || {})];
   const scene = [B.clock && B.clock.place, B.clock && B.clock.weather].filter(Boolean).join("; ");
@@ -2154,8 +2272,8 @@ function previousStateText(ctx) {
     lines.push(line);
   }
   const open = arr(ctx.threads).filter((t) => t.status === "open");
-  if (open.length) lines.push("Open threads: " + open.map((t) => t.id + " \"" + t.text + "\"").join(", "));
-  lines.push("Open thread limit: " + maxThreadsOf(ctx.cfg) + ".");
+  if (open.length) lines.push("Open threads: " + open.map(threadLabel).join(", "));
+  lines.push(limitsLine(ctx.cfg, ctx.threads));
   return "Previous state\n" + lines.join("\n");
 }
 
@@ -2195,17 +2313,23 @@ function newMessagesText(msgs) {
 }
 
 /** Every N turns (only then): ask about open threads that have been open that long. */
-function threadCheckText(ctx) {
+/** The threads a Thread check asks about this turn (every N turns, those open that long), with their age. */
+function threadsInCheck(ctx) {
   const every = threadCheckOf(ctx.cfg);
-  if (!every) return null;
+  if (!every) return [];
   const B = ctx.base && ctx.base.snap;
   const next = (B ? B.turn || 0 : 0) + 1;
-  const open = arr(ctx.threads).filter((t) => t.status === "open");
   const age = (t) => next - (Number.isFinite(num(t.since)) ? num(t.since) : next);
-  const old = open.filter((t) => age(t) >= every);
-  if (!old.length || next % every !== 0) return null;
+  const old = arr(ctx.threads).filter((t) => t.status === "open" && age(t) >= every);
+  if (!old.length || next % every !== 0) return [];
+  return old.map((t) => ({ t, age: age(t) }));
+}
+
+function threadCheckText(ctx) {
+  const old = threadsInCheck(ctx);
+  if (!old.length) return null;
   return (
-    "Thread check\nOpen for " + every + " turns or more: " + old.map((t) => t.id + " \"" + t.text + "\" (" + age(t) + " turns)").join("; ") + ".\n" +
+    "Thread check\nOpen for " + threadCheckOf(ctx.cfg) + " turns or more: " + old.map(({ t, age }) => t.id + " \"" + t.text + "\" (" + age + " turns)").join("; ") + ".\n" +
     "Has the story settled this, dropped it, or is it still open? Resolve settled or dropped ones."
   );
 }
@@ -2728,26 +2852,70 @@ function applyThreads(ctx, out, turn) {
   const all = arr(ctx.threads).filter(isObj).map((t) => ({ ...t }));
   const threads = all.filter((t) => t.status === "open");
   const closed = all.filter((t) => t.status !== "open").map((t) => ({ ...t, status: "resolved", resolvedAt: Number.isFinite(num(t.resolvedAt)) ? num(t.resolvedAt) : turn }));
-  const limit = maxThreadsOf(ctx.cfg);
   const spec = isObj(out.threads) ? out.threads : {};
   const settled = []; // what the sensor closed in this report (#81)
+  const wasText = new Map(threads.map((t) => [t.id, t.text]));
   for (const id of arr(spec.resolved).map(str)) {
     const t = threads.find((x) => x.id === id);
     if (t) { t.status = "resolved"; t.resolvedAt = turn; settled.push({ id: t.id, text: sameText(t.text) }); }
   }
-  const openCount = () => threads.filter((t) => t.status === "open").length;
+  // proposals still waiting (the owner's answers live in the overlay, the sensor only adds)
+  // answered ones stay a while (their text keeps the sensor from proposing the same thing again every turn)
+  const dismissed = arr(ctx.overlay && ctx.overlay.threads && ctx.overlay.threads.dismissed).map(String);
+  let proposals = arr(state.proposals).filter(isObj);
+  const propose = (p) => {
+    state.counters.proposal = (Number(state.counters.proposal) || 0) + 1;
+    proposals.push({ id: "p" + state.counters.proposal, turn, ...p });
+  };
   for (const item of arr(spec.open)) {
     const text = cut(isObj(item) ? str(item.text) : str(item), 300);
     if (!text) continue;
     // a settled thread listed under "open" too must not come back as a new one
     if (settled.some((s) => (isObj(item) && str(item.id) === s.id) || sameText(text) === s.text)) continue;
     const known = isObj(item) ? threads.find((t) => t.id === str(item.id) && t.status === "open") : null;
-    if (known) known.text = text;
-    else if (openCount() < limit) {
+    // a kept thread keeps its kind and parent: the owner may have set them
+    if (known) { known.text = text; continue; }
+    // a new one: its kind (a missing or odd one is a side quest), and a step only under an open main quest
+    const asked = isObj(item) && THREAD_KINDS.includes(item.kind) ? item.kind : "side";
+    const parentId = isObj(item) ? str(item.parent) : "";
+    const parent = parentId && threads.some((t) => t.id === parentId && t.status === "open" && !t.parent && questKind(t) === "main") ? parentId : "";
+    const kind = parent ? "side" : asked;
+    if (questRoom(ctx.cfg, questCounts(threads), kind, parent)) {
       state.counters.thread += 1;
-      threads.push({ id: "t" + state.counters.thread, text, since: turn, status: "open" });
+      threads.push({ id: "t" + state.counters.thread, text, since: turn, status: "open", kind, ...(parent ? { parent } : {}) });
+    } else if (!threads.some((t) => t.status === "open" && sameText(t.text) === sameText(text)) && !proposals.some((p) => p.type === "open" && sameText(p.text) === sameText(text))) {
+      // above the limit: not dropped in silence, it waits for the owner (#86)
+      propose({ type: "open", why: "limit", text, kind, ...(parent ? { parent } : {}) });
     }
   }
+  // an everyday quest is small: it ends by itself, and no more than a few are open at once
+  const everydayFor = everydayTurnsOf(ctx.cfg);
+  const everyday = threads.filter((t) => t.status === "open" && !t.parent && questKind(t) === "everyday").sort((a, b) => (num(a.since) || 0) - (num(b.since) || 0));
+  for (const t of everyday) if (everydayFor && turn - (num(t.since) || 0) >= everydayFor) { t.status = "resolved"; t.resolvedAt = turn; }
+  const stillEveryday = everyday.filter((t) => t.status === "open");
+  for (const t of stillEveryday.slice(0, Math.max(0, stillEveryday.length - EVERYDAY_OPEN_MAX))) { t.status = "resolved"; t.resolvedAt = turn; }
+  // a thread the check asked about and the story left as it was grows stale; one the sensor reworded starts over
+  const retireAt = retireAfterOf(ctx.cfg);
+  const every = threadCheckOf(ctx.cfg);
+  for (const { t: asked } of threadsInCheck(ctx)) {
+    const t = threads.find((x) => x.id === asked.id && x.status === "open");
+    if (!t) continue;
+    t.checked = t.text === wasText.get(t.id) ? (Number(t.checked) || 0) + 1 : 0;
+    const kept = Number.isFinite(num(t.keptAt)) && turn - num(t.keptAt) < retireAt * every;
+    const asking = proposals.some((p) => p.type === "close" && p.threadId === t.id && !dismissed.includes(p.id));
+    if (retireAt && t.checked >= retireAt && questKind(t) !== "everyday" && !kept && !asking) {
+      propose({ type: "close", why: "stale", threadId: t.id, text: t.text, since: t.since });
+    }
+  }
+  // a close proposal for a thread that is closed by now is gone; only the newest few are kept
+  proposals = proposals.filter((p) => p.type !== "close" || threads.some((t) => t.id === p.threadId && t.status === "open"));
+  // over the cap the answered ones go first, then the oldest; only the unanswered ones count as lost
+  while (proposals.length > PROPOSALS_KEPT) {
+    const at = Math.max(0, proposals.findIndex((p) => dismissed.includes(p.id)));
+    if (!dismissed.includes(proposals[at].id)) state.proposalsDropped = (Number(state.proposalsDropped) || 0) + 1;
+    proposals.splice(at, 1);
+  }
+  state.proposals = proposals;
   // the newest resolved ones stay as history, a bounded number
   const history = [...closed, ...threads.filter((t) => t.status !== "open")]
     .sort((a, b) => (num(b.resolvedAt) || 0) - (num(a.resolvedAt) || 0))
@@ -3668,7 +3836,13 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   };
   const rest = present.filter((n) => !focus.includes(n));
   // where the story can go: the model had nothing to pull on and the story stood still (no ids: no digits)
-  const open = effectiveThreads(overlay, snap.threads, snap.turn).filter((t) => t.status === "open" && str(t.text)).map((t) => str(t.text));
+  // main quests first, each with its steps; then side quests. Everyday ones stay on the Dashboard (#117).
+  const all = effectiveThreads(overlay, snap.threads, snap.turn).filter((t) => t.status === "open" && str(t.text));
+  const stepsOf = (id) => all.filter((t) => t.parent === id).map((t) => str(t.text));
+  const open = [
+    ...all.filter((t) => !t.parent && questKind(t) === "main").map((t) => str(t.text) + (stepsOf(t.id).length ? " (next steps: " + stepsOf(t.id).join("; ") + ")" : "")),
+    ...all.filter((t) => !t.parent && questKind(t) === "side").map((t) => str(t.text)),
+  ];
   const threads = open.length ? "[Open threads the story can move toward: " + open.join("; ") + ".]" : "";
   // maxTokens is per character block; the scene, threads and closing lines come on top
   const shared = estimateTokens(sceneLine(snap, ctx.user) + threads + CLOSING);
@@ -4342,6 +4516,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     order,
     events: arr(snap.events),
     threads: effectiveThreads(overlay, snap.threads, snap.turn),
+    proposals: effectiveProposals(state, overlay, effectiveThreads(overlay, snap.threads, snap.turn)),
+    proposalsDropped: Number(state.proposalsDropped) || 0,
     edges: arr(snap.edges),
     chars,
     usage: state.usage,
@@ -4350,6 +4526,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     insert,
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
     maxThreads: maxThreadsOf(cfg),
+    limits: { main: maxMainOf(cfg), side: maxThreadsOf(cfg), steps: maxStepsOf(cfg), everydayTurns: everydayTurnsOf(cfg), retireAfter: retireAfterOf(cfg) },
     noteAgeTurns: noteAgeOf(cfg),
     saidPerTurn: saidPerTurnOf(cfg),
     mode: cfg.mode,
@@ -4411,7 +4588,8 @@ function inheritRoute(req, fsx) {
     state.names = {};
     state.history = {};
     state.said = {};
-    state.counters = { note: 0, thread: 0, said: 0 };
+    state.counters = { note: 0, thread: 0, said: 0, proposal: 0 };
+    state.proposals = [];
     state.keptOut = null;
     state.lastError = null;
     applyInherit(state, seed);
@@ -4542,6 +4720,9 @@ function notesRoute(req, fsx) {
     // notes and what characters said share the edit overlay: their ids never meet (n..., s..., u...)
     return [state.notebook, state.said].some((bag) => Object.values(bag).some((l) => arr(l).some((n) => isObj(n) && n.id === noteId)));
   };
+  const nowThreads = () => effectiveThreads(ov, snap && snap.threads, snap ? snap.turn : 0);
+  const isOpenMain = (threads, id) => threads.some((t) => t.id === id && t.status === "open" && !t.parent && questKind(t) === "main");
+  let queued = false;
   const editOf = (id) => (isObj(ov.edits[id]) ? { ...ov.edits[id] } : {});
   const putEdit = (id, e) => {
     if (Object.keys(e).length) ov.edits[id] = e;
@@ -4594,27 +4775,73 @@ function notesRoute(req, fsx) {
   } else if (op === "thread-add") {
     const text = cut(str(b.text), 300);
     if (!text) return bad("text required");
-    const open = effectiveThreads(ov, snap && snap.threads, snap ? snap.turn : 0).filter((t) => t.status === "open").length;
-    if (open >= maxThreadsOf(loadConfig(fsx))) return bad("open thread limit reached", 409);
+    const kind = b.kind === undefined ? "side" : b.kind;
+    if (!THREAD_KINDS.includes(kind)) return bad("kind must be main, side or everyday");
+    const parent = b.parent ? str(b.parent) : "";
+    const threads = nowThreads();
+    if (parent && !isOpenMain(threads, parent)) return bad("parent must be an open main thread");
     ov.counter += 1;
-    ov.threads.added.push({ id: "ut" + ov.counter, text, at: Date.now(), since: snap ? snap.turn || 0 : 0 });
+    const at = snap ? snap.turn || 0 : 0;
+    if (questRoom(loadConfig(fsx), questCounts(threads), parent ? "side" : kind, parent)) {
+      ov.threads.added.push({ id: "ut" + ov.counter, text, at: Date.now(), since: at, kind, ...(parent ? { parent } : {}) });
+    } else {
+      // a full limit is not a wall: the thread waits among the proposals, and the owner can swap it in
+      ov.threads.queued.push({ id: "uq" + ov.counter, text, kind, ...(parent ? { parent } : {}), turn: at });
+      queued = true;
+    }
   } else if (op === "thread-edit") {
     const id = safeKey(str(b.id)) ? str(b.id) : "";
-    const known = !!id && effectiveThreads(ov, snap && snap.threads, snap ? snap.turn : 0).some((t) => t.id === id);
+    const threads = nowThreads();
+    const known = !!id && threads.some((t) => t.id === id);
     if (!known) return bad("no such thread", 404);
     const text = b.text === undefined ? undefined : cut(str(b.text), 300);
     if (b.text !== undefined && !text) return bad("text required");
     if (b.status !== undefined && b.status !== "open" && b.status !== "resolved") return bad("status must be open or resolved");
-    if (text === undefined && b.status === undefined) return bad("nothing to change");
+    if (b.kind !== undefined && !THREAD_KINDS.includes(b.kind)) return bad("kind must be main, side or everyday");
+    const parent = b.parent === undefined ? undefined : b.parent ? str(b.parent) : null;
+    if (parent && (parent === id || !isOpenMain(threads, parent))) return bad("parent must be another open main thread");
+    if (text === undefined && b.status === undefined && b.kind === undefined && parent === undefined) return bad("nothing to change");
     const e = isObj(ov.threads.edits[id]) ? { ...ov.threads.edits[id] } : {};
     if (text !== undefined) e.text = text;
     if (b.status !== undefined) e.status = b.status;
+    if (b.kind !== undefined) e.kind = b.kind;
+    if (parent !== undefined) e.parent = parent;
     ov.threads.edits[id] = e;
+  } else if (op === "proposal-accept" || op === "proposal-reject") {
+    const id = safeKey(str(b.id)) ? str(b.id) : "";
+    const threads = nowThreads();
+    const p = effectiveProposals(state, ov, threads).find((x) => x.id === id);
+    if (!p) return bad("no such proposal", 404);
+    const at = snap ? snap.turn || 0 : 0;
+    const settle = () => {
+      if (id.startsWith("uq")) ov.threads.queued = ov.threads.queued.filter((q) => !isObj(q) || q.id !== id);
+      else ov.threads.dismissed = [...ov.threads.dismissed, id].slice(-200);
+    };
+    const editOfThread = (tid) => (isObj(ov.threads.edits[tid]) ? { ...ov.threads.edits[tid] } : {});
+    if (p.type === "close") {
+      // closing is the owner's yes; "keep" asks again only after as many checks as it took to get here
+      const e = editOfThread(p.threadId);
+      if (op === "proposal-accept") e.status = "resolved";
+      else e.keptAt = at;
+      ov.threads.edits[p.threadId] = e;
+    } else if (op === "proposal-accept") {
+      const parent = p.parent && isOpenMain(threads, p.parent) ? p.parent : "";
+      const kind = parent ? "side" : p.kind;
+      if (!questRoom(loadConfig(fsx), questCounts(threads), kind, parent)) {
+        // full: the owner names the open quest this one replaces
+        const victim = threads.find((t) => t.id === str(b.replace) && t.status === "open" && (parent ? t.parent === parent : !t.parent && questKind(t) === kind));
+        if (!victim) return bad("that kind is full: name an open quest of it to replace", 409);
+        ov.threads.edits[victim.id] = { ...editOfThread(victim.id), status: "resolved" };
+      }
+      ov.counter += 1;
+      ov.threads.added.push({ id: "ut" + ov.counter, text: p.text, at: Date.now(), since: at, kind: p.kind, ...(parent ? { parent } : {}), proposed: true });
+    }
+    settle();
   } else {
     return bad("unknown op");
   }
   saveOverlay(fsx, chatId, ov);
-  return ok({ ok: true, view: existed ? viewOf(fsx, chatId) : null });
+  return ok({ ok: true, ...(queued ? { queued: true } : {}), view: existed ? viewOf(fsx, chatId) : null });
 }
 
 function putEvents(req, fsx) {
