@@ -1341,6 +1341,10 @@ export const useApp = create<AppState>()(
         // route — identical by construction, no race between two versions
         const stagedUser = get().chats.find((c) => c.id === st.chatId)
           ?.messages.find((m) => m.id.startsWith('pending-') && m.role === 'user')
+        // the last message the engine had before this send: if a turn landed after it, the engine's own commit
+        // won the race with the abort and the cancelled commit must not write the turn a second time (#119)
+        const afterMessageId = get().chats.find((c) => c.id === st.chatId)
+          ?.messages.filter((m) => !m.id.startsWith('pending-')).at(-1)?.id
         const frozen = freezeCancelledStream(set, get, st)
         if (get().streaming?.chatId === st.chatId) set({ streaming: null })
         void (async () => {
@@ -1356,6 +1360,7 @@ export const useApp = create<AppState>()(
                 ...(frozen.parts.length ? { parts: frozen.parts } : {}),
                 ...(frozen.isStaged
                   ? {
+                      ...(afterMessageId ? { afterMessageId } : {}),
                       ...(stagedUser?.swipes[0]?.content ? { userText: stagedUser.swipes[0].content } : {}),
                       ...(stagedUser?.attachments?.length ? { attachments: stagedUser.attachments } : {}),
                     }

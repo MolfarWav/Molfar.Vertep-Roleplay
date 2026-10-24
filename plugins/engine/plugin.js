@@ -5290,6 +5290,13 @@ const toolX = (r) => ({
         cancelSlots.push({ genMs: cancelledMs, ...(cancelledModel ? { model: cancelledModel } : {}), ...(parts && parts.length ? { parts } : {}) });
         chat.msgs[idx] = { ...msg, text, swipe: swipes.length - 1, swipes, translation: undefined, extra: extraFromSlots(msg.extra, cancelSlots, swipes.length - 1) };
       } else {
+        // a fresh send: the client names the last message it knew before the send. When a turn landed after it, the
+        // engine's own commit beat the abort, and writing the user's message and the partial reply again would
+        // double the user's turn (#119). Without the field (an older page) nothing is checked.
+        if (typeof b.afterMessageId === "string" && b.afterMessageId) {
+          const known = chat.msgs.findIndex((m) => m.id === b.afterMessageId);
+          if (known >= 0 && chat.msgs.slice(known + 1).some((m) => m.role === "user" || m.role === "char")) return err(409, "a generation already committed");
+        }
         const userText = typeof b.userText === "string" ? onSave(b.userText.trim(), "user_input", members[0] || null).trim() : "";
         if (userText) {
           chat.msgs.push({

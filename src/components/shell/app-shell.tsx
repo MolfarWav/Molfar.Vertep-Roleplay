@@ -329,7 +329,8 @@ function IconRail() {
     <nav
       aria-label="Primary sections"
       className={cn(
-        'hidden shrink-0 flex-col border-r border-border bg-card py-2 md:flex',
+        // scrolls when the window is shorter than the rail, so Settings at the bottom stays reachable (#120)
+        'hidden min-h-0 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-border bg-card py-2 [scrollbar-width:thin] md:flex',
         wide ? 'w-[206px]' : 'w-12',
       )}
     >

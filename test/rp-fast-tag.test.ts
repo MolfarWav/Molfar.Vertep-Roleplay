@@ -258,6 +258,23 @@ describe("the tag in saved replies", () => {
     expect(fs.existsSync(fastFile(id))).toBe(false);
   });
 
+  it("cancelled after the engine already committed the turn: 409, the turn is not written twice (#119)", async () => {
+    setMode("fast");
+    const mock = mockHost();
+    const id = await newChat(mock);
+    const first = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Hello back.", userText: "hi" } });
+    expect(first.status).toBe(200);
+    const before = lines(id);
+    const base = before[before.length - 3]?.id ?? before[0].id;
+    // the page knew the chat only up to `base`; the turn above landed after it
+    const late = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Half a sen", userText: "hi", afterMessageId: base } });
+    expect(late.status).toBe(409);
+    expect(lines(id).length).toBe(before.length);
+    // a page that knew the newest message is let through
+    const ok = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Another", userText: "again", afterMessageId: before[before.length - 1].id } });
+    expect(ok.status).toBe(200);
+  });
+
   it("next (a group member answers): the entry sits under the new message's key", async () => {
     setMode("fast");
     const mock = mockHost();
