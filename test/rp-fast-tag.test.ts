@@ -275,6 +275,23 @@ describe("the tag in saved replies", () => {
     expect(ok.status).toBe(200);
   });
 
+  it("a stopped send: the error path does not store the user's message again after the cancelled route did (#119)", async () => {
+    setMode("fast");
+    const mock = mockHost();
+    const id = await newChat(mock);
+    // a client that froze its text sends /cancelled first; the kernel's cancel answer reaches the send route after it
+    await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Half a sen", userText: "hi" } });
+    const before = lines(id);
+    mock.state.model = "error";
+    const late = await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "hi" } });
+    expect(late.status).toBe(503);
+    expect(lines(id).length).toBe(before.length);
+    // a different text, or a turn long ago, is still stored
+    const other = await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "something else" } });
+    expect(other.status).toBe(503);
+    expect(lines(id).filter((l) => l.role === "user").map((l) => l.text)).toEqual(["hi", "something else"]);
+  });
+
   it("next (a group member answers): the entry sits under the new message's key", async () => {
     setMode("fast");
     const mock = mockHost();

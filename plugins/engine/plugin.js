@@ -2127,6 +2127,15 @@ function chatPersona(fsx, meta) {
 }
 const chatUserName = (fsx, meta) => chatPersona(fsx, meta).userName;
 
+/** The turn's user message is already stored: one of the last three messages is a user message with the same text,
+ *  written within 15 s. A cancelled generation is committed by two routes (the cancelled one and the send route's
+ *  error path); whichever comes second must not write the user's message again (#119). */
+function userWrittenJustNow(msgs, userMsg) {
+  const text = String((userMsg && userMsg.text) || "");
+  const now = Number(userMsg && userMsg.at) || Date.now();
+  return msgs.slice(-3).some((m) => m && m.role === "user" && String(m.text || "") === text && Math.abs(now - (Number(m.at) || 0)) < 15000);
+}
+
 /** Per-chat field variants: a conversation can ride an alternate description /
  *  personality / scenario instead of the card's primary text. The choice lives
  *  on the chat meta (fieldVariantSelection = {desc, personality, scenario}),
@@ -5085,7 +5094,9 @@ const toolX = (r) => ({
       // the real cause (content filter, bad key, …). The client's refresh then
       // lands the user bubble instead of wiping its staged copy.
       if (reply.model === "error") {
-        if (userMsg) {
+        // a Stop makes the kernel answer with this error: the cancelled route may have written the turn first
+        // (its client froze the text), and the user's message must not be stored twice (#119)
+        if (userMsg && !userWrittenJustNow(chat.msgs, userMsg)) {
           chat.msgs.push(userMsg);
           applyStashVars(req, meta);
           saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
