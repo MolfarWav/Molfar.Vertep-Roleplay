@@ -467,8 +467,11 @@ export function findScenes(line, dash, cfg, marks) {
   const maxMessages = clamp(cfgScene.maxMessages, 10, 200);
   const hasDash = dash && isObj(dash.snapshots) && Object.keys(dash.snapshots).length > 0;
 
-  // Boundaries: a sensor flag, a new place, a clock jump of more than 6 hours
+  // Boundaries: a sensor flag, a new place, a clock jump of more than 6 hours. A new place or a
+  // jump is a hard boundary (the chat header shows it too): the scene before it closes whatever
+  // the length of the one after. A sensor flag alone is soft: a short scene behind it folds back.
   const bounds = new Set([0]);
+  const hard = new Set();
   let prevClock = null;
   let prevPlace = null;
   let sawSnap = false;
@@ -481,6 +484,7 @@ export function findScenes(line, dash, cfg, marks) {
     const placeChanged = !!(place && prevPlace && !samePlace(place, prevPlace));
     const timeJump = minutes !== null && prevClock !== null && Math.abs(minutes - prevClock) > JUMP_MINUTES;
     if (i > 0 && ((snap.scene && snap.scene.new === true) || placeChanged || timeJump)) bounds.add(i);
+    if (i > 0 && (placeChanged || timeJump)) hard.add(i);
     if (place) prevPlace = place;
     if (minutes !== null) prevClock = minutes;
   }
@@ -511,13 +515,13 @@ export function findScenes(line, dash, cfg, marks) {
   }
   if (!raw.length) raw.push({ fromIdx: 0, toIdx: line.length - 1 });
 
-  // Merge short scenes into previous; a short first scene (a greeting) joins the next one
+  // Merge short scenes into previous (only those a sensor flag alone started); a short first scene (a greeting) joins the next one
   const merged = [];
   for (const r of raw) {
     const len = r.toIdx - r.fromIdx + 1;
     const own = isMarked(r);
     // a marked scene is never folded into the one before it, and nothing is folded into it
-    if (len < minMessages && merged.length && !own && !merged[merged.length - 1].marked) {
+    if (len < minMessages && merged.length && !own && !hard.has(r.fromIdx) && !merged[merged.length - 1].marked) {
       merged[merged.length - 1].toIdx = r.toIdx;
     } else {
       merged.push({ ...r, marked: own });

@@ -76,15 +76,39 @@ describe("findScenes", () => {
     expect(scenes.map((s) => [s.from, s.to])).toEqual([["m1", "m40"], ["m41", "m80"], ["m81", "m90"]]);
   });
 
-  it("merges a scene shorter than minMessages into the previous one", () => {
+  it("merges a scene a sensor flag started, when shorter than minMessages, into the previous one", () => {
+    const msgs = story(30);
+    const dash = dashWith({
+      m1: { place: "Hall", day: 1, time: "10:00" },
+      m27: { place: "Hall", day: 1, time: "10:30", scene: { new: true, label: "Tea" } },
+    });
+    const scenes = L.findScenes(line(msgs), dash, cfg);
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0]).toMatchObject({ from: "m1", to: "m30", label: "Tea", place: "Hall" });
+  });
+
+  it("a new place closes the scene before it even when the new scene is short", () => {
     const msgs = story(30);
     const dash = dashWith({
       m1: { place: "Hall", day: 1, time: "10:00" },
       m27: { place: "Garden", day: 1, time: "11:00" },
     });
     const scenes = L.findScenes(line(msgs), dash, cfg);
-    expect(scenes).toHaveLength(1);
-    expect(scenes[0]).toMatchObject({ from: "m1", to: "m30", label: "Hall", place: "Garden" });
+    expect(scenes).toHaveLength(2);
+    expect(scenes[0]).toMatchObject({ from: "m1", to: "m26", label: "Hall", closed: true });
+    expect(scenes[1]).toMatchObject({ from: "m27", to: "m30", label: "Garden", closed: false, open: true });
+  });
+
+  it("short scenes at places of their own each stand alone (the header's changes)", () => {
+    const msgs = story(22);
+    const dash = dashWith({
+      m1: { place: "Alley", day: 1, time: "21:00" },
+      m13: { place: "Flat", day: 1, time: "21:30" },
+      m16: { place: "Street", day: 1, time: "21:45" },
+      m18: { place: "Hall", day: 1, time: "21:50" },
+    });
+    const scenes = L.findScenes(line(msgs), dash, { ...cfg, scene: { minMessages: 4, maxMessages: 40 } });
+    expect(scenes.map((x) => [x.from, x.to, x.closed])).toEqual([["m1", "m12", true], ["m13", "m15", true], ["m16", "m17", true], ["m18", "m22", false]]);
   });
 
   it("splits a scene longer than maxMessages into parts", () => {
@@ -130,11 +154,11 @@ describe("findScenes", () => {
     expect(scenes[1]).toMatchObject({ from: "m7", to: "m11", closed: false, open: true });
   });
 
-  it("a later scene still shorter than minMessages keeps the earlier one open", () => {
+  it("a later scene a sensor flag started, still shorter than minMessages, keeps the earlier one open", () => {
     const msgs = story(12);
     const dash = dashWith({
       m1: { place: "Glade", day: 1, time: "20:15" },
-      m10: { place: "Cottage", day: 1, time: "20:50" },
+      m10: { place: "Glade", day: 1, time: "20:50", scene: { new: true, label: "Supper" } },
     });
     const scenes = L.findScenes(line(msgs), dash, { ...cfg, scene: { minMessages: 4, maxMessages: 40 } });
     expect(scenes).toHaveLength(1);
