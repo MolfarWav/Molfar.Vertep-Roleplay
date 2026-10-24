@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.66.0
+
+Scenes in Litopys follow the chat header, a hand-set scene, Stop no longer doubles your message, a stricter Vertep Lite (#118, #119, #120, #121).
+
 - Litopys: a scene can be set apart by hand (#118). In a message's menu, Story, "Save as a scene…" picks the first and last message; that run is never folded into a longer scene (a rescue of five messages used to vanish into the scene around it), counts as closed at once, gets a chapter of its own marked "Marked", and the chapter worker is told it is a turning point. Chapters already written over those messages are rewritten for the new layout (one you edited refuses the call). "Take the mark off" is in the chapter menu.
 - Litopys: a new place or a clock jump of more than six hours now closes the scene before it, however short the scene after it is (#118). Before, a scene under "Scene, minimum messages" was folded into the one before even when the chat header showed a new place, so a rescue, a night at home, a morning and a walk to class became one chapter, and the first chapter came only once the next scene reached the minimum. A scene the sensor flagged as new without a change of place is still folded back when it is short, and the minimum still applies to that and to a greeting. Chapters already written are not touched; open Rebuild to write them again in the new layout.
 - Litopys: the "no closed scene" refusal of Rebuild now says how many messages Litopys sees as one scene and what to do about it.

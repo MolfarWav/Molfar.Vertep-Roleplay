@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.65.0'
+export const APP_VERSION = '4.66.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -412,6 +412,18 @@ export const TIPS: Tip[] = [
     body: {
       en: 'The Dashboard\'s threads are quests: main, side and everyday, and a main quest can have steps. A quest that does not fit its limit, or that the story left alone for long, waits under Suggestions for your answer. Story, move can pick a quest or a step, or add a Twist: something outside the quests.',
       uk: 'Сюжетні лінії Дашборду тепер квести: головні, побічні й буденні, а головний квест може мати кроки. Квест, для якого немає місця, або який історія давно не торкалась, чекає вашої відповіді серед пропозицій. «Історія, рухайся» вміє обрати квест чи крок або додати Поворот: щось поза квестами.',
+    },
+  },
+  // ── What's new: scenes in Litopys
+  {
+    id: 'new.scenes',
+    since: '4.66.0',
+    target: 'chat.story-tools',
+    open: { view: 'chat', narrowPanel: 'chat-menu' },
+    title: { en: 'Litopys follows the scenes you see', uk: 'Літопис іде за сценами, які ви бачите' },
+    body: {
+      en: 'A new place or a jump in time now closes a scene for the Record at once, however short the next scene is, so a rescue is no longer folded into the morning after. You can also set a run of messages apart by hand: in the message menu, Story, Save as a scene.',
+      uk: 'Нове місце або стрибок у часі тепер одразу закриває сцену для Запису, якою б короткою не була наступна, тож порятунок більше не тоне в наступному ранку. Ще можна виділити відрізок повідомлень вручну: у меню повідомлення, «Історія», «Зберегти як сцену».',
     },
   },
   // ── What's new: the chat header's story tools
