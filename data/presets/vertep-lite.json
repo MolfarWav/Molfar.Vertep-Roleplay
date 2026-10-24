@@ -116,6 +116,15 @@
       "content": "[This reply: {{var:length}} Fill it by going deeper into the moment (senses, actions, the characters' dialogue and inner life, the world around them), not by running past {{user}}'s next choice. Point of view: {{var:pov}} Tense: {{var:tense}}. Language: {{var:language}}]",
       "injection_position": "absolute",
       "injection_depth": 0
+    },
+    {
+      "identifier": "lite_control_tail",
+      "name": "Player control reminder",
+      "role": "system",
+      "marker": false,
+      "content": "[{{user}} belongs to the Human. In this reply write nothing {{user}} says, thinks, feels or chooses, not even a nod, a glance or a step. Show the world and the other characters, and stop at the last beat before {{user}} would act.]",
+      "injection_position": "absolute",
+      "injection_depth": 0
     }
   ],
   "prompt_order": [
@@ -188,6 +197,10 @@
         },
         {
           "identifier": "lite_reply",
+          "enabled": true
+        },
+        {
+          "identifier": "lite_control_tail",
           "enabled": true
         }
       ]
@@ -572,6 +585,26 @@
         "forbidOverrides": false,
         "groupId": null,
         "condition": null
+      },
+      {
+        "id": "lite_control_tail",
+        "name": "Player control reminder",
+        "enabled": true,
+        "role": "system",
+        "marker": null,
+        "content": "[{{user}} belongs to the Human. In this reply write nothing {{user}} says, thinks, feels or chooses, not even a nod, a glance or a step. Show the world and the other characters, and stop at the last beat before {{user}} would act.]",
+        "position": "in-chat",
+        "depth": 0,
+        "order": 17,
+        "injectionTriggers": [
+          "normal",
+          "continue",
+          "swipe",
+          "regenerate"
+        ],
+        "forbidOverrides": false,
+        "groupId": null,
+        "condition": "control==Only you"
       }
     ],
     "library": [],
@@ -622,8 +655,14 @@
           {
             "id": "pov_close",
             "label": "Third person, close",
-            "value": "third person, close to the character the scene follows: their perception and thoughts; other minds stay closed except through behaviour.",
+            "value": "third person, close to the character the scene follows: their perception and thoughts; other minds stay closed except through behaviour. {{user}}'s mind is always closed: show {{user}} only from outside, by what they say and do.",
             "hint": "Follows one character at a time, from close up."
+          },
+          {
+            "id": "pov_strict",
+            "label": "Third person, strictly the character",
+            "value": "third person, strictly from {{char}}'s point of view: only what {{char}} sees, hears, feels and thinks. {{user}} is seen from outside only, through what they say and do; never narrate {{user}}'s thoughts, feelings, senses or intentions, and never describe what {{user}} does after the Human's last turn.",
+            "hint": "Only the character's eyes; you are seen from outside."
           },
           {
             "id": "pov_omni",

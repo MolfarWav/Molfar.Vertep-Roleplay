@@ -3717,6 +3717,16 @@ export function onAppUpdate(ctx, host) {
       done.push("presets/vertep-lite.json");
     }
   }
+  // 4.66.0 (#121): Vertep Lite repeats "Only you" after the newest message and has a strict point of view.
+  // The built-in copy is read-only, so it takes the new template; an editable copy keeps its text.
+  if (olderThan(from, "4.66.0") && !olderThan(from, "4.56.0")) {
+    const have = readJsonFile(fsx, "presets/vertep-lite.json");
+    const tpl = readJsonFile(fsx, "presets/_vertep-lite.json");
+    if (tpl && have && have.studio && have.studio.readOnly === true) {
+      writeJsonFile(fsx, "presets/vertep-lite.json", tpl);
+      done.push("presets/vertep-lite.json");
+    }
+  }
   // 4.52.0 (#42): the built-in Molfar copy loses the "━" and "(PICK ONE)" of its section names
   if (olderThan(from, "4.52.0")) {
     const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));

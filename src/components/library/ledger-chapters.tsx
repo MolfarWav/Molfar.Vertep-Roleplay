@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
-import { ChatText, DotsThree, PencilSimple, ArrowCounterClockwise, Trash, WarningCircle } from '@phosphor-icons/react'
+import { BookmarkSimple, ChatText, DotsThree, PencilSimple, ArrowCounterClockwise, Trash, WarningCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { LitArc, LitChapter, LitChat, LitSkipped } from './litopys-api'
 import { ArcCard, arcOfChapter } from './arcs'
-import { editLitChapter, rewriteLitChapter, deleteLitChapter, isRebuilding } from './litopys-api'
+import { editLitChapter, rewriteLitChapter, deleteLitChapter, unmarkLitScene, isRebuilding } from './litopys-api'
 import type { TabProps } from './ledger-facts'
 import { TONE } from './tones'
 import { MessagesDialog, type MessagesRange } from './messages-dialog'
@@ -94,7 +94,7 @@ export function ChapterRow({ chat, chapter, onChat, disabled, arc }: ChapterRowP
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const [editing, setEditing] = useState(false)
-  const [busy, setBusy] = useState<'edit' | 'rewrite' | 'delete' | null>(null)
+  const [busy, setBusy] = useState<'edit' | 'rewrite' | 'delete' | 'unmark' | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [keepGone, setKeepGone] = useState(false)
   const [msgRange, setMsgRange] = useState<MessagesRange | null>(null)
@@ -146,6 +146,19 @@ export function ChapterRow({ chat, chapter, onChat, disabled, arc }: ChapterRowP
     }
   }
 
+  const mark = chat.marks?.find((m) => m.fromNo === chapter.fromNo && m.toNo === chapter.toNo)
+  const handleUnmark = async () => {
+    if (!mark) return
+    setBusy('unmark')
+    try {
+      onChat(await unmarkLitScene(chat.chatId, mark.id))
+    } catch (e) {
+      handleError(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const handleDelete = async () => {
     setBusy('delete')
     try {
@@ -183,6 +196,7 @@ export function ChapterRow({ chat, chapter, onChat, disabled, arc }: ChapterRowP
                 <TooltipContent>{t('lit.staleHint')}</TooltipContent>
               </Tooltip>
             )}
+            {chapter.marked && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.marked')}</Badge>}
             {chapter.edited && <Badge variant="outline" className={cn('text-[10px]', TONE.edited)}>{t('lit.edited')}</Badge>}
             {chapter.kind === 'part' && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.kind.part')}</Badge>}
             {chapter.kind === 'merged' && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.kind.merged')}</Badge>}
@@ -224,6 +238,12 @@ export function ChapterRow({ chat, chapter, onChat, disabled, arc }: ChapterRowP
               <DropdownMenuItem disabled={busy !== null} onClick={() => void handleRewrite()}>
                 <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />
                 {t('lit.rewrite')}
+              </DropdownMenuItem>
+            )}
+            {mark && (
+              <DropdownMenuItem disabled={busy !== null} onClick={() => void handleUnmark()}>
+                <BookmarkSimple className="size-3.5" aria-hidden="true" />
+                {t('lit.unmark')}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem variant="destructive" disabled={busy !== null} onClick={() => setDeleteOpen(true)}>

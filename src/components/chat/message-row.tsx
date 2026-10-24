@@ -1,7 +1,7 @@
 
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cleanPreview } from '@/lib/preview'
-import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, Eye, GitBranch, BookmarkSimple, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, Wrench, ArrowUp, ArrowDown, ArrowLineDown } from '@phosphor-icons/react'
+import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, Eye, GitBranch, BookmarkSimple, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, Wrench, ArrowUp, ArrowDown, ArrowLineDown, Scroll } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,6 +17,7 @@ import { groupVoices, memberColor, voiceInk, type DialogueVoice } from '@/lib/di
 import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
+import { SceneMarkDialog } from '@/components/chat/scene-mark-dialog'
 import { ModelMark } from '@/components/model-mark'
 import { AvatarMenu } from '@/components/chat/avatar-menu'
 import { messageActions, type MessageActionId } from '@/lib/message-actions'
@@ -39,7 +40,7 @@ import { toast } from 'sonner'
 
 const ACTION_ICONS: Record<MessageActionId, typeof Copy> = {
   copy: Copy, translate: Translate, speak: SpeakerHigh, bookmark: BookmarkSimple, fork: GitBranch, genData: Info, peek: Scan,
-  hide: Ghost, moveUp: ArrowUp, moveDown: ArrowDown, delete: Trash, deleteBelow: ArrowLineDown,
+  scene: Scroll, hide: Ghost, moveUp: ArrowUp, moveDown: ArrowDown, delete: Trash, deleteBelow: ArrowLineDown,
 }
 
 // claim the wheel ALWAYS while the cursor is over the box: scrolling inside
@@ -241,6 +242,7 @@ export const MessageRow = memo(function MessageRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [peekOpen, setPeekOpen] = useState(false)
+  const [sceneOpen, setSceneOpen] = useState(false)
   const [genOpen, setGenOpen] = useState(false)
   const [swipesOpen, setSwipesOpen] = useState(false)
   // touch has no hover: the toolbar is always shown there, but minimal
@@ -561,6 +563,7 @@ export const MessageRow = memo(function MessageRow({
       case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break
       case 'genData': setGenOpen(true); break
       case 'peek': setPeekOpen(true); break
+      case 'scene': setSceneOpen(true); break
       case 'hide': toggleHidden(chat.id, message.id); break
       case 'moveUp': moveMessage(chat.id, message.id, -1); break
       case 'moveDown': moveMessage(chat.id, message.id, 1); break
@@ -990,6 +993,7 @@ export const MessageRow = memo(function MessageRow({
         </DialogContent>
       </Dialog>
 
+      {sceneOpen && <SceneMarkDialog chat={chat} messageId={message.id} onClose={() => setSceneOpen(false)} />}
       {/* Prompt peek — the real assembled prompt from the engine, scoped to
           this message: the prompt as it existed here, not the chat's tail */}
       <PromptPeekDialog

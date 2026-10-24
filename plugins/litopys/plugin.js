@@ -442,11 +442,25 @@ function clockMinutes(clock) {
   return (day - 1) * 1440 + h * 60 + m;
 }
 
+/** The marks (st.marks: message id pairs the reader set apart) as index ranges in the line; unknown ids and overlaps are left out. */
+export function markRanges(line, marks) {
+  const out = [];
+  for (const m of arr(marks)) {
+    if (!isObj(m)) continue;
+    const fromIdx = line.findIndex((x) => x.id === m.from);
+    const toIdx = line.findIndex((x) => x.id === m.to);
+    if (fromIdx < 0 || toIdx < fromIdx) continue;
+    out.push({ id: m.id, fromIdx, toIdx });
+  }
+  out.sort((a, b) => a.fromIdx - b.fromIdx);
+  return out.filter((r, i) => i === 0 || r.fromIdx > out[i - 1].toIdx);
+}
+
 /**
- * findScenes(line, dash, cfg) -> [{ from, to, fromIdx, toIdx, count, kind, label, place, closed, open }]
+ * findScenes(line, dash, cfg, marks) -> [{ from, to, fromIdx, toIdx, count, kind, label, place, closed, open }]
  * Covers the whole line without gaps.
  */
-export function findScenes(line, dash, cfg) {
+export function findScenes(line, dash, cfg, marks) {
   if (!line.length) return [];
   const cfgScene = cfg.scene || DEFAULT_CONFIG.scene;
   const minMessages = clamp(cfgScene.minMessages, 1, 40);
@@ -476,6 +490,16 @@ export function findScenes(line, dash, cfg) {
     for (let i = maxMessages; i < line.length; i += maxMessages) bounds.add(i);
   }
 
+  // Scenes the reader marked (st.marks): each stands alone, whatever the sensor saw inside it and
+  // however short it is. A boundary inside a marked range is dropped; its two ends become boundaries.
+  const marked = markRanges(line, marks);
+  for (const r of marked) {
+    for (const b of [...bounds]) if (b > r.fromIdx && b <= r.toIdx) bounds.delete(b);
+    if (r.fromIdx > 0) bounds.add(r.fromIdx);
+    if (r.toIdx + 1 < line.length) bounds.add(r.toIdx + 1);
+  }
+  const isMarked = (r) => marked.some((m) => m.fromIdx === r.fromIdx && m.toIdx === r.toIdx);
+
   // Build raw scenes
   const raw = [];
   const boundArr = [...bounds].sort((a, b) => a - b);
@@ -491,13 +515,15 @@ export function findScenes(line, dash, cfg) {
   const merged = [];
   for (const r of raw) {
     const len = r.toIdx - r.fromIdx + 1;
-    if (len < minMessages && merged.length) {
+    const own = isMarked(r);
+    // a marked scene is never folded into the one before it, and nothing is folded into it
+    if (len < minMessages && merged.length && !own && !merged[merged.length - 1].marked) {
       merged[merged.length - 1].toIdx = r.toIdx;
     } else {
-      merged.push({ ...r });
+      merged.push({ ...r, marked: own });
     }
   }
-  if (merged.length > 1 && merged[0].toIdx - merged[0].fromIdx + 1 < minMessages) {
+  if (merged.length > 1 && !merged[0].marked && !merged[1].marked && merged[0].toIdx - merged[0].fromIdx + 1 < minMessages) {
     merged[1].fromIdx = merged[0].fromIdx;
     merged.shift();
   }
@@ -514,11 +540,11 @@ export function findScenes(line, dash, cfg) {
       let fromIdx = r.fromIdx;
       for (let i = 0; i < n; i++) {
         const toIdx = fromIdx + base + (i < extra ? 1 : 0) - 1;
-        scenes.push({ fromIdx, toIdx, kind: "part" });
+        scenes.push({ fromIdx, toIdx, kind: "part", marked: r.marked === true });
         fromIdx = toIdx + 1;
       }
     } else {
-      scenes.push({ fromIdx: r.fromIdx, toIdx: r.toIdx, kind: "scene" });
+      scenes.push({ fromIdx: r.fromIdx, toIdx: r.toIdx, kind: "scene", marked: r.marked === true });
     }
   }
 
@@ -546,7 +572,8 @@ export function findScenes(line, dash, cfg) {
     // closed: a later scene exists. A later scene shorter than minMessages would have merged
     // into this one, so the boundary is settled. recentMessages only decides what the prompt
     // keeps word for word; a chapter may be written while its messages are still recent.
-    const closed = i < scenes.length - 1;
+    // a scene the reader marked is closed at once, even at the end of the chat
+    const closed = i < scenes.length - 1 || s.marked === true;
     result.push({
       from,
       to,
@@ -558,6 +585,7 @@ export function findScenes(line, dash, cfg) {
       place: lastPlace,
       closed,
       open: false,
+      marked: s.marked === true,
     });
   }
   // Mark the last scene as open
@@ -663,7 +691,7 @@ function workList(st, line, dash, cfg, limit) {
   const ranges = st.chapters.map((ch) => ({ ch, r: rangeOf(ch, line) })).filter((x) => !x.r.orphan);
   const skips = skipRanges(st, line);
   const out = [];
-  for (const scene of findScenes(line, dash, cfg).filter((x) => x.closed)) {
+  for (const scene of findScenes(line, dash, cfg, st.marks).filter((x) => x.closed)) {
     if (out.length >= limit) break;
     if (skips.some((r) => r.fromIdx <= scene.toIdx && r.toIdx >= scene.fromIdx)) continue;
     const hit = ranges.filter((x) => x.r.fromIdx <= scene.toIdx && x.r.toIdx >= scene.fromIdx);
@@ -774,6 +802,8 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   }
   const userText = parts.join("\n\n");
   let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (skillsOn ? "\n\n" + SKILLS_RULE : "") + "\n\nOutput shape\n" + (skillsOn ? WORKER_SHAPE.replace(/\}$/, SKILLS_SHAPE + "}") : WORKER_SHAPE);
+  // the reader set this scene apart by hand: say why it is its own chapter
+  if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
   if (opts.maxWords) systemPrompt += "\n\nSize: the chapter text must be at most " + opts.maxWords + " words, far shorter than the messages. Keep only the consequences.";
 
@@ -1327,6 +1357,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     kind: scene.kind,
     at: now,
   };
+  if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
   if (model) newChapter.model = model;
   const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
@@ -1552,6 +1583,7 @@ export function loadChatFile(fsx, chatId) {
   st.rev = Number(st.rev) || 0;
   st.activity = arr(st.activity);
   st.skipScenes = arr(st.skipScenes);
+  st.marks = arr(st.marks).filter(isObj);
   return st;
 }
 
@@ -2185,8 +2217,9 @@ export function rebuildChat(fsx, chatId, cfg) {
   const rc = readChat(fsx, chatId);
   if (!rc) return null;
   // no closed scene to write from: a rebuild would swap in an empty record over the one in use (it did, 2026-10-22)
-  const closed = findScenes(activeLine(rc.msgs), readDash(fsx, chatId), cfg).filter((s) => s.closed).length;
-  if (!closed) return { none: true };
+  const own = loadChatFile(fsx, chatId);
+  const closed = findScenes(activeLine(rc.msgs), readDash(fsx, chatId), cfg, own ? own.marks : []).filter((s) => s.closed).length;
+  if (!closed) return { none: true, messages: activeLine(rc.msgs).length };
   for (let attempt = 0; attempt < 3; attempt++) {
     const st = loadChatFile(fsx, chatId);
     if (!st) return null;
@@ -2202,13 +2235,14 @@ export function rebuildChat(fsx, chatId, cfg) {
       // facts copied from the record in use: at the swap they take the state the user left them in
       carried: st.facts.filter((f) => f.status === "active" && keptByUser(f)).map((f) => f.id),
       skipScenes: arr(st.skipScenes).map((s) => ({ ...s })),
+      marks: arr(st.marks).map((m) => ({ ...m })),
       counters: { chapter: st.counters.chapter, fact: st.counters.fact, proposal: st.counters.proposal },
     };
     addActivity(st, "user", "rebuild.start", "Rebuild from scratch started", [], now);
     if (!saveChatFile(fsx, st)) continue;
     wake(fsx, chatId, true);
     const line = activeLine(rc.msgs);
-    return { scenes: findScenes(line, readDash(fsx, chatId), cfg).filter((s) => s.closed).length };
+    return { scenes: findScenes(line, readDash(fsx, chatId), cfg, st.marks).filter((s) => s.closed).length };
   }
   return { busy: true };
 }
@@ -2281,7 +2315,7 @@ export function onTick(_ctx, host) {
         if (markStale(st, line)) changed = true;
         if (gen !== st && markStale(gen, line)) changed = true;
         if (tidyArcs(st, now)) changed = true;
-        const scenes = findScenes(line, dash, cfg);
+        const scenes = findScenes(line, dash, cfg, st.marks);
         const lastScene = scenes[scenes.length - 1];
         if (lastScene) {
           const openFrom = line[lastScene.fromIdx] ? line[lastScene.fromIdx].id : null;
@@ -3596,6 +3630,57 @@ export function chapterRoute(fsx, body) {
   return res;
 }
 
+/**
+ * POST /litopys/scenes { chatId, op: "mark", from, to } | { chatId, op: "unmark", id }
+ * The reader sets a run of messages apart as a scene of its own (a short turning point the sensor
+ * folded into a longer scene). It is never merged, gets its own chapter, and the worker is told it
+ * matters. Chapters written over the same messages before are rewritten to the new scene layout.
+ */
+export function sceneRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (op !== "mark" && op !== "unmark") return bad("unknown op");
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st, line) => {
+    const now = Date.now();
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    st.marks = arr(st.marks).filter(isObj);
+    let range;
+    if (op === "mark") {
+      const fromIdx = line.findIndex((m) => m.id === str(b.from));
+      const toIdx = line.findIndex((m) => m.id === str(b.to));
+      if (fromIdx < 0 || toIdx < 0) return bad("message not found");
+      if (toIdx < fromIdx) return bad("the scene ends before it starts");
+      if (markRanges(line, st.marks).some((r) => r.fromIdx <= toIdx && r.toIdx >= fromIdx)) return { status: 409, json: { error: "overlaps a scene already marked" } };
+      range = { fromIdx, toIdx };
+    } else {
+      const at = st.marks.findIndex((m) => m.id === str(b.id));
+      if (at < 0) return { status: 404, json: { error: "no such mark" } };
+      const r = markRanges(line, [st.marks[at]])[0];
+      range = r ? { fromIdx: r.fromIdx, toIdx: r.toIdx } : null;
+    }
+    // chapters over these messages are written for the old layout; one the user edited is theirs to settle
+    const over = range ? st.chapters.filter((ch) => {
+      const r = rangeOf(ch, line);
+      return !r.orphan && r.fromIdx <= range.toIdx && r.toIdx >= range.fromIdx;
+    }) : [];
+    if (over.some((ch) => ch.edited === true)) return { status: 409, json: { error: "a chapter you edited covers these messages; delete it first" } };
+    if (op === "mark") {
+      const id = "s" + (1 + Math.max(0, ...st.marks.map((m) => Number(String(m.id).slice(1)) || 0)));
+      st.marks.push({ id, from: str(b.from), to: str(b.to), at: now });
+      addActivity(st, "user", "scene.mark", "Marked messages " + (range.fromIdx + 1) + "-" + (range.toIdx + 1) + " as a scene of their own", [], now, { fromNo: range.fromIdx + 1, toNo: range.toIdx + 1 });
+    } else {
+      st.marks = st.marks.filter((m) => m.id !== str(b.id));
+      addActivity(st, "user", "scene.unmark", "Took the mark off a scene", [], now);
+    }
+    for (const ch of over) ch.stale = true;
+    woke = true;
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
 /** POST /litopys/proposals { chatId, id, op: "accept"|"reject", replace? } */
 export function proposalRoute(fsx, body) {
   const b = isObj(body) ? body : {};
@@ -3800,6 +3885,7 @@ export function chatView(fsx, chatId) {
       at: Number(ch.at) || 0,
       stale: ch.stale === true,
       edited: ch.edited === true,
+      ...(ch.marked === true ? { marked: true } : {}),
     });
   }
   return {
@@ -3818,6 +3904,7 @@ export function chatView(fsx, chatId) {
     worker: workerView(st, line, next, beatAt(fsx), Date.now()),
     activity: st ? st.activity : [],
     // M4a: scenes the user deleted and kept out of the record, as message numbers
+    marks: st ? markRanges(line, st.marks).map((x) => ({ id: x.id, fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
     skipped: st ? skipRanges(st, line).map((x) => ({ fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
     pinLimit: cfg.pinLimit,
     rev: st ? st.rev : 0,
@@ -3837,7 +3924,7 @@ function chatViewExtras(fsx, chatId, st, line) {
   return {
     cut: { count, upTo: count > 0 ? line[count - 1].id : null },
     lastInsert: isObj(lastInsert) ? lastInsert : null,
-    rebuildScenes: findScenes(line, readDash(fsx, chatId), cfg).filter((x) => x.closed).length,
+    rebuildScenes: findScenes(line, readDash(fsx, chatId), cfg, st ? st.marks : []).filter((x) => x.closed).length,
     // a rebuild in progress: chapters the new generation has so far, and when it began
     rebuilding: st && isObj(st.rebuild) ? { chapters: arr(st.rebuild.chapters).length, startedAt: Number(st.rebuild.startedAt) || 0 } : null,
   };
@@ -3868,7 +3955,7 @@ export function handleRoute(req, host) {
     const res = rebuildChat(fsx, str(body.chatId), loadConfig(fsx));
     if (!res) return { status: 404, json: { error: "chat not found" } };
     if (res.busy) return { status: 409, json: { error: "busy, try again" } };
-    if (res.none) return { status: 409, json: { error: "no closed scene to rebuild from; the record is untouched", none: true } };
+    if (res.none) return { status: 409, json: { error: "No scene is closed yet, so there is nothing to rebuild from and the record is untouched. Litopys sees these " + res.messages + " messages as one scene still going. A scene closes when the Dashboard sees a new place or a long jump in time; you can also close one by hand: message menu, Save as a scene.", none: true } };
     return { status: 200, json: res };
   }
   if (path === "/litopys/messages" && req.method === "GET") return messagesView(fsx, req.query || {});
@@ -3883,6 +3970,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/links" && req.method === "POST") return linkRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
+  if (path === "/litopys/scenes" && req.method === "POST") return sceneRoute(fsx, req.body);
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);

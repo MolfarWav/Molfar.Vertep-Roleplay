@@ -37,6 +37,10 @@ describe('messageActions', () => {
     expect(groups.map((g) => g.id)).toEqual(['message', 'story', 'delete'])
   })
 
+  test('the story group offers Save as a scene (#118)', () => {
+    expect(itemIds('story', baseCtx())).toContain('scene')
+  })
+
   test('empty groups are dropped', () => {
     const groups = messageActions(baseCtx())
     expect(groups.every((g) => g.items.length > 0)).toBe(true)

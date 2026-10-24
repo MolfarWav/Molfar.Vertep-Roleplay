@@ -68,6 +68,8 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'arc.delete': return t('lit.act.arcDelete', { label })
     case 'arc.drop': return t('lit.act.arcDrop', { label })
     case 'arc.fail': return t('lit.act.arcFail', { error })
+    case 'scene.mark': return t('lit.act.sceneMark', { from: num(d.fromNo), to: num(d.toNo) })
+    case 'scene.unmark': return t('lit.act.sceneUnmark')
     case 'skill.seen': return t('lit.act.skillSeen', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'skill.earn': return t('lit.act.skillEarn', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'consolidate.ask': return t('lit.act.consolidateAsk', { n: num(d.facts) })

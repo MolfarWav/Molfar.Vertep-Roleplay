@@ -90,6 +90,10 @@ const PLAN = `[Before the story, write a short plan inside <plan></plan>, in the
 4. Beats: the three to five beats that fill the reply, the last one where {{user}} acts next.
 Then write the story. Never mention the plan.]`
 
+// the last thing the model reads while "Only you" is picked: a small model drifts into writing {{user}}
+// when a long reply is asked for, so the rule is repeated here, after the newest message
+const CONTROL_TAIL = `[{{user}} belongs to the Human. In this reply write nothing {{user}} says, thinks, feels or chooses, not even a nod, a glance or a step. Show the world and the other characters, and stop at the last beat before {{user}} would act.]`
+
 const MUSES = [
   'a sound from outside the scene that someone has to answer',
   'a small object in reach that a character uses in an unexpected way',
@@ -127,7 +131,8 @@ const variables = [
     ['auto', 'The narrator writes everyone', `You write everyone, {{user}} included, true to the persona. The Human's messages are direction for where the story goes; follow them and carry the scene forward.`, 'Your messages become directions; the narrator writes your character too.'],
   ]),
   choice('pov', 'Point of view', 'Whose eyes the story looks through.', 'close', [
-    ['close', 'Third person, close', 'third person, close to the character the scene follows: their perception and thoughts; other minds stay closed except through behaviour.', 'Follows one character at a time, from close up.'],
+    ['close', 'Third person, close', 'third person, close to the character the scene follows: their perception and thoughts; other minds stay closed except through behaviour. {{user}}\'s mind is always closed: show {{user}} only from outside, by what they say and do.', 'Follows one character at a time, from close up.'],
+    ['strict', 'Third person, strictly the character', 'third person, strictly from {{char}}\'s point of view: only what {{char}} sees, hears, feels and thinks. {{user}} is seen from outside only, through what they say and do; never narrate {{user}}\'s thoughts, feelings, senses or intentions, and never describe what {{user}} does after the Human\'s last turn.', 'Only the character\'s eyes; you are seen from outside.'],
     ['omni', 'Third person, omniscient', 'third person, omniscient: you may enter any character\'s head, one per paragraph.', 'The narrator can step into any head.'],
     ['second', 'Second person (you)', 'second person for {{user}} ("you"), third person for everyone else.', 'Your character is "you".'],
     ['first', 'First person, the character', 'first person as {{char}}: the narration is {{char}}\'s own perception, and it can be wrong.', 'The character tells the story as "I".'],
@@ -214,6 +219,7 @@ const sections: PromptSection[] = [
   own('lite_muse', 'Muse', MUSE, { position: 'in-chat', depth: 0, injectionTriggers: replyOnly, condition: 'muse' }),
   // last, so the length, point of view and language are the final thing the model reads
   own('lite_reply', 'This reply', TAIL, { position: 'in-chat', depth: 0, injectionTriggers: replyOnly }),
+  own('lite_control_tail', 'Player control reminder', CONTROL_TAIL, { position: 'in-chat', depth: 0, injectionTriggers: replyOnly, condition: 'control==Only you' }),
 ].map((s, i) => ({ ...s, order: i }))
 
 const preset: Preset = {

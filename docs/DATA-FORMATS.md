@@ -168,6 +168,13 @@ card (`POST /litopys/skills { chatId, id, op: "on"|"accept"|"reject"|"edit"|"kee
 activity log notes "skill.seen" and "skill.earn". Not for the user's character, not for what the card says; at most
 two new candidates a chapter and twelve live ones a chat.
 
+**Scenes set apart by hand.** `litopys/chats/<chatId>.json`, key `marks`: `[{ "id": "s1", "from": "<message id>", "to": "<message id>", "at": <ms> }]`.
+A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`
+does not fold it into the scene before, it counts as closed even at the end of the chat, its chapter carries
+`marked: true` and the chapter worker is told it is a turning point. `POST /litopys/scenes { chatId, op: "mark", from, to }`
+or `{ chatId, op: "unmark", id }`; chapters over the same messages (not ones the user edited: those refuse the call) are marked
+stale and rewritten for the new layout. Overlapping marks and marks whose messages are gone are ignored.
+
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
 outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the

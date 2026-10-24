@@ -521,4 +521,33 @@ describe("built-in Vertep Lite", () => {
     fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify({ ...old, studio: { ...old.studio, readOnly: false } }));
     expect(eng.onAppUpdate({ from: "4.56.0", to: "4.57.0" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
   });
+  it("repeats Only you after the newest message, and drops the reminder for the other picks (#121)", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    const one = msgs(meta.id);
+    const lastUser = one.map((m) => m.role).lastIndexOf("user");
+    const tail = one.slice(lastUser + 1).map((m) => m.content).join("\n");
+    expect(tail).toContain("belongs to the Human");
+    expect(tail.indexOf("belongs to the Human")).toBeGreaterThan(tail.indexOf("[This reply:"));
+    call("POST", `/chats/${meta.id}/preset`, { vars: { control: "control_guided" } });
+    expect(msgs(meta.id).map((m) => m.content).join("\n")).not.toContain("belongs to the Human");
+  });
+
+  it("has a strict point of view that keeps the user's mind closed (#121)", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    call("POST", `/chats/${meta.id}/preset`, { vars: { pov: "pov_strict" } });
+    const all = msgs(meta.id).map((m) => m.content).join("\n");
+    expect(all).toContain("strictly from");
+    expect(all).toContain("never narrate");
+  });
+
+  it("4.66.0 refreshes the read-only copy and keeps an editable one (#121)", () => {
+    fs.copyFileSync(path.join(shipped, "_vertep-lite.json"), path.join(root, "presets", "_vertep-lite.json"));
+    const old = { ...read(), prompts: [] };
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify(old));
+    expect(eng.onAppUpdate({ from: "4.65.0", to: "4.66.0" }, h()).upgraded).toContain("presets/vertep-lite.json");
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify({ ...old, studio: { ...old.studio, readOnly: false } }));
+    expect(eng.onAppUpdate({ from: "4.65.0", to: "4.66.0" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+  });
 });

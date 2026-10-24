@@ -8,6 +8,7 @@ export type MessageActionId =
   | 'fork'
   | 'genData'
   | 'peek'
+  | 'scene'
   | 'hide'
   | 'moveUp'
   | 'moveDown'
@@ -64,6 +65,7 @@ export function messageActions(ctx: MessageActionCtx): MessageActionGroup[] {
   }
 
   const storyItems: MessageActionItem[] = [
+    { id: 'scene', labelKey: 'msg.act.scene' },
     ctx.hidden
       ? { id: 'hide', labelKey: 'msg.act.unhide' }
       : { id: 'hide', labelKey: 'msg.act.hide' },

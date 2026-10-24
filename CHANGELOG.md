@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Litopys: a scene can be set apart by hand (#118). In a message's menu, Story, "Save as a scene…" picks the first and last message; that run is never folded into a longer scene (a rescue of five messages used to vanish into the scene around it), counts as closed at once, gets a chapter of its own marked "Marked", and the chapter worker is told it is a turning point. Chapters already written over those messages are rewritten for the new layout (one you edited refuses the call). "Take the mark off" is in the chapter menu.
+- Litopys: the "no closed scene" refusal of Rebuild now says how many messages Litopys sees as one scene and what to do about it.
+- Vertep Lite (#121): "Only you" is repeated after the newest message (a small model drifted into writing your character when a long reply was asked), "Third person, close" says your character's mind is always closed, and a new point of view, "Third person, strictly the character". The built-in read-only copy takes the new text on update; an editable copy keeps its own.
+
 ## 4.65.0
 
 Threads become quests: kinds, steps, suggestions, a Twist for Story, move, and the event ids the sensor makes up are matched and listed (#117, #86).

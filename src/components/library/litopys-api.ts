@@ -67,6 +67,8 @@ export interface LitChapter {
   at: number
   stale: boolean
   edited: boolean
+  /** the reader set this scene apart by hand (Save as a scene) */
+  marked?: boolean
 }
 
 /** M4d: neighbouring older chapters merged into one summary. The insert takes a fresh arc in place of its chapters. */
@@ -176,6 +178,7 @@ export type LitActivityKind =
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
   | 'skill.seen' | 'skill.earn'
+  | 'scene.mark' | 'scene.unmark'
 
 /**
  * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
@@ -244,6 +247,8 @@ export interface LitChat {
   /** M4a */
   activity: LitActivity[]
   skipped: LitSkipped[]
+  /** scenes the reader set apart by hand (1-based message numbers); missing from an engine before #118 */
+  marks?: { id: string; fromNo: number; toNo: number }[]
   pinLimit: number
   rev: number
   /** M4d */
@@ -323,6 +328,9 @@ export const deleteLitFact = (chatId: string, id: string) => post<LitChat>('/lit
 export const editLitChapter = (chatId: string, id: string, fields: { label?: string; text?: string }) => post<LitChat>('/litopys/chapters', { chatId, op: 'edit', id, ...fields })
 export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('/litopys/chapters', { chatId, op: 'rewrite', id })
 /** keepGone: the worker never writes a chapter for these messages again; they still leave the prompt. */
+/** Set messages apart as a scene of their own (message ids), or take that mark off. */
+export const markLitScene = (chatId: string, from: string, to: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'mark', from, to })
+export const unmarkLitScene = (chatId: string, id: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'unmark', id })
 export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) => post<LitChat>('/litopys/chapters', { chatId, op: 'delete', id, keepGone })
 
 /** M4d arcs. merge: from/to = the first and last chapter ids of the run (a suggestion's fromChapter/toChapter). */
