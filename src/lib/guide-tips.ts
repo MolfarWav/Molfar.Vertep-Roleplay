@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.68.1'
+export const APP_VERSION = '4.69.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -412,6 +412,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'The Dashboard\'s threads are quests: main, side and everyday, and a main quest can have steps. A quest that does not fit its limit, or that the story left alone for long, waits under Suggestions for your answer. Story, move can pick a quest or a step, or add a Twist: something outside the quests.',
       uk: 'Сюжетні лінії Дашборду тепер квести: головні, побічні й буденні, а головний квест може мати кроки. Квест, для якого немає місця, або який історія давно не торкалась, чекає вашої відповіді серед пропозицій. «Історія, рухайся» вміє обрати квест чи крок або додати Поворот: щось поза квестами.',
+    },
+  },
+  // ── What's new: voices in dashes and other scripts
+  {
+    id: 'new.voices-dash',
+    since: '4.69.0',
+    help: 'characters',
+    title: { en: 'Voices work with dashes and in other scripts', uk: 'Голоси працюють із тире й в іншому письмі' },
+    body: {
+      en: 'Dialogue set off by a dash (— Hello) is coloured like quoted speech, with the author\'s words between two dashes left plain. A voice is found when the story spells its name in the other script (Ember as Эмбер). A speech paragraph that names nobody takes the speaker of the narration right before it. On the Dashboard, a rated character the story keeps naming joins the scene even when the sensor missed them.',
+      uk: 'Репліки через тире (— Привіт) фарбуються як репліки в лапках, а слова автора між двома тире лишаються без кольору. Голос знаходиться, коли історія пише його імʼя іншим письмом (Ember як Эмбер). Абзац із реплікою, де мовця не названо, бере мовця з оповіді просто перед ним. У Дашборді оцінений персонаж, якого історія раз у раз називає, потрапляє в сцену, навіть якщо сенсор його пропустив.',
     },
   },
   // ── What's new: voices and the World DM
