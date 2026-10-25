@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Robot } from '@phosphor-icons/react'
+import { Robot, X } from '@phosphor-icons/react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useT } from '@/hooks/use-t'
-import { insertIntoComposer, useAgentsLive, type AgentPanel, type AgentPanelSet, type PanelPlace, type PanelWidget } from '@/lib/agents'
+import { insertIntoComposer, nameOf, useAgentsLive, type AgentPanel, type AgentPanelSet, type PanelPlace, type PanelWidget } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
+const CHOICE_BOTTOM = new Set<string | undefined>([undefined, 'bottom'])
+const FLOAT_ONLY = new Set<string | undefined>(['float'])
 const PLACES: PanelPlace[] = ['top1', 'top2', 'float']
 const EMPTY: AgentPanelSet[] = []
 
@@ -14,6 +16,63 @@ const placeOf = (set: AgentPanelSet, p: AgentPanel): PanelPlace =>
 
 const fmt = (v: unknown): string => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : typeof v === 'boolean' ? (v ? '✓' : '–') : String(v ?? '—'))
 const rows = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : [])
+
+export interface ChoiceSet { agent: string; choices: string[] }
+
+/** The choices the chat's agents offered for one reply, for the places given. Only the newest run of an agent counts. */
+export function useChoices(chatId: string, key: string | null, places: Set<string | undefined>): ChoiceSet[] {
+  const all = useAgentsLive((s) => s.runs[chatId])
+  return useMemo(() => {
+    if (!key) return []
+    const latest = new Map<string, NonNullable<typeof all>[number]>()
+    for (const r of all ?? []) if (r.key === key && r.status === 'ok' && (!latest.has(r.agent) || latest.get(r.agent)!.at <= r.at)) latest.set(r.agent, r)
+    return [...latest.values()].flatMap((r) =>
+      (r.outputs ?? []).filter((o) => o.kind === 'choices' && o.choices?.length && places.has(o.show)).map((o) => ({ agent: r.agent, choices: o.choices! })))
+  }, [all, key, places])
+}
+
+/** Chips for the choices of one agent. A tap puts the text in the composer; nothing is sent. */
+export function ChoiceChips({ chatId, set }: { chatId: string; set: ChoiceSet }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {set.choices.map((c) => (
+        <button key={c} type="button" onClick={() => insertIntoComposer(chatId, c)} title={nameOf(set.agent)}
+          className="max-w-full rounded-full border border-violet-500/40 bg-violet-500/5 px-3 py-1.5 text-left text-xs leading-snug hover:border-violet-500 hover:bg-violet-500/10 max-md:min-h-10">
+          {c}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** What the floating button holds: the panels placed there and the choices the agents sent there. */
+function useFloatParts(chatId: string, msgKey: string | null) {
+  const sets = useAgentsLive((s) => s.panels[chatId]) ?? EMPTY
+  const choices = useChoices(chatId, msgKey, FLOAT_ONLY)
+  const panels = useMemo(() => sets.map((set) => ({ set, panels: set.panels.filter((p) => placeOf(set, p) === 'float') })).filter((x) => x.panels.length), [sets])
+  return { panels, choices }
+}
+
+/** The bar above the composer: what the agents offered for the reply that is last in the chat. */
+export function AgentChoices({ chatId, msgKey }: { chatId: string; msgKey: string | null }) {
+  const t = useT()
+  const sets = useChoices(chatId, msgKey, CHOICE_BOTTOM)
+  const float = useFloatParts(chatId, msgKey)
+  const room = float.panels.length > 0 || float.choices.length > 0
+  const [hidden, setHidden] = useState<string | null>(null)
+  if (!sets.length || hidden === msgKey) return null
+  return (
+    <div className={cn('chat-column relative z-10 flex items-start gap-2 pb-1.5 pl-3', room ? 'pr-14' : 'pr-3')} data-testid="agent-choices">
+      <div className="flex max-h-28 min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+        {sets.map((x, i) => <ChoiceChips key={`${x.agent}-${i}`} chatId={chatId} set={x} />)}
+      </div>
+      <button type="button" onClick={() => setHidden(msgKey)} aria-label={t('ag.choices.hide')} title={t('ag.choices.hide')}
+        className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent max-md:size-10">
+        <X className="size-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
 
 /** One widget of a panel. The checker has vetted the file; a field that is missing still shows as a dash. */
 function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: AgentPanelSet; chatId: string; compact?: boolean }) {
@@ -133,17 +192,16 @@ const readSeen = (chatId: string): number => {
 }
 
 /** The floating button over the composer: a number of changes since it was last opened; a tap opens the panels that sit there. */
-export function AgentFloat({ chatId }: { chatId: string }) {
+export function AgentFloat({ chatId, msgKey }: { chatId: string; msgKey: string | null }) {
   const t = useT()
-  const sets = useAgentsLive((s) => s.panels[chatId]) ?? EMPTY
   const runs = useAgentsLive((s) => s.runs[chatId])
+  const { panels: shown, choices: choiceSets } = useFloatParts(chatId, msgKey)
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState(() => readSeen(chatId))
   useEffect(() => { setSeen(readSeen(chatId)) }, [chatId])
-  const shown = useMemo(() => sets.map((set) => ({ set, panels: set.panels.filter((p) => placeOf(set, p) === 'float') })).filter((x) => x.panels.length), [sets])
   const agents = new Set(shown.map((x) => x.set.agent))
   const unseen = (runs ?? []).filter((r) => agents.has(r.agent) && r.status === 'ok' && r.at > seen && (r.writes?.length ?? 0) > 0).length
-  if (!shown.length) return null
+  if (!shown.length && !choiceSets.length) return null
 
   const onOpen = (v: boolean) => {
     setOpen(v)
@@ -173,6 +231,12 @@ export function AgentFloat({ chatId }: { chatId: string }) {
                 {p.widgets.map((w, i) => <Widget key={i} w={w} set={set} chatId={chatId} />)}
               </section>
             )))}
+            {choiceSets.map((x, i) => (
+              <section key={`${x.agent}-c${i}`} className="flex flex-col gap-2" aria-label={t('ag.choices.title')}>
+                <h3 className="text-xs font-semibold">{t('ag.choices.title')}<span className="ml-1.5 font-normal text-muted-foreground">{nameOf(x.agent)}</span></h3>
+                <ChoiceChips chatId={chatId} set={x} />
+              </section>
+            ))}
           </div>
         </PopoverContent>
       </Popover>

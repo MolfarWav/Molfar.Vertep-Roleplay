@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Robot } from '@phosphor-icons/react'
 import { useT } from '@/hooks/use-t'
 import { nameOf, useAgentsLive, type AgentRun } from '@/lib/agents'
+import { ChoiceChips } from './agent-panels'
 import type { Message } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +16,7 @@ const OPEN_BELOW = 240
  * (so an agent that did nothing is not invisible). Not a message: it lives in the plugin's run file, never goes to
  * the model and never into an export. A regenerated or swiped reply has its own runs.
  */
-export function AgentNotes({ chatId, message }: { chatId: string; message: Message }) {
+export function AgentNotes({ chatId, message, last }: { chatId: string; message: Message; last?: boolean }) {
   const t = useT()
   const all = useAgentsLive((s) => s.runs[chatId])
   const key = `${message.id}#${message.activeSwipe}`
@@ -56,6 +57,9 @@ export function AgentNotes({ chatId, message }: { chatId: string; message: Messa
                   ? t('ag.failed', { why: r.reason ?? '?' })
                   : t('ag.log.ok', { ms: r.ms, calls: r.calls ?? 0, changes: r.writes?.length ?? 0 })}
                 {refused > 0 ? ` · ${t('ag.log.refused', { n: refused })}` : ''}
+                {last && r.status === 'ok' && (r.outputs ?? []).filter((o) => o.kind === 'choices' && o.show === 'log' && o.choices?.length).map((o, k) => (
+                  <div key={k} className="mt-1"><ChoiceChips chatId={chatId} set={{ agent: r.agent, choices: o.choices! }} /></div>
+                ))}
               </li>
             )
           })}

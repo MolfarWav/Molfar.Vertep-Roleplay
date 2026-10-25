@@ -48,7 +48,7 @@ import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
-import { AgentBars, AgentFloat } from './agent-panels'
+import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
 import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
@@ -392,6 +392,11 @@ export function ChatView() {
   // must NOT re-arm: the streaming key falling back to the user-turn key is
   // not a "new" anchor, or a reader scrolled up mid-generation gets yanked to
   // the bottom the moment the reply commits. Also covers switching chats.
+  /** The key agents file their runs under for the last message, when it is a reply (`<id>#<swipe>`). */
+  const lastAgentKey = (() => {
+    const m = chat?.messages[chat.messages.length - 1]
+    return m && m.role === 'assistant' ? `${m.id}#${m.activeSwipe}` : null
+  })()
   const lastUserMsgId = chat ? ([...chat.messages].reverse().find((m) => m.role === 'user')?.id ?? null) : null
   const followRef = useRef<string | null>(null)
   const followedUserRef = useRef<string | null>(null)
@@ -1029,7 +1034,7 @@ export function ChatView() {
                   />
                 )}
                 {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
-                {!deleteMode && <AgentNotes chatId={chat.id} message={msg} />}
+                {!deleteMode && <AgentNotes chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>
             )
@@ -1037,9 +1042,10 @@ export function ChatView() {
         </div>
       </div>
 
+      {!deleteMode && <AgentChoices chatId={chat.id} msgKey={lastAgentKey} />}
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">
-        {!deleteMode && <AgentFloat chatId={chat.id} />}
+        {!deleteMode && <AgentFloat chatId={chat.id} msgKey={lastAgentKey} />}
         {/* While selecting, `chat-column` keeps the bulk bar inset to the
             message column so it lines up with the composer it replaces. */}
         {deleteMode ? (

@@ -1,0 +1,25 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Next moves",
+  "agent": {
+    "formatVersion": 1,
+    "id": "next-moves",
+    "version": "1.0.0",
+    "name": "Next moves",
+    "description": "Offers three fixed ways to go on after every reply. No model calls.",
+    "author": "Molfar",
+    "trigger": { "when": "after", "everyN": 1, "keywords": [] },
+    "models": {},
+    "limits": { "maxCalls": 0, "concurrency": 1 }
+  },
+  "nodes": [
+    { "id": "in", "type": "agent.input", "x": 10, "y": 60, "title": "Input", "params": { "give": [{ "id": "r", "source": "lastReply" }] } },
+    { "id": "tpl", "type": "text.template", "x": 250, "y": 60, "title": "Moves", "params": { "text": "Look around\nAsk who is there\nLeave quietly" } },
+    { "id": "out", "type": "agent.output", "x": 500, "y": 60, "title": "Output", "params": { "kind": "choices" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "tpl:text", "to": "out:in" }
+  ]
+}

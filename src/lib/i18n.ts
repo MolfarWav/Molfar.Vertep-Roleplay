@@ -2899,6 +2899,8 @@ const en = {
   'ag.widget.html': 'This panel needs a newer version of the app.',
   'ag.widget.of': '{n} of {max}',
   'ag.panel.open': 'Agents panel',
+  'ag.choices.title': 'Ways to go on',
+  'ag.choices.hide': 'Hide the choices',
   'ag.panel.openNew': 'Agents panel, {n} new',
   'ag.manageTip': 'Install agents, give permissions, manage sets',
 } as const
@@ -5796,6 +5798,8 @@ const uk: Record<MsgKey, string> = {
   'ag.widget.html': 'Ця панель потребує новішої версії застосунку.',
   'ag.widget.of': '{n} з {max}',
   'ag.panel.open': 'Панель агентів',
+  'ag.choices.title': 'Як діяти далі',
+  'ag.choices.hide': 'Сховати варіанти',
   'ag.panel.openNew': 'Панель агентів, нових: {n}',
   'ag.manageTip': 'Встановити агентів, дати дозволи, керувати наборами',
 }
