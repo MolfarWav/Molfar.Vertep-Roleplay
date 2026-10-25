@@ -188,7 +188,14 @@ export interface EngineModel {
 // ─────────────────────────────────────────────────────────────────────────────
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) { super(message); this.status = status }
+  /** A machine-readable reason, when the route sends one ({ error, code }), plus what it carries. */
+  code?: string
+  data?: Record<string, unknown>
+  constructor(status: number, message: string, data?: Record<string, unknown>) {
+    super(message)
+    this.status = status
+    if (data) { this.data = data; if (typeof data.code === 'string' && data.code) this.code = data.code }
+  }
 }
 
 export async function j<T>(path: string, init?: RequestInit & { body?: string; signal?: AbortSignal }): Promise<T> {
@@ -203,10 +210,10 @@ export async function j<T>(path: string, init?: RequestInit & { body?: string; s
     throw new ApiError(0, 'Connection lost. Is the Molfar Vertep engine running?')
   }
   if (!res.ok) {
-    const e = (await res.json().catch(() => ({}))) as { error?: string }
+    const e = (await res.json().catch(() => ({}))) as { error?: string; [k: string]: unknown }
     // statusText is empty over HTTP/2 and on plenty of proxies: an error with
     // no message reaches the UI as a toast with nothing in it
-    throw new ApiError(res.status, e.error || res.statusText || `engine returned ${res.status}`)
+    throw new ApiError(res.status, e.error || res.statusText || `engine returned ${res.status}`, e)
   }
   return res.json() as Promise<T>
 }

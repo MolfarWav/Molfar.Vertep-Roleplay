@@ -110,7 +110,7 @@ export function LitopysView() {
   useEffect(() => { if (items) setLitCounts(items, attentionOn) }, [items, attentionOn])
   // "Open" on a needs-you toast: that chat's Overview, where its proposals are
   const focusChat = useApp((s) => s.focusLibraryChatId)
-  // the "earned a skill" toast: the tabs (Ledger) hold the Skills tab, the Overview does not
+  // the "earned a habit" toast: the tabs (Ledger) hold the Habits tab, the Overview does not
   const wantsTab = useApp((s) => s.ledgerTabRequest)
   const wantsRef = useRef(wantsTab)
   wantsRef.current = wantsTab

@@ -20,8 +20,8 @@ export interface MemSource {
   said: MemSaid[]
 }
 
-/** One skill of a card: a short rule for how the character acts. A proposal is not used until the user accepts it. */
-export interface MemSkill {
+/** One habit of a card: a short rule for how the character acts. A proposal is not used until the user accepts it. */
+export interface MemHabit {
   id: string
   name: string
   /** 1 to 6 lines joined by a newline. */
@@ -34,8 +34,8 @@ export interface MemSkill {
   from?: { chatId: string; title: string; at: number }
 }
 
-/** The fields a skill call may carry; no id creates one. */
-export interface MemSkillPatch { id?: string; name?: string; rule?: string; when?: string; on?: boolean; state?: 'accepted' }
+/** The fields a habit call may carry; no id creates one. */
+export interface MemHabitPatch { id?: string; name?: string; rule?: string; when?: string; on?: boolean; state?: 'accepted' }
 
 export interface MemChat {
   id: string
@@ -51,17 +51,17 @@ export interface CardMemoryView {
     v: number
     next: number
     sources: MemSource[]
-    inject: { enabled: boolean; maxTokens: number; skillsMaxTokens: number }
-    skills: MemSkill[]
+    inject: { enabled: boolean; maxTokens: number; habitsMaxTokens: number }
+    habits: MemHabit[]
   }
   /** The card's chats still on disk, newest first. A source whose chatId is not here lost its chat. */
   chats: MemChat[]
   /** What the memory costs in a prompt now, and the room it is given. */
   tokens: number
   budget: number
-  /** What the skills cost in a prompt now, and the room they are given. */
-  skillsTokens: number
-  skillsBudget: number
+  /** What the habits cost in a prompt now, and the room they are given. */
+  habitsTokens: number
+  habitsBudget: number
 }
 
 export interface MemPreviewLine { id: string; text: string; dup: 'memory' | null; checked: boolean }
@@ -82,14 +82,14 @@ export const fetchCardMemory = (cardId: string) => j<CardMemoryView>(`/litopys/c
 /** One line of a story: edit by index (text), remove by index, or add. 'arc' has no index: text replaces, remove clears. */
 export interface MemLinePatch { list: 'arc' | 'facts' | 'notes' | 'said'; index?: number; text?: string; remove?: boolean; add?: boolean; who?: string; kind?: string; subject?: string; how?: string }
 
-export const putCardMemory = (cardId: string, patch: { source?: { id: string; on?: boolean; canon?: 'main' | 'separate'; line?: MemLinePatch }; skill?: MemSkillPatch; inject?: { enabled?: boolean; maxTokens?: number; skillsMaxTokens?: number } }) =>
+export const putCardMemory = (cardId: string, patch: { source?: { id: string; on?: boolean; canon?: 'main' | 'separate'; line?: MemLinePatch }; habit?: MemHabitPatch; inject?: { enabled?: boolean; maxTokens?: number; habitsMaxTokens?: number } }) =>
   j<CardMemoryView>('/litopys/card-memory', { method: 'PUT', body: JSON.stringify({ cardId, ...patch }) })
 
 export const deleteCardMemorySource = (cardId: string, sourceId: string) =>
   j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}&sourceId=${q(sourceId)}`, { method: 'DELETE' })
 
-export const deleteCardMemorySkill = (cardId: string, skillId: string) =>
-  j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}&skillId=${q(skillId)}`, { method: 'DELETE' })
+export const deleteCardMemoryHabit = (cardId: string, habitId: string) =>
+  j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}&habitId=${q(habitId)}`, { method: 'DELETE' })
 
 export const previewCardMemory = (cardId: string, chatId: string) =>
   j<MemPreview>('/litopys/card-memory/preview', { method: 'POST', body: JSON.stringify({ cardId, chatId }) })
@@ -99,5 +99,5 @@ export const importCardMemory = (body: { cardId: string; chatId: string; arc: bo
 
 export const MEM_MIN_TOKENS = 100
 export const MEM_MAX_TOKENS = 1500
-export const SKILLS_MIN_TOKENS = 50
-export const SKILLS_MAX_TOKENS = 800
+export const HABITS_MIN_TOKENS = 50
+export const HABITS_MAX_TOKENS = 800

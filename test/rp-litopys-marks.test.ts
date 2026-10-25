@@ -45,7 +45,7 @@ describe("POST /litopys/scenes", () => {
       ...L.emptyChat("c1"),
       migrated: true,
       chapters: [{ id: "c1", from: "m1", to: "m30", count: 30, sig: L.chapterSig(line(story(30))), label: "All", text: "Everything.", kind: "scene", at: 1 }],
-      counters: { chapter: 1, fact: 0, proposal: 0, arc: 0, skill: 0 },
+      counters: { chapter: 1, fact: 0, proposal: 0, arc: 0, habit: 0 },
     });
     const m = mockHost();
     const r = route(m.host, { chatId: "c1", op: "mark", from: "m10", to: "m13" });

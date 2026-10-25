@@ -14,7 +14,7 @@ function seed() {
   st.migrated = true;
   st.chapters = [{ id: "c1", from: "m1", to: "m6", count: 6, label: "Glade", text: "Kael arrived in the glade.", kind: "scene", at: 1 }];
   st.facts = [{ id: "f1", text: "Kael arrived through a tear in the sky.", subject: "Kael", knownBy: "all", type: "event", weight: "important", pinned: false, status: "active", origin: "chapter", at: 1, updatedAt: 1 }];
-  st.counters = { chapter: 1, fact: 1, proposal: 0, arc: 0, skill: 0 };
+  st.counters = { chapter: 1, fact: 1, proposal: 0, arc: 0, habit: 0 };
   writeJson("litopys/chats/jude.json", st);
 }
 

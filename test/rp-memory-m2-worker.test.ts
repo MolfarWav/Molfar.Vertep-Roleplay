@@ -358,7 +358,7 @@ describe("worker through tick", () => {
 describe("parseWorkerReply", () => {
   it("parses plain JSON", () => {
     const r = L.parseWorkerReply(chapterReply("L", "Text here."));
-    expect(r).toEqual({ chapter: { label: "L", text: "Text here." }, facts: [], skills: [] });
+    expect(r).toEqual({ chapter: { label: "L", text: "Text here." }, facts: [], habits: [] });
   });
 
   it("parses a fenced json reply with prose", () => {

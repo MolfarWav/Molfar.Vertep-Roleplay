@@ -3,7 +3,7 @@ import { buildCarries, flipOff, type CarriesAnswer } from "../src/lib/carries";
 
 const labels = {
   memory: (n: string) => `Memory of ${n}`,
-  skills: (n: string) => `Skills of ${n}`,
+  habits: (n: string) => `Habits of ${n}`,
   backstory: (t: string) => `Backstory “${t}”`,
   litopys: "Litopys",
   dashboard: "Dashboard",
@@ -87,19 +87,19 @@ describe("what a chat carries: the parts", () => {
   });
 });
 
-describe("what a chat carries: the card skills", () => {
-  const skills = { cardId: "aria", name: "Aria", tokens: 60, dupes: 0, skills: ["Answers threats with silence"], text: "z" };
+describe("what a chat carries: the card habits", () => {
+  const habits = { cardId: "aria", name: "Aria", tokens: 60, dupes: 0, habits: ["Answers threats with silence"], text: "z" };
   it("sits right after the card memory, with its own switch, and drops out of the total when it is off", () => {
-    const r = run({ carries: answer({ cardMemory: memory, cardSkills: skills, backstory }) });
-    expect(r.parts.map((p) => p.key)).toEqual(["memory", "skills", "backstory", "note"]);
-    expect(r.parts[1]).toMatchObject({ label: "Skills of Aria", tokens: 60, switchKey: "plugin:cardskills", off: false });
+    const r = run({ carries: answer({ cardMemory: memory, cardHabits: habits, backstory }) });
+    expect(r.parts.map((p) => p.key)).toEqual(["memory", "habits", "backstory", "note"]);
+    expect(r.parts[1]).toMatchObject({ label: "Habits of Aria", tokens: 60, switchKey: "plugin:cardhabits", off: false });
     expect(r.total).toBe(120 + 60 + 80);
-    const off = run({ carries: answer({ off: ["plugin:cardskills"], cardSkills: skills }) });
-    expect(off.parts[0]).toMatchObject({ key: "skills", off: true });
+    const off = run({ carries: answer({ off: ["plugin:cardhabits"], cardHabits: habits }) });
+    expect(off.parts[0]).toMatchObject({ key: "habits", off: true });
     expect(off.total).toBe(0);
   });
-  it("is left out when the server sends none (the card has no skills, or they are off for the chat)", () => {
-    expect(run({ carries: answer({ cardMemory: memory, cardSkills: null }) }).parts.map((p) => p.key)).toEqual(["memory", "note"]);
+  it("is left out when the server sends none (the card has no habits, or they are off for the chat)", () => {
+    expect(run({ carries: answer({ cardMemory: memory, cardHabits: null }) }).parts.map((p) => p.key)).toEqual(["memory", "note"]);
   });
 });
 

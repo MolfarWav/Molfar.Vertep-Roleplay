@@ -2,7 +2,7 @@
  * docs/DATA-FORMATS.md is what agents (Molfar) and people read before they
  * touch data/ files. Every field the app WRITES must be named there: a card,
  * lorebook or preset field added in code without the docs fails here, so the
- * reference (and the skills that point to it) cannot fall behind silently.
+ * reference (and the habits that point to it) cannot fall behind silently.
  */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";

@@ -10,8 +10,8 @@ import { buildCarries, flipOff, ownStoryChats, type CarriesAnswer, type CarriesR
 import type { MsgKey } from '@/lib/i18n'
 import { fetchWIStatus, getChatPromptBoard, j, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
-import { skillCounts } from '@/lib/skill-earned'
-import { announceEarned } from '@/lib/skill-earned-toast'
+import { habitCounts } from '@/lib/habit-earned'
+import { announceEarned } from '@/lib/habit-earned-toast'
 import { estimateTokens } from '@/lib/tokens'
 import { fetchLitChat, fetchLitLinks } from '@/components/library/litopys-api'
 import { fetchCardMemory } from '@/components/character/memory-api'
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
 
-const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, skills: ListChecks, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
+const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, habits: ListChecks, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
 
 interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
@@ -47,7 +47,7 @@ interface Loaded {
   chatId: string
   carries: CarriesAnswer | null
   dash: DashCarries | null
-  skills: { earned: number; candidates: number } | null
+  habits: { earned: number; candidates: number } | null
   /** Lorebook entries that fired on the latest scan, and chapters in the chat's own record; null = not known (yet). */
   loreFired: number | null
   chapters: number | null
@@ -77,7 +77,7 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
     const [carries, dash, rec, lore] = await Promise.all([
       j<CarriesAnswer>(`/litopys/carries?chatId=${encodeURIComponent(chatId)}`).catch(() => null),
       j<DashAnswer>(`/dashboard/state?chatId=${encodeURIComponent(chatId)}&view=1`).catch(() => null),
-      // the chat's Litopys record: the skills earned in it (one toast when a new one was earned, and a line in the Skills row)
+      // the chat's Litopys record: the habits earned in it (one toast when a new one was earned, and a line in the Habits row)
       fetchLitChat(chatId).catch(() => null),
       // the same scan a generation runs: how many entries fire now
       fetchWIStatus(chatId).catch(() => null),
@@ -89,15 +89,15 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
     const dashPart: DashCarries | null = view
       ? { tokens: Number(view.insert?.tokens) || 0, saidTokens: Number(view.insert?.saidTokens) || 0, inherit: view.inherit ?? dash?.inherit ?? null }
       : null
-    if (rec) announceEarned(chatId, rec.skills)
-    setLoaded({ chatId, carries: carriesOut, dash: dashPart, skills: rec?.skills ? skillCounts(rec.skills) : null, loreFired: lore ? lore.fired.length : null, chapters: rec ? rec.chapters.length : null })
+    if (rec) announceEarned(chatId, rec.habits)
+    setLoaded({ chatId, carries: carriesOut, dash: dashPart, habits: rec?.habits ? habitCounts(rec.habits) : null, loreFired: lore ? lore.fired.length : null, chapters: rec ? rec.chapters.length : null })
   }, [chatId])
   useEffect(() => { void refetch() }, [refetch, msgCount, open])
   useEffect(() => { setOpen(false) }, [chatId])
 
   const labels = useMemo(() => ({
     memory: (name: string) => t('carries.label.memory', { name }),
-    skills: (name: string) => t('carries.label.skills', { name }),
+    habits: (name: string) => t('carries.label.habits', { name }),
     backstory: (title: string) => t('carries.label.backstory', { title }),
     litopys: t('carries.label.litopys'),
     dashboard: t('carries.label.dashboard'),
@@ -156,7 +156,7 @@ export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; st
               key={p.key}
               part={p}
               carries={mine?.carries ?? null}
-              chatSkills={mine?.skills ?? null}
+              chatHabits={mine?.habits ?? null}
               dash={mine?.dash ?? null}
               t={t}
               chatId={chatId}
@@ -180,24 +180,24 @@ export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; st
   )
 }
 
-function PartRow({ part, chatId, carries, chatSkills, dash, t, onFlip, onLeave, onChanged }: { part: CarryPart; chatId: string; onChanged: () => void; carries: CarriesAnswer | null; chatSkills: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
+function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, onChanged }: { part: CarryPart; chatId: string; onChanged: () => void; carries: CarriesAnswer | null; chatHabits: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
   const [shown, setShown] = useState(false)
   const Icon = ICONS[part.kind]
   const cm = carries?.cardMemory
-  const sk = carries?.cardSkills
+  const sk = carries?.cardHabits
   const bs = carries?.backstory
   const wd = carries?.world
-  const text = part.kind === 'memory' ? cm?.text : part.kind === 'skills' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
+  const text = part.kind === 'memory' ? cm?.text : part.kind === 'habits' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
   const detail =
     part.kind === 'memory' ? (cm && cm.sources.length === 0 ? t('carries.memory.none') : t('carries.memory.detail', { n: cm?.sources.length ?? 0 }))
-    : part.kind === 'skills' ? t('carries.skills.detail', { n: sk?.skills.length ?? 0, name: sk?.name ?? '' })
+    : part.kind === 'habits' ? t('carries.habits.detail', { n: sk?.habits.length ?? 0, name: sk?.name ?? '' })
     : part.kind === 'backstory' ? t('carries.backstory.detail', { facts: bs?.facts ?? 0, chapters: bs?.chapters ?? 0 })
     : part.kind === 'litopys' ? t('carries.litopys.detail', { facts: carries?.litopys.facts ?? 0, chapters: carries?.litopys.chapters ?? 0 })
     : part.kind === 'dashboard' ? t('carries.dashboard.detail')
     : part.kind === 'world' ? (wd?.level === 'chronicler' ? t('carries.world.chronicler') : wd?.waiting ? t('carries.world.waiting') : t('carries.world.idle'))
     : t('carries.said.detail')
   const inherit = part.kind === 'dashboard' && dash?.inherit?.on ? dash.inherit : null
-  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' || part.kind === 'skills' ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' || part.kind === 'skills' ? t('carries.memory.show') : t('carries.backstory.show')
+  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' || part.kind === 'habits' ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' || part.kind === 'habits' ? t('carries.memory.show') : t('carries.backstory.show')
   const textId = `carries-text-${part.key}`
   return (
     <li className="flex flex-col gap-1.5 border-b border-border p-3" data-testid={`carries-row-${part.key}`}>
@@ -215,20 +215,20 @@ function PartRow({ part, chatId, carries, chatSkills, dash, t, onFlip, onLeave, 
       {part.kind === 'memory' && !!cm && cm.dupes > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: cm.dupes })}</p>
       )}
-      {part.kind === 'skills' && !!chatSkills && (chatSkills.earned > 0 || chatSkills.candidates > 0) && (
-        <p className="text-xs text-muted-foreground" data-testid="carries-skills-earned">{t('carries.skills.chat', { earned: chatSkills.earned, candidates: chatSkills.candidates })}</p>
+      {part.kind === 'habits' && !!chatHabits && (chatHabits.earned > 0 || chatHabits.candidates > 0) && (
+        <p className="text-xs text-muted-foreground" data-testid="carries-habits-earned">{t('carries.habits.chat', { earned: chatHabits.earned, candidates: chatHabits.candidates })}</p>
       )}
-      {part.kind === 'skills' && !!sk && sk.dupes > 0 && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.skills.dupes', { n: sk.dupes })}</p>
+      {part.kind === 'habits' && !!sk && sk.dupes > 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.habits.dupes', { n: sk.dupes })}</p>
       )}
       <div className="flex flex-wrap gap-1">
-        {(part.kind === 'memory' || part.kind === 'skills' || part.kind === 'backstory' || part.kind === 'world') && !!text && (
+        {(part.kind === 'memory' || part.kind === 'habits' || part.kind === 'backstory' || part.kind === 'world') && !!text && (
           <Button variant="ghost" size="sm" className="max-md:h-10" aria-expanded={shown} aria-controls={textId} onClick={() => setShown((v) => !v)}>{showLabel}</Button>
         )}
         {part.kind === 'memory' && !!cm && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(cm.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>
         )}
-        {part.kind === 'skills' && !!sk && (
+        {part.kind === 'habits' && !!sk && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(sk.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>
         )}
         {part.kind === 'backstory' && !!bs && (

@@ -80,7 +80,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
       {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
     </Field>
   )
-  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'skillsEarnAfter', o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number }) =>
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
   const sceneField = (key: 'minMessages' | 'maxMessages', o: { id: string; label: string; min: number; max: number }) =>
     numField({ ...o, value: cfg.scene[key], setLocal: (v) => setCfg({ ...cfg, scene: { ...cfg.scene, [key]: v } }), commit: (v) => saveScene({ [key]: v }) })
@@ -182,9 +182,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         </Field>
       </Block>
 
-      <Block title={t('lit.blk.skills')} hint={t('lit.blk.skillsHint')}>
-        {switchRow('lit-skills', t('lit.set.skills'), t('lit.set.skillsHint'), cfg.skills !== false, (v) => save({ skills: v }))}
-        {cfg.skills !== false && keyField('skillsEarnAfter', { id: 'lit-skills-after', label: t('lit.set.skillsAfter'), hint: t('lit.set.skillsAfterHint'), min: 1, max: 5, fallback: 2 })}
+      <Block title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')}>
+        {switchRow('lit-habits', t('lit.set.habits'), t('lit.set.habitsHint'), cfg.habits !== false, (v) => save({ habits: v }))}
+        {cfg.habits !== false && keyField('habitsEarnAfter', { id: 'lit-habits-after', label: t('lit.set.habitsAfter'), hint: t('lit.set.habitsAfterHint'), min: 1, max: 5, fallback: 2 })}
       </Block>
 
       <Block title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>

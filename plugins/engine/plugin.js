@@ -2239,7 +2239,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardskills", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardhabits", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -2250,7 +2250,8 @@ export function cleanPromptBoard(x) {
   if (!x || typeof x !== "object" || Array.isArray(x)) return null;
   const out = { v: 1 };
   if (Array.isArray(x.off)) {
-    const off = [...new Set(x.off.filter((k) => typeof k === "string" && k !== "section:chatHistory"
+    // the habits switch was "plugin:cardskills" until 4.67.0
+    const off = [...new Set(x.off.map((k) => (k === "plugin:cardskills" ? "plugin:cardhabits" : k)).filter((k) => typeof k === "string" && k !== "section:chatHistory"
       && (PROMPT_BOARD_OFF_KEYS.includes(k) || PROMPT_BOARD_OFF_RE.test(k))))].slice(0, 500);
     if (off.length) out.off = off;
   }
@@ -2944,8 +2945,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:cardmemory")) {
     omit("memory", "Character memory", "off for this chat", undefined, "plugin:cardmemory");
   }
-  if (isOff("plugin:cardskills")) {
-    omit("memory", "Character skills", "off for this chat", undefined, "plugin:cardskills");
+  if (isOff("plugin:cardhabits")) {
+    omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
   if (litCut > 0) {
     omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them", undefined, "history");
@@ -3112,7 +3113,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:relations", label: "Relationship dashboard", kind: "dashboard", state: isOff("plugin:relations") ? "off" : "on" });
   board.push({ key: "plugin:said", label: "What characters said", kind: "dashboard", state: isOff("plugin:said") ? "off" : "on" });
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
-  board.push({ key: "plugin:cardskills", label: "Character skills", kind: "memory", state: isOff("plugin:cardskills") ? "off" : "on" });
+  board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
   // the World DM's events, only where its level sends any (its world book is a book row above)
   const worldLevel = (() => { try { const w = JSON.parse(fsx.read("world/state/" + meta.id + ".json")); return w && w.settings ? w.settings.level : ""; } catch { return ""; } })();
   if (["living", "director", "antagonist", "chaos"].includes(worldLevel)) {

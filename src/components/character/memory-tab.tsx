@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
+import { ApiError } from '@/lib/engine'
 import { resolveLanguage } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -18,14 +19,14 @@ import {
   type MemSource,
   MEM_MAX_TOKENS,
   MEM_MIN_TOKENS,
-  SKILLS_MAX_TOKENS,
-  SKILLS_MIN_TOKENS,
+  HABITS_MAX_TOKENS,
+  HABITS_MIN_TOKENS,
   deleteCardMemorySource,
   fetchCardMemory,
   putCardMemory,
 } from './memory-api'
 import { AddButton, Block } from './memory-block'
-import { SkillsBlock } from './memory-skills'
+import { HabitsBlock } from './memory-habits'
 import { MemoryImportDialog } from './memory-import-dialog'
 import { StoryLines } from './memory-story-lines'
 
@@ -35,7 +36,14 @@ const readOpen = (cardId: string): string[] => {
 }
 const writeOpen = (cardId: string, ids: string[]) => { try { sessionStorage.setItem(openKey(cardId), JSON.stringify(ids)) } catch { /* private window */ } }
 
-const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e))
+const HABIT_ERRORS = ['full', 'repeat', 'empty', 'missing'] as const
+/** A failed change in the app's language when the route sends a code it knows; its own text otherwise. */
+const message = (e: unknown, t: ReturnType<typeof useT>) => {
+  if (e instanceof ApiError && e.code && (HABIT_ERRORS as readonly string[]).includes(e.code)) {
+    return t(`mem.habits.err.${e.code as (typeof HABIT_ERRORS)[number]}`, { max: String(e.data?.max ?? '') })
+  }
+  return e instanceof Error && e.message ? e.message : String(e)
+}
 
 /** The Memory tab of the card editor: the stories the character remembers, importing a chat into
  *  that memory, and how much room the memory takes in new chats. Changes act at once (like the
@@ -57,7 +65,7 @@ export function MemoryTab({ c }: { c: Character }) {
     setLoadError(null)
     fetchCardMemory(c.id)
       .then((v) => { if (alive.current) setData(v) })
-      .catch((e) => { if (alive.current) setLoadError(message(e)) })
+      .catch((e) => { if (alive.current) setLoadError(message(e, t)) })
   }, [c.id])
   useEffect(() => { load() }, [load])
 
@@ -68,7 +76,7 @@ export function MemoryTab({ c }: { c: Character }) {
       if (alive.current) setData(v)
       return true
     } catch (e) {
-      toast.error(message(e))
+      toast.error(message(e, t))
       return false
     }
   }
@@ -178,7 +186,7 @@ export function MemoryTab({ c }: { c: Character }) {
         )}
       </Block>
 
-      <SkillsBlock c={c} data={data} t={t} apply={apply} />
+      <HabitsBlock c={c} data={data} t={t} apply={apply} />
 
       <InjectBlock c={c} data={data} t={t} apply={apply} />
 
@@ -223,7 +231,7 @@ function ChatBadge({ exists, t, className }: { exists: boolean; t: ReturnType<ty
   )
 }
 
-/** "In new chats": the switch for the memory and the room in the prompt for the memory and for the skills. */
+/** "In new chats": the switch for the memory and the room in the prompt for the memory and for the habits. */
 function InjectBlock({ c, data, t, apply }: { c: Character; data: CardMemoryView; t: ReturnType<typeof useT>; apply: (run: () => Promise<CardMemoryView>) => Promise<boolean> }) {
   const { inject } = data.memory
   return (
@@ -243,13 +251,13 @@ function InjectBlock({ c, data, t, apply }: { c: Character; data: CardMemoryView
       />
       <p className="text-xs text-muted-foreground">{inject.enabled ? t('mem.inject.hint', { tokens: data.tokens, budget: data.budget }) : t('mem.inject.off')}</p>
       <TokenField
-        id={`mem-skills-budget-${c.id}`}
-        label={t('mem.inject.skills')}
-        unit={t('mem.inject.skills.unit')}
-        value={inject.skillsMaxTokens}
-        min={SKILLS_MIN_TOKENS}
-        max={SKILLS_MAX_TOKENS}
-        onCommit={(v) => apply(() => putCardMemory(c.id, { inject: { skillsMaxTokens: v } }))}
+        id={`mem-habits-budget-${c.id}`}
+        label={t('mem.inject.habits')}
+        unit={t('mem.inject.habits.unit')}
+        value={inject.habitsMaxTokens}
+        min={HABITS_MIN_TOKENS}
+        max={HABITS_MAX_TOKENS}
+        onCommit={(v) => apply(() => putCardMemory(c.id, { inject: { habitsMaxTokens: v } }))}
       />
     </Block>
   )

@@ -144,7 +144,7 @@ interface AppState {
   litopysSettings: boolean
   /** set by a "needs you" toast: the Library selects this chat's Overview and clears it */
   focusLibraryChatId: ID | null
-  /** one-shot: the Library's Ledger opens this tab (set by the "earned a skill" toast) */
+  /** one-shot: the Library's Ledger opens this tab (set by the "earned a habit" toast) */
   ledgerTabRequest: string | null
   /** the World section opens on this chat (set by the chat's World DM sheet) */
   focusWorldChatId: ID | null

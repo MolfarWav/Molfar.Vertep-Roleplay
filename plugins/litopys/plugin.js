@@ -150,10 +150,10 @@ export const DEFAULT_CONFIG = {
   arcSizeMin: 5,
   arcSizeMax: 8,
   arcWords: 150,
-  // #106: the chapter worker also watches for habits a character shows again and again (skills); a candidate
+  // #106: the chapter worker also watches for habits a character shows again and again (habits); a candidate
   // is earned (starts to act in the chat) once it was seen in this many chapters
-  skills: true,
-  skillsEarnAfter: 2,
+  habits: true,
+  habitsEarnAfter: 2,
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -201,19 +201,19 @@ export const ARC_SHAPE = '{"arc":{"label":"2-6 words","text":"the arc"}}';
 export const WORKER_SHAPE =
   '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
 
-/** Added to the chapter prompt while skills are on (#106), so a customised chapter prompt keeps working. */
+/** Added to the chapter prompt while habits are on (#106), so a customised chapter prompt keeps working. */
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
 export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
 export const CONTINUES =
   "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
-export const SKILLS_RULE = [
-  "Skills (optional, usually none):",
-  "- A skill is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
+export const HABITS_RULE = [
+  "Habits (optional, usually none):",
+  "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
   "- Add one only when a character did something characteristic: {who, name, rule, when, evidence}. At most 2 per scene. Never for the user's character.",
   "- name: 2-6 words. rule: 1-3 short lines saying what they do. when: one short line, or \"\". evidence: a short quote or one line on what they did in this scene.",
-  "- When a Known skill showed again, give {reinforce: its id, evidence} and no new skill.",
+  "- When a Known habit showed again, give {reinforce: its id, evidence} and no new habit.",
 ].join("\n");
-export const SKILLS_SHAPE = ',"skills":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
+export const HABITS_SHAPE = ',"habits":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
 
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 const PAST_DEFAULT_PROMPTS = {
@@ -282,6 +282,9 @@ function storedConfig(fsx) {
   // only keys this version knows: the 1.x keys (extractEveryNTurns, inject, ...) are ignored
   const cfg = {};
   if (isObj(raw)) {
+    // habits were called skills until 4.67.0: the old keys are read when the new ones are not there
+    if (!("habits" in raw) && "skills" in raw) raw.habits = raw.skills;
+    if (!("habitsEarnAfter" in raw) && "skillsEarnAfter" in raw) raw.habitsEarnAfter = raw.skillsEarnAfter;
     for (const key of Object.keys(DEFAULT_CONFIG)) if (key in raw) cfg[key] = raw[key];
     for (const key of PROMPT_KEYS) if (typeof raw[key] === "string" && !isDefaultPrompt(key, raw[key])) cfg[key] = raw[key];
   }
@@ -309,8 +312,8 @@ export function loadConfig(fsx) {
   cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
   cfg.arcSizeMax = Math.max(cfg.arcSizeMin, clamp(intOf(cfg.arcSizeMax, 8), 2, 30));
   cfg.arcWords = clamp(intOf(cfg.arcWords, 150), 40, 400);
-  cfg.skills = cfg.skills !== false;
-  cfg.skillsEarnAfter = clamp(intOf(cfg.skillsEarnAfter, 2), 1, 5);
+  cfg.habits = cfg.habits !== false;
+  cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   return cfg;
 }
 
@@ -349,8 +352,8 @@ export function patchConfig(fsx, body) {
   if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);
   if (b.arcSizeMax !== undefined) next.arcSizeMax = clamp(intOf(b.arcSizeMax, 8), 2, 30);
   if (b.arcWords !== undefined) next.arcWords = clamp(intOf(b.arcWords, 150), 40, 400);
-  if (b.skills !== undefined) next.skills = b.skills !== false && b.skills !== "off";
-  if (b.skillsEarnAfter !== undefined) next.skillsEarnAfter = clamp(intOf(b.skillsEarnAfter, 2), 1, 5);
+  if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
+  if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -796,16 +799,16 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   }
   parts.push("Scene messages\n" + msgLines.join("\n"));
 
-  const skillsOn = cfg.skills !== false;
-  if (skillsOn) {
-    const known = (st.skills || [])
+  const habitsOn = cfg.habits !== false;
+  if (habitsOn) {
+    const known = (st.habits || [])
       .filter((k) => k.status !== "rejected" && nameSet.has(str(k.who).toLowerCase()))
       .slice(0, 12)
       .map((k) => k.id + ": " + k.who + " - " + k.name + ": " + str(k.rule).split("\n").join(" "));
-    if (known.length) parts.splice(parts.length - 1, 0, "Known skills\n" + known.join("\n"));
+    if (known.length) parts.splice(parts.length - 1, 0, "Known habits\n" + known.join("\n"));
   }
   const userText = parts.join("\n\n");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (skillsOn ? "\n\n" + SKILLS_RULE : "") + "\n\nOutput shape\n" + (skillsOn ? WORKER_SHAPE.replace(/\}$/, SKILLS_SHAPE + "}") : WORKER_SHAPE);
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + "\n\nOutput shape\n" + (habitsOn ? WORKER_SHAPE.replace(/\}$/, HABITS_SHAPE + "}") : WORKER_SHAPE);
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
@@ -1129,11 +1132,12 @@ export function llmRequest(ctx, host) {
   const offForChat = (fsx, chatId, key) => {
     const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
     const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
-    return off.includes(key);
+    // the habits switch was "plugin:cardskills" until 4.67.0
+    return off.includes(key) || (key === "plugin:cardhabits" && off.includes("plugin:cardskills"));
   };
   // the Litopys switch does not take the card's own memory with it: that one has its own (plugin:cardmemory)
   const litOff = offForChat(fsx, chatId, "plugin:litopys");
-  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory") && offForChat(fsx, chatId, "plugin:cardskills")) return null;
+  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory") && offForChat(fsx, chatId, "plugin:cardhabits")) return null;
   try {
     const cfg = loadConfig(fsx);
     if (cfg.enabled === false || cfg.insert === false) return null;
@@ -1175,18 +1179,18 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    // what the character does, from its card's skills (#106): rules, so they need no story and no Litopys record
-    let skills = null;
-    if (!offForChat(fsx, chatId, "plugin:cardskills")) {
+    // what the character does, from its card's habits (#106): rules, so they need no story and no Litopys record
+    let habits = null;
+    if (!offForChat(fsx, chatId, "plugin:cardhabits")) {
       try {
-        skills = cardSkillsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: stable });
+        habits = cardHabitsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: stable });
       } catch (e) {
         try {
-          host.log("litopys card skills: " + (e && e.message ? e.message : String(e)));
+          host.log("litopys card habits: " + (e && e.message ? e.message : String(e)));
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !skills) return null;
+    if (!insert && !back && !cardMem && !habits) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1201,7 +1205,7 @@ export function llmRequest(ctx, host) {
           cut: insert ? insert.cut : 0,
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
-          ...(skills ? { cardSkills: { cardId: skills.cardId, tokens: skills.tokens, skills: skills.skills, dupes: skills.dupes } } : {}),
+          ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
         }),
       );
     } catch {}
@@ -1216,9 +1220,9 @@ export function llmRequest(ctx, host) {
       messages = withInsert(messages, cardMem.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
     }
-    if (skills) {
-      messages = withInsert(messages, skills.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character skills", text: String(skills.text).trim() });
+    if (habits) {
+      messages = withInsert(messages, habits.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: String(habits.text).trim() });
     }
     if (insert && insert.head) {
       messages = withInsert(messages, insert.head);
@@ -1311,7 +1315,7 @@ function workerShape(v) {
     text = str(v.text);
   }
   if (!text) return null;
-  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), skills: Array.isArray(v.skills) ? v.skills.slice(0, 6) : [] };
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), habits: habitList(v) };
 }
 
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
@@ -1485,9 +1489,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     }
   }
 
-  // Skills the characters showed (#106), kept on the chat record itself (a rebuild keeps its own generation apart)
-  if (ctx.skills) {
-    const earned = applySkills(ctx.skillsStore || st, parsed.skills, {
+  // Habits the characters showed (#106), kept on the chat record itself (a rebuild keeps its own generation apart)
+  if (ctx.habits) {
+    const earned = applyHabits(ctx.habitsStore || st, parsed.habits, {
       now,
       chapterId,
       earnAfter: ctx.earnAfter || 2,
@@ -1496,8 +1500,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       cardRules: ctx.cardRules,
     });
     // the activity log tells it like a level reached: who earned what, and who was seen with a habit the first time
-    for (const k of earned.earnedList) addActivity(ctx.skillsStore || st, "worker", "skill.earn", k.who + " earned the skill " + quote(k.name), [k.id], now, { who: k.who, name: k.name, seen: k.seen });
-    for (const k of earned.addedList) addActivity(ctx.skillsStore || st, "worker", "skill.seen", k.who + " showed a habit: " + quote(k.name), [k.id], now, { who: k.who, name: k.name });
+    for (const k of earned.earnedList) addActivity(ctx.habitsStore || st, "worker", "habit.earn", k.who + " earned the habit " + quote(k.name), [k.id], now, { who: k.who, name: k.name, seen: k.seen });
+    for (const k of earned.addedList) addActivity(ctx.habitsStore || st, "worker", "habit.seen", k.who + " showed a habit: " + quote(k.name), [k.id], now, { who: k.who, name: k.name });
   }
 
   // Keep proposals at most 100 entries (drop oldest non-pending first)
@@ -1558,10 +1562,13 @@ export function emptyChat(chatId) {
     proposals: [],
     scene: { openFrom: null },
     arcs: [],
-    skills: [],
-    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0, skill: 0 },
+    habits: [],
+    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0, habit: 0 },
   };
 }
+
+/** The worker's habit reports; a model that still answers with the old name "skills" is understood too. */
+const habitList = (v) => (Array.isArray(v.habits) ? v.habits : Array.isArray(v.skills) ? v.skills : []).slice(0, 6);
 
 export function loadChatFile(fsx, chatId) {
   const st = readJson(fsx, CHAT_DIR + chatId + ".json", null);
@@ -1579,11 +1586,13 @@ export function loadChatFile(fsx, chatId) {
         fact: Number(st.counters.fact) || 0,
         proposal: Number(st.counters.proposal) || 0,
         arc: Number(st.counters.arc) || 0,
-        skill: Number(st.counters.skill) || 0,
+        habit: Number(st.counters.habit ?? st.counters.skill) || 0,
       }
-    : { chapter: 0, fact: 0, proposal: 0, arc: 0, skill: 0 };
+    : { chapter: 0, fact: 0, proposal: 0, arc: 0, habit: 0 };
   st.arcs = arr(st.arcs).filter(isObj);
-  st.skills = arr(st.skills).filter(isObj);
+  // habits were called skills until 4.67.0
+  st.habits = arr(st.habits ?? st.skills).filter(isObj);
+  delete st.skills;
   st.rev = Number(st.rev) || 0;
   st.activity = arr(st.activity);
   st.skipScenes = arr(st.skipScenes);
@@ -2416,11 +2425,11 @@ export function onTick(_ctx, host) {
                 line,
                 reply: reply.text,
                 sources: sourceSentences(fsx, meta),
-                skills: cfg.skills !== false,
-                skillsStore: cur,
-                earnAfter: cfg.skillsEarnAfter,
+                habits: cfg.habits !== false,
+                habitsStore: cur,
+                earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
-                cardRules: cfg.skills !== false ? cardSkillRules(fsx, meta) : [],
+                cardRules: cfg.habits !== false ? cardHabitRules(fsx, meta) : [],
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
@@ -3902,7 +3911,7 @@ export function chatView(fsx, chatId) {
     chapters,
     facts: st ? st.facts : [],
     proposals: st ? st.proposals : [],
-    skills: st ? st.skills.filter((k) => k.status !== "rejected") : [],
+    habits: st ? st.habits.filter((k) => k.status !== "rejected") : [],
     scene: st ? st.scene : { openFrom: null },
     sceneFromNo: st && st.scene && st.scene.openFrom ? line.findIndex((m) => m.id === st.scene.openFrom) + 1 : 0,
     worker: workerView(st, line, next, beatAt(fsx), Date.now()),
@@ -3978,7 +3987,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
-  if (path === "/litopys/skills" && req.method === "POST") return chatSkillRoute(fsx, req.body);
+  if (path === "/litopys/habits" && req.method === "POST") return chatHabitRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
     const key = req.query && typeof req.query.key === "string" ? req.query.key : "";
     const cfg = resetPrompts(fsx, key);
@@ -4017,12 +4026,12 @@ function cardNamesOf(card) {
   return names;
 }
 
-const SKILLS_TOKENS = 250;
-const SKILL_MAX = 30;
-const SKILL_ORIGINS = new Set(["user", "molfar", "story"]);
+const HABITS_TOKENS = 250;
+const HABIT_MAX = 30;
+const HABIT_ORIGINS = new Set(["user", "molfar", "story"]);
 
-/** A skill as the code reads it: a name, 1-6 lines of rule, an optional one-line `when`; null when it has no name or rule. */
-function normalizeSkill(raw) {
+/** A habit as the code reads it: a name, 1-6 lines of rule, an optional one-line `when`; null when it has no name or rule. */
+function normalizeHabit(raw) {
   if (!isObj(raw) || !str(raw.id)) return null;
   const name = cut(str(raw.name).replace(/\s+/g, " "), 80);
   const rule = cut(
@@ -4042,7 +4051,7 @@ function normalizeSkill(raw) {
     rule,
     when: cut(str(raw.when).replace(/\s+/g, " "), 160),
     on: raw.on !== false,
-    origin: SKILL_ORIGINS.has(raw.origin) ? raw.origin : "user",
+    origin: HABIT_ORIGINS.has(raw.origin) ? raw.origin : "user",
     state: raw.state === "proposed" ? "proposed" : "accepted",
     ...(from ? { from } : {}),
   };
@@ -4051,7 +4060,7 @@ function normalizeSkill(raw) {
 /** The file as the code reads it; keys it does not know ride along (changes come later, #106). */
 export function normalizeMemory(raw) {
   const m = isObj(raw) ? raw : {};
-  const { sources: _s, inject: _i, v: _v, next: _n, skills: _k, nextSkill: _nk, ...rest } = m;
+  const { sources: _s, inject: _i, v: _v, next: _n, habits: _k, nextHabit: _nk, skills: _ok, nextSkill: _onk, ...rest } = m;
   const items = (list, pick) => arr(list).filter((x) => isObj(x) && str(x.text)).map(pick);
   const sources = arr(m.sources)
     .filter((s) => isObj(s) && str(s.id))
@@ -4070,22 +4079,23 @@ export function normalizeMemory(raw) {
   const inj = isObj(m.inject) ? m.inject : {};
   const top = sources.reduce((n, s) => Math.max(n, Number(String(s.id).replace(/\D/g, "")) || 0), 0);
   const seen = new Set();
-  const skills = arr(m.skills)
-    .map(normalizeSkill)
+  // habits were called skills until 4.67.0: the old keys are read when the new ones are not there
+  const habits = arr(m.habits ?? m.skills)
+    .map(normalizeHabit)
     .filter((k) => k && !seen.has(k.id) && seen.add(k.id))
-    .slice(0, SKILL_MAX);
-  const topSkill = skills.reduce((n, k) => Math.max(n, Number(k.id.replace(/\D/g, "")) || 0), 0);
+    .slice(0, HABIT_MAX);
+  const topHabit = habits.reduce((n, k) => Math.max(n, Number(k.id.replace(/\D/g, "")) || 0), 0);
   return {
     ...rest,
     v: 1,
     next: Math.max(Number(m.next) || 0, top),
-    nextSkill: Math.max(Number(m.nextSkill) || 0, topSkill),
+    nextHabit: Math.max(Number(m.nextHabit ?? m.nextSkill) || 0, topHabit),
     sources,
-    skills,
+    habits,
     inject: {
       enabled: inj.enabled !== false,
       maxTokens: clamp(Math.round(Number(inj.maxTokens)) || CARD_MEMORY_TOKENS, 100, 1500),
-      skillsMaxTokens: clamp(Math.round(Number(inj.skillsMaxTokens)) || SKILLS_TOKENS, 50, 800),
+      habitsMaxTokens: clamp(Math.round(Number(inj.habitsMaxTokens ?? inj.skillsMaxTokens)) || HABITS_TOKENS, 50, 800),
     },
   };
 }
@@ -4236,46 +4246,46 @@ export function importChat(fsx, cardId, chatId, sel) {
 /** The card's memory with the chats it can still take one from, and what a new chat would receive. */
 function cardMemoryView(fsx, cardId, mem) {
   const card = cardOf(fsx, cardId);
-  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: skillLines(mem) });
-  const skills = cardSkillsText(mem, card, { cardSentences: [], chosen: [] });
+  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: habitLines(mem) });
+  const habits = cardHabitsText(mem, card, { cardSentences: [], chosen: [] });
   return {
     cardId,
     memory: mem,
     chats: cardChats(fsx, cardId, mem),
     tokens: block ? block.tokens : 0,
     budget: mem.inject.maxTokens,
-    skillsTokens: skills ? skills.tokens : 0,
-    skillsBudget: mem.inject.skillsMaxTokens,
+    habitsTokens: habits ? habits.tokens : 0,
+    habitsBudget: mem.inject.habitsMaxTokens,
   };
 }
 
-// ---------- card skills (#106): short rule blocks for how a character acts ----------
+// ---------- card habits (#106): short rule blocks for how a character acts ----------
 const RULE_SENTENCES = (rule) => String(rule).split(SENTENCE_SPLIT).map((s) => s.trim()).filter((s) => s.length >= 12);
 
-/** The rules of the skills that are on, as lines the memory block is compared with (a fact that repeats a rule is left out). */
-function skillLines(mem) {
-  return mem.skills.filter((k) => k.on && k.state === "accepted").flatMap((k) => [k.rule, ...RULE_SENTENCES(k.rule)]);
+/** The rules of the habits that are on, as lines the memory block is compared with (a fact that repeats a rule is left out). */
+function habitLines(mem) {
+  return mem.habits.filter((k) => k.on && k.state === "accepted").flatMap((k) => [k.rule, ...RULE_SENTENCES(k.rule)]);
 }
 
 /**
- * The block of a character's skills: the ones that are on and accepted, in the order of the file (so the text
- * does not move between replies), until the budget is spent. A skill whose every sentence repeats the card's own
- * text or a line already in the prompt is left out and counted in `dupes`. Returns { text, tokens, dupes, skills } or null.
+ * The block of a character's habits: the ones that are on and accepted, in the order of the file (so the text
+ * does not move between replies), until the budget is spent. A habit whose every sentence repeats the card's own
+ * text or a line already in the prompt is left out and counted in `dupes`. Returns { text, tokens, dupes, habits } or null.
  */
-export function cardSkillsText(mem, card, opts) {
+export function cardHabitsText(mem, card, opts) {
   if (!isObj(card)) return null;
   const own = arr(opts.cardSentences);
   const lines = arr(opts.chosen);
   const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
-  const head = "[Character skills: how " + name + " acts, from what happened in earlier stories. Follow these as habits, not as lines to quote:";
+  const head = "[Character habits: how " + name + " acts, from what happened in earlier stories. Follow these as habits, not as lines to quote:";
   const out = [];
   const used = [];
   let spent = estimateTokens(head + "]");
   let dupes = 0;
-  const onCard = mem.skills.filter((k) => k.on && k.state === "accepted");
+  const onCard = mem.habits.filter((k) => k.on && k.state === "accepted");
   // earned in this chat (opts.extra), after the card's own; one the card keeps already is not said twice
-  const extra = arr(opts.extra).filter((k) => !onCard.some((c) => diceSimilarity(c.rule, k.rule) >= CHAT_SKILL_SAME));
-  for (const k of [...mem.skills, ...extra]) {
+  const extra = arr(opts.extra).filter((k) => !onCard.some((c) => diceSimilarity(c.rule, k.rule) >= CHAT_HABIT_SAME));
+  for (const k of [...mem.habits, ...extra]) {
     if (!k.on || k.state !== "accepted") continue;
     const sentences = RULE_SENTENCES(k.rule);
     if (sentences.length && sentences.every((s) => repeatsSource(s, own) || saidAlready(s, lines))) {
@@ -4284,26 +4294,26 @@ export function cardSkillsText(mem, card, opts) {
     }
     const line = "- " + k.name + ": " + k.rule.split("\n").join(" ") + (k.when ? " (When: " + k.when + ")" : "");
     const t = estimateTokens(line + "\n");
-    if (spent + t > mem.inject.skillsMaxTokens) continue;
+    if (spent + t > mem.inject.habitsMaxTokens) continue;
     spent += t;
     out.push(line);
     used.push(k.id);
   }
   if (!out.length) return null;
   const text = head + "\n" + out.join("\n") + "]";
-  return { text, tokens: estimateTokens(text), dupes, skills: used };
+  return { text, tokens: estimateTokens(text), dupes, habits: used };
 }
 
-// ---------- skills a character earns in a chat (#106) ----------
+// ---------- habits a character earns in a chat (#106) ----------
 // The chapter worker reports habits a character showed in a scene. A first sighting is only a candidate
-// ("proposed"); seen in `skillsEarnAfter` different chapters it is earned ("active") and starts to act in this chat.
+// ("proposed"); seen in `habitsEarnAfter` different chapters it is earned ("active") and starts to act in this chat.
 // The user can switch one off, accept it early, edit it, reject it, or keep it on the card (where it acts in every
 // chat of the card). A rejected one stays as a tombstone so it does not come back.
-const CHAT_SKILL_MAX = 12;
-const CHAT_SKILL_NEW_PER_CHAPTER = 2;
-const CHAT_SKILL_SAME = 0.6;
+const CHAT_HABIT_MAX = 12;
+const CHAT_HABIT_NEW_PER_CHAPTER = 2;
+const CHAT_HABIT_SAME = 0.6;
 
-const skillRule = (v) =>
+const habitRule = (v) =>
   cut(
     str(v)
       .split(/\r?\n/)
@@ -4315,50 +4325,50 @@ const skillRule = (v) =>
   );
 
 /** The rules already on the chat's card(s): a habit the card keeps is not earned a second time. */
-function cardSkillRules(fsx, meta) {
+function cardHabitRules(fsx, meta) {
   const ids = [];
   if (meta && meta.groupId) for (const id of arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds)) ids.push(str(id));
   else if (meta && meta.characterId) ids.push(str(meta.characterId));
   const out = [];
   for (const id of ids) {
     if (!SAFE_ID.test(id)) continue;
-    for (const k of loadMemory(fsx, id).skills) if (k.state === "accepted") out.push(k.rule);
+    for (const k of loadMemory(fsx, id).habits) if (k.state === "accepted") out.push(k.rule);
   }
   return out;
 }
 
 /**
- * Apply the worker's `skills` list to the chat record. `c` = { now, chapterId, earnAfter, userName, sources, cardRules }.
+ * Apply the worker's `habits` list to the chat record. `c` = { now, chapterId, earnAfter, userName, sources, cardRules }.
  * Returns { added, reinforced, earned }.
  */
-export function applySkills(st, list, c) {
+export function applyHabits(st, list, c) {
   const res = { added: 0, reinforced: 0, earned: 0, addedList: [], earnedList: [] };
-  st.skills = arr(st.skills);
-  st.counters.skill = Number(st.counters.skill) || 0;
+  st.habits = arr(st.habits);
+  st.counters.habit = Number(st.counters.habit) || 0;
   let fresh = 0;
   for (const op of arr(list).slice(0, 6)) {
     if (!isObj(op)) continue;
     const evidence = cut(str(op.evidence), 200);
     let target = null;
     const rid = str(op.reinforce || op.id);
-    if (rid) target = st.skills.find((k) => k.id === rid && k.status !== "rejected") || null;
+    if (rid) target = st.habits.find((k) => k.id === rid && k.status !== "rejected") || null;
     if (!target) {
       const who = cut(str(op.who), 80);
       const name = cut(str(op.name).replace(/\s+/g, " "), 80);
-      const rule = skillRule(op.rule);
+      const rule = habitRule(op.rule);
       if (!who || !name || !rule) continue;
       if (c.userName && who.toLowerCase() === str(c.userName).toLowerCase()) continue;
-      const same = st.skills.find((k) => str(k.who).toLowerCase() === who.toLowerCase() && diceSimilarity(k.rule, rule) >= CHAT_SKILL_SAME);
+      const same = st.habits.find((k) => str(k.who).toLowerCase() === who.toLowerCase() && diceSimilarity(k.rule, rule) >= CHAT_HABIT_SAME);
       if (same) {
         // seen again, said in other words; one the user rejected does not come back
         if (same.status === "rejected") continue;
         target = same;
       } else {
-        if (repeatsSource(rule, c.sources) || arr(c.cardRules).some((r) => diceSimilarity(r, rule) >= CHAT_SKILL_SAME)) continue;
-        if (fresh >= CHAT_SKILL_NEW_PER_CHAPTER) continue;
-        if (st.skills.filter((k) => k.status !== "rejected").length >= CHAT_SKILL_MAX) continue;
+        if (repeatsSource(rule, c.sources) || arr(c.cardRules).some((r) => diceSimilarity(r, rule) >= CHAT_HABIT_SAME)) continue;
+        if (fresh >= CHAT_HABIT_NEW_PER_CHAPTER) continue;
+        if (st.habits.filter((k) => k.status !== "rejected").length >= CHAT_HABIT_MAX) continue;
         const made = {
-          id: "k" + ++st.counters.skill,
+          id: "k" + ++st.counters.habit,
           who,
           name,
           rule,
@@ -4372,7 +4382,7 @@ export function applySkills(st, list, c) {
           at: c.now,
           updatedAt: c.now,
         };
-        st.skills.push(made);
+        st.habits.push(made);
         fresh++;
         res.added++;
         res.addedList.push(made);
@@ -4402,19 +4412,19 @@ export function applySkills(st, list, c) {
     }
   }
   // tombstones make room first
-  while (st.skills.length > 3 * CHAT_SKILL_MAX) {
-    const i = st.skills.findIndex((k) => k.status === "rejected");
-    st.skills.splice(i >= 0 ? i : 0, 1);
+  while (st.habits.length > 3 * CHAT_HABIT_MAX) {
+    const i = st.habits.findIndex((k) => k.status === "rejected");
+    st.habits.splice(i >= 0 ? i : 0, 1);
   }
   return res;
 }
 
-/** The skills of this chat that act now for a card: earned, switched on, said by one of the card's names. */
-function chatSkillsFor(fsx, chatId, card) {
+/** The habits of this chat that act now for a card: earned, switched on, said by one of the card's names. */
+function chatHabitsFor(fsx, chatId, card) {
   const st = SAFE_ID.test(str(chatId)) ? loadChatFile(fsx, chatId) : null;
   if (!st) return [];
   const names = cardNamesOf(card);
-  return st.skills
+  return st.habits
     .filter((k) => k.status === "active" && k.on !== false && names.has(str(k.who).toLowerCase()))
     .map((k) => ({ id: "c" + k.id, name: k.name, rule: k.rule, when: str(k.when), on: true, state: "accepted" }));
 }
@@ -4432,40 +4442,44 @@ function cardOfReply(fsx, meta, speakerName) {
   return null;
 }
 
-/** The skills block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
-export function cardSkillsFor({ fsx, chatId, meta, speakerName, chosen }) {
+/** The habits block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
+export function cardHabitsFor({ fsx, chatId, meta, speakerName, chosen }) {
   const hit = cardOfReply(fsx, meta, speakerName);
   if (!hit) return null;
   const mem = loadMemory(fsx, hit.cardId);
   // what this character earned in this chat acts here at once, before the user keeps it on the card
-  const extra = chatId ? chatSkillsFor(fsx, chatId, hit.card) : [];
-  if (!mem.skills.length && !extra.length) return null;
-  const res = cardSkillsText(mem, hit.card, { cardSentences: sourceSentences(fsx, meta), chosen, extra });
+  const extra = chatId ? chatHabitsFor(fsx, chatId, hit.card) : [];
+  if (!mem.habits.length && !extra.length) return null;
+  const res = cardHabitsText(mem, hit.card, { cardSentences: sourceSentences(fsx, meta), chosen, extra });
   return res ? { ...res, cardId: hit.cardId } : null;
 }
 
-/** Create or change one skill. `s` = { id?, name?, rule?, when?, on?, state?, origin?, from? }; returns an error text or null. */
-function editSkill(mem, s) {
+/** A code the app turns into its own language (the English text stays for Molfar and the log). */
+const habitErrorCode = (err) =>
+  err === "no such habit" ? "missing" : /at most/.test(err) ? "full" : /already there/.test(err) ? "repeat" : /needs a name/.test(err) ? "empty" : "";
+
+/** Create or change one habit. `s` = { id?, name?, rule?, when?, on?, state?, origin?, from? }; returns an error text or null. */
+function editHabit(mem, s) {
   const id = str(s.id);
   if (id) {
-    const k = mem.skills.find((x) => x.id === id);
-    if (!k) return "no such skill";
-    const next = normalizeSkill({
+    const k = mem.habits.find((x) => x.id === id);
+    if (!k) return "no such habit";
+    const next = normalizeHabit({
       ...k,
       ...(s.name !== undefined ? { name: s.name } : {}),
       ...(s.rule !== undefined ? { rule: s.rule } : {}),
       ...(s.when !== undefined ? { when: s.when } : {}),
       ...(typeof s.on === "boolean" ? { on: s.on } : {}),
-      // a proposal is confirmed here; nothing turns an accepted skill back into a proposal
+      // a proposal is confirmed here; nothing turns an accepted habit back into a proposal
       ...(s.state === "accepted" ? { state: "accepted" } : {}),
     });
-    if (!next) return "a skill needs a name and a rule";
-    mem.skills[mem.skills.indexOf(k)] = next;
+    if (!next) return "a habit needs a name and a rule";
+    mem.habits[mem.habits.indexOf(k)] = next;
     return null;
   }
-  if (mem.skills.length >= SKILL_MAX) return "a card holds at most " + SKILL_MAX + " skills";
-  const nextId = "k" + (mem.nextSkill + 1);
-  const fresh = normalizeSkill({
+  if (mem.habits.length >= HABIT_MAX) return "a card holds at most " + HABIT_MAX + " habits";
+  const nextId = "k" + (mem.nextHabit + 1);
+  const fresh = normalizeHabit({
     id: nextId,
     name: s.name,
     rule: s.rule,
@@ -4475,11 +4489,11 @@ function editSkill(mem, s) {
     state: s.state === "proposed" ? "proposed" : "accepted",
     from: s.from,
   });
-  if (!fresh) return "a skill needs a name and a rule";
+  if (!fresh) return "a habit needs a name and a rule";
   // the same rule twice helps nobody (a proposal from a story often comes back)
-  if (mem.skills.some((k) => diceSimilarity(k.rule, fresh.rule) >= DICE_LIMIT)) return "a skill with this rule is already there";
-  mem.nextSkill += 1;
-  mem.skills.push(fresh);
+  if (mem.habits.some((k) => diceSimilarity(k.rule, fresh.rule) >= DICE_LIMIT)) return "a habit with this rule is already there";
+  mem.nextHabit += 1;
+  mem.habits.push(fresh);
   return null;
 }
 
@@ -4578,7 +4592,7 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) 
     for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
   }
   const own = sourceSentences(fsx, meta);
-  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...skillLines(mem)].filter(Boolean), cardSentences: own });
+  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...habitLines(mem)].filter(Boolean), cardSentences: own });
   return res ? { ...res, cardId } : null;
 }
 
@@ -4594,11 +4608,11 @@ function cardMemoryRoute(req, fsx) {
     if (isObj(b.inject)) {
       if (typeof b.inject.enabled === "boolean") mem.inject.enabled = b.inject.enabled;
       if (Number.isFinite(Number(b.inject.maxTokens))) mem.inject.maxTokens = clamp(Math.round(Number(b.inject.maxTokens)), 100, 1500);
-      if (b.inject.skillsMaxTokens !== undefined && Number.isFinite(Number(b.inject.skillsMaxTokens))) mem.inject.skillsMaxTokens = clamp(Math.round(Number(b.inject.skillsMaxTokens)), 50, 800);
+      if (b.inject.habitsMaxTokens !== undefined && Number.isFinite(Number(b.inject.habitsMaxTokens))) mem.inject.habitsMaxTokens = clamp(Math.round(Number(b.inject.habitsMaxTokens)), 50, 800);
     }
-    if (isObj(b.skill)) {
-      const err = editSkill(mem, b.skill);
-      if (err) return { status: err === "no such skill" ? 404 : 400, json: { error: err } };
+    if (isObj(b.habit)) {
+      const err = editHabit(mem, b.habit);
+      if (err) return { status: err === "no such habit" ? 404 : 400, json: { error: err, code: habitErrorCode(err), max: HABIT_MAX } };
     }
     if (isObj(b.source)) {
       const s = mem.sources.find((x) => x.id === str(b.source.id));
@@ -4616,10 +4630,10 @@ function cardMemoryRoute(req, fsx) {
   }
   if (method === "DELETE") {
     const mem = loadMemory(fsx, cardId);
-    const skillId = str(q.skillId);
-    if (skillId) {
-      if (!mem.skills.some((k) => k.id === skillId)) return { status: 404, json: { error: "no such skill" } };
-      mem.skills = mem.skills.filter((k) => k.id !== skillId);
+    const habitId = str(q.habitId);
+    if (habitId) {
+      if (!mem.habits.some((k) => k.id === habitId)) return { status: 404, json: { error: "no such habit" } };
+      mem.habits = mem.habits.filter((k) => k.id !== habitId);
       saveMemory(fsx, cardId, mem);
       return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
     }
@@ -4632,7 +4646,7 @@ function cardMemoryRoute(req, fsx) {
   return { status: 405, json: { error: "method not allowed" } };
 }
 
-/** The card (id and file) a character of this chat belongs to, by the name that earned a skill. */
+/** The card (id and file) a character of this chat belongs to, by the name that earned a habit. */
 function cardOfName(fsx, meta, who) {
   const ids = [];
   if (meta && meta.groupId) for (const id of arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds)) ids.push(str(id));
@@ -4645,18 +4659,18 @@ function cardOfName(fsx, meta, who) {
 }
 
 /**
- * POST /litopys/skills { chatId, op, id, ... }: what the user does with a skill a character earned in this chat.
+ * POST /litopys/habits { chatId, op, id, ... }: what the user does with a habit a character earned in this chat.
  * op: "on" (on: bool), "accept" (earned at once, before the second sighting), "reject" (stays as a tombstone),
  * "edit" (name, rule, when), "keep" (copy onto the character's card, where it acts in every chat of the card).
  */
-function chatSkillRoute(fsx, body) {
+function chatHabitRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
   if (!["on", "accept", "reject", "edit", "keep"].includes(op)) return bad("unknown op");
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
-    const k = st.skills.find((x) => x.id === str(b.id) && x.status !== "rejected");
-    if (!k) return { status: 404, json: { error: "no such skill" } };
+    const k = st.habits.find((x) => x.id === str(b.id) && x.status !== "rejected");
+    if (!k) return { status: 404, json: { error: "no such habit" } };
     if (op === "on") {
       k.on = b.on !== false;
     } else if (op === "accept") {
@@ -4668,19 +4682,19 @@ function chatSkillRoute(fsx, body) {
       k.status = "rejected";
     } else if (op === "edit") {
       const name = b.name !== undefined ? cut(str(b.name).replace(/\s+/g, " "), 80) : k.name;
-      const rule = b.rule !== undefined ? skillRule(b.rule) : k.rule;
-      if (!name || !rule) return bad("a skill needs a name and a rule");
+      const rule = b.rule !== undefined ? habitRule(b.rule) : k.rule;
+      if (!name || !rule) return bad("a habit needs a name and a rule");
       k.name = name;
       k.rule = rule;
       if (b.when !== undefined) k.when = cut(str(b.when).replace(/\s+/g, " "), 160);
       k.edited = true;
     } else {
-      if (k.status !== "active") return bad("only an earned skill can be kept on the card");
+      if (k.status !== "active") return bad("only an earned habit can be kept on the card");
       const rc = readChat(fsx, st.chatId);
       const hit = cardOfName(fsx, rc ? rc.meta : null, k.who);
       if (!hit) return bad("no card for " + k.who);
       const mem = loadMemory(fsx, hit.cardId);
-      const err = editSkill(mem, {
+      const err = editHabit(mem, {
         name: k.name,
         rule: k.rule,
         when: k.when,
@@ -4773,14 +4787,14 @@ function carriesRoute(fsx, query) {
     const c = cardOf(fsx, card.cardId);
     cardName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
   }
-  let skills = null;
+  let habits = null;
   try {
-    skills = cardSkillsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")) });
+    habits = cardHabitsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")) });
   } catch {}
-  let skillsName = cardName;
-  if (skills && !skillsName) {
-    const c = cardOf(fsx, skills.cardId);
-    skillsName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
+  let habitsName = cardName;
+  if (habits && !habitsName) {
+    const c = cardOf(fsx, habits.cardId);
+    habitsName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
   }
   const titleOf = (id) => str((readChat(fsx, id) || { meta: {} }).meta.title) || id;
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
@@ -4803,7 +4817,7 @@ function carriesRoute(fsx, query) {
       backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
-      cardSkills: skills ? { cardId: skills.cardId, name: skillsName, tokens: skills.tokens, dupes: skills.dupes, skills: skills.skills, text: skills.text } : null,
+      cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
     },
   };
 }
