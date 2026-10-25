@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.68.1
+
+A greeting follows the persona you switch to before the first reply (#128).
+
 - Agents, first step (#127 in Molfar.Vertep): the Canvas kit can carry an `agent` header in a file and derive a card's ports from its params, and `src/canvas-kit/boards/agent.ts` holds the agent card set and the checker that decides whether an agent file may be installed. No screen and no runner yet; the format is in `docs/DATA-FORMATS.md`. The checker also knows an agent's own state (fields, four state cards, `read:own`/`write:own`), its panels and the `html` widget template.
 - Changing the persona of a chat before the first reply now changes `{{user}}` in the greeting. Before, the greeting kept the name of the persona the chat was opened with, and only a swipe fixed it. This covers a character chat and the openings of a group chat (the narrator's and each member's, on the swipe that was showing). Once a turn is sent, or the greeting was edited by hand, the transcript keeps the names it was written under.
 
