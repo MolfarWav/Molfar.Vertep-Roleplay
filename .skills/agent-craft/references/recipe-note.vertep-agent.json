@@ -1,0 +1,84 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Scene recap",
+  "agent": {
+    "formatVersion": 1,
+    "id": "scene-recap",
+    "version": "1.0.0",
+    "name": "Scene recap",
+    "description": "After each reply, leaves a one-line recap of the scene under it.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "cheap, short answers"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    }
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 60,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "reply",
+            "source": "lastReply"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 260,
+      "y": 60,
+      "title": "Recap",
+      "params": {
+        "role": "fast",
+        "prompt": "Recap what just happened in one short sentence, plain words, no quotes.\n\n{{reply}}",
+        "answer": {
+          "as": "text"
+        },
+        "maxTokens": 80,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 520,
+      "y": 60,
+      "title": "Output",
+      "params": {
+        "kind": "note",
+        "title": "Recap"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:reply",
+      "to": "ask:reply"
+    },
+    {
+      "id": "e2",
+      "from": "ask:text",
+      "to": "out:in"
+    }
+  ]
+}

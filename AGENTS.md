@@ -389,7 +389,7 @@ Card souls for the relationship dashboard: docs/SOUL.md
 
 Every field of cards, lorebooks and presets: `docs/DATA-FORMATS.md`. The skills
 in `.skills/` (`edit-large-card`, `card-craft`, `card-import`, `lorebook-craft`,
-`preset-craft`) point there instead of copying it. A change to one of these
+`preset-craft`, `agent-craft`) point there instead of copying it. A change to one of these
 formats updates DATA-FORMATS.md (`test/rp-data-formats.test.ts` fails otherwise)
 AND every skill that names the changed field, in the same commit.
 
