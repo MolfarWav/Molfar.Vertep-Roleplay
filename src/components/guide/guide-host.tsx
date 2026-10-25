@@ -12,7 +12,7 @@ import {
 } from '@/lib/guide'
 import { APP_VERSION, TIPS, TOURS } from '@/lib/guide-tips'
 import { BOARD_KEY } from '@/components/canvas/canvas-view'
-import { GUIDE_DETAIL_EVENT, GUIDE_MENU_EVENT } from './events'
+import { GUIDE_DETAIL_EVENT, GUIDE_MENU_EVENT, GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT } from './events'
 import { HelpList } from './help-list'
 import { useCurrentPlace } from './place'
 import { findTarget } from './target'
@@ -86,6 +86,8 @@ function openPlace(open: GuideOpen, target?: string) {
     if (newest) app.openChat(newest.id)
     else app.navigate('chats')
   } else app.navigate(open.view)
+  // on a phone only Home, Chats and Characters are in the tab bar: a target under More needs its sheet open
+  if (narrow && target && /^nav\.(?!home$|chats$|characters$)/.test(target)) untilTarget(() => window.dispatchEvent(new CustomEvent(GUIDE_MORE_EVENT)), target)
   if (open.detail) untilTarget(() => window.dispatchEvent(new CustomEvent(GUIDE_DETAIL_EVENT, { detail: open.view })), target)
 }
 
@@ -103,6 +105,11 @@ export function GuideHost() {
   const setHelpOpen = useApp((s) => s.setGuideHelpOpen)
   // kept while the user is away on "Show me", so "Back to help" lands on the same search
   const [helpQuery, setHelpQuery] = useState('')
+
+  // the More sheet a "Show me" opened closes with the spotlight that pointed into it
+  useEffect(() => {
+    if (!spot) window.dispatchEvent(new CustomEvent(GUIDE_MORE_CLOSE_EVENT))
+  }, [spot])
 
   // What's new: after the first load, and again whenever the stored state asks for it
   // (Settings → Show what's new again). A build with nothing new just records its version.

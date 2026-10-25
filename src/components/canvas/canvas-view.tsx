@@ -526,7 +526,7 @@ export function CanvasView() {
   return (
     <div className="flex h-full flex-col" role="application" aria-label={t('canvas.title')}>
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground max-md:hidden">
           {t('canvas.boards')}
         </span>
         <div data-guide="canvas.boards" className="flex rounded-lg bg-muted p-0.5">
@@ -608,6 +608,35 @@ export function CanvasView() {
           </button>
         </div>
 
+        {isMobile && (
+          <div className="flex rounded-lg bg-muted p-0.5">
+            <button
+              className={cn(
+                'flex h-9 min-w-10 items-center justify-center rounded-md px-2.5 text-sm font-semibold',
+                !phoneList ? 'bg-card text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground'
+              )}
+              aria-pressed={!phoneList}
+              aria-label={t('canvas.graph')}
+              title={t('canvas.graph')}
+              onClick={() => setPhoneList(false)}
+            >
+              <GraphIcon className="h-4 w-4" />
+            </button>
+            <button
+              className={cn(
+                'flex h-9 min-w-10 items-center justify-center rounded-md px-2.5 text-sm font-semibold',
+                phoneList ? 'bg-card text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground'
+              )}
+              aria-pressed={phoneList}
+              aria-label={t('canvas.list')}
+              title={t('canvas.list')}
+              onClick={() => setPhoneList(true)}
+            >
+              <ListBullets className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {board === 'links' && (
           <>
             <Button
@@ -632,33 +661,10 @@ export function CanvasView() {
         )}
       </header>
 
-      {isMobile && (
-        <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-3 py-2">
-          <span className="text-xs text-muted-foreground">{t('canvas.phoneNote')}</span>
-          <div className="ml-auto flex rounded-lg bg-muted p-0.5">
-            <button
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
-                !phoneList ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-              )}
-              aria-pressed={!phoneList}
-              onClick={() => setPhoneList(false)}
-            >
-              <GraphIcon className="h-4 w-4" />
-              {t('canvas.graph')}
-            </button>
-            <button
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
-                phoneList ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-              )}
-              aria-pressed={phoneList}
-              onClick={() => setPhoneList(true)}
-            >
-              <ListBullets className="h-4 w-4" />
-              {t('canvas.list')}
-            </button>
-          </div>
+      {/* the note is about building the links graph, so the Prompt board leaves it out */}
+      {isMobile && board === 'links' && (
+        <div className="border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+          {t('canvas.phoneNote')}
         </div>
       )}
 

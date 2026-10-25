@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { List, Question, Tray } from '@phosphor-icons/react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useApp } from '@/lib/store'
@@ -8,6 +8,7 @@ import { useT } from '@/hooks/use-t'
 import { SECTIONS } from '@/components/shell/sections'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 import { useInbox, useInboxBadge } from '@/components/shell/inbox'
+import { GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT, guideTarget } from '@/components/guide/events'
 
 const PRIMARY = new Set(['home', 'chats', 'characters'])
 const primaryTabs = SECTIONS.filter((s) => PRIMARY.has(s.key))
@@ -23,6 +24,14 @@ export function MobileTabBar() {
   // #55: the inbox and the Library sit under More on phones, so More carries the total
   const { total: waiting, failures } = useInboxBadge()
   const setInboxOpen = useInbox((s) => s.setOpen)
+  // "Show me" for a tip whose target sits under More opens the sheet, so the spotlight has something to point at
+  useEffect(() => {
+    const open = () => setMoreOpen(true)
+    const close = () => setMoreOpen(false)
+    window.addEventListener(GUIDE_MORE_EVENT, open)
+    window.addEventListener(GUIDE_MORE_CLOSE_EVENT, close)
+    return () => { window.removeEventListener(GUIDE_MORE_EVENT, open); window.removeEventListener(GUIDE_MORE_CLOSE_EVENT, close) }
+  }, [])
 
   return (
     <>
@@ -67,7 +76,7 @@ export function MobileTabBar() {
         </button>
       </nav>
 
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+      <Sheet open={moreOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d?.event)) return; setMoreOpen(o) }}>
         <SheetContent side="bottom" className="pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <SheetHeader>
             <SheetTitle>All sections</SheetTitle>

@@ -10,13 +10,16 @@ import { j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { loadWorldBackgrounds } from '@/lib/world'
 
-export function AutoBackground({ chatId, compact }: { chatId: string; compact?: boolean }) {
+/** worldFolderId: the world's folder as the Backgrounds tab knows it right now (it can link one
+ *  while this is open); without it the folder is read once from the engine. */
+export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: string; compact?: boolean; worldFolderId?: string | null }) {
   const t = useT()
   const auto = useApp((s) => s.chats.find((c) => c.id === chatId)?.autoBackground ?? null)
   const folders = useApp((s) => s.folders)
   const backgrounds = useApp((s) => s.backgrounds)
   const updateChat = useApp((s) => s.updateChat)
-  const [worldFolder, setWorldFolder] = useState<string | null>(null)
+  const [loadedWorldFolder, setWorldFolder] = useState<string | null>(null)
+  const [another, setAnother] = useState(false)
   const [dash, setDash] = useState<boolean | null>(null)
 
   const bgFolders = useMemo(() => folders.filter((f) => f.scope === 'backgrounds'), [folders])
@@ -27,7 +30,11 @@ export function AutoBackground({ chatId, compact }: { chatId: string; compact?: 
     return () => { stale = true }
   }, [chatId, auto?.on])
 
+  const worldFolder = worldFolderId !== undefined ? worldFolderId : loadedWorldFolder
   const folderId = auto?.folderId && bgFolders.some((f) => f.id === auto.folderId) ? auto.folderId : ''
+  // the usual case: the sensor picks from the world's own folder, shown as a line, not a second folder picker
+  const worldBg = worldFolder ? bgFolders.find((f) => f.id === worldFolder) : undefined
+  const fromWorld = !!worldBg && (!folderId || folderId === worldBg.id) && !another
   const countIn = (id: string) => backgrounds.filter((b) => b.folderId === id).length
   const defaultFolder = () => (worldFolder && bgFolders.some((f) => f.id === worldFolder) ? worldFolder : bgFolders[0]?.id ?? '')
 
@@ -47,14 +54,23 @@ export function AutoBackground({ chatId, compact }: { chatId: string; compact?: 
       {auto?.on && (
         bgFolders.length === 0 ? (
           <p className="text-xs text-muted-foreground">{t('world.bg.autoNoFolder')}</p>
+        ) : fromWorld && worldBg ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground" data-testid="auto-background-world">
+            <span className="min-w-0">{t('world.bg.autoFromWorld', { name: worldBg.name, n: countIn(worldBg.id) })}</span>
+            {bgFolders.length > 1 && (
+              <button type="button" className="min-h-10 shrink-0 font-semibold text-primary hover:underline md:min-h-0" onClick={() => setAnother(true)}>
+                {t('world.bg.autoOther')}
+              </button>
+            )}
+          </div>
         ) : (
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs text-muted-foreground">{t('world.bg.autoFolder')}</span>
-            <Select value={folderId} onValueChange={(v) => v && pick(v)}>
+            <Select value={folderId || worldBg?.id || ''} onValueChange={(v) => v && pick(v)}>
               <SelectTrigger className="h-10 md:h-9" aria-label={t('world.bg.autoFolder')} data-testid="auto-background-folder"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {bgFolders.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({countIn(f.id)})</SelectItem>)}
+                  {bgFolders.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({countIn(f.id)}){f.id === worldBg?.id ? ` · ${t('world.bg.autoWorldMark')}` : ''}</SelectItem>)}
                 </SelectGroup>
               </SelectContent>
             </Select>
