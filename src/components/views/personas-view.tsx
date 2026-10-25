@@ -216,6 +216,21 @@ export function PersonasView() {
               <Label className="text-xs">Title</Label>
               <Input value={p.title} onChange={(e) => updatePersona(p.id, { title: e.target.value })} aria-label="Title" />
             </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Label className="w-36 text-xs">Dialogue colour</Label>
+              <input
+                type="color"
+                value={p.dialogueColor || '#888888'}
+                onChange={(e) => updatePersona(p.id, { dialogueColor: e.target.value })}
+                aria-label="Dialogue colour"
+                className="size-8 cursor-pointer rounded border-0 bg-transparent p-0"
+              />
+              <span className="text-xs text-muted-foreground">{p.dialogueColor || 'the theme\'s quote colour'}</span>
+              {p.dialogueColor && (
+                <Button variant="ghost" size="sm" onClick={() => updatePersona(p.id, { dialogueColor: '' })}>Reset</Button>
+              )}
+              <InfoTip label="About dialogue colour">The colour of this persona&apos;s quoted speech in the chat. A message takes the colour of the persona it was sent under, so changing it repaints that persona&apos;s earlier messages too.</InfoTip>
+            </div>
             <PersonaDescription key={p.id} p={p} update={(patch) => updatePersona(p.id, patch)} onAsk={() => setAskOpen(true)} confirm={confirm} />
 
             <div className="flex flex-col gap-2 rounded-lg border border-border p-3">

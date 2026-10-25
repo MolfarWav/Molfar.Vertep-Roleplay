@@ -302,6 +302,8 @@ export interface Persona {
   createdAt: number
   /** The persona's structured fields (src/lib/profile.ts); `description` is compiled from it. */
   profile?: Record<string, unknown>
+  /** Colour of this persona's dialogue in the chat (a hex colour); absent = the theme's quote colour. */
+  dialogueColor?: string
 }
 
 // ── Presets / prompt manager ──
