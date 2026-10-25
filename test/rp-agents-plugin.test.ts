@@ -357,6 +357,32 @@ describe("drafts", () => {
   });
 });
 
+describe("editing a draft", () => {
+  it("reads one back, saves a file with errors without a word, and copies an installed agent into the drafts", () => {
+    expect(call("GET", "/agents/drafts/none").status).toBe(404);
+    const edited = copy(echo) as { title: string; edges: unknown[] };
+    edited.title = "Echo, half done";
+    edited.edges = [];
+    expect(j("/agents/drafts/half", "PUT", { file: edited })).toEqual({ ok: true, name: "half" });
+    expect(j("/agents/drafts/half").file.title).toBe("Echo, half done");
+    expect(j("/agents/drafts").drafts[0].errors.length).toBeGreaterThan(0);
+    expect(call("PUT", "/agents/drafts/half", { nope: 1 }).status).toBe(400);
+    expect(call("PUT", "/agents/drafts/bad name", { file: edited }).status).toBe(400);
+    fs.writeFileSync(path.join(root, "agents/drafts/half.vertep-agent.json"), "{ nope", "utf8");
+    expect(j("/agents/drafts/half").text).toBe("{ nope");
+    j("/agents/install", "PUT", { file: copy(echo), grant: true });
+    expect(j("/agents/drafts/copy", "POST", { id: "scene-echo" })).toEqual({ ok: true, name: "scene-echo" });
+    const back = j("/agents/drafts/scene-echo").file;
+    expect(back.agent.derived).toBeUndefined();
+    expect(j("/agents/drafts/install", "POST", { name: "scene-echo" })).toMatchObject({ ok: true, updated: true });
+    // a second copy opens the draft that is there: its edits are not lost
+    j("/agents/drafts/scene-echo", "PUT", { file: { ...back, title: "Edited" } });
+    expect(j("/agents/drafts/copy", "POST", { id: "scene-echo" })).toEqual({ ok: true, name: "scene-echo", existing: true });
+    expect(j("/agents/drafts/scene-echo").file.title).toBe("Edited");
+    expect(call("POST", "/agents/drafts/copy", { id: "ghost" }).status).toBe(404);
+  });
+});
+
 describe("panels", () => {
   beforeEach(() => {
     j("/agents/install", "PUT", { file: copy(keeper), grant: true });

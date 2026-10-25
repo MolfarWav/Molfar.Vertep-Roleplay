@@ -1351,6 +1351,41 @@ function draftInstallRoute(req, host) {
   return installRoute({ ...req, body: { file: d.file } }, host);
 }
 
+/** One draft as the file it holds, for the editor. A file that is not valid JSON comes back as `text`, so it can be shown and fixed. */
+function draftReadRoute(req, host, name) {
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
+  let text;
+  try { text = host.fs.read(draftPath(name)); } catch { return ok({ error: "no such draft" }, 404); }
+  try { return ok({ name, file: JSON.parse(text) }); } catch { return ok({ name, text: text.slice(0, AG_FILE_MAX) }); }
+}
+
+/** Saves a draft as the editor left it. It is not checked here: work in progress may have errors, and the sheet shows them. */
+function draftWriteRoute(req, host, name) {
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
+  const b = isObj(req.body) ? req.body : {};
+  if (!isObj(b.file)) return ok({ error: "file required" }, 400);
+  const text = JSON.stringify(b.file, null, 2) + "\n";
+  if (text.length > AG_FILE_MAX) return ok({ error: "the file is over 256 KB" }, 400);
+  host.fs.write(draftPath(name), text);
+  return ok({ ok: true, name });
+}
+
+/** A copy of an installed agent in the drafts, to open in the editor. Without `derived`: the check fills it again. */
+function draftCopyRoute(req, host) {
+  const b = isObj(req.body) ? req.body : {};
+  const id = str(b.id);
+  const file = DRAFT_NAME_RE.test(id) ? readJsonAt(host.fs, agentPath(id), null) : null;
+  if (!isObj(file)) return ok({ error: "not installed" }, 404);
+  // a draft of this name may hold edits that are not installed yet: open that one, never overwrite it
+  let there = false;
+  try { host.fs.read(draftPath(id)); there = true; } catch {}
+  if (there) return ok({ ok: true, name: id, existing: true });
+  const copy = JSON.parse(JSON.stringify(file));
+  if (isObj(copy.agent)) delete copy.agent.derived;
+  host.fs.write(draftPath(id), JSON.stringify(copy, null, 2) + "\n");
+  return ok({ ok: true, name: id });
+}
+
 function draftRemoveRoute(req, host, name) {
   if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
   try { host.fs.remove(draftPath(name)); } catch {}
@@ -1471,6 +1506,9 @@ export function handleRoute(req, host) {
   if (path === "/agents/install" && req.method === "PUT") return installRoute(req, host);
   if (path === "/agents/drafts" && req.method === "GET") return draftsRoute(req, host);
   if (path === "/agents/drafts/install" && req.method === "POST") return draftInstallRoute(req, host);
+  if (path === "/agents/drafts/copy" && req.method === "POST") return draftCopyRoute(req, host);
+  if (seg.length === 3 && seg[1] === "drafts" && req.method === "GET") return draftReadRoute(req, host, seg[2]);
+  if (seg.length === 3 && seg[1] === "drafts" && req.method === "PUT") return draftWriteRoute(req, host, seg[2]);
   if (seg.length === 3 && seg[1] === "drafts" && req.method === "DELETE") return draftRemoveRoute(req, host, seg[2]);
   if (path === "/agents/grant" && req.method === "POST") return grantRoute(req, host);
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);

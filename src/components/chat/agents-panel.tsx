@@ -203,7 +203,7 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
 }
 
 /** Installed agent, with its permissions in plain words. Not allowed yet = the list stays open and Allow is the main button. */
-function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; focus: boolean; onChanged: () => Promise<void> }) {
+export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; focus: boolean; onChanged: () => Promise<void> }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const ref = useRef<HTMLDivElement>(null)

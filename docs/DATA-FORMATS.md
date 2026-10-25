@@ -617,6 +617,16 @@ routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-ag
   title, description, needs, maxCalls, installed, errors, warnings }] }`, at most 50), `POST /agents/drafts/install { name }`
   (the same reply as `PUT /agents/install`; the user still has to allow), `DELETE /agents/drafts/<name>`. The file needs no
   `agent.derived`: the check fills it in. The draft stays after install, so a fixed file can be installed again as an update.
+  The editor (Canvas, tab Agents) also uses `GET /agents/drafts/<name>` (`{ name, file }`, or `{ name, text }` when the file is
+  not JSON), `PUT /agents/drafts/<name> { file }` (saved as it stands; not checked, work in progress may have errors) and
+  `POST /agents/drafts/copy { id }` (a copy of an installed agent as a draft, without `derived`; a draft of that name that is
+  already there is kept and returned with `existing: true`). A name is 1 to 100 characters: letters, digits, `_`, `-`.
+- **The editor (the Forge).** Canvas has a third tab, Agents: the drafts as a list, a new agent from a ready recipe, and one
+  agent as cards on the board (`AGENT_BOARD`) with a form for the picked card and a tab for the agent itself (name, id, trigger,
+  its own state fields, panels as JSON). It checks the file as it changes with the same checker the plugin uses, saves the draft
+  after a short pause, and installs it through the drafts route; Install is off while the check has errors. The recipes it starts
+  from are the skill's JSON files, copied into `src/lib/forge-recipes.ts` by `bun scripts/sync-agent-recipes.ts` (a test fails
+  when the copy is old). A phone gets the cards as a list and the same forms in a sheet.
 - **Choices.** An Output `choices` (up to 6 lines, one per choice) belongs to the reply it was made for. While that reply is the
   last message of the chat, `bottom` (also the default) shows the choices as buttons above the composer, `float` puts them in the
   floating card, `log` under the agent's line of the run log. A tap puts the text in the composer; it never sends. Once the user

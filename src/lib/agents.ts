@@ -166,6 +166,21 @@ export async function listAgentDrafts(): Promise<AgentDraft[]> {
   return (await j<{ drafts: AgentDraft[] }>('/agents/drafts')).drafts
 }
 
+/** The file in one draft. `text` instead of `file` when it is not valid JSON. */
+export async function readAgentDraft(name: string): Promise<{ name: string; file?: Record<string, unknown>; text?: string }> {
+  return j(`/agents/drafts/${encodeURIComponent(name)}`)
+}
+
+/** Saves a draft as the editor left it, errors and all. */
+export async function saveAgentDraft(name: string, file: unknown): Promise<void> {
+  await j(`/agents/drafts/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ file }) })
+}
+
+/** A copy of an installed agent in the drafts, to edit; the name is the agent's id. */
+export async function copyAgentToDraft(id: string): Promise<string> {
+  return (await j<{ name: string }>('/agents/drafts/copy', { method: 'POST', body: JSON.stringify({ id }) })).name
+}
+
 export async function installAgentDraft(name: string): Promise<InstallReply> {
   return j<InstallReply>('/agents/drafts/install', { method: 'POST', body: JSON.stringify({ name }) })
 }
