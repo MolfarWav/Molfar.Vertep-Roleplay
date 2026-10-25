@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Changing the persona of a chat before the first reply now changes `{{user}}` in the greeting. Before, the greeting kept the name of the persona the chat was opened with, and only a swipe fixed it. This covers a character chat and the openings of a group chat (the narrator's and each member's, on the swipe that was showing). Once a turn is sent, or the greeting was edited by hand, the transcript keeps the names it was written under.
+
 ## 4.68.0
 
 Pictures in backups, safe HTML and coloured voices in replies, a World DM that invents (#89, #93, #95).
