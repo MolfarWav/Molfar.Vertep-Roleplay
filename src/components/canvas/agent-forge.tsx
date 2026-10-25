@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, FloppyDisk, PencilSimple, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { AGENT_BOARD, AGENT_CARDS } from '@/canvas-kit/boards/agent'
-import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { commit, fromFile, historyOf, redo, removeNode, undo } from '@/canvas-kit/graph'
-import type { CanvasNode, Graph, History } from '@/canvas-kit/graph'
+import type { Graph, History } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -16,12 +15,14 @@ import {
   copyAgentToDraft, deleteAgentDraft, installAgentDraft, listAgentDrafts, listInstalledAgents, readAgentDraft, saveAgentDraft,
   type AgentDraft, type AgentInfo,
 } from '@/lib/agents'
-import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, newCard, prune, setCard } from '@/lib/forge'
+import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, newCard, prune, roomy, setCard } from '@/lib/forge'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { AgentForm } from './forge/agent-form'
+import { AgentBoard } from './forge/agent-board'
 import { CardForm, type StateFields } from './forge/card-form'
+import { Abilities, Palette } from './forge/palette'
 
 type Agent = Record<string, any>
 interface Current { name: string; title: string; agent: Agent }
@@ -43,9 +44,12 @@ export function AgentForge() {
   const [tab, setTab] = useState<'card' | 'agent'>('agent')
   const [sheet, setSheet] = useState(false)
   const [fit, setFit] = useState(0)
+  // the side list of cards: shown by itself on a wide window, and the person can open or close it
+  const [pal, setPal] = useState<boolean | null>(null)
   const [saving, setSaving] = useState<'saved' | 'saving' | 'failed'>('saved')
   const [busy, setBusy] = useState(false)
   const graph = hist.present
+  const palOpen = !isMobile && (pal ?? (typeof window !== 'undefined' && window.innerWidth >= 1500))
   const changed = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -79,7 +83,7 @@ export function AgentForge() {
     if ('error' in parsed) { toast.error(t('fg.open.bad', { why: parsed.error })); return false }
     changed.current = false
     setCur({ name, title: parsed.file.title, agent: { ...(parsed.file.agent ?? {}) } })
-    setHist(historyOf(parsed.file.nodes ? { nodes: parsed.file.nodes, edges: parsed.file.edges } : { nodes: [], edges: [] }))
+    setHist(historyOf(parsed.file.nodes ? roomy({ nodes: parsed.file.nodes, edges: parsed.file.edges }) : { nodes: [], edges: [] }))
     setSelected(null)
     setTab('agent')
     setSaving('saved')
@@ -166,10 +170,6 @@ export function AgentForge() {
     if (core.includes('Already connected')) return t('canvas.why.dup')
     return t('canvas.why.unknown')
   }, [t])
-  const nodeMeta = useCallback((n: CanvasNode) => {
-    const i = issues.get(n.id)
-    return i?.errors ? t('fg.badge.errors', { n: i.errors }) : i?.warnings ? t('fg.badge.warnings', { n: i.warnings }) : ''
-  }, [issues, t])
 
   const node = graph.nodes.find((n) => n.id === selected) ?? null
   const inspector = cur && (
@@ -200,6 +200,7 @@ export function AgentForge() {
           ) : <p className="text-xs text-muted-foreground">{t('fg.card.none')}</p>
         ) : (
           <div className="flex flex-col gap-4">
+            {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
             <AgentForm agent={cur.agent} title={cur.title} onAgent={editAgent} onTitle={editTitle} installed={!!installedCopy} />
             {installedCopy && (
               <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.installedCopy')}>
@@ -279,14 +280,32 @@ export function AgentForge() {
         <Button variant="ghost" size="sm" className="shrink-0 max-md:h-10" data-testid="forge-back" onClick={() => void leave().then((ok) => { if (ok) setCur(null) })}>
           <CaretLeft className="size-4" aria-hidden="true" />{t('fg.back')}
         </Button>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{cur.title}</span>
+        {isMobile ? (
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{cur.title}</span>
+        ) : (
+          <>
+            <select
+              value={cur.name}
+              onChange={(e) => void openDraft(e.target.value)}
+              aria-label={t('fg.switch')}
+              data-testid="forge-pick"
+              className="h-8 w-44 min-w-0 shrink truncate rounded-md border border-border bg-background px-2 text-sm font-semibold"
+            >
+              {!drafts.some((d) => d.name === cur.name) && <option value={cur.name}>{cur.title}</option>}
+              {drafts.map((d) => <option key={d.name} value={d.name}>{d.name === cur.name ? cur.title : d.title}</option>)}
+            </select>
+          </>
+        )}
       </div>
-      <span className="flex items-center gap-1 text-[11px] text-muted-foreground" role="status">
-        {saving === 'saving' ? t('fg.saving') : saving === 'failed' ? <span className="text-destructive">{t('fg.saveFailed')}</span> : <><FloppyDisk className="size-3.5" aria-hidden="true" /><span className="max-md:sr-only">{t('fg.saved')}</span></>}
+      <span className="flex items-center gap-1 text-[11px] text-muted-foreground" role="status" title={t('fg.saved')}>
+        {saving === 'saving' ? t('fg.saving') : saving === 'failed' ? <span className="text-destructive">{t('fg.saveFailed')}</span> : <><FloppyDisk className="size-3.5" aria-hidden="true" /><span className="sr-only">{t('fg.saved')}</span></>}
       </span>
       <Button variant="ghost" size="icon" className="max-md:size-10" onClick={() => setHist((h) => undo(h))} disabled={!hist.past.length} title={t('canvas.undo')} aria-label={t('canvas.undo')}><ArrowCounterClockwise className="size-4" /></Button>
       <Button variant="ghost" size="icon" className="max-md:size-10" onClick={() => setHist((h) => redo(h))} disabled={!hist.future.length} title={t('canvas.redo')} aria-label={t('canvas.redo')}><ArrowClockwise className="size-4" /></Button>
-      <Popover>
+      {!isMobile && (
+        <Button variant={palOpen ? 'secondary' : 'ghost'} size="sm" aria-pressed={palOpen} onClick={() => { setPal(!palOpen); setTimeout(() => setFit((n) => n + 1), 50) }} data-testid="forge-blocks">{t('fg.pal.title')}</Button>
+      )}
+      {!palOpen && <Popover>
         <PopoverTrigger className="flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium hover:bg-accent max-md:h-10" data-testid="forge-add-card">
           <Plus className="size-4" aria-hidden="true" />{t('fg.addCard')}
         </PopoverTrigger>
@@ -298,7 +317,7 @@ export function AgentForge() {
             </button>
           ))}
         </PopoverContent>
-      </Popover>
+      </Popover>}
       <Button size="sm" className="max-md:h-10" disabled={busy || problems > 0} onClick={() => void install()} data-testid="forge-install">
         <UploadSimple className="size-4" aria-hidden="true" />{installedCopy ? t('ag.drafts.update') : t('ag.drafts.install')}
       </Button>
@@ -312,7 +331,10 @@ export function AgentForge() {
         {problems ? <Warning className="size-3.5" aria-hidden="true" /> : <Check className="size-3.5 text-emerald-500" aria-hidden="true" />}
         {problems ? t('fg.check.problems', { n: problems }) : t('fg.check.ok')}
         {report.warnings.length > 0 && <span className="text-amber-600 dark:text-amber-400">· {t('fg.check.warnings', { n: report.warnings.length })}</span>}
-        <span className="ml-auto text-muted-foreground">{t('fg.check.calls', { n: report.maxCalls })}</span>
+        <span className="ml-auto flex items-center gap-2 text-muted-foreground" data-testid="forge-chips">
+          <span className="rounded-full border border-border px-2 py-0.5 text-[11px]">{t('fg.trigger.after')}{(cur.agent.trigger?.everyN ?? 1) > 1 ? ` · ${t('fg.chip.every', { n: cur.agent.trigger.everyN })}` : ''}</span>
+          <span className="rounded-full border border-border px-2 py-0.5 text-[11px]">{t('fg.check.calls', { n: report.maxCalls })}</span>
+        </span>
       </summary>
       <ul className="flex max-h-40 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
         {[...report.errors.map((x) => ({ ...x, bad: true })), ...report.warnings.map((x) => ({ ...x, bad: false }))].map((x, i) => (
@@ -373,6 +395,7 @@ export function AgentForge() {
   return (
     <div className="flex h-full min-h-0" data-testid="agent-forge">
       {!cur && <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-card">{list}</aside>}
+      {cur && palOpen && <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-card">{<Palette onAdd={addCard} />}</aside>}
       <div className="flex min-w-0 flex-1 flex-col">
         {!cur ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
@@ -384,8 +407,7 @@ export function AgentForge() {
           <>
             {toolbar}
             <div className="relative min-h-0 flex-1">
-              <CanvasBoard
-                board={AGENT_BOARD}
+              <AgentBoard
                 graph={graph}
                 editable
                 onChange={(next) => edit(prune(next))}
@@ -393,8 +415,8 @@ export function AgentForge() {
                 reasonText={reasonText}
                 selectedId={selected}
                 onSelect={pick}
+                issues={issues}
                 fitSignal={fit}
-                nodeMeta={nodeMeta}
               />
             </div>
             {checkPanel}
