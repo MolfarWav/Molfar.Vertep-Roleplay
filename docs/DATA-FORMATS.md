@@ -611,6 +611,12 @@ routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-ag
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).
 - `GET /agents/state?chatId&agent` (the agent's own fields), `DELETE` the same (start over), `GET /agents/runs?chatId`, `GET /agents/panels?chatId` (the panels of the chat's agents that are on and allowed, each with its state schema, its state and the state before the last run; the app draws them in `top1`, `top2` or the floating button).
+- **Drafts.** A file Molfar (or anyone) writes to `data/agents/drafts/<name>.vertep-agent.json` waits there for the user. The
+  Agents sheet lists the drafts with what an install would say about each (`errors` and `warnings`, the checker's own codes
+  and messages) and an Install button; a draft with errors cannot be installed. `GET /agents/drafts` (`{ drafts: [{ name, id,
+  title, description, needs, maxCalls, installed, errors, warnings }] }`, at most 50), `POST /agents/drafts/install { name }`
+  (the same reply as `PUT /agents/install`; the user still has to allow), `DELETE /agents/drafts/<name>`. The file needs no
+  `agent.derived`: the check fills it in. The draft stays after install, so a fixed file can be installed again as an update.
 - **Choices.** An Output `choices` (up to 6 lines, one per choice) belongs to the reply it was made for. While that reply is the
   last message of the chat, `bottom` (also the default) shows the choices as buttons above the composer, `float` puts them in the
   floating card, `log` under the agent's line of the run log. A tap puts the text in the composer; it never sends. Once the user

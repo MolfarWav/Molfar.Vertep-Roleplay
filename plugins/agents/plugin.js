@@ -1302,6 +1302,61 @@ function installRoute(req, host) {
   return ok({ ok: true, id, updated: !!had, needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs), warnings: report.warnings });
 }
 
+// ---------- drafts: agent files that Molfar wrote into the workspace, waiting for the user to look and install ----------
+
+const DRAFT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+const DRAFT_SUFFIX = ".vertep-agent.json";
+const draftPath = (name) => "agents/drafts/" + name + DRAFT_SUFFIX;
+
+/** One draft read and checked as an install would check it. `file` is the parsed file when it parsed. */
+function readDraft(fsx, name) {
+  let text;
+  try { text = fsx.read(draftPath(name)); } catch { return null; }
+  if (text.length > AG_FILE_MAX) return { name, errors: [{ code: "E_SIZE", message: "the file is over 256 KB" }], warnings: [] };
+  let file;
+  try { file = JSON.parse(text); } catch (e) { return { name, errors: [{ code: "E_JSON", message: "not valid JSON: " + String((e && e.message) || e) }], warnings: [] }; }
+  const compiled = compileAgent(file);
+  if ("error" in compiled) return { name, file, errors: [{ code: "E_ENVELOPE", message: compiled.error }], warnings: [] };
+  return { name, file, errors: compiled.report.errors, warnings: compiled.report.warnings, derived: compiled.report.derived };
+}
+
+function draftsRoute(req, host) {
+  const fsx = host.fs;
+  let files = [];
+  try { files = fsx.list("agents/drafts").filter((f) => f.endsWith(DRAFT_SUFFIX)); } catch {}
+  const drafts = [];
+  for (const f of files.slice(0, 50)) {
+    const name = f.slice(0, -DRAFT_SUFFIX.length);
+    if (!DRAFT_NAME_RE.test(name)) continue;
+    const d = readDraft(fsx, name);
+    if (!d) continue;
+    const a = isObj(d.file) && isObj(d.file.agent) ? d.file.agent : {};
+    drafts.push({
+      name, id: str(a.id), title: str(a.name) || str(d.file && d.file.title) || name, description: str(a.description),
+      needs: d.derived ? d.derived.needs : [], maxCalls: d.derived ? d.derived.maxCalls : 0,
+      installed: !!str(a.id) && !!readJsonAt(fsx, agentPath(str(a.id)), null),
+      errors: d.errors, warnings: d.warnings,
+    });
+  }
+  return ok({ drafts });
+}
+
+function draftInstallRoute(req, host) {
+  const b = isObj(req.body) ? req.body : {};
+  const name = str(b.name);
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "name required" }, 400);
+  const d = readDraft(host.fs, name);
+  if (!d) return ok({ error: "no such draft" }, 404);
+  if (!isObj(d.file)) return ok({ error: d.errors[0].message, errors: d.errors, warnings: d.warnings }, 400);
+  return installRoute({ ...req, body: { file: d.file } }, host);
+}
+
+function draftRemoveRoute(req, host, name) {
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
+  try { host.fs.remove(draftPath(name)); } catch {}
+  return ok({ ok: true });
+}
+
 function listRoute(req, host) {
   const fsx = host.fs;
   let files = [];
@@ -1414,6 +1469,9 @@ export function handleRoute(req, host) {
   const seg = path.split("/").filter(Boolean);
   if (path === "/agents/list" && req.method === "GET") return listRoute(req, host);
   if (path === "/agents/install" && req.method === "PUT") return installRoute(req, host);
+  if (path === "/agents/drafts" && req.method === "GET") return draftsRoute(req, host);
+  if (path === "/agents/drafts/install" && req.method === "POST") return draftInstallRoute(req, host);
+  if (seg.length === 3 && seg[1] === "drafts" && req.method === "DELETE") return draftRemoveRoute(req, host, seg[2]);
   if (path === "/agents/grant" && req.method === "POST") return grantRoute(req, host);
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);
   if (path === "/agents/state" && (req.method === "GET" || req.method === "DELETE")) return stateRoute(req, host);

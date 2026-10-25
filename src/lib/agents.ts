@@ -149,6 +149,31 @@ export async function listInstalledAgents(): Promise<AgentInfo[] | null> {
 export interface InstallReply { id: string; updated: boolean; needs: string[]; granted: string[]; missing: string[]; unsupported: string[]; warnings: { code: string; message: string }[] }
 
 /** Puts the file in; nothing is allowed yet (the agent waits for the user to confirm the list of needs). */
+/** One file in the workspace's agents/drafts, as GET /agents/drafts reports it. */
+export interface AgentDraft {
+  name: string
+  id: string
+  title: string
+  description: string
+  needs: string[]
+  maxCalls: number
+  installed: boolean
+  errors: { code: string; message: string }[]
+  warnings: { code: string; message: string }[]
+}
+
+export async function listAgentDrafts(): Promise<AgentDraft[]> {
+  return (await j<{ drafts: AgentDraft[] }>('/agents/drafts')).drafts
+}
+
+export async function installAgentDraft(name: string): Promise<InstallReply> {
+  return j<InstallReply>('/agents/drafts/install', { method: 'POST', body: JSON.stringify({ name }) })
+}
+
+export async function deleteAgentDraft(name: string): Promise<void> {
+  await j(`/agents/drafts/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
 export async function installAgentFile(file: unknown): Promise<InstallReply> {
   return j<InstallReply>('/agents/install', { method: 'PUT', body: JSON.stringify({ file }) })
 }

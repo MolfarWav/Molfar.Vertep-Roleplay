@@ -323,6 +323,40 @@ describe("choices for the reply", () => {
   });
 });
 
+describe("drafts", () => {
+  const put = (name: string, text: string) => {
+    fs.mkdirSync(path.join(root, "agents/drafts"), { recursive: true });
+    fs.writeFileSync(path.join(root, "agents/drafts", name + ".vertep-agent.json"), text, "utf8");
+  };
+
+  it("lists the files in agents/drafts with what an install would say about each", () => {
+    put("scene-echo", JSON.stringify(copy(echo)));
+    put("broken", "{ not json");
+    const bad = copy(echo) as { edges: unknown[] };
+    bad.edges = [{ id: "e1", from: "in:nope", to: "tpl:r" }];
+    put("bad-wire", JSON.stringify(bad));
+    const list = j("/agents/drafts").drafts;
+    expect(list.map((d: Json) => d.name)).toEqual(["bad-wire", "broken", "scene-echo"]);
+    const byName = Object.fromEntries(list.map((d: Json) => [d.name, d]));
+    expect(byName["scene-echo"]).toMatchObject({ id: "scene-echo", title: "Scene echo", errors: [], needs: ["read:lastReply", "show:note"], installed: false });
+    expect(byName["broken"].errors[0]).toMatchObject({ code: "E_JSON" });
+    expect(byName["bad-wire"].errors.length).toBeGreaterThan(0);
+  });
+
+  it("installs a draft like an install does (the user still has to allow), and removes one", () => {
+    put("scene-echo", JSON.stringify(copy(echo)));
+    const r = j("/agents/drafts/install", "POST", { name: "scene-echo" });
+    expect(r).toMatchObject({ ok: true, id: "scene-echo", granted: [] });
+    expect(r.missing.length).toBeGreaterThan(0);
+    expect(j("/agents/drafts").drafts[0].installed).toBe(true);
+    expect(call("POST", "/agents/drafts/install", { name: "broken" }).status).toBe(404);
+    put("broken", "{ not json");
+    expect(call("POST", "/agents/drafts/install", { name: "broken" }).status).toBe(400);
+    expect(j("/agents/drafts/broken", "DELETE")).toEqual({ ok: true });
+    expect(exists("agents/drafts/broken.vertep-agent.json")).toBe(false);
+  });
+});
+
 describe("panels", () => {
   beforeEach(() => {
     j("/agents/install", "PUT", { file: copy(keeper), grant: true });
