@@ -487,7 +487,7 @@ character saw, heard or guessed), `names` and `history`:
   Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
 
-## Agents: `data/agents/<id>.vertep-agent.json` (the file is checked by the app; nothing writes it yet)
+## Agents: `data/agents/<id>.vertep-agent.json` (checked and run by the Agents plugin; no screen writes it yet)
 
 An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,
 checked by `validateAgent` (`src/canvas-kit/boards/agent-check.js`) before anything runs it. The same function serves the
@@ -590,6 +590,34 @@ Unknown; `isSet` and `isMissing` ask exactly that). A YES/NO answer the executor
 keeps numbers inside the field's `min`/`max` (and a card's `maxStep`), refuses a wrong type or a missing field, and a full
 list takes no new entry; each refusal is returned, nothing throws. `agent-run.js` shares the sandbox rules of the checker
 (no async, no globals) and its only import is the checker; the runner plugin carries both pasted together.
+
+### The runner: `plugins/agents`
+
+The Agents plugin installs checked agent files and runs them after a reply. Nothing in the app calls it yet (no screen); the
+routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-agent.json` (the installed, compiled agent),
+`grants/<id>.json` (`{ v: 1, needs: [...] }`, what the user confirmed), `config.json` (`{ model?, models?: { <role>: <model> } }`),
+`state/<chatId>/<id>.json` (`{ v: 1, own, last, before }`: the agent's own fields in that chat, the text it left for its
+`myPrevious`, and the state and message id before its last run), `runs/<chatId>.json` (`{ v: 1, runs }`, the newest 100) and
+`inserts/<chatId>.json` (`{ v: 1, items }`, hints waiting for the next reply).
+- `PUT /agents/install` `{ file, grant? }`: checks the file (a file that lies in `derived` is refused with the checker's
+  errors and nothing is stored; one without `derived` is compiled), stores it and answers `{ id, needs, granted, missing,
+  unsupported, warnings }`. `grant`: `true` or a list of permissions the user confirmed. A new version keeps the permissions
+  already confirmed for what it still asks; it runs only when everything it asks for is confirmed.
+- `GET /agents/list`, `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`.
+- `POST /agents/run` `{ chatId, agent? }`: runs the agents the chat uses (its binding, see above) that are set to run `after` a
+  reply, in the engine's two-phase style: it asks the models and is called again with the answers. The model for a question is
+  the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped
+  and why: not installed, off, waiting for permission, trigger (`everyN`, `keywords`) did not fire, already ran for this reply.
+  `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
+  A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).
+- `GET /agents/state?chatId&agent` (the agent's own fields), `DELETE` the same (start over), `GET /agents/runs?chatId`.
+- **Hint for the next reply.** An Output `prompt-insert` is kept in `inserts/<chatId>.json` and added to the end of the last user
+  message of the next reply request (`position` is not used yet), with the agent's label, for as long as the agent is on in
+  the chat; the agent's next run replaces it.
+- **Not yet.** Dashboard fields (`read:state.*`, `write:state.*`), the sources `preGenInjections` and `parallelResults`, the triggers
+  `before` and `parallel`, the source `summary`. An agent that needs them installs but does not run, and says so.
+- The plugin carries a generated copy of `agent-check.js` and `agent-run.js` between two marker lines; after editing either,
+  run `bun scripts/sync-agents-plugin.ts` (a test fails when the copy is old).
 
 Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
 `E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
