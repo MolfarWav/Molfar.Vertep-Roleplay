@@ -675,7 +675,7 @@ export function Composer({ chatId }: { chatId: ID }) {
 
         {/* in the two-row layout the space between "+" and send holds the moves
             people use most, out of the "+" menu; this pair sits at the right end.
-            On a phone only Write for me, Polish (icon only) and the big editor:
+            On a phone only Write for me and Polish (icon only; the big editor is in the "+" menu there, to leave room for Translate):
             Continue and Another stay in the "+" menu, so the composer keeps to two rows */}
         {wide && !isStreaming && (
           <div className="flex min-w-0 items-center gap-1" role="group" aria-label="Quick moves">
@@ -693,7 +693,7 @@ export function Composer({ chatId }: { chatId: ID }) {
                 <ArrowsClockwise className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Another</span>
               </Button>
             )}
-            <Button variant="outline" size="icon" className="size-9 shrink-0" onClick={() => setExpandOpen(true)} aria-label="Bigger editor (Shift+Tab)" title="Bigger editor (Shift+Tab)">
+            <Button variant="outline" size="icon" className="size-9 shrink-0 max-sm:hidden" onClick={() => setExpandOpen(true)} aria-label="Bigger editor (Shift+Tab)" title="Bigger editor (Shift+Tab)">
               <ArrowsOut className="size-4" aria-hidden="true" />
             </Button>
           </div>
@@ -702,7 +702,7 @@ export function Composer({ chatId }: { chatId: ID }) {
         <Button
           variant="outline"
           size="icon"
-          className="size-9 shrink-0"
+          className={cn("size-9 shrink-0", !canPolish && !translating && "max-sm:hidden")}
           onClick={() => void translateDraft()}
           disabled={!canPolish || translating || isStreaming}
           aria-label={t('composer.translate', { lang: translation.internalLanguage })}
