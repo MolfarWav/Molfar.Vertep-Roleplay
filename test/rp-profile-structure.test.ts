@@ -97,7 +97,10 @@ describe("keeping a reply to the profile", () => {
   it("names what went wrong with a reply", () => {
     expect(draftFromReply({ text: "no json here" }, 1).error).toContain("expected format");
     expect(draftFromReply({ text: '{"profile":{"core":{"age":"30", "appearance":"tall and' }, 1).error).toContain("cut off");
-    expect(draftFromReply({ text: '{"profile":{}}' }, 1)).toEqual({ v: 1, at: 1, error: "the reply filled no field" });
+    expect(draftFromReply({ text: '{"profile":{}}' }, 1)).toEqual({ v: 1, at: 1, error: "the reply filled no field (it had: profile)" });
+    expect(draftFromReply({ text: '{"characters":[{"name":"Eli"}]}' }, 1).error).toBe("the reply filled no field (it had: characters)");
+    // sections at the top level, without the "profile" wrapper, still count
+    expect(draftFromReply({ text: '{"identity":{"first":"Eli","age":"30"}}' }, 1).profile).toEqual({ identity: { first: "Eli", age: "30" } });
     expect(draftFromReply({ text: "" }, 1).error).toBe("the model returned nothing");
     expect(parseReply('Sure! {"a": {"b": 1}} done')).toEqual({ a: { b: 1 } });
     // braces in prose or thinking before the object do not hide it

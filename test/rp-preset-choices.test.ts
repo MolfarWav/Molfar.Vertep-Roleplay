@@ -533,6 +533,20 @@ describe("built-in Vertep Lite", () => {
     expect(msgs(meta.id).map((m) => m.content).join("\n")).not.toContain("belongs to the Human");
   });
 
+  it("draws in-world objects as HTML panels by default, and a pick switches that off", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    const on = msgs(meta.id).map((m) => m.content).join("\n");
+    expect(on).toContain("## HTML panels");
+    expect(on).toContain("raw HTML in the reply, never inside a code block");
+    // the rule sits in the fixed start of the request, not after the newest message
+    const first = msgs(meta.id);
+    const lastUser = first.map((m) => m.role).lastIndexOf("user");
+    expect(first.slice(lastUser + 1).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { html: "html_off" } });
+    expect(msgs(meta.id).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
+  });
+
   it("has a strict point of view that keeps the user's mind closed (#121)", () => {
     fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
     const meta = newChat({ presetId: "vertep-lite" });

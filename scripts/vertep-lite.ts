@@ -80,6 +80,15 @@ const FORM = `## Form
 {{custom}}
 {{/if}}`
 
+const HTML = `## HTML panels
+An exception to the plain-text formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.
+- Only what a character is reading or looking at now. A glance, a background screen or words that do not matter stay in prose.
+- At most one panel per reply, about 500 tokens of HTML. If the design gets heavy, simplify the look, never the content.
+- The panel fits the setting: scanlines and neon for cyberpunk, parchment and ink for fantasy, clean cards for modern. Motion is optional (\`transition\`, \`@keyframes\` in one \`<style>\` block).
+- Markup that works: \`<div>\`, \`<p>\`, \`<h1>\`-\`<h6>\`, \`<table>\`, \`<ul>\`, \`<details>\`/\`<summary>\`, \`<b>\`, \`<span>\`, \`<br>\`, inline \`style\`. Never scripts, event attributes, \`<input>\`, \`<button>\`, links, images, outside fonts or \`url()\`, \`position: fixed\`, or boxes sized to the screen.
+- Write it as raw HTML in the reply, never inside a code block: on its own line, a blank line before and after it, none inside it.
+- Give the panel its own background and text colour. All its text is in the story language.`
+
 const TAIL = `[This reply: {{var:length}} Fill it by going deeper into the moment (senses, actions, the characters' dialogue and inner life, the world around them), not by running past {{user}}'s next choice. Point of view: {{var:pov}} Tense: {{var:tense}}. Language: {{var:language}}]`
 
 const PLAN = `[Before the story, write a short plan inside <plan></plan>, in the story language, 80 words at most:
@@ -169,6 +178,10 @@ const variables = [
     ['en', 'English', 'English, whatever language the Human writes in.', 'Always English.'],
     ['ru', 'Русский', 'Russian, whatever language the Human writes in.', 'Always Russian.'],
   ]),
+  choice('html', 'HTML panels', 'In-world screens, letters and signs drawn as HTML.', 'on', [
+    ['on', 'On', 'on', 'One small panel per reply can show a screen, letter or sign at the moment.'],
+    ['off', 'Off', 'off', 'In-world objects are described in prose, never drawn as panels.'],
+  ]),
   choice('plan', 'Plan before the reply', 'A hidden four-line plan the model writes first. It lands in the thinking block, not in the chat.', 'micro', [
     ['micro', 'Micro plan', 'micro', 'Helps models without built-in thinking keep the scene on track.'],
     ['off', 'Off', 'off', 'For thinking models, which plan on their own.'],
@@ -204,6 +217,7 @@ const sections: PromptSection[] = [
   own('lite_control', 'Player control', CONTROL),
   own('lite_craft', 'Characters and prose', CRAFT),
   own('lite_form', 'Form', FORM),
+  own('lite_html', 'HTML panels', HTML, { injectionTriggers: replyOnly, condition: 'html==on' }),
   marker('main', 'Card prompt'),
   marker('charDescription', 'Character description'),
   marker('personality', 'Personality'),
@@ -230,7 +244,7 @@ const preset: Preset = {
   isDefault: false,
   description:
     'Vertep Lite: a compact preset for long, rich roleplay (about 2.5k tokens of instructions). It knows the Vertep add-ons: the Litopys story record, the relationship dashboard, the World DM, colored voices and sprites.\n\n' +
-    'Pick per chat: who writes your character, point of view, tense, style, difficulty, intimate scenes, reply length, story language, a hidden micro plan, and the Muse (a random creative prompt each reply).\n\n' +
+    'Pick per chat: who writes your character, point of view, tense, style, difficulty, intimate scenes, reply length, story language, HTML panels for in-world screens, letters and signs (on by default), a hidden micro plan, and the Muse (a random creative prompt each reply).\n\n' +
     'Built for the prompt cache: the rules come first and stay the same, only the length note, the plan and the Muse ride after the newest message.\n\nRead-only: duplicate it to edit the text.',
   sections,
   variables: variables as unknown as Preset['variables'],
