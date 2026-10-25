@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle } from '@phosphor-icons/react'
+import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle, Translate } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -23,7 +23,7 @@ import { RegenerateHintDialog } from '@/components/chat/regenerate-hint-dialog'
 import { useApp } from "@/lib/store"
 import { useFinePointer, useLastPointer, useTouchUi } from "@/hooks/use-touch-ui"
 import { uid } from "@/lib/tokens"
-import { fileToRawDataUrl, storeAttachmentAsset } from "@/lib/engine"
+import { fileToRawDataUrl, j, storeAttachmentAsset } from "@/lib/engine"
 import { cn } from "@/lib/utils"
 import type { ID, Message, QuickReply } from "@/lib/types"
 import { toast } from "sonner"
@@ -89,6 +89,8 @@ export function Composer({ chatId }: { chatId: ID }) {
     } catch { /* storage unavailable */ }
     setDraft({ chatId, text })
   }, [chatId])
+  const valueRef = useRef(value)
+  valueRef.current = value
   const [historyIdx, setHistoryIdx] = useState(-1)
   const [expandOpen, setExpandOpen] = useState(false)
   const [hintOpen, setHintOpen] = useState(false)
@@ -203,6 +205,39 @@ export function Composer({ chatId }: { chatId: ID }) {
     void impersonate(chatId)
   }
   const canPolish = !!value.trim()
+  // Translate what is typed, in place, into the language the model reads (Settings, Translation: "Model language").
+  // The original comes back with Undo; a draft that changed while the request ran is left alone.
+  const translation = useApp((s) => s.settings.translation)
+  const [translating, setTranslating] = useState(false)
+  const translateDraft = async () => {
+    const original = value
+    if (!original.trim() || translating) return
+    setTranslating(true)
+    try {
+      const r = await j<{ text: string }>('/translate', {
+        method: 'POST',
+        body: JSON.stringify({ text: original, target: translation.internalLanguage, provider: translation.provider, deeplKey: translation.deeplKey }),
+      })
+      const text = r.text.trim()
+      if (!text || text === original.trim()) {
+        toast.info(t('composer.translateSame', { lang: translation.internalLanguage }))
+        return
+      }
+      if (valueRef.current !== original) {
+        toast.info(t('composer.translateChanged'))
+        return
+      }
+      setValue(text)
+      toast(t('composer.translated', { lang: translation.internalLanguage }), {
+        duration: 15000,
+        action: { label: t('composer.translateUndo'), onClick: () => { if (valueRef.current === text) setValue(original) } },
+      })
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e))
+    } finally {
+      setTranslating(false)
+    }
+  }
   const polish = () => {
     if (canPolish) polishDraft(chatId, value)
   }
@@ -648,7 +683,7 @@ export function Composer({ chatId }: { chatId: ID }) {
               <CaretDoubleRight className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Continue</span>
             </Button>
             <Button variant="outline" size="sm" className="h-9 gap-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title="Write your next message for you (your draft can be brought back)">
-              <User className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Write for me</span>
+              <span className="max-[380px]:sr-only">Write for me</span>
             </Button>
             <Button variant="outline" size="sm" className="h-9 gap-1 border-teal-500/50 bg-teal-500/15 px-2.5 text-xs font-semibold text-teal-700 hover:bg-teal-500/25 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-300" onClick={polish} disabled={!canPolish} title={t('composer.polishTitle')} aria-label={t('composer.polish')}>
               <Sparkle className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">{t('composer.polish')}</span>
@@ -664,6 +699,17 @@ export function Composer({ chatId }: { chatId: ID }) {
           </div>
         )}
         {wide && <span aria-hidden className="flex-1" />}
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-9 shrink-0"
+          onClick={() => void translateDraft()}
+          disabled={!canPolish || translating || isStreaming}
+          aria-label={t('composer.translate', { lang: translation.internalLanguage })}
+          title={t('composer.translate', { lang: translation.internalLanguage })}
+        >
+          {translating ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Translate className="size-4" aria-hidden="true" />}
+        </Button>
         <StoryNudgeButton chatId={chatId} isStreaming={isStreaming} />
 
         {isStreaming ? (
