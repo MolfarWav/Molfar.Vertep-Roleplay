@@ -320,7 +320,7 @@ export function WorldBackgrounds({
 
       {'chatId' in wref && (
         <section className="rounded-md border p-3" data-testid="bg-auto-section">
-          <AutoBackground chatId={wref.chatId} />
+          <AutoBackground chatId={wref.chatId} worldFolderId={folderId === undefined ? undefined : isLinked ? folderId : null} />
         </section>
       )}
 

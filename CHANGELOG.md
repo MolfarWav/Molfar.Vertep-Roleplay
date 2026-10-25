@@ -10,6 +10,12 @@ Skills are now Habits (#111). The word "skills" is kept for Molfar's own skills 
 - Molfar's skill for them is `card-habits` (was `card-skills`).
 - Refusals in the habit form (a repeat, a full card, a missing name) come with a code and are shown in the app's language, not as English engine text.
 
+Phone and settings leftovers (#87, #88).
+
+- Prompt board on a phone: the list starts about 180 px higher (151 px from the top of the window, was about 330). The board's name and divider are gone on a phone, the chat picker and undo/redo share one row, the Graph/List switch moved into the board bar as two icons, and the "Building graphs..." note shows only on the Chat links board. The sticky line carries the total and "N parts not sent, Show" together (the chat's name is already in the picker).
+- Backgrounds: with "Change the background by scene" on, the sensor's folder is shown as a line ("Picks from this world's folder ..."), not as a second "Folder" picker. Another folder is one tap away ("Another folder"); the select appears only then.
+- "Show me" on a phone: a tip that points at something under More (Inbox, Help, Settings, ...) opens the More sheet, so the spotlight has a target; the sheet closes with the spotlight.
+
 ## 4.66.0
 
 Scenes in Litopys follow the chat header, a hand-set scene, Stop no longer doubles your message, a stricter Vertep Lite (#118, #119, #120, #121).

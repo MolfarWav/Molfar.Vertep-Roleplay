@@ -219,19 +219,21 @@ function PartRow({ m, guide, highlighted, status, editable, onActivate, onToggle
 }
 
 /** "N parts not sent — Show" / "Showing everything — Hide unsent" (#43). */
-function UnsentLine({ sentOnly, count, onShow, onHide, t }: {
+function UnsentLine({ sentOnly, count, onShow, onHide, t, inline }: {
   sentOnly: boolean
   count: number
   onShow: () => void
   onHide: () => void
   t: (k: any, vars?: any) => string
+  /** inside the phone's sticky total line: no box of its own, a 40 px tap target */
+  inline?: boolean
 }) {
   if (count === 0) return null
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-muted/60 px-2 py-1.5 text-xs text-muted-foreground">
+    <div className={cn('flex min-w-0 items-center gap-2 text-xs text-muted-foreground', inline ? 'justify-end' : 'justify-between rounded-md bg-muted/60 px-2 py-1.5')}>
       <span className="min-w-0 truncate">{sentOnly ? t('canvas.prompt.notSent', { n: count }) : t('canvas.prompt.showingAll')}</span>
       <button
-        className="shrink-0 font-semibold text-primary hover:underline"
+        className={cn('shrink-0 font-semibold text-primary hover:underline', inline && 'min-h-10 px-1')}
         onClick={sentOnly ? onShow : onHide}
       >
         {sentOnly ? t('canvas.prompt.showAll') : t('canvas.prompt.hideUnsent')}
@@ -730,15 +732,16 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
 
   return (
     <div className="flex h-full flex-col" ref={boardRef}>
+      {/* on a phone the board's name and the divider go, so the chat and undo/redo share one row */}
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground max-md:hidden">
           {t('canvas.prompt.title')}
         </span>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-w-0 items-center gap-2 text-sm max-md:flex-1">
           <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
           <ChatPicker chats={chats} value={chatId} onChange={onPickChat} />
         </label>
-        <div className="mx-1 h-5 w-px bg-border" />
+        <div className="mx-1 h-5 w-px bg-border max-md:hidden" />
         <Button variant="ghost" size="icon" onClick={undo} disabled={past.length === 0} title={t('canvas.undo')}>
           <ArrowCounterClockwise className="h-4 w-4" />
         </Button>
@@ -815,11 +818,11 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                 <BoardSkeleton />
               ) : (
               <div className="flex flex-col gap-2 p-3">
-                <div data-guide="prompt.total" className="sticky top-0 z-10 -mx-3 -mt-3 flex items-center justify-between gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur" aria-live="polite">
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">{chat?.title ?? ''}</span>
+                {/* one sticky line: the total, and how many parts the list hides (the chat's name is in the picker above) */}
+                <div data-guide="prompt.total" className="sticky top-0 z-10 -mx-3 -mt-3 flex min-h-10 items-center justify-between gap-2 border-b border-border bg-background/95 px-3 py-1 backdrop-blur" aria-live="polite">
                   <strong className="shrink-0 text-sm">{formatTokens(totalTokens)} {t('canvas.prompt.tokens')}</strong>
+                  <UnsentLine inline sentOnly={sentOnly} count={hideableCount} onShow={() => setSentOnly(false)} onHide={() => setSentOnly(true)} t={t} />
                 </div>
-                <UnsentLine sentOnly={sentOnly} count={hideableCount} onShow={() => setSentOnly(false)} onHide={() => setSentOnly(true)} t={t} />
                 {rows.map((row, ri) => {
                   const guide = ri === 0 ? 'prompt.part' : undefined
                   if (row.type === 'single') {
