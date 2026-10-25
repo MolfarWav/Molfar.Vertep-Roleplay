@@ -486,3 +486,47 @@ character saw, heard or guessed), `names` and `history`:
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
   Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
+
+## Agents: `data/agents/<id>.vertep-agent.json` (format only, nothing writes it yet)
+
+An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,
+checked by `validateAgent` (`src/canvas-kit/boards/agent.ts`) before anything runs it. The same function serves the
+editor, the install screen and the runner. Design notes: issue #127 in Molfar.Vertep.
+
+```json
+{ "format": "vertep-canvas", "version": 1, "kind": "agent", "title": "Mood tracker",
+  "agent": { "formatVersion": 1, "id": "mood-tracker", "version": "1.0.0", "name": "…", "description": "…", "author": "…",
+             "trigger": { "when": "after", "everyN": 1, "keywords": [] },
+             "models": { "fast": { "hint": "cheap, answers in JSON" } },
+             "limits": { "maxCalls": 1, "concurrency": 1 },
+             "derived": { "needs": ["llm", "read:lastReply"], "maxCalls": 1, "hash": "sha256:…" } },
+  "nodes": [ … ], "edges": [ … ] }
+```
+
+- `agent.id` is a lowercase slug (2-41 characters). `trigger.when` is `before`, `parallel`, `after` or `manual`.
+  `models` names roles (`fast`), never a model id and never a key: the user maps a role to a connection at install.
+- `derived` is computed from the cards: `needs` (permission tokens, sorted), `maxCalls` (model calls per run) and
+  `hash` (sha256 of the header without `derived`, the cards without `x`/`y`, and the wires). A file whose `derived`
+  disagrees with its cards is refused (`E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`), so a file cannot ask for
+  more than the install screen showed. `compileAgent` fills it.
+- Permission tokens: `llm`, `read:<source>` (`lastReply`, `lastUserMessage`, `history`, `card`, `persona`, `summary`,
+  `authorNote`, `myPrevious`, `preGenInjections`, `parallelResults`), `read:state.<field>`, `write:state.<field>`,
+  `write:prompt`, `show:note`, `show:choices`.
+- Ports are derived from a card's `params` (one input per `{{slot}}`, one output per JSON `shape` field) and use only
+  `A-Z a-z 0-9 _ -`. Wire types are `text`, `number`, `flag`, `signal`; an output feeds an input of the same type, an input
+  takes one wire, and the wires make no loop.
+- Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
+  `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
+  `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
+  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `when` signal),
+  `note`. A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
+- `params.show` on an Output, where a result may appear: `state-patch` → `log`, `feed`, `top1`, `top2`, `float`, `toast`;
+  `note` → `note`, `log`, `feed`, `top1`, `float`; `prompt-insert` → `inspector`, `note`; `choices` → `bottom`, `log`,
+  `float`. Anything else is `E_SHOW_NOT_ALLOWED`. A `parallel` agent cannot insert into the prompt (`E_PARALLEL_INSERT`).
+- Planned, not written by the app yet: presets (`vertep-agent-preset`), a per-chat binding in the chat meta, agent state
+  and panels (`state`, `panels` in the header). The reference for those is `FORMAT.md` in the design folder of #127.
+
+Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
+`E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
+`E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_BUDGET`; warnings
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` (example: `test/fixtures/mood-tracker.vertep-agent.json`).
