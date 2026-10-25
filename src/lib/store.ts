@@ -40,7 +40,7 @@ import {
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
 import { carryWorld, libraryBooks, triggerWorldUpdate } from './world'
-import { triggerAgentsRun } from './agents'
+import { listAgentSets, triggerAgentsRun } from './agents'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
@@ -272,13 +272,13 @@ interface AppState {
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
   /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
-  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns }) => Promise<ID>
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] } }) => Promise<ID>
   startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
   /** the open new-chat step (preset and choices before a chat starts); null = none */
   newChatStep: { charId: ID; greetingIndex?: number } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; world?: { worldId: string } | { fromChatId: ID } }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; world?: { worldId: string } | { fromChatId: ID } }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
@@ -1742,6 +1742,8 @@ export const useApp = create<AppState>()(
             ...(model ? { model } : {}),
             ...(opts?.presetId ? { presetId: opts.presetId, presetVars: opts.presetVars ?? {} } : {}),
             ...(char?.isGroup && opts?.turns ? { turns: opts.turns } : {}),
+            // the agent set picked on the New chat screen; none picked = the chat follows the default set
+            ...(opts?.agents ? { agents: { v: 1, ...opts.agents } } : {}),
           }),
         })
         let chat = uiChat(get, r.meta, r.messages ?? [])
@@ -1764,11 +1766,12 @@ export const useApp = create<AppState>()(
       },
       startChatAndOpen: async (charId, greetingIndex) => {
         // a short step with the preset and its choices, unless the user turned it off or there is
-        // nothing to choose (one preset without variables)
+        // nothing to choose (one preset without variables, and no agent set to pick)
         const { settings, presets } = get()
         if (settings.askPresetOnNewChat !== false && presets.length > 0) {
           const pre = presets.find((p) => p.isDefault) ?? presets[0]
-          if (presets.length > 1 || pre.variables.length > 0) {
+          const hasSets = presets.length > 1 || pre.variables.length > 0 ? false : (await listAgentSets().catch(() => [])).length > 0
+          if (presets.length > 1 || pre.variables.length > 0 || hasSets) {
             set({ newChatStep: { charId, greetingIndex } })
             return
           }
