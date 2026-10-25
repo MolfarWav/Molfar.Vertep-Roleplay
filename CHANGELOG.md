@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.67.0
+
 Skills are now Habits (#111). The word "skills" is kept for Molfar's own skills and for the RPG layer that comes later.
 
 - A character's skills are renamed habits everywhere: the card's Memory tab, the Library's Litopys tab, the Litopys settings, the chat strip, the Prompt board and the part of the prompt ("Litopys · character habits"). In Ukrainian: звички. A habit that a character earns in a chat is now "formed" (закріпилась). Nothing is lost: cards and chats written before keep their data (`skills` is read as `habits` and saved under the new key), and a chat that had the part switched off on the Prompt board keeps it off.

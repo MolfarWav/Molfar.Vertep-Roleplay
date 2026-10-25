@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.66.0'
+export const APP_VERSION = '4.67.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -412,6 +412,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'The Dashboard\'s threads are quests: main, side and everyday, and a main quest can have steps. A quest that does not fit its limit, or that the story left alone for long, waits under Suggestions for your answer. Story, move can pick a quest or a step, or add a Twist: something outside the quests.',
       uk: 'Сюжетні лінії Дашборду тепер квести: головні, побічні й буденні, а головний квест може мати кроки. Квест, для якого немає місця, або який історія давно не торкалась, чекає вашої відповіді серед пропозицій. «Історія, рухайся» вміє обрати квест чи крок або додати Поворот: щось поза квестами.',
+    },
+  },
+  // ── What's new: habits
+  {
+    id: 'new.habits',
+    since: '4.67.0',
+    help: 'characters',
+    title: { en: 'Skills are now Habits', uk: 'Навички тепер звички' },
+    body: {
+      en: "A character's skills are now called habits, in the card's Memory tab, the Library's Litopys tab, the Litopys settings and the prompt. Nothing is lost: old data keeps working. The word skills stays for Molfar's own skills. Also new: Write for me can translate your own message in place, with Undo.",
+      uk: 'Навички персонажа тепер називаються звичками: у вкладці «Пам’ять» картки, у вкладці «Літопис» бібліотеки, у налаштуваннях Літопису й у промпті. Нічого не втрачено: старі дані працюють. Слово «навички» лишається для власних навичок Мольфара. Також нове: «Написати за мене» вміє перекласти ваше повідомлення на місці, з можливістю скасувати.',
     },
   },
   // ── What's new: scenes in Litopys
