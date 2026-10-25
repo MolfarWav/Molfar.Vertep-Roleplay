@@ -33,7 +33,7 @@ import { hideStateTag } from '@/lib/state-tag'
 import { hideOpenBlocks, resolveDisplayScripts } from '@/lib/display-scripts'
 import { j } from '@/lib/engine'
 import { speakText, stopSpeaking, useSpeakingKey, voiceFor } from '@/lib/tts'
-import type { Chat, Character, Message, RegexScript, ToolPart } from '@/lib/types'
+import type { Chat, Character, Message, Persona, RegexScript, ToolPart } from '@/lib/types'
 import { estimateTokens, formatCost, formatTokens, knownCost } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, copyText, readableNameColor, shortModel } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -490,6 +490,8 @@ export const MessageRow = memo(function MessageRow({
   const groupChar = character.isGroup && character.group ? character : null
   const speakingMember = groupChar && !isUser && speaker && 'isGroup' in speaker && !speaker.isGroup && groupChar.group!.memberIds.includes(speaker.id) ? speaker : null
   const memberQuoteColor = groupChar && speakingMember && groupChar.group!.colorDialogue !== false ? memberColor(groupChar, speakingMember) : undefined
+  // the user's own lines take the colour of the persona they were sent under
+  const personaQuoteColor = isUser ? (speaker as Persona | undefined)?.dialogueColor : undefined
   // a single card that plays several characters (Narrator type) lists them in its `voices`
   const soloVoices = !groupChar && !isUser ? character?.voices : undefined
   const voices = useMemo(
@@ -824,10 +826,11 @@ export const MessageRow = memo(function MessageRow({
               // dialogue; without a character colour it falls back to the
               // theme's italics colour via the CSS variable default.
               style={
-                !isUser && (character?.colors.name || memberQuoteColor)
+                (!isUser && (character?.colors.name || memberQuoteColor)) || personaQuoteColor
                   ? ({
-                      ...(character?.colors.name ? { '--tap-italics': `color-mix(in oklab, ${character.colors.name} 55%, var(--muted-foreground))` } : {}),
-                      ...(memberQuoteColor ? { '--tap-quotes': voiceInk(memberQuoteColor) } : {}),
+                      ...(!isUser && character?.colors.name ? { '--tap-italics': `color-mix(in oklab, ${character.colors.name} 55%, var(--muted-foreground))` } : {}),
+                      ...(!isUser && memberQuoteColor ? { '--tap-quotes': voiceInk(memberQuoteColor) } : {}),
+                      ...(personaQuoteColor ? { '--tap-quotes': voiceInk(personaQuoteColor) } : {}),
                     } as React.CSSProperties)
                   : undefined
               }
