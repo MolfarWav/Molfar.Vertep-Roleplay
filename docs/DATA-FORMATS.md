@@ -490,8 +490,10 @@ character saw, heard or guessed), `names` and `history`:
 ## Agents: `data/agents/<id>.vertep-agent.json` (the file is checked by the app; nothing writes it yet)
 
 An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,
-checked by `validateAgent` (`src/canvas-kit/boards/agent.ts`) before anything runs it. The same function serves the
-editor, the install screen and the runner. Design notes: issue #127 in Molfar.Vertep.
+checked by `validateAgent` (`src/canvas-kit/boards/agent-check.js`) before anything runs it. The same function serves the
+editor, the install screen and the runner. It is plain synchronous JavaScript with no imports, because the engine's QuickJS
+sandbox loads one file per plugin and has no `TextEncoder` or `crypto.subtle` (the hash is a hand-written SHA-256); the
+editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the Canvas board on top. Design notes: issue #127 in Molfar.Vertep.
 
 ```json
 { "format": "vertep-canvas", "version": 1, "kind": "agent", "title": "Mood tracker",
@@ -569,4 +571,4 @@ Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
-`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` (examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
