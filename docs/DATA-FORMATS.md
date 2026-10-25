@@ -486,3 +486,71 @@ character saw, heard or guessed), `names` and `history`:
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
   Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
+
+## Agents: `data/agents/<id>.vertep-agent.json` (format only, nothing writes it yet)
+
+An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,
+checked by `validateAgent` (`src/canvas-kit/boards/agent.ts`) before anything runs it. The same function serves the
+editor, the install screen and the runner. Design notes: issue #127 in Molfar.Vertep.
+
+```json
+{ "format": "vertep-canvas", "version": 1, "kind": "agent", "title": "Mood tracker",
+  "agent": { "formatVersion": 1, "id": "mood-tracker", "version": "1.0.0", "name": "…", "description": "…", "author": "…",
+             "trigger": { "when": "after", "everyN": 1, "keywords": [] },
+             "models": { "fast": { "hint": "cheap, answers in JSON" } },
+             "limits": { "maxCalls": 1, "concurrency": 1 },
+             "derived": { "needs": ["llm", "read:lastReply"], "maxCalls": 1, "hash": "sha256:…" } },
+  "nodes": [ … ], "edges": [ … ] }
+```
+
+- `agent.id` is a lowercase slug (2-41 characters). `trigger.when` is `before`, `parallel`, `after` or `manual`.
+  `models` names roles (`fast`), never a model id and never a key: the user maps a role to a connection at install.
+- `derived` is computed from the cards: `needs` (permission tokens, sorted), `maxCalls` (model calls per run) and
+  `hash` (sha256 of the header without `derived`, the cards without `x`/`y`, and the wires). A file whose `derived`
+  disagrees with its cards is refused (`E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`), so a file cannot ask for
+  more than the install screen showed. `compileAgent` fills it.
+- Permission tokens: `llm`, `read:<source>` (`lastReply`, `lastUserMessage`, `history`, `card`, `persona`, `summary`,
+  `authorNote`, `myPrevious`, `preGenInjections`, `parallelResults`), `read:state.<field>`, `write:state.<field>`
+  (the Dashboard's fields), `read:own.<field>`, `write:own.<field>` (the agent's own state), `write:prompt`,
+  `show:note`, `show:choices`, `show:panel` (the agent has a `panels` section).
+- Ports are derived from a card's `params` (one input per `{{slot}}`, one output per JSON `shape` field) and use only
+  `A-Z a-z 0-9 _ -`. Wire types are `text`, `number`, `flag`, `signal`; an output feeds an input of the same type, an input
+  takes one wire, and the wires make no loop.
+- Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
+  `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
+  `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
+  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `when` signal),
+  `note`, and four cards for the agent's own state (below). A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
+- `params.show` on an Output, where a result may appear: `state-patch` → `log`, `feed`, `top1`, `top2`, `float`, `toast`;
+  `note` → `note`, `log`, `feed`, `top1`, `float`; `prompt-insert` → `inspector`, `note`; `choices` → `bottom`, `log`,
+  `float`. Anything else is `E_SHOW_NOT_ALLOWED`. A `parallel` agent cannot insert into the prompt (`E_PARALLEL_INSERT`).
+- Own state (`agent.state`): fields the agent declares, kept apart from the Dashboard. A field is `{ "type": "number",
+  "min", "max", "start" }`, `text`, `flag`, or `{ "type": "list", "item": { "name": "text", "level": "number" }, "max": 20 }`
+  (a list must have `max`, 1 to 500, and 1 to 8 entry fields; at most 40 fields). Field names start with a letter and use
+  `A-Z a-z 0-9 _ -`. Numbers are kept by code, not by the model: the model reports events, `logic.if` checks, the
+  state cards count, and a number stays inside its `min`/`max`.
+- State cards, each with the field in `params.field`: `state.read` (`as`; output `value`), `state.set` (`as`; input `value`),
+  `state.add` (number field only; a fixed `amount` or a wire into the optional `by`), `state.list` (`op` = `add`, `update`
+  or `remove`; `item` repeats the entry shape; `key` names the entry field that finds the entry for `update`/`remove`; the
+  inputs are the entry fields, or just `key` for `remove`). The three writers take an optional `when` signal and give
+  `done`. A card that names a missing field is `E_STATE_UNKNOWN`; a type that does not match the schema is `E_STATE_TYPE`.
+- Panels (`agent.panels`, at most 4): `{ "id", "title", "place": "float" | "top1" | "top2", "widgets": [ … ] }`, at most
+  20 widgets. A panel describes, never runs: widgets `meter`, `number`, `counter` (a number field), `table` (a list
+  field and its `columns`), `list`, `log` (a list field), `text` (a text field), `actions` (1 to 8 `{ label, send }`;
+  `send` is put into the composer, nothing is sent by itself) and `html`. `bind` must name a state field of the right
+  type (`E_BIND`); an unknown widget or bad `actions` is `E_WIDGET`.
+- `html` widget: `template` up to 8192 characters, slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
+  inside, no nested `each`) and `{{#if field}}…{{/if}}`. The checker refuses a template with a slot that is not a field
+  (`E_TPL_FIELD`), an unclosed block (`E_TPL_UNCLOSED`), or markup that can run code or load something
+  (`E_TPL_FORBIDDEN`: script, frames, forms, `<link>`, event handlers, `src`/`href`, `url()`, `@import`). The check is
+  deliberately loose and is not the only guard: the renderer must still escape every value and show the result in the
+  sealed `srcdoc` frame without scripts.
+- Planned, not written by the app yet: presets (`vertep-agent-preset`) and a per-chat binding in the chat meta. The
+  reference for those is `FORMAT.md` in the design folder of #127.
+
+Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
+`E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
+`E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_BUDGET`,
+`E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
+`E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` (examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).

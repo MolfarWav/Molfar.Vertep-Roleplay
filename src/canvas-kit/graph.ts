@@ -1,5 +1,14 @@
-export interface PortDef { id: string; side: 'in' | 'out'; type: string; label?: string; max?: number } // max: max wires on this port (undefined = unlimited)
-export interface NodeTypeDef { type: string; label: string; colorVar: string; hint: string; ports: PortDef[]; deletable?: boolean }
+export interface PortDef { id: string; side: 'in' | 'out'; type: string; label?: string; max?: number; optional?: boolean } // max: max wires on this port (undefined = unlimited); optional: an input that may stay unwired
+export interface NodeTypeDef {
+  type: string
+  label: string
+  colorVar: string
+  hint: string
+  ports: PortDef[]
+  /** ports that depend on the card's own params (agent cards: one input per `{{slot}}`); wins over `ports` when set */
+  portsFor?: (params: Record<string, unknown>) => PortDef[]
+  deletable?: boolean
+}
 export interface CanvasNode { id: string; type: string; x: number; y: number; title: string; subtitle?: string; params?: Record<string, unknown>; note?: string }
 /** from/to: "nodeId:portId". locked: shown for information (dashed), never selected, removed or counted against a port's max. */
 export interface CanvasEdge { id: string; from: string; to: string; locked?: boolean }
@@ -11,7 +20,16 @@ export interface BoardKind {
   /** board-specific rule, run after the generic checks; return a Verdict */
   canConnect?: (g: Graph, from: string, to: string) => Verdict
 }
-export interface CanvasFile { format: 'vertep-canvas'; version: 1; kind: string; title: string; nodes: CanvasNode[]; edges: CanvasEdge[] }
+export interface CanvasFile {
+  format: 'vertep-canvas'
+  version: 1
+  kind: string
+  title: string
+  nodes: CanvasNode[]
+  edges: CanvasEdge[]
+  /** header of an agent file (kind "agent"); other kinds do not carry it. Read, kept and written back as is. */
+  agent?: Record<string, unknown>
+}
 
 export const splitEnd = (end: string): [string, string] => {
   const i = end.lastIndexOf(':')
@@ -19,13 +37,18 @@ export const splitEnd = (end: string): [string, string] => {
   return [end.slice(0, i), end.slice(i + 1)]
 }
 
+/** The ports one card has: from its params when its type derives them, else the type's static list. */
+export const portsOfNode = (board: BoardKind, node: CanvasNode): PortDef[] | null => {
+  const def = board.types[node.type]
+  if (!def) return null
+  return def.portsFor ? def.portsFor(node.params ?? {}) : def.ports
+}
+
 export const portOf = (board: BoardKind, g: Graph, end: string): PortDef | null => {
   const [nodeId, portId] = splitEnd(end)
   const node = g.nodes.find((n) => n.id === nodeId)
   if (!node) return null
-  const def = board.types[node.type]
-  if (!def) return null
-  return def.ports.find((p) => p.id === portId) ?? null
+  return portsOfNode(board, node)?.find((p) => p.id === portId) ?? null
 }
 
 export const canConnect = (board: BoardKind, g: Graph, from: string, to: string): Verdict => {
@@ -115,12 +138,12 @@ export const insertOnEdge = (board: BoardKind, g: Graph, edgeId: string, nodeId:
   if (fromNode === nodeId || toNode === nodeId) return { graph: g, ok: false, reason: 'That card is already an end of this wire' }
   const node = g.nodes.find((n) => n.id === nodeId)
   if (!node) return { graph: g, ok: false, reason: 'Unknown node' }
-  const def = board.types[node.type]
-  if (!def) return { graph: g, ok: false, reason: 'Unknown node type' }
+  const nodePorts = portsOfNode(board, node)
+  if (!nodePorts) return { graph: g, ok: false, reason: 'Unknown node type' }
   const fromPort = portOf(board, g, edge.from)
   const toPort = portOf(board, g, edge.to)
-  const inPort = def.ports.find((p) => p.side === 'in' && toPort !== null && p.type === toPort.type)
-  const outPort = def.ports.find((p) => p.side === 'out' && fromPort !== null && p.type === fromPort.type)
+  const inPort = nodePorts.find((p) => p.side === 'in' && toPort !== null && p.type === toPort.type)
+  const outPort = nodePorts.find((p) => p.side === 'out' && fromPort !== null && p.type === fromPort.type)
   if (!inPort || !outPort) return { graph: g, ok: false, reason: 'That card has no matching ports for this wire' }
   const g1 = removeEdge(g, edgeId)
   const v1 = canConnect(board, g1, edge.from, `${nodeId}:${inPort.id}`)
@@ -134,13 +157,14 @@ export const insertOnEdge = (board: BoardKind, g: Graph, edgeId: string, nodeId:
   return { graph: g3, ok: true }
 }
 
-export const toFile = (kind: string, title: string, g: Graph): CanvasFile => ({
+export const toFile = (kind: string, title: string, g: Graph, header?: { agent?: Record<string, unknown> }): CanvasFile => ({
   format: 'vertep-canvas',
   version: 1,
   kind,
   title,
   nodes: g.nodes,
   edges: g.edges,
+  ...(header?.agent ? { agent: header.agent } : {}),
 })
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
@@ -176,7 +200,9 @@ export const fromFile = (raw: unknown): { file: CanvasFile } | { error: string }
     if (!ids.has(f) || !ids.has(t)) return { error: `Edge ${e.id} references an unknown node` }
     edges.push(e.locked === true ? { id: e.id, from: e.from, to: e.to, locked: true } : { id: e.id, from: e.from, to: e.to })
   }
-  return { file: { format: 'vertep-canvas', version: 1, kind: raw.kind, title: raw.title, nodes, edges } }
+  const file: CanvasFile = { format: 'vertep-canvas', version: 1, kind: raw.kind, title: raw.title, nodes, edges }
+  if (isObject(raw.agent) && !Array.isArray(raw.agent)) file.agent = raw.agent
+  return { file }
 }
 
 export interface History { past: Graph[]; present: Graph; future: Graph[] }
