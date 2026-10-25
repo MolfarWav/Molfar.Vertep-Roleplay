@@ -11,8 +11,9 @@ const NESTED_AT_RULE = /^@(media|supports|container|layer|scope)\b/i
  *  Brace-walked rather than regex-replaced, because a regex that keys on
  *  "after a }" leaves the first rule inside every @media block unscoped, and
  *  a message's styles leaking onto the whole page is the one thing this must
- *  not allow. */
-export function scopeCss(css: string, prefix = '.mes_text'): string {
+ *  not allow. `filterBody` (safe-style.ts for a message's own blocks) takes the
+ *  declarations a message may not use out of every rule body. */
+export function scopeCss(css: string, prefix = '.mes_text', filterBody?: (body: string) => string): string {
   let out = ''
   let i = 0
   while (i < css.length) {
@@ -29,7 +30,7 @@ export function scopeCss(css: string, prefix = '.mes_text'): string {
     const body = css.slice(open + 1, level === 0 ? j - 1 : j)
     const trimmed = prelude.trim()
     if (trimmed.startsWith('@')) {
-      out += prelude + '{' + (NESTED_AT_RULE.test(trimmed) ? scopeCss(body, prefix) : body) + '}'
+      out += prelude + '{' + (NESTED_AT_RULE.test(trimmed) ? scopeCss(body, prefix, filterBody) : filterBody ? filterBody(body) : body) + '}'
     } else {
       const scoped = trimmed
         .split(',')
@@ -37,7 +38,7 @@ export function scopeCss(css: string, prefix = '.mes_text'): string {
         .filter(Boolean)
         .map((sel) => `${prefix} ${sel}`)
         .join(', ')
-      out += (scoped ? scoped : prefix) + '{' + body + '}'
+      out += (scoped ? scoped : prefix) + '{' + (filterBody ? filterBody(body) : body) + '}'
     }
     i = j
   }

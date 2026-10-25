@@ -83,6 +83,14 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
    up within a second: do not read the file back or check with git. A write_file refusal means the
    JSON text is broken: fix the text, never patch the file afterwards.
 
+## Voices: one Narrator card, several speakers
+A card that plays several characters (`extensions.molfar_card_type` = `narrator`) lists them in
+`/studio/voices`: `[{ "name": "Aria", "color": "#e06c75" }]`. In a chat each voice's quoted speech gets its
+colour; the speaker is the name that leads a paragraph before a colon (`**Aria:** "..."`) or the first name
+in the line, outside quotes. An empty `color` takes the app's palette by position. Set the whole list in ONE
+`json_set` (`{ pointer: "/studio/voices", op: "set", value: [...] }`); it is a display aid, not text for the
+model.
+
 ## Pictures: avatar, background, gallery
 1. Write the prompt from the card: ONE `json_get` of `/name`, `/description` (and
    `/extensions/molfar_profile/appearance` when there is a profile). Describe the look in English,

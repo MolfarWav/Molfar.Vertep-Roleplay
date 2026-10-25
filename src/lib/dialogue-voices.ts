@@ -29,6 +29,19 @@ export function firstVoiceIn(text: string, voices: DialogueVoice[]): DialogueVoi
   return best
 }
 
+const leads = new WeakMap<RegExp, RegExp>()
+
+/** The voice a line opens with as a speaker label: `Name:`, `**Name:**`, `**Name**:` (the text of the
+ *  line, markup gone, starts with the name and a colon). It beats a name that only appears in the line. */
+export function leadVoiceIn(line: string, voices: DialogueVoice[]): DialogueVoice | null {
+  for (const v of voices) {
+    let lead = leads.get(v.match)
+    if (!lead) leads.set(v.match, (lead = new RegExp(`^[\\s*_~"“«(\\[]*(?:${v.match.source})[\\s*_~)\\]]*[:：]`, 'u')))
+    if (lead.test(line)) return v
+  }
+  return null
+}
+
 /** Each member's dialogue colour in a group: the group's choice, else the card's, else the palette's by position. */
 export function memberColor(group: Character, member: Character): string {
   const g = group.group
@@ -50,6 +63,17 @@ export function groupVoices(group: Character, characters: Character[]): Dialogue
     const match = c ? voiceMatcher(c.name) : null
     if (c && match) out.push({ name: c.name, color: memberColor(group, c), match })
   }
+  return out
+}
+
+/** The voices a single card speaks with (its `voices` list: a Narrator card that plays several
+ *  characters). A voice without a colour takes the palette's by position. Empty: the card has none. */
+export function cardVoices(card: Pick<Character, 'voices'>): DialogueVoice[] {
+  const out: DialogueVoice[] = []
+  ;(card.voices ?? []).forEach((v, i) => {
+    const match = voiceMatcher(v.name)
+    if (match) out.push({ name: v.name, color: v.color || VOICE_PALETTE[i % VOICE_PALETTE.length]!, match })
+  })
   return out
 }
 

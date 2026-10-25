@@ -170,3 +170,21 @@ describe("rich parts: streaming markdown balancing", () => {
     expect(balanceStreamingMarkdown("")).toBe("");
   });
 });
+
+describe("rich parts: real inline HTML stays", () => {
+  const md = (t: string) => { const o = splitRichBlocks(t); return o[0]!.kind === "md" ? o[0]!.text : ""; };
+  it("keeps b, br, span, img and a amid text", () => {
+    const t = '<b>Meet me</b><br>at <span style="color:red">dusk</span> <img src="/v1/assets/a"> <a href="https://x.y">link</a>';
+    expect(md(t)).toBe(t);
+  });
+  it("still drops custom tags beside them", () => {
+    expect(md("<b>hi</b> <status>ok</status>")).toBe("<b>hi</b> ok");
+  });
+  it("drops an inline tag that stands alone on its line, so the markdown below keeps parsing", () => {
+    expect(md("<span>\n1. one\n2. two\n</span>")).toBe("\n1. one\n2. two\n");
+    expect(md("line<br>\n<br>\n**bold**")).toBe("line<br>\n\n**bold**");
+  });
+  it("keeps a picture on its own line", () => {
+    expect(md('<img src="/v1/assets/a">\ntext')).toBe('<img src="/v1/assets/a">\ntext');
+  });
+});

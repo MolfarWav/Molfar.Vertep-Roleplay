@@ -174,6 +174,16 @@ An asset id is the SHA-256 of its bytes, so these ids DO travel: nothing is
 rewritten on restore. All three restore entry points (Settings > Data, Settings
 > Import, Manage chats) go through `backupFileForImport`.
 
+Replies with HTML and coloured dialogue (#93): `lib/safe-style.ts` is the one
+list of what a reply's CSS may not do (fixed/sticky, z-index > 10, viewport-unit
+sizes, `@import`, `@font-face`, foreign `url()`); it runs over inline `style`
+(`rehypeSafeStyle`, after the sanitizer) and over `<style>` bodies (`scopeCss`
+takes it as a filter). Add a rule there, with a test in `test/rp-safe-style.test.tsx`.
+`stripCustomHtmlTags` keeps the inline tags in `INLINE_TAGS`. The fenced html
+block (`HtmlInlay`) is a sealed frame the app cannot measure, so its height is
+fixed with an Expand toggle. A solo card's `voices` (`studio.voices`) feed the
+same speaker finder as group members (`lineSpeakers`, `leadVoiceIn`).
+
 IDS DO NOT TRAVEL. Anything pointing at another entity exports a `_…Names`
 sibling and the importer re-resolves it; ids are re-minted on the way in.
 Zip text is UTF-8 — never write latin1 into the archive.

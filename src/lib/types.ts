@@ -107,6 +107,8 @@ export interface Character {
   embeddedLorebookId: ID | null
   linkedLorebookIds: ID[]
   colors: { name: string; dialogue: string; bubble: string }
+  /** Whom a Narrator-type card speaks as: each gets a dialogue colour (empty colour = the palette's). */
+  voices?: { name: string; color: string }[]
   stats: CharacterStat[]
   isGroup: boolean
   members?: ID[] // for groups

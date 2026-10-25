@@ -86,9 +86,23 @@ const BLOCK_LEVEL_TAGS = new Set([
   'header', 'hgroup', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'script', 'style',
   'summary', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul',
 ])
+/** Real inline HTML a reply may use (a bold word, a line break, a coloured span, a picture). Kept: they are
+ *  not custom tags, and stripping them took the paper note's line break and every `<span style>` away. */
+const INLINE_TAGS = new Set([
+  'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'del', 'em', 'font', 'i', 'img', 'ins', 'kbd', 'mark', 'q',
+  'rp', 'rt', 'ruby', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'time', 'u', 'var', 'wbr',
+])
 const ANY_TAG_RE = /<\/?([a-zA-Z][a-zA-Z0-9-]*)[^<>]*?\/?>/g
+/** A line that holds nothing but one inline tag: CommonMark reads it as the start of a block of raw HTML
+ *  and swallows the markdown below it, so that tag goes (an inline tag amid text is fine). */
+const LONE_INLINE_RE = /^[ \t]*<\/?([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^<>]*)?\/?>[ \t]*$/gm
 export function stripCustomHtmlTags(text: string): string {
-  return text.replace(ANY_TAG_RE, (tag, name: string) => (BLOCK_LEVEL_TAGS.has(name.toLowerCase()) ? tag : ''))
+  return text
+    .replace(LONE_INLINE_RE, (tag, name: string) => (INLINE_TAGS.has(name.toLowerCase()) && name.toLowerCase() !== 'img' ? '' : tag))
+    .replace(ANY_TAG_RE, (tag, name: string) => {
+      const n = name.toLowerCase()
+      return BLOCK_LEVEL_TAGS.has(n) || INLINE_TAGS.has(n) ? tag : ''
+    })
 }
 
 export function splitRichBlocks(text: string): RichBlock[] {

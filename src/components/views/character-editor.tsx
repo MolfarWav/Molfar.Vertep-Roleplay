@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils'
 import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
 import { ProfileTab } from '@/components/character/profile-tab'
+import { VoicesEditor } from '@/components/character/voices-editor'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
@@ -733,6 +734,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
               }}>
                 <Palette className="size-4" aria-hidden="true" />Extract from avatar
               </Button>
+              <VoicesEditor voices={c.voices ?? []} onChange={(voices) => up({ voices })} />
             </TabsContent>
 
             <TabsContent value="sprites" className="flex flex-col gap-3">

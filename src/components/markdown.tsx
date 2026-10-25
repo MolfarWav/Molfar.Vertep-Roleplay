@@ -11,19 +11,23 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { cn, storedMediaUrl } from '@/lib/utils'
 import { proxyUrl } from '@/lib/engine'
 import { scopeCss } from '@/lib/scope-css'
-import { firstVoiceIn, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
+import { rehypeSafeStyle, safeRuleBody, stripRiskyAtRules } from '@/lib/safe-style'
+import { firstVoiceIn, leadVoiceIn, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
 /** Raw HTML in message bodies renders (community presets emit divs, details
  *  blocks, inline styles). Sanitized: standard tag allowlist, class + inline
- *  style allowed globally, http(s) URLs only. */
+ *  style allowed globally, http(s) URLs only. Inline styles and style blocks
+ *  then pass lib/safe-style.ts (no fixed/sticky boxes, no viewport-sized
+ *  overlays, no off-site url()). */
 const htmlSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'style'],
+  tagNames: [...(defaultSchema.tagNames ?? []), 'style', 'font'],
   attributes: {
     ...defaultSchema.attributes,
     '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className', 'style', 'align'],
+    font: ['color', 'face', 'size'],
   },
 }
 
@@ -122,50 +126,57 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
 /** The group voices a narrator's message is coloured by (none outside such messages). */
 export const DialogueVoices = createContext<DialogueVoice[]>([])
 
-type VoiceState = { speaker: DialogueVoice | null; carry: DialogueVoice | null; pending: Record<string, string>[] }
+/** The plain text of each line of a block, spoken quotes left out (a name said INSIDE a quote is the
+ *  one spoken to, not the speaker). A line ends at a newline or a `<br>`. */
+function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): string[] {
+  for (const child of Children.toArray(children)) {
+    if (typeof child === 'string') {
+      child.split('\n').forEach((part, i) => {
+        if (i > 0) lines.push('')
+        lines[lines.length - 1] += part
+      })
+    } else if (isValidElement(child)) {
+      const el = child as ReactElement<{ children?: ReactNode }>
+      const tag = typeof el.type === 'string' ? el.type : ''
+      if (tag === 'br') lines.push('')
+      else if (tag !== 'q' && !OPAQUE.has(tag) && el.props?.children != null && depth <= 6) lineTexts(el.props.children, depth + 1, lines)
+    }
+  }
+  return lines
+}
 
-/** Paints each tinted quote with the colour of the member who says it: the first member
- *  named in its line (a line ends at a hard break). A line that names nobody keeps the
- *  previous line's speaker; before anyone is named, the theme's colour stays. */
-function voiceQuotes(children: ReactNode, voices: DialogueVoice[], st: VoiceState, depth = 0): ReactNode[] {
-  const paint = (style: Record<string, string>, v: DialogueVoice) => { style['--tap-quotes'] = voiceInk(v.color) }
-  const name = (text: string) => {
-    if (st.speaker) return
-    const v = firstVoiceIn(text, voices)
-    if (!v) return
-    st.speaker = v
-    for (const style of st.pending) paint(style, v)
-    st.pending = []
-  }
-  const endLine = () => {
-    if (st.speaker) st.carry = st.speaker
-    else if (st.carry) for (const style of st.pending) paint(style, st.carry)
-    st.speaker = null
-    st.pending = []
-  }
+/** Who speaks on each line: a `Name:` lead wins, else the first voice named in the line, else the
+ *  previous line's speaker; null before anyone is named. */
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[]): (DialogueVoice | null)[] {
+  let carry: DialogueVoice | null = null
+  return lineTexts(children).map((line) => {
+    carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
+    return carry
+  })
+}
+
+/** Paints each tinted quote with the colour of the voice that says it (see lineSpeakers); before anyone
+ *  is named, the theme's colour stays. */
+function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st: { line: number }, depth = 0): ReactNode[] {
   const out: ReactNode[] = []
   for (const child of Children.toArray(children)) {
     if (typeof child === 'string') {
-      const lines = child.split('\n')
-      lines.forEach((line, i) => { if (i > 0) endLine(); name(line) })
+      st.line += child.split('\n').length - 1
       out.push(child)
       continue
     }
     if (!isValidElement(child)) { out.push(child); continue }
     const el = child as ReactElement<{ children?: ReactNode; style?: Record<string, string> }>
     const tag = typeof el.type === 'string' ? el.type : ''
-    if (tag === 'br') { endLine(); out.push(child); continue }
+    if (tag === 'br') { st.line++; out.push(child); continue }
     if (tag === 'q') {
-      const style: Record<string, string> = { ...(el.props.style ?? {}) }
-      if (st.speaker) paint(style, st.speaker)
-      else st.pending.push(style)
-      out.push(cloneElement(el, { style }))
+      const who = speakers[st.line]
+      out.push(who ? cloneElement(el, { style: { ...(el.props.style ?? {}), '--tap-quotes': voiceInk(who.color) } }) : child)
       continue
     }
     if (OPAQUE.has(tag) || el.props?.children == null || depth > 6) { out.push(child); continue }
-    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, voices, st, depth + 1)))
+    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, speakers, st, depth + 1)))
   }
-  if (depth === 0) endLine()
   return out
 }
 
@@ -173,7 +184,7 @@ const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | '
   function Tinted({ children }: { children?: ReactNode }) {
     const voices = useContext(DialogueVoices)
     const tinted = tintQuotes(children)
-    return <Tag>{voices.length ? voiceQuotes(tinted, voices, { speaker: null, carry: null, pending: [] }) : tinted}</Tag>
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices), { line: 0 }) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
@@ -183,7 +194,7 @@ const StyleScope = createContext('.mes_text')
 
 function ScopedStyle({ children }: { children?: ReactNode }) {
   const scope = useContext(StyleScope)
-  return <style dangerouslySetInnerHTML={{ __html: scopeCss(String(children ?? ''), scope) }} />
+  return <style dangerouslySetInnerHTML={{ __html: scopeCss(stripRiskyAtRules(String(children ?? '')), scope, safeRuleBody) }} />
 }
 
 const mdComponents = {
@@ -287,6 +298,8 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
             // generated markup isn't stripped by the allowlist
             rehypeRaw,
             [rehypeSanitize, htmlSchema],
+            // a reply may dress itself, not leave its box (position:fixed, vw widths, off-site urls)
+            rehypeSafeStyle,
             rehypeKatex,
             [rehypeHighlight, { detect: false, ignoreMissing: true }],
           ]}

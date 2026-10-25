@@ -1,5 +1,6 @@
 
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
+import { useT } from '@/hooks/use-t'
 import { Markdown } from '@/components/markdown'
 import { splitRichBlocks } from '@/lib/rich-parts'
 import { Button } from '@/components/ui/button'
@@ -37,19 +38,57 @@ function DataPanel({ variant, title, rows }: { variant: 'data' | 'stat'; title: 
   )
 }
 
+/** Is the document dark right now? Follows the theme switch. */
+function useDark(): boolean {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
+  useEffect(() => {
+    const root = document.documentElement
+    const obs = new MutationObserver(() => setDark(root.classList.contains('dark')))
+    obs.observe(root, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
+  }, [])
+  return dark
+}
+
+/** A block that sets its own colours (a paper note, a card of its own) was drawn for a light page: it
+ *  keeps a white sheet behind it. One that sets none follows the theme. */
+export const inlayIsStyled = (html: string) => /(?:^|[\s;"'{])(?:color|background(?:-color|-image)?)\s*:|\bbgcolor=|<font\b[^>]*\bcolor=/i.test(html)
+
+/** The inlay's document: theme-following defaults first, so the block's own markup and CSS override them.
+ *  The doctype keeps it out of quirks mode, where the root element always fills the frame and could not be measured. */
+export const inlayDoc = (html: string, dark: boolean) =>
+  `<!doctype html><style>:root{color-scheme:${dark ? 'dark' : 'light'}}html{background:transparent}body{margin:8px;font:14px/1.5 system-ui,sans-serif;color:CanvasText;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style>${html}`
+
+/** How tall an inlay is before it is expanded, and the share of the window it takes once expanded. */
+const INLAY_HEIGHT = 160
+const INLAY_EXPANDED_VH = 60
+
 /**
  * Sandboxed HTML inlay (```html blocks): srcdoc iframe with scripts
  * disallowed by both the sandbox and the page CSP — static markup and inline
- * styles only, never script-driven.
+ * styles only, never script-driven. The frame cannot be measured from here
+ * (the app page is itself sandboxed, so the inlay is a separate origin), so it
+ * has a modest fixed height with an Expand toggle, and can be dragged taller
+ * where the browser allows it.
  */
 function HtmlInlay({ html }: { html: string }) {
+  const t = useT()
+  const dark = useDark()
+  const styled = inlayIsStyled(html)
+  const [expanded, setExpanded] = useState(false)
   return (
-    <iframe
-      title="Message inlay"
-      srcDoc={html}
-      sandbox=""
-      className="my-2 h-72 w-full rounded-md border border-border bg-white"
-    />
+    <div className="my-2">
+      <iframe
+        title="Message inlay"
+        srcDoc={inlayDoc(html, styled ? false : dark)}
+        sandbox=""
+        style={{ height: expanded ? `${INLAY_EXPANDED_VH}vh` : INLAY_HEIGHT }}
+        className={cn('block min-h-24 w-full resize-y rounded-md border border-border', styled ? 'bg-white' : 'bg-transparent')}
+      />
+      <Button variant="ghost" size="sm" className="mt-0.5 h-10 text-xs text-muted-foreground md:h-7" onClick={() => setExpanded((v) => !v)} aria-pressed={expanded}>
+        {expanded ? t('inlay.collapse') : t('inlay.expand')}
+      </Button>
+    </div>
   )
 }
 
