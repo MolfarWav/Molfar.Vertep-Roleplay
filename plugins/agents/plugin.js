@@ -1370,6 +1370,28 @@ function runsRoute(req, host) {
   return ok({ runs: Array.isArray(f.runs) ? f.runs : [], inserts: (readJsonAt(host.fs, insertsPath(chatId), { items: [] }).items || []).map((x) => ({ agent: x.agent, label: x.label, at: x.at })) });
 }
 
+/** What the chat's panels need in one call: for each agent that is on, allowed to run and has panels, the panels, the schema and its state (and the state before the last run, for a change marker). */
+function panelsRoute(req, host) {
+  const fsx = host.fs;
+  const chatId = str(req.query && req.query.chatId);
+  if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const meta = readJsonAt(fsx, "chats/" + chatId + ".meta.json", null);
+  if (!isObj(meta)) return ok({ error: "no such chat" }, 404);
+  const out = [];
+  for (const it of chatAgents(fsx, meta)) {
+    if (!it.on) continue;
+    const agent = loadAgent(fsx, it.agent);
+    if (!agent || blocker(agent, grantedOf(fsx, it.agent))) continue;
+    const a = agent.file.agent || {};
+    if (!Array.isArray(a.panels) || !a.panels.length) continue;
+    const schema = isObj(a.state) ? a.state : {};
+    const st = loadOwn(fsx, chatId, it.agent, schema);
+    const prev = st.raw && isObj(st.raw.before) && isObj(st.raw.before.own) ? st.raw.before.own : null;
+    out.push({ agent: it.agent, name: str(a.name) || it.agent, show: it.show || null, panels: a.panels, schema, own: st.own, prev });
+  }
+  return ok({ panels: out });
+}
+
 function configRoute(req, host) {
   const fsx = host.fs;
   if (req.method === "GET") return ok(readJsonAt(fsx, "agents/config.json", {}));
@@ -1396,6 +1418,7 @@ export function handleRoute(req, host) {
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);
   if (path === "/agents/state" && (req.method === "GET" || req.method === "DELETE")) return stateRoute(req, host);
   if (path === "/agents/runs" && req.method === "GET") return runsRoute(req, host);
+  if (path === "/agents/panels" && req.method === "GET") return panelsRoute(req, host);
   if (path === "/agents/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (seg.length === 2 && req.method === "DELETE") return removeRoute(req, host, seg[1]);
   return ok({ error: "not found" }, 404);

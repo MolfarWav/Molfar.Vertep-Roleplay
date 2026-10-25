@@ -24,6 +24,7 @@ import { useApp } from "@/lib/store"
 import { useFinePointer, useLastPointer, useTouchUi } from "@/hooks/use-touch-ui"
 import { uid } from "@/lib/tokens"
 import { fileToRawDataUrl, j, storeAttachmentAsset } from "@/lib/engine"
+import { COMPOSER_INSERT } from "@/lib/agents"
 import { cn } from "@/lib/utils"
 import type { ID, Message, QuickReply } from "@/lib/types"
 import { toast } from "sonner"
@@ -127,6 +128,18 @@ export function Composer({ chatId }: { chatId: ID }) {
   const [imgStart, setImgStart] = useState<ImageGenStart>({ mode: 'scene' })
   const [imgBusy, setImgBusy] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // an agent panel's button puts its text in the box; the user decides whether to send it
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ chatId: string; text: string }>).detail
+      if (!d || d.chatId !== chatId || !d.text) return
+      const cur = valueRef.current
+      setValue(cur.trim() ? `${cur.replace(/\s+$/, '')}\n${d.text}` : d.text)
+      textareaRef.current?.focus()
+    }
+    window.addEventListener(COMPOSER_INSERT, on)
+    return () => window.removeEventListener(COMPOSER_INSERT, on)
+  }, [chatId, setValue])
   // A draft that wrapped gets the whole row and the buttons move under it:
   // beside it they left about four words per line on a phone and empty
   // columns down both sides on desktop (GitHub #20).

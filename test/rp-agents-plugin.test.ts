@@ -310,6 +310,39 @@ describe("a note for the reply", () => {
   });
 });
 
+describe("panels", () => {
+  beforeEach(() => {
+    j("/agents/install", "PUT", { file: copy(keeper), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("dungeon-keeper");
+  });
+
+  it("gives the panels of the agents that are on, with the schema, the state and the state before the last run", () => {
+    runChat("c1");
+    const r = j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels;
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ agent: "dungeon-keeper", name: "Dungeon keeper", own: { mana: 40, rooms: [] }, prev: { mana: 50, rooms: [] } });
+    expect(r[0].panels[0]).toMatchObject({ id: "keep", place: "float" });
+    expect(r[0].schema.mana).toMatchObject({ type: "number", max: 100 });
+  });
+
+  it("an agent that is off, not allowed, or has no panels gives none", () => {
+    useAgent("dungeon-keeper", { on: false });
+    expect(j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels).toEqual([]);
+    useAgent("dungeon-keeper");
+    j("/agents/grant", "POST", { id: "dungeon-keeper", tokens: [] });
+    expect(j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels).toEqual([]);
+    j("/agents/install", "PUT", { file: copy(echo), grant: true });
+    useAgent("scene-echo");
+    expect(j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels).toEqual([]);
+  });
+
+  it("wants a chat", () => {
+    expect(call("GET", "/agents/panels", undefined, { chatId: "nope" }).status).toBe(404);
+    expect(call("GET", "/agents/panels", undefined, {}).status).toBe(400);
+  });
+});
+
 describe("config", () => {
   it("keeps a model per role and rejects junk", () => {
     expect(j("/agents/config", "PUT", { model: "openrouter/x", models: { fast: "openrouter/y", "bad role!": "z", slow: "has space" } })).toEqual({ model: "openrouter/x", models: { fast: "openrouter/y" } });

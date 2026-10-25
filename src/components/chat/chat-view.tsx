@@ -48,6 +48,7 @@ import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
+import { AgentBars, AgentFloat } from './agent-panels'
 import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
@@ -867,6 +868,9 @@ export function ChatView() {
       {/* relationship dashboard, below 1024 px: one bar that opens a bottom sheet */}
       <DashPhoneMount chatId={chat.id} />
 
+      {/* the bars the chat's agents draw above the log */}
+      <AgentBars chatId={chat.id} />
+
       {/* Find bar */}
       {findOpen && (
         <div className="relative z-10 flex items-center gap-2 border-b border-border bg-card px-3 py-1.5">
@@ -1035,6 +1039,7 @@ export function ChatView() {
 
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">
+        {!deleteMode && <AgentFloat chatId={chat.id} />}
         {/* While selecting, `chat-column` keeps the bulk bar inset to the
             message column so it lines up with the composer it replaces. */}
         {deleteMode ? (

@@ -75,17 +75,45 @@ export interface AgentRun {
   outputs?: AgentOutput[]
 }
 
+/** One widget of a panel (docs/DATA-FORMATS.md, "Agents"); the checker has already vetted it. */
+export interface PanelWidget {
+  w: 'meter' | 'number' | 'counter' | 'table' | 'list' | 'log' | 'text' | 'actions' | 'html'
+  label?: string
+  bind?: string
+  of?: number
+  delta?: string
+  last?: number
+  columns?: string[]
+  items?: { label: string; send: string }[]
+}
+export type PanelPlace = 'top1' | 'top2' | 'float'
+export interface AgentPanel { id: string; title: string; place?: PanelPlace; widgets: PanelWidget[] }
+export interface StateField { type: 'number' | 'text' | 'flag' | 'list'; min?: number; max?: number; item?: Record<string, string> }
+/** GET /agents/panels: one agent's panels with its state; `prev` = the state before the last run. */
+export interface AgentPanelSet {
+  agent: string
+  name: string
+  /** the place the chat chose for this agent, if any */
+  show: string | null
+  panels: AgentPanel[]
+  schema: Record<string, StateField>
+  own: Record<string, unknown>
+  prev: Record<string, unknown> | null
+}
+
 interface AgentsLive {
   /** the newest list per chat, from a read or an edit */
   chats: Record<string, ChatAgents>
   /** the runs the plugin keeps per chat (the newest ones), oldest first */
   runs: Record<string, AgentRun[]>
+  /** the panels of the chat's agents with their state */
+  panels: Record<string, AgentPanelSet[]>
   /** display names of the installed agents, once the list has been read */
   names: Record<string, string>
   running: Record<string, true>
 }
 
-export const useAgentsLive = create<AgentsLive>(() => ({ chats: {}, runs: {}, names: {}, running: {} }))
+export const useAgentsLive = create<AgentsLive>(() => ({ chats: {}, runs: {}, panels: {}, names: {}, running: {} }))
 
 const keep = (chatId: string, v: ChatAgents) => useAgentsLive.setState((s) => ({ chats: { ...s.chats, [chatId]: v } }))
 const forgetChats = () => useAgentsLive.setState({ chats: {} })
@@ -101,6 +129,8 @@ export async function loadChatAgents(chatId: string): Promise<ChatAgents> {
 export async function editChatAgents(chatId: string, op: ChatAgentsOp): Promise<ChatAgents> {
   const v = await j<ChatAgents>(`/chats/${q(chatId)}/agents`, { method: 'POST', body: JSON.stringify(op) })
   keep(chatId, v)
+  // an agent switched on or off changes which panels there are
+  void loadAgentPanels(chatId).catch(() => {})
   return v
 }
 
@@ -138,6 +168,18 @@ export async function loadAgentRuns(chatId: string): Promise<AgentRun[]> {
   return runs
 }
 
+export async function loadAgentPanels(chatId: string): Promise<AgentPanelSet[]> {
+  const panels = (await j<{ panels: AgentPanelSet[] }>(`/agents/panels?chatId=${q(chatId)}`)).panels
+  useAgentsLive.setState((s) => ({ panels: { ...s.panels, [chatId]: panels } }))
+  return panels
+}
+
+/** A panel button: its text goes into the chat's composer; nothing is sent. */
+export const COMPOSER_INSERT = 'vertep:composer-insert'
+export function insertIntoComposer(chatId: string, text: string): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(COMPOSER_INSERT, { detail: { chatId, text } }))
+}
+
 const loading = new Set<string>()
 
 /**
@@ -149,7 +191,7 @@ export async function ensureAgentRuns(chatId: string): Promise<void> {
   loading.add(chatId)
   try {
     const list = await loadChatAgents(chatId)
-    if (list.items.length) await loadAgentRuns(chatId)
+    if (list.items.length) await Promise.all([loadAgentRuns(chatId), loadAgentPanels(chatId)])
   } catch { /* the plugin is absent or the engine is busy: the notes just do not show */ } finally {
     loading.delete(chatId)
   }
@@ -252,7 +294,7 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
     for (const x of r.ran ?? []) if (x.status === 'failed') toast.error(`${x.agent}: ${x.reason ?? 'failed'}`)
     if (r.ran?.length) {
       // the notes under the reply, and the toasts the agents asked for
-      const runs = await loadAgentRuns(chatId).catch(() => [] as AgentRun[])
+      const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
       for (const run of runs.filter((x) => !before.has(runId(x))))
         for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text) toast.message(o.title || nameOf(run.agent), { description: o.text })
     }

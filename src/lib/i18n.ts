@@ -2896,6 +2896,10 @@ const en = {
   'ag.log.failed': '{n} failed',
   'ag.log.ok': 'done in {ms} ms · {calls} model {calls|call|calls} · {changes} {changes|change|changes}',
   'ag.log.refused': '{n} {n|change|changes} refused',
+  'ag.widget.html': 'This panel needs a newer version of the app.',
+  'ag.widget.of': '{n} of {max}',
+  'ag.panel.open': 'Agents panel',
+  'ag.panel.openNew': 'Agents panel, {n} new',
   'ag.manageTip': 'Install agents, give permissions, manage sets',
 } as const
 
@@ -5789,6 +5793,10 @@ const uk: Record<MsgKey, string> = {
   'ag.log.failed': '{n} з помилкою',
   'ag.log.ok': 'готово за {ms} мс · {calls} {calls|виклик|виклики|викликів} моделі · {changes} {changes|зміна|зміни|змін}',
   'ag.log.refused': '{n} {n|зміну|зміни|змін} відхилено',
+  'ag.widget.html': 'Ця панель потребує новішої версії застосунку.',
+  'ag.widget.of': '{n} з {max}',
+  'ag.panel.open': 'Панель агентів',
+  'ag.panel.openNew': 'Панель агентів, нових: {n}',
   'ag.manageTip': 'Встановити агентів, дати дозволи, керувати наборами',
 }
 
