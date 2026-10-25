@@ -2652,10 +2652,44 @@ function readEvents(list, ctx, known, unknownIds) {
   return events;
 }
 
+/** The name, its first word (a narration says "Rhea" for "Rhea Faeth") and the soul's aliases with theirs. */
+function nameForms(name, soul) {
+  const out = [];
+  for (const n of [name, ...arr(soul && soul.aliases)]) {
+    if (typeof n !== "string" || !n.trim()) continue;
+    out.push(n);
+    const first = n.trim().split(/\s+/)[0];
+    if (first && first !== n && first.length >= 3) out.push(first);
+  }
+  return unique(out);
+}
+
+/** How many words of the text are the name (any form of it, in any script, allowing for endings, z for s and k for c)?
+ *  A name starts with a capital letter, so a common word that sounds like it does not count. */
+function nameCount(name, soul, text) {
+  const loose = (w) => nameKey(w).replace(/z/g, "s").replace(/c(?=[eiy])/g, "s").replace(/c/g, "k");
+  const forms = nameForms(name, soul).map(loose).filter((k) => k.length >= 3);
+  let n = 0;
+  for (const w of String(text).split(/[^\p{L}\p{N}']+/u)) {
+    if (!/^\p{Lu}/u.test(w)) continue;
+    const k = loose(w);
+    if (k.length < 3) continue;
+    const hit = forms.some((f) => {
+      const stem = f.length > 5 ? f.slice(0, -2) : f.length > 3 ? f.slice(0, -1) : f;
+      return k === f || (stem.length >= 3 && k.startsWith(stem) && k.length <= f.length + 2) || (f.length >= 6 && editDistanceAtMostOne(k, f));
+    });
+    if (hit) n++;
+  }
+  return n;
+}
+
+/** How often a rated character must be named in the new messages to count as in the scene when the sensor left them out. */
+const NAMED_TO_JOIN = 2;
+
 /** Is the name (or an alias of its soul, in any script) in the text, allowing for endings? */
 function mentionsName(ctx, text, name) {
   const soul = soulOf(ctx.souls, name);
-  const names = [name, ...arr(soul && soul.aliases).filter((a) => typeof a === "string")];
+  const names = nameForms(name, soul);
   const words = String(text).toLowerCase().split(/[^\p{L}\p{N}']+/u).filter(Boolean).map(nameKey);
   return names.some((n) => {
     if (mentions(text, n)) return true;
@@ -2678,6 +2712,15 @@ function scenePresent(ctx, out, known) {
   if (B && Array.isArray(out.present)) {
     const text = ctx.newMsgs.map((m) => String(m.text) + (m.role === "user" ? "" : " " + str(m.name))).join("\n");
     for (const n of arr(B.present)) if (!list.includes(n) && !struck.includes(n) && sideOf(n, userAll(ctx), []) !== "user" && mentionsName(ctx, text, n)) list.push(n);
+  }
+  // a cheap sensor may also skip a rated character who is plainly in the scene (a narrator card's cast): named
+  // again and again by the story, not only in a user line, and not reported as leaving
+  if (Array.isArray(out.present) && isObj(ctx.souls)) {
+    const text = ctx.newMsgs.filter((m) => m.role !== "user").map((m) => String(m.text)).join("\n");
+    for (const [key, soul] of Object.entries(ctx.souls)) {
+      if (!isObj(soul) || list.includes(key) || struck.includes(key) || sideOf(key, userAll(ctx), []) !== key) continue;
+      if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(key);
+    }
   }
   return unique(list);
 }

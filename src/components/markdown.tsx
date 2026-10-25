@@ -31,13 +31,17 @@ const htmlSchema = {
   },
 }
 
-/** Splits text on quote marks while keeping them: "straight", “curly”, «guillemets». */
-const MARK_RE = /(["“”«»])/
+/** Finds what changes the dialogue state inside a text: a quote mark ("straight", “curly”, «guillemets»),
+ *  a line break, or a dash (— or –). */
+const SCAN_RE = /["“”«»]|\n|[—–]/g
+
+/** Punctuation a spaced dash may follow when it opens or closes a line of dialogue (— Hi, — she said.) */
+const DASH_AFTER = /[,.!?…:;]/
 
 /** Elements whose text is code/markup — never re-tint inside them. */
 const OPAQUE = new Set(['code', 'pre', 'kbd', 'samp'])
 
-type QuoteKind = 'straight' | 'curly' | 'guillemet'
+type QuoteKind = 'straight' | 'curly' | 'guillemet' | 'dash' | 'remark'
 const OPENERS: Record<string, QuoteKind> = { '"': 'straight', '“': 'curly', '«': 'guillemet' }
 const CLOSERS: Record<string, QuoteKind> = { '"': 'straight', '”': 'curly', '»': 'guillemet' }
 
@@ -54,6 +58,11 @@ const CLOSERS: Record<string, QuoteKind> = { '"': 'straight', '”': 'curly', '�
  *
  * An unterminated quote tints to the end of the block, so streamed dialogue
  * colors from the opening mark onward instead of popping in at the close.
+ *
+ * Dialogue set off by dashes (Russian, Ukrainian, French) is tinted too: a line
+ * that opens with a dash is speech to the end of the line, except the author's
+ * words between two dashes (`— No, — she said. — Go.`). A dash only counts after
+ * sentence punctuation, so `— I — Rhea.` stays one line of speech.
  */
 function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   if (depth > 6) return children
@@ -61,6 +70,7 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   const out: ReactNode[] = []
   let group: ReactNode[] = [] // nodes inside the currently open quote
   let open: QuoteKind | null = null
+  let lineStart = true // nothing but spaces yet on this line
   let key = 0
 
   const flush = () => {
@@ -72,54 +82,107 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
     }
     open = null
   }
+  /** Ends a dash line of speech before the spaces that lead to the closing dash, so they stay untinted. */
+  const endSpeech = () => {
+    const last = group[group.length - 1]
+    const trail = typeof last === 'string' ? /\s+$/.exec(last)?.[0] ?? '' : ''
+    if (trail) group[group.length - 1] = (last as string).slice(0, -trail.length)
+    flush()
+    if (trail) out.push(trail)
+  }
+  const put = (text: string) => {
+    if (!text) return
+    if (/\S/.test(text)) lineStart = false
+    if (open && open !== 'remark') group.push(text)
+    else out.push(text)
+  }
+  const lineEnds = () => {
+    if (open === 'dash') flush()
+    else if (open === 'remark') open = null
+    lineStart = true
+  }
 
   for (const child of Children.toArray(children)) {
     if (typeof child === 'string') {
-      for (const token of child.split(MARK_RE)) {
-        if (!token) continue
-        if (open) {
-          if (CLOSERS[token] === open) {
-            group.push(token)
-            flush()
-          } else if (open === 'straight' && token.includes('\n')) {
+      let from = 0
+      for (const m of child.matchAll(SCAN_RE)) {
+        const token = m[0]
+        const at = m.index
+        const before = child.slice(from, at)
+        put(before)
+        from = at + token.length
+        if (token === '\n') {
+          if (open === 'straight') {
             // A hard break ends an unclosed straight quote — bail out so a
             // stray mark can't paint the rest of the message as dialogue.
             out.push(...group, token)
             group = []
             open = null
-          } else {
+          } else if (open === 'dash' || open === 'remark') {
+            lineEnds()
+            out.push(token)
+          } else put(token)
+          lineStart = true
+        } else if (token === '—' || token === '–') {
+          const spaced = from >= child.length || /\s/.test(child[from]!)
+          const prev = child.slice(0, at).replace(/[ \t]+$/, '').slice(-1)
+          const afterPunct = DASH_AFTER.test(prev) && (at === 0 || /\s/.test(child[at - 1]!))
+          if (open === 'dash' && spaced && afterPunct) {
+            endSpeech()
+            open = 'remark'
+            out.push(token)
+          } else if (open === 'remark' && spaced && afterPunct) {
+            open = 'dash'
             group.push(token)
-          }
+          } else if (!open && spaced && (lineStart || (prev === ':' && afterPunct))) {
+            open = 'dash'
+            group.push(token)
+            lineStart = false
+          } else put(token)
+        } else if (open === 'dash' || open === 'remark') {
+          put(token) // quote marks inside a dash line are only text
+        } else if (open) {
+          if (CLOSERS[token] === open) {
+            group.push(token)
+            flush()
+          } else group.push(token)
         } else if (OPENERS[token]) {
           open = OPENERS[token]
           group.push(token)
-        } else {
-          out.push(token)
-        }
+          lineStart = false
+        } else put(token)
       }
+      put(child.slice(from))
       continue
     }
 
     if (isValidElement(child)) {
       const el = child as ReactElement<{ children?: ReactNode }>
       const tag = typeof el.type === 'string' ? el.type : ''
-      if (open) {
+      if (tag === 'br' && (open === 'dash' || open === 'remark')) {
+        lineEnds()
+        out.push(child)
+      } else if (open && open !== 'remark') {
         // e.g. a bolded phrase or inline code inside spoken dialogue: it
         // stays where it was written (code keeps its own look, never re-tinted)
         group.push(child)
+      } else if (open === 'remark') {
+        out.push(child)
       } else if (!OPAQUE.has(tag) && el.props?.children != null) {
         out.push(cloneElement(el, undefined, tintQuotes(el.props.children, depth + 1)))
+        lineStart = false
       } else {
         out.push(child)
+        lineStart = tag === 'br'
       }
       continue
     }
 
-    if (open) group.push(child)
+    if (open && open !== 'remark') group.push(child)
     else out.push(child)
   }
 
-  if (open) flush() // streaming: tint the still-open quote to the block's end
+  if (open && open !== 'remark') flush() // streaming: tint the still-open quote to the block's end
   return out
 }
 

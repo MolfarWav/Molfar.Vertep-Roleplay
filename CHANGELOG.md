@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+Coloured voices in replies that use dashes or another script, and a fuller scene cast on the Dashboard (found testing #93 on a Russian chat with English cards).
+
+- Dialogue set off by dashes is tinted like quoted speech, in every chat: a line that opens with a dash is speech to the end of the line, except the author's words between two dashes (`— No, — she said. — Go.`), and `Name: — text` opens speech after the colon. A dash only counts after sentence punctuation, so `— I — Rhea.` stays one line of speech. Before, a Russian or Ukrainian reply in dashes got no dialogue colour at all, and only the first (quoted) message of the chat was coloured.
+- A voice is found when the narration spells the name in the other script: the voice `Ember` is said in `Эмбер`, `Isabella Falafel` in `Изабелла`, `Rhea` in `Рея`/`Рею`, and the other way round. The word must start with a capital letter. A name said on a line of speech still does not count as the speaker.
+- Dashboard: a rated character (a soul) who is named at least twice in the new reply, by first name, alias or another script, joins the scene when the sensor left them out, unless the sensor says they left. A narrator card's cast was missing from the scene state because small sensor models skipped the people who were not in the Previous state, and the old safety net only kept those who were already there. A name only in the user's own line, once, or in lower case does not count. The same safety net now also knows a first name (`Rhea` for `Rhea Faeth`).
+
 ## 4.68.0
 
 Pictures in backups, safe HTML and coloured voices in replies, a World DM that invents (#89, #93, #95).
