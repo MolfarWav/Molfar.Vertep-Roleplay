@@ -1,0 +1,13 @@
+{
+  "name": "Agents",
+  "version": "0.1.0",
+  "description": "Runs custom agents (GitHub #127): small graphs made on the Canvas and saved as one file, data/agents/<id>.vertep-agent.json. After a reply the agents a chat uses (its preset, or its own copy) read the chat, ask a model what they need to, keep their own state and numbers (data/agents/state/<chatId>/<agent>.json) and leave notes, buttons or a hint for the next reply. A file is checked before it is installed, and an agent runs only with the permissions the user confirmed.",
+  "origin": "local",
+  "permissions": [
+    "routes",
+    "llm",
+    "fs",
+    "hooks"
+  ],
+  "priority": 40
+}
