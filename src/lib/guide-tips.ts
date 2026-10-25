@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.68.0'
+export const APP_VERSION = '4.68.1'
 
 export const TIPS: Tip[] = [
   // What's new

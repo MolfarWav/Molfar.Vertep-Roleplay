@@ -12,6 +12,13 @@ Coloured voices in replies that use dashes or another script, and a fuller scene
 - Vertep Lite: the rule for several speakers now says to name the speaker by name, not only "he" or "she", in the same paragraph as every line, in the story's language. Needs the preset template to reseed (an update does it); copies the user made keep their text.
 - Dashboard: a rated character (a soul) who is named at least twice in the new reply, by first name, alias or another script, joins the scene when the sensor left them out, unless the sensor says they left. A narrator card's cast was missing from the scene state because small sensor models skipped the people who were not in the Previous state, and the old safety net only kept those who were already there. A name only in the user's own line, once, or in lower case does not count. The same safety net now also knows a first name (`Rhea` for `Rhea Faeth`).
 
+## 4.68.1
+
+A greeting follows the persona you switch to before the first reply (#128).
+
+- Agents, first step (#127 in Molfar.Vertep): the Canvas kit can carry an `agent` header in a file and derive a card's ports from its params, and `src/canvas-kit/boards/agent.ts` holds the agent card set and the checker that decides whether an agent file may be installed. No screen and no runner yet; the format is in `docs/DATA-FORMATS.md`. The checker also knows an agent's own state (fields, four state cards, `read:own`/`write:own`), its panels and the `html` widget template.
+- Changing the persona of a chat before the first reply now changes `{{user}}` in the greeting. Before, the greeting kept the name of the persona the chat was opened with, and only a swipe fixed it. This covers a character chat and the openings of a group chat (the narrator's and each member's, on the swipe that was showing). Once a turn is sent, or the greeting was edited by hand, the transcript keeps the names it was written under.
+
 ## 4.68.0
 
 Pictures in backups, safe HTML and coloured voices in replies, a World DM that invents (#89, #93, #95).

@@ -1,0 +1,218 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Dungeon keeper",
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 100,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "msg",
+            "source": "lastUserMessage"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mana",
+      "type": "state.read",
+      "x": 10,
+      "y": 260,
+      "title": "Mana now",
+      "params": {
+        "field": "mana",
+        "as": "number"
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 235,
+      "y": 20,
+      "title": "Summoned an imp?",
+      "params": {
+        "role": "fast",
+        "prompt": "Does the player summon an imp in this message? Answer yes or no.\n\n{{msg}}",
+        "answer": {
+          "as": "yesno"
+        },
+        "maxTokens": 60,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "chg",
+      "type": "logic.if",
+      "x": 470,
+      "y": 120,
+      "title": "Summoned and can pay?",
+      "params": {
+        "inputs": [
+          {
+            "id": "said",
+            "type": "flag"
+          },
+          {
+            "id": "mana",
+            "type": "number"
+          }
+        ],
+        "match": "all",
+        "rows": [
+          {
+            "left": {
+              "from": "wire",
+              "port": "said"
+            },
+            "op": "isYes"
+          },
+          {
+            "left": {
+              "from": "wire",
+              "port": "mana"
+            },
+            "op": "gte",
+            "right": {
+              "value": 10
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "pay",
+      "type": "state.add",
+      "x": 700,
+      "y": 120,
+      "title": "Pay 10 mana",
+      "params": {
+        "field": "mana",
+        "amount": -10
+      }
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 930,
+      "y": 140,
+      "title": "Output",
+      "params": {
+        "kind": "state-patch"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:msg",
+      "to": "ask:msg"
+    },
+    {
+      "id": "e2",
+      "from": "ask:answer",
+      "to": "chg:said"
+    },
+    {
+      "id": "e3",
+      "from": "mana:value",
+      "to": "chg:mana"
+    },
+    {
+      "id": "e4",
+      "from": "chg:yes",
+      "to": "pay:when"
+    },
+    {
+      "id": "e5",
+      "from": "pay:done",
+      "to": "out:in"
+    }
+  ],
+  "agent": {
+    "formatVersion": 1,
+    "id": "dungeon-keeper",
+    "version": "1.0.0",
+    "name": "Dungeon keeper",
+    "description": "Keeps the keeper's mana and rooms. Summoning an imp costs 10 mana, and the code does the counting.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "cheap, answers yes or no"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    },
+    "state": {
+      "mana": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "start": 50
+      },
+      "rooms": {
+        "type": "list",
+        "item": {
+          "name": "text",
+          "level": "number"
+        },
+        "max": 20
+      }
+    },
+    "panels": [
+      {
+        "id": "keep",
+        "title": "Dungeon",
+        "place": "float",
+        "widgets": [
+          {
+            "w": "meter",
+            "label": "Mana",
+            "bind": "mana"
+          },
+          {
+            "w": "table",
+            "label": "Rooms",
+            "bind": "rooms",
+            "columns": [
+              "name",
+              "level"
+            ]
+          },
+          {
+            "w": "actions",
+            "items": [
+              {
+                "label": "Summon an imp (-10 mana)",
+                "send": "I summon an imp."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "derived": {
+      "needs": [
+        "llm",
+        "read:lastUserMessage",
+        "read:own.mana",
+        "show:panel",
+        "write:own.mana"
+      ],
+      "maxCalls": 1,
+      "hash": "sha256:bc777a328eca2d3926e0dbbd60fdb78ddaab1cc2e2758b1fa88992b682a2a8b9"
+    }
+  }
+}

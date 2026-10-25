@@ -1,0 +1,186 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Mood tracker",
+  "agent": {
+    "formatVersion": 1,
+    "id": "mood-tracker",
+    "version": "1.0.0",
+    "name": "Mood tracker",
+    "description": "Reads the last reply and keeps the character's mood in the Dashboard.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "cheap, answers in JSON"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    },
+    "derived": {
+      "needs": [
+        "llm",
+        "read:lastReply",
+        "read:state.mood",
+        "write:state.mood"
+      ],
+      "maxCalls": 1,
+      "hash": "sha256:3cad773506ac4124323a2cc77c4093f33ad0525f3821214a23d383904755d774"
+    }
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 100,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "lastReply",
+            "source": "lastReply"
+          },
+          {
+            "id": "oldMood",
+            "source": "state",
+            "field": "mood",
+            "as": "text"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 235,
+      "y": 8,
+      "title": "Read the mood",
+      "params": {
+        "role": "fast",
+        "prompt": "Read the scene. Which mood does the main character show? Answer with JSON only.\n\n{{lastReply}}",
+        "answer": {
+          "as": "json",
+          "shape": {
+            "mood": "enum:calm|tense|angry|sad"
+          }
+        },
+        "maxTokens": 120,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "chg",
+      "type": "logic.if",
+      "x": 460,
+      "y": 80,
+      "title": "Changed?",
+      "params": {
+        "inputs": [
+          {
+            "id": "new",
+            "type": "text"
+          },
+          {
+            "id": "old",
+            "type": "text"
+          }
+        ],
+        "match": "all",
+        "rows": [
+          {
+            "left": {
+              "from": "wire",
+              "port": "new"
+            },
+            "op": "neq",
+            "right": {
+              "from": "wire",
+              "port": "old"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "any",
+      "type": "logic.merge",
+      "x": 680,
+      "y": 150,
+      "title": "Yes or Unknown",
+      "params": {
+        "count": 2
+      }
+    },
+    {
+      "id": "save",
+      "type": "write.state",
+      "x": 880,
+      "y": 30,
+      "title": "Save mood",
+      "params": {
+        "field": "mood",
+        "as": "text"
+      }
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 1090,
+      "y": 110,
+      "title": "Output",
+      "params": {
+        "kind": "state-patch"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:lastReply",
+      "to": "ask:lastReply"
+    },
+    {
+      "id": "e2",
+      "from": "ask:mood",
+      "to": "chg:new"
+    },
+    {
+      "id": "e3",
+      "from": "in:oldMood",
+      "to": "chg:old"
+    },
+    {
+      "id": "e4",
+      "from": "ask:mood",
+      "to": "save:value"
+    },
+    {
+      "id": "e5",
+      "from": "chg:yes",
+      "to": "any:i1"
+    },
+    {
+      "id": "e5b",
+      "from": "chg:unknown",
+      "to": "any:i2"
+    },
+    {
+      "id": "e5c",
+      "from": "any:out",
+      "to": "save:when"
+    },
+    {
+      "id": "e6",
+      "from": "save:done",
+      "to": "out:in"
+    }
+  ]
+}

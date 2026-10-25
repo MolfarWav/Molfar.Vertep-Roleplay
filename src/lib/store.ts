@@ -1664,6 +1664,8 @@ export const useApp = create<AppState>()(
           try {
             if (Object.keys(body).length) {
               await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify(body) })
+              // a chat nobody has answered yet re-reads {{user}} in its greeting on the engine's side
+              if ('personaId' in body) await refreshChat(set, get, chatId)
             }
           } catch (e) { toast.error(String((e as Error).message ?? e)) }
         })()
