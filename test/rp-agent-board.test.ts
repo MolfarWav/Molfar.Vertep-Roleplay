@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import example from "./fixtures/mood-tracker.vertep-agent.json";
+import keeperExample from "./fixtures/dungeon-keeper.vertep-agent.json";
 import { AGENT_BOARD, agentHash, compileAgent, validateAgent } from "../src/canvas-kit/boards/agent";
 import { canConnect, fromFile, insertOnEdge, portOf, portsOfNode, toFile } from "../src/canvas-kit/graph";
 import type { CanvasFile, Graph } from "../src/canvas-kit/graph";
@@ -125,5 +126,100 @@ describe("canvas kit: agent header and derived ports", () => {
     const g: Graph = { nodes: [...copy().nodes, { id: "tpl", type: "text.template", x: 0, y: 0, title: "T", params: { text: "{{a}}" } }], edges: copy().edges };
     const r = insertOnEdge(AGENT_BOARD, g, "e1", "tpl");
     expect(r.ok).toBe(true);
+  });
+});
+
+// ---- own state and panels (dungeon-keeper) ----
+const keeper = (): Json => JSON.parse(JSON.stringify(keeperExample));
+const panel = (f: Json): Json => f.agent.panels[0];
+const list = (extra: Json = {}): Json => ({ id: "ls", type: "state.list", x: 0, y: 0, title: "List", params: { field: "rooms", op: "add", item: { name: "text", level: "number" }, ...extra } });
+
+const keeperCases: [string, (f: Json) => Json, string | null][] = [
+  ["the example passes", (f) => f, null],
+  ["a field the schema does not have", (f) => { node(f, "pay").params.field = "gold"; return f; }, "E_STATE_UNKNOWN"],
+  ["adding to a field that is not a number", (f) => { f.agent.state.mana = { type: "text" }; return f; }, "E_STATE_TYPE"],
+  ["reading with the wrong type", (f) => { node(f, "mana").params.as = "text"; return f; }, "E_STATE_TYPE"],
+  ["reading a list straight into a wire", (f) => { node(f, "mana").params = { field: "rooms", as: "text" }; return f; }, "E_STATE_TYPE"],
+  ["state.add with neither a wire nor an amount", (f) => { delete node(f, "pay").params.amount; return f; }, "E_UNWIRED"],
+  ["list without max", (f) => { delete f.agent.state.rooms.max; return f; }, "E_STATE_LIMIT"],
+  ["list with max over 500", (f) => { f.agent.state.rooms.max = 501; return f; }, "E_STATE_LIMIT"],
+  ["list entry with a bad type", (f) => { f.agent.state.rooms.item.name = "color"; return f; }, "E_STATE_FIELD"],
+  ["number with min above max", (f) => { f.agent.state.mana.min = 200; return f; }, "E_STATE_FIELD"],
+  ["start outside the range", (f) => { f.agent.state.mana.start = 500; return f; }, "E_STATE_FIELD"],
+  ["state field name with a space", (f) => { f.agent.state["bad name"] = { type: "flag" }; return f; }, "E_STATE_FIELD"],
+  ["state.list that does not match the schema", (f) => { f.nodes.push(list({ item: { name: "text" } })); return f; }, "E_STATE_TYPE"],
+  ["state.list with an unknown op", (f) => { f.nodes.push(list({ op: "wipe" })); return f; }, "E_STATE_OP"],
+  ["state.list update/remove needs a key from the entry", (f) => { f.nodes.push(list({ op: "remove", key: "nope" })); return f; }, "E_STATE_TYPE"],
+  ["meter bound to a list", (f) => { panel(f).widgets[0].bind = "rooms"; return f; }, "E_BIND"],
+  ["bind to a field that is not there", (f) => { panel(f).widgets[0].bind = "gold"; return f; }, "E_BIND"],
+  ["table column that is not in the entry", (f) => { panel(f).widgets[1].columns = ["name", "size"]; return f; }, "E_BIND"],
+  ["unknown widget", (f) => { panel(f).widgets.push({ w: "gauge", bind: "mana" }); return f; }, "E_WIDGET"],
+  ["actions without a send text", (f) => { panel(f).widgets[2].items[0].send = ""; return f; }, "E_WIDGET"],
+  ["panel place that is not allowed", (f) => { panel(f).place = "bottom"; return f; }, "E_PANEL"],
+  ["five panels", (f) => { f.agent.panels = Array.from({ length: 5 }, (_, i) => ({ ...panel(f), id: `p${i}` })); return f; }, "E_PANEL"],
+  ["two panels with one id", (f) => { f.agent.panels.push({ ...panel(f) }); return f; }, "E_PANEL"],
+  ["file lies about show:panel", (f) => { f.agent.derived.needs = f.agent.derived.needs.filter((t: string) => t !== "show:panel"); return f; }, "E_NEEDS_MISMATCH"],
+];
+
+describe("agent file: own state, state cards and panels", () => {
+  it("the example needs read:own, write:own and show:panel", async () => {
+    const r = await validateAgent(keeper());
+    expect(r.errors).toEqual([]);
+    expect(r.derived?.needs).toEqual(["llm", "read:lastUserMessage", "read:own.mana", "show:panel", "write:own.mana"]);
+  });
+  for (const [name, mutate, want] of keeperCases) {
+    it(name, async () => {
+      const r = await validateAgent(mutate(keeper()));
+      if (want) expect(codes(r)).toContain(want);
+      else expect(r.errors).toEqual([]);
+    });
+  }
+  it("state cards derive their ports from params", () => {
+    const g = (n: Json): never => n as never;
+    expect(portsOfNode(AGENT_BOARD, g(list()))?.map((p) => `${p.id}:${p.type}`)).toEqual(["name:text", "level:number", "when:signal", "done:signal"]);
+    expect(portsOfNode(AGENT_BOARD, g(list({ op: "remove", key: "level" })))?.map((p) => `${p.id}:${p.type}`)).toEqual(["key:number", "when:signal", "done:signal"]);
+    const add = keeper().nodes.find((n: Json) => n.id === "pay");
+    expect(portsOfNode(AGENT_BOARD, g(add))?.find((p) => p.id === "by")?.optional).toBe(true);
+  });
+  it("a state file is hashed with its state and panels (editing a panel makes the hash stale)", async () => {
+    const f = keeper();
+    panel(f).title = "Other";
+    expect(codes(await validateAgent(f))).toEqual(["E_HASH"]);
+  });
+});
+
+// html widget: the template is checked at save time, and an invalid one is never rendered
+const tpl = (t: string) => (f: Json) => { panel(f).widgets.push({ w: "html", label: "Card", template: t }); return f; };
+const tplCases: [string, string, string | null][] = [
+  ["slots, each and if over real fields", "<b>{{mana}}</b>{{#each rooms}}<i>{{name}} {{level}}</i>{{/each}}", "E_HASH"], // valid; only the hash is stale
+  ["a slot that is not in the state", "{{gold}}", "E_TPL_FIELD"],
+  ["an entry field used outside each", "{{name}}", "E_TPL_FIELD"],
+  ["a list printed as a value", "{{rooms}}", "E_TPL_FIELD"],
+  ["each over a number", "{{#each mana}}x{{/each}}", "E_TPL_FIELD"],
+  ["each inside each", "{{#each rooms}}{{#each rooms}}x{{/each}}{{/each}}", "E_TPL_FIELD"],
+  ["each that is never closed", "{{#each rooms}}x", "E_TPL_UNCLOSED"],
+  ["a close without an open", "x{{/if}}", "E_TPL_UNCLOSED"],
+  ["crossed close", "{{#each rooms}}{{#if level}}x{{/each}}{{/if}}", "E_TPL_UNCLOSED"],
+  ["a script tag", "<script>1</script>", "E_TPL_FORBIDDEN"],
+  ["an iframe", "<IFRAME src=x>", "E_TPL_FORBIDDEN"],
+  ["an event handler", "<b onclick=\"x()\">a</b>", "E_TPL_FORBIDDEN"],
+  ["an event handler without quotes", "<img onerror=x>", "E_TPL_FORBIDDEN"],
+  ["an outside image", "<img src=\"https://a.example/x.png\">", "E_TPL_FORBIDDEN"],
+  ["a link", "<a href=\"javascript:1\">x</a>", "E_TPL_FORBIDDEN"],
+  ["css url()", "<div style=\"background:url(x)\">a</div>", "E_TPL_FORBIDDEN"],
+  ["css @import", "<style>@import 'x';</style>", "E_TPL_FORBIDDEN"],
+  ["prose like \"online = fun\" is refused too: the check is deliberately loose, a tag cannot hide a handler behind a > in a value", "<p>go online = fun</p>", "E_TPL_FORBIDDEN"],
+];
+
+describe("agent file: html widget template", () => {
+  for (const [name, t, want] of tplCases) {
+    it(name, async () => {
+      const got = codes(await validateAgent(tpl(t)(keeper())));
+      if (want === "E_HASH") expect(got.filter((c) => c.startsWith("E_TPL"))).toEqual([]); // valid template: nothing but the stale hash
+      expect(got).toContain(want!);
+    });
+  }
+  it("a template over 8192 characters is refused", async () => {
+    expect(codes(await validateAgent(tpl("a".repeat(8193))(keeper())))).toContain("E_WIDGET");
   });
 });

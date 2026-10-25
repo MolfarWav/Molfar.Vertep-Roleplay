@@ -4,7 +4,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
-- Agents, first step (#127 in Molfar.Vertep): the Canvas kit can carry an `agent` header in a file and derive a card's ports from its params, and `src/canvas-kit/boards/agent.ts` holds the agent card set and the checker that decides whether an agent file may be installed. No screen and no runner yet; the format is in `docs/DATA-FORMATS.md`.
+- Agents, first step (#127 in Molfar.Vertep): the Canvas kit can carry an `agent` header in a file and derive a card's ports from its params, and `src/canvas-kit/boards/agent.ts` holds the agent card set and the checker that decides whether an agent file may be installed. No screen and no runner yet; the format is in `docs/DATA-FORMATS.md`. The checker also knows an agent's own state (fields, four state cards, `read:own`/`write:own`), its panels and the `html` widget template.
 
 ## 4.68.0
 
