@@ -487,11 +487,13 @@ character saw, heard or guessed), `names` and `history`:
   Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
 
-## Agents: `data/agents/<id>.vertep-agent.json` (format only, nothing writes it yet)
+## Agents: `data/agents/<id>.vertep-agent.json` (the file is checked by the app; nothing writes it yet)
 
 An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,
-checked by `validateAgent` (`src/canvas-kit/boards/agent.ts`) before anything runs it. The same function serves the
-editor, the install screen and the runner. Design notes: issue #127 in Molfar.Vertep.
+checked by `validateAgent` (`src/canvas-kit/boards/agent-check.js`) before anything runs it. The same function serves the
+editor, the install screen and the runner. It is plain synchronous JavaScript with no imports, because the engine's QuickJS
+sandbox loads one file per plugin and has no `TextEncoder` or `crypto.subtle` (the hash is a hand-written SHA-256); the
+editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the Canvas board on top. Design notes: issue #127 in Molfar.Vertep.
 
 ```json
 { "format": "vertep-canvas", "version": 1, "kind": "agent", "title": "Mood tracker",
@@ -545,12 +547,28 @@ editor, the install screen and the runner. Design notes: issue #127 in Molfar.Ve
   (`E_TPL_FORBIDDEN`: script, frames, forms, `<link>`, event handlers, `src`/`href`, `url()`, `@import`). The check is
   deliberately loose and is not the only guard: the renderer must still escape every value and show the result in the
   sealed `srcdoc` frame without scripts.
-- Planned, not written by the app yet: presets (`vertep-agent-preset`) and a per-chat binding in the chat meta. The
-  reference for those is `FORMAT.md` in the design folder of #127.
-
+- Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
+  `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
+  "phase": "before" | "parallel" | "after" | "manual" } ] }`. A preset names agents, never holds them, and gives no
+  permissions (the user confirmed those when installing the agent). The order of `items` is the order inside a phase;
+  `phase` is optional (the agent's own `trigger.when` then applies); at most 50 items, an agent once. Routes:
+  `GET /agent-presets`, `GET|PUT|DELETE /agent-presets/<id>` (PUT cleans the file and refuses one without `items`).
+- The default preset, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null }`, `GET|PUT /agent-settings`.
+  A chat with no binding follows it.
+- A chat's binding, meta `agents`: `{ "v": 1, "preset"?, "own"?, "show"? }`. With `preset` and no `own` the chat follows the
+  preset live (a change to the preset reaches it at once). The first change made in the chat (turn an agent off, add or
+  remove one, reorder, change a phase, pick another place to show) writes `own`, a copy of the items as they were, and from
+  then on the chat does not follow the preset; `own: []` means "no agents". `show` maps an agent id to the place the user
+  chose (`log`, `feed`, `top1`, `top2`, `float`, `toast`, `note`, `bottom`, `inspector`); whether that place suits the
+  agent's Output is checked when it runs. A preset or an agent that is gone does not break the chat: the entry is
+  skipped. Forks copy the binding with the rest of the meta. Set whole with `PATCH /chats/<id>` `{ agents }` (`null` = back
+  to the default) or at creation, `POST /chats` `{ agents }`. Better, one change at a time: `POST /chats/<id>/agents`
+  `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
+  `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null); it answers what runs now,
+  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show } ] }`.
 Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
 `E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
-`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` (examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).

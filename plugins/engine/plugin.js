@@ -2335,6 +2335,109 @@ export function cleanPromptBoard(x) {
   }
   return out.off || out.history ? out : null;
 }
+// ---------- agents: presets and a chat's binding (format: docs/DATA-FORMATS.md, "Agents") ----------
+// A preset names agents (it never holds them); a chat follows a preset live until its first change, then
+// carries a copy of the items (`own`). Both are cleaned here, like the other per-chat settings.
+const AGENT_ID_RE = /^[a-z0-9][a-z0-9-]{1,40}$/;
+const AGENT_PHASES = ["before", "parallel", "after", "manual"];
+/** Every place a result may be shown (Output `show` and the chat's choice); which agent may use which is checked when it runs. */
+const AGENT_PLACES = ["log", "feed", "top1", "top2", "float", "toast", "note", "bottom", "inspector"];
+const AGENT_MAX_ITEMS = 50;
+function cleanAgentItems(arr) {
+  if (!Array.isArray(arr)) return null;
+  const seen = new Set();
+  const out = [];
+  for (const it of arr) {
+    if (!it || typeof it !== "object" || typeof it.agent !== "string" || !AGENT_ID_RE.test(it.agent) || seen.has(it.agent)) continue;
+    seen.add(it.agent);
+    out.push({ agent: it.agent, on: it.on !== false, ...(AGENT_PHASES.includes(it.phase) ? { phase: it.phase } : {}) });
+    if (out.length >= AGENT_MAX_ITEMS) break;
+  }
+  return out;
+}
+/** A preset file (`vertep-agent-preset`); `id` is the file name. Null when it is not one. */
+export function cleanAgentPreset(x, id) {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+  const items = cleanAgentItems(x.items);
+  if (!items) return null;
+  const name = typeof x.name === "string" && x.name.trim() ? x.name.trim().slice(0, 80) : id;
+  return { format: "vertep-agent-preset", version: 1, id, name, items };
+}
+/** The chat's `meta.agents`: `{ v: 1, preset?, own?, show? }`. `own` is the chat's own copy of the items (an empty list = no agents). Null = nothing set. */
+export function cleanAgentBinding(x) {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+  const out = { v: 1 };
+  if (typeof x.preset === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(x.preset)) out.preset = x.preset;
+  const own = cleanAgentItems(x.own);
+  if (own) out.own = own;
+  if (x.show && typeof x.show === "object" && !Array.isArray(x.show)) {
+    const show = {};
+    for (const [k, v] of Object.entries(x.show)) {
+      if (Object.keys(show).length >= AGENT_MAX_ITEMS) break;
+      if (AGENT_ID_RE.test(k) && AGENT_PLACES.includes(v)) show[k] = v;
+    }
+    if (Object.keys(show).length) out.show = show;
+  }
+  return out.preset || out.own || out.show ? out : null;
+}
+/** The agents a chat runs now. `presets`: id -> cleaned preset. A chat with no binding follows `defaultPresetId`. */
+export function resolveChatAgents(binding, presets, defaultPresetId) {
+  const b = cleanAgentBinding(binding);
+  const presetId = (b && b.preset) || defaultPresetId || null;
+  const preset = presetId && presets ? presets[presetId] || null : null;
+  const items = (b && b.own ? b.own : preset ? preset.items : []).map((it) => ({ ...it, show: (b && b.show && b.show[it.agent]) || null }));
+  return { presetId, presetMissing: !!presetId && !preset, followsPreset: !(b && b.own), items };
+}
+/** One change to a chat's agents. Any change except choosing a preset or resetting makes the chat's own copy first, from
+ *  `baseItems` (the preset's items). Returns the new binding (null = nothing left set) or `{ error }`. */
+export function editChatAgents(binding, baseItems, op) {
+  const b = cleanAgentBinding(binding) || { v: 1 };
+  if (!op || typeof op !== "object") return { error: "op required" };
+  if (op.op === "preset") {
+    const next = { ...b };
+    delete next.own;
+    if (op.preset == null) delete next.preset;
+    else if (typeof op.preset === "string") next.preset = op.preset;
+    else return { error: "preset must be an id or null" };
+    return cleanAgentBinding(next);
+  }
+  if (op.op === "reset") {
+    const next = { ...b };
+    delete next.own;
+    delete next.show;
+    return cleanAgentBinding(next);
+  }
+  const items = (b.own || cleanAgentItems(baseItems) || []).map((it) => ({ ...it }));
+  const at = items.findIndex((it) => it.agent === op.agent);
+  const next = { ...b };
+  if (typeof op.agent !== "string" || !AGENT_ID_RE.test(op.agent)) return { error: "agent id required" };
+  if (op.op === "add") {
+    if (at >= 0) return { error: "agent is already in the set" };
+    if (items.length >= AGENT_MAX_ITEMS) return { error: "too many agents" };
+    items.push({ agent: op.agent, on: true, ...(AGENT_PHASES.includes(op.phase) ? { phase: op.phase } : {}) });
+  } else if (["toggle", "remove", "phase", "move", "show"].includes(op.op)) {
+    if (at < 0) return { error: "agent is not in the set" };
+    if (op.op === "toggle") items[at].on = op.on !== false;
+    else if (op.op === "remove") items.splice(at, 1);
+    else if (op.op === "phase") {
+      if (op.phase == null) delete items[at].phase;
+      else if (AGENT_PHASES.includes(op.phase)) items[at].phase = op.phase;
+      else return { error: "unknown phase" };
+    } else if (op.op === "move") {
+      if (!Number.isInteger(op.to)) return { error: "move needs a whole number position" };
+      const [it] = items.splice(at, 1);
+      items.splice(Math.max(0, Math.min(items.length, op.to)), 0, it);
+    } else {
+      const show = { ...(b.show || {}) };
+      if (op.place == null) delete show[op.agent];
+      else if (AGENT_PLACES.includes(op.place)) show[op.agent] = op.place;
+      else return { error: "unknown place" };
+      next.show = show;
+    }
+  } else return { error: "unknown op" };
+  next.own = items;
+  return cleanAgentBinding(next) || { v: 1, own: [] };
+}
 /** Per-chat choice of the card's stories (meta.memory.sources): { "<sourceId>": true|false }, false = this chat
  *  leaves the story out, true = a story marked canon "separate" is allowed in. Returns the cleaned map or null. */
 export function cleanChatMemorySources(x) {
@@ -4071,6 +4174,40 @@ export function handleRoute(req, host) {
     return ok({ ok: true });
   }
 
+  // ---------- agent presets (agents/presets/<id>.json) and the default one (agents/settings.json) ----------
+  function loadAgentPresets() {
+    const out = {};
+    let files = [];
+    try { files = fsx.list("agents/presets").filter((f) => f.endsWith(".json")); } catch {}
+    for (const f of files) {
+      const pid = f.slice(0, -5);
+      const pr = cleanAgentPreset(readJson("agents/presets/" + f, null), pid);
+      if (pr) out[pid] = pr;
+    }
+    return out;
+  }
+  if (head === "agent-presets") {
+    if (req.method === "GET" && !id) return ok({ items: Object.values(loadAgentPresets()) });
+    if (!id) return err(400, "preset id required");
+    if (req.method === "GET") { const v = loadAgentPresets()[id]; return v ? ok(v) : err(404, "not found"); }
+    if (req.method === "PUT") {
+      const v = cleanAgentPreset(body(), id);
+      if (!v) return err(400, "a preset needs an items list");
+      writeJson("agents/presets/" + id + ".json", v);
+      return ok(v);
+    }
+    if (req.method === "DELETE") { try { fsx.remove("agents/presets/" + id + ".json"); return ok({ ok: true }); } catch { return ok({ ok: false }); } }
+  }
+  if (head === "agent-settings" && !id) {
+    if (req.method === "GET") return ok({ defaultPreset: readJson("agents/settings.json", {}).defaultPreset || null });
+    if (req.method === "PUT") {
+      const d = body().defaultPreset;
+      if (d != null && !(typeof d === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(d))) return err(400, "defaultPreset must be a preset id or null");
+      writeJson("agents/settings.json", { defaultPreset: d ?? null });
+      return ok({ defaultPreset: d ?? null });
+    }
+  }
+
   // ---------- generic JSON entities ----------
   for (const kind of ["personas", "presets", "regex", "groups", "lorebooks"]) {
     if (head !== kind) continue;
@@ -4785,6 +4922,8 @@ export function handleRoute(req, host) {
         lorebookIds: [],
         // a group chat's own turn settings, picked when it was started
         ...(b.groupId && cleanTurns(b.turns) ? { turns: cleanTurns(b.turns) } : {}),
+        // agents picked on the New chat screen (a preset, or the set changed there)
+        ...(cleanAgentBinding(b.agents) ? { agents: cleanAgentBinding(b.agents) } : {}),
         createdAt: Date.now(), updatedAt: Date.now(),
       };
       // seed the greeting (all greetings as swipes → swipe chevrons rotate them)
@@ -4952,10 +5091,13 @@ const toolX = (r) => ({
       // promptBoard: per-chat prompt switches, cleaned like turns
       const promptBoard = "promptBoard" in b ? cleanPromptBoard(b.promptBoard) : undefined;
       const promptBoardSame = promptBoard === undefined || same(promptBoard, meta.promptBoard);
+      // agents: the chat's preset and its own copy of the set, cleaned like promptBoard
+      const agents = "agents" in b ? cleanAgentBinding(b.agents) : undefined;
+      const agentsSame = agents === undefined || same(agents, meta.agents);
       // memory: which of the card's stories feed this chat; only `sources` is ours, other keys of meta.memory stay
       const memorySources = "memory" in b ? cleanChatMemorySources(b.memory) : undefined;
       const memorySame = memorySources === undefined || same(memorySources, meta.memory && meta.memory.sources);
-      if (turnsSame && promptBoardSame && memorySame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      if (turnsSame && promptBoardSame && agentsSame && memorySame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
       if (!turnsSame) {
         if (turns) meta.turns = turns;
         else delete meta.turns;
@@ -4963,6 +5105,10 @@ const toolX = (r) => ({
       if (!promptBoardSame) {
         if (promptBoard) meta.promptBoard = promptBoard;
         else delete meta.promptBoard;
+      }
+      if (!agentsSame) {
+        if (agents) meta.agents = agents;
+        else delete meta.agents;
       }
       if (!memorySame) {
         const mem = meta.memory && typeof meta.memory === "object" && !Array.isArray(meta.memory) ? { ...meta.memory } : {};
@@ -5000,6 +5146,24 @@ const toolX = (r) => ({
     // (null = back to the preset's default). Only this chat changes. meta.presetNotes records what
     // changed after which message, for a muted line in the chat that never reaches the model;
     // changes before the next message merge into one note, and changing back removes it.
+    // the chat's agents: GET = what runs now; POST = one change (op: preset, reset, add, remove, toggle, phase, move, show)
+    if (op === "agents" && (req.method === "GET" || req.method === "POST")) {
+      const presets = loadAgentPresets();
+      const dflt = readJson("agents/settings.json", {}).defaultPreset || null;
+      if (req.method === "POST") {
+        const cur = cleanAgentBinding(meta.agents);
+        const baseId = (cur && cur.preset) || dflt;
+        const edited = editChatAgents(cur, baseId && presets[baseId] ? presets[baseId].items : [], body());
+        if (edited && edited.error) return err(400, edited.error);
+        if (JSON.stringify(edited ?? null) !== JSON.stringify(cur ?? null)) {
+          if (edited) meta.agents = edited;
+          else delete meta.agents;
+          writeJson("chats/" + id + ".meta.json", meta);
+        }
+      }
+      return ok(resolveChatAgents(meta.agents, presets, dflt));
+    }
+
     if (op === "preset" && req.method === "POST") {
       const b = body();
       const curId = () => meta.presetId || defaultPresetId(fsx);
