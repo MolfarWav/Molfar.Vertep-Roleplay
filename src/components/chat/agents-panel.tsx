@@ -8,9 +8,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useConfirm } from '@/components/ui/confirm'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import {
-  deleteAgentSet, describeNeed, editChatAgents, grantAgent, installAgentFile, listAgentSets, listInstalledAgents, loadAgentRuns,
+  deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, grantAgent, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
   loadChatAgents, loadDefaultAgentSet, removeAgent, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
-  type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
+  type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
@@ -203,7 +203,7 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
 }
 
 /** Installed agent, with its permissions in plain words. Not allowed yet = the list stays open and Allow is the main button. */
-function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; focus: boolean; onChanged: () => Promise<void> }) {
+export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; focus: boolean; onChanged: () => Promise<void> }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const ref = useRef<HTMLDivElement>(null)
@@ -289,6 +289,25 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
   const [setName, setSetName] = useState('')
   const [busy, setBusy] = useState(false)
   const { installed, sets, defaultSet, list, reload, refreshInstalled } = data
+  // files Molfar wrote into the workspace; none, or no agents plugin, shows nothing
+  const [drafts, setDrafts] = useState<AgentDraft[]>([])
+  const loadDrafts = useCallback(async () => { try { setDrafts(await listAgentDrafts()) } catch { setDrafts([]) } }, [])
+  useEffect(() => { if (open) void loadDrafts() }, [open, loadDrafts])
+
+  const installDraft = async (d: AgentDraft) => {
+    setBusy(true)
+    try {
+      const r = await installAgentDraft(d.name)
+      await refreshInstalled()
+      await loadDrafts()
+      setFresh(r.id)
+      toast.success(t('ag.drafts.done', { name: d.title }))
+    } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
+  }
+  const dropDraft = async (d: AgentDraft) => {
+    if (!(await confirm({ title: t('ag.drafts.deleteTitle', { name: d.title }), description: t('ag.drafts.deleteBody'), actionLabel: t('ag.drafts.delete') }))) return
+    try { await deleteAgentDraft(d.name); await loadDrafts() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
+  }
 
   const install = async (f: File | undefined) => {
     if (!f) return
@@ -340,6 +359,42 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
                     <UploadSimple className="size-4" aria-hidden="true" /> {t('ag.install')}
                   </Button>
                 </div>
+
+                {drafts.length > 0 && (
+                  <section className="flex flex-col gap-2" aria-label={t('ag.drafts.title', { n: drafts.length })} data-testid="agent-drafts">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('ag.drafts.title', { n: drafts.length })}</h3>
+                    <p className="text-[11px] text-muted-foreground">{t('ag.drafts.lead')}</p>
+                    {drafts.map((d) => (
+                      <div key={d.name} className="flex flex-col gap-1.5 rounded-lg border border-border px-3 py-2" data-testid={`agent-draft-${d.name}`}>
+                        <div className="flex items-start gap-2">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-semibold">{d.title}</span>
+                            <span className={cn('block text-[11px]', d.errors.length ? 'text-destructive' : 'text-muted-foreground')}>
+                              {d.errors.length ? t('ag.drafts.problems', { n: d.errors.length }) : d.installed ? t('ag.drafts.installed') : t('ag.drafts.ok')}
+                            </span>
+                          </span>
+                          <Button size="sm" variant="outline" className="shrink-0 max-md:h-10" disabled={busy || d.errors.length > 0} onClick={() => void installDraft(d)}>
+                            {d.installed ? t('ag.drafts.update') : t('ag.drafts.install')}
+                          </Button>
+                          <button type="button" aria-label={t('ag.drafts.delete')} title={t('ag.drafts.delete')} onClick={() => void dropDraft(d)}
+                            className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground max-md:size-10">
+                            <Trash className="size-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+                        {d.description && <p className="text-[11px] leading-snug text-muted-foreground">{d.description}</p>}
+                        {(d.errors.length > 0 || d.warnings.length > 0) && (
+                          <details className="text-[11px]">
+                            <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.drafts.details')}</summary>
+                            <ul className="mt-1 flex flex-col gap-0.5">
+                              {d.errors.map((x, i) => <li key={`e${i}`} className="text-destructive"><span className="font-mono text-[10px]">{x.code}</span> {x.message}</li>)}
+                              {d.warnings.map((x, i) => <li key={`w${i}`} className="text-amber-600 dark:text-amber-400"><span className="font-mono text-[10px]">{x.code}</span> {x.message}</li>)}
+                            </ul>
+                          </details>
+                        )}
+                      </div>
+                    ))}
+                  </section>
+                )}
 
                 <section className="flex flex-col gap-2" aria-label={t('ag.installed', { n: installed?.length ?? 0 })}>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('ag.installed', { n: installed?.length ?? 0 })}</h3>

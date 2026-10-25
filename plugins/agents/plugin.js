@@ -1302,6 +1302,96 @@ function installRoute(req, host) {
   return ok({ ok: true, id, updated: !!had, needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs), warnings: report.warnings });
 }
 
+// ---------- drafts: agent files that Molfar wrote into the workspace, waiting for the user to look and install ----------
+
+const DRAFT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+const DRAFT_SUFFIX = ".vertep-agent.json";
+const draftPath = (name) => "agents/drafts/" + name + DRAFT_SUFFIX;
+
+/** One draft read and checked as an install would check it. `file` is the parsed file when it parsed. */
+function readDraft(fsx, name) {
+  let text;
+  try { text = fsx.read(draftPath(name)); } catch { return null; }
+  if (text.length > AG_FILE_MAX) return { name, errors: [{ code: "E_SIZE", message: "the file is over 256 KB" }], warnings: [] };
+  let file;
+  try { file = JSON.parse(text); } catch (e) { return { name, errors: [{ code: "E_JSON", message: "not valid JSON: " + String((e && e.message) || e) }], warnings: [] }; }
+  const compiled = compileAgent(file);
+  if ("error" in compiled) return { name, file, errors: [{ code: "E_ENVELOPE", message: compiled.error }], warnings: [] };
+  return { name, file, errors: compiled.report.errors, warnings: compiled.report.warnings, derived: compiled.report.derived };
+}
+
+function draftsRoute(req, host) {
+  const fsx = host.fs;
+  let files = [];
+  try { files = fsx.list("agents/drafts").filter((f) => f.endsWith(DRAFT_SUFFIX)); } catch {}
+  const drafts = [];
+  for (const f of files.slice(0, 50)) {
+    const name = f.slice(0, -DRAFT_SUFFIX.length);
+    if (!DRAFT_NAME_RE.test(name)) continue;
+    const d = readDraft(fsx, name);
+    if (!d) continue;
+    const a = isObj(d.file) && isObj(d.file.agent) ? d.file.agent : {};
+    drafts.push({
+      name, id: str(a.id), title: str(a.name) || str(d.file && d.file.title) || name, description: str(a.description),
+      needs: d.derived ? d.derived.needs : [], maxCalls: d.derived ? d.derived.maxCalls : 0,
+      installed: !!str(a.id) && !!readJsonAt(fsx, agentPath(str(a.id)), null),
+      errors: d.errors, warnings: d.warnings,
+    });
+  }
+  return ok({ drafts });
+}
+
+function draftInstallRoute(req, host) {
+  const b = isObj(req.body) ? req.body : {};
+  const name = str(b.name);
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "name required" }, 400);
+  const d = readDraft(host.fs, name);
+  if (!d) return ok({ error: "no such draft" }, 404);
+  if (!isObj(d.file)) return ok({ error: d.errors[0].message, errors: d.errors, warnings: d.warnings }, 400);
+  return installRoute({ ...req, body: { file: d.file } }, host);
+}
+
+/** One draft as the file it holds, for the editor. A file that is not valid JSON comes back as `text`, so it can be shown and fixed. */
+function draftReadRoute(req, host, name) {
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
+  let text;
+  try { text = host.fs.read(draftPath(name)); } catch { return ok({ error: "no such draft" }, 404); }
+  try { return ok({ name, file: JSON.parse(text) }); } catch { return ok({ name, text: text.slice(0, AG_FILE_MAX) }); }
+}
+
+/** Saves a draft as the editor left it. It is not checked here: work in progress may have errors, and the sheet shows them. */
+function draftWriteRoute(req, host, name) {
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
+  const b = isObj(req.body) ? req.body : {};
+  if (!isObj(b.file)) return ok({ error: "file required" }, 400);
+  const text = JSON.stringify(b.file, null, 2) + "\n";
+  if (text.length > AG_FILE_MAX) return ok({ error: "the file is over 256 KB" }, 400);
+  host.fs.write(draftPath(name), text);
+  return ok({ ok: true, name });
+}
+
+/** A copy of an installed agent in the drafts, to open in the editor. Without `derived`: the check fills it again. */
+function draftCopyRoute(req, host) {
+  const b = isObj(req.body) ? req.body : {};
+  const id = str(b.id);
+  const file = DRAFT_NAME_RE.test(id) ? readJsonAt(host.fs, agentPath(id), null) : null;
+  if (!isObj(file)) return ok({ error: "not installed" }, 404);
+  // a draft of this name may hold edits that are not installed yet: open that one, never overwrite it
+  let there = false;
+  try { host.fs.read(draftPath(id)); there = true; } catch {}
+  if (there) return ok({ ok: true, name: id, existing: true });
+  const copy = JSON.parse(JSON.stringify(file));
+  if (isObj(copy.agent)) delete copy.agent.derived;
+  host.fs.write(draftPath(id), JSON.stringify(copy, null, 2) + "\n");
+  return ok({ ok: true, name: id });
+}
+
+function draftRemoveRoute(req, host, name) {
+  if (!DRAFT_NAME_RE.test(name)) return ok({ error: "bad name" }, 400);
+  try { host.fs.remove(draftPath(name)); } catch {}
+  return ok({ ok: true });
+}
+
 function listRoute(req, host) {
   const fsx = host.fs;
   let files = [];
@@ -1370,6 +1460,28 @@ function runsRoute(req, host) {
   return ok({ runs: Array.isArray(f.runs) ? f.runs : [], inserts: (readJsonAt(host.fs, insertsPath(chatId), { items: [] }).items || []).map((x) => ({ agent: x.agent, label: x.label, at: x.at })) });
 }
 
+/** What the chat's panels need in one call: for each agent that is on, allowed to run and has panels, the panels, the schema and its state (and the state before the last run, for a change marker). */
+function panelsRoute(req, host) {
+  const fsx = host.fs;
+  const chatId = str(req.query && req.query.chatId);
+  if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const meta = readJsonAt(fsx, "chats/" + chatId + ".meta.json", null);
+  if (!isObj(meta)) return ok({ error: "no such chat" }, 404);
+  const out = [];
+  for (const it of chatAgents(fsx, meta)) {
+    if (!it.on) continue;
+    const agent = loadAgent(fsx, it.agent);
+    if (!agent || blocker(agent, grantedOf(fsx, it.agent))) continue;
+    const a = agent.file.agent || {};
+    if (!Array.isArray(a.panels) || !a.panels.length) continue;
+    const schema = isObj(a.state) ? a.state : {};
+    const st = loadOwn(fsx, chatId, it.agent, schema);
+    const prev = st.raw && isObj(st.raw.before) && isObj(st.raw.before.own) ? st.raw.before.own : null;
+    out.push({ agent: it.agent, name: str(a.name) || it.agent, show: it.show || null, panels: a.panels, schema, own: st.own, prev });
+  }
+  return ok({ panels: out });
+}
+
 function configRoute(req, host) {
   const fsx = host.fs;
   if (req.method === "GET") return ok(readJsonAt(fsx, "agents/config.json", {}));
@@ -1392,10 +1504,17 @@ export function handleRoute(req, host) {
   const seg = path.split("/").filter(Boolean);
   if (path === "/agents/list" && req.method === "GET") return listRoute(req, host);
   if (path === "/agents/install" && req.method === "PUT") return installRoute(req, host);
+  if (path === "/agents/drafts" && req.method === "GET") return draftsRoute(req, host);
+  if (path === "/agents/drafts/install" && req.method === "POST") return draftInstallRoute(req, host);
+  if (path === "/agents/drafts/copy" && req.method === "POST") return draftCopyRoute(req, host);
+  if (seg.length === 3 && seg[1] === "drafts" && req.method === "GET") return draftReadRoute(req, host, seg[2]);
+  if (seg.length === 3 && seg[1] === "drafts" && req.method === "PUT") return draftWriteRoute(req, host, seg[2]);
+  if (seg.length === 3 && seg[1] === "drafts" && req.method === "DELETE") return draftRemoveRoute(req, host, seg[2]);
   if (path === "/agents/grant" && req.method === "POST") return grantRoute(req, host);
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);
   if (path === "/agents/state" && (req.method === "GET" || req.method === "DELETE")) return stateRoute(req, host);
   if (path === "/agents/runs" && req.method === "GET") return runsRoute(req, host);
+  if (path === "/agents/panels" && req.method === "GET") return panelsRoute(req, host);
   if (path === "/agents/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (seg.length === 2 && req.method === "DELETE") return removeRoute(req, host, seg[1]);
   return ok({ error: "not found" }, 404);

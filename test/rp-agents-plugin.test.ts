@@ -8,6 +8,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import keeper from "./fixtures/dungeon-keeper.vertep-agent.json";
+import echo from "./fixtures/scene-echo.vertep-agent.json";
+import moves from "./fixtures/next-moves.vertep-agent.json";
 import mood from "./fixtures/mood-tracker.vertep-agent.json";
 import { compileAgent } from "../src/canvas-kit/boards/agent-check.js";
 import { generatedBlock, withBlock } from "../scripts/sync-agents-plugin";
@@ -294,6 +296,123 @@ describe("a hint for the next reply", () => {
   it("only touches a reply request", () => {
     runChat("c2");
     expect(plugin.llmRequest({ key: "summary", request: { sessionId: "c2", messages: [] } } as never, host() as never)).toBeNull();
+  });
+});
+
+describe("a note for the reply", () => {
+  it("an agent with no model call runs at once and its note is kept under the reply's key, with the log fields the chat reads", () => {
+    expect(j("/agents/install", "PUT", { file: copy(echo), grant: true })).toMatchObject({ ok: true, id: "scene-echo", missing: [] });
+    makeChat("c1", CHAT);
+    useAgent("scene-echo");
+    expect(runChat("c1").ran).toEqual([{ agent: "scene-echo", status: "ok", calls: 0, writes: 0, outputs: 1 }]);
+    const run = j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0];
+    expect(run).toMatchObject({ agent: "scene-echo", key: "m2#0", status: "ok", calls: 0, writes: [] });
+    expect(run.outputs).toEqual([expect.objectContaining({ kind: "note", title: "Scene echo", text: "The scene just said: A small imp pops into the dark." })]);
+  });
+});
+
+describe("choices for the reply", () => {
+  it("are kept as lines under the reply's key, and the agent needs show:choices", () => {
+    const r = j("/agents/install", "PUT", { file: copy(moves), grant: true });
+    expect(r).toMatchObject({ ok: true, id: "next-moves", missing: [] });
+    makeChat("c1", CHAT);
+    useAgent("next-moves");
+    expect(runChat("c1").ran).toEqual([{ agent: "next-moves", status: "ok", calls: 0, writes: 0, outputs: 1 }]);
+    const run = j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0];
+    expect(run.outputs).toEqual([expect.objectContaining({ kind: "choices", choices: ["Look around", "Ask who is there", "Leave quietly"] })]);
+  });
+});
+
+describe("drafts", () => {
+  const put = (name: string, text: string) => {
+    fs.mkdirSync(path.join(root, "agents/drafts"), { recursive: true });
+    fs.writeFileSync(path.join(root, "agents/drafts", name + ".vertep-agent.json"), text, "utf8");
+  };
+
+  it("lists the files in agents/drafts with what an install would say about each", () => {
+    put("scene-echo", JSON.stringify(copy(echo)));
+    put("broken", "{ not json");
+    const bad = copy(echo) as { edges: unknown[] };
+    bad.edges = [{ id: "e1", from: "in:nope", to: "tpl:r" }];
+    put("bad-wire", JSON.stringify(bad));
+    const list = j("/agents/drafts").drafts;
+    expect(list.map((d: Json) => d.name)).toEqual(["bad-wire", "broken", "scene-echo"]);
+    const byName = Object.fromEntries(list.map((d: Json) => [d.name, d]));
+    expect(byName["scene-echo"]).toMatchObject({ id: "scene-echo", title: "Scene echo", errors: [], needs: ["read:lastReply", "show:note"], installed: false });
+    expect(byName["broken"].errors[0]).toMatchObject({ code: "E_JSON" });
+    expect(byName["bad-wire"].errors.length).toBeGreaterThan(0);
+  });
+
+  it("installs a draft like an install does (the user still has to allow), and removes one", () => {
+    put("scene-echo", JSON.stringify(copy(echo)));
+    const r = j("/agents/drafts/install", "POST", { name: "scene-echo" });
+    expect(r).toMatchObject({ ok: true, id: "scene-echo", granted: [] });
+    expect(r.missing.length).toBeGreaterThan(0);
+    expect(j("/agents/drafts").drafts[0].installed).toBe(true);
+    expect(call("POST", "/agents/drafts/install", { name: "broken" }).status).toBe(404);
+    put("broken", "{ not json");
+    expect(call("POST", "/agents/drafts/install", { name: "broken" }).status).toBe(400);
+    expect(j("/agents/drafts/broken", "DELETE")).toEqual({ ok: true });
+    expect(exists("agents/drafts/broken.vertep-agent.json")).toBe(false);
+  });
+});
+
+describe("editing a draft", () => {
+  it("reads one back, saves a file with errors without a word, and copies an installed agent into the drafts", () => {
+    expect(call("GET", "/agents/drafts/none").status).toBe(404);
+    const edited = copy(echo) as { title: string; edges: unknown[] };
+    edited.title = "Echo, half done";
+    edited.edges = [];
+    expect(j("/agents/drafts/half", "PUT", { file: edited })).toEqual({ ok: true, name: "half" });
+    expect(j("/agents/drafts/half").file.title).toBe("Echo, half done");
+    expect(j("/agents/drafts").drafts[0].errors.length).toBeGreaterThan(0);
+    expect(call("PUT", "/agents/drafts/half", { nope: 1 }).status).toBe(400);
+    expect(call("PUT", "/agents/drafts/bad name", { file: edited }).status).toBe(400);
+    fs.writeFileSync(path.join(root, "agents/drafts/half.vertep-agent.json"), "{ nope", "utf8");
+    expect(j("/agents/drafts/half").text).toBe("{ nope");
+    j("/agents/install", "PUT", { file: copy(echo), grant: true });
+    expect(j("/agents/drafts/copy", "POST", { id: "scene-echo" })).toEqual({ ok: true, name: "scene-echo" });
+    const back = j("/agents/drafts/scene-echo").file;
+    expect(back.agent.derived).toBeUndefined();
+    expect(j("/agents/drafts/install", "POST", { name: "scene-echo" })).toMatchObject({ ok: true, updated: true });
+    // a second copy opens the draft that is there: its edits are not lost
+    j("/agents/drafts/scene-echo", "PUT", { file: { ...back, title: "Edited" } });
+    expect(j("/agents/drafts/copy", "POST", { id: "scene-echo" })).toEqual({ ok: true, name: "scene-echo", existing: true });
+    expect(j("/agents/drafts/scene-echo").file.title).toBe("Edited");
+    expect(call("POST", "/agents/drafts/copy", { id: "ghost" }).status).toBe(404);
+  });
+});
+
+describe("panels", () => {
+  beforeEach(() => {
+    j("/agents/install", "PUT", { file: copy(keeper), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("dungeon-keeper");
+  });
+
+  it("gives the panels of the agents that are on, with the schema, the state and the state before the last run", () => {
+    runChat("c1");
+    const r = j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels;
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ agent: "dungeon-keeper", name: "Dungeon keeper", own: { mana: 40, rooms: [] }, prev: { mana: 50, rooms: [] } });
+    expect(r[0].panels[0]).toMatchObject({ id: "keep", place: "float" });
+    expect(r[0].schema.mana).toMatchObject({ type: "number", max: 100 });
+  });
+
+  it("an agent that is off, not allowed, or has no panels gives none", () => {
+    useAgent("dungeon-keeper", { on: false });
+    expect(j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels).toEqual([]);
+    useAgent("dungeon-keeper");
+    j("/agents/grant", "POST", { id: "dungeon-keeper", tokens: [] });
+    expect(j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels).toEqual([]);
+    j("/agents/install", "PUT", { file: copy(echo), grant: true });
+    useAgent("scene-echo");
+    expect(j("/agents/panels", "GET", undefined, { chatId: "c1" }).panels).toEqual([]);
+  });
+
+  it("wants a chat", () => {
+    expect(call("GET", "/agents/panels", undefined, { chatId: "nope" }).status).toBe(404);
+    expect(call("GET", "/agents/panels", undefined, {}).status).toBe(400);
   });
 });
 

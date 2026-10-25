@@ -1,0 +1,84 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Next moves",
+  "agent": {
+    "formatVersion": 1,
+    "id": "next-moves-ai",
+    "version": "1.0.0",
+    "name": "Next moves",
+    "description": "Offers up to three short things the player could do next, as buttons above the composer.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "cheap, short answers"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    }
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 60,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "reply",
+            "source": "lastReply"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 260,
+      "y": 60,
+      "title": "Three moves",
+      "params": {
+        "role": "fast",
+        "prompt": "Give three short things the player could do next, one per line, at most eight words each, no numbering, no quotes.\n\n{{reply}}",
+        "answer": {
+          "as": "text"
+        },
+        "maxTokens": 100,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 520,
+      "y": 60,
+      "title": "Output",
+      "params": {
+        "kind": "choices",
+        "show": "bottom"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:reply",
+      "to": "ask:reply"
+    },
+    {
+      "id": "e2",
+      "from": "ask:text",
+      "to": "out:in"
+    }
+  ]
+}

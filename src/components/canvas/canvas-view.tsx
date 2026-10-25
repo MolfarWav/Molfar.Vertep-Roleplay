@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, ArrowsClockwise } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, ArrowsClockwise, Robot } from '@phosphor-icons/react'
 import { takeCanvasFocus } from './canvas-focus'
 import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
@@ -15,6 +15,7 @@ import { useApp } from '@/lib/store'
 import { toast } from 'sonner'
 import { ChatShelf } from './chat-shelf'
 import { PromptBoard } from './prompt-board'
+import { AgentForge } from './agent-forge'
 import { useGuidePlace } from '@/components/guide/place'
 
 type ChatInfo = LitChatItem
@@ -122,8 +123,11 @@ export function CanvasView() {
 
   const allChats = useMemo(() => chats || [], [chats])
 
-  const [board, setBoard] = useState<'links' | 'prompt'>(storage.get<string>(BOARD_KEY, 'links') === 'prompt' ? 'prompt' : 'links')
-  const pickBoard = useCallback((b: 'links' | 'prompt') => {
+  const [board, setBoard] = useState<'links' | 'prompt' | 'agents'>(() => {
+    const saved = storage.get<string>(BOARD_KEY, 'links')
+    return saved === 'prompt' || saved === 'agents' ? saved : 'links'
+  })
+  const pickBoard = useCallback((b: 'links' | 'prompt' | 'agents') => {
     setBoard(b)
     storage.set(BOARD_KEY, b)
   }, [])
@@ -131,7 +135,7 @@ export function CanvasView() {
   useEffect(() => {
     const onBoard = (e: Event) => {
       const b = (e as CustomEvent).detail
-      if (b === 'links' || b === 'prompt') pickBoard(b)
+      if (b === 'links' || b === 'prompt' || b === 'agents') pickBoard(b)
     }
     window.addEventListener('rp-guide-board', onBoard)
     return () => window.removeEventListener('rp-guide-board', onBoard)
@@ -492,9 +496,10 @@ export function CanvasView() {
     [fullGraph]
   )
 
-  useGuidePlace(board === 'prompt' ? 'canvas.prompt' : 'canvas.links', !loading && !error && allChats.length > 0)
+  useGuidePlace(board === 'prompt' ? 'canvas.prompt' : 'canvas.links', board !== 'agents' && !loading && !error && allChats.length > 0)
 
-  if (loading) {
+  // the agent editor works on files, not on chats, so it needs none of the chat data below
+  if (loading && board !== 'agents') {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         {t('canvas.loading')}
@@ -502,7 +507,7 @@ export function CanvasView() {
     )
   }
 
-  if (error) {
+  if (error && board !== 'agents') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <div className="text-sm text-destructive">{error}</div>
@@ -514,11 +519,15 @@ export function CanvasView() {
     )
   }
 
-  if (allChats.length === 0) {
+  if (allChats.length === 0 && board !== 'agents') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
         <div className="text-lg font-semibold">{t('canvas.empty.title')}</div>
         <div className="text-sm text-muted-foreground">{t('canvas.empty.body')}</div>
+        <Button variant="outline" className="mt-2 max-md:h-10" onClick={() => pickBoard('agents')}>
+          <Robot className="mr-2 h-4 w-4" />
+          {t('fg.open')}
+        </Button>
       </div>
     )
   }
@@ -557,6 +566,19 @@ export function CanvasView() {
             <GraphIcon className="h-4 w-4" />
             {t('canvas.board.prompt')}
           </button>
+          <button
+            data-guide="canvas.board-agents"
+            data-testid="board-agents"
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              board === 'agents' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
+            )}
+            aria-pressed={board === 'agents'}
+            onClick={() => pickBoard('agents')}
+          >
+            <Robot className="h-4 w-4" />
+            {t('canvas.board.agents')}
+          </button>
         </div>
 
         {!isMobile && board === 'links' && (
@@ -583,7 +605,7 @@ export function CanvasView() {
 
         <div className="flex-1" />
 
-        <div data-guide="canvas.mode" className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
+        {board !== 'agents' && <div data-guide="canvas.mode" className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
           <button
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
@@ -606,9 +628,9 @@ export function CanvasView() {
             <Eye className="h-4 w-4" />
             {t('canvas.mode.view')}
           </button>
-        </div>
+        </div>}
 
-        {isMobile && (
+        {isMobile && board !== 'agents' && (
           <div className="flex rounded-lg bg-muted p-0.5">
             <button
               className={cn(
@@ -668,7 +690,11 @@ export function CanvasView() {
         </div>
       )}
 
-      {board === 'prompt' ? (
+      {board === 'agents' ? (
+        <div className="min-h-0 flex-1">
+          <AgentForge />
+        </div>
+      ) : board === 'prompt' ? (
         <div className="min-h-0 flex-1">
           <PromptBoard
             chatId={promptChatId}
