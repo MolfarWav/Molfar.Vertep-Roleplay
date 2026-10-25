@@ -50,16 +50,42 @@ export type ChatAgentsOp =
   | { op: 'add'; agent: string; phase?: AgentPhase }
   | { op: 'remove' | 'toggle' | 'phase' | 'move' | 'show'; agent: string; on?: boolean; phase?: AgentPhase | null; to?: number; place?: string | null }
 
-/** One entry of GET /agents/runs, as far as the app reads it. */
-export interface AgentRun { agent: string; key: string; at: number; ms: number; status: 'ok' | 'failed'; reason?: string; calls?: number }
+/** What an agent left for the chat: a note under the reply, choices, a hint for the next reply, or a silent state change. */
+export interface AgentOutput {
+  kind: 'note' | 'choices' | 'prompt-insert' | 'state-patch'
+  title?: string
+  text?: string
+  short?: string
+  label?: string
+  choices?: string[]
+  show?: string
+}
+
+/** One entry of GET /agents/runs, as far as the app reads it. `key` is `<message id>#<swipe>`. */
+export interface AgentRun {
+  agent: string
+  key: string
+  at: number
+  ms: number
+  status: 'ok' | 'failed'
+  reason?: string
+  calls?: number
+  writes?: unknown[]
+  refused?: unknown[]
+  outputs?: AgentOutput[]
+}
 
 interface AgentsLive {
   /** the newest list per chat, from a read or an edit */
   chats: Record<string, ChatAgents>
+  /** the runs the plugin keeps per chat (the newest ones), oldest first */
+  runs: Record<string, AgentRun[]>
+  /** display names of the installed agents, once the list has been read */
+  names: Record<string, string>
   running: Record<string, true>
 }
 
-export const useAgentsLive = create<AgentsLive>(() => ({ chats: {}, running: {} }))
+export const useAgentsLive = create<AgentsLive>(() => ({ chats: {}, runs: {}, names: {}, running: {} }))
 
 const keep = (chatId: string, v: ChatAgents) => useAgentsLive.setState((s) => ({ chats: { ...s.chats, [chatId]: v } }))
 const forgetChats = () => useAgentsLive.setState({ chats: {} })
@@ -81,7 +107,9 @@ export async function editChatAgents(chatId: string, op: ChatAgentsOp): Promise<
 /** The installed agents; null when the app has no agents plugin. */
 export async function listInstalledAgents(): Promise<AgentInfo[] | null> {
   try {
-    return (await j<{ agents: AgentInfo[] }>('/agents/list')).agents
+    const agents = (await j<{ agents: AgentInfo[] }>('/agents/list')).agents
+    useAgentsLive.setState({ names: Object.fromEntries(agents.map((a) => [a.id, a.name])) })
+    return agents
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null
     throw e
@@ -105,7 +133,26 @@ export async function removeAgent(id: string): Promise<void> {
 }
 
 export async function loadAgentRuns(chatId: string): Promise<AgentRun[]> {
-  return (await j<{ runs: AgentRun[] }>(`/agents/runs?chatId=${q(chatId)}`)).runs
+  const runs = (await j<{ runs: AgentRun[] }>(`/agents/runs?chatId=${q(chatId)}`)).runs
+  useAgentsLive.setState((s) => ({ runs: { ...s.runs, [chatId]: runs } }))
+  return runs
+}
+
+const loading = new Set<string>()
+
+/**
+ * Once per chat, when it is opened: the chat's agents and, when it has any, their runs, so the notes under the
+ * replies are there. Silent when the app has no agents plugin.
+ */
+export async function ensureAgentRuns(chatId: string): Promise<void> {
+  if (useAgentsLive.getState().chats[chatId] || loading.has(chatId)) return
+  loading.add(chatId)
+  try {
+    const list = await loadChatAgents(chatId)
+    if (list.items.length) await loadAgentRuns(chatId)
+  } catch { /* the plugin is absent or the engine is busy: the notes just do not show */ } finally {
+    loading.delete(chatId)
+  }
 }
 
 export async function listAgentSets(): Promise<AgentSet[]> {
@@ -137,6 +184,14 @@ export function setIdFromName(name: string, taken: Set<string>): string {
   let id = base
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
   return id
+}
+
+/** The agent's name for people: the installed one's, else its id as words. */
+export function nameOf(id: string): string {
+  const known = useAgentsLive.getState().names[id]
+  if (known) return known
+  const w = id.replace(/-/g, ' ')
+  return w.charAt(0).toUpperCase() + w.slice(1)
 }
 
 // ---------- what a permission means, in words ----------
@@ -174,6 +229,7 @@ export function describeNeed(token: string, t: T): string {
 // ---------- the run after a reply ----------
 
 const inFlight = new Set<string>()
+const runId = (r: AgentRun) => `${r.agent}|${r.key}|${r.at}`
 
 interface RunReply {
   ok?: boolean
@@ -191,8 +247,15 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
   inFlight.add(chatId)
   useAgentsLive.setState((s) => ({ running: { ...s.running, [chatId]: true } }))
   try {
+    const before = new Set((useAgentsLive.getState().runs[chatId] ?? []).map(runId))
     const r = await j<RunReply>('/agents/run', { method: 'POST', body: JSON.stringify({ chatId, ...(agent ? { agent } : {}) }) })
     for (const x of r.ran ?? []) if (x.status === 'failed') toast.error(`${x.agent}: ${x.reason ?? 'failed'}`)
+    if (r.ran?.length) {
+      // the notes under the reply, and the toasts the agents asked for
+      const runs = await loadAgentRuns(chatId).catch(() => [] as AgentRun[])
+      for (const run of runs.filter((x) => !before.has(runId(x))))
+        for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text) toast.message(o.title || nameOf(run.agent), { description: o.text })
+    }
     return r
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null

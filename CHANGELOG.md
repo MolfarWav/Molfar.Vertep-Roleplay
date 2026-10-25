@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agents (#127), results in the chat: an agent's note shows under the reply it was made for, as a card that folds (a short one is open, a long one shows its first line), and a muted line `Agents · N` under every reply says who ran, in how many milliseconds, with how many model calls and changes, or why it failed. Nothing of this is a message: it lives in the plugin's run file, never goes to the model and never into an export. A swiped or regenerated reply shows its own runs. A result an agent shows as `toast` pops up once when the run ends. The chat's agents and runs are read once when a chat is opened (nothing is asked for a chat with no agents).
+
 - Agents (#127), the first screens: an Agents tab next to Preset, Persona and Model in the chat's switcher (on a phone, a third tile in the chat menu). It lists the chat's agents with an on/off switch and the last run, adds an installed agent or a whole set, and goes back to the set with one tap. The Agents sheet installs an agent file, shows its permissions in plain words and runs it only after Allow, removes agents, and keeps sets (save the chat's list, make one the default, delete). After a reply the chat's agents run once the Dashboard and the World have had their turn; a chat with no agent switched on is not asked at all. Notes, panels and buttons come next.
 
 ## 4.69.0

@@ -47,6 +47,8 @@ import { ExpressionPanel } from './expression-panel'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
+import { AgentNotes } from './agent-notes'
+import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { CarriesPanel, useCarries } from '@/components/chat/carries-panel'
@@ -157,6 +159,8 @@ export function ChatView() {
     const id = setInterval(() => { if (document.visibilityState === 'visible') void checkSoulProposals(activeChatId) }, 60_000)
     return () => clearInterval(id)
   }, [activeChatId])
+  // the agents' notes under the replies need the chat's agents and their runs, once per chat
+  useEffect(() => { if (activeChatId) void ensureAgentRuns(activeChatId) }, [activeChatId])
   // Home's "Branches" button opens the chat and asks for its tree
   const branchTreeFor = useApp((s) => s.branchTreeFor)
   useEffect(() => {
@@ -1021,6 +1025,7 @@ export function ChatView() {
                   />
                 )}
                 {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
+                {!deleteMode && <AgentNotes chatId={chat.id} message={msg} />}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>
             )

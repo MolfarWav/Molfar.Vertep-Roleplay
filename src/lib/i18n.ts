@@ -2892,6 +2892,10 @@ const en = {
   'ag.saveFailed': 'Could not do that: {why}',
   'ag.permissions': 'Asks to · {n}',
   'ag.onCount': 'On: {n}',
+  'ag.log': 'Agents · {n}',
+  'ag.log.failed': '{n} failed',
+  'ag.log.ok': 'done in {ms} ms · {calls} model {calls|call|calls} · {changes} {changes|change|changes}',
+  'ag.log.refused': '{n} {n|change|changes} refused',
   'ag.manageTip': 'Install agents, give permissions, manage sets',
 } as const
 
@@ -5781,6 +5785,10 @@ const uk: Record<MsgKey, string> = {
   'ag.saveFailed': 'Не вдалося виконати: {why}',
   'ag.permissions': 'Просить дозволу · {n}',
   'ag.onCount': 'Увімкнено: {n}',
+  'ag.log': 'Агенти · {n}',
+  'ag.log.failed': '{n} з помилкою',
+  'ag.log.ok': 'готово за {ms} мс · {calls} {calls|виклик|виклики|викликів} моделі · {changes} {changes|зміна|зміни|змін}',
+  'ag.log.refused': '{n} {n|зміну|зміни|змін} відхилено',
   'ag.manageTip': 'Встановити агентів, дати дозволи, керувати наборами',
 }
 

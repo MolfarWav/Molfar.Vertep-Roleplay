@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import keeper from "./fixtures/dungeon-keeper.vertep-agent.json";
+import echo from "./fixtures/scene-echo.vertep-agent.json";
 import mood from "./fixtures/mood-tracker.vertep-agent.json";
 import { compileAgent } from "../src/canvas-kit/boards/agent-check.js";
 import { generatedBlock, withBlock } from "../scripts/sync-agents-plugin";
@@ -294,6 +295,18 @@ describe("a hint for the next reply", () => {
   it("only touches a reply request", () => {
     runChat("c2");
     expect(plugin.llmRequest({ key: "summary", request: { sessionId: "c2", messages: [] } } as never, host() as never)).toBeNull();
+  });
+});
+
+describe("a note for the reply", () => {
+  it("an agent with no model call runs at once and its note is kept under the reply's key, with the log fields the chat reads", () => {
+    expect(j("/agents/install", "PUT", { file: copy(echo), grant: true })).toMatchObject({ ok: true, id: "scene-echo", missing: [] });
+    makeChat("c1", CHAT);
+    useAgent("scene-echo");
+    expect(runChat("c1").ran).toEqual([{ agent: "scene-echo", status: "ok", calls: 0, writes: 0, outputs: 1 }]);
+    const run = j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0];
+    expect(run).toMatchObject({ agent: "scene-echo", key: "m2#0", status: "ok", calls: 0, writes: [] });
+    expect(run.outputs).toEqual([expect.objectContaining({ kind: "note", title: "Scene echo", text: "The scene just said: A small imp pops into the dark." })]);
   });
 });
 

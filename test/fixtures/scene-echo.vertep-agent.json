@@ -1,0 +1,26 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Scene echo",
+  "agent": {
+    "formatVersion": 1,
+    "id": "scene-echo",
+    "version": "1.0.0",
+    "name": "Scene echo",
+    "description": "Leaves a note under every reply with the first words of what was said. No model calls.",
+    "author": "Molfar",
+    "trigger": { "when": "after", "everyN": 1, "keywords": [] },
+    "models": {},
+    "limits": { "maxCalls": 0, "concurrency": 1 }
+  },
+  "nodes": [
+    { "id": "in", "type": "agent.input", "x": 10, "y": 60, "title": "Input", "params": { "give": [{ "id": "r", "source": "lastReply" }] } },
+    { "id": "tpl", "type": "text.template", "x": 250, "y": 60, "title": "Note text", "params": { "text": "The scene just said: {{r}}" } },
+    { "id": "out", "type": "agent.output", "x": 500, "y": 60, "title": "Output", "params": { "kind": "note", "title": "Scene echo" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "in:r", "to": "tpl:r" },
+    { "id": "e2", "from": "tpl:text", "to": "out:in" }
+  ]
+}
