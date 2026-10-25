@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.69.0
+
 Coloured voices in replies that use dashes or another script, and a fuller scene cast on the Dashboard (found testing #93 on a Russian chat with English cards).
 
 - Dialogue set off by dashes is tinted like quoted speech, in every chat: a line that opens with a dash is speech to the end of the line, except the author's words between two dashes (`— No, — she said. — Go.`), and `Name: — text` opens speech after the colon. A dash only counts after sentence punctuation, so `— I — Rhea.` stays one line of speech. Before, a Russian or Ukrainian reply in dashes got no dialogue colour at all, and only the first (quoted) message of the chat was coloured.
