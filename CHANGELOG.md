@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.68.0
+
+Pictures in backups, safe HTML and coloured voices in replies, a World DM that invents (#89, #93, #95).
+
 - Backup: the zip from Settings > Data now carries the pictures the cards, chats and library point at (gallery images, generated pictures, backgrounds), and a restore puts them back (#89). Before, a restore on another install left broken pictures. The export says how many pictures went in, and how many could not be read. Backups made before this carry no pictures and restore as they did.
 - A draft the shell refused to store (storage full) now also survives a full reload of the page while the tab stays open (#89, needs the engine update that ships with it). The "not saved" line says so; closing the tab still loses it.
 - HTML in replies (#93): a reply's own CSS may dress the message but can no longer leave it. `position: fixed` and `sticky`, `z-index` above 10, widths and heights in viewport units, `@import`, `@font-face` and `url()` that points to another site are dropped, in inline `style` and in `<style>` blocks. Colours, borders, shadows, transforms and fonts by name stay. `<font>` now keeps its colour, and inline tags such as `<b>`, `<br>`, `<span>`, `<small>` are no longer stripped from a reply (they were, so a line break in an HTML note was lost).

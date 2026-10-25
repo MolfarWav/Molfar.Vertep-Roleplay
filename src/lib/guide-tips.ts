@@ -6,7 +6,7 @@
 import type { Tip, Tour } from './guide'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.67.0'
+export const APP_VERSION = '4.68.0'
 
 export const TIPS: Tip[] = [
   // What's new
@@ -412,6 +412,17 @@ export const TIPS: Tip[] = [
     body: {
       en: 'The Dashboard\'s threads are quests: main, side and everyday, and a main quest can have steps. A quest that does not fit its limit, or that the story left alone for long, waits under Suggestions for your answer. Story, move can pick a quest or a step, or add a Twist: something outside the quests.',
       uk: 'Сюжетні лінії Дашборду тепер квести: головні, побічні й буденні, а головний квест може мати кроки. Квест, для якого немає місця, або який історія давно не торкалась, чекає вашої відповіді серед пропозицій. «Історія, рухайся» вміє обрати квест чи крок або додати Поворот: щось поза квестами.',
+    },
+  },
+  // ── What's new: voices and the World DM
+  {
+    id: 'new.voices',
+    since: '4.68.0',
+    help: 'characters',
+    title: { en: 'Voices for a Narrator, a World DM that invents', uk: 'Голоси для Оповідача, Майстер світу вигадує' },
+    body: {
+      en: "A card that plays several characters can list them under Colors > Voices: each one's quotes get their own colour, found by a name before a colon or the first name in the line. Replies with HTML are safer (nothing can cover the app) and the html block follows your theme. The World DM's Start from cards now invents the setting, the people and the trouble around your characters instead of copying what the cards say. Backups now include pictures.",
+      uk: 'Картка, що грає кількох персонажів, може перелічити їх у Кольори > Голоси: репліки кожного отримують свій колір за іменем перед двокрапкою або першим іменем у рядку. HTML у відповідях безпечніший (ніщо не перекриє застосунок), а блок html іде за вашою темою. «З карток» у Майстрі світу тепер вигадує оточення, людей і неприємності навколо ваших персонажів, а не переписує те, що сказано в картках. Резервні копії тепер містять картинки.',
     },
   },
   // ── What's new: habits
