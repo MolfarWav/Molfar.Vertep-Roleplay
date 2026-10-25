@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Structure it: a reply that puts the sections at the top level of the JSON object, without the `profile` wrapper, is read now, and "the reply filled no field" names the keys the reply did have, so a model that answers in its own shape can be told from an empty answer. Seen on a narrator card with a free model; the cause there is a guess until the raw reply is seen.
+- Vertep Lite: a new pick, HTML panels (on by default, Off in Choices). When the scene focuses on an in-world object whose words matter (a phone screen, a letter, a sign, a HUD), the narrator draws it as one small HTML panel, at most one per reply, with the markup the app keeps (`div`, `p`, headings, `table`, `details`, `b`, `span`, `br`, inline `style`, one `style` block) and none of what it drops. Adapted from the Molfar preset's Complex HTML Visuals, with the tag list brought up to date with 4.68.0. The rule rides in the fixed start of the request, so the prompt cache holds; it is not sent for Write for me or background calls. Costs about 250 tokens while on. Needs the preset template to reseed (an update does it); a copy the user made keeps its text, and a chat that never picked gets the default, On.
+
 ## 4.69.0
 
 Coloured voices in replies that use dashes or another script, and a fuller scene cast on the Dashboard (found testing #93 on a Russian chat with English cards).
