@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agents (#127), the first screens: an Agents tab next to Preset, Persona and Model in the chat's switcher (on a phone, a third tile in the chat menu). It lists the chat's agents with an on/off switch and the last run, adds an installed agent or a whole set, and goes back to the set with one tap. The Agents sheet installs an agent file, shows its permissions in plain words and runs it only after Allow, removes agents, and keeps sets (save the chat's list, make one the default, delete). After a reply the chat's agents run once the Dashboard and the World have had their turn; a chat with no agent switched on is not asked at all. Notes, panels and buttons come next.
+
 ## 4.69.0
 
 Coloured voices in replies that use dashes or another script, and a fuller scene cast on the Dashboard (found testing #93 on a Russian chat with English cards).

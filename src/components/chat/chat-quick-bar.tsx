@@ -10,10 +10,11 @@ import {
 import { ModelMark } from '@/components/model-mark'
 import { EffectiveParams } from '@/components/chat/effective-params'
 import { PresetPanel } from '@/components/chat/preset-panel'
+import { AgentsSheet, AgentsTabContext, AgentsTabItems, useAgentsData } from '@/components/chat/agents-panel'
 import { useT } from '@/hooks/use-t'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import {
-  CaretDown, Check, Cpu, GearSix, ListChecks, PencilSimple, SlidersHorizontal, User,
+  CaretDown, Check, Cpu, GearSix, ListChecks, PencilSimple, Robot, SlidersHorizontal, User,
 } from '@phosphor-icons/react'
 
 /**
@@ -37,12 +38,13 @@ function GroupCapHint({ hidden }: { hidden: number }) {
   )
 }
 
-type Tab = 'preset' | 'persona' | 'profile'
+type Tab = 'preset' | 'persona' | 'profile' | 'agents'
 
 const TABS: { id: Tab; label: string; icon: typeof SlidersHorizontal }[] = [
   { id: 'preset', label: 'Preset', icon: SlidersHorizontal },
   { id: 'persona', label: 'Persona', icon: User },
   { id: 'profile', label: 'Model', icon: Cpu },
+  { id: 'agents', label: 'Agents', icon: Robot },
 ]
 
 /**
@@ -123,6 +125,8 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
   const focusPersona = useApp((s) => s.focusPersona)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('preset')
+  const [agentsOpen, setAgentsOpen] = useState(false)
+  const agents = useAgentsData(chatId, open && tab === 'agents')
   const shownPresets = presets.slice(0, GROUP_CAP)
   const totalOf = usePresetTotals([...new Set([chat?.presetId, presets.find((p) => p.isDefault)?.id, ...shownPresets.map((p) => p.id)].filter((x): x is ID => !!x))], chatId, chat?.presetVars, open && tab === 'preset')
   if (!chat) return null
@@ -162,27 +166,31 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
   // a choice that opens another page also closes the menu the rows sit in
   const go = (fn: () => void) => pick(() => { fn(); onNavigate?.() })
 
+  const agentsLine = agents.list ? t('ag.onCount', { n: agents.list.items.filter((it) => it.on).length }) : '—'
+
   const searchPlaceholder =
-    tab === 'preset' ? 'Search presets…' : tab === 'persona' ? 'Search personas…' : 'Search models…'
+    tab === 'preset' ? 'Search presets…' : tab === 'persona' ? 'Search personas…' : tab === 'agents' ? t('ag.search') : 'Search models…'
 
   const body = (
     <>
           {/* tab bar */}
           <div className="flex items-center gap-1 border-b border-border bg-muted/40 p-1.5" role="tablist" aria-label="Switch what to change">
-            {TABS.map((t) => (
+            {TABS.map((tb) => (
               <button
-                key={t.id}
+                key={tb.id}
                 type="button"
                 role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
+                aria-selected={tab === tb.id}
+                onClick={() => setTab(tb.id)}
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors',
-                  tab === t.id ? 'bg-card text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-medium transition-colors',
+                  variant === 'rows' && tab !== tb.id ? 'flex-none px-3' : 'flex-1',
+                  tab === tb.id ? 'bg-card text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
-                <t.icon className="size-3.5" aria-hidden="true" />
-                {t.label}
+                <tb.icon className="size-3.5 shrink-0" aria-hidden="true" />
+                {/* the phone menu is narrow: only the open tab keeps its name */}
+                <span className={cn('truncate', variant === 'rows' && tab !== tb.id && 'sr-only')}>{tb.id === 'agents' ? t('ag.tab') : tb.label}</span>
               </button>
             ))}
           </div>
@@ -271,6 +279,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
               </button>
             </div>
           )}
+          {tab === 'agents' && <AgentsTabContext chatId={chatId} data={agents} />}
           {tab === 'profile' && <EffectiveParams modelRef={current?.ref ?? model ?? null} preset={preset} />}
 
           <Command>
@@ -338,6 +347,10 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
                     <span className="flex-1 text-xs">Edit personas…</span>
                   </CommandItem>
                 </CommandGroup>
+              )}
+
+              {tab === 'agents' && (
+                <AgentsTabItems chatId={chatId} data={agents} itemCls={itemCls} activeItemCls={activeItemCls} actionCls={actionCls} onManage={() => pick(() => setAgentsOpen(true))} />
               )}
 
               {tab === 'profile' && (
@@ -430,8 +443,14 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
             <span className="w-full truncate font-mono text-xs">{modelLabel}</span>
           </button>
         </div>
+        <button type="button" onClick={() => unfold('agents')} aria-expanded={open && tab === 'agents'}
+          className={cn(rowCls, 'w-full', open && tab === 'agents' ? 'border-violet-500/60 bg-accent' : 'border-border hover:bg-accent/50')}>
+          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-500"><Robot className="size-3" aria-hidden="true" />Agents</span>
+          <span className="w-full truncate text-sm">{agentsLine}</span>
+        </button>
         {open && <div className="overflow-hidden rounded-lg border border-border">{body}</div>}
         <PresetPanel chatId={chatId} open={panelOpen} onOpenChange={setPanelOpen} />
+        <AgentsSheet chatId={chatId} open={agentsOpen} onOpenChange={setAgentsOpen} data={agents} />
       </div>
     )
   }
@@ -483,6 +502,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
       </Popover>
 
       <PresetPanel chatId={chatId} open={panelOpen} onOpenChange={setPanelOpen} />
+      <AgentsSheet chatId={chatId} open={agentsOpen} onOpenChange={setAgentsOpen} data={agents} />
     </>
   )
 }
