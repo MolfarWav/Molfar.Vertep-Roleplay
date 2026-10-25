@@ -40,6 +40,7 @@ import {
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
 import { carryWorld, libraryBooks, triggerWorldUpdate } from './world'
+import { triggerAgentsRun } from './agents'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
@@ -2888,10 +2889,10 @@ async function runStream(
     // (or a failed reply) ends the turn
     const queue = Array.isArray(committedRes?.queue) ? (committedRes.queue as unknown[]).filter((x): x is string => typeof x === 'string') : []
     // the dashboard reads the newest reply once the turn is over (not between group members)
-    // then the World DM, if this chat's is due (one model call at a time: free models limit the rate)
+    // then the World DM, if this chat's is due, then the chat's agents (one model call at a time: free models limit the rate)
     if (committed && queue.length === 0) {
       const busy = () => get().streaming?.chatId === chatId
-      void triggerDashUpdate(chatId, op, busy).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy))
+      void triggerDashUpdate(chatId, op, busy).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy)).then(() => triggerAgentsRun(chatId, busy))
     }
     if (committed && queue.length) {
       void (async () => {
