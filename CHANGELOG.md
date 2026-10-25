@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Backup: the zip from Settings > Data now carries the pictures the cards, chats and library point at (gallery images, generated pictures, backgrounds), and a restore puts them back (#89). Before, a restore on another install left broken pictures. The export says how many pictures went in, and how many could not be read. Backups made before this carry no pictures and restore as they did.
+- A draft the shell refused to store (storage full) now also survives a full reload of the page while the tab stays open (#89, needs the engine update that ships with it). The "not saved" line says so; closing the tab still loses it.
+
 ## 4.67.0
 
 Skills are now Habits (#111). The word "skills" is kept for Molfar's own skills and for the RPG layer that comes later.

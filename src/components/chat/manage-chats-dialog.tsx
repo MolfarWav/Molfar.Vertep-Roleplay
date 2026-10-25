@@ -16,7 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { useApp } from "@/lib/store"
 import { saveFile } from "@/lib/export"
-import { fileToRawBase64, j } from "@/lib/engine"
+import { j } from "@/lib/engine"
+import { backupFileForImport } from "@/lib/backup-assets"
 import type { Chat, ID } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -340,7 +341,9 @@ export function ManageChatsDialog({
     const run = beginImport(tNow("imp.title.backup"), 1)
     run.start(f.name, tNow("imp.step.reading"))
     try {
-      const zipBase64 = await fileToRawBase64(f)
+      run.step(tNow("imp.step.pictures"), 0.15)
+      const { zipBase64, failed } = await backupFileForImport(f)
+      if (failed) toast.error(tNow("backup.picturesFailed", undefined, { n: failed }))
       run.step(tNow("imp.step.unpacking"), 0.3)
       const r = await j<Record<string, unknown>>("/import/zip", {
         method: "POST",

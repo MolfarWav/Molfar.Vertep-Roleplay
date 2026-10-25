@@ -164,6 +164,16 @@ room for, so a restore on another machine is not lossy:
 - `settings.json` carries `settings` (the real `ui` object), `library.json`
   the local collections, `databank/` the retrieval chunks.
 
+Pictures (#89): card galleries, generated pictures and backgrounds live in the
+engine's asset store and the files above only carry `/v1/assets/<id>`. The
+plugin cannot read that store, so the app adds the bytes itself:
+`lib/backup-assets.ts` appends every referenced picture to the exported zip as
+`assets/<id>` plus `assets/index.json` (type and name), and puts them back
+(`PUT /v1/assets`) before the zip goes to `/import/zip`, stripped of `assets/`.
+An asset id is the SHA-256 of its bytes, so these ids DO travel: nothing is
+rewritten on restore. All three restore entry points (Settings > Data, Settings
+> Import, Manage chats) go through `backupFileForImport`.
+
 IDS DO NOT TRAVEL. Anything pointing at another entity exports a `_…Names`
 sibling and the importer re-resolves it; ids are re-minted on the way in.
 Zip text is UTF-8 — never write latin1 into the archive.

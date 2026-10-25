@@ -31,6 +31,7 @@ import { resolveLanguage, t, type MsgKey } from "@/lib/i18n"
 import type { AppSettings } from "@/lib/types"
 import { extractCharaFromPng, regexExport, regexImport, regexScriptsOf } from "@/lib/interop"
 import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/engine"
+import { addAssetsToBackup, backupFileForImport } from "@/lib/backup-assets"
 import { cn } from "@/lib/utils"
 import { useConfirm } from "@/components/ui/confirm"
 import { defaultSettings } from "@/lib/seed"
@@ -569,7 +570,8 @@ function STImportSection() {
     const run = beginImport(tNow("imp.title.backup"), 1)
     run.start(f.name, tNow("imp.step.reading"))
     try {
-      const zipBase64 = await fileToRawBase64(f)
+      run.step(tNow("imp.step.pictures"), 0.15)
+      const { zipBase64, restored, failed } = await backupFileForImport(f)
       run.step(tNow("imp.step.unpacking"), 0.3)
       const r = await j<Record<string, unknown>>("/import/zip", {
         method: "POST",
@@ -578,6 +580,8 @@ function STImportSection() {
       const parts = Object.entries(r)
         .filter(([, v]) => Array.isArray(v) && v.length)
         .map(([k, v]) => `${(v as unknown[]).length} ${k}`)
+      if (restored) parts.push(tNow("backup.picturesRestored", undefined, { n: restored }))
+      if (failed) toast.error(tNow("backup.picturesFailed", undefined, { n: failed }))
       toast.success(parts.length ? `Imported ${parts.join(", ")}` : "Nothing recognized in that zip")
       run.step(tNow("imp.step.refreshing"), 0.9)
       await useApp.getState().hydrate()
@@ -651,8 +655,15 @@ function DataSection() {
     setBusy(true)
     try {
       const r = await j<{ filename: string; base64: string }>("/export/backup")
-      downloadBlob(r.base64, r.filename)
-      toast.success("Backup exported", { description: r.filename })
+      // the zip's files only point at pictures in the engine's store: add their bytes
+      const withPictures = await addAssetsToBackup(r.base64).catch(() => null)
+      downloadBlob(withPictures?.base64 ?? r.base64, r.filename)
+      const notes = [
+        withPictures?.included ? tNow("backup.pictures", undefined, { n: withPictures.included }) : "",
+        withPictures?.missing ? tNow("backup.picturesMissing", undefined, { n: withPictures.missing }) : "",
+        withPictures ? "" : tNow("backup.picturesSkipped"),
+      ].filter(Boolean)
+      toast.success("Backup exported", { description: [r.filename, ...notes].join(" · ") })
     } catch (e) {
       toast.error(String((e as Error).message ?? e))
     } finally { setBusy(false) }
@@ -667,13 +678,19 @@ function DataSection() {
     const run = beginImport(tNow("imp.title.backup"), 1)
     run.start(file.name, tNow("imp.step.reading"))
     try {
-      const zipBase64 = await fileToRawBase64(file)
+      run.step(tNow("imp.step.pictures"), 0.15)
+      const { zipBase64, restored, failed } = await backupFileForImport(file)
       run.step(tNow("imp.step.unpacking"), 0.3)
       const summary = await j<{ characters: string[]; lorebooks: string[]; presets: string[]; regex: string[]; personas: string[]; chats: string[]; databank?: string[]; errors: string[] }>("/import/zip", {
         method: "POST", body: JSON.stringify({ zipBase64 }),
       })
       const n = summary.characters.length + summary.lorebooks.length + summary.presets.length + summary.regex.length + summary.personas.length + summary.chats.length + (summary.databank?.length ?? 0)
-      toast.success(`Restored ${n} items`, { description: summary.errors.length ? `${summary.errors.length} skipped (incl. PNG cards, import those from Characters → Import)` : undefined })
+      if (failed) toast.error(tNow("backup.picturesFailed", undefined, { n: failed }))
+      const notes = [
+        restored ? tNow("backup.picturesRestored", undefined, { n: restored }) : "",
+        summary.errors.length ? `${summary.errors.length} skipped (incl. PNG cards, import those from Characters → Import)` : "",
+      ].filter(Boolean)
+      toast.success(`Restored ${n} items`, { description: notes.length ? notes.join(" · ") : undefined })
       run.step(tNow("imp.step.refreshing"), 0.9)
       await hydrate()
       run.finish(true)
@@ -711,7 +728,7 @@ function DataSection() {
           <Trash className="size-4" aria-hidden /> Reset look and local settings
         </Button>
         <p className="text-[11px] text-muted-foreground">
-          These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex. The whole profile (every app, Molfar, connections) is saved in Molfar Vertep's Settings › Backup.
+          These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use. The whole profile (every app, Molfar, connections) is saved in Molfar Vertep's Settings › Backup.
           {canOpenSettingsTab() && (
             <>
               {' '}
