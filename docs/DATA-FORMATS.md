@@ -345,10 +345,13 @@ player switches it on for that chat. It writes:
   when the player accepts it. `state.origin` says where the world came from (`cards` / `recipe` with the recipe and
   card ids, `library` with the world id, `chat` with the chat it was carried from). `state.deck`: the events deck
   (`[{ id: "e1", text }]`, profile option `deck`): the DM's events come only from it, each card used once.
-- `world/recipes/<id>.json`: what a Start builds. `{ name, description, questions: [{ id, text, options?, default? }],
-  sections: [{ id, kinds, max, prompt }], fronts: { count, prompt } }`. Built in: `from-cards` (reads the chat's
-  cards: description, personality, scenario, the group's scenario, and the enabled entries of their books) and
-  `interview`; a file with a built-in's id replaces it, any other id adds one.
+- `world/recipes/<id>.json`: what a Start builds. `{ name, description, mode?, questions: [{ id, text, options?,
+  default? }], sections: [{ id, kinds, max, prompt }], fronts: { count, prompt } }`. `mode` is `"learn"` (the default:
+  each section reads every 6000-character chunk of the cards and records what the texts say) or `"invent"` (the
+  cards are the input, the world is new: each section is one call that reads a short brief, each card's fields cut
+  short and only the titles of its books' entries, and the build prompt says to invent, never retell). Built in:
+  `from-cards` (invent: setting, people, trouble, then fronts) and `interview` (invent); a file with a built-in's id
+  replaces it (without `mode` it becomes a learning recipe), any other id adds one.
 - `world/library/w-<id>.json`: a saved world: `{ v: 1, id, name, description, at, from: { chatId, title },
   settings, entities, fronts, deck }`. "New chat in this world" copies it (or another chat's world) into a chat's
   state: records and fronts as they stand, clocks included; the run fields start fresh. `from` is null for a world

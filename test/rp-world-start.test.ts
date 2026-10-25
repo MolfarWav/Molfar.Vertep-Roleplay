@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { applyLevel, buildInput, chunkSources, dmInput, handleRoute, listRecipes, recipeOf, startPlan, startSources } from "../plugins/world/plugin.js";
+import { BUILD_SYSTEM, CHRONICLER_SYSTEM, INVENT_SYSTEM, applyLevel, buildInput, castBrief, chunkSources, dmInput, handleRoute, listRecipes, recipeOf, startPlan, startSources } from "../plugins/world/plugin.js";
 
 function memFs(files: Record<string, string> = {}) {
   return {
@@ -82,11 +82,18 @@ describe("world start: chunks", () => {
 
 describe("world start: plan and input", () => {
   const fsx = memFs();
-  it("one call per section and chunk, then fronts", () => {
+  it("an inventing recipe reads the brief once per section, however many chunks the cards make, then fronts", () => {
     const fromCards = recipeOf(fsx, "from-cards")!;
-    expect(startPlan(fromCards, ["a", "b"], true)).toEqual([{ section: "world", chunk: 0 }, { section: "world", chunk: 1 }, { fronts: true }]);
-    expect(startPlan(fromCards, ["a"], false)).toEqual([{ section: "world", chunk: 0 }]);
-    expect(startPlan(recipeOf(fsx, "interview")!, [], false).map((s) => s.section)).toEqual(["places", "people", "facts"]);
+    expect(fromCards.mode).toBe("invent");
+    expect(startPlan(fromCards, ["a", "b"], true)).toEqual([
+      { section: "setting", chunk: -2 }, { section: "people", chunk: -2 }, { section: "trouble", chunk: -2 }, { fronts: true },
+    ]);
+    expect(startPlan(fromCards, ["a"], false).map((s) => s.section)).toEqual(["setting", "people", "trouble"]);
+    expect(startPlan(recipeOf(fsx, "interview")!, [], false)).toEqual([{ section: "places", chunk: -1 }, { section: "people", chunk: -1 }, { section: "facts", chunk: -1 }]);
+  });
+  it("a recipe that learns (the default) still reads every chunk", () => {
+    const learn = { ...recipeOf(fsx, "from-cards")!, mode: "learn", sections: [{ id: "world", kinds: ["place"], max: 8, prompt: "Record." }] };
+    expect(startPlan(learn, ["a", "b"], true)).toEqual([{ section: "world", chunk: 0 }, { section: "world", chunk: 1 }, { fronts: true }]);
   });
   it("carries the answers, the known records and the task", () => {
     const recipe = recipeOf(fsx, "interview")!;
@@ -170,30 +177,38 @@ describe("world start: draft from the cards", () => {
     const id = newChat();
     world("PUT", "/world/settings", { chatId: id, level: "living" });
     const begun = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", lang: "Ukrainian" });
-    expect(begun.draft).toMatchObject({ recipe: "from-cards", total: 2, done: 0 });
-    // the first pass asks the build model, with the card and its book
+    expect(begun.draft).toMatchObject({ recipe: "from-cards", total: 4, done: 0 });
+    // the first pass asks the build model to invent, from the card (cut short) and only the titles of its book
     const pending = world("POST", "/world/start", { chatId: id });
     expect(pending.__llmPending).toBe(true);
-    expect(requests[0]!.spec.messages[0].content).toContain("[Pass: Red Tower]");
-    expect(requests[0]!.spec.messages[0].content).toContain("Write names and text in Ukrainian.");
+    const asked = requests[0]!.spec.messages[0].content as string;
+    expect(asked).toContain("The cards (what already exists: agree with it, do not retell it)");
+    expect(asked).toContain("A witch of the pass.");
+    expect(asked).toContain("- Red Tower");
+    expect(asked).not.toContain("A tower up the pass.");
+    expect(asked).toContain("Invent the setting these characters live in");
+    expect(asked).toContain("Write names and text in Ukrainian.");
+    expect(JSON.stringify(requests[0]!.spec)).toContain("INVENT the world around them");
     const out = runStart(id, [
-      J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }, { kind: "person", name: "Odarka", text: "skip" }, { kind: "person", name: "Maksym", text: "The toll keeper." }] }),
+      J({ add: [{ kind: "place", name: "Salt Road", text: "The road Odarka's pass guards." }, { kind: "person", name: "Odarka", text: "skip" }, { kind: "group", name: "Toll guild", text: "Keeps the tolls." }] }),
+      J({ add: [{ kind: "person", name: "Maksym", text: "The toll keeper." }] }),
+      J({ add: [] }),
       J({ fronts: [{ name: "The toll", goal: "Close the pass.", size: 4 }] }),
     ]);
-    expect(out.draft.done).toBe(2);
-    expect(out.draft.entities.map((e: any) => [e.id, e.name])).toEqual([["d1", "Red Tower"], ["d2", "Maksym"]]);
+    expect(out.draft.done).toBe(4);
+    expect(out.draft.entities.map((e: any) => [e.id, e.name])).toEqual([["d1", "Salt Road"], ["d2", "Toll guild"], ["d3", "Maksym"]]);
     expect(out.draft.fronts.map((f: any) => f.name)).toEqual(["The toll"]);
     // the world stays empty until the player accepts
     expect(world("GET", "/world/peek", undefined, { chatId: id }).records ?? []).toEqual([]);
     const done = world("PUT", "/world/draft", { chatId: id, op: "accept", drop: { entities: ["d2"] } });
-    expect(done.added).toBe(1);
+    expect(done.added).toBe(2);
     const state = readRel("world/state/" + id + ".json");
-    expect(state.entities.map((e: any) => e.name)).toEqual(["Red Tower"]);
+    expect(state.entities.map((e: any) => e.name)).toEqual(["Salt Road", "Maksym"]);
     expect(state.fronts.map((f: any) => [f.id, f.name, f.size])).toEqual([["f1", "The toll", 4]]);
     expect(state.origin).toMatchObject({ kind: "cards", recipe: "from-cards" });
     expect(state.draft).toBeUndefined();
     expect(readRel("chats/" + id + ".meta.json").worldBookId).toBe("world-" + id);
-    expect(readRel("world/state/" + id + ".json").log.filter((r: any) => r.reason === "start").length).toBe(2);
+    expect(readRel("world/state/" + id + ".json").log.filter((r: any) => r.reason === "start").length).toBe(4);
   });
 
   it("a failed step keeps its place and says why; the next call tries it again", () => {
@@ -225,6 +240,8 @@ describe("world start: the events deck", () => {
     world("POST", "/world/start", { chatId: id, begin: true, deck: true });
     runStart(id, [
       J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }] }),
+      J({ add: [] }),
+      J({ add: [] }),
       J({ fronts: [] }),
       "Here: " + J({ deck: [{ text: "A courier arrives." }, { text: "The bridge burns." }] }),
     ]);
@@ -283,23 +300,25 @@ describe("a world built without a chat", () => {
     const begun = world("POST", "/world/start", { begin: true, newWorld: true, name: "The pass", level: "living", recipe: "from-cards", cardIds: ["odarka"] });
     const wid = begun.worldId as string;
     expect(wid).toMatch(/^w-/);
-    expect(begun.draft).toMatchObject({ total: 2, done: 0, cardIds: ["odarka"] });
+    expect(begun.draft).toMatchObject({ total: 4, done: 0, cardIds: ["odarka"] });
     // in the list while it is built, not yet a saved world
     const listed = world("GET", "/world/library");
     expect(listed.worlds).toEqual([]);
-    expect(listed.building[0]).toMatchObject({ id: wid, name: "The pass", done: 0, total: 2, level: "living" });
+    expect(listed.building[0]).toMatchObject({ id: wid, name: "The pass", done: 0, total: 4, level: "living" });
     expect(world("POST", "/world/start", { worldId: wid }).__llmPending).toBe(true);
-    expect(requests[0]!.spec.messages[0].content).toContain("[Pass: Red Tower]");
+    expect(requests[0]!.spec.messages[0].content).toContain("- Red Tower");
     expect(requests[0]!.spec.messages[0].content).toContain("Odarka");
     step(wid, J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }, { kind: "person", name: "Maksym", text: "The toll keeper." }] }));
     // a peek reads the draft without a build call
     const asked = requests.length;
     const peeked = world("POST", "/world/start", { worldId: wid, peek: true });
-    expect(peeked.draft).toMatchObject({ done: 1, total: 2 });
+    expect(peeked.draft).toMatchObject({ done: 1, total: 4 });
     expect(peeked.draft.entities.map((e: any) => e.name)).toEqual(["Red Tower", "Maksym"]);
     expect(requests.length).toBe(asked);
+    step(wid, J({ add: [] }));
+    step(wid, J({ add: [] }));
     const built = step(wid, J({ fronts: [{ name: "The toll", goal: "Close the pass.", size: 4 }] }));
-    expect(built.draft.done).toBe(2);
+    expect(built.draft.done).toBe(4);
     const done = world("PUT", "/world/draft", { worldId: wid, op: "accept", drop: { entities: ["d2"] } });
     expect(done.id).toBe(wid);
     expect(done.building).toEqual([]);
@@ -477,5 +496,50 @@ describe("world backgrounds", () => {
     results.world_name = { text: '```json\n{"file":"Forest Path","tags":["forest","day"]}\n```' };
     expect(world("POST", "/world/backgrounds/name", { image: img })).toMatchObject({ ok: true, file: "forest_path", tags: ["forest", "day"] });
     expect(world("POST", "/world/backgrounds/name", { image: { data: "x", mimeType: "text/html" } }).error).toBe("image required");
+  });
+});
+
+describe("world start: inventing from the cards (#95)", () => {
+  const parts = [
+    { label: "Anna: description", text: "A sailor. ".repeat(300), kind: "card" },
+    { label: "Anna: personality", text: "Bold.", kind: "card" },
+    { label: "Sea: Storm", text: "Storms come at night. SECRET-LORE-TEXT", kind: "lore", title: "Storm" },
+    { label: "Sea: Storm", text: "again", kind: "lore", title: "Storm" },
+    { label: "Port: Odesa", text: "The port city.", kind: "lore", title: "Odesa" },
+  ];
+  it("a brief cuts each card field and lists lorebook titles once, never their text", () => {
+    const brief = castBrief(parts);
+    expect(brief).toContain("[Anna: description]");
+    expect(brief.length).toBeLessThan(2500);
+    expect(brief).toContain("[Anna: personality]\nBold.");
+    expect(brief).toContain("- Storm\n- Odesa");
+    expect(brief.match(/- Storm/g)!.length).toBe(1);
+    expect(brief).not.toContain("SECRET-LORE-TEXT");
+  });
+  it("a brief stays under the limit even with many cards", () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({ label: "C" + i + ": description", text: "x".repeat(2000), kind: "card" }));
+    expect(castBrief(many, 6000).length).toBeLessThanOrEqual(6000);
+  });
+  it("the inventing prompt says invent, ties records to characters and forbids trivia; the learning one is unchanged", () => {
+    expect(INVENT_SYSTEM).toContain("INVENT the world around them");
+    expect(INVENT_SYSTEM).toContain("Never record what a card or a lorebook already says");
+    expect(INVENT_SYSTEM).toContain("must touch at least one character");
+    expect(INVENT_SYSTEM).toContain("No trivia");
+    expect(INVENT_SYSTEM).toContain("- aliases:");
+    expect(INVENT_SYSTEM).toContain('"add":[{"kind"');
+    expect(BUILD_SYSTEM).toContain("Learn from the texts you are given");
+    expect(BUILD_SYSTEM).not.toContain("INVENT");
+  });
+  it("the keeper of a running story skips carried things unless the story makes them matter", () => {
+    expect(CHRONICLER_SYSTEM).toContain("a backpack, a bottle, a phone");
+    expect(CHRONICLER_SYSTEM).toContain("a clue, a weapon, a gift, a promise");
+  });
+  it("a recipe file takes its mode; anything but invent is learn", () => {
+    const fsx = memFs({
+      "world/recipes/a.json": J({ mode: "invent", sections: [{ prompt: "x" }] }),
+      "world/recipes/b.json": J({ mode: "other", sections: [{ prompt: "x" }] }),
+    });
+    expect(recipeOf(fsx, "a")!.mode).toBe("invent");
+    expect(recipeOf(fsx, "b")!.mode).toBe("learn");
   });
 });

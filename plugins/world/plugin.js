@@ -480,7 +480,7 @@ const CHRONICLER_RULES = [
   "Rules:",
   "- The story text is canon. Record only what it shows or plainly says. Never invent events, and never contradict the story.",
   "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
-  "- Skip what does not matter beyond this scene: a nameless passer-by, the furniture, a passing mood.",
+  "- Skip what does not matter beyond this scene: a nameless passer-by, the furniture, a passing mood, and things a character just carries or wears (a backpack, a bottle, a phone, a coat). Record a thing only when the story makes it matter: a clue, a weapon, a gift, a promise, something people fight over.",
   "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up again (who or what it is, where, how it stands toward the characters).",
   "- Update a record only when the story changed something about it (it moved, was hurt, a secret came out). Never update a record just to reword it.",
   "- Retire a record when it is finished for good (dead, destroyed, gone from the story for good). Its text then says in one or two sentences who or what it was and how it ended.",
@@ -1156,15 +1156,21 @@ const BUILTIN_RECIPES = [
   {
     id: "from-cards",
     name: "From the cards",
-    description: "Reads the cards and their books and records the world they describe.",
+    description: "Reads the cards, then invents the setting, the people and the trouble around them.",
+    mode: "invent",
     questions: [],
-    sections: [{ id: "world", kinds: KINDS, max: 8, prompt: "Record the people, places, groups, things and facts of the world these texts describe, beyond the characters themselves." }],
-    fronts: { count: 2, prompt: "Name the powers that want something in this world and could move off screen." },
+    sections: [
+      { id: "setting", kinds: ["place", "group", "fact"], max: 6, prompt: "Invent the setting these characters live in: the main places where their days go, the groups and powers around them (families, schools, guilds, gangs, authorities) and the customs or history that shape daily life." },
+      { id: "people", kinds: ["person"], max: 5, prompt: "Invent the other people of this world who will meet these characters: allies, rivals, someone who owes or fears them. Each one wants something." },
+      { id: "trouble", kinds: ["fact", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a secret, a rumour, a danger, and at most one object that matters to the story." },
+    ],
+    fronts: { count: 2, prompt: "Invent the powers that want something from these characters or this place and will move off screen." },
   },
   {
     id: "interview",
     name: "Interview",
     description: "A few questions about the story you want; the DM builds a world around the cards from your answers.",
+    mode: "invent",
     questions: [
       { id: "genre", text: "Genre", options: ["fantasy", "dark fantasy", "historical", "modern", "science fiction", "horror", "slice of life"] },
       { id: "conflict", text: "What is at stake", options: ["survival", "power", "love", "a secret", "revenge", "a journey"] },
@@ -1198,7 +1204,7 @@ function cleanRecipe(raw, id) {
   if (!sections.length) return null;
   const f = isObj(raw.fronts) ? raw.fronts : {};
   return {
-    id, name: cut(str(raw.name), NAME_LEN) || id, description: cut(str(raw.description), DESC_LEN), questions, sections,
+    id, name: cut(str(raw.name), NAME_LEN) || id, description: cut(str(raw.description), DESC_LEN), mode: raw.mode === "invent" ? "invent" : "learn", questions, sections,
     fronts: { count: clamp(Math.round(num(f.count)), 0, FRONTS_MAX), prompt: cut(str(f.prompt), 1000) },
   };
 }
@@ -1254,14 +1260,14 @@ export function startSources(fsx, meta, cardIds) {
     if (!card) continue;
     const name = str(card.name) || id;
     for (const field of ["description", "personality", "scenario"]) {
-      if (str(card[field])) parts.push({ label: name + ": " + field, text: str(card[field]) });
+      if (str(card[field])) parts.push({ label: name + ": " + field, text: str(card[field]), kind: "card" });
     }
     addBooks(booksOf(card));
   }
   if (meta.groupId) {
     const group = readJson(fsx, "groups/" + meta.groupId + ".json", null);
     if (isObj(group)) {
-      if (str(group.scenario)) parts.push({ label: (str(group.name) || "group") + ": scenario", text: str(group.scenario) });
+      if (str(group.scenario)) parts.push({ label: (str(group.name) || "group") + ": scenario", text: str(group.scenario), kind: "card" });
       addBooks(booksOf(group));
     }
   }
@@ -1271,11 +1277,32 @@ export function startSources(fsx, meta, cardIds) {
     for (const e of arr(book.entries)) {
       if (!isObj(e) || e.enabled === false || !str(e.content)) continue;
       const title = str(e.title) || arr(e.keys).map(str).filter(Boolean).slice(0, 3).join(", ");
-      parts.push({ label: (str(book.name) || id) + (title ? ": " + title : ""), text: str(e.content) });
+      parts.push({ label: (str(book.name) || id) + (title ? ": " + title : ""), text: str(e.content), kind: "lore", title });
     }
   }
   let total = 0;
   return parts.filter((p) => (total += p.text.length) <= SOURCE_MAX);
+}
+
+const BRIEF_FIELD = { description: 900, personality: 500, scenario: 500 };
+const BRIEF_LORE = 40;
+/**
+ * What an inventing recipe reads instead of every chunk: each card's fields cut short, and only the titles of
+ * its books' entries (what already exists, so the new records agree with it). One text of at most `max`
+ * characters: a small context window reads it whole, and the calls do not repeat per chunk.
+ */
+export function castBrief(parts, max = CHUNK_MAX) {
+  const own = [];
+  for (const p of parts) {
+    if (p.kind === "lore") continue;
+    const field = /: (description|personality|scenario)$/.exec(p.label);
+    own.push("[" + p.label + "]\n" + cut(p.text, field ? BRIEF_FIELD[field[1]] : BRIEF_FIELD.scenario));
+  }
+  const titles = [...new Set(parts.filter((p) => p.kind === "lore" && p.title).map((p) => p.title))].slice(0, BRIEF_LORE);
+  const head = own.join("\n\n");
+  const tail = titles.length ? "Already in the cards' lorebooks (do not repeat or retell; stay consistent with them):\n" + titles.map((t) => "- " + t).join("\n") : "";
+  const text = [head, tail].filter(Boolean).join("\n\n");
+  return text.length <= max ? text : cut(head, max);
 }
 
 /** Split a text longer than max at paragraph, then sentence, then word ends. */
@@ -1328,6 +1355,8 @@ export function chunkSources(parts, max = CHUNK_MAX) {
   return chunks;
 }
 
+/** A step's `chunk` when it reads the brief (castBrief) instead of a chunk of the cards. */
+const BRIEF_STEP = -2;
 const BUILD_RULES = [
   "You build the world of a roleplay story before it starts. Another model will write the story; it reads your record when a name comes up.",
   "Rules:",
@@ -1346,7 +1375,26 @@ const FRONTS_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
   '{"fronts":[{"op":"add","name":"...","goal":"what it wants, one sentence","size":6}],"summary":"one short line"}',
 ];
+// An inventing recipe (from the cards, interview): the cards are the input, the world is new. The learning
+// rules above stay for a recipe that records what texts say (a player's own file without `mode: "invent"`).
+const INVENT_RULES = [
+  "You build the world of a roleplay story before it starts. Another model will write the story; it reads your record when a name comes up.",
+  "The cards describe the characters. Your job is to INVENT the world around them, not to retell them.",
+  "Rules:",
+  "- First decide the genre and the tone the cards imply. Every record you invent must fit them.",
+  "- Never record what a card or a lorebook already says: those texts stay as they are. Use their names and facts so that your records agree with them, never contradict them.",
+  "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
+  "- Every record must touch at least one character: someone goes there, belongs to it, fears it, owes it or is hunted by it. Its text says how.",
+  "- Give each record something to play with: a want, a secret, a danger or a rule. Not a bare description.",
+  "- No trivia: not furniture, clothes or things a character just carries, unless the thing is the point (a clue, a weapon, a promise).",
+  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense.",
+  "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
+  BUILD_RULES.find((r) => r.startsWith("- aliases:")),
+  "- Only the JSON keys and kind values are English.",
+];
 export const BUILD_SYSTEM = [...BUILD_RULES, ...BUILD_OUTPUT].join("\n");
+export const INVENT_SYSTEM = [...INVENT_RULES, ...BUILD_OUTPUT].join("\n");
+const buildSystemFor = (recipe) => (recipe && recipe.mode === "invent" ? INVENT_SYSTEM : BUILD_SYSTEM);
 export const FRONTS_SYSTEM = [
   "You build the world of a roleplay story before it starts. From the world record, name the fronts: factions, threats and powers with a goal that will move off screen, each with a clock of 4, 6 or 8 segments (bigger = slower).",
   "- Build them only from the record; a front's name may be a record's name.",
@@ -1371,7 +1419,7 @@ export function buildInput({ cards, userName, entities, section, chunk, recipe, 
     ...(said.length ? ["What the player wants\n" + said.join("\n")] : []),
     "Task: " + section.prompt + " Kinds: " + section.kinds.join(", ") + ". At most " + section.max + " records.",
     "Write names and text in " + (lang || "the language of the texts below") + ".",
-    ...(chunk ? ["Texts to learn from\n" + chunk] : []),
+    ...(chunk ? [(recipe.mode === "invent" ? "The cards (what already exists: agree with it, do not retell it)\n" : "Texts to learn from\n") + chunk] : []),
   ].join("\n\n");
 }
 
@@ -1390,7 +1438,9 @@ export function frontsInput({ entities, recipe, answers, lang }) {
 export function startPlan(recipe, chunks, withFronts) {
   const steps = [];
   for (const s of recipe.sections) {
-    if (chunks.length) for (let i = 0; i < chunks.length; i++) steps.push({ section: s.id, chunk: i });
+    // an inventing recipe reads the brief once per section, not every chunk of the cards
+    if (recipe.mode === "invent") steps.push({ section: s.id, chunk: chunks.length ? BRIEF_STEP : -1 });
+    else if (chunks.length) for (let i = 0; i < chunks.length; i++) steps.push({ section: s.id, chunk: i });
     else steps.push({ section: s.id, chunk: -1 });
   }
   if (withFronts && recipe.fronts.count > 0) steps.push({ fronts: true });
@@ -1631,9 +1681,10 @@ function startRoute(req, host) {
     }
   } else {
     const section = recipe.sections.find((s) => s.id === step.section) || recipe.sections[0];
-    const chunks = step.chunk >= 0 ? chunkSources(startSources(fsx, chat.meta, draft.cardIds)) : [];
-    content = buildInput({ cards, userName, entities: [...state.entities, ...draft.entities], section, chunk: chunks[step.chunk] || "", recipe, answers: draft.answers, lang: draft.lang });
-    system = BUILD_SYSTEM;
+    const sources = step.chunk >= 0 || step.chunk === BRIEF_STEP ? startSources(fsx, chat.meta, draft.cardIds) : [];
+    const chunk = step.chunk === BRIEF_STEP ? castBrief(sources) : step.chunk >= 0 ? chunkSources(sources)[step.chunk] || "" : "";
+    content = buildInput({ cards, userName, entities: [...state.entities, ...draft.entities], section, chunk, recipe, answers: draft.answers, lang: draft.lang });
+    system = buildSystemFor(recipe);
   }
   const built = buildResult(host, "world_build", buildAsk(host, fsx, cfg, chat.meta, system, content), stash);
   if (built.pending) return built.pending;
