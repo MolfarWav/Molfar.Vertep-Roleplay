@@ -209,9 +209,9 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
 }
 
 /** Who speaks on each line: a `Name:` lead wins, else the first voice named in the line, else the
- *  previous line's speaker; null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[]): (DialogueVoice | null)[] {
-  let carry: DialogueVoice | null = null
+ *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null): (DialogueVoice | null)[] {
+  let carry: DialogueVoice | null = carryIn
   return lineTexts(children).map((line) => {
     carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
     return carry
@@ -243,11 +243,47 @@ function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st
   return out
 }
 
+type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] }
+
+/** The text of a hast node, a `<br>` as a line break. */
+function hastText(node: HastNode): string {
+  if (node.type === 'text') return node.value ?? ''
+  if (node.type === 'element' && node.tagName === 'br') return '\n'
+  return (node.children ?? []).map(hastText).join('')
+}
+
+/** A paragraph with speech in it: quote marks, a line that opens with a dash, or a dash after a colon. */
+const hasSpeech = (text: string) => /["“”«»]/.test(text) || /(^|\n)\s*[—–]\s/.test(text) || /:\s+[—–]\s/.test(text)
+
+/**
+ * A paragraph of speech that names nobody ("— No, — she said.") takes the speaker of the narration
+ * paragraph right before it ("Rhea steps forward."). Marks each paragraph with `data-carry`, the name of
+ * the voice that paragraph hands on; a paragraph with speech hands on nobody, so a reply by someone else
+ * is never painted with the wrong colour. Runs after the sanitizer, which would drop the attribute.
+ */
+function rehypeVoiceCarry(voices: DialogueVoice[]) {
+  return (tree: HastNode) => {
+    let carry: DialogueVoice | null = null
+    const walk = (node: HastNode) => {
+      for (const child of node.children ?? []) {
+        if (child.type !== 'element' || child.tagName === 'pre' || child.tagName === 'code') continue
+        if (child.tagName === 'p') {
+          if (carry) child.properties = { ...child.properties, 'data-carry': carry.name }
+          const text = hastText(child)
+          carry = hasSpeech(text) ? null : lineSpeakers(text, voices).at(-1) ?? null
+        } else walk(child)
+      }
+    }
+    walk(tree)
+  }
+}
+
 const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | 'td' | 'th') =>
-  function Tinted({ children }: { children?: ReactNode }) {
+  function Tinted({ children, ...rest }: { children?: ReactNode; 'data-carry'?: string }) {
     const voices = useContext(DialogueVoices)
     const tinted = tintQuotes(children)
-    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices), { line: 0 }) : tinted}</Tag>
+    const carryIn = voices.find((v) => v.name === rest['data-carry']) ?? null
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn), { line: 0 }) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
@@ -332,6 +368,7 @@ function MessageImage({ src, alt, title }: { src?: string; alt?: string; title?:
 // memoized: re-parses markdown (remark/rehype/KaTeX/highlight) ONLY when the
 // content string actually changes — not on every parent re-render
 export const Markdown = memo(function Markdown({ content, className, scope }: { content: string; className?: string; scope?: string }) {
+  const voices = useContext(DialogueVoices)
   return (
     <div
       className={cn(
@@ -365,6 +402,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
             rehypeSafeStyle,
             rehypeKatex,
             [rehypeHighlight, { detect: false, ignoreMissing: true }],
+            ...(voices.length ? [[rehypeVoiceCarry, voices] as [typeof rehypeVoiceCarry, DialogueVoice[]]] : []),
           ]}
           components={mdComponents}
         >

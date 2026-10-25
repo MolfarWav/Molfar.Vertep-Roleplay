@@ -76,3 +76,20 @@ describe("a Russian reply of a Narrator card with Latin voices", () => {
     expect(colors("Изабелла смотрит.\n— Беги, — сказала Эмбер.")).toEqual(["222222"]);
   });
 });
+
+describe("a speech paragraph that names nobody", () => {
+  it("takes the speaker of the narration paragraph right before it", () => {
+    expect(colors("Рея делает шаг вперед.\n\n— Человек, — произносит она. — Судьба шутит.")).toEqual(["111111", "111111"]);
+    expect(colors('Rhea steps forward.\n\n"Human," she says.')).toEqual(["111111"]);
+  });
+  it("does not carry on from a paragraph that had speech, nor past a paragraph that names nobody", () => {
+    expect(colors('"Hi," said Ember.\n\n"Yo."')).toEqual(["222222", "theme"]);
+    expect(colors('Rhea steps forward.\n\nThe door shakes.\n\n"Yo."')).toEqual(["theme"]);
+  });
+  it("a name on the paragraph's own lines wins over the carried one", () => {
+    expect(colors('Rhea steps forward.\n\nEmber: "Wait."')).toEqual(["222222"]);
+  });
+  it("leaves a message without voices untouched", () => {
+    expect(renderToStaticMarkup(<Markdown content={"Rhea steps.\n\n— Hi."} />)).not.toContain("data-carry");
+  });
+});
