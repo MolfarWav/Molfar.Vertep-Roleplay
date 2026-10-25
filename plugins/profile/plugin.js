@@ -446,12 +446,18 @@ export function draftFromReply(reply, now) {
     };
   }
   let profile = cleanProfile(out.profile);
+  // some models drop the "profile" wrapper and put the sections at the top level of the object
+  if (!Object.keys(profile).length && !(Array.isArray(out.cast) && out.cast.length)) profile = cleanProfile(out);
   // the other characters of a narrator card; one that filled nothing is not a character
   const cast = (Array.isArray(out.cast) ? out.cast : []).slice(0, CAST_MAX).map(cleanProfile).filter((m) => Object.keys(m).length);
   if (!Object.keys(profile).length && cast.length) profile = cast.shift();
   const lo = isObj(out.leftover) ? out.leftover : {};
   const leftover = { description: cut(str(lo.description), LEFTOVER_MAX), personality: cut(str(lo.personality), LEFTOVER_MAX) };
-  if (!Object.keys(profile).length) return { v: 1, at, error: "the reply filled no field" };
+  if (!Object.keys(profile).length) {
+    // name what the reply did contain, so a model that answers in its own shape can be told from an empty one
+    const had = Object.keys(out).slice(0, 8).join(", ");
+    return { v: 1, at, error: "the reply filled no field" + (had ? " (it had: " + cut(had, 120) + ")" : "") };
+  }
   return { v: 1, at, ...(str(r.model) ? { model: str(r.model) } : {}), ...(str(out.note) ? { note: cut(str(out.note), 300) } : {}), profile, ...(cast.length ? { cast } : {}), leftover };
 }
 
