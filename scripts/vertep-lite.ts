@@ -50,7 +50,7 @@ const CRAFT = `## Characters
 - Voice: each character speaks with their own vocabulary, rhythm and education, as the card and its examples show. Stress breaks grammar; people interrupt, trail off, dodge a question.
 - React to what {{user}} meant, not to the wording. Never echo {{user}}'s words back.
 - Show feelings through the body and behaviour, and name the visible reaction plainly: a blush, a smile held too long, a frown, hands that will not stay still. Leave the feeling itself to the reader.
-- When several characters speak, name the speaker in the same paragraph as their line.
+- When several characters speak, name the speaker by name (not only "he" or "she") in the same paragraph as every line, in the story's language: "I won't," Rhea said.
 
 ## Prose
 - Stay inside the scene: what can be seen, heard, touched, smelled, tasted right now. Rotate the senses.

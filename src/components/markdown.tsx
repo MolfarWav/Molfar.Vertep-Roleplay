@@ -31,13 +31,17 @@ const htmlSchema = {
   },
 }
 
-/** Splits text on quote marks while keeping them: "straight", “curly”, «guillemets». */
-const MARK_RE = /(["“”«»])/
+/** Finds what changes the dialogue state inside a text: a quote mark ("straight", “curly”, «guillemets»),
+ *  a line break, or a dash (— or –). */
+const SCAN_RE = /["“”«»]|\n|[—–]/g
+
+/** Punctuation a spaced dash may follow when it opens or closes a line of dialogue (— Hi, — she said.) */
+const DASH_AFTER = /[,.!?…:;]/
 
 /** Elements whose text is code/markup — never re-tint inside them. */
 const OPAQUE = new Set(['code', 'pre', 'kbd', 'samp'])
 
-type QuoteKind = 'straight' | 'curly' | 'guillemet'
+type QuoteKind = 'straight' | 'curly' | 'guillemet' | 'dash' | 'remark'
 const OPENERS: Record<string, QuoteKind> = { '"': 'straight', '“': 'curly', '«': 'guillemet' }
 const CLOSERS: Record<string, QuoteKind> = { '"': 'straight', '”': 'curly', '»': 'guillemet' }
 
@@ -54,6 +58,11 @@ const CLOSERS: Record<string, QuoteKind> = { '"': 'straight', '”': 'curly', '�
  *
  * An unterminated quote tints to the end of the block, so streamed dialogue
  * colors from the opening mark onward instead of popping in at the close.
+ *
+ * Dialogue set off by dashes (Russian, Ukrainian, French) is tinted too: a line
+ * that opens with a dash is speech to the end of the line, except the author's
+ * words between two dashes (`— No, — she said. — Go.`). A dash only counts after
+ * sentence punctuation, so `— I — Rhea.` stays one line of speech.
  */
 function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   if (depth > 6) return children
@@ -61,6 +70,7 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   const out: ReactNode[] = []
   let group: ReactNode[] = [] // nodes inside the currently open quote
   let open: QuoteKind | null = null
+  let lineStart = true // nothing but spaces yet on this line
   let key = 0
 
   const flush = () => {
@@ -72,54 +82,107 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
     }
     open = null
   }
+  /** Ends a dash line of speech before the spaces that lead to the closing dash, so they stay untinted. */
+  const endSpeech = () => {
+    const last = group[group.length - 1]
+    const trail = typeof last === 'string' ? /\s+$/.exec(last)?.[0] ?? '' : ''
+    if (trail) group[group.length - 1] = (last as string).slice(0, -trail.length)
+    flush()
+    if (trail) out.push(trail)
+  }
+  const put = (text: string) => {
+    if (!text) return
+    if (/\S/.test(text)) lineStart = false
+    if (open && open !== 'remark') group.push(text)
+    else out.push(text)
+  }
+  const lineEnds = () => {
+    if (open === 'dash') flush()
+    else if (open === 'remark') open = null
+    lineStart = true
+  }
 
   for (const child of Children.toArray(children)) {
     if (typeof child === 'string') {
-      for (const token of child.split(MARK_RE)) {
-        if (!token) continue
-        if (open) {
-          if (CLOSERS[token] === open) {
-            group.push(token)
-            flush()
-          } else if (open === 'straight' && token.includes('\n')) {
+      let from = 0
+      for (const m of child.matchAll(SCAN_RE)) {
+        const token = m[0]
+        const at = m.index
+        const before = child.slice(from, at)
+        put(before)
+        from = at + token.length
+        if (token === '\n') {
+          if (open === 'straight') {
             // A hard break ends an unclosed straight quote — bail out so a
             // stray mark can't paint the rest of the message as dialogue.
             out.push(...group, token)
             group = []
             open = null
-          } else {
+          } else if (open === 'dash' || open === 'remark') {
+            lineEnds()
+            out.push(token)
+          } else put(token)
+          lineStart = true
+        } else if (token === '—' || token === '–') {
+          const spaced = from >= child.length || /\s/.test(child[from]!)
+          const prev = child.slice(0, at).replace(/[ \t]+$/, '').slice(-1)
+          const afterPunct = DASH_AFTER.test(prev) && (at === 0 || /\s/.test(child[at - 1]!))
+          if (open === 'dash' && spaced && afterPunct) {
+            endSpeech()
+            open = 'remark'
+            out.push(token)
+          } else if (open === 'remark' && spaced && afterPunct) {
+            open = 'dash'
             group.push(token)
-          }
+          } else if (!open && spaced && (lineStart || (prev === ':' && afterPunct))) {
+            open = 'dash'
+            group.push(token)
+            lineStart = false
+          } else put(token)
+        } else if (open === 'dash' || open === 'remark') {
+          put(token) // quote marks inside a dash line are only text
+        } else if (open) {
+          if (CLOSERS[token] === open) {
+            group.push(token)
+            flush()
+          } else group.push(token)
         } else if (OPENERS[token]) {
           open = OPENERS[token]
           group.push(token)
-        } else {
-          out.push(token)
-        }
+          lineStart = false
+        } else put(token)
       }
+      put(child.slice(from))
       continue
     }
 
     if (isValidElement(child)) {
       const el = child as ReactElement<{ children?: ReactNode }>
       const tag = typeof el.type === 'string' ? el.type : ''
-      if (open) {
+      if (tag === 'br' && (open === 'dash' || open === 'remark')) {
+        lineEnds()
+        out.push(child)
+      } else if (open && open !== 'remark') {
         // e.g. a bolded phrase or inline code inside spoken dialogue: it
         // stays where it was written (code keeps its own look, never re-tinted)
         group.push(child)
+      } else if (open === 'remark') {
+        out.push(child)
       } else if (!OPAQUE.has(tag) && el.props?.children != null) {
         out.push(cloneElement(el, undefined, tintQuotes(el.props.children, depth + 1)))
+        lineStart = false
       } else {
         out.push(child)
+        lineStart = tag === 'br'
       }
       continue
     }
 
-    if (open) group.push(child)
+    if (open && open !== 'remark') group.push(child)
     else out.push(child)
   }
 
-  if (open) flush() // streaming: tint the still-open quote to the block's end
+  if (open && open !== 'remark') flush() // streaming: tint the still-open quote to the block's end
   return out
 }
 
@@ -146,9 +209,9 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
 }
 
 /** Who speaks on each line: a `Name:` lead wins, else the first voice named in the line, else the
- *  previous line's speaker; null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[]): (DialogueVoice | null)[] {
-  let carry: DialogueVoice | null = null
+ *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null): (DialogueVoice | null)[] {
+  let carry: DialogueVoice | null = carryIn
   return lineTexts(children).map((line) => {
     carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
     return carry
@@ -180,11 +243,47 @@ function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st
   return out
 }
 
+type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] }
+
+/** The text of a hast node, a `<br>` as a line break. */
+function hastText(node: HastNode): string {
+  if (node.type === 'text') return node.value ?? ''
+  if (node.type === 'element' && node.tagName === 'br') return '\n'
+  return (node.children ?? []).map(hastText).join('')
+}
+
+/** A paragraph with speech in it: quote marks, a line that opens with a dash, or a dash after a colon. */
+const hasSpeech = (text: string) => /["“”«»]/.test(text) || /(^|\n)\s*[—–]\s/.test(text) || /:\s+[—–]\s/.test(text)
+
+/**
+ * A paragraph of speech that names nobody ("— No, — she said.") takes the speaker of the narration
+ * paragraph right before it ("Rhea steps forward."). Marks each paragraph with `data-carry`, the name of
+ * the voice that paragraph hands on; a paragraph with speech hands on nobody, so a reply by someone else
+ * is never painted with the wrong colour. Runs after the sanitizer, which would drop the attribute.
+ */
+function rehypeVoiceCarry(voices: DialogueVoice[]) {
+  return (tree: HastNode) => {
+    let carry: DialogueVoice | null = null
+    const walk = (node: HastNode) => {
+      for (const child of node.children ?? []) {
+        if (child.type !== 'element' || child.tagName === 'pre' || child.tagName === 'code') continue
+        if (child.tagName === 'p') {
+          if (carry) child.properties = { ...child.properties, 'data-carry': carry.name }
+          const text = hastText(child)
+          carry = hasSpeech(text) ? null : lineSpeakers(text, voices).at(-1) ?? null
+        } else walk(child)
+      }
+    }
+    walk(tree)
+  }
+}
+
 const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | 'td' | 'th') =>
-  function Tinted({ children }: { children?: ReactNode }) {
+  function Tinted({ children, ...rest }: { children?: ReactNode; 'data-carry'?: string }) {
     const voices = useContext(DialogueVoices)
     const tinted = tintQuotes(children)
-    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices), { line: 0 }) : tinted}</Tag>
+    const carryIn = voices.find((v) => v.name === rest['data-carry']) ?? null
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn), { line: 0 }) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
@@ -269,6 +368,7 @@ function MessageImage({ src, alt, title }: { src?: string; alt?: string; title?:
 // memoized: re-parses markdown (remark/rehype/KaTeX/highlight) ONLY when the
 // content string actually changes — not on every parent re-render
 export const Markdown = memo(function Markdown({ content, className, scope }: { content: string; className?: string; scope?: string }) {
+  const voices = useContext(DialogueVoices)
   return (
     <div
       className={cn(
@@ -302,6 +402,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
             rehypeSafeStyle,
             rehypeKatex,
             [rehypeHighlight, { detect: false, ignoreMissing: true }],
+            ...(voices.length ? [[rehypeVoiceCarry, voices] as [typeof rehypeVoiceCarry, DialogueVoice[]]] : []),
           ]}
           components={mdComponents}
         >

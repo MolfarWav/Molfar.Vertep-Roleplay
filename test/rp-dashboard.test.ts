@@ -3252,6 +3252,37 @@ describe("presence guard", () => {
     const snap = second([U("u1", "Well then."), Bram("b2", "Ok.")], {});
     expect(snap.present).toEqual(["Aria", "Bram"]);
   });
+
+  describe("a rated character the sensor left out of the cast", () => {
+    const cast = { Aria: { class: "ally", pronouns: "she" }, "Bram Holt": { class: "neutral", pronouns: "he", aliases: ["Брам"] }, Cora: { class: "ally", pronouns: "she" } };
+    const first = (msgs: Msg[], out: Record<string, unknown>) => {
+      fs.writeFileSync(path.join(root, "characters/aria/card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Aria", extensions: { molfar_soul: { v: 1, characters: cast } } }));
+      writeChat("c1", msgs);
+      const mock = mockHost([reply({ minutes: 1, ...out })]);
+      expect(update(mock, "c1").json.ok).toBe(true);
+      return readStateFile("c1").snapshots[msgs[msgs.length - 1]!.id + "#0"];
+    };
+    const story = (text: string) => [U("u1", "Hello."), A("a1", text)];
+
+    it("joins when the story names them again and again, by first name, though the sensor listed one person", () => {
+      const snap = first(story("Cora laughed. Bram stepped in. Cora took his arm and Bram nodded."), { present: ["Aria"] });
+      expect(snap.present).toEqual(expect.arrayContaining(["Aria", "Cora", "Bram Holt"]));
+      expect(snap.chars["Cora"].compact).toBe(false);
+    });
+    it("joins when the story is in another script, by an alias or the sound of the name", () => {
+      const snap = first(story("Кора усмехнулась. Брам вошёл. Брама никто не ждал, и Кора промолчала."), { present: ["Aria"] });
+      expect(snap.present).toContain("Bram Holt");
+      expect(snap.present).toContain("Cora");
+    });
+    it("a single mention, a name only in a user line, or a lower-case word does not bring anyone in", () => {
+      expect(first(story("Cora waved from far away."), { present: ["Aria"] }).present).toEqual(["Aria"]);
+      expect(first([U("u1", "Is Cora here? Cora? Bram?"), A("a1", "No.")], { present: ["Aria"] }).present).toEqual(["Aria"]);
+      expect(first(story("The cora of the fruit, the cora again."), { present: ["Aria"] }).present).toEqual(["Aria"]);
+    });
+    it("one the sensor says left is not brought back, and an empty list stays for the sensor's own words", () => {
+      expect(first(story("Cora ran. Cora fell."), { present: ["Aria"], struck: ["Cora"] }).present).toEqual(["Aria"]);
+    });
+  });
 });
 
 describe("the sensor prompt default", () => {
