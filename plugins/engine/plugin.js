@@ -826,6 +826,76 @@ function cardGreetings(fsx, meta, charId, card) {
     .map((t) => regexOnSave(fsx, meta, [who], t, "ai_output", saveMacros(fsx, meta, [], who)));
 }
 
+/** A group chat's opening messages, as a new chat seeds them: the group's own
+ *  narrated openings, then each member's. keep (optional) maps a speaker
+ *  (charId, "" = the narrator) to the swipe a re-seed should stay on, so
+ *  rebuilding an untouched opening keeps the pick the person saw. */
+function groupOpenings(fsx, meta, g, userName, keep) {
+  const msgs = [];
+  const stay = (key, count, fallback) => (keep && keep.has(key) ? Math.min(Math.max(0, Math.floor(keep.get(key))), count - 1) : fallback);
+  // the group's own openings: one narrated scene-setter, the variants as swipes
+  const openings = (Array.isArray(g.openings) ? g.openings : []).map(String).filter((t) => t.trim())
+    .map((t) => t.split("{{user}}").join(userName));
+  if (openings.length) {
+    const at = stay("", openings.length, 0);
+    msgs.push({ id: uid(), name: "Narrator", charId: null, role: "system", text: openings[at], at: Date.now(), swipes: openings, swipe: at, greeting: true });
+  }
+  // each member's opening, by the group's choice for that member: "group" (default) = its
+  // group-only greetings, "none" = no opening, a number = that greeting of the card
+  // (0 = first message, then the alternates), every greeting as a swipe
+  for (const mid of g.memberIds || []) {
+    const card = readJsonFile(fsx, "characters/" + mid + "/card.json");
+    if (!card) continue;
+    if ((g.mutedIds || []).includes(mid)) continue;
+    const pickOpening = g.memberSettings && g.memberSettings[mid] ? g.memberSettings[mid].opening : undefined;
+    if (pickOpening === "none") continue;
+    if (typeof pickOpening === "number" && pickOpening >= 0) {
+      const all = cardGreetings(fsx, meta, mid, card);
+      if (!all.length) continue;
+      const at = stay(mid, all.length, Math.min(Math.floor(pickOpening), all.length - 1));
+      const swipes = all.map((t) => t.split("{{user}}").join(userName).split("{{char}}").join(card.name));
+      msgs.push({ id: uid(), name: card.name, charId: mid, role: "char", text: swipes[at], at: Date.now(), swipes, swipe: at, greeting: true });
+      continue;
+    }
+    const gg = Array.isArray(card.group_only_greetings) ? card.group_only_greetings
+      : card.extensions && Array.isArray(card.extensions.group_greetings) ? card.extensions.group_greetings : [];
+    const who = { id: mid, name: card.name, card };
+    const list = gg.map(String).filter((t) => t.trim()).map((t) => regexOnSave(fsx, meta, [who], t, "ai_output", saveMacros(fsx, meta, [], who)));
+    if (!list.length) continue;
+    const pick = stay(mid, list.length, Math.floor(Math.random() * list.length));
+    const text = list[pick].split("{{user}}").join(userName).split("{{char}}").join(card.name);
+    msgs.push({ id: uid(), name: card.name, charId: mid, role: "char", text, at: Date.now(), swipes: list, swipe: pick, greeting: true });
+  }
+  return msgs;
+}
+
+/** A chat that is still only its opening: every message is a greeting nobody
+ *  edited, and the tainted mark (a sent turn, a deleted message) is absent.
+ *  Only such a chat re-reads {{user}} when the persona changes. */
+function pristineOpening(meta, msgs) {
+  return !meta.tainted && msgs.length > 0 && msgs.every((m) => m.greeting === true && !m.edited);
+}
+
+/** The opening of a pristine chat, read again for the persona the chat has now:
+ *  {{user}} (and the other macros) take the new name, the swipe each greeting
+ *  is on stays. A chat whose first turn was sent keeps its history as written. */
+function reopenGreetings(fsx, meta, msgs) {
+  const userName = chatUserName(fsx, meta);
+  const group = meta.groupId ? chatGroup(fsx, meta) : null;
+  const fresh = group
+    ? new Map(groupOpenings(fsx, meta, group, userName, new Map(msgs.map((m) => [m.charId || "", m.swipe || 0]))).map((m) => [m.charId || "", m]))
+    : null;
+  return msgs.map((m) => {
+    if (fresh) {
+      const f = fresh.get(m.charId || "");
+      return f ? { ...m, text: f.text, swipes: f.swipes, swipe: f.swipe, translation: undefined } : m;
+    }
+    const swipes = m.swipes && m.swipes.length ? m.swipes : [m.text];
+    const text = expandMacros(String(swipes[m.swipe || 0]), transcriptMacros(msgs, { userName, charName: m.name, personaText: "", chatId: meta.id, vars: meta.chatVars || (meta.chatVars = {}) }));
+    return { ...m, text, translation: undefined };
+  });
+}
+
 /** Stored-text rewrite for one message about to be saved (user input, a
  *  reply, a greeting, reasoning): the scripts with neither "only" flag. */
 function regexOnSave(fsx, meta, members, text, placement, mc) {
@@ -4737,38 +4807,7 @@ export function handleRoute(req, host) {
           if (b.openingMessage && String(b.openingMessage).trim()) {
             msgs.push({ id: uid(), name: "System", charId: null, role: "system", text: String(b.openingMessage), at: Date.now(), swipes: [String(b.openingMessage)], swipe: 0 });
           }
-          // the group's own openings: one narrated scene-setter, the variants as swipes
-          const openings = (Array.isArray(g.openings) ? g.openings : []).map(String).filter((t) => t.trim())
-            .map((t) => t.split("{{user}}").join(userName));
-          if (openings.length) {
-            msgs.push({ id: uid(), name: "Narrator", charId: null, role: "system", text: openings[0], at: Date.now(), swipes: openings, swipe: 0, greeting: true });
-          }
-          // each member's opening, by the group's choice for that member: "group" (default) = its
-          // group-only greetings, "none" = no opening, a number = that greeting of the card
-          // (0 = first message, then the alternates), every greeting as a swipe
-          for (const mid of g.memberIds || []) {
-            const card = readJson("characters/" + mid + "/card.json", null);
-            if (!card) continue;
-            if ((g.mutedIds || []).includes(mid)) continue;
-            const pickOpening = g.memberSettings && g.memberSettings[mid] ? g.memberSettings[mid].opening : undefined;
-            if (pickOpening === "none") continue;
-            if (typeof pickOpening === "number" && pickOpening >= 0) {
-              const all = cardGreetings(fsx, meta, mid, card);
-              if (!all.length) continue;
-              const at = Math.min(Math.floor(pickOpening), all.length - 1);
-              const swipes = all.map((t) => t.split("{{user}}").join(userName).split("{{char}}").join(card.name));
-              msgs.push({ id: uid(), name: card.name, charId: mid, role: "char", text: swipes[at], at: Date.now(), swipes, swipe: at, greeting: true });
-              continue;
-            }
-            const gg = Array.isArray(card.group_only_greetings) ? card.group_only_greetings
-              : card.extensions && Array.isArray(card.extensions.group_greetings) ? card.extensions.group_greetings : [];
-            const who = { id: mid, name: card.name, card };
-            const list = gg.map(String).filter((t) => t.trim()).map((t) => regexOnSave(fsx, meta, [who], t, "ai_output", saveMacros(fsx, meta, [], who)));
-            if (!list.length) continue;
-            const pick = Math.floor(Math.random() * list.length);
-            const text = list[pick].split("{{user}}").join(userName).split("{{char}}").join(card.name);
-            msgs.push({ id: uid(), name: card.name, charId: mid, role: "char", text, at: Date.now(), swipes: list, swipe: pick, greeting: true });
-          }
+          msgs.push(...groupOpenings(fsx, meta, g, userName, null));
         }
       }
       saveChat(fsx, cid, meta, msgs);
@@ -4942,6 +4981,15 @@ const toolX = (r) => ({
       if ("personaId" in b && b.personaId !== prevPersonaId) {
         const persona = b.personaId ? readJson("personas/" + b.personaId + ".json", null) : null;
         if (persona && persona.name) meta.userName = persona.name;
+        // ...except a chat nobody has answered yet: its greeting is not history, it is
+        // the opening, and {{user}} in it should name whoever is about to reply. The
+        // transcript is rewritten without touching updatedAt, like the rest of this route.
+        if (pristineOpening(meta, chat.msgs)) {
+          const reopened = reopenGreetings(fsx, meta, chat.msgs);
+          if (JSON.stringify(reopened) !== JSON.stringify(chat.msgs)) {
+            fsx.write("chats/" + id + ".jsonl", reopened.map((m) => JSON.stringify(m)).join("\n") + "\n");
+          }
+        }
       }
       // Settings and automatic binding repairs do not represent chat activity.
       writeJson("chats/" + id + ".meta.json", meta);
