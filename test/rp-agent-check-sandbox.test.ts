@@ -64,6 +64,20 @@ describe("agent-check.js in a bare context", () => {
   });
 });
 
+describe("agent-run.js is sandbox-safe too", () => {
+  const run = fs.readFileSync(new URL("../src/canvas-kit/boards/agent-run.js", import.meta.url), "utf8");
+  const code = run.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/ .*$/gm, "");
+  it("imports only its sibling checker, and uses no async, crypto or TextEncoder", () => {
+    expect([...code.matchAll(/^[ \t]*import[ \t].*$/gm)].map((m) => m[0].replace(/\{.*\}/, "{}"))).toEqual(["import {} from './agent-check.js';"]);
+    expect(code).not.toMatch(/\basync\b|\bawait\b|\bcrypto\b|\bTextEncoder\b|\bDate\b|\bMath\.random\b/);
+  });
+  it("the two files share no top-level name, so they can be pasted together", () => {
+    const top = (src: string) => [...src.matchAll(/^(?:export )?(?:const|let|function) ([A-Za-z0-9_]+)/gm)].map((m) => m[1]);
+    const mine = new Set(top(run));
+    expect(top(source).filter((n) => mine.has(n))).toEqual([]);
+  });
+});
+
 describe("agent-check.js parts", () => {
   it("sha256 equals node's on odd lengths, Cyrillic, emoji and a long text", () => {
     const bare = loadInBareContext();

@@ -566,9 +566,34 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
   `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null); it answers what runs now,
   as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show } ] }`.
+### Running an agent (`agent-run.js`)
+
+`runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never
+calls a model or touches a file, and it is called again with more `answers` until it is done, like the engine's two-phase
+generation. `ctx` = `{ inputs, own, dash, chat }`: `inputs` is what the host read for the Input card, by `give` id; `own` the
+agent's own fields; `dash` the Dashboard fields (`state` sources and `state` operands read these); `chat` = `{ messageCount,
+lastSpeaker }`. `answers` = `{ <model.ask card id>: { text } | { error } }`. The result is one of:
+- `{ status: "need", requests }`: the `model.ask` calls that can run now (all independent ones at once), each `{ node, role,
+  prompt, maxTokens }`. The prompt already carries the format the card expects (YES/NO on the first line, or JSON in the
+  card's `shape`).
+- `{ status: "done", writes, outputs, calls, trace }`: `writes` are staged changes (`dash.set`, `own.set`, `own.add`,
+  `list.add`, `list.update`, `list.remove`), applied by the host only after a successful run, with
+  `applyWrites(schema, own, writes)`; `outputs` are what the Output cards produced (`state-patch`, `prompt-insert`, `note`,
+  `choices`, each with its `show`); `trace` says for every card whether it ran, was skipped or waited.
+- `{ status: "failed", reason, node }`: a model call failed, an answer did not fit the card's `shape`, or `data.parse` failed
+  with no `failed` wire.
+
+A wire carries a value, or *skipped* (that path did not fire), or *missing* (an empty field, an unread source). A card that
+needs a value and gets either is skipped, and so is everything that depends only on it; a skipped card costs nothing.
+`logic.if` is the exception: missing data is `unknown` there, never `no` (a rule on a number that is not there answers
+Unknown; `isSet` and `isMissing` ask exactly that). A YES/NO answer the executor cannot read is `unknown` too. `applyWrites`
+keeps numbers inside the field's `min`/`max` (and a card's `maxStep`), refuses a wrong type or a missing field, and a full
+list takes no new entry; each refusal is returned, nothing throws. `agent-run.js` shares the sandbox rules of the checker
+(no async, no globals) and its only import is the checker; the runner plugin carries both pasted together.
+
 Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
 `E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
-`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
