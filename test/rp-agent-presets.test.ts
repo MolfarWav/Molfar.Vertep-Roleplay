@@ -96,6 +96,14 @@ describe("editChatAgents: the first change makes a copy", () => {
     b = eng.editChatAgents(b, base, { op: "remove", agent: "scene-plan" }) as Json;
     expect(b.own.map((i: Json) => i.agent)).toEqual(["extra-one", "mood-tracker"]);
   });
+  it("wait: false is kept on the copy and dropped again when the reply waits (the default)", () => {
+    let b: Json = eng.editChatAgents({ v: 1, preset: "rp" }, base, { op: "wait", agent: "scene-plan", wait: false }) as Json;
+    expect(b.own[0]).toEqual({ agent: "scene-plan", on: true, phase: "before", wait: false });
+    expect(eng.resolveChatAgents(b, presets(), null).items[0]).toMatchObject({ agent: "scene-plan", wait: false });
+    b = eng.editChatAgents(b, base, { op: "wait", agent: "scene-plan", wait: true }) as Json;
+    expect(b.own[0]).toEqual({ agent: "scene-plan", on: true, phase: "before" });
+    expect(eng.cleanAgentPreset({ items: [{ agent: "scene-plan", wait: false }, { agent: "mood-tracker", wait: "no" }] }, "x")?.items).toEqual([{ agent: "scene-plan", on: true, wait: false }, { agent: "mood-tracker", on: true }]);
+  });
   it("removing the last agent leaves an empty own copy, not the preset again", () => {
     let b: Json = eng.editChatAgents({ v: 1, preset: "rp" }, base, { op: "remove", agent: "scene-plan" }) as Json;
     b = eng.editChatAgents(b, base, { op: "remove", agent: "mood-tracker" }) as Json;
