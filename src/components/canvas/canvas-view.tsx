@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, ArrowsClockwise, Robot } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowClockwise, Sparkle, FrameCorners, PencilSimple, Eye, ListBullets, Graph as GraphIcon, CaretRight, Info, LinkBreak, Trash, ArrowsClockwise, Robot, ListChecks } from '@phosphor-icons/react'
 import { takeCanvasFocus } from './canvas-focus'
 import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { ChatShelf } from './chat-shelf'
 import { PromptBoard } from './prompt-board'
 import { AgentForge } from './agent-forge'
+import { AgentSets } from './forge/agent-sets'
 import { useGuidePlace } from '@/components/guide/place'
 
 type ChatInfo = LitChatItem
@@ -123,11 +124,11 @@ export function CanvasView() {
 
   const allChats = useMemo(() => chats || [], [chats])
 
-  const [board, setBoard] = useState<'links' | 'prompt' | 'agents'>(() => {
+  const [board, setBoard] = useState<'links' | 'prompt' | 'agents' | 'sets'>(() => {
     const saved = storage.get<string>(BOARD_KEY, 'links')
-    return saved === 'prompt' || saved === 'agents' ? saved : 'links'
+    return saved === 'prompt' || saved === 'agents' || saved === 'sets' ? saved : 'links'
   })
-  const pickBoard = useCallback((b: 'links' | 'prompt' | 'agents') => {
+  const pickBoard = useCallback((b: 'links' | 'prompt' | 'agents' | 'sets') => {
     setBoard(b)
     storage.set(BOARD_KEY, b)
   }, [])
@@ -135,7 +136,7 @@ export function CanvasView() {
   useEffect(() => {
     const onBoard = (e: Event) => {
       const b = (e as CustomEvent).detail
-      if (b === 'links' || b === 'prompt' || b === 'agents') pickBoard(b)
+      if (b === 'links' || b === 'prompt' || b === 'agents' || b === 'sets') pickBoard(b)
     }
     window.addEventListener('rp-guide-board', onBoard)
     return () => window.removeEventListener('rp-guide-board', onBoard)
@@ -496,10 +497,10 @@ export function CanvasView() {
     [fullGraph]
   )
 
-  useGuidePlace(board === 'prompt' ? 'canvas.prompt' : 'canvas.links', board !== 'agents' && !loading && !error && allChats.length > 0)
+  useGuidePlace(board === 'prompt' ? 'canvas.prompt' : 'canvas.links', board !== 'agents' && board !== 'sets' && !loading && !error && allChats.length > 0)
 
   // the agent editor works on files, not on chats, so it needs none of the chat data below
-  if (loading && board !== 'agents') {
+  if (loading && board !== 'agents' && board !== 'sets') {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         {t('canvas.loading')}
@@ -507,7 +508,7 @@ export function CanvasView() {
     )
   }
 
-  if (error && board !== 'agents') {
+  if (error && board !== 'agents' && board !== 'sets') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <div className="text-sm text-destructive">{error}</div>
@@ -519,7 +520,7 @@ export function CanvasView() {
     )
   }
 
-  if (allChats.length === 0 && board !== 'agents') {
+  if (allChats.length === 0 && board !== 'agents' && board !== 'sets') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
         <div className="text-lg font-semibold">{t('canvas.empty.title')}</div>
@@ -541,19 +542,19 @@ export function CanvasView() {
         <div data-guide="canvas.boards" className="flex rounded-lg bg-muted p-0.5">
           <button
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'links' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'links'}
             onClick={() => pickBoard('links')}
           >
-            <LinkBreak className="h-4 w-4" />
+            <LinkBreak className="h-4 w-4 max-md:hidden" />
             {t('canvas.board.links')}
           </button>
           <button
             data-guide="canvas.board-prompt"
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'prompt' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'prompt'}
@@ -563,21 +564,33 @@ export function CanvasView() {
               pickBoard('prompt')
             }}
           >
-            <GraphIcon className="h-4 w-4" />
+            <GraphIcon className="h-4 w-4 max-md:hidden" />
             {t('canvas.board.prompt')}
           </button>
           <button
             data-guide="canvas.board-agents"
             data-testid="board-agents"
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'agents' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'agents'}
             onClick={() => pickBoard('agents')}
           >
-            <Robot className="h-4 w-4" />
+            <Robot className="h-4 w-4 max-md:hidden" />
             {t('canvas.board.agents')}
+          </button>
+          <button
+            data-testid="board-sets"
+            className={cn(
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              board === 'sets' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
+            )}
+            aria-pressed={board === 'sets'}
+            onClick={() => pickBoard('sets')}
+          >
+            <ListChecks className="h-4 w-4 max-md:hidden" />
+            {t('canvas.board.sets')}
           </button>
         </div>
 
@@ -605,10 +618,10 @@ export function CanvasView() {
 
         <div className="flex-1" />
 
-        {board !== 'agents' && <div data-guide="canvas.mode" className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
+        {board !== 'agents' && board !== 'sets' && <div data-guide="canvas.mode" className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
           <button
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
               editable ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={editable}
@@ -619,7 +632,7 @@ export function CanvasView() {
           </button>
           <button
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
               !editable ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={!editable}
@@ -630,7 +643,7 @@ export function CanvasView() {
           </button>
         </div>}
 
-        {isMobile && board !== 'agents' && (
+        {isMobile && board !== 'agents' && board !== 'sets' && (
           <div className="flex rounded-lg bg-muted p-0.5">
             <button
               className={cn(
@@ -693,6 +706,10 @@ export function CanvasView() {
       {board === 'agents' ? (
         <div className="min-h-0 flex-1">
           <AgentForge />
+        </div>
+      ) : board === 'sets' ? (
+        <div className="min-h-0 flex-1">
+          <AgentSets onOpenAgents={() => pickBoard('agents')} />
         </div>
       ) : board === 'prompt' ? (
         <div className="min-h-0 flex-1">

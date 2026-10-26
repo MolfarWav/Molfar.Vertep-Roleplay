@@ -25,6 +25,9 @@ export function useAgentsData(chatId: string, enabled: boolean) {
   const [sets, setSets] = useState<AgentSet[]>([])
   const [defaultSet, setDefault] = useState<string | null>(null)
   const [runs, setRuns] = useState<AgentRun[]>([])
+  // `t` is a new function on every render: as a dependency it made every state update read everything again
+  const tRef = useRef(t)
+  tRef.current = t
 
   const reload = useCallback(async () => {
     const [l, i, s, d, r] = await Promise.allSettled([loadChatAgents(chatId), listInstalledAgents(), listAgentSets(), loadDefaultAgentSet(), loadAgentRuns(chatId)])
@@ -34,8 +37,8 @@ export function useAgentsData(chatId: string, enabled: boolean) {
     if (r.status === 'fulfilled') setRuns(r.value)
     // a missing runs route just means the plugin is absent: the installed list says so
     const failed = [l, i, s, d].find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined
-    if (failed) toast.error(t('ag.loadFailed', { why: errText(failed.reason) }))
-  }, [chatId, t])
+    if (failed) toast.error(tRef.current('ag.loadFailed', { why: errText(failed.reason) }))
+  }, [chatId])
 
   useEffect(() => { if (enabled) void reload() }, [enabled, reload])
   /** Just the installed list: every plugin call builds the sandbox again, so an install does not re-read the rest. */

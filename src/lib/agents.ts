@@ -43,7 +43,7 @@ export interface ChatAgents {
   items: ChatAgentItem[]
 }
 
-export interface AgentSet { id: string; name: string; items: { agent: string; on: boolean; phase?: AgentPhase }[] }
+export interface AgentSet { id: string; name: string; items: { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean }[] }
 
 export type ChatAgentsOp =
   | { op: 'preset'; preset: string | null }
