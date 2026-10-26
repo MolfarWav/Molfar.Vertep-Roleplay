@@ -586,12 +586,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "425-425",
+          "lines": "436-436",
           "quote": "Dialogue set off by a dash (— Hello) is coloured like quoted speech, with the author\\'s words between two dashes left plain."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "425-425",
+          "lines": "436-436",
           "quote": "A voice is found when the story spells its name in the other script (Ember as Эмбер)."
         },
         {
@@ -687,7 +687,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "820-820",
+          "lines": "831-831",
           "quote": "A persona is who you play: name, pronouns and description. “Use this persona” makes it your default and switches the open chat to it."
         },
         {
@@ -739,7 +739,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "797-797",
+          "lines": "808-808",
           "quote": "A group puts several characters into one chat. Create one with New group; its editor has Overview, Members, Scene, Turns, Lore and Chats."
         },
         {
@@ -801,7 +801,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "808-808",
+          "lines": "819-819",
           "quote": "In a group’s Turns tab, Generation mode is either Narrator (one reply voices everyone) or Each in turn."
         },
         {
@@ -898,17 +898,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "617-617",
+          "lines": "628-628",
           "quote": "Quests are the open questions and promises that drive the story: main ones (what it is about now), side ones, and small everyday ones that end by themselves."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "414-414",
+          "lines": "425-425",
           "quote": "Story, move can pick a quest or a step, or add a Twist: something outside the quests."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "641-641",
+          "lines": "652-652",
           "quote": "The arrow beside it picks one open quest to pull on."
         }
       ]
@@ -950,7 +950,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "629-629",
+          "lines": "640-640",
           "quote": "You can add a note, edit one, pin it or mark it important or everyday, and remove it or bring it back."
         }
       ]
@@ -1138,22 +1138,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "723-723",
+          "lines": "734-734",
           "quote": "Record in the chat header (on a phone: Menu) opens the Library record of this chat in a side panel: chapters, facts and proposals, with an option to rebuild"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "625-625",
+          "lines": "628-628",
           "quote": "which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay)."
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "174-174",
+          "lines": "177-177",
           "quote": "Rebuild from scratch no longer empties a chat's record: with no closed scene it refuses to start"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "620-620",
+          "lines": "623-623",
           "quote": "**Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling)"
         }
       ]
@@ -1190,7 +1190,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "457-457",
+          "lines": "468-468",
           "quote": "Litopys follows the scenes you see"
         },
         {
@@ -1238,7 +1238,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "677-677",
+          "lines": "688-688",
           "quote": "Litopys, the chronicler, writes a chapter after each scene closes and keeps facts about the story."
         },
         {
@@ -1305,7 +1305,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "689-689",
+          "lines": "700-700",
           "quote": "Overview shows a chat’s story as a timeline of chapters with its characters beside it."
         }
       ]
@@ -1342,7 +1342,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "699-699",
+          "lines": "710-710",
           "quote": "Facts are things the story has established, each with a type, a weight and who knows it; pin the important ones."
         },
         {
@@ -1394,7 +1394,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "711-711",
+          "lines": "722-722",
           "quote": "The map shows which chats continue which, and it is view-only."
         },
         {
@@ -1442,7 +1442,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "735-735",
+          "lines": "746-746",
           "quote": "World in the chat header (on a phone: Menu) switches on a game master for this chat."
         },
         {
@@ -1499,7 +1499,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "221-221",
+          "lines": "232-232",
           "quote": "In World, the Profiles tab holds the five built-in DMs and your own: open one, change its prompts, roll a block back to the default."
         },
         {
@@ -1546,7 +1546,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "231-231",
+          "lines": "242-242",
           "quote": "Start tab drafts records and fronts from its cards or a short interview"
         },
         {
@@ -1598,7 +1598,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "241-241",
+          "lines": "252-252",
           "quote": "Backgrounds tab links a folder, plans a set of pictures for its places"
         },
         {
@@ -1655,7 +1655,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "496-496",
+          "lines": "507-507",
           "quote": "the arrows flip between its versions (swipes). The right arrow on the last version asks the model for a new one"
         },
         {
@@ -1707,7 +1707,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "508-508",
+          "lines": "519-519",
           "quote": "press Edit to change its text, then Save. The buttons appear when you point at a message"
         },
         {
@@ -1759,7 +1759,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "520-520",
+          "lines": "531-531",
           "quote": "redoes the last reply and lets you say what to change. The hint goes to the model for that one reply"
         },
         {
@@ -1811,7 +1811,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "532-532",
+          "lines": "543-543",
           "quote": "holds Copy text, Translate, Speak, Bookmark, Fork here, Generation data, Prompt peek, Hide from AI, Move up and down"
         },
         {
@@ -1863,7 +1863,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "544-544",
+          "lines": "555-555",
           "quote": "starts a new chat from that message and leaves the original unchanged"
         },
         {
@@ -1915,7 +1915,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "556-556",
+          "lines": "567-567",
           "quote": "shows the request behind that reply, and Generation data shows its model, tokens, cost and time"
         },
         {
@@ -1967,7 +1967,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "567-567",
+          "lines": "578-578",
           "quote": "such as /continue, /impersonate, /regenerate and your own shortcuts. Macros like {{char}}, {{user}} and {{roll:d20}} are filled in"
         },
         {
@@ -2019,7 +2019,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "579-579",
+          "lines": "590-590",
           "quote": "holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files"
         },
         {
@@ -2070,7 +2070,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "119-119",
+          "lines": "130-130",
           "quote": "the second continues the first and gets the earlier story as backstory. Dashed wires are branches forked from a message."
         },
         {
@@ -2112,7 +2112,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "23-23",
+          "lines": "34-34",
           "quote": "See every part of a chat’s request to the model with its tokens, and switch parts off for that chat only."
         },
         {
@@ -2158,7 +2158,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "36-36",
+          "lines": "47-47",
           "quote": "only the last N messages, whose messages (everyone’s, only the player’s, only the character’s), and whether to send thinking blocks"
         },
         {
@@ -2205,22 +2205,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "151-151",
+          "lines": "162-162",
           "quote": "Each card is one part: preset sections, card fields, persona, lorebooks. Most have a switch that turns the part off for this chat only."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "139-139",
+          "lines": "150-150",
           "quote": "The board shows what this chat sends to the model with its next reply."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "160-160",
+          "lines": "171-171",
           "quote": "Everything that stays on, in order, with the total tokens."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "169-169",
+          "lines": "180-180",
           "quote": "Details list what was taken and why something was left out, and show the text itself."
         }
       ]
@@ -2257,7 +2257,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "846-846",
+          "lines": "857-857",
           "quote": "A lorebook is a set of entries about your world. An entry joins the request when its keywords show up in the chat, or always if you set it so."
         },
         {
@@ -2304,7 +2304,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "858-858",
+          "lines": "869-869",
           "quote": "The Global switch adds a book to every chat, whichever character or persona is in it."
         },
         {
@@ -2351,7 +2351,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "870-870",
+          "lines": "881-881",
           "quote": "Paste a message to see which entries of a book would fire and why, or what was held back."
         },
         {
@@ -2398,7 +2398,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "884-884",
+          "lines": "895-895",
           "quote": "A preset is the set of instructions and settings the model gets with every reply."
         },
         {
@@ -2408,7 +2408,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1048-1048",
+          "lines": "1059-1059",
           "quote": "Shows the final request this preset builds for a chat, so you can see what the model really gets."
         }
       ]
