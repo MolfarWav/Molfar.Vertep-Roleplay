@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import example from "./fixtures/mood-tracker.vertep-agent.json";
+import { chainAgent } from "./fixtures/chain-agent";
 import keeperExample from "./fixtures/dungeon-keeper.vertep-agent.json";
 import { AGENT_BOARD, agentHash, compileAgent, validateAgent } from "../src/canvas-kit/boards/agent";
 import { canConnect, fromFile, insertOnEdge, portOf, portsOfNode, toFile } from "../src/canvas-kit/graph";
@@ -221,5 +222,24 @@ describe("agent file: html widget template", () => {
   }
   it("a template over 8192 characters is refused", async () => {
     expect(codes(await validateAgent(tpl("a".repeat(8193))(keeper())))).toContain("E_WIDGET");
+  });
+});
+
+describe("agent file: model calls in a row", () => {
+  it("seven in a row pass, eight are refused with E_ROUNDS", async () => {
+    expect(codes(await validateAgent(chainAgent(7)))).not.toContain("E_ROUNDS");
+    const r = await validateAgent(chainAgent(8));
+    expect(r.errors.map((e) => e.code)).toContain("E_ROUNDS");
+    expect(r.errors.find((e) => e.code === "E_ROUNDS")?.message).toMatch(/8 times one after another/);
+  });
+
+  it("many calls side by side are not a chain", async () => {
+    const f = chainAgent(1);
+    for (let i = 2; i <= 12; i++) {
+      f.nodes.push({ id: `p${i}`, type: "model.ask", x: 250, y: i * 40, title: `Side ${i}`, params: { role: "fast", prompt: "{{reply}}", answer: { as: "text" }, maxTokens: 50, batchKey: null } });
+      f.edges.push({ id: `ep${i}`, from: "in:reply", to: `p${i}:reply` });
+    }
+    f.agent.limits.maxCalls = 12;
+    expect(codes(await validateAgent(f))).not.toContain("E_ROUNDS");
   });
 });

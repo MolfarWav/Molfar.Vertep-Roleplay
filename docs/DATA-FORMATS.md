@@ -610,6 +610,13 @@ routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-ag
   and why: not installed, off, waiting for permission, trigger (`everyN`, `keywords`) did not fire, already ran for this reply.
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).
+  Rounds: every question that can be asked now is asked in one round, so cards side by side cost one round, not many; a
+  question that needs an earlier answer waits for the next round. The plugin's `manifest.json` carries
+  `limits: { passes: 8, concurrency: 3 }`, which the engine reads (the engine release after 1.4.2; an older engine keeps 3 passes and
+  runs an agent with more than two model calls in a row never to the end). The checker refuses an agent with more than
+  `AGENT_MAX_ROUNDS` (7) model calls on one path (`E_ROUNDS`), and a run that is still asking after the seventh round fails
+  with that reason in the log instead of vanishing. The engine runs the questions of one round up to three at a time, at least
+  250 ms apart, and tries a question again after a 429.
 - `GET /agents/state?chatId&agent` (the agent's own fields), `DELETE` the same (start over), `GET /agents/runs?chatId`, `GET /agents/panels?chatId` (the panels of the chat's agents that are on and allowed, each with its state schema, its state and the state before the last run; the app draws them in `top1`, `top2` or the floating button).
 - **Drafts.** A file Molfar (or anyone) writes to `data/agents/drafts/<name>.vertep-agent.json` waits there for the user. The
   Agents sheet lists the drafts with what an install would say about each (`errors` and `warnings`, the checker's own codes
@@ -641,7 +648,7 @@ routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-ag
 
 Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
 `E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
-`E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_BUDGET`,
+`E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_ROUNDS`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
 `W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).

@@ -15,6 +15,8 @@ export const AGENT_CARDS: Record<string, AgentCard>
 /** Where an Output of each kind may show its result. The first entry is the default place. */
 export const SHOW_BY_KIND: Record<string, string[]>
 export const PANEL_PLACES: string[]
+/** The most model calls an agent may make one behind another (the runner takes one pass for each, plus one to commit). */
+export const AGENT_MAX_ROUNDS: number
 
 export interface AgentIssue { code: string; message: string; node?: string }
 export interface AgentDerived { needs: string[]; maxCalls: number; hash: string }
