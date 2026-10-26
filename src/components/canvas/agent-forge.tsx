@@ -18,11 +18,12 @@ import {
 import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
+import { installMessage } from '@/lib/agent-install'
 import { cn } from '@/lib/utils'
 import { AgentForm } from './forge/agent-form'
 import { AgentBoard } from './forge/agent-board'
 import { CardForm, type StateFields } from './forge/card-form'
-import { Abilities, Palette } from './forge/palette'
+import { Abilities, Palette, PlacesGuide } from './forge/palette'
 
 type Agent = Record<string, any>
 interface Current { name: string; title: string; agent: Agent }
@@ -153,10 +154,10 @@ export function AgentForge() {
       await saveAgentDraft(cur.name, file)
       changed.current = false
       setSaving('saved')
-      await installAgentDraft(cur.name)
+      const r = await installAgentDraft(cur.name)
       await refresh()
       setTab('agent')
-      toast.success(t('ag.drafts.done', { name: cur.title }))
+      toast.success(installMessage(t, cur.title, r))
     } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
   }
 
@@ -213,6 +214,7 @@ export function AgentForge() {
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
+            <PlacesGuide />
             <AgentForm agent={cur.agent} title={cur.title} onAgent={editAgent} onTitle={editTitle} onRename={renameStateField} installed={!!installedCopy} />
             {installedCopy && (
               <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.installedCopy')}>

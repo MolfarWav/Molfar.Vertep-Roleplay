@@ -568,7 +568,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   remove one, reorder, change a phase, pick another place to show) writes `own`, a copy of the items as they were, and from
   then on the chat does not follow the preset; `own: []` means "no agents". `show` maps an agent id to the place the user
   chose (`log`, `feed`, `top1`, `top2`, `float`, `toast`, `note`, `bottom`, `inspector`); whether that place suits the
-  agent's Output is checked when it runs. A preset or an agent that is gone does not break the chat: the entry is
+  agent's Output is checked when it runs. The chat's Agents tab offers only the places in the agent's `places`. A `note` shown in `feed` is drawn as a plain muted line under the reply instead of a card. A preset or an agent that is gone does not break the chat: the entry is
   skipped. Forks copy the binding with the rest of the meta. Set whole with `PATCH /chats/<id>` `{ agents }` (`null` = back
   to the default) or at creation, `POST /chats` `{ agents }`. Better, one change at a time: `POST /chats/<id>/agents`
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
@@ -612,7 +612,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   errors and nothing is stored; one without `derived` is compiled), stores it and answers `{ id, needs, granted, missing,
   unsupported, warnings }`. `grant`: `true` or a list of permissions the user confirmed. A new version keeps the permissions
   already confirmed for what it still asks; it runs only when everything it asks for is confirmed.
-- `GET /agents/list`, `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`.
+- `GET /agents/list` (each agent also carries `places`: where the chat may move its results, from its Outputs and panels, the author's default first), `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`.
 - `POST /agents/run` `{ chatId, agent? }`: runs the agents the chat uses (its binding, see above) that are set to run `after` a
   reply, in the engine's two-phase style: it asks the models and is called again with the answers. The model for a question is
   the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped

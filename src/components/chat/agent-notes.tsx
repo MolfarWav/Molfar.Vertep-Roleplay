@@ -6,7 +6,7 @@ import { ChoiceChips } from './agent-panels'
 import type { Message } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-/** Places a note shows under the reply; the other places (bars, the floating panel) are drawn elsewhere. */
+/** Places a note shows under the reply (`feed` as a plain line, the others as a card); the other places (bars, the floating panel) are drawn elsewhere. */
 const NOTE_PLACES = new Set<string | undefined>([undefined, 'note', 'feed'])
 /** A short note opens by itself; a long one shows its first line. */
 const OPEN_BELOW = 240
@@ -28,11 +28,19 @@ export function AgentNotes({ chatId, message, last }: { chatId: string; message:
   if (message.role !== 'assistant' || !runs.length) return null
 
   const notes = runs.flatMap((r) => (r.status === 'ok' ? (r.outputs ?? []).filter((o) => o.kind === 'note' && o.text && NOTE_PLACES.has(o.show)).map((o) => ({ r, o })) : []))
+  const cards = notes.filter(({ o }) => o.show !== 'feed')
+  const lines = notes.filter(({ o }) => o.show === 'feed')
   const failed = runs.filter((r) => r.status === 'failed').length
 
   return (
     <div className="flex flex-col gap-1 px-4 py-1" data-testid="agent-notes">
-      {notes.map(({ r, o }, i) => (
+      {lines.map(({ r, o }, i) => (
+        <p key={`${r.agent}-line-${i}`} className="flex items-baseline gap-1.5 text-[11px] leading-relaxed text-muted-foreground" data-testid="agent-feed-line">
+          <Robot className="size-3 shrink-0 translate-y-0.5 text-violet-500" aria-hidden="true" />
+          <span><span className="font-medium text-foreground/80">{o.title || nameOf(r.agent)}</span>{' · '}{(o.short || o.text || '').slice(0, 280)}</span>
+        </p>
+      ))}
+      {cards.map(({ r, o }, i) => (
         <details key={`${r.agent}-${i}`} open={(o.text?.length ?? 0) <= OPEN_BELOW} className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-1.5 text-xs">
           <summary className="cursor-pointer select-none text-muted-foreground">
             <span className="font-medium text-foreground">{o.title || nameOf(r.agent)}</span>

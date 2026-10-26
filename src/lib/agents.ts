@@ -29,6 +29,8 @@ export interface AgentInfo {
   runnable: boolean
   /** why it does not run ('' = it does) */
   blocker: string
+  /** the places the chat may move this agent's results to; the first is where the author put them */
+  places?: string[]
 }
 
 /** `wait: false` = the reply does not wait for an agent set to run before it: it runs beside the reply and its hint goes into the next one. Absent = the reply waits. */
@@ -43,7 +45,7 @@ export interface ChatAgents {
   items: ChatAgentItem[]
 }
 
-export interface AgentSet { id: string; name: string; items: { agent: string; on: boolean; phase?: AgentPhase }[] }
+export interface AgentSet { id: string; name: string; items: { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean }[] }
 
 export type ChatAgentsOp =
   | { op: 'preset'; preset: string | null }

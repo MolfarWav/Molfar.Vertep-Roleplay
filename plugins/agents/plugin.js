@@ -1523,6 +1523,15 @@ function draftRemoveRoute(req, host, name) {
   return ok({ ok: true });
 }
 
+/** The places the chat may move this agent's results to, from its Outputs and its panels; the first is where the author put them. */
+function placesOf(file) {
+  const kinds = (Array.isArray(file.nodes) ? file.nodes : []).filter((n) => n && n.type === 'agent.output' && isObj(n.params)).map((n) => n.params);
+  const out = [];
+  for (const p of kinds) for (const pl of SHOW_BY_KIND[p.kind] ?? []) if (!out.includes(pl)) out.push(pl);
+  if (Array.isArray(file.agent?.panels) && file.agent.panels.length) for (const pl of ['top1', 'top2', 'float']) if (!out.includes(pl)) out.push(pl);
+  return out;
+}
+
 function listRoute(req, host) {
   const fsx = host.fs;
   let files = [];
@@ -1542,7 +1551,7 @@ function listRoute(req, host) {
       trigger: isObj(a.trigger) ? a.trigger : {}, models: isObj(a.models) ? a.models : {},
       needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs),
       maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: agent.report.errors, warnings: agent.report.warnings,
-      runnable: !blocker(agent, granted), blocker: blocker(agent, granted),
+      runnable: !blocker(agent, granted), blocker: blocker(agent, granted), places: placesOf(agent.file),
     });
   }
   return ok({ agents });

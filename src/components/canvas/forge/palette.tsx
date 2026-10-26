@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { AGENT_CARDS } from '@/canvas-kit/boards/agent'
+import { SHOW_BY_KIND } from '@/canvas-kit/boards/agent-check.js'
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
 import { describeNeed } from '@/lib/agents'
@@ -74,5 +75,35 @@ export function Abilities({ needs, calls }: { needs: string[]; calls: number }) 
       </ul>
       <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{t('fg.can.note')}</p>
     </section>
+  )
+}
+
+const KINDS = ['note', 'choices', 'state-patch', 'prompt-insert'] as const
+
+/**
+ * Where an agent's results can appear and what goes to the model: the answer to "what does Output do?", folded because
+ * most people only need it once. The places come from the check, so this table cannot drift from what is allowed.
+ */
+export function PlacesGuide() {
+  const t = useT()
+  return (
+    <details className="rounded-md border border-border bg-background p-2.5 text-xs" data-testid="forge-places-guide">
+      <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.guide.title')}</summary>
+      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{t('fg.guide.lead')}</p>
+      <ul className="mt-2 flex flex-col gap-2">
+        {KINDS.map((k) => (
+          <li key={k} className="rounded-md border border-border/60 p-2">
+            <b className="block text-[13px] font-medium">{t(`fg.kind.${k}` as MsgKey)}</b>
+            <span className="block text-[11px] text-muted-foreground">{t(`fg.guide.${k}` as MsgKey)}</span>
+            <span className="mt-1 block text-[11px]">
+              {t('fg.guide.where')} {(SHOW_BY_KIND[k] ?? []).map((pl, i) => `${t(`fg.place.${pl}` as MsgKey)}${i === 0 ? ` (${t('fg.guide.first')})` : ''}`).join(', ')}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-snug text-muted-foreground">
+        {(['rule1', 'rule2', 'rule3', 'rule4'] as const).map((r) => <li key={r}>{t(`fg.guide.${r}` as MsgKey)}</li>)}
+      </ul>
+    </details>
   )
 }
