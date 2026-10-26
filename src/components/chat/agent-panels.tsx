@@ -3,7 +3,9 @@ import { Robot, X } from '@phosphor-icons/react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useT } from '@/hooks/use-t'
 import { insertIntoComposer, nameOf, useAgentsLive, type AgentPanel, type AgentPanelSet, type PanelPlace, type PanelWidget } from '@/lib/agents'
+import { fmtValue } from '@/lib/agent-template'
 import { cn } from '@/lib/utils'
+import { TemplateFrame } from './agent-html'
 
 const CHOICE_BOTTOM = new Set<string | undefined>([undefined, 'bottom'])
 const FLOAT_ONLY = new Set<string | undefined>(['float'])
@@ -14,7 +16,7 @@ const EMPTY: AgentPanelSet[] = []
 const placeOf = (set: AgentPanelSet, p: AgentPanel): PanelPlace =>
   (PLACES as string[]).includes(set.show ?? '') ? (set.show as PanelPlace) : p.place ?? 'float'
 
-const fmt = (v: unknown): string => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : typeof v === 'boolean' ? (v ? '✓' : '–') : String(v ?? '—'))
+const fmt = fmtValue
 const rows = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : [])
 
 export interface ChoiceSet { agent: string; choices: string[] }
@@ -74,8 +76,11 @@ export function AgentChoices({ chatId, msgKey }: { chatId: string; msgKey: strin
   )
 }
 
-/** One widget of a panel. The checker has vetted the file; a field that is missing still shows as a dash. */
-function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: AgentPanelSet; chatId: string; compact?: boolean }) {
+/**
+ * One widget of a panel. The checker has vetted the file; a field that is missing still shows as a dash.
+ * `chatId` null = a preview in the editor: the buttons show but do nothing.
+ */
+export function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: Pick<AgentPanelSet, 'schema' | 'own' | 'prev'>; chatId: string | null; compact?: boolean }) {
   const t = useT()
   const field = w.bind ? set.schema[w.bind] : undefined
   const value = w.bind ? set.own[w.bind] : undefined
@@ -85,7 +90,7 @@ function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: AgentPanelSe
     return (
       <div className="flex flex-wrap gap-1.5">
         {(w.items ?? []).map((it) => (
-          <button key={it.label} type="button" onClick={() => insertIntoComposer(chatId, it.send)}
+          <button key={it.label} type="button" onClick={() => chatId && insertIntoComposer(chatId, it.send)}
             className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium hover:border-primary/60 hover:bg-accent max-md:min-h-10">
             {it.label}
           </button>
@@ -93,7 +98,7 @@ function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: AgentPanelSe
       </div>
     )
   }
-  if (w.w === 'html') return <p className="text-[11px] text-muted-foreground">{t('ag.widget.html')}</p>
+  if (w.w === 'html') return compact ? null : <TemplateFrame w={w} set={set} />
 
   if (w.w === 'meter' || w.w === 'counter' || w.w === 'number') {
     const n = typeof value === 'number' ? value : 0
@@ -162,6 +167,21 @@ function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: AgentPanelSe
   )
 }
 
+/** A panel as the floating button shows it: its title, the name of the agent, its widgets. */
+export function PanelSection({ set, panel, chatId }: { set: Pick<AgentPanelSet, 'schema' | 'own' | 'prev' | 'name'>; panel: AgentPanel; chatId: string | null }) {
+  return (
+    <section className="flex flex-col gap-2" aria-label={panel.title}>
+      <h3 className="text-xs font-semibold">{panel.title}<span className="ml-1.5 font-normal text-muted-foreground">{set.name}</span></h3>
+      {panel.widgets.map((w, i) => <Widget key={i} w={w} set={set} chatId={chatId} />)}
+    </section>
+  )
+}
+
+/** One row of a bar above the chat: the values of the widgets that fit in a line. */
+export function BarRow({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 px-3 py-1 text-xs">{children}</div>
+}
+
 /** The agents' panels that live in one of the two bars above the chat: one row of values per bar. */
 export function AgentBars({ chatId }: { chatId: string }) {
   const sets = useAgentsLive((s) => s.panels[chatId]) ?? EMPTY
@@ -173,9 +193,9 @@ export function AgentBars({ chatId }: { chatId: string }) {
   return (
     <div className="relative z-10 flex flex-col border-b border-border bg-card" data-testid="agent-bars">
       {bars.map((b) => (
-        <div key={b.place} className="flex flex-wrap items-center gap-x-4 gap-y-0.5 px-3 py-1 text-xs">
+        <BarRow key={b.place}>
           {b.parts.map((x) => <Widget key={x.key} w={x.w} set={x.set} chatId={chatId} compact />)}
-        </div>
+        </BarRow>
       ))}
     </div>
   )
@@ -226,10 +246,7 @@ export function AgentFloat({ chatId, msgKey }: { chatId: string; msgKey: string 
         <PopoverContent side="top" align="end" className="max-h-[70dvh] w-[min(360px,calc(100vw-16px))] overflow-y-auto p-3">
           <div className="flex flex-col gap-4">
             {shown.map(({ set, panels }) => panels.map((p) => (
-              <section key={`${set.agent}-${p.id}`} className="flex flex-col gap-2" aria-label={p.title}>
-                <h3 className="text-xs font-semibold">{p.title}<span className="ml-1.5 font-normal text-muted-foreground">{set.name}</span></h3>
-                {p.widgets.map((w, i) => <Widget key={i} w={w} set={set} chatId={chatId} />)}
-              </section>
+              <PanelSection key={`${set.agent}-${p.id}`} set={set} panel={p} chatId={chatId} />
             )))}
             {choiceSets.map((x, i) => (
               <section key={`${x.agent}-c${i}`} className="flex flex-col gap-2" aria-label={t('ag.choices.title')}>

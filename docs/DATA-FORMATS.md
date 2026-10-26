@@ -547,12 +547,16 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   field and its `columns`), `list`, `log` (a list field), `text` (a text field), `actions` (1 to 8 `{ label, send }`;
   `send` is put into the composer, nothing is sent by itself) and `html`. `bind` must name a state field of the right
   type (`E_BIND`); an unknown widget or bad `actions` is `E_WIDGET`.
-- `html` widget: `template` up to 8192 characters, slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
+- `html` widget: `template` up to 8192 characters, an optional `height` of the frame (a whole number of pixels, 40 to 600, default 80; else `E_WIDGET`), slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
   inside, no nested `each`) and `{{#if field}}…{{/if}}`. The checker refuses a template with a slot that is not a field
   (`E_TPL_FIELD`), an unclosed block (`E_TPL_UNCLOSED`), or markup that can run code or load something
   (`E_TPL_FORBIDDEN`: script, frames, forms, `<link>`, event handlers, `src`/`href`, `url()`, `@import`). The check is
   deliberately loose and is not the only guard: the renderer must still escape every value and show the result in the
-  sealed `srcdoc` frame without scripts.
+  sealed `srcdoc` frame without scripts. The app does this (`src/lib/agent-template.ts`, `components/chat/agent-html.tsx`):
+  values are escaped, an `{{#each}}` takes at most 50 entries, a flag prints ✓ or –, a missing field prints nothing,
+  the frame has `sandbox=""` and a `Content-Security-Policy` of `default-src 'none'; style-src 'unsafe-inline'; img-src data:`,
+  and a template the checker would refuse is not drawn. The widget shows in the floating window; a bar above the chat
+  skips it. `templateProblems(template, state)` of the checker is what the editor shows while the template is typed.
 - Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
   `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
   "phase": "before" | "parallel" | "after" | "manual", "wait"?: false } ] }`. `wait: false` (only read for an agent that runs

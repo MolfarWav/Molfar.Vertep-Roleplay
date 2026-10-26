@@ -22,6 +22,9 @@ export interface AgentIssue { code: string; message: string; node?: string }
 export interface AgentDerived { needs: string[]; maxCalls: number; hash: string }
 export interface AgentReport { errors: AgentIssue[]; warnings: AgentIssue[]; derived: AgentDerived | null }
 
+/** What is wrong with the template of an `html` widget, for the editor (empty = fine). `state` is the agent's `state`. */
+export function templateProblems(tpl: unknown, state: Record<string, { type: string; item?: Record<string, string> }> | undefined): { code: string; message: string }[]
+
 export const splitEnd: (end: string) => [string, string]
 export const readCanvasFile: (raw: unknown) => { file: CanvasFile } | { error: string }
 /** Hash of what the agent IS: the header (without `derived`), the cards without their position, the wires. Moving a card does not change it. */
