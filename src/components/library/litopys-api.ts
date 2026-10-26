@@ -177,7 +177,7 @@ export type LitActivityKind =
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
-  | 'habit.seen' | 'habit.earn'
+  | 'habit.seen' | 'habit.earn' | 'habit.accept'
   | 'scene.mark' | 'scene.unmark'
 
 /**

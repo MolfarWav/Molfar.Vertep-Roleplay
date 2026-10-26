@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Habits and the card import (#113): the dialog that adds a chat to the card's memory also offers the habits the character earned in that chat (ticked, unless the card keeps the same rule already). A ticked habit goes onto the card as an accepted habit of that story, and the chat's habit remembers it is kept. Ticking only habits writes no story. If the card is full (30 habits), the dialog says how many did not fit.
+- Habits, activity log (#113): accepting a habit early ("Accept now") leaves a row in the chat's Activity tab, like earning one does.
+
 - Memory wording (#113): the sentence each memory part opens with is editable in the Memory settings, under "Memory wording": the story record of this chat, the earlier chat it continues, and what the character remembers (`{name}` stands for the character). Each has Restore default. The bracketed lead of the part stays as it is. The text is read from the settings, so it does not move between replies and the prompt cache holds.
 - Continued chat that opens with the card greeting (#113): a chat linked to an earlier one whose first message is still the card's unedited greeting (and which has at most four messages) shows a note under that message: the greeting reads like a first meeting, edit it so the story carries on. "Edit the first message" opens the editor; "Leave it" hides the note for this chat on this device. `GET /litopys/carries` has the new `opening`.
 

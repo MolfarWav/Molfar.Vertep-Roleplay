@@ -50,12 +50,14 @@ export function MemoryImportDialog({
   )
 }
 
-type Ticks = { arc: boolean; facts: Set<string>; notes: Set<string>; said: Set<string> }
+type Ticks = { arc: boolean; facts: Set<string>; notes: Set<string>; said: Set<string>; habits: Set<string> }
+type TickSet = 'facts' | 'notes' | 'said' | 'habits'
 const ticksOf = (p: MemPreview): Ticks => ({
   arc: !!p.arc,
   facts: new Set(p.facts.filter((x) => x.checked).map((x) => x.id)),
   notes: new Set(p.notes.filter((x) => x.checked).map((x) => x.id)),
   said: new Set(p.said.filter((x) => x.checked).map((x) => x.id)),
+  habits: new Set((p.habits ?? []).filter((x) => x.checked).map((x) => x.id)),
 })
 
 function Body({
@@ -93,12 +95,14 @@ function Body({
     return () => { live = false }
   }, [card.id, chatId])
 
-  const count = ticks ? (ticks.arc ? 1 : 0) + ticks.facts.size + ticks.notes.size + ticks.said.size : 0
+  const count = ticks ? (ticks.arc ? 1 : 0) + ticks.facts.size + ticks.notes.size + ticks.said.size + ticks.habits.size : 0
   const submit = async () => {
     if (!preview || !ticks || !chatId || count === 0 || saving) return
     setSaving(true)
     try {
-      onDone(await importCardMemory({ cardId: card.id, chatId, arc: ticks.arc, facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said] }))
+      const view = await importCardMemory({ cardId: card.id, chatId, arc: ticks.arc, facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
+      if (view.imported?.habitsLeft) toast.warning(t('mem.dlg.habitsLeft', { n: view.imported.habitsLeft }))
+      onDone(view)
     } catch (e) {
       toast.error(message(e))
       setSaving(false)
@@ -179,7 +183,7 @@ function Body({
       </>
     )
   }
-  const flip = (set: 'facts' | 'notes' | 'said', id: string, on: boolean) =>
+  const flip = (set: TickSet, id: string, on: boolean) =>
     setTicks((cur) => {
       if (!cur) return cur
       const next = new Set(cur[set])
@@ -187,10 +191,10 @@ function Body({
       else next.delete(id)
       return { ...cur, [set]: next }
     })
-  const toggleAll = (set: 'facts' | 'notes' | 'said') =>
+  const toggleAll = (set: TickSet) =>
     setTicks((cur) => {
       if (!cur || !preview) return cur
-      const lines = preview[set]
+      const lines: { id: string; dup: 'memory' | null }[] = preview[set] ?? []
       return { ...cur, [set]: cur[set].size ? new Set<string>() : new Set(lines.filter((l) => !l.dup).map((l) => l.id)) }
     })
 
@@ -236,6 +240,15 @@ function Body({
           onFlip={(id, on) => flip('said', id, on)}
           onAll={() => toggleAll('said')}
         />
+        {(preview.habits?.length ?? 0) > 0 && (
+          <LineSection
+            title={t('mem.dlg.habits')}
+            lines={preview.habits.map((x) => ({ id: x.id, text: x.rule, dup: x.dup, lead: x.name }))}
+            ticked={ticks.habits}
+            onFlip={(id, on) => flip('habits', id, on)}
+            onAll={() => toggleAll('habits')}
+          />
+        )}
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">{t('mem.dlg.after')}</p>

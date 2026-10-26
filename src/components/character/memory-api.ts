@@ -62,6 +62,8 @@ export interface CardMemoryView {
   /** What the habits cost in a prompt now, and the room they are given. */
   habitsTokens: number
   habitsBudget: number
+  /** Only on the answer to an import: how many ticked habits went to the card and how many did not fit. */
+  imported?: { habits: number; habitsLeft: number }
 }
 
 export interface MemPreviewLine { id: string; text: string; dup: 'memory' | null; checked: boolean }
@@ -73,6 +75,8 @@ export interface MemPreview {
   facts: (MemPreviewLine & { subject: string; weight: string })[]
   notes: (MemPreviewLine & { who: string; how: string })[]
   said: (MemPreviewLine & { who: string; kind: string })[]
+  /** Habits this chat earned for the character (#113); `dup` = the card keeps this rule already. */
+  habits: { id: string; who: string; name: string; rule: string; when: string; dup: 'memory' | null; checked: boolean }[]
 }
 
 const q = (s: string) => encodeURIComponent(s)
@@ -94,7 +98,7 @@ export const deleteCardMemoryHabit = (cardId: string, habitId: string) =>
 export const previewCardMemory = (cardId: string, chatId: string) =>
   j<MemPreview>('/litopys/card-memory/preview', { method: 'POST', body: JSON.stringify({ cardId, chatId }) })
 
-export const importCardMemory = (body: { cardId: string; chatId: string; arc: boolean; facts: string[]; notes: string[]; said: string[] }) =>
+export const importCardMemory = (body: { cardId: string; chatId: string; arc: boolean; facts: string[]; notes: string[]; said: string[]; habits: string[] }) =>
   j<CardMemoryView>('/litopys/card-memory/import', { method: 'POST', body: JSON.stringify(body) })
 
 export const MEM_MIN_TOKENS = 100

@@ -4210,6 +4210,14 @@ export function previewImport(fsx, cardId, chatId) {
       const dup = flag(s.text, held("said"));
       return { id: s.id, who: s.holder, text: s.text, kind: s.kind, dup, checked: !dup && i < IMPORT_TOP.said };
     });
+  // habits this chat earned for the card's character (#113): the ones acting here, not yet on the card
+  const habits = (st ? st.habits : [])
+    .filter((k) => isObj(k) && k.status === "active" && !k.kept && mine(k.who) && str(k.name) && str(k.rule))
+    .slice(0, IMPORT_LIST)
+    .map((k) => {
+      const dup = mem.habits.some((h) => diceSimilarity(h.rule, k.rule) >= DICE_LIMIT) ? "memory" : null;
+      return { id: str(k.id), who: str(k.who), name: str(k.name), rule: str(k.rule), when: str(k.when), dup, checked: !dup };
+    });
   const already = mem.sources.find((s) => s.chatId === chatId);
   return {
     chat: { id: chatId, title: str(rc.meta.title) || chatId },
@@ -4218,6 +4226,7 @@ export function previewImport(fsx, cardId, chatId) {
     facts,
     notes,
     said,
+    habits,
   };
 }
 
@@ -4229,9 +4238,17 @@ export function importChat(fsx, cardId, chatId, sel) {
   const facts = pick(prev.facts, sel.facts);
   const notes = pick(prev.notes, sel.notes);
   const said = pick(prev.said, sel.said);
+  const habits = pick(prev.habits, sel.habits);
   const arc = sel.arc !== false && prev.arc ? prev.arc.text : "";
-  if (!arc && !facts.length && !notes.length && !said.length) return { status: 400, json: { error: "nothing selected to remember" } };
+  if (!arc && !facts.length && !notes.length && !said.length && !habits.length) return { status: 400, json: { error: "nothing selected to remember" } };
   const mem = loadMemory(fsx, cardId);
+  const now = Date.now();
+  // a habit goes to the card as an accepted habit of the story, like "keep" does; a rule the card has is as good as kept
+  const kept = [];
+  for (const k of habits) {
+    const err = editHabit(mem, { name: k.name, rule: k.rule, when: k.when, origin: "story", state: "accepted", from: { chatId, title: prev.chat.title, at: now } });
+    if (!err || /already there/.test(err)) kept.push(k.id);
+  }
   const body = {
     chatId,
     title: prev.chat.title,
@@ -4241,15 +4258,24 @@ export function importChat(fsx, cardId, chatId, sel) {
     notes: notes.map((n) => ({ who: n.who, how: n.how, text: n.text })),
     said: said.map((s) => ({ who: s.who, text: s.text, kind: s.kind })),
   };
-  const at = mem.sources.findIndex((s) => s.chatId === chatId);
-  if (at >= 0) mem.sources[at] = { ...mem.sources[at], ...body };
-  else {
-    mem.next += 1;
-    mem.sources.push({ id: "s" + mem.next, on: true, canon: "main", ...body });
+  // only habits ticked: no story is written, the habits are all this import takes
+  if (arc || facts.length || notes.length || said.length) {
+    const at = mem.sources.findIndex((s) => s.chatId === chatId);
+    if (at >= 0) mem.sources[at] = { ...mem.sources[at], ...body };
+    else {
+      mem.next += 1;
+      mem.sources.push({ id: "s" + mem.next, on: true, canon: "main", ...body });
+    }
   }
   const out = normalizeMemory(mem);
   saveMemory(fsx, cardId, out);
-  return { status: 200, json: cardMemoryView(fsx, cardId, out) };
+  if (kept.length) {
+    // the chat's habit now says where it went, so it is not offered or said twice
+    mutateChat(fsx, chatId, (st) => {
+      for (const k of st.habits) if (kept.includes(str(k.id))) k.kept = { cardId, at: now };
+    });
+  }
+  return { status: 200, json: { ...cardMemoryView(fsx, cardId, out), imported: { habits: kept.length, habitsLeft: habits.length - kept.length } } };
 }
 
 /** The card's memory with the chats it can still take one from, and what a new chat would receive. */
@@ -4686,6 +4712,7 @@ function chatHabitRoute(fsx, body) {
       if (k.status === "proposed") {
         k.status = "active";
         k.earnedAt = now;
+        addActivity(st, "user", "habit.accept", "Accepted the habit " + quote(k.name) + " of " + k.who + " before it was seen again", [k.id], now, { who: k.who, name: k.name });
       }
     } else if (op === "reject") {
       k.status = "rejected";
