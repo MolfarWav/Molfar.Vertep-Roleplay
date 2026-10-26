@@ -371,7 +371,7 @@ describe("the memory wording is editable (#113)", () => {
     expect(cont).toContain("from the chat \"Winter watch\". Pick up where it ended.]");
     expect(cont).not.toContain("This chat CONTINUES that story");
     const own = textOf(L.llmRequest(ctx("winter", "Aria"), host));
-    expect(own).toContain("[Story record (Litopys): earlier chapters and what stays true. It happened; answer from it.]");
+    expect(own).toContain("[Story record (Litopys): what stays true. It happened; answer from it.]");
   });
 
   it("restoring one sentence brings the default back; an empty one counts as the default", () => {
