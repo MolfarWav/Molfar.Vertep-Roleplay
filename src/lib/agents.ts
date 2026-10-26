@@ -88,6 +88,9 @@ export interface PanelWidget {
   last?: number
   columns?: string[]
   items?: { label: string; send: string }[]
+  /** `html` widget: the template with its slots, and how tall the frame is (px) */
+  template?: string
+  height?: number
 }
 export type PanelPlace = 'top1' | 'top2' | 'float'
 export interface AgentPanel { id: string; title: string; place?: PanelPlace; widgets: PanelWidget[] }

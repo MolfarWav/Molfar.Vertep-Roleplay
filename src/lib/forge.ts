@@ -207,8 +207,10 @@ export function issuesByNode(r: ForgeReport): Map<string, { errors: number; warn
 type StateField = { type: string; item?: Record<string, string> }
 type State = Record<string, StateField>
 
-/** The widgets a form can make. `html` is kept when a file has one, but is only edited as JSON. */
-export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions'] as const
+/** The widgets a form can make. */
+export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions', 'html'] as const
+/** How tall an `html` widget is when the file does not say, and the limits the checker keeps. */
+export const HTML_HEIGHT = { start: 80, min: 40, max: 600 } as const
 export const PANEL_PLACE_LIST = ['top1', 'top2', 'float'] as const
 export const MAX_PANELS = 4
 export const MAX_WIDGETS = 20
@@ -222,8 +224,17 @@ export function fieldsFor(kind: string, state: State): string[] {
   return want ? Object.keys(state).filter((k) => state[k]?.type === want) : []
 }
 
+/** A template to start from: the first field of the agent, shown the way its kind is shown. */
+export function starterTemplate(state: State): string {
+  const [id, f] = Object.entries(state)[0] ?? []
+  if (!id || !f) return '<p>Hello</p>'
+  if (f.type !== 'list') return `<p>${id}: <b>{{${id}}}</b></p>`
+  return `{{#each ${id}}}\n<p>${Object.keys(f.item ?? {}).map((k) => `{{${k}}}`).join(' · ')}</p>\n{{/each}}`
+}
+
 /** A new widget of a kind, bound to the first field that fits (empty when none does: the check then names it). */
 export function newWidget(kind: string, state: State): Params {
+  if (kind === 'html') return { w: 'html', template: starterTemplate(state), height: HTML_HEIGHT.start }
   if (kind === 'actions') return { w: 'actions', items: [{ label: 'Continue', send: 'Continue.' }] }
   const bind = fieldsFor(kind, state)[0] ?? ''
   const w: Params = { w: kind, label: bind, bind }
@@ -233,7 +244,7 @@ export function newWidget(kind: string, state: State): Params {
 
 /** The same widget as another kind: the label stays, the field is the first of the new kind that fits. */
 export function setWidgetKind(w: Params, kind: string, state: State): Params {
-  if (kind === 'actions' || w.w === 'actions') return newWidget(kind, state)
+  if (kind === 'actions' || kind === 'html' || w.w === 'actions' || w.w === 'html') return newWidget(kind, state)
   const keep = fieldsFor(kind, state).includes(String(w.bind)) ? String(w.bind) : (fieldsFor(kind, state)[0] ?? '')
   const next: Params = { ...w, w: kind, bind: keep }
   delete next.columns
@@ -250,6 +261,21 @@ export function newPanel(panels: Params[], state: State, title: string): Params 
   return { id, title, place: 'float', widgets: [newWidget(first, state)] }
 }
 
+/** A template with a field renamed: the slots that name the agent's field, not the entry fields inside an {{#each}}. */
+export function renameInTemplate(tpl: string, from: string, to: string): string {
+  let depth = 0
+  return tpl.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (m, tag: string) => {
+    const open = /^#(each|if)\s+(.+)$/.exec(tag)
+    if (tag === '/each') { depth = Math.max(0, depth - 1); return m }
+    if (open) {
+      const top = depth === 0
+      if (open[1] === 'each') depth++
+      return top && open[2] === from ? `{{#${open[1]} ${to}}}` : m
+    }
+    return depth === 0 && tag === from ? `{{${to}}}` : m
+  })
+}
+
 /**
  * A state field renamed: the field itself, the panels that show it and the cards that use it follow.
  * The agent and the graph come back together, so the editor writes them as one change.
@@ -257,7 +283,7 @@ export function newPanel(panels: Params[], state: State, title: string): Params 
 export function renameField(agent: Record<string, any>, g: Graph, from: string, to: string): { agent: Record<string, any>; graph: Graph } {
   const state = Object.fromEntries(Object.entries((agent.state ?? {}) as State).map(([k, f]) => [k === from ? to : k, f]))
   const panels = Array.isArray(agent.panels)
-    ? agent.panels.map((p: Params) => ({ ...p, widgets: Array.isArray(p.widgets) ? p.widgets.map((w: Params) => (w.bind === from ? { ...w, bind: to } : w)) : p.widgets }))
+    ? agent.panels.map((p: Params) => ({ ...p, widgets: Array.isArray(p.widgets) ? p.widgets.map((w: Params) => (w.bind === from ? { ...w, bind: to } : w.w === 'html' && typeof w.template === 'string' ? { ...w, template: renameInTemplate(w.template, from, to) } : w)) : p.widgets }))
     : agent.panels
   const nodes = g.nodes.map((n) => (n.params?.field === from ? { ...n, params: { ...n.params, field: to } } : n))
   return { agent: { ...agent, state, ...(panels ? { panels } : {}) }, graph: { nodes, edges: g.edges } }

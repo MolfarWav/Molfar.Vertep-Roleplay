@@ -1,10 +1,11 @@
 /** The agent editor's model (src/lib/forge.ts): an edit stays tidy and the checker stays the judge. */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
+import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, renameInTemplate, starterTemplate, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
 import { generated } from "../scripts/sync-agent-recipes";
 import { AGENT_RECIPES } from "../src/lib/forge-recipes";
 import { removeNode } from "../src/canvas-kit/graph";
+import { templateProblems } from "../src/canvas-kit/boards/agent-check";
 import { AGENT_CARDS } from "../src/canvas-kit/boards/agent";
 import type { Graph } from "../src/canvas-kit/graph";
 
@@ -164,6 +165,34 @@ describe("panels and memory", () => {
     expect(Object.keys(a2.state)).toEqual(["dread"]);
     expect(a2.panels[0].widgets[0].bind).toBe("dread");
     expect(g2.nodes.filter((n) => n.params?.field).every((n) => n.params!.field === "dread")).toBe(true);
+    expect(check(fileOf("x", a2, g2)).errors).toEqual([]);
+  });
+
+  it("an html widget starts from a template that passes the checker, and changing its kind drops the template", () => {
+    const w = newWidget("html", rich);
+    expect(String(w.template)).toContain("{{");
+    expect(templateProblems(w.template, rich)).toEqual([]);
+    const bag = { bag: { type: "list", item: { name: "text", qty: "number" } } };
+    expect(templateProblems(starterTemplate(bag), bag)).toEqual([]);
+    expect(starterTemplate({})).toBe("<p>Hello</p>");
+    const m = setWidgetKind(w, "meter", rich);
+    expect(m.template).toBeUndefined();
+    expect(m.height).toBeUndefined();
+    expect(setWidgetKind(newWidget("meter", rich), "html", rich).w).toBe("html");
+  });
+
+  it("renaming a field renames its slots, not the entry fields of a list with the same name", () => {
+    expect(renameInTemplate("{{hp}} {{#if hp}}{{hp}}{{/if}} {{#each hp}}{{hp}}{{#if hp}}x{{/if}}{{/each}} {{hp}}", "hp", "life")).toBe(
+      "{{life}} {{#if life}}{{life}}{{/if}} {{#each life}}{{hp}}{{#if hp}}x{{/if}}{{/each}} {{life}}");
+    expect(renameInTemplate("{{ hp }}", "hp", "life")).toBe("{{life}}");
+    expect(renameInTemplate("<b>{{hpx}}</b>", "hp", "life")).toBe("<b>{{hpx}}</b>");
+  });
+
+  it("renaming a field also renames it in the templates of the panels", () => {
+    const agent = { ...(tension.agent as Json), panels: [{ id: "p", title: "P", widgets: [{ w: "html", template: "<b>{{tension}}</b>{{#if tension}}!{{/if}}" }] }] };
+    const g = { nodes: tension.nodes!, edges: tension.edges! } as Graph;
+    const { agent: a2, graph: g2 } = renameField(agent, g, "tension", "dread");
+    expect(a2.panels[0].widgets[0].template).toBe("<b>{{dread}}</b>{{#if dread}}!{{/if}}");
     expect(check(fileOf("x", a2, g2)).errors).toEqual([]);
   });
 

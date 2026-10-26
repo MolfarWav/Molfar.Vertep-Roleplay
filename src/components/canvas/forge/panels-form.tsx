@@ -1,11 +1,15 @@
+import { useRef, useState } from 'react'
 import { Plus, Trash } from '@phosphor-icons/react'
+import { templateProblems } from '@/canvas-kit/boards/agent-check'
+import { slotsFor } from '@/lib/agent-template'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
-import { fieldsFor, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
+import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
 import { Field, NativeSelect } from './card-form'
+import { PanelPreview } from './panel-preview'
 
 type Obj = Record<string, any>
 type State = Record<string, { type: string; item?: Record<string, string> }>
@@ -13,10 +17,21 @@ type State = Record<string, { type: string; item?: Record<string, string> }>
 /** The panels of an agent as forms: a title and a place for each panel, and its widgets (what to show, which field, which buttons). */
 export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: State; onChange: (next: Obj[]) => void }) {
   const t = useT()
+  const [full, setFull] = useState(true)
   const setPanel = (i: number, patch: Obj) => onChange(panels.map((p, k) => (k === i ? { ...p, ...patch } : p)))
   return (
     <div className="flex flex-col gap-2" data-testid="forge-panels-form">
       {panels.length === 0 && <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.panels.none')}</p>}
+      {panels.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('fg.pv.mode')}>
+          <span className="text-[11px] text-muted-foreground">{t('fg.pv.mode')}</span>
+          {([true, false] as const).map((v) => (
+            <Button key={String(v)} variant={full === v ? 'secondary' : 'outline'} size="sm" className="max-md:h-10" aria-pressed={full === v} onClick={() => setFull(v)} data-testid={`forge-sample-${v ? 'full' : 'empty'}`}>
+              {t(v ? 'fg.pv.full' : 'fg.pv.empty')}
+            </Button>
+          ))}
+        </div>
+      )}
       {panels.map((p, i) => {
         const widgets: Obj[] = Array.isArray(p.widgets) ? p.widgets : []
         const setWidget = (j: number, w: Obj) => setPanel(i, { widgets: widgets.map((x, k) => (k === j ? w : x)) })
@@ -42,6 +57,7 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
                 {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
               </NativeSelect>
             )}
+            <PanelPreview panel={p} state={state} full={full} />
           </div>
         )
       })}
@@ -75,7 +91,9 @@ function WidgetRow({ w, state, onChange, onRemove }: { w: Obj; state: State; onC
           <Trash className="size-4" aria-hidden="true" />
         </Button>
       </div>
-      {kind === 'actions' ? (
+      {kind === 'html' ? (
+        <HtmlForm w={w} state={state} onChange={onChange} />
+      ) : kind === 'actions' ? (
         <div className="flex flex-col gap-1.5">
           {items.map((it, k) => (
             <div key={k} className="flex flex-col gap-1 rounded-md border border-border bg-background p-1.5">
@@ -122,6 +140,61 @@ function WidgetRow({ w, state, onChange, onRemove }: { w: Obj; state: State; onC
           )}
         </>
       ) : <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.widget.otherHint')}</p>}
+    </div>
+  )
+}
+
+/** The checker's code, said in the person's language; the token is the slot that is wrong. */
+function problemText(t: ReturnType<typeof useT>, p: { code: string; message: string }): string {
+  const token = /\{\{[^{}]*\}\}/.exec(p.message)?.[0] ?? ''
+  if (p.code === 'E_TPL_FORBIDDEN') return t('fg.tpl.err.forbidden')
+  if (p.code === 'E_TPL_UNCLOSED') return t('fg.tpl.err.unclosed', { token })
+  if (p.code === 'E_TPL_FIELD') return t('fg.tpl.err.field', { token })
+  return t('fg.tpl.err.size')
+}
+
+/** The form of an `html` widget: the template, buttons that put a field into it, what the checker says, the height. */
+function HtmlForm({ w, state, onChange }: { w: Obj; state: State; onChange: (w: Obj) => void }) {
+  const t = useT()
+  const area = useRef<HTMLTextAreaElement>(null)
+  const [draft, setDraft] = useState<string | null>(null)
+  const tpl = String(w.template ?? '')
+  const problems = templateProblems(tpl, state)
+  const put = (text: string) => {
+    const el = area.current
+    const a = el?.selectionStart ?? tpl.length
+    const b = el?.selectionEnd ?? tpl.length
+    onChange({ ...w, template: tpl.slice(0, a) + text + tpl.slice(b) })
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(a + text.length, a + text.length) })
+  }
+  const slots = slotsFor(state)
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="forge-html-form">
+      <Field label={t('fg.tpl.label')} hint={t('fg.tpl.hint')}>
+        <Textarea ref={area} value={tpl} rows={7} spellCheck={false} aria-invalid={problems.length > 0} className="font-mono text-xs" onChange={(e) => onChange({ ...w, template: e.target.value })} data-testid="forge-html-template" />
+      </Field>
+      {slots.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t('fg.tpl.insert')}>
+          <span className="text-[11px] text-muted-foreground">{t('fg.tpl.insert')}</span>
+          {slots.map((s) => (
+            <Button key={s.label} variant="outline" size="sm" className="h-7 px-2 font-mono text-[11px] max-md:h-10" onClick={() => put(s.insert)}>{s.label}</Button>
+          ))}
+        </div>
+      )}
+      {problems.map((p, i) => <p key={i} role="alert" className="text-[11px] leading-snug text-destructive" data-testid="forge-html-problem">{problemText(t, p)}</p>)}
+      <Field label={t('fg.tpl.height')}>
+        <Input type="number" inputMode="numeric" min={HTML_HEIGHT.min} max={HTML_HEIGHT.max} step={10} value={draft ?? w.height ?? HTML_HEIGHT.start} className="w-28 max-md:h-10"
+          onChange={(e) => {
+            setDraft(e.target.value)
+            const n = Number(e.target.value)
+            if (Number.isInteger(n) && n >= HTML_HEIGHT.min && n <= HTML_HEIGHT.max) onChange({ ...w, height: n })
+          }}
+          onBlur={() => {
+            const n = Math.min(HTML_HEIGHT.max, Math.max(HTML_HEIGHT.min, Math.round(Number(draft ?? w.height) || HTML_HEIGHT.start)))
+            setDraft(null)
+            if (n !== w.height) onChange({ ...w, height: n })
+          }} />
+      </Field>
     </div>
   )
 }

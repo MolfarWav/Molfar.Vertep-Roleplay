@@ -39,7 +39,7 @@ function DataPanel({ variant, title, rows }: { variant: 'data' | 'stat'; title: 
 }
 
 /** Is the document dark right now? Follows the theme switch. */
-function useDark(): boolean {
+export function useDark(): boolean {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   useEffect(() => {
     const root = document.documentElement

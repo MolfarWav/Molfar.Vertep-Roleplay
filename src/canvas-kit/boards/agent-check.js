@@ -327,6 +327,16 @@ function checkTemplate(tpl, state, where, err) {
   if (stack.length)
     err('E_TPL_UNCLOSED', `${where}: {{#${stack[stack.length - 1].kind}}} is never closed`);
 }
+/** What is wrong with one template, for the editor: `[{code, message}]`, empty when it is fine. `state` is the agent's `state` (the shape the checker reads). */
+export function templateProblems(tpl, state) {
+  const out = [];
+  if (typeof tpl !== 'string' || !tpl.trim())
+    return [{ code: 'E_WIDGET', message: 'The template is empty' }];
+  if (tpl.length > 8192)
+    return [{ code: 'E_WIDGET', message: 'The template is longer than 8192 characters' }];
+  checkTemplate(tpl, state ?? {}, 'Template', (code, message) => out.push({ code, message: message.replace(/^Template: /, '') }));
+  return out;
+}
 /** The `panels` section: what the agent shows beside the chat. A description, never code. */
 function checkPanels(raw, state, err) {
   if (raw === undefined)
@@ -368,6 +378,8 @@ function checkPanels(raw, state, err) {
           err('E_WIDGET', `${where}: html needs a template of up to 8192 characters`);
         else
           checkTemplate(w.template, state, where, err);
+        if (w.height !== undefined && (!Number.isInteger(w.height) || w.height < 40 || w.height > 600))
+          err('E_WIDGET', `${where}: height is a whole number of pixels from 40 to 600`);
         continue;
       }
       const want = WIDGET_BIND[w.w];
