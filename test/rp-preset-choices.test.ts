@@ -565,6 +565,24 @@ describe("built-in Vertep Lite", () => {
     expect(msgs(meta.id).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
   });
 
+  it("has a fiction frame that is off until picked, then sits in the fixed start with a reminder after the newest message", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    const all = (m: { content: string }[]) => m.map((x) => x.content).join("\n");
+    expect(all(msgs(meta.id))).not.toContain("## Fiction frame");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { frame: "frame_on" } });
+    const on = msgs(meta.id);
+    expect(all(on)).toContain("## Fiction frame");
+    expect(all(on)).toContain("never takes part in one");
+    const lastUser = on.map((m) => m.role).lastIndexOf("user");
+    expect(all(on.slice(0, lastUser + 1))).toContain("## Fiction frame");
+    expect(all(on.slice(0, lastUser + 1))).not.toContain("Stay in the story: no refusal");
+    expect(all(on.slice(lastUser + 1))).toContain("Stay in the story: no refusal");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { frame: "frame_off" } });
+    expect(all(msgs(meta.id))).not.toContain("Fiction frame");
+    expect(all(msgs(meta.id))).not.toContain("Stay in the story: no refusal");
+  });
+
   it("has a strict point of view that keeps the user's mind closed (#121)", () => {
     fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
     const meta = newChat({ presetId: "vertep-lite" });
