@@ -330,6 +330,12 @@ a tip in the same change; without one, nobody finds it.
 - Texts must be true: read the code you describe. `bun test
   test/rp-guide.test.ts` checks ids, both languages and that every target is
   marked in the UI; open the help list and press Show me once.
+- Articles: the long text behind "More" in the help list lives in
+  `src/lib/help-articles.json` (format, rules and checks: docs/HELP-ARTICLES.md),
+  merged into `TIPS` by `mergeArticles`. Search ranks a title match above keywords,
+  the body and the long text. A change to a feature that has an article updates the
+  article and its `sources` in the same change; `node scripts/validate-help.mjs
+  src/lib/help-articles.json --repo . --fix-lines` re-finds moved line numbers.
 
 ## Engine contract (wired in v4.1)
 

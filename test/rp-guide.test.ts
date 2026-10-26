@@ -1,10 +1,11 @@
 import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  canShowMe, compareVersions, GUIDE_BASELINE, HELP_GROUPS, markSeen, markTourDone, resetTours, searchHelp, tipText, tourFor, tourSteps, whatsNew,
-  type Tip, type Tour,
+  canShowMe, compareVersions, GUIDE_BASELINE, HELP_GROUPS, markSeen, markTourDone, mergeArticles, resetTours, searchHelp, tipText, tourFor, tourSteps, whatsNew,
+  type ArticleEntry, type Tip, type Tour,
 } from "../src/lib/guide";
 import { APP_VERSION, TIPS, TOURS } from "../src/lib/guide-tips";
+import articles from "../src/lib/help-articles.json";
 
 const tip = (id: string, since?: string): Tip => ({
   id, since, target: id, title: { en: id, uk: id }, body: { en: id, uk: id },
@@ -147,5 +148,140 @@ describe("guide registry", () => {
       // section titles: data-guide={`${section}.title`} (page) and {`${drawer}.title`} (drawer)
       (target.endsWith(".title") && src.includes("data-guide={`${section}.title`}"));
     for (const t of TIPS) if (t.target) expect(marked(t.target), t.target).toBe(true);
+  });
+});
+
+describe("help search ranking", () => {
+  const h = (id: string, help: Tip["help"], en: string, kw = "", body = "", details = ""): Tip => ({
+    id, help, title: { en, uk: en }, body: { en: body, uk: "" }, keywords: { en: kw, uk: "" }, details: details ? { en: details, uk: "" } : undefined,
+  });
+  const tips = [
+    h("body", "chat", "Swipes", "", "see the profile of a reply"),
+    h("kw", "world", "Persona", "profile who you play"),
+    h("title", "setup", "Profile (card tab)"),
+    h("mention", "characters", "Several characters in one Profile"),
+    h("long", "story", "Notebook", "", "", "your profile can change what is kept"),
+  ];
+  it("puts a title match before keywords, the body and the long text", () => {
+    expect(searchHelp(tips, "profile").map((t) => t.id)).toEqual(["title", "mention", "kw", "body", "long"]);
+  });
+  it("accepts the start of a word and ranks it above the middle of one", () => {
+    const list = [h("mid", "chat", "Improvements"), h("start", "chat", "Profile")];
+    expect(searchHelp(list, "prof").map((t) => t.id)).toEqual(["start"]);
+    expect(searchHelp([h("a", "chat", "Unprofessional"), h("b", "chat", "Profile")], "prof").map((t) => t.id)).toEqual(["b", "a"]);
+  });
+  it("still needs every word, and finds a word only the long text has", () => {
+    expect(searchHelp(tips, "profile persona").map((t) => t.id)).toEqual(["kw"]);
+    expect(searchHelp(tips, "kept").map((t) => t.id)).toEqual(["long"]);
+  });
+  it("reads the help title too, so the article's name finds a tip that keeps an older title", () => {
+    const old: Tip = { ...h("x", "chat", "Skills are now Habits"), helpTitle: { en: "Habits of a character", uk: "Звички персонажа" } };
+    expect(searchHelp([old], "character").map((t) => t.id)).toEqual(["x"]);
+    expect(searchHelp([old], "звички").map((t) => t.id)).toEqual(["x"]);
+  });
+  it("ties keep group order, then registry order", () => {
+    const list = [h("w", "world", "Alpha"), h("c", "chat", "Alpha"), h("c2", "chat", "Alpha")];
+    expect(searchHelp(list, "alpha").map((t) => t.id)).toEqual(["c", "c2", "w"]);
+  });
+});
+
+describe("mergeArticles", () => {
+  const base: Tip[] = [
+    { id: "help.soul", help: "characters", title: { en: "Soul", uk: "Душа" }, body: { en: "short", uk: "коротко" }, keywords: { en: "mood", uk: "настрій" } },
+    { id: "new.habits", since: "4.67.0", title: { en: "Habits", uk: "Звички" }, body: { en: "habit body", uk: "звички" } },
+  ];
+  const entry = (id: string, extra: Partial<ArticleEntry> = {}): ArticleEntry => ({
+    id, group: "story", title: { en: `T ${id}`, uk: `Т ${id}` }, aliases: { en: "alias", uk: "псевдонім" },
+    short: { en: "s", uk: "к" }, details: { en: "d", uk: "д" }, ...extra,
+  });
+  it("adds the long text to the tip it extends and keeps that tip's own title and body", () => {
+    const out = mergeArticles(base, [entry("kb.soul", { extends: "help.soul", where: { en: "w", uk: "д" }, related: ["new.habits"] })]);
+    const soul = out.find((t) => t.id === "help.soul")!;
+    expect(soul.title).toEqual({ en: "Soul", uk: "Душа" });
+    expect(soul.helpTitle).toEqual({ en: "T kb.soul", uk: "Т kb.soul" });
+    expect(soul.body.en).toBe("short");
+    expect(soul.helpBody).toEqual({ en: "s", uk: "к" });
+    expect(soul.details?.en).toBe("d");
+    expect(soul.where?.en).toBe("w");
+    expect(soul.related).toEqual(["new.habits"]);
+    expect(soul.keywords).toEqual({ en: "mood alias", uk: "настрій псевдонім" });
+    expect(out.length).toBe(base.length);
+  });
+  it("lists an extended tip that had no help group under the article's group", () => {
+    const out = mergeArticles(base, [entry("kb.habits", { group: "characters", extends: "new.habits" })]);
+    const habits = out.find((t) => t.id === "new.habits")!;
+    expect(habits.help).toBe("characters");
+    expect(habits.since).toBe("4.67.0");
+  });
+  it("turns a related id that names an article into the tip that article landed on", () => {
+    const out = mergeArticles(base, [
+      entry("kb.soul", { extends: "help.soul", related: ["kb.habits", "kb.soul", "kb.profile"] }),
+      entry("kb.habits", { extends: "new.habits", group: "characters" }),
+      entry("kb.profile"),
+    ]);
+    expect(out.find((t) => t.id === "help.soul")!.related).toEqual(["new.habits", "kb.profile"]);
+  });
+  it("an entry without extends, or with an unknown one, becomes a tip of its own", () => {
+    const out = mergeArticles(base, [entry("kb.profile"), entry("kb.ghost", { extends: "help.nope" })]);
+    const profile = out.find((t) => t.id === "kb.profile")!;
+    expect(profile).toMatchObject({ help: "story", title: { en: "T kb.profile" }, body: { en: "s" }, keywords: { en: "alias" }, details: { en: "d" } });
+    expect(out.map((t) => t.id)).toEqual(["help.soul", "new.habits", "kb.profile", "kb.ghost"]);
+  });
+  it("does not change the tips it was given, and carries no sources", () => {
+    const copy = structuredClone(base);
+    const out = mergeArticles(base, [entry("kb.soul", { extends: "help.soul", sources: [{ path: "x" }] } as never)]);
+    expect(base).toEqual(copy);
+    expect(JSON.stringify(out)).not.toContain("sources");
+  });
+});
+
+describe("help articles file", () => {
+  const entries = articles.entries as unknown as (ArticleEntry & { sources?: unknown[] })[];
+  const handIds = new Set(TIPS.filter((t) => !t.details || !entries.some((e) => e.id === t.id)).map((t) => t.id));
+
+  it("ids are unique, each has both languages, and none repeats a tip", () => {
+    expect(new Set(entries.map((e) => e.id)).size).toBe(entries.length);
+    for (const e of entries) {
+      expect(e.id, e.id).toMatch(/^kb\./);
+      expect(HELP_GROUPS, e.id).toContain(e.group);
+      for (const field of ["title", "aliases", "short", "details"] as const)
+        for (const lang of ["en", "uk"] as const) expect(e[field][lang]?.trim(), `${e.id} ${field} ${lang}`).toBeTruthy();
+      if (!e.extends) expect(handIds.has(e.id), `${e.id} repeats a tip id`).toBe(false);
+    }
+  });
+
+  it("every extends and related id points at a tip or an article", () => {
+    const known = new Set([...TIPS.map((t) => t.id), ...entries.map((e) => e.id)]);
+    for (const e of entries) {
+      if (e.extends) expect(known.has(e.extends), `${e.id} extends ${e.extends}`).toBe(true);
+      for (const r of e.related ?? []) {
+        expect(known.has(r), `${e.id} related ${r}`).toBe(true);
+        expect(r, `${e.id} relates to itself`).not.toBe(e.id);
+        expect(r, `${e.id} relates to the tip it extends`).not.toBe(e.extends);
+      }
+    }
+  });
+
+  it("every link of every tip leads to a listed tip", () => {
+    const listed = new Set(TIPS.filter((t) => t.help).map((t) => t.id));
+    for (const t of TIPS) for (const r of t.related ?? []) expect(listed.has(r), `${t.id} links to ${r}`).toBe(true);
+  });
+
+  it("reaches the registry: every article is a tip with its long text, listed in the help", () => {
+    for (const e of entries) {
+      const tip = TIPS.find((t) => t.id === (e.extends ?? e.id));
+      expect(tip?.details?.en, e.id).toBe(e.details.en);
+      expect(tip?.help, e.id).toBeTruthy();
+    }
+  });
+
+  it("the text is for a player: no code formatting, file paths or identifiers", () => {
+    const bad = [/`/, /\b(?:data|characters|chats|personas|groups|lorebooks|litopys|dashboard)\/[\w<>{}.-]+/i, /\.(?:json|tsx?|mjs)\b/, /\b[a-z]+_[a-z_]+\b/, /\b[a-z]+[A-Z][A-Za-z]+\b/];
+    for (const e of entries)
+      for (const field of ["short", "details", "where"] as const)
+        for (const lang of ["en", "uk"] as const) {
+          const text = (e[field]?.[lang] ?? "").replace(/\{\{[^}]*\}\}/g, "");
+          for (const re of bad) expect(re.test(text), `${e.id} ${field}.${lang} matches ${re}: ${text.match(re)?.[0]}`).toBe(false);
+        }
   });
 });

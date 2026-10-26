@@ -3,12 +3,13 @@
 // A new feature that users decide with gets a tip here with `since` = the release that
 // ships it, so What's new points it out once.
 
-import type { Tip, Tour } from './guide'
+import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
+import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
 export const APP_VERSION = '4.69.0'
 
-export const TIPS: Tip[] = [
+const HAND_TIPS: Tip[] = [
   // What's new
   {
     id: 'new.prompt-board',
@@ -1049,6 +1050,9 @@ export const TIPS: Tip[] = [
     },
   },
 ]
+
+/** The tips as the app uses them: the hand-written ones plus the long articles of help-articles.json. */
+export const TIPS: Tip[] = mergeArticles(HAND_TIPS, articles.entries as unknown as ArticleEntry[])
 
 export const TOURS: Tour[] = [
   {
