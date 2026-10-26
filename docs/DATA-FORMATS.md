@@ -190,6 +190,15 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
   `full: true`, and the Prompt board part says "full record"). When it does not fit, chapters and arcs are held at
   least 40% of what is left after the pinned facts, the facts of those present and the chapter just before the cut,
   and what one kind leaves unused goes to the other; at most 60 ranked chapters. An item goes in whole or not at all.
+- `budgetMode` (`fixed`, default, or `auto`): in `auto` the memory size is 15% of the model's context window (at least
+  800, at most 16000) when the engine says the window in the turn labels (`turn.contextTokens`); without that label, or
+  in `fixed`, `budget` is used. 15% is a first guess, not tuned on real chats.
+- Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector } }`, one for each chapter and active fact, written
+  after a chapter when an embedding connection exists): when the engine passes the embedding of the scan window
+  (`turn.scanVec`), the facts and chapters that are ranked get a bonus for being near it in meaning (an arc takes the
+  nearest of its chapters). The bonus is relative to the pool's mean cosine, so models that score "unrelated" at
+  different levels behave alike; a vector whose `hash` no longer matches the text, or of another size, is ignored.
+  Fewer than 4 vectors in the pool, no `scanVec`, or an engine that does not pass it: words alone, as before.
 - `arcMode` (`ask`, `auto`, `off`): `auto` merges older chapters into an arc by itself (it only adds the arc over its
   chapters; nothing is deleted), `ask` offers the merge in the Library. A new install is `auto`. The first time the
   config is read, an install that already has Litopys data (a config file, chat records or the 1.x store) is written
