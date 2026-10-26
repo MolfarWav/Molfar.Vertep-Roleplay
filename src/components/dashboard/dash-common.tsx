@@ -79,7 +79,7 @@ export function SceneBlock({ clock, calendar }: { clock: Clock | null; calendar?
     <div className="flex min-w-0 flex-col gap-1">
       {clock.time ? (
         <div className="font-heading text-3xl leading-none tabular-nums" title={clock.approx ? t('dash.time.approx') : undefined}>
-          {clock.approx && <span aria-hidden="true">~</span>}
+          {clock.approx && <span aria-hidden="true" className="mr-1 align-[0.1em] text-xl text-muted-foreground">≈</span>}
           {clock.time}
           {clock.approx && <span className="sr-only">{t('dash.time.approx')}</span>}
         </div>
