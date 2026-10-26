@@ -37,6 +37,18 @@ export function weatherKind(text: string | null | undefined): WeatherKind | null
   return best ? best.kind : null
 }
 
+/** A hue for each kind, the 700/300 steps like the Dashboard's tones, so the icon reads at a glance. */
+const LOOK: Record<WeatherKind, string> = {
+  storm: 'text-violet-700 dark:text-violet-300',
+  snow: 'text-sky-700 dark:text-sky-300',
+  rain: 'text-sky-700 dark:text-sky-300',
+  fog: 'text-slate-600 dark:text-slate-300',
+  wind: 'text-teal-700 dark:text-teal-300',
+  partly: 'text-amber-700 dark:text-amber-300',
+  cloud: 'text-slate-600 dark:text-slate-300',
+  clear: 'text-amber-700 dark:text-amber-300',
+}
+
 const CLOUD = 'M6.5 17.5a4 4 0 0 1-.4-7.98 5.5 5.5 0 0 1 10.5-1.02A4.5 4.5 0 0 1 17 17.5H6.5z'
 
 /**
@@ -50,15 +62,15 @@ export function WeatherIcon({ kind, night, className }: { kind: WeatherKind; nig
   return (
     <svg
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
+      width="22"
+      height="22"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={cn('shrink-0 overflow-visible', className)}
+      className={cn('shrink-0 overflow-visible', night && kind === 'clear' ? 'text-indigo-700 dark:text-indigo-300' : LOOK[kind], className)}
       data-weather={kind}
     >
       {kind === 'clear' && night && <path className="wx-glow" d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z" />}
@@ -91,7 +103,7 @@ export function WeatherIcon({ kind, night, className }: { kind: WeatherKind; nig
       {kind === 'storm' && (
         <>
           <path className="wx-drift" d={CLOUD} transform="translate(0 -3)" />
-          <path className="wx-flash" d="M12.8 13.5 9.8 18.2h3l-1.4 4" />
+          <path className="wx-flash text-amber-600 dark:text-amber-300" strokeWidth="2" d="M12.8 13.5 9.8 18.2h3l-1.4 4" />
         </>
       )}
       {kind === 'fog' && (

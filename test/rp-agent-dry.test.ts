@@ -92,3 +92,84 @@ describe("dryRun", () => {
     expect(r.wires).toBeUndefined();
   });
 });
+
+// ---------- the code cards: dice, pick, extract, cut, and the new Input sources ----------
+
+const oneOut = (middle: Json[], edges: Json[], give: Json[] = [{ id: "reply", source: "lastReply" }]): Json => ({
+  format: "vertep-canvas", version: 1, kind: "agent", title: "t",
+  agent: { formatVersion: 1, id: "t", version: "1.0.0", name: "t", description: "", author: "t", trigger: { when: "after", everyN: 1, keywords: [] }, limits: { maxCalls: 0, concurrency: 1 } },
+  nodes: [{ id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give } }, ...middle, { id: "out", type: "agent.output", x: 900, y: 0, title: "Output", params: { kind: "note", title: "Out" } }],
+  edges,
+});
+const diceAgent = (): Json => oneOut(
+  [{ id: "dice", type: "random.dice", x: 300, y: 0, title: "Dice", params: { count: 2, sides: 6, bonus: 1 } }],
+  [{ id: "e1", from: "dice:rolls", to: "out:in" }],
+);
+
+describe("the new Input sources", () => {
+  it("sampleInputs gives fact lines and lorebook lines", () => {
+    const f = oneOut([], [], [{ id: "facts", source: "litopysFacts", limit: 5 }, { id: "lore", source: "lorebook" }]);
+    const s = sampleInputs(f as any);
+    expect(s.facts.split("\n").length).toBeGreaterThanOrEqual(2);
+    expect(s.facts.split("\n").every((l) => l.startsWith("- "))).toBe(true);
+    const lore = s.lore.split("\n");
+    expect(lore.length).toBeGreaterThanOrEqual(2);
+    expect(lore.every((l) => /^- [^:]+: .+/.test(l))).toBe(true);
+  });
+});
+
+describe("dryRun with a seed", () => {
+  const rollOf = (seed: string | undefined, f: Json = diceAgent()) => {
+    const r = dryRun(f as any, setup(f, { seed }));
+    expect(r.status).toBe("done");
+    return String(r.outputs[0]!.text);
+  };
+  it("the same seed rolls the same, and another seed rolls differently", () => {
+    expect(rollOf("a")).toBe(rollOf("a"));
+    expect(rollOf(undefined)).toBe(rollOf(undefined));
+    expect(rollOf(undefined)).toBe(rollOf(""));
+    const seen = new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((x) => rollOf(x)));
+    expect(seen.size).toBeGreaterThan(1);
+  });
+  it("editing a field of another card does not move the roll", () => {
+    const f = diceAgent();
+    const g = copy(f);
+    g.nodes.find((n: Json) => n.id === "out").params.title = "Another title";
+    expect(rollOf("a", g)).toBe(rollOf("a", f));
+  });
+  it("a pick follows the seed and the weights", () => {
+    const f = oneOut(
+      [{ id: "pick", type: "random.pick", x: 300, y: 0, title: "Pick", params: { items: [{ text: "rare", weight: 1 }, { text: "common", weight: 99 }] } }],
+      [{ id: "e1", from: "pick:text", to: "out:in" }],
+    );
+    const picks = Array.from({ length: 30 }, (_, i) => rollOf(`s${i}`, f));
+    expect(picks.every((x) => x === "rare" || x === "common")).toBe(true);
+    expect(picks.filter((x) => x === "common").length).toBeGreaterThan(20);
+    expect(rollOf("s1", f)).toBe(rollOf("s1", f));
+  });
+});
+
+describe("Extract and Cut in a trial", () => {
+  const extractAgent = (): Json => oneOut(
+    [{ id: "get", type: "text.extract", x: 300, y: 0, title: "Extract", params: { pattern: "\\[MEMORY\\]:\\s*(.+)", group: 1 } }],
+    [{ id: "e1", from: "in:reply", to: "get:in" }, { id: "e2", from: "get:match", to: "out:in" }],
+  );
+  it("shows the match, and skips the path when there is none", () => {
+    const f = extractAgent();
+    const hit = dryRun(f as any, setup(f, { inputs: { reply: "Fine.\n[MEMORY]: the key is under the mat" } }));
+    expect(hit.status).toBe("done");
+    expect(hit.outputs[0]!.text).toBe("the key is under the mat");
+    const miss = dryRun(f as any, setup(f, { inputs: { reply: "Nothing to remember." } }));
+    expect(miss.outputs).toEqual([]);
+    expect(miss.nodes.out).toBe("skipped");
+    expect(miss.wires["get:none"]).toEqual({ state: "value", value: true });
+  });
+  it("Cut keeps the last words", () => {
+    const f = oneOut(
+      [{ id: "cut", type: "text.cut", x: 300, y: 0, title: "Cut", params: { keep: "last", unit: "words", n: 5 } }],
+      [{ id: "e1", from: "in:reply", to: "cut:in" }, { id: "e2", from: "cut:text", to: "out:in" }],
+    );
+    const r = dryRun(f as any, setup(f, { inputs: { reply: "one two three four five six seven" } }));
+    expect(r.outputs[0]!.text).toBe("three four five six seven");
+  });
+});

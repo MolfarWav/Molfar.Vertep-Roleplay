@@ -4,6 +4,10 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { BookOpen, Bell, CaretDown, MagnifyingGlass, PencilSimple, PenNib, Repeat, Stack, TextT, TreeStructure, type Icon } from '@phosphor-icons/react'
+import { MARK, TONE, type Tone } from '@/components/dashboard/dash-common'
+import { cn } from '@/lib/utils'
 import { ModelPicker } from '@/components/settings/model-picker'
 import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
 import { useT } from '@/hooks/use-t'
@@ -65,9 +69,10 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
   }
 
   /** A number field that edits the local copy while typing and saves, clamped, when the field is left. */
-  const numField = (o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number; value: number | undefined; setLocal: (v: number) => void; commit: (v: number) => void }) => (
+  const numField = (o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number; value: number | undefined; setLocal: (v: number) => void; commit: (v: number) => void }) => (
     <Field key={o.id}>
-      <FieldLabel htmlFor={o.id}>{o.label}</FieldLabel>
+      <FieldLabel htmlFor={o.id} className="font-medium">{o.label}</FieldLabel>
+      <div className="flex items-center gap-2">
       <Input
         id={o.id}
         type="number"
@@ -81,37 +86,47 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           o.setLocal(v)
           o.commit(v)
         }}
-        className="w-32"
+        className="w-32 max-md:h-10"
       />
+      {o.unit && <span className="text-xs text-muted-foreground">{o.unit}</span>}
+      </div>
       {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
     </Field>
   )
-  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number }) =>
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
   const sizeField = () => {
-    const mode = sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
+    const mode: 'compact' | 'auto' | 'custom' = cfg.budgetMode === 'auto' ? 'auto' : sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
     return (
       <div className="flex flex-col gap-3 sm:col-span-2">
         <Field>
-          <FieldLabel>{t('lit.set.size')}</FieldLabel>
+          <FieldLabel className="font-medium">{t('lit.set.size')}</FieldLabel>
           <Segmented
+            tone="scene"
             label={t('lit.set.size')}
             value={mode}
             onChange={(v) => {
-              setSizeMode(v)
-              if (v === 'compact') {
-                setCfg({ ...cfg, budget: COMPACT_SIZE })
-                save({ budget: COMPACT_SIZE })
+              setSizeMode(v === 'auto' ? null : v)
+              if (v === 'auto') {
+                setCfg({ ...cfg, budgetMode: 'auto' })
+                save({ budgetMode: 'auto' })
+              } else if (v === 'compact') {
+                setCfg({ ...cfg, budget: COMPACT_SIZE, budgetMode: 'fixed' })
+                save({ budget: COMPACT_SIZE, budgetMode: 'fixed' })
+              } else {
+                setCfg({ ...cfg, budgetMode: 'fixed' })
+                save({ budgetMode: 'fixed' })
               }
             }}
             options={[
               { value: 'compact', label: t('lit.set.sizeCompact', { n: COMPACT_SIZE }) },
+              { value: 'auto', label: t('lit.set.sizeAuto') },
               { value: 'custom', label: t('lit.set.sizeCustom') },
             ]}
           />
-          <p className="text-xs text-muted-foreground">{t('lit.set.sizeHint')}</p>
+          <p className="text-xs text-muted-foreground">{mode === 'auto' ? t('lit.set.sizeAutoHint') : t('lit.set.sizeHint')}</p>
         </Field>
-        {mode === 'custom' && keyField('budget', { id: 'lit-budget', label: t('lit.set.budget'), hint: t('lit.set.sizeCustomHint', { max: BUDGET_MAX }), min: 200, max: BUDGET_MAX })}
+        {mode === 'custom' && keyField('budget', { id: 'lit-budget', label: t('lit.set.budget'), hint: t('lit.set.sizeCustomHint', { max: BUDGET_MAX }), unit: t('lit.unit.tokens'), min: 200, max: BUDGET_MAX })}
       </div>
     )
   }
@@ -120,144 +135,60 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
   const switchRow = (id: string, label: string, hint: string, checked: boolean, onChange: (v: boolean) => void) => (
     <Field orientation="horizontal">
       <div className="flex flex-col gap-0.5">
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <FieldLabel htmlFor={id} className="font-medium">{label}</FieldLabel>
         <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onChange} />
     </Field>
   )
+  /** A prompt text: its label with Restore default, the box, an optional hint. */
+  const textField = (key: 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory', label: string, rows: number, hint?: string) => (
+    <Field key={key}>
+      <PromptLabel id={`lit-${key}`} label={label} changed={changed(key)} onRestore={() => restore(key)} />
+      <Textarea
+        id={`lit-${key}`}
+        rows={rows}
+        value={cfg[key] ?? ''}
+        onChange={(e) => setCfg({ ...cfg, [key]: e.target.value })}
+        onBlur={() => save({ [key]: cfg[key] ?? '' })}
+        className="text-xs"
+      />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </Field>
+  )
+
+  // what a folded block says about itself, so nothing has to be opened to see what is set
+  const sizeText = cfg.budgetMode === 'auto' ? t('lit.set.sizeAuto') : t('lit.sum.tokens', { n: cfg.budget })
+  const modeText = { ask: t('lit.set.arcAsk'), auto: t('lit.set.arcAuto'), off: t('lit.set.arcOff') }[cfg.arcMode]
+  const textKeys: LitPromptKey[] = ['chapter', 'arc', 'summary', 'remembers', 'continues', 'cardMemory']
+  const changedTexts = cfg.custom ? textKeys.filter((k) => cfg.custom?.includes(k)).length : null
+  const onOff = (on: boolean) => (on ? t('lit.sum.on') : t('lit.sum.off'))
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
       <div className="flex flex-col gap-0.5">
         {!inDialog && <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>}
         <p className="text-xs text-muted-foreground">{t('lit.set.hint')}</p>
       </div>
 
-      <Block title={t('lit.blk.record')} hint={t('lit.blk.recordHint')}>
+      <Block tone="memory" icon={BookOpen} defaultOpen title={t('lit.blk.record')} hint={t('lit.blk.recordHint')} summary={`${onOff(cfg.enabled !== false)} · ${onOff(cfg.insert)}`}>
         {switchRow('lit-enabled', t('lit.set.enabled'), t('lit.set.enabledHint'), cfg.enabled !== false, (v) => save({ enabled: v }))}
         {switchRow('lit-insert', t('lit.set.insert'), t('lit.set.insertHint'), cfg.insert, (v) => save({ insert: v }))}
       </Block>
 
-      <Block title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')}>
+      <Block tone="scene" icon={Stack} defaultOpen title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')} summary={t('lit.sum.prompt', { size: sizeText, n: cfg.recentMessages })}>
         <div className="grid gap-3 sm:grid-cols-2">
           {sizeField()}
-          {keyField('linkBudget', { id: 'lit-link-budget', label: t('lit.set.linkBudget'), hint: t('lit.set.linkBudgetHint'), min: 0, max: 3000 })}
+          {keyField('linkBudget', { id: 'lit-link-budget', label: t('lit.set.linkBudget'), hint: t('lit.set.linkBudgetHint'), unit: t('lit.unit.tokens'), min: 0, max: 3000 })}
           {keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
         </div>
       </Block>
 
-      <Block title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')}>
+      <Block tone="plot" icon={PencilSimple} defaultOpen title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')} summary={cfg.proposals === 'quiet' ? t('lit.set.proposalsQuiet') : t('lit.set.proposalsAsk')}>
         <Field>
-          <div className="flex flex-col gap-0.5">
-            <FieldLabel>{t('lit.set.model')}</FieldLabel>
-            <p className="text-xs text-muted-foreground">{t('lit.set.modelHint')}</p>
-          </div>
-          <ModelPicker
-            value={cfg.model}
-            onChange={(v) => save({ model: v })}
-            ariaLabel={t('lit.set.model')}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          {sceneField('minMessages', { id: 'lit-scene-min', label: t('lit.set.sceneMin'), min: 1, max: 40 })}
-          {sceneField('maxMessages', { id: 'lit-scene-max', label: t('lit.set.sceneMax'), min: 10, max: 200 })}
-        </div>
-        <Field>
-          <PromptLabel id="lit-chapter" label={t('lit.set.prompt')} changed={changed('chapter')} onRestore={() => restore('chapter')} />
-          <Textarea
-            id="lit-chapter"
-            rows={5}
-            value={cfg.chapter}
-            onChange={(e) => setCfg({ ...cfg, chapter: e.target.value })}
-            onBlur={() => save({ chapter: cfg.chapter })}
-            className="text-xs"
-          />
-        </Field>
-      </Block>
-
-      <Block title={t('lit.blk.arcs')} hint={t('lit.blk.arcsHint')}>
-        <Field>
-          <FieldLabel htmlFor="lit-arc-mode">{t('lit.set.arcMode')}</FieldLabel>
-          <select
-            id="lit-arc-mode"
-            value={cfg.arcMode}
-            onChange={(e) => {
-              const v = e.target.value as LitConfig['arcMode']
-              setCfg({ ...cfg, arcMode: v })
-              save({ arcMode: v })
-            }}
-            className="w-48 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-          >
-            <option value="ask">{t('lit.set.arcAsk')}</option>
-            <option value="auto">{t('lit.set.arcAuto')}</option>
-            <option value="off">{t('lit.set.arcOff')}</option>
-          </select>
-          <p className="text-xs text-muted-foreground">{t('lit.set.arcHint')}</p>
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {keyField('arcKeep', { id: 'lit-arc-keep', label: t('lit.set.arcKeep'), min: 1, max: 50 })}
-          {keyField('arcThreshold', { id: 'lit-arc-threshold', label: t('lit.set.arcThreshold'), hint: t('lit.set.arcThresholdHint', { n: 2 * cfg.budget }), min: 0, max: 40000 })}
-          {keyField('arcSizeMin', { id: 'lit-arc-size-min', label: t('lit.set.arcSizeMin'), min: 2, max: 20 })}
-          {keyField('arcSizeMax', { id: 'lit-arc-size-max', label: t('lit.set.arcSizeMax'), min: 2, max: 30 })}
-          {keyField('arcWords', { id: 'lit-arc-words', label: t('lit.set.arcWords'), min: 40, max: 400 })}
-        </div>
-        <Field>
-          <PromptLabel id="lit-arc-prompt" label={t('lit.set.arcPrompt')} changed={changed('arc')} onRestore={() => restore('arc')} />
-          <Textarea
-            id="lit-arc-prompt"
-            rows={5}
-            value={cfg.arc}
-            onChange={(e) => setCfg({ ...cfg, arc: e.target.value })}
-            onBlur={() => save({ arc: cfg.arc })}
-            className="text-xs"
-          />
-        </Field>
-        <Field>
-          <PromptLabel id="lit-summary-prompt" label={t('lit.set.summaryPrompt')} changed={changed('summary')} onRestore={() => restore('summary')} />
-          <Textarea
-            id="lit-summary-prompt"
-            rows={5}
-            value={cfg.summary ?? ''}
-            onChange={(e) => setCfg({ ...cfg, summary: e.target.value })}
-            onBlur={() => save({ summary: cfg.summary ?? '' })}
-            className="text-xs"
-          />
-          <p className="text-xs text-muted-foreground">{t('lit.set.summaryPromptHint')}</p>
-        </Field>
-      </Block>
-
-      <Block title={t('lit.blk.wording')} hint={t('lit.blk.wordingHint')}>
-        {(['remembers', 'continues', 'cardMemory'] as const).map((key) => (
-          <Field key={key}>
-            <PromptLabel id={`lit-${key}`} label={t(`lit.set.${key}`)} changed={changed(key)} onRestore={() => restore(key)} />
-            <Textarea
-              id={`lit-${key}`}
-              rows={3}
-              value={cfg[key] ?? ''}
-              onChange={(e) => setCfg({ ...cfg, [key]: e.target.value })}
-              onBlur={() => save({ [key]: cfg[key] ?? '' })}
-              className="text-xs"
-            />
-            <p className="text-xs text-muted-foreground">{t(`lit.set.${key}Hint`)}</p>
-          </Field>
-        ))}
-      </Block>
-
-      <Block title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')}>
-        {switchRow('lit-habits', t('lit.set.habits'), t('lit.set.habitsHint'), cfg.habits !== false, (v) => save({ habits: v }))}
-        {cfg.habits !== false && keyField('habitsEarnAfter', { id: 'lit-habits-after', label: t('lit.set.habitsAfter'), hint: t('lit.set.habitsAfterHint'), min: 1, max: 5, fallback: 2 })}
-      </Block>
-
-      <Block title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
-        <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
-        <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
-      </Block>
-
-      <Block title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')}>
-        <Field>
-          <FieldLabel>{t('lit.set.proposals')}</FieldLabel>
+          <FieldLabel className="font-medium">{t('lit.set.proposals')}</FieldLabel>
           <Segmented
+            tone="plot"
             label={t('lit.set.proposals')}
             value={cfg.proposals ?? 'ask'}
             onChange={(v) => {
@@ -274,16 +205,81 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? cfg.proposals === 'quiet', (v) => save({ autoConsolidate: v }))}
       </Block>
 
-      <Block title="Facts" hint="Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.">
+      <Block tone="people" icon={PenNib} title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')} summary={t('lit.sum.writing', { model: cfg.model || t('lit.sum.modelDefault'), min: cfg.scene.minMessages, max: cfg.scene.maxMessages })}>
+        <Field>
+          <div className="flex flex-col gap-0.5">
+            <FieldLabel className="font-medium">{t('lit.set.model')}</FieldLabel>
+            <p className="text-xs text-muted-foreground">{t('lit.set.modelHint')}</p>
+          </div>
+          <ModelPicker
+            value={cfg.model}
+            onChange={(v) => save({ model: v })}
+            chatDefaultLabel={t('lit.sum.modelDefault')}
+            ariaLabel={t('lit.set.model')}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          {sceneField('minMessages', { id: 'lit-scene-min', label: t('lit.set.sceneMin'), min: 1, max: 40 })}
+          {sceneField('maxMessages', { id: 'lit-scene-max', label: t('lit.set.sceneMax'), min: 10, max: 200 })}
+        </div>
+      </Block>
+
+      <Block tone="scene" icon={TreeStructure} title={t('lit.blk.arcs')} hint={t('lit.blk.arcsHint')} summary={cfg.arcMode === 'off' ? modeText : t('lit.sum.arcs', { mode: modeText, n: cfg.arcThreshold || 2 * cfg.budget })}>
+        <Field>
+          <FieldLabel htmlFor="lit-arc-mode" className="font-medium">{t('lit.set.arcMode')}</FieldLabel>
+          <select
+            id="lit-arc-mode"
+            value={cfg.arcMode}
+            onChange={(e) => {
+              const v = e.target.value as LitConfig['arcMode']
+              setCfg({ ...cfg, arcMode: v })
+              save({ arcMode: v })
+            }}
+            className="min-h-10 w-56 rounded-md border border-border bg-background px-2 py-1.5 text-sm md:min-h-8"
+          >
+            <option value="ask">{t('lit.set.arcAsk')}</option>
+            <option value="auto">{t('lit.set.arcAuto')}</option>
+            <option value="off">{t('lit.set.arcOff')}</option>
+          </select>
+          <p className="text-xs text-muted-foreground">{t('lit.set.arcHint')}</p>
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {keyField('arcKeep', { id: 'lit-arc-keep', label: t('lit.set.arcKeep'), min: 1, max: 50 })}
+          {keyField('arcThreshold', { id: 'lit-arc-threshold', label: t('lit.set.arcThreshold'), hint: t('lit.set.arcThresholdHint', { n: 2 * cfg.budget }), unit: t('lit.unit.tokens'), min: 0, max: 40000 })}
+          {keyField('arcSizeMin', { id: 'lit-arc-size-min', label: t('lit.set.arcSizeMin'), min: 2, max: 20 })}
+          {keyField('arcSizeMax', { id: 'lit-arc-size-max', label: t('lit.set.arcSizeMax'), min: 2, max: 30 })}
+          {keyField('arcWords', { id: 'lit-arc-words', label: t('lit.set.arcWords'), unit: t('lit.unit.words'), min: 40, max: 400 })}
+        </div>
+      </Block>
+
+      <Block tone="memory" icon={MagnifyingGlass} title={t('lit.blk.facts')} hint={t('lit.blk.factsHint')} summary={t('lit.sum.facts', { n: cfg.pinLimit })}>
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         <EmbedRow />
+      </Block>
+
+      <Block tone="people" icon={Repeat} title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')} summary={cfg.habits !== false ? t('lit.sum.habits', { n: cfg.habitsEarnAfter ?? 2 }) : onOff(false)}>
+        {switchRow('lit-habits', t('lit.set.habits'), t('lit.set.habitsHint'), cfg.habits !== false, (v) => save({ habits: v }))}
+        {cfg.habits !== false && keyField('habitsEarnAfter', { id: 'lit-habits-after', label: t('lit.set.habitsAfter'), hint: t('lit.set.habitsAfterHint'), min: 1, max: 5, fallback: 2 })}
+      </Block>
+
+      <Block tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
+        <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
+        <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
+      </Block>
+
+      <Block tone="scene" icon={TextT} title={t('lit.blk.texts')} hint={t('lit.blk.textsHint')} summary={changedTexts === null ? undefined : changedTexts === 0 ? t('lit.sum.textsDefault') : t('lit.sum.texts', { n: changedTexts, total: textKeys.length })}>
+        {textField('chapter', t('lit.set.prompt'), 5)}
+        {textField('arc', t('lit.set.arcPrompt'), 5)}
+        {textField('summary', t('lit.set.summaryPrompt'), 5, t('lit.set.summaryPromptHint'))}
+        {(['remembers', 'continues', 'cardMemory'] as const).map((key) => textField(key, t(`lit.set.${key}`), 3, t(`lit.set.${key}Hint`)))}
       </Block>
     </div>
   )
 }
 
-/** Two or three choices, all visible at once (a select hides them). Same look as the Library's Overview | Ledger switch. */
-function Segmented<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+/** Two or three choices, all visible at once (a select hides them). The chosen one takes the block's colour. */
+function Segmented<T extends string>({ label, value, onChange, options, tone }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; tone: Tone }) {
+  const look = TONE[tone]
   return (
     <div role="group" aria-label={label} className="flex flex-wrap gap-1 rounded-md border border-border bg-muted p-0.5 text-sm">
       {options.map((o) => (
@@ -292,7 +288,7 @@ function Segmented<T extends string>({ label, value, onChange, options }: { labe
           type="button"
           aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`min-h-10 flex-1 rounded px-3 md:min-h-8 ${value === o.value ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          className={cn('min-h-10 flex-1 rounded border px-3 md:min-h-8', value === o.value ? cn(look.bar, look.text, 'font-semibold shadow-sm') : 'border-transparent text-muted-foreground hover:text-foreground')}
         >
           {o.label}
         </button>
@@ -301,17 +297,28 @@ function Segmented<T extends string>({ label, value, onChange, options }: { labe
   )
 }
 
-/** One block of the settings: a short title and what it is for at the top, its own border. */
-function Block({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
-  const id = useId()
+/**
+ * One block of the settings: a tinted title bar with its icon (the Dashboard's colours: one hue for a kind
+ * of content), and what is set when it is folded. A block folds, so a long list of settings reads as a list
+ * of titles; the everyday ones start open.
+ */
+function Block({ title, hint, tone, icon: Glyph, summary, defaultOpen = false, children }: { title: string; hint: string; tone: Tone; icon: Icon; summary?: string; defaultOpen?: boolean; children: ReactNode }) {
+  const look = TONE[tone]
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-md border border-border p-3">
-      <header className="flex flex-col gap-0.5 border-b border-border pb-2">
-        <h3 id={id} className="text-sm font-semibold">{title}</h3>
+    <Collapsible defaultOpen={defaultOpen} className="min-w-0 overflow-hidden rounded-md border border-border bg-card">
+      <CollapsibleTrigger
+        className={cn('group flex min-h-11 w-full items-center gap-2 border-b border-transparent px-3 py-2 text-left aria-expanded:border-border', look.bar)}
+      >
+        <Glyph className={cn('size-4 shrink-0', look.text)} aria-hidden="true" />
+        <span className={cn('shrink-0 text-sm font-semibold', look.text)}>{title}</span>
+        {summary && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground group-aria-expanded:hidden">{summary}</span>}
+        <CaretDown className={cn('ml-auto size-4 shrink-0 transition-transform group-aria-expanded:rotate-180', look.text)} aria-hidden="true" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-3 p-3">
         <p className="text-xs text-muted-foreground">{hint}</p>
-      </header>
-      {children}
-    </section>
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -320,9 +327,9 @@ function PromptLabel({ id, label, changed, onRestore }: { id: string; label: str
   const t = useT()
   return (
     <div className="flex min-h-6 items-center justify-between gap-2">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id} className="font-medium">{label}</FieldLabel>
       {changed && (
-        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={onRestore}>
+        <Button variant="outline" size="sm" className={cn('h-6 text-xs max-md:h-10', MARK.warn)} onClick={onRestore}>
           {t('lit.set.reset')}
         </Button>
       )}
@@ -335,6 +342,7 @@ function PromptLabel({ id, label, changed, onRestore }: { id: string; label: str
  * to the shell (Settings > Memory, 0.9.5); an older engine without that link keeps the model field here.
  */
 function EmbedRow() {
+  const t = useT()
   const [embed, setEmbed] = useState<{ ok: boolean; via: string | null } | null>(null)
   const [embedModel, setEmbedModel] = useState('text-embedding-3-small')
   const linked = canOpenSettingsTab()
@@ -342,19 +350,20 @@ function EmbedRow() {
     void embedStatus().then(setEmbed)
     if (!linked) void embedConfig().then((c) => setEmbedModel(c.model))
   }, [linked])
+  const chip = embed === null ? MARK.neutral : embed.ok ? MARK.good : MARK.warn
   return (
     <>
-      <p className="text-[11px] text-muted-foreground" aria-live="polite">
-        {embed === null ? 'Matching by meaning: checking…'
-          : embed.ok ? `Matching by meaning${embed.via ? ` via ${embed.via}` : ''}`
-          : 'Matching by words only. An embeddings connection adds matching by meaning.'}
+      <p className={cn('w-fit border px-2 py-0.5 text-xs', chip)} aria-live="polite">
+        {embed === null ? t('lit.emb.checking')
+          : embed.ok ? (embed.via ? t('lit.emb.okVia', { via: embed.via }) : t('lit.emb.ok'))
+          : t('lit.emb.words')}
       </p>
       {linked ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void openSettingsTab('memory').catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
-            Set up in Settings › Memory
+          <Button size="sm" className="h-7 text-xs max-md:h-10" onClick={() => void openSettingsTab('memory').catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
+            {t('lit.emb.setup')}
           </Button>
-          <span className="text-[11px] text-muted-foreground">The embeddings provider and model are shared by every app.</span>
+          <span className="text-xs text-muted-foreground">{t('lit.emb.shared')}</span>
         </div>
       ) : (
         <div className="flex items-center gap-2">
@@ -362,10 +371,10 @@ function EmbedRow() {
             value={embedModel}
             onChange={(e) => setEmbedModel(e.target.value)}
             onBlur={() => { if (embedModel.trim()) { void setEmbedConfig(embedModel.trim()).then(() => embedStatus(true).then(setEmbed)) } }}
-            className="h-7 w-56 font-mono text-[11px]"
-            aria-label="Embeddings model"
+            className="h-7 w-56 font-mono text-[11px] max-md:h-10"
+            aria-label={t('lit.emb.modelLabel')}
           />
-          <span className="text-[11px] text-muted-foreground">embeddings model</span>
+          <span className="text-xs text-muted-foreground">{t('lit.emb.model')}</span>
         </div>
       )}
     </>

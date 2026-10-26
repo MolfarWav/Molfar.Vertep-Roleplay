@@ -229,6 +229,7 @@ export function AgentForge() {
               node={node}
               graph={graph}
               fields={fields}
+              problems={report?.errors.filter((e) => e.node === node.id).map((e) => e.message) ?? []}
               onParams={(params) => patchCard(node.id, { params })}
               onTitle={(title) => patchCard(node.id, { title })}
               onNote={(text) => noteOf(node.id, text)}

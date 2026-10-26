@@ -286,6 +286,8 @@ export interface LitConfig {
   pinLimit: number
   insert: boolean
   budget: number
+  /** 'auto': the size is a share of the model's context window (wave 2); 'fixed' or absent: `budget` */
+  budgetMode?: 'fixed' | 'auto'
   /** 0.9.2: the most a linked earlier chat's story may take as backstory, 0 = none */
   linkBudget: number
   chapter: string

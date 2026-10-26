@@ -1,7 +1,7 @@
 /** The agent editor's model (src/lib/forge.ts): an edit stays tidy and the checker stays the judge. */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, exportOf, copyOf, freeId, moveItem, renameInTemplate, starterTemplate, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
+import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, exportOf, copyOf, freeId, moveItem, renameInTemplate, starterTemplate, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER, portsOf, INPUT_SOURCES } from "../src/lib/forge";
 import { generated } from "../scripts/sync-agent-recipes";
 import { AGENT_RECIPES } from "../src/lib/forge-recipes";
 import { removeNode } from "../src/canvas-kit/graph";
@@ -26,6 +26,61 @@ describe("a new card", () => {
     expect(nextNodeId(g, "model.ask")).toBe("ask2");
     expect(nextNodeId(g, "logic.if")).toBe("if");
     expect(newCard(g, "model.ask", { x: 10.6, y: 20 })).toMatchObject({ id: "ask2", type: "model.ask", x: 11, y: 20, title: "Ask the model" });
+  });
+});
+
+describe("the cards that work in code", () => {
+  const blank = () => graphOf(blankAgent("test-agent", "T"));
+  const ids = (ps: { id: string }[]) => ps.map((p) => p.id).sort();
+
+  it("a new card of each kind gets its default params and the right ports", () => {
+    expect(defaultParams("random.dice")).toEqual({ count: 1, sides: 20 });
+    expect(defaultParams("random.pick")).toEqual({ items: [{ text: "Option A", weight: 1 }, { text: "Option B", weight: 1 }] });
+    expect(defaultParams("text.extract")).toEqual({ pattern: "(.+)", group: 1 });
+    expect(defaultParams("text.cut")).toEqual({ keep: "first", unit: "words", n: 50 });
+    const g = blank();
+    const dice = newCard(g, "random.dice", { x: 0, y: 0 });
+    expect(dice).toMatchObject({ id: "dice", type: "random.dice", params: { count: 1, sides: 20 } });
+    expect(ids(portsOf(dice).ins)).toEqual(["when"]);
+    expect(ids(portsOf(dice).outs)).toEqual(["rolls", "total"]);
+    expect(portsOf(dice).outs.find((p) => p.id === "total")?.type).toBe("number");
+    const pick = newCard(g, "random.pick", { x: 0, y: 0 });
+    expect(ids(portsOf(pick).ins)).toEqual(["when"]);
+    expect(ids(portsOf(pick).outs)).toEqual(["index", "text"]);
+    const ext = newCard(g, "text.extract", { x: 0, y: 0 });
+    expect(ids(portsOf(ext).ins)).toEqual(["in"]);
+    expect(ids(portsOf(ext).outs)).toEqual(["match", "none"]);
+    expect(portsOf(ext).outs.find((p) => p.id === "none")?.type).toBe("signal");
+    const cut = newCard(g, "text.cut", { x: 0, y: 0 });
+    expect(ids(portsOf(cut).ins)).toEqual(["in"]);
+    expect(ids(portsOf(cut).outs)).toEqual(["text"]);
+  });
+
+  it("the defaults pass the check, and a bad value is named on its card", () => {
+    const f = blankAgent("test-agent", "T");
+    const g = graphOf(f);
+    const withCards = { nodes: [...g.nodes, ...(["random.dice", "random.pick", "text.extract", "text.cut"] as const).map((t, i) => newCard(g, t, { x: 100 * i, y: 200 }))], edges: g.edges };
+    const file = fileOf("T", f.agent as Json, withCards);
+    // the cards are not wired here, so only a parameter problem counts
+    expect(check(file).errors.filter((e) => e.code !== "E_UNWIRED")).toEqual([]);
+    const bad = setCard(withCards, "dice", { params: { count: 99, sides: 20 } });
+    const r = check(fileOf("T", f.agent as Json, bad));
+    expect(r.errors.find((e) => e.node === "dice")?.code).toBe("E_PARAM");
+    expect(issuesByNode(r).get("dice")?.errors).toBe(1);
+  });
+
+  it("the Input offers Litopys facts and the lorebook, and accepts a limit", () => {
+    expect(INPUT_SOURCES as readonly string[]).toContain("litopysFacts");
+    expect(INPUT_SOURCES as readonly string[]).toContain("lorebook");
+    const f = blankAgent("test-agent", "T");
+    const mk = (limit: unknown) => {
+      const g = setCard(graphOf(f), "in", { params: { give: [{ id: "facts", source: "litopysFacts", limit }, { id: "lore", source: "lorebook" }] } });
+      return check(fileOf("T", f.agent as Json, g));
+    };
+    expect(mk(5).errors.filter((e) => e.node === "in")).toEqual([]);
+    expect(mk(5).needs).toEqual(expect.arrayContaining(["read:litopysFacts", "read:lorebook"]));
+    // the limit is not an error when too large: the plugin clamps it (60 facts, 20 entries)
+    expect(mk(61).errors.filter((e) => e.node === "in")).toEqual([]);
   });
 });
 
