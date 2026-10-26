@@ -182,6 +182,30 @@ does not fold it into the scene before, it counts as closed even at the end of t
 or `{ chatId, op: "unmark", id }`; chapters over the same messages (not ones the user edited: those refuse the call) are marked
 stale and rewritten for the new layout. Overlapping marks and marks whose messages are gone are ignored.
 
+**Litopys config: `litopys/config.json`.** Only the keys the user changed need to be there; the plugin fills the rest
+(`GET/PUT /litopys/config`). The ones that decide what the memory does:
+- `budget` (200 to 16000, default 800): the most tokens the story record may take in a reply. When every known fact and
+  every chapter before the cut (a fresh arc in place of its chapters) fit, all of it is sent with no ranking (the
+  chapters in story order above the history, the facts below it: the sidecar `litopys/insert/<chatId>.json` has
+  `full: true`, and the Prompt board part says "full record"). When it does not fit, chapters and arcs are held at
+  least 40% of what is left after the pinned facts, the facts of those present and the chapter just before the cut,
+  and what one kind leaves unused goes to the other; at most 60 ranked chapters. An item goes in whole or not at all.
+- `arcMode` (`ask`, `auto`, `off`): `auto` merges older chapters into an arc by itself (it only adds the arc over its
+  chapters; nothing is deleted), `ask` offers the merge in the Library. A new install is `auto`. The first time the
+  config is read, an install that already has Litopys data (a config file, chat records or the 1.x store) is written
+  down as keeping its choice (`ask` when it never made one) with `arcNotice: "pending"`: the Library offers the switch
+  once, and either answer, or any choice of `arcMode`, sets `arcNotice` to `done`.
+- `proposals` (`ask`, default, or `quiet`): in `quiet` a `pin` or a `rewrite` proposed by the chapter worker or by
+  Consolidate is applied at once. The proposal stays in the chat's `proposals` as `status: "accepted", auto: true`
+  with an `undo` note, and the chat's Activity gets a `proposal.auto` row; `POST /litopys/proposals { chatId, id, op: "undo" }`
+  takes it back (the proposal becomes `rejected` with `undone: true`, a `proposal.undo` row is written) and refuses
+  with 409 `changed since` when the fact was changed after it. Never a `retire` or a `merge`; a rewrite of a fact the
+  user wrote, edited or pinned, and a pin past the pin limit, stay pending. (The Dashboard's own proposals are another plugin and
+  are not touched.)
+- `autoConsolidate` (`true`, `false`, or `null` = on only while `proposals` is `quiet`): starts Consolidate facts by
+  itself when the chat's active facts grew by 30 or more since the last run (`consolidateAt: { active, at }` on the
+  chat record, set by every run) and none is running and none of its proposals waits. Its proposals follow `proposals`.
+
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written
 outside the tab (Molfar, a hand edit) leaves `compiled` out (or sets it to `null`): the next time the
