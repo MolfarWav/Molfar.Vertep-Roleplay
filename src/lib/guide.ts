@@ -51,6 +51,35 @@ export interface Tip {
   help?: HelpGroup
   /** Extra words the help search matches (synonyms, other apps' names for it). */
   keywords?: Text
+  /** The title the help list shows when it differs from `title` (a What's new or tour tip keeps its
+   *  announcement wording there; the article that extends it names the feature). Search reads both. */
+  helpTitle?: Text
+  /** The one-line summary the help list shows when it differs from `body` (same reason as `helpTitle`). */
+  helpBody?: Text
+  /** The longer article behind "More" in the help list: plain text, `\n\n` between paragraphs,
+   *  a line starting with "- " is a list item. From help-articles.json (see `mergeArticles`). */
+  details?: Text
+  /** How to find the feature, shown above `details`. */
+  where?: Text
+  /** Ids of tips the reader should see next; only those listed in the help list become links. */
+  related?: string[]
+}
+
+/** One entry of help-articles.json: a help article with a long text. The file is written to
+ *  the format in docs/HELP-ARTICLES.md and checked by validate-help.mjs against this repo;
+ *  its `sources` (file, lines, quote for every claim) are for that check and are never read here. */
+export interface ArticleEntry {
+  id: string
+  group: HelpGroup
+  title: Text
+  /** Words the search matches, space-separated. */
+  aliases: Text
+  short: Text
+  where?: Text
+  details: Text
+  related?: string[]
+  /** The id of a tip on the same topic: the article's long text goes onto that tip instead of a second item. */
+  extends?: string
 }
 
 export type Place =
@@ -159,20 +188,98 @@ export function resetTours(state: GuideState | undefined): GuideState {
 /** The tip's text in the user's language (English when a translation is missing). */
 export const tipText = (text: Text, lang: Lang): string => text[lang] || text.en
 
-/** The help list for a search: tips with a group whose title, body or keywords contain
- *  every word of the query (either language, so a mixed query still finds), in group
- *  order, then registry order. An empty query lists everything. */
+/** Articles from help-articles.json merged into the hand-written tips. An entry with `extends`
+ *  adds its long text, `where`, `related` and search words to that tip (and lists the tip when it had
+ *  no group yet); an entry without it, or whose `extends` is not a tip, becomes a tip of its own.
+ *  The tip's own title and body stay, since What's new and the tours show them; the help list shows
+ *  the article's title and short text (`helpTitle`, `helpBody`).
+ *  An article's `related` may name another article by its own id; it is turned into the id of the tip
+ *  that article ended up on, so the link finds it. */
+export function mergeArticles(base: Tip[], entries: ArticleEntry[]): Tip[] {
+  const out = base.map((tip) => ({ ...tip }))
+  const at = new Map(out.map((tip, i) => [tip.id, i]))
+  const tipIds = new Set(at.keys())
+  const landsOn = new Map(entries.map((e) => [e.id, e.extends !== undefined && tipIds.has(e.extends) ? e.extends : e.id]))
+  const relatedOf = (e: ArticleEntry): string[] | undefined => {
+    const own = landsOn.get(e.id)
+    const ids = [...new Set((e.related ?? []).map((id) => landsOn.get(id) ?? id).filter((id) => id !== own))]
+    return e.related === undefined ? undefined : ids
+  }
+  const words = (a?: Text, b?: Text): Text => ({
+    en: [a?.en, b?.en].filter(Boolean).join(' '),
+    uk: [a?.uk, b?.uk].filter(Boolean).join(' '),
+  })
+  for (const entry of entries) {
+    const i = entry.extends === undefined ? undefined : at.get(entry.extends)
+    if (i !== undefined) {
+      const tip = out[i]
+      out[i] = {
+        ...tip,
+        help: tip.help ?? entry.group,
+        helpTitle: entry.title,
+        helpBody: entry.short,
+        keywords: words(tip.keywords, entry.aliases),
+        details: entry.details,
+        where: entry.where,
+        related: relatedOf(entry),
+      }
+      continue
+    }
+    at.set(entry.id, out.length)
+    out.push({
+      id: entry.id,
+      help: entry.group,
+      title: entry.title,
+      body: entry.short,
+      keywords: entry.aliases,
+      details: entry.details,
+      where: entry.where,
+      related: relatedOf(entry),
+    })
+  }
+  return out
+}
+
+const HELP_WEIGHT = { title: 8, keywords: 4, body: 2, details: 1 } as const
+
+/** The help list for a search: tips with a group in which every word of the query is found (either
+ *  language, so a mixed query still finds). An empty query lists everything in group order, then
+ *  registry order. With a query the best match comes first: a word in the title beats one in the
+ *  keywords, then the body, then the long text; a word that starts a word beats one inside a word
+ *  ("prof" finds Profile before it finds "improve"); ties keep group order, then registry order. */
 export function searchHelp(tips: Tip[], query: string): Tip[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  const hay = (tip: Tip) =>
-    [tip.title.en, tip.title.uk, tip.body.en, tip.body.uk, tip.keywords?.en ?? '', tip.keywords?.uk ?? '']
-      .join(' ')
-      .toLowerCase()
   const order = (tip: Tip) => HELP_GROUPS.indexOf(tip.help as HelpGroup)
-  return tips
-    .map((tip, i) => ({ tip, i }))
-    .filter(({ tip }) => tip.help && words.every((w) => hay(tip).includes(w)))
-    .sort((a, b) => order(a.tip) - order(b.tip) || a.i - b.i)
+  const listed = tips.map((tip, i) => ({ tip, i })).filter(({ tip }) => tip.help)
+  if (words.length === 0) return listed.sort((a, b) => order(a.tip) - order(b.tip) || a.i - b.i).map(({ tip }) => tip)
+  const fields = (tip: Tip) => ({
+    title: `${tip.title.en} ${tip.title.uk} ${tip.helpTitle?.en ?? ''} ${tip.helpTitle?.uk ?? ''}`.toLowerCase(),
+    keywords: `${tip.keywords?.en ?? ''} ${tip.keywords?.uk ?? ''}`.toLowerCase(),
+    body: `${tip.body.en} ${tip.body.uk} ${tip.helpBody?.en ?? ''} ${tip.helpBody?.uk ?? ''}`.toLowerCase(),
+    details: `${tip.details?.en ?? ''} ${tip.details?.uk ?? ''}`.toLowerCase(),
+  })
+  const startsWord = (hay: string, w: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'u').test(hay)
+  const score = (tip: Tip): number => {
+    const f = fields(tip)
+    let total = 0
+    for (const w of words) {
+      let best = 0
+      for (const key of Object.keys(HELP_WEIGHT) as (keyof typeof HELP_WEIGHT)[]) {
+        if (!f[key].includes(w)) continue
+        best = Math.max(best, HELP_WEIGHT[key] + (startsWord(f[key], w) ? HELP_WEIGHT[key] / 2 : 0))
+      }
+      if (best === 0) return 0
+      // a title that begins with the word is the feature itself ("Profile"), not one that mentions it
+      const titles = [tip.title, tip.helpTitle ?? tip.title].flatMap((x) => [x.en, x.uk])
+      if (titles.some((x) => x.toLowerCase().startsWith(w))) best += HELP_WEIGHT.title / 2
+      total += best
+    }
+    return total
+  }
+  return listed
+    .map((item) => ({ ...item, score: score(item.tip) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || order(a.tip) - order(b.tip) || a.i - b.i)
     .map(({ tip }) => tip)
 }
 
