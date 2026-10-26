@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Plus, Trash } from '@phosphor-icons/react'
+import { ArrowDown, ArrowUp, Plus, Trash } from '@phosphor-icons/react'
 import { templateProblems } from '@/canvas-kit/boards/agent-check'
 import { slotsFor } from '@/lib/agent-template'
 import { Button } from '@/components/ui/button'
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
-import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
+import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
 import { Field, NativeSelect } from './card-form'
 import { PanelPreview } from './panel-preview'
 
@@ -44,12 +44,13 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
                   {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}
                 </NativeSelect>
               </div>
+              <Mover at={i} count={panels.length} onMove={(by) => onChange(moveItem(panels, i, by))} />
               <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={() => onChange(panels.filter((_, k) => k !== i))}>
                 <Trash className="size-4" aria-hidden="true" />
               </Button>
             </div>
             {widgets.map((w, j) => (
-              <WidgetRow key={j} w={w} state={state} onChange={(next) => setWidget(j, next)} onRemove={() => setPanel(i, { widgets: widgets.filter((_, k) => k !== j) })} />
+              <WidgetRow key={j} w={w} state={state} onChange={(next) => setWidget(j, next)} onRemove={() => setPanel(i, { widgets: widgets.filter((_, k) => k !== j) })} at={j} count={widgets.length} onMove={(by) => setPanel(i, { widgets: moveItem(widgets, j, by) })} />
             ))}
             {widgets.length < MAX_WIDGETS && (
               <NativeSelect value="" label={t('fg.widget.add')} onChange={(kind) => kind && setPanel(i, { widgets: [...widgets, newWidget(kind, state)] })}>
@@ -70,7 +71,7 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
   )
 }
 
-function WidgetRow({ w, state, onChange, onRemove }: { w: Obj; state: State; onChange: (w: Obj) => void; onRemove: () => void }) {
+function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj; state: State; onChange: (w: Obj) => void; onRemove: () => void; at: number; count: number; onMove: (by: -1 | 1) => void }) {
   const t = useT()
   const kind = String(w.w)
   const known = (WIDGET_KINDS as readonly string[]).includes(kind)
@@ -87,6 +88,7 @@ function WidgetRow({ w, state, onChange, onRemove }: { w: Obj; state: State; onC
             {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
           </NativeSelect>
         ) : <span className="flex-1 self-center text-xs text-muted-foreground">{t('fg.widget.other', { kind })}</span>}
+        <Mover at={at} count={count} onMove={onMove} />
         <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.widget.remove')} onClick={onRemove}>
           <Trash className="size-4" aria-hidden="true" />
         </Button>
@@ -99,6 +101,7 @@ function WidgetRow({ w, state, onChange, onRemove }: { w: Obj; state: State; onC
             <div key={k} className="flex flex-col gap-1 rounded-md border border-border bg-background p-1.5">
               <div className="flex gap-1.5">
                 <Input value={it.label ?? ''} placeholder={t('fg.widget.btnLabel')} aria-label={t('fg.widget.btnLabel')} className="max-md:h-10" onChange={(e) => setItem(k, { label: e.target.value })} />
+                <Mover at={k} count={items.length} onMove={(by) => onChange({ ...w, items: moveItem(items, k, by) })} />
                 <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.widget.btnRemove')} disabled={items.length < 2} onClick={() => onChange({ ...w, items: items.filter((_, n) => n !== k) })}>
                   <Trash className="size-4" aria-hidden="true" />
                 </Button>
@@ -196,5 +199,21 @@ function HtmlForm({ w, state, onChange }: { w: Obj; state: State; onChange: (w: 
           }} />
       </Field>
     </div>
+  )
+}
+
+/** Up and down buttons for the place of an item in a list. */
+function Mover({ at, count, onMove }: { at: number; count: number; onMove: (by: -1 | 1) => void }) {
+  const t = useT()
+  if (count < 2) return null
+  return (
+    <span className="flex shrink-0" role="group" aria-label={t('fg.move')}>
+      <Button variant="ghost" size="icon" className="size-8 max-md:size-10" aria-label={t('fg.move.up')} title={t('fg.move.up')} disabled={at === 0} onClick={() => onMove(-1)}>
+        <ArrowUp className="size-4" aria-hidden="true" />
+      </Button>
+      <Button variant="ghost" size="icon" className="size-8 max-md:size-10" aria-label={t('fg.move.down')} title={t('fg.move.down')} disabled={at === count - 1} onClick={() => onMove(1)}>
+        <ArrowDown className="size-4" aria-hidden="true" />
+      </Button>
+    </span>
   )
 }

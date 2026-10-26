@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, FloppyDisk, PencilSimple, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, DotsThreeVertical, FloppyDisk, PencilSimple, Play, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { AGENT_BOARD, AGENT_CARDS } from '@/canvas-kit/boards/agent'
 import { commit, fromFile, historyOf, redo, removeNode, undo } from '@/canvas-kit/graph'
@@ -15,7 +15,8 @@ import {
   copyAgentToDraft, deleteAgentDraft, installAgentDraft, listAgentDrafts, listInstalledAgents, readAgentDraft, saveAgentDraft,
   type AgentDraft, type AgentInfo,
 } from '@/lib/agents'
-import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
+import { blankAgent, check, CARD_ORDER, copyOf, exportOf, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
+import { downloadJson } from '@/lib/interop'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
 import { installMessage } from '@/lib/agent-install'
@@ -24,6 +25,7 @@ import { AgentForm } from './forge/agent-form'
 import { AgentBoard } from './forge/agent-board'
 import { CardForm, type StateFields } from './forge/card-form'
 import { Abilities, Palette, PlacesGuide } from './forge/palette'
+import { TryPanel, useDry } from './forge/try-panel'
 
 type Agent = Record<string, any>
 interface Current { name: string; title: string; agent: Agent }
@@ -42,13 +44,14 @@ export function AgentForge() {
   const [cur, setCur] = useState<Current | null>(null)
   const [hist, setHist] = useState<History>(() => historyOf({ nodes: [], edges: [] }))
   const [selected, setSelected] = useState<string | null>(null)
-  const [tab, setTab] = useState<'card' | 'agent'>('agent')
+  const [tab, setTab] = useState<'card' | 'agent' | 'try'>('agent')
   const [sheet, setSheet] = useState(false)
   const [fit, setFit] = useState(0)
   // the side list of cards: shown by itself on a wide window, and the person can open or close it
   const [pal, setPal] = useState<boolean | null>(null)
   const [saving, setSaving] = useState<'saved' | 'saving' | 'failed'>('saved')
   const [busy, setBusy] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const graph = hist.present
   const palOpen = !isMobile && (pal ?? (typeof window !== 'undefined' && window.innerWidth >= 1500))
   const changed = useRef(false)
@@ -64,6 +67,8 @@ export function AgentForge() {
   const issues = useMemo(() => (report ? issuesByNode(report) : new Map<string, { errors: number; warnings: number }>()), [report])
   const fields = useMemo<StateFields>(() => (cur?.agent.state ?? {}) as StateFields, [cur])
   const installedCopy = installed?.find((a) => a.id === cur?.agent.id)
+  const errorCount = report?.errors.length ?? 0
+  const dry = useDry(file, cur?.name ?? '', tab === 'try' && errorCount === 0)
 
   // saved a moment after the last change; a draft is not installed, so a half-done one does no harm
   useEffect(() => {
@@ -161,6 +166,27 @@ export function AgentForge() {
     } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
   }
 
+  const exportFile = () => {
+    if (!file) return
+    const r = exportOf(file)
+    if ('error' in r) { toast.error(t('fg.export.blocked', { why: r.error })); return }
+    downloadJson(r.file, r.name)
+    toast.success(t('fg.export.done', { file: r.name }))
+  }
+  const saveCopy = async () => {
+    if (!cur || !file) return
+    const taken = [...drafts.map((d) => d.name), ...drafts.map((d) => d.id), ...(installed ?? []).map((a) => a.id)]
+    const c = copyOf(file, taken, t('fg.copy.name', { name: cur.title }))
+    try {
+      await saveAgentDraft(cur.name, file)
+      await saveAgentDraft(c.id, c.file)
+      changed.current = false
+      await refresh()
+      load(c.id, c.file as unknown as Record<string, unknown>)
+      toast.success(t('fg.copy.done', { name: c.file.title }))
+    } catch (e) { toast.error(t('fg.open.failed', { why: errText(e) })) }
+  }
+
   const addCard = (type: string) => {
     const n = graph.nodes.length
     const card = newCard(graph, type, { x: 10 + (n % 5) * 250, y: 280 + Math.floor(n / 5) * 150 })
@@ -188,10 +214,10 @@ export function AgentForge() {
   const inspector = cur && (
     <div className="flex min-h-0 flex-1 flex-col">
       <div role="tablist" className="flex shrink-0 gap-1 border-b border-border p-1.5">
-        {(['card', 'agent'] as const).map((k) => (
+        {(['card', 'agent', 'try'] as const).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={cn('flex-1 rounded-md px-2 py-1.5 text-xs font-semibold max-md:min-h-10', tab === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent')}>
-            {k === 'card' ? t('fg.tab.card') : t('fg.tab.agent')}
+            {k === 'card' ? t('fg.tab.card') : k === 'agent' ? t('fg.tab.agent') : t('fg.tab.try')}
           </button>
         ))}
       </div>
@@ -211,6 +237,8 @@ export function AgentForge() {
               deletable={(AGENT_BOARD.types[node.type]?.deletable ?? true) && node.type !== 'agent.input'}
             />
           ) : <p className="text-xs text-muted-foreground">{t('fg.card.none')}</p>
+        ) : tab === 'try' ? (
+          file && <TryPanel file={file as never} errors={errorCount} dry={dry} titleOf={(id) => graph.nodes.find((n) => n.id === id)?.title ?? id} />
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
@@ -332,6 +360,21 @@ export function AgentForge() {
           ))}
         </PopoverContent>
       </Popover>}
+      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger className="flex size-9 items-center justify-center rounded-md border border-border hover:bg-accent max-md:size-10" aria-label={t('fg.more')} title={t('fg.more')} data-testid="forge-more">
+          <DotsThreeVertical className="size-4" weight="bold" aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 p-1.5">
+          <button type="button" className="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-accent max-md:min-h-11" onClick={() => { setMoreOpen(false); exportFile() }} data-testid="forge-export">
+            <span className="text-sm font-medium">{t('fg.export')}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.export.hint')}</span>
+          </button>
+          <button type="button" className="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-accent max-md:min-h-11" onClick={() => { setMoreOpen(false); void saveCopy() }} data-testid="forge-copy">
+            <span className="text-sm font-medium">{t('fg.copy')}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.copy.hint')}</span>
+          </button>
+        </PopoverContent>
+      </Popover>
       <Button size="sm" className="max-md:h-10" disabled={busy || problems > 0} onClick={() => void install()} data-testid="forge-install">
         <UploadSimple className="size-4" aria-hidden="true" />{installedCopy ? t('ag.drafts.update') : t('ag.drafts.install')}
       </Button>
@@ -372,9 +415,14 @@ export function AgentForge() {
           <>
             {toolbar}
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <button type="button" className="mb-3 flex min-h-11 w-full items-center gap-2 rounded-md border border-border px-3 text-left text-sm font-medium" onClick={() => { setTab('agent'); setSelected(null); setSheet(true) }}>
-                <Robot className="size-4" aria-hidden="true" />{t('fg.tab.agent')}
-              </button>
+              <div className="mb-3 flex gap-2">
+                <button type="button" className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-border px-3 text-left text-sm font-medium" onClick={() => { setTab('agent'); setSelected(null); setSheet(true) }}>
+                  <Robot className="size-4" aria-hidden="true" />{t('fg.tab.agent')}
+                </button>
+                <button type="button" className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-border px-3 text-left text-sm font-medium" onClick={() => { setTab('try'); setSelected(null); setSheet(true) }} data-testid="forge-try-open">
+                  <Play className="size-4" aria-hidden="true" />{t('fg.tab.try')}
+                </button>
+              </div>
               <ul className="flex flex-col gap-1.5" aria-label={t('fg.cards')}>
                 {[...graph.nodes].sort((a, b) => a.x - b.x || a.y - b.y).map((n) => {
                   const i = issues.get(n.id)
@@ -395,7 +443,7 @@ export function AgentForge() {
             {checkPanel}
             <Sheet open={sheet} onOpenChange={setSheet}>
               <SheetContent side="bottom" className="flex max-h-[88dvh] flex-col p-0">
-                <SheetHeader className="p-3 pb-0"><SheetTitle>{tab === 'card' ? node?.title ?? t('fg.tab.card') : t('fg.tab.agent')}</SheetTitle></SheetHeader>
+                <SheetHeader className="p-3 pb-0"><SheetTitle>{tab === 'card' ? node?.title ?? t('fg.tab.card') : tab === 'try' ? t('fg.tab.try') : t('fg.tab.agent')}</SheetTitle></SheetHeader>
                 {inspector}
               </SheetContent>
             </Sheet>
@@ -430,6 +478,7 @@ export function AgentForge() {
                 selectedId={selected}
                 onSelect={pick}
                 issues={issues}
+                probe={tab === 'try' ? dry.result : null}
                 fitSignal={fit}
               />
             </div>

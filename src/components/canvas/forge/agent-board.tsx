@@ -5,6 +5,8 @@ import { canConnect, connect, moveNode, removeEdge, splitEnd } from '@/canvas-ki
 import type { CanvasNode, Graph } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/hooks/use-t'
+import type { DryResult } from '@/lib/agent-dry'
+import { fmtValue } from '@/lib/agent-template'
 import { CARD, cardHeight, nextEdgeId, portsOf } from '@/lib/forge'
 import { cn } from '@/lib/utils'
 
@@ -53,11 +55,25 @@ interface DragState {
   dx?: number
   dy?: number
   from?: string
+  /** the wire being moved by its input end: its id, and the input it came from */
+  rewire?: string
+  was?: string
   start?: Pt
   moved?: boolean
 }
 
+/** What a trial run says about the board: what each wire carried and what happened to each card. */
+export type Probe = Pick<DryResult, 'wires' | 'nodes'>
+
+/** A value as the small label on a wire shows it. */
+export function probeLabel(v: unknown): string {
+  if (v === true) return '✓'
+  const s = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : fmtValue(v)
+  return s.length > 22 ? `${s.slice(0, 21)}…` : s || '""'
+}
+
 interface Props {
+  probe?: Probe | null
   graph: Graph
   editable: boolean
   onChange: (next: Graph) => void
@@ -69,7 +85,7 @@ interface Props {
   reasonText: (core: string) => string
 }
 
-export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId, onSelect, issues, fitSignal, reasonText }: Props) {
+export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, selectedId, onSelect, issues, fitSignal, reasonText }: Props) {
   const t = useT()
   const stage = useRef<HTMLDivElement>(null)
   const [view, setView] = useState({ x: 30, y: 30, k: 1 })
@@ -146,6 +162,7 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
     const target = e.target as HTMLElement
     if (target.closest('[data-ctl]')) return
     const out = target.closest('[data-port-out]') as HTMLElement | null
+    const inEl = target.closest('[data-port-in]') as HTMLElement | null
     const nodeEl = target.closest('[data-node]') as HTMLElement | null
     const edgeEl = target.closest('[data-edge-hit]') as HTMLElement | null
     stage.current?.focus({ preventScroll: true })
@@ -160,6 +177,21 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
         stage.current!.setPointerCapture(e.pointerId)
       }
       return
+    }
+    // an input that has a wire: pick the wire up by its end, to drop it on another input
+    const into = inEl && editable ? graph.edges.find((x) => x.to === `${inEl.dataset.pnode}:${inEl.dataset.portIn}`) : undefined
+    if (into) {
+      const [fn, fp] = splitEnd(into.from)
+      const a = byId.get(fn)
+      const start = a && portPoint(a, posOf(a), fp, 'out')
+      if (start) {
+        e.preventDefault()
+        setEdgeSel(null)
+        setDrag({ type: 'wire', sx: e.clientX, sy: e.clientY, from: into.from, rewire: into.id, was: into.to, start })
+        setEnd(toWorld(e.clientX, e.clientY))
+        stage.current!.setPointerCapture(e.pointerId)
+        return
+      }
     }
     if (nodeEl) {
       const n = byId.get(nodeEl.dataset.node!)
@@ -206,7 +238,9 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
     setEnd(null)
     setOver(null)
     if (!to || !d.from) return
-    const r = connect(AGENT_BOARD, graph, d.from, to, nextEdgeId(graph))
+    if (d.rewire && to === d.was) return // dropped where it was: nothing changes
+    const base = d.rewire ? removeEdge(graph, d.rewire) : graph
+    const r = connect(AGENT_BOARD, base, d.from, to, nextEdgeId(base))
     if (r.verdict.ok) onChange(r.graph)
     else setReason(reasonText(r.verdict.reason))
   }
@@ -221,7 +255,8 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
   const accepts = useMemo(() => {
     const ok = new Set<string>()
     if (drag?.type !== 'wire' || !drag.from) return ok
-    for (const n of graph.nodes) for (const p of portsOf(n).ins) if (canConnect(AGENT_BOARD, graph, drag.from, `${n.id}:${p.id}`).ok) ok.add(`${n.id}:${p.id}`)
+    const base = drag.rewire ? removeEdge(graph, drag.rewire) : graph
+    for (const n of graph.nodes) for (const p of portsOf(n).ins) if (canConnect(AGENT_BOARD, base, drag.from, `${n.id}:${p.id}`).ok) ok.add(`${n.id}:${p.id}`)
     return ok
   }, [drag, graph])
 
@@ -258,17 +293,34 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
     >
       <div className="absolute left-0 top-0" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: '0 0' }}>
         <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">
-          {wires.map(({ e, pa, pb }) => {
+          {wires.filter(({ e }) => e.id !== drag?.rewire).map(({ e, pa, pb }) => {
             const hot = e.id === edgeSel || (selectedId !== null && (splitEnd(e.from)[0] === selectedId || splitEnd(e.to)[0] === selectedId))
+            const seen = probe?.wires[e.from]
+            const probed = seen?.state === 'value' ? 'stroke-emerald-500' : seen?.state === 'wait' || seen?.state === 'missing' ? 'stroke-amber-500' : ''
+            const stroke = hot ? 'var(--primary)' : 'color-mix(in oklab, var(--foreground) 38%, transparent)'
             return (
-              <g key={e.id}>
-                <path d={curve(pa, pb)} fill="none" strokeWidth={hot ? 2.5 : 2} stroke={hot ? 'var(--primary)' : 'color-mix(in oklab, var(--foreground) 38%, transparent)'} />
+              <g key={e.id} opacity={seen?.state === 'skip' ? 0.35 : 1}>
+                <path d={curve(pa, pb)} fill="none" className={probed} strokeWidth={hot || seen?.state === 'value' ? 2.5 : 2} stroke={probed ? undefined : stroke} strokeDasharray={seen && seen.state !== 'value' ? '5 4' : undefined} />
                 <path d={curve(pa, pb)} fill="none" stroke="transparent" strokeWidth={16} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} data-edge-hit={e.id} />
               </g>
             )
           })}
           {drag?.type === 'wire' && drag.start && end && <path d={curve(drag.start, end)} fill="none" stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 4" />}
         </svg>
+
+        {probe && wires.filter(({ e }) => e.id !== drag?.rewire).map(({ e, pa, pb }) => {
+          const seen = probe.wires[e.from]
+          if (!seen || seen.state === 'skip') return null
+          const m = mid(pa, pb)
+          const text = seen.state === 'value' ? probeLabel(seen.value) : seen.state === 'wait' ? '…' : '∅'
+          return (
+            <span key={`p-${e.id}`} data-testid={`probe-${e.id}`} data-probe={seen.state}
+              className={cn('pointer-events-none absolute z-10 max-w-44 -translate-x-1/2 -translate-y-1/2 truncate rounded-full border bg-card px-1.5 text-[10px] leading-4 shadow-sm', seen.state === 'value' ? 'border-emerald-500/60 text-foreground' : 'border-amber-500/70 text-amber-600 dark:text-amber-400')}
+              style={{ left: m.x, top: m.y }}>
+              {text}
+            </span>
+          )
+        })}
 
         {graph.nodes.map((n) => {
           const at = posOf(n)
@@ -281,6 +333,7 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
             <div
               key={n.id}
               data-node={n.id}
+              data-probe-node={probe?.nodes[n.id]}
               data-testid={`forge-node-${n.id}`}
               role="button"
               tabIndex={-1}
@@ -289,6 +342,10 @@ export function AgentBoard({ graph, editable, onChange, onRemoveNode, selectedId
               className={cn(
                 'absolute select-none rounded-lg border bg-card shadow-md',
                 selected ? 'border-primary ring-2 ring-primary/60' : bad?.errors ? 'border-destructive' : 'border-border',
+                probe?.nodes[n.id] === 'ran' && !selected && 'border-emerald-500/70',
+                probe?.nodes[n.id] === 'skipped' && 'opacity-50',
+                probe?.nodes[n.id] === 'waiting' && 'border-amber-500/70',
+                probe?.nodes[n.id] === 'failed' && 'border-destructive ring-2 ring-destructive/60',
                 n.type === 'note' && 'border-dashed',
                 editable ? 'cursor-grab' : 'cursor-pointer',
                 live?.id === n.id && 'cursor-grabbing shadow-xl',
