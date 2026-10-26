@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agents (#127), phone pass: the new agent screens were walked on a 390 px screen (the chat's Agents tab and place picker, Agent sets, the editor's card list, More menu, panel forms and the Try tab, the install screen): no sideways scrolling anywhere. Tap targets that were under 40 px are now larger on a phone: the Canvas board tabs, the chat picker of the Agent sets sandbox, the switches of the lanes, and "Back to the set" in the chat's own list. On a phone the editor still shows the cards as a list, with a Try button beside Agent; the step list of the Try tab takes the place of the labels on the wires.
+
 - Agents (#127), the editor, export and copies: a More menu (three dots) in the editor's toolbar has Export as a file, which downloads the agent as one checked `<id>.vertep-agent.json` (with what it needs and its hash filled in; refused with the first problem while the check has errors), and Save as a copy, which makes a new draft with its own id (`<id>-copy`, then `-2`, `-3`) and the name "Name (copy)" and opens it, leaving the first as it was.
 - Agents (#127), the editor, wires and order: drag a wired input's dot to pick the wire up by its end and drop it on another input; dropped on the same input or on an empty board it stays as it was, and a drop that does not fit says why. Panels and widgets (and the buttons of a Buttons widget) have Up and Down buttons to set their order, which is the order the chat shows them in.
 

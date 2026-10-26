@@ -542,7 +542,7 @@ export function CanvasView() {
         <div data-guide="canvas.boards" className="flex rounded-lg bg-muted p-0.5">
           <button
             className={cn(
-              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:min-h-10 max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'links' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'links'}
@@ -554,7 +554,7 @@ export function CanvasView() {
           <button
             data-guide="canvas.board-prompt"
             className={cn(
-              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:min-h-10 max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'prompt' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'prompt'}
@@ -571,7 +571,7 @@ export function CanvasView() {
             data-guide="canvas.board-agents"
             data-testid="board-agents"
             className={cn(
-              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:min-h-10 max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'agents' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'agents'}
@@ -583,7 +583,7 @@ export function CanvasView() {
           <button
             data-testid="board-sets"
             className={cn(
-              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:min-h-10 max-md:px-2 max-md:py-2 max-md:text-[13px]',
               board === 'sets' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={board === 'sets'}
@@ -621,7 +621,7 @@ export function CanvasView() {
         {board !== 'agents' && board !== 'sets' && <div data-guide="canvas.mode" className={cn('rounded-lg bg-muted p-0.5', isMobile ? 'hidden' : 'flex')}>
           <button
             className={cn(
-              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:min-h-10 max-md:px-2 max-md:py-2 max-md:text-[13px]',
               editable ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={editable}
@@ -632,7 +632,7 @@ export function CanvasView() {
           </button>
           <button
             className={cn(
-              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:px-2 max-md:py-2 max-md:text-[13px]',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold max-md:min-h-10 max-md:px-2 max-md:py-2 max-md:text-[13px]',
               !editable ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
             )}
             aria-pressed={!editable}

@@ -96,7 +96,7 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
         <button
           type="button"
           onClick={() => void edit({ op: 'reset' })}
-          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground max-md:min-h-10"
         >
           <ArrowCounterClockwise className="size-3" aria-hidden="true" /> {t('ag.backToSet')}
         </button>

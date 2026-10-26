@@ -221,7 +221,7 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="flex min-w-0 flex-col gap-1">
                     <span className="text-[11px] text-muted-foreground">{t('as.numbersFrom')}</span>
-                    <ChatPicker chats={chatRows} value={numbersChat} onChange={setRunChat} />
+                    <ChatPicker chats={chatRows} value={numbersChat} onChange={setRunChat} className="max-md:h-10" />
                   </div>
                   <label className="flex flex-col gap-1">
                     <span className="text-[11px] text-muted-foreground">{t('as.replyTakes')}</span>
@@ -260,7 +260,7 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
                         <div key={it.agent} className={cn('flex flex-col gap-1.5 rounded-md border border-border bg-background p-2', !it.on && 'opacity-60')} data-testid={`as-item-${it.agent}`}>
                           <div className="flex items-center gap-2">
                             <span className="min-w-0 flex-1 truncate text-sm font-medium">{nameOf(it.agent)}</span>
-                            <Switch size="sm" checked={it.on} aria-label={t('as.on', { name: nameOf(it.agent) })} onCheckedChange={(on) => setItem(it.agent, (x) => ({ ...x, on }))} />
+                            <Switch size="sm" className="max-md:after:-inset-y-3.5" checked={it.on} aria-label={t('as.on', { name: nameOf(it.agent) })} onCheckedChange={(on) => setItem(it.agent, (x) => ({ ...x, on }))} />
                           </div>
                           {!a && <p className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400"><Warning className="size-3" aria-hidden="true" />{t('ag.wait.notInstalled')}</p>}
                           {c && <p className="text-[11px] text-muted-foreground">{t('as.cost', { time: seconds(c.ms), n: c.calls })}{c.known ? '' : ' ?'}</p>}
