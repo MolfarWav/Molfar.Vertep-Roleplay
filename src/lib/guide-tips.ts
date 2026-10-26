@@ -249,8 +249,8 @@ const HAND_TIPS: Tip[] = [
     open: { view: 'home' },
     title: { en: 'Pictures for a world, picked by the scene', uk: 'Картинки для світу, які добирає сцена' },
     body: {
-      en: 'In World, a chat\u2019s Backgrounds tab links a folder, plans a set of pictures for its places (you check the plan before anything is drawn), draws them one by one and names old ones with a vision model. Turn on \u201cChange the background by scene\u201d in the chat and the Dashboard picks the image that fits. Images are stored as WebP; Extensions > Backgrounds can convert the old ones.',
-      uk: 'У «Світі» вкладка «Тла» чату прив’язує теку, планує набір картинок для його місць (план ви перевіряєте до малювання), малює їх по одній і називає старі за допомогою моделі зору. Увімкніть у чаті «Змінювати тло за сценою», і Дашборд обере картинку, що пасує. Картинки зберігаються як WebP; «Розширення > Тла» перетворить старі.',
+      en: 'In World, a chat\u2019s Backgrounds tab links a folder, plans a set of pictures for its places (you check the plan before anything is drawn), draws them one by one and names old ones with a vision model. Turn on \u201cChange the background by scene\u201d in the chat and the Dashboard picks the image that fits. Images are stored as WebP; Tools > Backgrounds can convert the old ones.',
+      uk: 'У «Світі» вкладка «Тла» чату прив’язує теку, планує набір картинок для його місць (план ви перевіряєте до малювання), малює їх по одній і називає старі за допомогою моделі зору. Увімкніть у чаті «Змінювати тло за сценою», і Дашборд обере картинку, що пасує. Картинки зберігаються як WebP; «Інструменти > Backgrounds» перетворить старі.',
     },
   },
   // ── What's new: a world without a chat

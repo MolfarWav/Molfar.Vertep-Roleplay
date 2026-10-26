@@ -2412,6 +2412,940 @@
           "quote": "Shows the final request this preset builds for a chat, so you can see what the model really gets."
         }
       ]
+    },
+    {
+      "id": "kb.regex",
+      "group": "setup",
+      "title": {
+        "en": "Regex scripts",
+        "uk": "Регекс-скрипти"
+      },
+      "aliases": {
+        "en": "regex regular expression script find replace pattern text output input match group",
+        "uk": "регекс скрипт шаблон знайти замінити текст вивід ввід група вкладка інструменти"
+      },
+      "short": {
+        "en": "A regex script finds text by a pattern and replaces it. It works only in the places you switch on for it.",
+        "uk": "Регекс-скрипт знаходить текст за шаблоном і замінює його. Він працює лише в тих місцях, які ви для нього ввімкнули."
+      },
+      "where": {
+        "en": "Tools, then the Regex tab.",
+        "uk": "Інструменти, вкладка “Regex”."
+      },
+      "details": {
+        "en": "Find Regex is the pattern to look for. Replace With is the text that takes its place. In Replace With, $1 and $2 stand for captured groups, and {{match}} stands for the matched text.\n\nExample: Find Regex “teh”, Replace With “the”. Every “teh” in the text becomes “the”.\n\nApplies to is a set of switches: User input, AI output, Slash commands, World info and Reasoning. Switch on the places where the script should work.\n\nWith the Changes switches off, the script rewrites the message itself when it is saved. Messages written before are not touched.",
+        "uk": "«Find Regex» — це шаблон, який шукаємо. «Replace With» — текст, яким його замінюємо. У «Replace With» пишіть $1 і $2 для знайдених груп, а {{match}} — для знайденого тексту.\n\nПриклад: у «Find Regex» напишіть teh, у «Replace With» — the. Кожне teh у тексті стане the.\n\n«Applies to» — це перемикачі: «User input», «AI output», «Slash commands», «World info» і «Reasoning». Увімкніть місця, де скрипт має працювати.\n\nПоки перемикачі в розділі «Changes» вимкнені, скрипт переписує саме повідомлення під час збереження. Старі повідомлення не чіпає."
+      },
+      "related": [
+        "help.tools",
+        "help.presets",
+        "help.lorebooks"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/extensions-view.tsx",
+          "lines": "99-99",
+          "quote": "<TabsTrigger value=\"regex\" className={TRIGGER_CLS}><Asterisk className=\"size-3.5\" aria-hidden=\"true\" /> Regex</TabsTrigger>"
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "491-491",
+          "quote": "placeholder=\"replacement: $1, $2 for groups, {{match}} for the trimmed match\""
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "23-27",
+          "quote": "[\"userInput\", \"User input\"], [\"aiOutput\", \"AI output\"], [\"slash\", \"Slash commands\"], [\"wi\", \"World info\"], [\"reasoning\", \"Reasoning\"],"
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "558-558",
+          "quote": "Rewrites the message itself when it is saved. Existing messages are not touched."
+        }
+      ]
+    },
+    {
+      "id": "kb.quick-replies",
+      "group": "setup",
+      "title": {
+        "en": "Shortcuts that run by themselves",
+        "uk": "Швидкі відповіді й автозапуск"
+      },
+      "aliases": {
+        "en": "quick replies shortcuts auto execute automatic run startup start chat open event send insert set enable composer slash command hook trigger",
+        "uk": "швидкі відповіді шорткати автозапуск запуск старт відкриття чату подія надсилати вставити набір увімкнути команди"
+      },
+      "short": {
+        "en": "A reply can also run by itself on an event, such as app start or after you send a message. Only enabled sets run, and only plain text or the commands /continue, /impersonate, /regenerate and /swipe.",
+        "uk": "Швидка відповідь може запускатися сама за подією: після запуску застосунку, після вашого повідомлення тощо. Запускаються лише ввімкнені набори й лише звичайний текст або команди /continue, /impersonate, /regenerate, /swipe."
+      },
+      "details": {
+        "en": "Each reply has its own Auto-execute ticks, one for each event: on app startup, after you send a message, after an AI reply is saved to the chat, and when a chat opens. Only a reply in Send mode runs by itself.\n\nA set runs by itself only while it is switched on with “Show in composer”. A switched-off set is skipped, even when its ticks are on.\n\nThe replies that can run by themselves are plain text and the commands /continue, /impersonate, /regenerate and /swipe. Any other slash command does not run, and a message tells you so.",
+        "uk": "Кожна відповідь має свої позначки «Auto-execute», по одній на кожну подію. Подій чотири: запуск застосунку, ваше надіслане повідомлення, збережена відповідь AI і відкриття чату. Сама відповідь запускається лише в режимі «Send».\n\nНабір запускає свої відповіді, лише доки він увімкнений перемикачем «Show in composer». Вимкнений набір пропускається, навіть якщо позначки стоять.\n\nСамі запускаються лише звичайний текст і команди /continue, /impersonate, /regenerate та /swipe. Інші команди не запускаються: з’явиться повідомлення."
+      },
+      "related": [
+        "help.slash",
+        "help.regen-hint",
+        "help.chat-menu"
+      ],
+      "extends": "help.shortcuts",
+      "sources": [
+        {
+          "path": "src/components/views/quickreplies-view.tsx",
+          "lines": "144-144",
+          "quote": "on app startup, after you send a message, after an AI reply commits, and when a chat opens."
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1897-1897",
+          "quote": ".filter((r) => r.mode === 'send' && r.autoExecute?.[event])"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "2974-2974",
+          "quote": "Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text."
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1895-1895",
+          "quote": ".filter((set) => set.enabled)"
+        }
+      ],
+      "where": {
+        "en": "Open the Shortcuts page, then a reply: tick Auto-execute.",
+        "uk": "Сторінка Shortcuts, далі відповідь: позначки «Auto-execute»."
+      }
+    },
+    {
+      "id": "kb.inbox",
+      "group": "help",
+      "title": {
+        "en": "Inbox: what waits on you",
+        "uk": "Вхідні: що чекає на вас"
+      },
+      "aliases": {
+        "en": "inbox waiting on you failure failed error library suggestions approval soul reviews proposed dismiss notice red count badge",
+        "uk": "вхідні чекає на вас збій збої помилка пропозиції бібліотеки підтвердження душі огляд закрити сповіщення лічильник"
+      },
+      "short": {
+        "en": "Failed background jobs, Library suggestions and proposed souls wait here. A red count means a failure.",
+        "uk": "Тут чекають збої фонових завдань, пропозиції Бібліотеки та запропоновані душі. Червона цифра означає збій."
+      },
+      "details": {
+        "en": "Failures come from the World DM, the Library, the scene state and soul ratings. A red count on the Inbox shows how many failures there are.\n\nDismiss clears a failure until that job fails again. The same failure does not come back on its own.\n\nDismiss on a soul review deletes the proposal, and the button’s tooltip says so before you press it.",
+        "uk": "Збої йдуть від майстра світу, Бібліотеки, стану сцени й оцінки душ. Червона цифра на «Вхідних» показує, скільки їх.\n\n«Закрити» прибирає збій, доки фонове завдання знову не зупиниться з помилкою. Сам збій не повернеться.\n\nДля огляду душ «Закрити» видаляє пропозицію, і підказка на кнопці про це каже."
+      },
+      "related": [
+        "kb.soul-rate",
+        "kb.world-dm",
+        "kb.library-views"
+      ],
+      "extends": "new.inbox",
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2319-2319",
+          "quote": "Failures, Library suggestions and proposed souls show up here."
+        },
+        {
+          "path": "src/lib/attention.ts",
+          "lines": "57-57",
+          "quote": "\"Dismiss\" on a failure row: gone until that job fails again"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2348-2348",
+          "quote": "Dismiss (the proposal is deleted)"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2359-2359",
+          "quote": "a background job fails: the World DM, the Library, the scene state or a soul rating"
+        }
+      ],
+      "where": {
+        "en": "The Inbox button in the top bar.",
+        "uk": "Кнопка «Вхідні» у верхній панелі."
+      }
+    },
+    {
+      "id": "kb.themes",
+      "group": "setup",
+      "title": {
+        "en": "Themes, prose colors, Custom CSS",
+        "uk": "Теми, кольори прози і власний CSS"
+      },
+      "aliases": {
+        "en": "theme themes palette colors colours dark light look appearance prose quotes narration italics custom css style stylesheet",
+        "uk": "тема теми палітра кольори темна світла вигляд прози лапки оповідь курсив власний css стиль таблиця стилів"
+      },
+      "short": {
+        "en": "Themes in Settings change the palette at once. Prose Colors recolor quoted speech and narration, and Custom CSS, added last, overrides the rest.",
+        "uk": "Теми в налаштуваннях міняють палітру одразу. «Prose Colors» перефарбовує репліки в лапках і оповідь, а власний CSS, доданий останнім, перевизначає решту."
+      },
+      "details": {
+        "en": "Themes is the list of palettes. Pick one and its colors apply at once, on top of the app’s base colors.\n\nProse Colors set two colors: Quoted dialogue and Narration / *actions*. They apply to every message, including text that is still streaming in.\n\nCustom CSS is added after the theme, so your rules win over it. The editor refuses style tags: write only the rules, without the tags around them.",
+        "uk": "«Themes» — це список палітр. Оберіть одну, і її кольори застосуються одразу, поверх базових кольорів застосунку.\n\n«Prose Colors» задає два кольори: «Quoted dialogue» і «Narration / *actions*». Вони діють на кожне повідомлення, навіть на текст, що ще друкується.\n\n«Custom CSS» додається після теми, тож ваші правила важать більше за тему. Редактор не приймає теги style: пишіть лише правила."
+      },
+      "related": [
+        "new.voices",
+        "new.voices-dash"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "400-400",
+          "quote": "Theme colors are applied live over the base design tokens."
+        },
+        {
+          "path": "src/components/settings/prose-colors-section.tsx",
+          "lines": "33-33",
+          "quote": "Applies to every message, including text that is still streaming in."
+        },
+        {
+          "path": "src/components/settings/custom-css-section.tsx",
+          "lines": "89-89",
+          "quote": "Injected after the theme, so your rules win."
+        },
+        {
+          "path": "src/components/settings/custom-css-section.tsx",
+          "lines": "46-46",
+          "quote": "Remove <style> tags, the contents alone are enough"
+        }
+      ],
+      "where": {
+        "en": "Settings, then Themes, Prose Colors or Custom CSS.",
+        "uk": "Налаштування, далі Themes, Prose Colors або Custom CSS."
+      }
+    },
+    {
+      "id": "kb.tags-folders",
+      "group": "characters",
+      "title": {
+        "en": "Tags and folders",
+        "uk": "Теги й теки"
+      },
+      "aliases": {
+        "en": "tags tag folder folders chats card label filter hide hidden visible manager sort organize group",
+        "uk": "теги тег теки тека чати картка мітка фільтр приховати видимий керувати групувати впорядкувати"
+      },
+      "short": {
+        "en": "Tags are labels on your cards, set in the card and in the tag manager. Chats can go into folders on the Chats page.",
+        "uk": "Теги — це мітки на картках: їх задають у полі картки та в керуванні тегами. Чати можна складати в теки на сторінці «Чати»."
+      },
+      "details": {
+        "en": "In a card, type tags into the field labelled “Tags (comma separated)”, with a comma between them.\n\nIn the tag manager, a tag whose visibility is switched off leaves the tag row of the Characters page.\n\nFolders hold chats. Name a new folder on the Chats page; it opens at once. Deleting a folder does not delete its chats: they stay, just without a folder.",
+        "uk": "На картці впишіть теги в поле «Tags (comma separated)», через коми.\n\nУ «Керувати тегами» тег, у якого вимкнено видимість, зникає з рядка тегів на сторінці персонажів.\n\nТеки складаються з чатів. Введіть назву, щоб створити теку на сторінці «Чати»: вона одразу відкривається. Видалення теки не видаляє її чати: вони лишаються без теки."
+      },
+      "related": [
+        "help.characters",
+        "kb.characters",
+        "help.groups"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "552-552",
+          "quote": "Tags (comma separated)"
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "260-260",
+          "quote": "meta.get(name)?.visible !== false"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "100-100",
+          "quote": "setActiveFolderId(addFolder(name, 'chats'))"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "2424-2424",
+          "quote": "chats: s.chats.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))"
+        }
+      ],
+      "where": {
+        "en": "Tags: Characters page, “Manage tags”. Folders: Chats page.",
+        "uk": "Теги: сторінка персонажів, «Керувати тегами». Теки: сторінка «Чати»."
+      }
+    },
+    {
+      "id": "kb.translation-tab",
+      "group": "setup",
+      "title": {
+        "en": "Translation: chats, messages and languages",
+        "uk": "Translation: переклад чату і мов"
+      },
+      "aliases": {
+        "en": "translation translate provider llm google lingva deepl language target model auto translate responses inputs both chat clear test",
+        "uk": "translation переклад перекласти провайдер llm google lingva deepl мова цільова мова моделі авто відповіді вхідні чат очистити"
+      },
+      "short": {
+        "en": "Tools → Translation sets the provider, the two languages and an auto-translate mode. The same tab translates the open chat in one go, or clears its translations.",
+        "uk": "«Інструменти» → Translation: провайдер, дві мови та режим авто. Там же можна перекласти відкритий чат разом або очистити його переклади."
+      },
+      "where": {
+        "en": "Tools → Translation.",
+        "uk": "«Інструменти» → Translation."
+      },
+      "details": {
+        "en": "Provider chooses who translates: “LLM (engine model)”, “Google”, “Lingva” or “DeepL”. DeepL needs a key typed into the field that appears under it; for a pro key, add “:pro” after the key.\n\nAuto-translate has four modes: “None (manual only)”, “Translate responses”, “Translate inputs” and “Translate both”. With “Translate inputs”, your message is translated before it is sent, so the model reads the translation. What you typed stays under it.\n\nTranslate chat translates every visible message in the open chat that has no translation yet. Clear removes the translations of that chat.\n\nThe default target language is “Spanish”, so change it before you rely on the output.",
+        "uk": "Provider обирає, хто перекладає: «LLM (engine model)», «Google», «Lingva» або «DeepL». Для DeepL введіть ключ у поле, що з’являється під ним. Для про-ключа додайте «:pro» після нього.\n\n«Auto-translate» має чотири режими: «None (manual only)», «Translate responses», «Translate inputs» і «Translate both».\n\n«Translate inputs» перекладає ваше повідомлення до надсилання, тож модель читає переклад. Під ним лишається те, що ви написали.\n\n«Translate chat» перекладає кожне видиме повідомлення відкритого чату, яке ще не має перекладу. «Clear» прибирає переклади цього чату.\n\nТипова цільова мова — «Spanish»; змініть її, перш ніж покладатися на переклад."
+      },
+      "related": [
+        "help.message-menu",
+        "help.tools",
+        "help.lorebooks"
+      ],
+      "sources": [
+        {
+          "path": "src/components/extensions/translation-tab.tsx",
+          "lines": "19-19",
+          "quote": "Needs a free or pro API key below"
+        },
+        {
+          "path": "src/components/extensions/translation-tab.tsx",
+          "lines": "200-200",
+          "quote": "Translate every visible message, or clear existing translations."
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1289-1289",
+          "quote": "if ((outMode === 'inputs' || outMode === 'both') && effective.trim()) {"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "196-196",
+          "quote": "targetLanguage: 'Spanish'"
+        }
+      ]
+    },
+    {
+      "id": "kb.tts-tab",
+      "group": "setup",
+      "title": {
+        "en": "TTS: reading replies aloud",
+        "uk": "TTS: озвучення відповідей"
+      },
+      "aliases": {
+        "en": "tts text to speech voice narrator speak read aloud audio edge engine system web speech browser auto play autoplay quotes asterisks code blocks speed test stop",
+        "uk": "tts озвучення голос оповідач озвучити читати вголос аудіо edge рушій система браузер автовідтворення лапки зірочки блоки коду швидкість тест зупинити"
+      },
+      "short": {
+        "en": "Tools → TTS reads replies aloud. It is off by default. Pick the browser’s voices or the engine’s voices, press Test voice, then turn on Auto-play if you want every reply read.",
+        "uk": "«Інструменти» → TTS читає відповіді вголос. За замовчуванням вимкнено. Оберіть голоси браузера або голоси рушія, натисніть «Test voice» і, якщо треба, увімкніть автоозвучення."
+      },
+      "where": {
+        "en": "Tools → TTS.",
+        "uk": "«Інструменти» → TTS."
+      },
+      "details": {
+        "en": "Provider has three choices: “None” (off), “System (Web Speech)” (the browser’s own voices) and “Engine” (voices through the engine). Off is the default.\n\nAuto-play new replies reads each new reply once it has finished. It does not start while a reply is still streaming.\n\nOnly narrate quotes reads just the text in quotation marks. A reply with no quotation marks at all is read in full.\n\nA new workspace starts with “Only narrate quotes”, “Skip asterisked text” and “Skip code blocks” switched on, so that text is skipped unless you turn those off.\n\nTest voice reads one fixed line; Stop ends any speech that is playing.",
+        "uk": "Provider має три варіанти: «None» (вимкнено), «System (Web Speech)» (голоси браузера) і «Engine» (голоси через рушій). За замовчуванням вимкнено.\n\n«Auto-play new replies» озвучує кожну нову відповідь, щойно вона закінчилась. Поки відповідь іде, нічого не починається.\n\n«Only narrate quotes» читає лише текст у лапках. Відповідь без лапок читається повністю.\n\nУ новому робочому просторі ввімкнені «Only narrate quotes», «Skip asterisked text» і «Skip code blocks», а автоозвучення вимкнене.\n\n«Test voice» читає один фіксований рядок, а «Stop» обриває мовлення."
+      },
+      "related": [
+        "help.message-menu",
+        "help.characters",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/tts.ts",
+          "lines": "43-43",
+          "quote": "if (tts.onlyQuotes) out = (out.match(/\"([^\"]*)\"/g) ?? []).map((q) => q.slice(1, -1)).join('. ') || out"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "195-195",
+          "quote": "provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "375-375",
+          "quote": "if (!settings.tts.autoPlay || settings.tts.provider === 'None' || isStreaming || !chat) return"
+        },
+        {
+          "path": "src/lib/tts.ts",
+          "lines": "9-9",
+          "quote": "export const TTS_PROVIDERS = ['None', 'System (Web Speech)', 'Engine'] as const"
+        }
+      ]
+    },
+    {
+      "id": "kb.image-gen-tab",
+      "group": "setup",
+      "extends": "new.image-prompt-style",
+      "title": {
+        "en": "Image Generation: pictures for the scene",
+        "uk": "Image Generation: картинки для сцени"
+      },
+      "aliases": {
+        "en": "image generation picture draw imagine command prompt prefix negative prompt interactive preview gallery model comfyui forge style tags description favorite",
+        "uk": "image generation картинка зображення малювати imagine команда префікс промпту негативний промпт попередній перегляд галерея модель comfyui forge стиль теги опис улюблена"
+      },
+      "short": {
+        "en": "Tools → Image Generation: the chat model describes a scene and an image model draws it. Off by default. With interactive mode on, you check each prompt before a picture is posted.",
+        "uk": "«Інструменти» → Image Generation: модель чату описує сцену, а модель зображень її малює. За замовчуванням вимкнено. З інтерактивним режимом ви перевіряєте промпт до публікації."
+      },
+      "where": {
+        "en": "Tools → Image Generation.",
+        "uk": "«Інструменти» → Image Generation."
+      },
+      "details": {
+        "en": "The chat model describes the scene, then an image model draws it. The switch on the tab turns this on; it is off by default.\n\nInteractive mode is on by default: you preview and edit the prompt before anything is posted. With it off, /imagine posts the picture in one step.\n\n“Save pictures to the character’s gallery” is on by default, so each picture lands in that character’s gallery.\n\nA character can also ask for a picture in the middle of a reply, through the Picture tool in Tool Calling. That needs this switch on; without it, the app asks you to turn on Image Generation.",
+        "uk": "Модель чату описує сцену, а модель зображень її малює. Перемикач на вкладці вмикає це; за замовчуванням він вимкнений.\n\n«Interactive mode» увімкнено за замовчуванням: ви переглядаєте й редагуєте промпт, перш ніж щось опублікувати. Вимкнений, /imagine публікує картинку одразу.\n\n«Save pictures to the character’s gallery» увімкнено за замовчуванням: кожна картинка потрапляє в галерею персонажа.\n\nПерсонаж може попросити картинку посеред відповіді через інструмент Picture у «Tool Calling». Для цього має бути увімкнено Image Generation; інакше застосунок просить його ввімкнути."
+      },
+      "related": [
+        "kb.tool-calling",
+        "help.characters",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/components/extensions/image-gen-tab.tsx",
+          "lines": "75-75",
+          "quote": "The chat model describes the scene, then an image model draws it. Adds"
+        },
+        {
+          "path": "src/components/extensions/image-gen-tab.tsx",
+          "lines": "28-28",
+          "quote": "{ enabled: false, model: '', promptPrefix: '', negativePrompt: '', interactive: true, saveToGallery: true }"
+        },
+        {
+          "path": "src/components/extensions/image-gen-tab.tsx",
+          "lines": "162-162",
+          "quote": "Preview and edit before posting. Off:"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "2939-2939",
+          "quote": "Turn on Tools → Image Generation to see it."
+        }
+      ]
+    },
+    {
+      "id": "kb.data-bank",
+      "group": "setup",
+      "title": {
+        "en": "Data Bank: documents the model can use",
+        "uk": "Data Bank: документи для моделі"
+      },
+      "aliases": {
+        "en": "data bank databank documents files upload text retrieval search chunks passages prompt delete",
+        "uk": "data bank банк даних документи файли завантажити текст пошук фрагменти уривки промпт видалити"
+      },
+      "short": {
+        "en": "Tools → Data Bank holds text files for retrieval. When you send a message, the most relevant passages are added to the prompt. Upload accepts text formats only, up to 2 MB each.",
+        "uk": "«Інструменти» → Data Bank зберігає текстові файли для пошуку. Під час надсилання повідомлення до промпту додаються найдоречніші уривки. Приймаються лише текстові формати до 2 MB."
+      },
+      "where": {
+        "en": "Tools → Data Bank.",
+        "uk": "«Інструменти» → Data Bank."
+      },
+      "details": {
+        "en": "The Data Bank holds documents for retrieval. When you send a message, the engine splits each file into chunks and adds the most relevant passages to the prompt.\n\nUpload accepts text files only: TXT, Markdown, JSON, CSV, log and JSONL files, up to 2 MB each. Other files are refused with a message that names the formats.\n\nDelete asks first. After you confirm, the document and its chunks are removed from disk.",
+        "uk": "Data Bank тримає документи для пошуку. Під час надсилання повідомлення рушій ріже кожен файл на фрагменти і додає до промпту найдоречніші уривки.\n\n«Upload» приймає лише текстові файли: TXT, Markdown, JSON, CSV, log і JSONL, до 2 MB кожен. Інші файли відхиляються з повідомленням про формати.\n\nВидалення спершу питає. Після підтвердження документ і його фрагменти стираються з диска."
+      },
+      "related": [
+        "help.lorebooks",
+        "help.characters",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "170-171",
+          "quote": "Attach documents for retrieval. The engine chunks them and injects the most relevant passages into the prompt when you send a message."
+        },
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "21-21",
+          "quote": "const TEXT_EXTENSIONS = ['.txt', '.md', '.json', '.csv', '.log', '.jsonl']"
+        },
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "143-143",
+          "quote": "over the 2 MB text limit"
+        },
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "213-213",
+          "quote": "The document and its chunks are removed from disk."
+        }
+      ]
+    },
+    {
+      "id": "kb.backgrounds-tab",
+      "group": "setup",
+      "title": {
+        "en": "Backgrounds: your chat pictures",
+        "uk": "Backgrounds: картинки для чатів"
+      },
+      "aliases": {
+        "en": "backgrounds background wallpaper picture image chat active upload drop webp convert gif animated",
+        "uk": "backgrounds тло фон фони картинка чат активне завантажити перетягнути webp перетворити gif анімовані"
+      },
+      "short": {
+        "en": "Tools → Backgrounds keeps the pictures behind your chats. Press a picture to make it the active background; it applies to every chat unless that chat has its own.",
+        "uk": "«Інструменти» → Backgrounds зберігає картинки тла для чатів. Натисніть картинку, щоб зробити її активним тлом. Воно діє в усіх чатах, якщо чат не має власного."
+      },
+      "where": {
+        "en": "Tools → Backgrounds.",
+        "uk": "«Інструменти» → Backgrounds."
+      },
+      "details": {
+        "en": "Backgrounds keeps the pictures behind your chats. The active background applies to all chats unless a chat has its own.\n\nAdd a picture with Upload, or drop image files onto the dashed box. A name typed in the box is used when you add one picture.\n\nPress a picture to make it the active background. Press the active one again to deactivate it.\n\nConvert to WebP stores pictures again as WebP in the asset store: smaller, and kept out of the library file. GIFs and animated pictures stay as they are.",
+        "uk": "Backgrounds зберігає картинки тла для чатів. Активне тло діє у всіх чатах, якщо чат не має власного.\n\nДодайте картинку кнопкою «Upload» або перетягніть файли зображень у пунктирне поле. Назва з поля вгорі йде лише тоді, коли додаєте одну картинку.\n\nНатисніть картинку, щоб зробити її активною. Натисніть активну ще раз, щоб вимкнути її.\n\n«Перетворити на WebP» зберігає картинки як WebP: вони менші й не лежать у файлі бібліотеки. GIF і анімовані лишаються як є."
+      },
+      "related": [
+        "new.world-backgrounds",
+        "help.chat-menu",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/components/extensions/backgrounds-tab.tsx",
+          "lines": "129-129",
+          "quote": "Manage chat backgrounds. The active background applies to all chats unless a chat overrides it."
+        },
+        {
+          "path": "src/components/extensions/backgrounds-tab.tsx",
+          "lines": "193-193",
+          "quote": "Drop image files here to add your own backgrounds, or name one and browse for it."
+        },
+        {
+          "path": "src/components/extensions/backgrounds-tab.tsx",
+          "lines": "234-234",
+          "quote": "Set ${bg.name} as active background"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "507-507",
+          "quote": "Stores each image again as WebP in the asset store: smaller, and out of library.json. GIFs and animated images stay as they are."
+        }
+      ]
+    },
+    {
+      "id": "kb.mcp-tab",
+      "group": "setup",
+      "title": {
+        "en": "MCP: tools from shared servers",
+        "uk": "MCP: інструменти спільних серверів"
+      },
+      "aliases": {
+        "en": "mcp servers server tools plugin external model call switch use shared engine connected not connected add share settings",
+        "uk": "mcp сервери сервер інструменти спільні рушій підключено не підключено додати налаштування модель виклик увімкнути"
+      },
+      "short": {
+        "en": "Tools → MCP lists the MCP servers the engine shares with apps. Each one starts off in this app; switch one on to let the model call its tools here.",
+        "uk": "«Інструменти» → MCP показує MCP-сервери, якими рушій ділиться із застосунками. Кожен спочатку вимкнений тут; увімкніть сервер, щоб модель могла викликати його інструменти."
+      },
+      "where": {
+        "en": "Tools → MCP.",
+        "uk": "«Інструменти» → MCP."
+      },
+      "details": {
+        "en": "Tools → MCP lists the MCP servers the engine shares with apps. Switch one on to let the model call its tools in this app. Every app starts with every shared server off.\n\nEach row shows the server’s name, its type and its state: the number of tools when connected, the error when it failed, or “not connected”.\n\nServers are added and shared in the Molfar Vertep settings, not in this tab. If none is shared yet, the tab says so and points there.",
+        "uk": "«Інструменти» → MCP показує MCP-сервери, якими рушій ділиться із застосунками. Увімкніть сервер, щоб модель могла викликати його інструменти в цьому застосунку. Кожен застосунок спочатку вимикає всі спільні сервери.\n\nКожен рядок показує назву сервера, тип і стан: кількість інструментів, коли підключено, помилку або «not connected».\n\nДодавати й ділитися серверами можна в налаштуваннях Molfar Vertep, не на цій вкладці. Якщо спільних серверів ще немає, вкладка про це пише й вказує на ці налаштування."
+      },
+      "related": [
+        "kb.tool-calling",
+        "help.settings",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/components/extensions/mcp-tab.tsx",
+          "lines": "34-34",
+          "quote": "Servers the engine shares with apps. Switch one on to let the model call its tools here"
+        },
+        {
+          "path": "src/components/extensions/mcp-tab.tsx",
+          "lines": "41-41",
+          "quote": "No servers are shared with apps yet. Add one in the Molfar Vertep settings."
+        },
+        {
+          "path": "AGENTS.md",
+          "lines": "244-244",
+          "quote": "Each app starts with every shared server off and opts in per server"
+        },
+        {
+          "path": "src/components/extensions/mcp-tab.tsx",
+          "lines": "50-50",
+          "quote": "s.error ? s.error : 'not connected'"
+        }
+      ]
+    },
+    {
+      "id": "kb.plugins-tab",
+      "group": "setup",
+      "title": {
+        "en": "Plugins: what runs behind the app",
+        "uk": "Plugins: що працює за застосунком"
+      },
+      "aliases": {
+        "en": "plugins plugin list enable disable import git capabilities permissions approval imported user all apps installed version badge",
+        "uk": "plugins плагіни плагін список увімкнути вимкнути імпорт git можливості дозволи схвалення імпортовані версія встановлені"
+      },
+      "short": {
+        "en": "Tools → Plugins lists the plugins running behind this app and what each may do. The tab only shows them; install, enable and disable happen with the Plugins button in Molfar Vertep.",
+        "uk": "«Інструменти» → Plugins показує плагіни, що працюють за застосунком. Вкладка лише показує їх; імпорт, увімкнення і вимкнення — кнопкою Plugins у Molfar Vertep."
+      },
+      "where": {
+        "en": "Tools → Plugins.",
+        "uk": "«Інструменти» → Plugins."
+      },
+      "details": {
+        "en": "Plugins run inside the engine. This tab only shows the plugins running behind this app. To import, enable or disable one, use the Plugins button on this app’s tab in Molfar Vertep.\n\nEach card shows the plugin’s name and where it comes from: “this app” for plugins that come with the app, or “user · all apps” for plugins installed for every app.\n\nAn imported plugin can show a capability marked “needs approval”, which is still waiting for approval.\n\nWith no plugins installed, the tab says “No plugins installed.”",
+        "uk": "Plugins працюють у рушії. Ця вкладка лише показує плагіни, що працюють за застосунком. Щоб імпортувати, увімкнути або вимкнути плагін, скористайтеся кнопкою Plugins на вкладці застосунку в Molfar Vertep.\n\nКартка показує назву плагіна і звідки він. «this app» — вбудований у застосунок, «user · all apps» — для всіх застосунків.\n\nІмпортований плагін може показувати можливість із позначкою «needs approval»: її ще не схвалено.\n\nБез плагінів вкладка пише «No plugins installed»."
+      },
+      "related": [
+        "kb.tool-calling",
+        "kb.mcp-tab",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/components/extensions/plugins-tab.tsx",
+          "lines": "28-29",
+          "quote": "Plugins run inside the engine. Import from git, enable or disable them with the Plugins button on this app's tab in Molfar"
+        },
+        {
+          "path": "src/components/extensions/plugins-tab.tsx",
+          "lines": "55-55",
+          "quote": "{own ? 'this app' : 'user · all apps'}"
+        },
+        {
+          "path": "src/components/extensions/plugins-tab.tsx",
+          "lines": "76-76",
+          "quote": "{c}: needs approval"
+        },
+        {
+          "path": "src/components/extensions/plugins-tab.tsx",
+          "lines": "38-38",
+          "quote": "No plugins installed."
+        }
+      ]
+    },
+    {
+      "id": "kb.tool-calling",
+      "group": "setup",
+      "title": {
+        "en": "Tool Calling: dice and other tools",
+        "uk": "Tool Calling: кубики та інші інструменти"
+      },
+      "aliases": {
+        "en": "tool calling dice roll d20 dice roller tools model call picture draw panel switch built in row result",
+        "uk": "tool calling кубики кидок d20 dice roller інструменти модель виклик малюнок картинка вкладка увімкнути вбудовані рядок результат"
+      },
+      "short": {
+        "en": "Tools → Tool Calling lets the model use tools while it writes a reply. Dice Roller and Picture are built in and stay off until you switch them on. A roll shows as a row in the reply.",
+        "uk": "«Інструменти» → Tool Calling дає моделі користуватися інструментами під час відповіді. Dice Roller і Picture вбудовані й вимкнені, доки ви їх не увімкнете. Кидок показується у відповіді рядком."
+      },
+      "where": {
+        "en": "Tools → Tool Calling.",
+        "uk": "«Інструменти» → Tool Calling."
+      },
+      "details": {
+        "en": "Tool Calling lists the tools the model may use during a reply. Only the switched-on ones are offered to the model.\n\nDice Roller is built in and off by default: the model rolls dice when an outcome should be left to chance, such as an attack or a leap. A roll appears in the reply as a row with the call and its result. Press the row to open the full result.\n\nPicture lets the character draw a picture into the chat. It needs Image Generation switched on; see the Image Generation article.",
+        "uk": "Tool Calling показує інструменти, які модель може використати під час відповіді. Моделі пропонують лише ті, що ви увімкнули.\n\nDice Roller вбудований і за замовчуванням вимкнений: модель кидає кубики, коли результат має вирішити випадок, наприклад атаку чи стрибок. Кидок з’являється у відповіді рядком із викликом і результатом. Натисніть рядок, щоб побачити повний результат.\n\nPicture дає персонажу намалювати картинку в чат. Для цього має бути увімкнено Image Generation; див. статтю про нього."
+      },
+      "related": [
+        "kb.image-gen-tab",
+        "kb.mcp-tab",
+        "help.slash",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "plugins/tools/plugin.js",
+          "lines": "358-360",
+          "quote": "label: \"Tool Calling\", icon: \"dices\", hint: \"Enabled tools are offered to the model during generation.\","
+        },
+        {
+          "path": "plugins/tools/plugin.js",
+          "lines": "49-51",
+          "quote": "name: \"Dice Roller\", description: \"Roll dice when an outcome should be left to chance.\", enabled: false,"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "63-63",
+          "quote": "function ToolRow({ name, args, result, running, isError }: {"
+        },
+        {
+          "path": "plugins/tools/plugin.js",
+          "lines": "61-61",
+          "quote": "Lets the character draw a picture into the chat (needs Image Generation turned on)."
+        }
+      ]
+    },
+    {
+      "id": "kb.polish",
+      "group": "chat",
+      "extends": "new.polish",
+      "related": [
+        "help.swipes",
+        "help.edit-message",
+        "help.presets"
+      ],
+      "title": {
+        "en": "Polish your message before sending",
+        "uk": "Причешіть повідомлення перед надсиланням"
+      },
+      "aliases": {
+        "en": "polish prettify improve draft rewrite vivid grammar spelling undo utility prompts polish prompt sparkle",
+        "uk": "причесати чернетка переписати граматика яскравіше повернути utility prompts промпт"
+      },
+      "short": {
+        "en": "Polish, in the + menu or in the row under the box, rewrites your draft. Undo puts your own text back.",
+        "uk": "«Причесати» в меню «+» або в ряді під полем переписує чернетку. «Повернути» відновлює ваш текст."
+      },
+      "details": {
+        "en": "Polish sits in the + menu by the box, as an item named Polish. It is greyed out while the box is empty or a reply is being written.\n\nOnce your draft wraps onto a second line, the box takes a full row and a row of buttons moves under it. Polish is in that row too.\n\nPolish replaces your draft with the rewritten text. A notice then offers Undo, and Undo puts your own text back.\n\nThe instruction that Polish follows is in Presets, on the Utility prompts tab.",
+        "uk": "«Причесати» є в меню «+» біля поля. Коли поле порожнє або модель пише відповідь, кнопка неактивна.\n\nЯкщо чернетка переходить на другий рядок, поле займає весь рядок, а під ним з’являється ряд кнопок. «Причесати» є й там.\n\nПричесаний текст замінює чернетку. Після цього з’являється повідомлення з кнопкою «Повернути», і вона відновлює ваш текст.\n\nІнструкцію, за якою працює «Причесати», шукайте в «Пресети» на вкладці «Utility prompts»."
+      },
+      "sources": [
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "143-143",
+          "quote": "A draft that wrapped gets the whole row and the buttons move under it:"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "587-587",
+          "quote": "<DropdownMenuItem onClick={polish} disabled={isStreaming || !canPolish}>"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "204-204",
+          "quote": "toast(t('composer.draftReplaced'), { action: { label: t('composer.undo'), onClick: () => setValue(before) } })"
+        },
+        {
+          "path": "src/components/views/presets-view.tsx",
+          "lines": "325-325",
+          "quote": "<TabsTrigger value=\"utility\" className=\"flex-none px-2.5 text-xs\">Utility prompts</TabsTrigger>"
+        }
+      ],
+      "where": {
+        "en": "The + menu by the message box, or the row under it.",
+        "uk": "Меню «+» біля поля повідомлення або ряд під ним."
+      }
+    },
+    {
+      "id": "kb.translate-draft",
+      "group": "chat",
+      "related": [
+        "help.tools",
+        "help.message-menu",
+        "help.edit-message"
+      ],
+      "title": {
+        "en": "Translate your message",
+        "uk": "Переклад вашого повідомлення"
+      },
+      "aliases": {
+        "en": "translate translation draft message box model language undo",
+        "uk": "перекласти переклад чернетка повідомлення мова моделі скасувати"
+      },
+      "short": {
+        "en": "The Translate button by the box rewrites your draft into the Model language, so the model reads it in that language. Undo brings your text back.",
+        "uk": "Кнопка «Перекласти» біля поля переписує чернетку мовою моделі. «Скасувати» поверне ваш текст."
+      },
+      "details": {
+        "en": "Translate changes the text in the box. The draft comes out in the Model language, which is the language the model reads.\n\nThe Model language is set in Tools, on the Translation tab, under Model language.\n\nAfter a translation, a notice shows an Undo button. Undo restores your original text, but only while the box still holds the translation.",
+        "uk": "«Перекласти» переписує текст у полі мовою моделі. Модель читатиме саме цю мову.\n\nМову моделі задайте в «Інструменти», на вкладці «Translation», пункт «Model language».\n\nПісля перекладу з’являється повідомлення з кнопкою «Скасувати». Вона повертає ваш текст, поки в полі ще є переклад."
+      },
+      "sources": [
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "221-221",
+          "quote": "Translate what is typed, in place, into the language the model reads"
+        },
+        {
+          "path": "src/components/extensions/translation-tab.tsx",
+          "lines": "154-154",
+          "quote": "<FieldLabel>Model language</FieldLabel>"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "246-246",
+          "quote": "action: { label: t('composer.translateUndo'), onClick: () => { if (valueRef.current === text) setValue(original) } },"
+        },
+        {
+          "path": "src/components/views/extensions-view.tsx",
+          "lines": "100-100",
+          "quote": "<TabsTrigger value=\"translation\" className={TRIGGER_CLS}><Translate className=\"size-3.5\" aria-hidden=\"true\" /> Translation</TabsTrigger>"
+        }
+      ],
+      "where": {
+        "en": "The Translate button by the message box.",
+        "uk": "Кнопка «Перекласти» біля поля повідомлення."
+      }
+    },
+    {
+      "id": "kb.image-gen",
+      "group": "chat",
+      "related": [
+        "new.image-prompt-style",
+        "help.tools",
+        "help.regen-hint"
+      ],
+      "title": {
+        "en": "Generate an image in the chat",
+        "uk": "Картинка в чаті: Generate image"
+      },
+      "aliases": {
+        "en": "image picture generate draw imagine scene character portrait me background describe prompt interactive preview",
+        "uk": "картинка зображення намалювати imagine сцена персонаж портрет фон опис попередній перегляд"
+      },
+      "short": {
+        "en": "Turn on Image Generation under Tools. Then the + menu gets Generate image, and /imagine draws the scene or the picture you describe.",
+        "uk": "Увімкніть Image Generation в «Інструментах». Тоді в меню «+» з’явиться Generate image, а /imagine малює сцену або ваш опис."
+      },
+      "details": {
+        "en": "Image Generation is off until you switch on Enable image generation on its tab under Tools. Only then does the + menu get a Generate image submenu.\n\nType /imagine with no words to draw the scene. Type a word after it, you, face, me or background, to draw that, or write your own description.\n\nWith interactive mode on, you preview and can edit the description before the picture is posted. With it off, /imagine posts the picture in one step.",
+        "uk": "Спершу увімкніть Enable image generation на вкладці «Image Generation» в «Інструментах». Доки це вимкнено, пункту Generate image у меню «+» немає.\n\n/imagine без слів малює сцену. Після нього можна написати you, face, me або background, або власний опис.\n\nКоли інтерактивний режим увімкнено, ви бачите картинку та опис перед публікацією й можете редагувати опис. Вимкнено — /imagine публікує в один крок."
+      },
+      "sources": [
+        {
+          "path": "src/components/extensions/image-gen-tab.tsx",
+          "lines": "79-79",
+          "quote": "aria-label=\"Enable image generation\""
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "597-597",
+          "quote": "Only offered once the extension is switched on, so the menu does"
+        },
+        {
+          "path": "src/components/chat/composer-autocomplete.tsx",
+          "lines": "65-65",
+          "quote": "Draw the scene, or: you, face, me, background, or your own description"
+        },
+        {
+          "path": "src/components/extensions/image-gen-tab.tsx",
+          "lines": "162-162",
+          "quote": "Preview and edit before posting. Off: <code className=\"font-mono\">/imagine</code> posts in one step."
+        }
+      ],
+      "where": {
+        "en": "The + menu by the message box, then Generate image.",
+        "uk": "Меню «+» біля поля повідомлення, далі Generate image."
+      }
+    },
+    {
+      "id": "kb.model-switch",
+      "group": "chat",
+      "extends": "help.switcher",
+      "related": [
+        "help.settings",
+        "help.presets",
+        "help.soul-rate"
+      ],
+      "title": {
+        "en": "Switch a chat's model",
+        "uk": "Модель чату: перемикання"
+      },
+      "aliases": {
+        "en": "connection profile profiles connection model switch quick switch star starred favorite api provider model tab",
+        "uk": "підключення профіль профілі модель перемкнути швидкий перемикач зірка улюблені вкладка"
+      },
+      "short": {
+        "en": "The Model tab in the chat header lists your starred models first, as quick switches. Picking one changes the model of this chat only.",
+        "uk": "Вкладка «Model» у шапці чату спершу показує ваші моделі із зіркою. Вибір змінює модель лише цього чату."
+      },
+      "where": {
+        "en": "The chat header pill (on a phone: Menu), then the Model tab.",
+        "uk": "Плашка в шапці чату (на телефоні: Menu), далі вкладка «Model»."
+      },
+      "details": {
+        "en": "Star models in the main Settings, under Connections and models. Starred models show up in the Model tab as quick switches.\n\nPicking a model changes the model of this chat only. Other chats keep their own.",
+        "uk": "Зірку ставлять у головних «Налаштуваннях», у розділі «Підключення». Зірковані моделі з’являються у вкладці «Model» як швидке перемикання.\n\nВибір моделі змінює модель лише цього чату. Інші чати лишаються зі своєю моделлю."
+      },
+      "sources": [
+        {
+          "path": "src/components/chat/chat-quick-bar.tsx",
+          "lines": "360-360",
+          "quote": "Star models in Settings › Connections and models to switch between them here."
+        },
+        {
+          "path": "src/components/chat/chat-quick-bar.tsx",
+          "lines": "158-158",
+          "quote": "void setChatModel(chatId, ref)"
+        },
+        {
+          "path": "src/components/chat/chat-quick-bar.tsx",
+          "lines": "46-46",
+          "quote": "{ id: 'profile', label: 'Model', icon: Cpu },"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "3184-3184",
+          "quote": "the old connection profiles (library.json) become the engine's quick"
+        }
+      ]
+    },
+    {
+      "id": "kb.settings",
+      "group": "setup",
+      "extends": "help.settings",
+      "title": {
+        "en": "Settings sections",
+        "uk": "Розділи налаштувань"
+      },
+      "aliases": {
+        "en": "settings sections options preferences appearance font behavior streaming memory themes prose colors css card tasks import data backup reset guide tours",
+        "uk": "налаштування розділи параметри вигляд шрифт поведінка стрімінг пам’ять теми кольори css завдання картки імпорт дані резервна копія скидання гайд тури"
+      },
+      "short": {
+        "en": "Settings has eleven sections: Appearance, Chat Behavior, Streaming, Memory, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data and Guide. The search box at the top filters them.",
+        "uk": "У налаштуваннях одинадцять розділів: Appearance, Chat Behavior, Streaming, Memory, Themes, Prose Colors, Custom CSS, «Завдання картки», Import, Data і «Гайд». Рядок пошуку зверху їх фільтрує."
+      },
+      "where": {
+        "en": "The Settings tab.",
+        "uk": "Вкладка «Налаштування»."
+      },
+      "details": {
+        "en": "- Appearance: interface language, chat font, font and line spacing, chat width, avatars, quote style.\n- Chat Behavior: switches such as “Send on Enter”, “Auto-scroll” and “Confirm Deletions”.\n- Streaming: “Show Replies” as the model writes them or when they are finished, “Streaming FPS”, “Auto-expand Thinking”.\n- Memory: the Litopys settings now live in the Library, next to the record they shape.\n- Themes, Prose Colors, Custom CSS: the look of the whole app and of the story text. See the Themes article.\n- Card tasks: the model that “Structure it”, “Fill empty” and the Soul rating use when a card has none of its own.\n- Import: “Backup zip” brings back everything at once, and other rows import single files.\n- Data: export and restore your Roleplay data as a zip, and reset the look and local settings.\n- Guide: show or hide the short tours, and show “What’s new” again.\n\nThe Data zip covers Roleplay only. The whole profile, with every app and connection, is saved in the Backup section of the Molfar Vertep settings.",
+        "uk": "- Appearance: мова інтерфейсу, шрифт чату, розмір шрифту й міжрядки, ширина чату, аватари, стиль лапок.\n- Chat Behavior: перемикачі, як-от «Send on Enter», «Auto-scroll» і «Confirm Deletions».\n- Streaming: «Show Replies» — під час написання чи коли відповідь готова, «Streaming FPS», «Auto-expand Thinking».\n- Memory: налаштування Літопису тепер у Бібліотеці, поряд із записом, який вони змінюють.\n- Themes, Prose Colors, Custom CSS: вигляд застосунку й тексту історії. Дивіться статтю про теми.\n- «Завдання картки»: модель для «Структурувати», «Заповнити порожні» й оцінки Soul, якщо в картки немає власної.\n- Import: «Backup zip» повертає все одразу, інші рядки імпортують окремі файли.\n- Data: експорт і відновлення даних Roleplay одним zip, а також скидання вигляду й локальних налаштувань.\n- «Гайд»: показати чи сховати короткі тури, показати «Що нового» знову.\n\nZip у Data охоплює лише Roleplay. Увесь профіль, з усіма застосунками й підключеннями, зберігає розділ Backup у налаштуваннях Molfar Vertep."
+      },
+      "related": [
+        "kb.themes",
+        "kb.litopys",
+        "kb.soul"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "135-135",
+          "quote": "{ id: \"prose\", label: \"Prose Colors\" },"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "107-107",
+          "quote": "label: \"Show Replies\""
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2186-2186",
+          "quote": "'lit.settings.moved': 'Litopys settings are in the Library now, next to the record they shape.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2791-2791",
+          "quote": "'ct.app.title': 'Model for card tasks',"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "605-605",
+          "quote": "Everything at once: characters, chats, personas, presets, worlds, regex"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "731-731",
+          "quote": "These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use."
+        }
+      ]
     }
   ]
 }
