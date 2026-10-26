@@ -342,3 +342,73 @@ describe("the memory parts say what they are for (#110)", () => {
     expect(text).toContain("The opening messages of this chat may read like a first meeting");
   });
 });
+
+describe("the memory wording is editable (#113)", () => {
+  const put = (host: any, body: Record<string, unknown>) => route(host, "PUT", "/litopys/config", body);
+
+  it("the shipped wording is the default, and changing none of it marks nothing as custom", () => {
+    const { host } = mockHost();
+    const cfg = route(host, "GET", "/litopys/config").json;
+    expect(cfg.remembers).toBe(L.REMEMBERS);
+    expect(cfg.continues).toBe(L.CONTINUES);
+    expect(cfg.cardMemory).toBe(L.CARD_MEMORY_RULE);
+    expect(cfg.custom).toEqual([]);
+  });
+
+  it("a changed sentence reaches the card memory, the backstory and the story record, and only there", () => {
+    seedWinter();
+    const { host } = mockHost();
+    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
+    writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
+    writeChat("cont", story(2, "y"), { title: "Cont", characterId: "aria" });
+    route(host, "POST", "/litopys/links", { chatId: "cont", from: "winter" });
+    const r = put(host, { cardMemory: "{name} knows all this by heart.", continues: "Pick up where it ended.", remembers: "It happened; answer from it." });
+    expect(r.json.custom).toEqual(["remembers", "continues", "cardMemory"]);
+    const card = textOf(L.llmRequest(ctx("next"), host));
+    expect(card).toContain("(character memory): Aria knows all this by heart.\n");
+    expect(card).not.toContain("recognise them when reminded");
+    const cont = textOf(L.llmRequest(ctx("cont"), host));
+    expect(cont).toContain("from the chat \"Winter watch\". Pick up where it ended.]");
+    expect(cont).not.toContain("This chat CONTINUES that story");
+    const own = textOf(L.llmRequest(ctx("winter", "Aria"), host));
+    expect(own).toContain("[Story record (Litopys): earlier chapters and what stays true. It happened; answer from it.]");
+  });
+
+  it("restoring one sentence brings the default back; an empty one counts as the default", () => {
+    const { host } = mockHost();
+    put(host, { continues: "Mine.", cardMemory: "Mine too." });
+    const one = route(host, "DELETE", "/litopys/config/prompts", undefined, { key: "continues" }).json;
+    expect(one.continues).toBe(L.CONTINUES);
+    expect(one.custom).toEqual(["cardMemory"]);
+    expect(put(host, { cardMemory: "  " }).json.cardMemory).toBe(L.CARD_MEMORY_RULE);
+  });
+});
+
+describe("a continued chat that still opens with the card greeting (#113)", () => {
+  const greet = (id: string, extra: Record<string, unknown> = {}) => ({ ...story(1, id)[0], id: `${id}1`, role: "char", greeting: true, ...extra });
+  const opening = (host: any, chatId: string) => route(host, "GET", "/litopys/carries", undefined, { chatId }).json.opening;
+
+  it("is reported for a linked chat whose first message is an unedited greeting", () => {
+    seedWinter();
+    const { host } = mockHost();
+    writeChat("cont", [greet("c"), ...story(2, "d")], { title: "Cont", characterId: "aria" });
+    route(host, "POST", "/litopys/links", { chatId: "cont", from: "winter" });
+    expect(opening(host, "cont")).toEqual({ messageId: "c1", title: "Winter watch" });
+  });
+
+  it("is not reported without a link, after the greeting was edited or replaced, or once the chat has moved on", () => {
+    seedWinter();
+    const { host } = mockHost();
+    writeChat("plain", [greet("p")], { title: "Plain", characterId: "aria" });
+    expect(opening(host, "plain")).toBeNull();
+    writeChat("edited", [greet("e", { edited: true })], { title: "Edited", characterId: "aria" });
+    route(host, "POST", "/litopys/links", { chatId: "edited", from: "winter" });
+    expect(opening(host, "edited")).toBeNull();
+    writeChat("own", story(2, "o"), { title: "Own", characterId: "aria" });
+    route(host, "POST", "/litopys/links", { chatId: "own", from: "winter" });
+    expect(opening(host, "own")).toBeNull();
+    writeChat("long", [greet("l"), ...story(4, "k")], { title: "Long", characterId: "aria" });
+    route(host, "POST", "/litopys/links", { chatId: "long", from: "winter" });
+    expect(opening(host, "long")).toBeNull();
+  });
+});

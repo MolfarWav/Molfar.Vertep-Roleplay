@@ -19,7 +19,7 @@
  *
  * Routes (under /v1/apps/roleplay/):
  *  GET /litopys/config . PUT /litopys/config
- *  DELETE /litopys/config/prompts   back to the shipped prompts (?key=chapter|arc: only that one)
+ *  DELETE /litopys/config/prompts   back to the shipped prompts (?key=chapter|arc|remembers|continues|cardMemory: only that one)
  */
 
 // PART A: utils, config, legacy store, chat reading, scenes, worker request / parse / apply
@@ -159,6 +159,14 @@ export const DEFAULT_CONFIG = {
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
 export const ARC_MODES = ["ask", "auto", "off"];
 
+// What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
+export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
+export const CONTINUES =
+  "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
+// The sentences that tell the model what the memory parts are FOR are editable like the writing prompts (#113):
+// the bracketed lead of each part stays in code, only the sentence after it is the user's.
+export const CARD_MEMORY_RULE = "{name} lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+
 export const DEFAULT_PROMPTS = {
   chapter: [
     "You keep the story record of an ongoing roleplay. From the Scene messages, write the chapter of what happened and the durable facts that came out of it. The Previous chapter and the Known facts are background: do not retell them, repeat them or contradict them without cause.",
@@ -194,6 +202,10 @@ export const DEFAULT_PROMPTS = {
     "",
     "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
   ].join("\n"),
+  // what the memory parts say about themselves (#113): sent with the story, not to a writing model
+  remembers: REMEMBERS,
+  continues: CONTINUES,
+  cardMemory: CARD_MEMORY_RULE,
 };
 
 export const ARC_SHAPE = '{"arc":{"label":"2-6 words","text":"the arc"}}';
@@ -202,10 +214,6 @@ export const WORKER_SHAPE =
   '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
 
 /** Added to the chapter prompt while habits are on (#106), so a customised chapter prompt keeps working. */
-// What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
-export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
-export const CONTINUES =
-  "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 export const HABITS_RULE = [
   "Habits (optional, usually none):",
   "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
@@ -1036,8 +1044,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the
   // chapters picked by relevance change every reply, so they ride after the newest turn.
-  const headHeader = "[Story record (Litopys): what happened just before the messages below. " + REMEMBERS + "]";
-  const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + REMEMBERS + "]";
+  const headHeader = "[Story record (Litopys): what happened just before the messages below. " + (cfg.remembers || REMEMBERS) + "]";
+  const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const facts = [];
@@ -1172,6 +1180,7 @@ export function llmRequest(ctx, host) {
           speakerName,
           chosen: stable,
           dash: readDash(fsx, chatId),
+          cfg,
         });
       } catch (e) {
         try {
@@ -3314,7 +3323,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
@@ -3337,7 +3346,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle }) {
+function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
@@ -3365,8 +3374,8 @@ function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle }) {
 
   const title = str(prc.meta && prc.meta.title) || from;
   const header = nearerTitle
-    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + CONTINUES + "]"
-    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + CONTINUES + "]";
+    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]"
+    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const facts = [];
   const story = [];
@@ -4246,7 +4255,7 @@ export function importChat(fsx, cardId, chatId, sel) {
 /** The card's memory with the chats it can still take one from, and what a new chat would receive. */
 function cardMemoryView(fsx, cardId, mem) {
   const card = cardOf(fsx, cardId);
-  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: habitLines(mem) });
+  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: habitLines(mem), rule: loadConfig(fsx).cardMemory });
   const habits = cardHabitsText(mem, card, { cardSentences: [], chosen: [] });
   return {
     cardId,
@@ -4526,7 +4535,7 @@ export function cardMemoryText(mem, card, opts) {
     return true;
   };
   const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
-  const head = "[What " + name + " remembers from earlier stories (character memory): " + name + " lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+  const head = "[What " + name + " remembers from earlier stories (character memory): " + (str(opts.rule) || CARD_MEMORY_RULE).replaceAll("{name}", name);
   const out = [];
   const used = [];
   let spent = estimateTokens(head + "]");
@@ -4566,7 +4575,7 @@ export function cardMemoryText(mem, card, opts) {
 }
 
 /** The card behind this reply, and what the Litopys insert and the Dashboard already say, for the block above. */
-export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) {
+export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, cfg }) {
   const hit = cardOfReply(fsx, meta, speakerName);
   if (!hit) return null;
   const { card, cardId } = hit;
@@ -4592,7 +4601,7 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) 
     for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
   }
   const own = sourceSentences(fsx, meta);
-  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...habitLines(mem)].filter(Boolean), cardSentences: own });
+  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...habitLines(mem)].filter(Boolean), cardSentences: own, rule: cfg && cfg.cardMemory });
   return res ? { ...res, cardId } : null;
 }
 
@@ -4756,6 +4765,19 @@ function editStoryLine(source, line) {
 const SAID_KIND_SET = new Set(["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie", "other"]);
 
 // ---------- what a chat carries (the strip under the chat header, #107) ----------
+const OPENING_HINT_MAX = 4;
+/**
+ * A chat that continues another one but still opens with the card's own greeting (#113): the greeting was written
+ * for a first meeting, the memory above it says otherwise. { messageId, title } while the chat is young (the
+ * greeting is the first message of the line, nobody edited it, at most a few messages so far), else null.
+ */
+export function greetingOpening(fsx, chatId, line, titleOf) {
+  const link = loadLinks(fsx)[chatId];
+  const first = arr(line)[0];
+  if (!link || !str(link.from) || !isObj(first) || first.greeting !== true || first.edited || arr(line).length > OPENING_HINT_MAX) return null;
+  return { messageId: str(first.id), title: titleOf(link.from) };
+}
+
 /**
  * GET /litopys/carries?chatId=&speaker=: the parts that go into a reply besides the history, as they would be built
  * now (reading only): the card's memory, the Litopys backstory and the chat's own Litopys insert, with their token
@@ -4780,7 +4802,7 @@ function carriesRoute(fsx, query) {
   const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
   let card = null;
   try {
-    card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash });
+    card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash, cfg });
   } catch {}
   let cardName = "";
   if (card) {
@@ -4815,6 +4837,7 @@ function carriesRoute(fsx, query) {
         chapters: isObj(last) ? Number(last.chapters) || 0 : 0,
       },
       backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
+      opening: greetingOpening(fsx, chatId, line, titleOf),
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,

@@ -53,6 +53,7 @@ import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { CarriesPanel, useCarries } from '@/components/chat/carries-panel'
+import { OpeningHint } from '@/components/chat/opening-hint'
 import { ChatToolButtons, ChatToolTiles, TOOL_KEYS, useToolMode, type ToolHandlers, type ToolState } from '@/components/chat/chat-tools'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
@@ -1035,6 +1036,7 @@ export function ChatView() {
                 )}
                 {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
                 {!deleteMode && <AgentNotes chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
+                {i === 0 && !deleteMode && !msg.edited && <OpeningHint chatId={chat.id} opening={carries.mine?.carries?.opening} />}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>
             )
