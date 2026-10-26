@@ -102,6 +102,18 @@ describe("install and permissions", () => {
     expect(j("/agents/list").agents[0]).toMatchObject({ runnable: true, blocker: "", missing: [] });
   });
 
+  it("lists the places the chat may move an agent's results to, from its outputs and panels", () => {
+    j("/agents/install", "PUT", { file: copy(keeper) });
+    j("/agents/install", "PUT", { file: copy(moves) });
+    j("/agents/install", "PUT", { file: copy(echo) });
+    const by = Object.fromEntries(j("/agents/list").agents.map((a: any) => [a.id, a.places]));
+    // choices go above the composer by default and may go to the log or the floating panel
+    expect(by["next-moves"].slice(0, 3)).toEqual(["bottom", "log", "float"]);
+    // an agent with panels may move them to either bar or the floating button
+    expect(by["dungeon-keeper"]).toEqual(expect.arrayContaining(["top1", "top2", "float"]));
+    for (const places of Object.values(by)) expect((places as string[]).length).toBeGreaterThan(0);
+  });
+
   it("a file without a derived section is compiled on install", () => {
     const f = copy(keeper);
     delete f.agent.derived;

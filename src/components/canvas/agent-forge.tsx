@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { AgentForm } from './forge/agent-form'
 import { AgentBoard } from './forge/agent-board'
 import { CardForm, type StateFields } from './forge/card-form'
-import { Abilities, Palette } from './forge/palette'
+import { Abilities, Palette, PlacesGuide } from './forge/palette'
 
 type Agent = Record<string, any>
 interface Current { name: string; title: string; agent: Agent }
@@ -213,6 +213,7 @@ export function AgentForge() {
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
+            <PlacesGuide />
             <AgentForm agent={cur.agent} title={cur.title} onAgent={editAgent} onTitle={editTitle} onRename={renameStateField} installed={!!installedCopy} />
             {installedCopy && (
               <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.installedCopy')}>

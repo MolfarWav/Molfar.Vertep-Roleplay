@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowClockwise, ArrowCounterClockwise, Check, GearSix, HourglassMedium, Plus, Robot, Star, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowCounterClockwise, Check, GearSix, HourglassMedium, MapPin, Plus, Robot, Star, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useConfirm } from '@/components/ui/confirm'
 import { useRelativeTime, useT } from '@/hooks/use-t'
@@ -12,6 +13,7 @@ import {
   loadChatAgents, loadDefaultAgentSet, removeAgent, runAgents, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
   type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
+import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const errText = (e: unknown) => String((e as Error)?.message ?? e)
@@ -102,6 +104,48 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
   )
 }
 
+/**
+ * Where the chat shows one agent's results: a button on the agent's row that opens the places that suit what the agent
+ * makes. The first choice leaves it to the agent's author. Nothing else about the agent changes.
+ */
+function PlacePicker({ chatId, item, info }: { chatId: string; item: ChatAgentItem; info: AgentInfo }) {
+  const t = useT()
+  const edit = useEdit(chatId)
+  const places = info.places ?? []
+  const pick = (place: string | null) => void edit({ op: 'show', agent: item.agent, place })
+  const row = 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent max-md:py-2.5'
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={t('ag.place.aria', { name: info.name })}
+        title={t('ag.place.aria', { name: info.name })}
+        data-testid={`agent-place-${item.agent}`}
+        onClick={(e) => e.stopPropagation()}
+        className={cn('flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-background max-md:size-10', item.show ? 'text-violet-500' : 'text-muted-foreground')}
+      >
+        <MapPin className="size-3.5" aria-hidden="true" />
+      </PopoverTrigger>
+      {/* the popover is drawn outside the list but its clicks and keys still travel up through it */}
+      <PopoverContent align="end" className="w-64 gap-1 p-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <p className="px-2 pt-1 text-xs font-semibold">{t('ag.place.title')}</p>
+        <p className="px-2 pb-1 text-[11px] text-muted-foreground">{t('ag.place.hint')}</p>
+        <div role="radiogroup" aria-label={t('ag.place.title')} className="flex flex-col">
+          <button type="button" role="radio" aria-checked={!item.show} className={row} onClick={() => pick(null)}>
+            <Check className={cn('size-3.5 shrink-0', item.show ? 'invisible' : '')} aria-hidden="true" />
+            <span className="min-w-0 flex-1 first-letter:uppercase">{t('ag.place.default', { place: t(`fg.place.${places[0]}` as MsgKey) })}</span>
+          </button>
+          {places.map((pl) => (
+            <button key={pl} type="button" role="radio" aria-checked={item.show === pl} className={row} onClick={() => pick(pl)} data-testid={`agent-place-${item.agent}-${pl}`}>
+              <Check className={cn('size-3.5 shrink-0', item.show === pl ? '' : 'invisible')} aria-hidden="true" />
+              <span className="min-w-0 flex-1 first-letter:uppercase">{t(`fg.place.${pl}` as MsgKey)}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 /** The tab's rows (inside the palette's list): the chat's agents, the installed ones to add, the sets. */
 export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls, onManage }: { chatId: string; data: AgentsData; itemCls: string; activeItemCls: string; actionCls: string; onManage: () => void }) {
   const t = useT()
@@ -157,6 +201,7 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
                   <HourglassMedium className="size-3.5" aria-hidden="true" />
                 </button>
               )}
+              {(info?.places?.length ?? 0) > 1 && <PlacePicker chatId={chatId} item={it} info={info!} />}
               <button
                 type="button"
                 aria-label={t('ag.runAgain.title')}
