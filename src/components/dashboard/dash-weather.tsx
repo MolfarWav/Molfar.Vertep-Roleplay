@@ -40,7 +40,7 @@ export function weatherKind(text: string | null | undefined): WeatherKind | null
 /** A hue for each kind, the 700/300 steps like the Dashboard's tones, so the icon reads at a glance. */
 const LOOK: Record<WeatherKind, string> = {
   storm: 'text-violet-700 dark:text-violet-300',
-  snow: 'text-sky-700 dark:text-sky-300',
+  snow: 'text-cyan-700 dark:text-cyan-200',
   rain: 'text-sky-700 dark:text-sky-300',
   fog: 'text-slate-600 dark:text-slate-300',
   wind: 'text-teal-700 dark:text-teal-300',
@@ -97,7 +97,7 @@ export function WeatherIcon({ kind, night, className }: { kind: WeatherKind; nig
       {kind === 'snow' && (
         <>
           <path className="wx-drift" d={CLOUD} transform="translate(0 -3)" />
-          {[8.5, 12, 15.5].map((x, i) => <circle key={x} className="wx-flake" style={{ animationDelay: `${i * 0.5}s` }} cx={x} cy="18" r="0.6" fill="currentColor" />)}
+          {[8.5, 12, 15.5].map((x, i) => <circle key={x} className="wx-flake" style={{ animationDelay: `${i * 0.5}s` }} cx={x} cy="18" r="1.1" fill="currentColor" />)}
         </>
       )}
       {kind === 'storm' && (
