@@ -317,6 +317,8 @@ const SOURCE_KEYS: Record<string, MsgKey> = {
   authorNote: 'ag.need.src.authorNote',
   myPrevious: 'ag.need.src.myPrevious',
   summary: 'ag.need.src.summary',
+  litopysFacts: 'ag.need.src.litopysFacts',
+  lorebook: 'ag.need.src.lorebook',
 }
 
 type T = (key: MsgKey, vars?: Vars) => string

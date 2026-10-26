@@ -51,7 +51,7 @@ const readCanvasFile = (raw) => {
 
 const SOURCE_TYPE = {
   lastReply: 'text', lastUserMessage: 'text', history: 'text', card: 'text', persona: 'text', summary: 'text',
-  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', state: null,
+  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', state: null,
 };
 const shapeType = (spec) => (spec === 'number' ? 'number' : spec === 'bool' ? 'flag' : 'text'); // enum:a|b and text are text
 const PORT_ID = /^[A-Za-z0-9_-]+$/;
@@ -59,6 +59,7 @@ const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z
 const shapeOut = (shape) => Object.entries((shape ?? {})).map(([id, spec]) => ({ id, side: 'out', type: shapeType(spec) }));
 const ownType = (as) => (as === 'number' ? 'number' : as === 'flag' ? 'flag' : 'text'); // a state value on a wire
 const itemPorts = (item) => Object.entries((item ?? {})).map(([id, spec]) => ({ id, side: 'in', type: ownType(spec) }));
+const whenIn = [{ id: 'when', side: 'in', type: 'signal', optional: true }];
 const whenDone = [{ id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }];
 const OUTPUT_TEXT_KINDS = ['prompt-insert', 'note', 'choices'];
 const NEEDS_BY_OUTPUT = { 'prompt-insert': ['write:prompt'], note: ['show:note'], choices: ['show:choices'] };
@@ -130,6 +131,26 @@ const AGENT_CARDS = {
     label: 'Change own list', colorVar: '--k-write', hint: 'Add, update or remove one entry of an own list.',
     ports: (p) => [...(p.op === 'remove' ? [{ id: 'key', side: 'in', type: ownType((p.item ?? {})[p.key]) }] : itemPorts(p.item)), ...whenDone],
     needs: (p) => [`write:own.${p.field}`],
+  },
+  'random.dice': {
+    label: 'Dice', colorVar: '--k-logic', hint: 'Rolls dice in code, never the model. The same reply always gets the same roll.',
+    ports: () => [...whenIn, { id: 'total', side: 'out', type: 'number' }, { id: 'rolls', side: 'out', type: 'text' }],
+    needs: () => [],
+  },
+  'random.pick': {
+    label: 'Pick', colorVar: '--k-logic', hint: 'Picks one of your lines by weight, in code. The same reply always gets the same pick.',
+    ports: () => [...whenIn, { id: 'text', side: 'out', type: 'text' }, { id: 'index', side: 'out', type: 'number' }],
+    needs: () => [],
+  },
+  'text.extract': {
+    label: 'Extract', colorVar: '--k-data', hint: 'Takes the part of a text a pattern matches. Never calls the model.',
+    ports: () => [{ id: 'in', side: 'in', type: 'text' }, { id: 'match', side: 'out', type: 'text' }, { id: 'none', side: 'out', type: 'signal' }],
+    needs: () => [],
+  },
+  'text.cut': {
+    label: 'Cut', colorVar: '--k-data', hint: 'Keeps the first or last part of a text: characters, words or lines.',
+    ports: () => [{ id: 'in', side: 'in', type: 'text' }, { id: 'text', side: 'out', type: 'text' }],
+    needs: () => [],
   },
   note: { label: 'Note', colorVar: '--k-data', hint: 'A note for people; never sent to a model.', ports: () => [], needs: () => [] },
 };
@@ -263,6 +284,41 @@ function checkState(raw, err) {
     out[id] = { type: spec.type };
   }
   return out;
+}
+const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+const PATTERN_MAX = 200;
+const PICK_MAX = 40;
+/** A pattern that can run for a very long time on a short text: a quantified group that holds a quantifier or an alternation, or a back reference. The run is stopped by the sandbox after seconds, so refuse these up front. */
+const riskyPattern = (src) => /\\[1-9]/.test(src) || /\((?:[^()\\]|\\.)*(?:[*+]|\{\d|\|)(?:[^()\\]|\\.)*\)[*+{]/.test(src);
+/** The parameters of the dice, pick, extract and cut cards. */
+function checkCodeCard(n, err) {
+  const p = n.params ?? {};
+  const bad = (code, msg) => err(code, `"${n.title}": ${msg}`, n.id);
+  if (n.type === 'random.dice') {
+    if (p.count !== undefined && !isInt(p.count, 1, 20)) bad('E_PARAM', 'count is a whole number from 1 to 20');
+    if (p.sides !== undefined && !isInt(p.sides, 2, 1000)) bad('E_PARAM', 'sides is a whole number from 2 to 1000');
+    if (p.bonus !== undefined && !isInt(p.bonus, -1000, 1000)) bad('E_PARAM', 'bonus is a whole number from -1000 to 1000');
+  } else if (n.type === 'random.pick') {
+    const items = Array.isArray(p.items) ? p.items : [];
+    if (items.length < 2 || items.length > PICK_MAX) bad('E_PARAM', `a pick needs 2 to ${PICK_MAX} lines`);
+    else if (items.some((i) => !isObj(i) || typeof i.text !== 'string' || !i.text.trim() || i.text.length > 400 || (i.weight !== undefined && !isInt(i.weight, 1, 100))))
+      bad('E_PARAM', 'every line needs text (up to 400 characters) and a weight from 1 to 100 or none');
+  } else if (n.type === 'text.extract') {
+    const flags = p.flags === undefined ? '' : p.flags;
+    if (typeof p.pattern !== 'string' || !p.pattern || p.pattern.length > PATTERN_MAX) { bad('E_PARAM', `pattern is text of 1 to ${PATTERN_MAX} characters`); return; }
+    if (typeof flags !== 'string' || !/^[ims]{0,3}$/.test(flags) || new Set(flags).size !== flags.length) bad('E_PARAM', 'flags may be i, m and s');
+    let groups = 0;
+    try { groups = new RegExp(p.pattern + '|', typeof flags === 'string' && /^[ims]{0,3}$/.test(flags) ? flags : '').exec('').length - 1; }
+    catch { bad('E_REGEX', 'the pattern is not a valid regular expression'); return; }
+    if (riskyPattern(p.pattern)) bad('E_REGEX_RISK', 'a repeated group that holds a repeat or a choice can take very long on some texts; write it without nesting');
+    if (p.group !== undefined && (!isInt(p.group, 0, 9) || p.group > groups)) bad('E_PARAM', `group is a whole number from 0 to ${groups}, the groups the pattern has`);
+    if (p.all !== undefined && typeof p.all !== 'boolean') bad('E_PARAM', 'all is true or false');
+    if (p.join !== undefined && (typeof p.join !== 'string' || p.join.length > 20)) bad('E_PARAM', 'join is text of up to 20 characters');
+  } else if (n.type === 'text.cut') {
+    if (!['first', 'last'].includes(p.keep)) bad('E_PARAM', 'keep is first or last');
+    if (!['chars', 'words', 'lines'].includes(p.unit)) bad('E_PARAM', 'unit is chars, words or lines');
+    if (!isInt(p.n, 1, 20000)) bad('E_PARAM', 'n is a whole number from 1 to 20000');
+  }
 }
 const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text' };
 const PANEL_PLACES = ['top1', 'top2', 'float'];
@@ -485,6 +541,8 @@ function validateAgent(raw) {
     maxCalls += card.calls ?? 0;
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
+    if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
+      checkCodeCard(n, err);
     if (n.type === 'model.ask' && !a.models?.[p.role])
       err('E_ROLE', `"${n.title}" asks for the model role "${p.role}", which agent.models does not declare`, n.id);
     if (n.type === 'logic.if') {
@@ -714,6 +772,66 @@ function askPrompt(prompt, answer) {
   return prompt;
 }
 
+// ---------- dice, pick, extract, cut: plain code, no model ----------
+
+const hash32 = (str) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+};
+/** A small seeded generator (mulberry32): the same seed gives the same numbers on every pass of one run. */
+function seeded(seed) {
+  let a = hash32(String(seed));
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** `count` dice of `sides` sides plus `bonus`: { total, rolls: "4, 17" }. */
+function rollDice(seed, p) {
+  const count = Number.isInteger(p.count) ? p.count : 1;
+  const sides = Number.isInteger(p.sides) ? p.sides : 20;
+  const bonus = Number.isInteger(p.bonus) ? p.bonus : 0;
+  const rnd = seeded(seed);
+  const rolls = Array.from({ length: count }, () => 1 + Math.floor(rnd() * sides));
+  return { total: rolls.reduce((a, b) => a + b, 0) + bonus, rolls: rolls.join(', ') };
+}
+
+/** One line by weight (a weight is 1 when none is given): { index: 1-based, text }. */
+function pickWeighted(seed, items) {
+  const weights = items.map((i) => (Number.isInteger(i.weight) ? i.weight : 1));
+  let at = seeded(seed)() * weights.reduce((a, b) => a + b, 0);
+  let index = 0;
+  while (index < items.length - 1 && at >= weights[index]) { at -= weights[index]; index++; }
+  return { index: index + 1, text: items[index].text };
+}
+
+/** The first match of a pattern (or every match, joined) as text; null when nothing matched. At most 20 matches. */
+function extractText(text, p) {
+  const re = new RegExp(p.pattern, (p.flags || '') + 'g');
+  const group = Number.isInteger(p.group) ? p.group : 0;
+  const found = [];
+  const src = clip(String(text), TEXT_MAX);
+  for (let m = re.exec(src); m && found.length < (p.all ? 20 : 1); m = re.exec(src)) {
+    if (m[0] === '') re.lastIndex++;
+    const v = m[group];
+    if (typeof v === 'string' && v.trim()) found.push(v.trim());
+  }
+  return found.length ? clip(found.join(typeof p.join === 'string' ? p.join : ', '), TEXT_MAX) : null;
+}
+
+/** The first or last `n` characters, words or lines of a text. */
+function cutText(text, p) {
+  const t = String(text);
+  const take = (parts, glue) => (p.keep === 'last' ? parts.slice(-p.n) : parts.slice(0, p.n)).join(glue);
+  if (p.unit === 'words') return take(t.split(/\s+/).filter(Boolean), ' ');
+  if (p.unit === 'lines') return take(t.split('\n'), '\n');
+  return p.keep === 'last' ? t.slice(-p.n) : t.slice(0, p.n);
+}
+
 // ---------- If ----------
 
 const Y = 'yes';
@@ -824,7 +942,8 @@ const fill = (text, values) => String(text ?? '').replace(slotRe, (_, id) => asT
 const short = (v) => (typeof v === 'string' ? clip(v, 200) : v);
 
 /**
- * ctx: { inputs: { <give id>: text | number | undefined }, own: { <field>: value }, dash: { <field>: value }, chat: { messageCount, lastSpeaker } }
+ * ctx: { inputs: { <give id>: text | number | undefined }, own: { <field>: value }, dash: { <field>: value }, chat: { messageCount, lastSpeaker }, seed }
+ *   `seed` makes the dice and picks repeatable: the host gives the same text for the same reply, so every pass of a run rolls the same.
  *   `inputs` is what the host read for the agent's Input card; the executor trusts nothing else about the chat.
  * answers: { <model.ask card id>: { text } | { error } }
  * Returns { status: "need", requests, trace }, { status: "done", writes, outputs, calls, trace } or { status: "failed", reason, node, trace }.
@@ -1001,6 +1120,28 @@ function runCards(file, ctx, answers, seen) {
         if (!w || (w.op === 'own.set' && w.value === undefined)) skip();
         else { writes.push(w); out('done', true); ran({ [w.op]: w.field }); }
       }
+    } else if (node.type === 'random.dice' || node.type === 'random.pick') {
+      const g = gate([], 'when');
+      if (g === 'skip') skip();
+      else if (g === 'wait') wait();
+      else {
+        const seed = String((ctx && ctx.seed) || '') + '|' + id;
+        if (node.type === 'random.dice') { const r = rollDice(seed, p); out('total', r.total); out('rolls', r.rolls); ran({ total: r.total, rolls: r.rolls }); }
+        else { const r = pickWeighted(seed, p.items || []); out('text', r.text); out('index', r.index); ran({ text: short(r.text), index: r.index }); }
+      }
+    } else if (node.type === 'text.extract') {
+      const g = gate(['in']);
+      if (g === 'skip') skip(); else if (g === 'wait') wait();
+      else {
+        const v = extractText(ins.in, p);
+        setAll(node, SKIP);
+        if (v === null) { out('none', true); ran({ none: 'no match' }); }
+        else { out('match', v); ran({ match: short(v) }); }
+      }
+    } else if (node.type === 'text.cut') {
+      const g = gate(['in']);
+      if (g === 'skip') skip(); else if (g === 'wait') wait();
+      else { const v = cutText(ins.in, p); out('text', v); ran({ text: short(v) }); }
     } else if (node.type === 'agent.output') {
       const g = gate(['in']);
       if (g === 'skip') skip();
@@ -1176,7 +1317,63 @@ function sourceValue(fsx, chat, give, last) {
   }
   if (src === "authorNote") return typeof meta.authorNote === "string" && meta.authorNote.trim() ? clip(meta.authorNote, 2000) : undefined;
   if (src === "myPrevious") return typeof last === "string" && last ? last : undefined;
+  if (src === "litopysFacts") return litopysFactsText(fsx, meta, give);
+  if (src === "lorebook") return lorebookText(fsx, meta, msgs, give);
   return undefined; // summary, and anything this host does not know
+}
+
+const giveLimit = (give, dflt, max) => (Number.isInteger(give.limit) && give.limit > 0 ? Math.min(give.limit, max) : dflt);
+
+/** The chat's active Litopys facts, pinned ones first, then the newest, as "- fact" lines. Undefined when Litopys has none for this chat. */
+function litopysFactsText(fsx, meta, give) {
+  const rec = meta && AG_CHAT.test(str(meta.id)) ? readJsonAt(fsx, "litopys/chats/" + meta.id + ".json", null) : null;
+  const facts = isObj(rec) && Array.isArray(rec.facts) ? rec.facts.filter((f) => isObj(f) && f.status === "active" && str(f.text)) : [];
+  if (!facts.length) return undefined;
+  const n = giveLimit(give, 20, 60);
+  const pinned = facts.filter((f) => f.pinned === true);
+  const rest = facts.filter((f) => f.pinned !== true);
+  const pick = [...pinned, ...rest.slice(-Math.max(0, n - pinned.length))].slice(0, n);
+  return clip(pick.map((f) => "- " + clip(str(f.text), 400)).join("\n"), 4000);
+}
+
+/**
+ * The lorebook entries that apply to this chat now, as "- title: text" lines: the books the chat uses (the
+ * character's embedded and linked books, the chat's own, the world book and the global ones), entries that are
+ * constant or whose keys appear in the last six messages. An approximation of the app's scan: keys are matched as
+ * plain text, regular-expression keys, timed effects, groups and probability are not applied. Undefined when none applies.
+ */
+function lorebookText(fsx, meta, msgs, give) {
+  const card = meta && meta.characterId ? readJsonAt(fsx, "characters/" + meta.characterId + "/card.json", null) : null;
+  const studio = isObj(card) && isObj(card.studio) ? card.studio : {};
+  const ids = [studio.embeddedLorebookId, ...(Array.isArray(studio.linkedLorebookIds) ? studio.linkedLorebookIds : []), ...(meta && Array.isArray(meta.lorebookIds) ? meta.lorebookIds : []), meta && meta.worldBookId];
+  const books = [];
+  const seen = new Set();
+  const take = (id) => {
+    if (seen.has(id) || !AG_CHAT.test(id)) return;
+    seen.add(id);
+    const book = readJsonAt(fsx, "lorebooks/" + id + ".json", null);
+    if (isObj(book)) books.push(book);
+  };
+  // the books the chat names first, in their order, then the global ones
+  for (const id of ids) if (typeof id === "string") take(id);
+  let files = [];
+  try { files = (fsx.list("lorebooks") || []).filter((f) => f.endsWith(".json") && !f.startsWith("_")); } catch { files = []; }
+  for (const f of files) {
+    const id = f.slice(0, -5);
+    if (seen.has(id)) continue;
+    const book = readJsonAt(fsx, "lorebooks/" + f, null);
+    if (isObj(book) && book.globalActive === true) { seen.add(id); books.push(book); }
+  }
+  const text = msgs.filter((m) => m.role !== "system").slice(-6).map((m) => msgText(m, false)).join("\n").toLowerCase();
+  const hit = (e) => (Array.isArray(e.keys) ? e.keys : []).some((k) => typeof k === "string" && k.trim() && e.keysRegex !== true && text.includes(k.trim().toLowerCase()));
+  const lines = [];
+  for (const book of books) {
+    for (const e of Array.isArray(book.entries) ? book.entries : []) {
+      if (!isObj(e) || e.enabled === false || !str(e.content)) continue;
+      if (e.status === "constant" || hit(e)) lines.push("- " + (str(e.title) ? str(e.title) + ": " : "") + clip(str(e.content), 400));
+    }
+  }
+  return lines.length ? clip(lines.slice(0, giveLimit(give, 8, 20)).join("\n"), 4000) : undefined;
 }
 
 // ---------- which model answers an agent's question ----------
@@ -1300,7 +1497,8 @@ function stepRun(host, fsx, view, picks, last, stash) {
     for (const g of (pick.agent.file.nodes.find((n) => n.type === "agent.input") || { params: {} }).params.give || []) {
       inputs[g.id] = sourceValue(fsx, view, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
     }
-    const ctx = { inputs, own: base, dash: {}, chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) } };
+    // dice and picks repeat within one reply (every pass of a run) and change with a new swipe: the key carries the swipe
+    const ctx = { inputs, own: base, dash: {}, chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
     const answers = {};
     pick.agent.file.nodes.forEach((n, ni) => {
       const r = answersAll[`ag_${ai}_${ni}`];
@@ -1385,6 +1583,7 @@ function runRoute(req, host) {
   const view = phase === "after" ? { meta: chat.meta, msgs: chat.msgs } : stagedView(chat, userText);
   view.chatId = chatId;
   view.turnId = turn.id;
+  view.turnKey = turn.key;
   const items = chatAgents(fsx, chat.meta).filter((it) => it.on && (manual ? it.agent === manual : (it.phase || "") !== "manual"));
   const runsFile = readJsonAt(fsx, runsPath(chatId), { v: 1, runs: [] });
   const runs = Array.isArray(runsFile.runs) ? runsFile.runs : [];
@@ -1427,6 +1626,7 @@ function runBefore(ctx, host, fsx, chatId, req) {
   const view = stagedView(chat, userText);
   view.chatId = chatId;
   view.turnId = turn.id;
+  view.turnKey = turn.key;
   const runsFile = readJsonAt(fsx, runsPath(chatId), { v: 1, runs: [] });
   const runs = Array.isArray(runsFile.runs) ? runsFile.runs : [];
   const picks = pickAgents(fsx, chat, view, items, "before", "", turn, runs, last, []);
