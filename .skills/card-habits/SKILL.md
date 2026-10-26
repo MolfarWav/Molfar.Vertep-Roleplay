@@ -1,6 +1,6 @@
 ---
 name: card-habits
-description: Use when the user asks to suggest, write, review or tidy a Roleplay character's habits (the "Habits" block of the card's Memory tab): short rules for how the character acts, reused in every chat. Triggers: "навички персонажа", "запропонуй навичку", "скіл для картки", "як вона поводиться", "card habits", "suggest a habit", "behaviour rules for this character".
+description: Use when the user asks to suggest, write, review or tidy a Roleplay character's habits (the "Habits" block of the card's Memory tab): short rules for how the character acts, reused in every chat. Triggers: "звички персонажа", "запропонуй звичку", "навички персонажа", "запропонуй навичку", "скіл для картки", "як вона поводиться", "card habits", "suggest a habit", "behaviour rules for this character".
 ---
 # Card habits
 
