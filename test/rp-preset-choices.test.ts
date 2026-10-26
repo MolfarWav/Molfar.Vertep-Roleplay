@@ -324,9 +324,9 @@ describe("built-in Molfar", () => {
     fs.writeFileSync(path.join(root, "presets", "frankenx.json"), JSON.stringify(old));
     fs.copyFileSync(path.join(shipped, "_frankenx.json"), path.join(root, "presets", "_frankenx.json"));
     expect(eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded).toContain("presets/frankenx.json hints");
+    // a read-only copy ends up as the shipped template: nobody edits it, so a stray hint does not stay
     const now = JSON.parse(fs.readFileSync(path.join(root, "presets", "frankenx.json"), "utf8"));
-    expect(now.studio.variables[0].choices[0].hint).toBe("my own");
-    expect(now.studio.variables[0].choices[1].hint).toBe(tpl.studio.variables[0].choices[1].hint);
+    expect(now).toEqual(tpl);
     // a copy the user made their own (not read-only) is left alone
     now.studio.readOnly = false;
     for (const v of now.studio.variables) for (const c of v.choices ?? []) delete c.hint;
@@ -449,6 +449,24 @@ describe("built-in Vertep Lite", () => {
       expect(c.hint.length).toBeGreaterThan(5);
       expect(c.hint.length).toBeLessThanOrEqual(200);
     }
+  });
+
+  it("an update replaces a stale read-only copy with the shipped template, and leaves an editable copy alone", () => {
+    const tpl = read();
+    fs.copyFileSync(path.join(shipped, "_vertep-lite.json"), path.join(root, "presets", "_vertep-lite.json"));
+    const stale = structuredClone(tpl);
+    stale.prompts = stale.prompts.filter((x: { identifier: string }) => x.identifier !== "lite_html");
+    stale.studio.variables = stale.studio.variables.filter((v: { name: string }) => v.name !== "html");
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify(stale));
+    expect(eng.onAppUpdate({ from: "4.70.0", to: "4.70.1" }, h()).upgraded).toContain("presets/vertep-lite.json");
+    const now = JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-lite.json"), "utf8"));
+    expect(now).toEqual(tpl);
+    expect(now.prompts.some((x: { identifier: string }) => x.identifier === "lite_html")).toBe(true);
+    expect(eng.onAppUpdate({ from: "4.70.0", to: "4.70.1" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+    const mine = { ...stale, studio: { ...stale.studio, readOnly: false } };
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify(mine));
+    expect(eng.onAppUpdate({ from: "4.70.0", to: "4.70.1" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-lite.json"), "utf8"))).toEqual(mine);
   });
 
   it("stays light: under 3k tokens with the heaviest picks", () => {
