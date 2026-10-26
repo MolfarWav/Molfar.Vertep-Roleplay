@@ -1,0 +1,2417 @@
+{
+  "format": 1,
+  "surface": "roleplay",
+  "source": {
+    "repo": "MolfarWav/Molfar.Vertep-Roleplay",
+    "commit": "8a97374"
+  },
+  "entries": [
+    {
+      "id": "kb.profile",
+      "group": "characters",
+      "title": {
+        "en": "Profile (card tab)",
+        "uk": "Профіль (вкладка картки)"
+      },
+      "aliases": {
+        "en": "profile structure identity appearance personality behavior goals background free write cast",
+        "uk": "профіль структура особистість зовнішність характер поведінка цілі фон вільний текст трупа"
+      },
+      "short": {
+        "en": "The Profile tab splits a card into fields (identity, appearance, goals and more). Every save writes them back into Description and Personality.",
+        "uk": "Вкладка «Profile» ділить картку на поля (особистість, зовнішність, цілі та інше). Кожне збереження записує їх назад в опис і характер."
+      },
+      "where": {
+        "en": "Open a card, then the Profile tab.",
+        "uk": "Відкрийте картку, потім вкладку Profile."
+      },
+      "details": {
+        "en": "The fields are only a form. The model and every export still read plain Description and Personality, so cards stay compatible. Empty fields write nothing; a switched-off section keeps its fields but writes no text. If you edit Description or Personality by hand after Profile wrote them, the tab notices and asks: keep your additions, rewrite, or switch to Free write (Profile stays but stops writing the card). One card can hold several characters — a narrator card — and each gets the same fields.",
+        "uk": "Поля — лише форма. Модель та експорт читають звичайний текст опису й характеру, тож картки лишаються сумісними. Порожні поля нічого не пишуть; вимкнена секція зберігає поля, але тексту не додає. Змінили опис чи характер вручну після запису з Profile? Вкладка помітить і спитає, що робити. Варіанти: лишити ваші доповнення, переписати чи перейти у «Вільний текст» — профіль лишається, але картку більше не пише. На одній картці може бути кілька персонажів — картка оповідача — кожен має ті самі поля."
+      },
+      "related": [
+        "help.card-editor",
+        "kb.persona"
+      ],
+      "sources": [
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "71-71",
+          "quote": "Every save COMPILES it into `description` and `personality`"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "72-73",
+          "quote": "Empty fields never reach the text"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "97-97",
+          "quote": "An off section keeps its fields and writes nothing"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "99-99",
+          "quote": "Free write: the profile is kept but no longer writes the card"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "101-101",
+          "quote": "A different hash means the text was edited by hand"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "100-100",
+          "quote": "More characters on the same card (a narrator card that describes several people)"
+        },
+        {
+          "path": "src/components/character/card-model-panel.tsx",
+          "lines": "20-20",
+          "quote": "\"Model for this card's tasks\" (GitHub #104): the model Structure it"
+        }
+      ]
+    },
+    {
+      "id": "kb.card-editor",
+      "group": "characters",
+      "title": {
+        "en": "The card editor tabs",
+        "uk": "Вкладки редактора картки"
+      },
+      "aliases": {
+        "en": "editor tabs core profile soul memory lorebook more colors sprites gallery voice advanced",
+        "uk": "редактор вкладки головне профіль душа пам'ять лорбук ще кольори спрайти галерея голос додатково"
+      },
+      "short": {
+        "en": "The editor groups its eleven panels into six tabs: Core, Profile, Soul, Memory, Lorebook and More. Each tab keeps its group color; More holds colors, sprites, gallery, regex, voice and advanced.",
+        "uk": "Редактор групує одинадцять панелей у шість вкладок: «Головне», «Профіль», «Душа», «Пам’ять», «Лорбук» і «Ще». Кожна вкладка має колір групи; «Ще» містить кольори, спрайти, галерею, регекс, голос і додатково."
+      },
+      "where": {
+        "en": "Open any card in the editor; the tab row sits above the panels.",
+        "uk": "Відкрийте будь-яку картку в редакторі; рядок вкладок розташований над панелями."
+      },
+      "details": {
+        "en": "Core holds the card text, dialogue and greeting. Profile holds the structured fields. Soul holds rating and habits. Memory holds finished chats. Lorebook holds linked books. More holds Character CSS, Colors (name, dialogue, bubble), Sprites, Gallery, Regex, Voice and Advanced settings. On a phone the six groups sit in one row, without icons, so they fit a narrow screen. Old links ask for a panel name; the editor maps it back to its tab.",
+        "uk": "«Головне» містить текст картки, діалог і привітання. «Профіль» — структуровані поля. «Душа» — оцінку й звички. «Пам’ять» — завершені чати. «Лорбук» — пов’язані книги. «Ще» — CSS персонажа, кольори (ім’я, діалог, бульбашка), спрайти, галерею, регекс, голос і додаткові налаштування. На телефоні шість груп стоять в один рядок, без значків, щоб вміститись на вузький екран. Старі посилання називають панель; редактор повертає її до вкладки."
+      },
+      "extends": "help.card-editor",
+      "related": [
+        "kb.profile",
+        "kb.colors",
+        "kb.profile-cast"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/editor-tabs.ts",
+          "lines": "8-8",
+          "quote": "The six tabs, in the order they are shown."
+        },
+        {
+          "path": "src/lib/editor-tabs.ts",
+          "lines": "12-12",
+          "quote": "The panels each tab holds, in order."
+        },
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "470-470",
+          "quote": "EDITOR_TABS.filter((tabName) => !(c.isGroup && (tabName === 'profile' || tabName === 'soul' || tabName === 'memory'))).map((tabName) => {"
+        }
+      ]
+    },
+    {
+      "id": "kb.import-export",
+      "group": "characters",
+      "title": {
+        "en": "Import and export cards",
+        "uk": "Імпорт і експорт карток"
+      },
+      "aliases": {
+        "en": "import png json file chub risurealm charavault export png link",
+        "uk": "імпорт png json файл chub risurealm charavault експорт png посилання"
+      },
+      "short": {
+        "en": "Import cards from files or links (Chub, RisuRealm, CharaVault, direct file). Export any card as a PNG with its JSON embedded.",
+        "uk": "Імпортуйте картки з файлів чи посилань (Chub, RisuRealm, CharaVault, прямий файл). Експортуйте будь-яку картку як PNG з вбудованим JSON."
+      },
+      "where": {
+        "en": "Characters section → Import (or the ⋮ menu on a phone); export from the card's tile or editor.",
+        "uk": "Розділ «Персонажі» → Імпорт (або меню ⋮ на телефоні); експорт з плитки картки або редактора."
+      },
+      "details": {
+        "en": "Import from a file accepts PNG or JSON cards, single or bulk. Import from a link reads Chub, RisuRealm, CharaVault or a direct file link; JannyAI links need a manual browser download. Each result shows a toast with the card name and notes. Export writes a V2 PNG card with the card data stored inside the picture itself.",
+        "uk": "Імпорт з файлу приймає PNG чи JSON картки, одну чи пакет. Імпорт з посилання читає Chub, RisuRealm, CharaVault або пряме посилання на файл; посилання JannyAI потребують ручного завантаження в браузері. Кожен результат показує сповіщення з ім'ям картки й нотатками. Експорт записує PNG-картку V2: дані картки збережені всередині самого зображення."
+      },
+      "extends": "help.import",
+      "related": [
+        "kb.characters",
+        "kb.card-editor"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "133-133",
+          "quote": "Import cards from links: chub, RisuRealm, CharaVault or a direct file"
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "164-164",
+          "quote": "Real import (PNG and JSON cards, single or bulk): shared with Home."
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "167-167",
+          "quote": "Real export: V2 PNG card with the JSON spliced into a tEXt chunk."
+        }
+      ]
+    },
+    {
+      "id": "kb.marketplace",
+      "group": "characters",
+      "title": {
+        "en": "Find new cards",
+        "uk": "Знайти нові картки"
+      },
+      "aliases": {
+        "en": "marketplace chub risurealm charavault wyvern pygmalion janny source download",
+        "uk": "маркет chub risurealm charavault wyvern pygmalion janny джерело завантаження"
+      },
+      "short": {
+        "en": "Search cards across sources (Chub, RisuRealm, CharaVault, Wyvern, Pygmalion, JannyAI). Sort by downloads, rating, newest or name. Open a result to preview, then import it.",
+        "uk": "Шукайте картки з джерел (Chub, RisuRealm, CharaVault, Wyvern, Pygmalion, JannyAI). Сортуйте за завантаженнями, оцінкою, новизною чи ім’ям. Відкрийте результат для перегляду, потім імпортуйте."
+      },
+      "where": {
+        "en": "Menu → Marketplace.",
+        "uk": "Меню → Маркет."
+      },
+      "details": {
+        "en": "Each source has its own sort order and adult filter. Some sources show notes: CharaVault is an archive, RisuRealm has no public search, Wyvern and Pygmalion show only safe-for-work cards without an account, and JannyAI cards must be downloaded in the browser and dropped onto the bar. A preview opens the full card definition before import.",
+        "uk": "Кожне джерело має свій порядок сортування й фільтр дорослого контенту. Деякі джерела показують нотатки. CharaVault — це архів. RisuRealm не має публічного пошуку, тож сортування обмежене. Wyvern і Pygmalion без облікового запису показують лише безпечні картки. Картки JannyAI треба завантажити в браузері й скинути на панель. Попередній перегляд відкриває повну картку перед імпортом."
+      },
+      "extends": "help.marketplace",
+      "related": [
+        "kb.import-export",
+        "kb.characters"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/marketplace-view.tsx",
+          "lines": "30-30",
+          "quote": "One marketplace listing, normalized by the plugin from whatever the"
+        },
+        {
+          "path": "src/components/views/marketplace-view.tsx",
+          "lines": "85-85",
+          "quote": "The first three are catalogs the engine plugin reads;"
+        },
+        {
+          "path": "src/components/views/marketplace-view.tsx",
+          "lines": "101-101",
+          "quote": "Sources with the tag picker."
+        }
+      ]
+    },
+    {
+      "id": "kb.characters",
+      "group": "characters",
+      "title": {
+        "en": "Your characters",
+        "uk": "Ваші персонажі"
+      },
+      "aliases": {
+        "en": "characters list search filter tags favorites sort grid list",
+        "uk": "персонажі список пошук фільтр теги обрані сортування сітка список"
+      },
+      "short": {
+        "en": "Search by name, filter by tags, sort by recent or favorites, and switch between grid and list. A star marks a favorite; the Favorites sort puts those cards first.",
+        "uk": "Шукайте за іменем, фільтруйте за тегами, сортуйте за останнім чи обраними й перемикайте між сіткою й списком. Зірка позначає обраного; сортування «Обрані» ставить такі картки першими."
+      },
+      "where": {
+        "en": "Menu → Characters.",
+        "uk": "Меню → Персонажі."
+      },
+      "details": {
+        "en": "Tags have a two-row chip display: a hidden copy measures how many fit, and the rest hides behind \"All tags\". Sorting options include recent, A–Z, newest, oldest, favorites, chats, tokens and random. Batch select exports the picked cards as one file or deletes them in one go. Favorite state is saved in the card; favorites appear in the compact chat switcher in the chat header.",
+        "uk": "Теги мають дворядковий показ фішок: прихована копія вимірює, скільки вміщається, решта ховається за «Усі теги». Варіанти сортування: останні, А–Я, найновіші, найстаріші, обрані, чати, токени й випадково. Пакетний вибір експортує обрані картки одним файлом або видаляє їх разом. Обраний стан зберігається в картці; обрані з’являються в компактному перемикачі чатів у заголовку чату."
+      },
+      "extends": "help.characters",
+      "related": [
+        "kb.import-export",
+        "kb.profile"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "95-95",
+          "quote": "The Characters section, or the Groups section: the same"
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "59-59",
+          "quote": "The tag chips in at most two rows"
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "44-44",
+          "quote": "SORT_OPTIONS: [SortKey, string][] = ["
+        }
+      ]
+    },
+    {
+      "id": "kb.profile-cast",
+      "group": "characters",
+      "title": {
+        "en": "Several characters in one Profile",
+        "uk": "Кілька персонажів в одному Профілі"
+      },
+      "aliases": {
+        "en": "profile cast several characters narrator card add character identity appearance fields",
+        "uk": "профіль трупа кілька персонажів оповідач додати персонажа особистість зовнішність поля"
+      },
+      "short": {
+        "en": "A narrator card can describe its whole cast: add a character in the Profile tab, and each one gets the same fields. Description and Personality are split into parts.",
+        "uk": "Картка оповідача може описати всю трупу: додайте персонажа у вкладці «Профіль», кожен отримує ті самі поля. Опис і характер розбиваються на частини."
+      },
+      "where": {
+        "en": "Profile tab → Add character (on a card with a profile).",
+        "uk": "Вкладка «Профіль» → Додати персонажа (на картці з профілем)."
+      },
+      "details": {
+        "en": "The profile's own fields describe the first character. Each added member has identity, appearance, personality, behavior, goals, background, trauma, relationships and notes. A member that writes something produces a part in Description and Personality, labeled with its name. A blank member writes nothing; if all members are blank, the text stays the same as without cast. The model's Structure it and Fill empty work on any member.",
+        "uk": "Поля самого профілю описують першого персонажа. Кожен доданий учасник має особистість, зовнішність, характер, поведінку, цілі, фон, травму, стосунки й нотатки. Учасник, який має текст, створює частину в описі й характері з позначкою імені. Порожній учасник нічого не пише; якщо всі учасники порожні, текст лишається таким, як без трупи. «Структурувати» й «Заповнити порожні» працюють з будь-яким учасником."
+      },
+      "extends": "new.profile-cast",
+      "related": [
+        "kb.profile"
+      ],
+      "sources": [
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "100-100",
+          "quote": "More characters on the same card (a narrator card that describes several people)"
+        },
+        {
+          "path": "src/components/profile/profile-form.tsx",
+          "lines": "83-83",
+          "quote": "{ id: 'identity', title: 'Identity', Icon: IdentificationCard, accent: 'sky', switchable: false }"
+        },
+        {
+          "path": "src/components/character/card-model-panel.tsx",
+          "lines": "45-45",
+          "quote": "CollapsibleContent className=\"flex flex-col gap-3 border-t border-border p-3\""
+        }
+      ]
+    },
+    {
+      "id": "kb.card-save",
+      "group": "characters",
+      "title": {
+        "en": "Saving a card",
+        "uk": "Збереження картки"
+      },
+      "aliases": {
+        "en": "save changes discard draft version history versions unsaved",
+        "uk": "зберегти зміни скасувати чернетка версія історія версій незбережені"
+      },
+      "short": {
+        "en": "Edits stay in a draft until you press Save changes; leaving with unsaved changes asks first. Versions keep the previous text before Profile writes.",
+        "uk": "Зміни лишаються в чернетці, доки ви не натиснете «Зберегти зміни»; вихід із незбереженими змінами спершу питає. Версії зберігають попередній текст перед записом з Профілю."
+      },
+      "where": {
+        "en": "Bottom of the card editor: Save changes / Discard.",
+        "uk": "Низ редактора картки: «Зберегти зміни» / «Скасувати»."
+      },
+      "details": {
+        "en": "Every edit writes to the draft, not the stored card. Save changes writes it once. Leaving the editor with a changed draft shows a confirmation. A conflict can appear if the card changed elsewhere (for example, a Soul rating or a profile edit). The card's version history keeps the text before Profile writes, so you can compare or restore.",
+        "uk": "Кожна зміна пишеться в чернетку, а не в збережену картку. «Зберегти зміни» записує її раз. Вихід з редактора зі зміненою чернеткою показує підтвердження. Конфлікт може з’явитися, якщо картка змінилась деінде (наприклад, оцінка Душі чи редагування профілю). Історія версій картки зберігає текст перед записом з Профілю, тож ви можете порівняти чи відновити."
+      },
+      "extends": "new.card-save",
+      "related": [
+        "kb.card-editor",
+        "kb.profile"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/card-draft.ts",
+          "lines": "1-1",
+          "quote": "A change in the editor stays a draft"
+        },
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "140-140",
+          "quote": "every edit goes to the draft; the card is written once, by Save changes (GitHub #103)"
+        },
+        {
+          "path": "src/lib/card-draft.ts",
+          "lines": "81-81",
+          "quote": "Fields that can be written as they are: the stored card did not touch them since the draft began."
+        }
+      ]
+    },
+    {
+      "id": "kb.colors",
+      "group": "characters",
+      "title": {
+        "en": "Colors",
+        "uk": "Кольори"
+      },
+      "aliases": {
+        "en": "colors tab colors reply text dialogue highlight bubble tint css voices palette",
+        "uk": "кольори вкладка кольори текст відповіді діалог бульбашка css голоси палітра"
+      },
+      "short": {
+        "en": "The Colors tab sets reply colors, dialogue highlights, bubble tint, custom CSS and Voices. Voices give each speaker of a narrator card its own color.",
+        "uk": "Вкладка «Кольори» встановлює кольори відповідей, підсвічування діалогу, відтінок бульбашки, власний CSS і «Голоси». «Голоси» дають кожному мовцю картки-оповідача свій колір."
+      },
+      "where": {
+        "en": "Editor → More tab → Colors (or the Colors panel in the More group).",
+        "uk": "Редактор → вкладка «Ще» → «Кольори» (або панель «Кольори» в групі «Ще»)."
+      },
+      "details": {
+        "en": "Name color, dialogue highlight and bubble tint are set with color pickers; an \"Extract from avatar\" button picks the dominant color from the card's portrait. The card's own style sheet can restyle the message text. Voices list each character of a narrator card: the speaker is found by the name before a colon or the first name in a line. Each voice picks its color or draws from the built-in palette in order.",
+        "uk": "Колір імені, підсвічування діалогу й відтінок бульбашки встановлюються палітрами; кнопка «Взяти з аватара» вибирає домінантний колір з портрета. Власний стиль картки може змінювати вигляд тексту повідомлень. «Голоси» перелічують кожного персонажа картки-оповідача: мовця знаходять за ім'ям перед двокрапкою або першим ім'ям у рядку. Кожен голос обирає свій колір або бере його з вбудованої палітри за порядком."
+      },
+      "related": [
+        "kb.profile-cast",
+        "kb.card-editor",
+        "kb.voices"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "702-702",
+          "quote": "TabsContent value=\"colors\" className=\"flex flex-col gap-3\""
+        },
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "717-717",
+          "quote": "['name', 'Name color'], ['dialogue', 'Dialogue highlight'], ['bubble', 'Bubble tint']"
+        },
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "737-737",
+          "quote": "VoicesEditor voices={c.voices ?? []} onChange={(voices) => up({ voices })}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2819-2819",
+          "quote": "'voices.title': 'Voices',"
+        }
+      ]
+    },
+    {
+      "id": "kb.soul",
+      "group": "characters",
+      "title": {
+        "en": "Soul of a character",
+        "uk": "Душа персонажа"
+      },
+      "short": {
+        "en": "A soul sets how a character reacts to you: the relationship class (romantic, ally, neutral, hostile), where the feelings start, fixed traits, spectra, and the things that hurt or please them more.",
+        "uk": "Душа задає реакцію персонажа на вас: клас стосунків (романтика, союзник, нейтральний, ворог), стартові почуття, риси й особливі тригери."
+      },
+      "where": {
+        "en": "Open a card, then the Soul tab. The Dashboard reads the soul in every scene.",
+        "uk": "Відкрийте картку, потім вкладку «Душа». Дашборд читає душу в кожній сцені."
+      },
+      "details": {
+        "en": "What it is for. A soul makes a character react in their own way in the Dashboard: a shy one warms up slowly, a suspicious one trusts slowly, a valued promise earns more.\n\nWhat you set. Class picks the relationship: romantic, ally, neutral or hostile (hostile gets a hostility meter). Start values place every feeling from -20 to +20 when the story begins; 0 is a stranger. Traits (dominance, confidence, shyness, patience, curiosity) are 0-100 and fixed once saved. Spectra tilt how fast a feeling grows. Triggers and values are up to 12 each: a cue in plain words, an event, the stat it hits, and a strength of 1.5 or 2. Coping is one line the model sees under strain.\n\nBy default: only main characters get a soul. Minor figures the story invents (guards, passers-by) play with every multiplier at 1 and start values of 0.\n\nWhat it does not do. The soul never changes during play: what HAPPENS lives in the chat. You can delete the soul any time and the character plays neutral again.\n\nWatch out: saved traits and spectra apply to every chat with this card. Before changing them, the tab warns you; past turns stay as they were.",
+        "uk": "Навіщо це. Душа змушує персонажа реагувати по-своєму в Дашборді: сором'язлива повільно відтаює, підозріла повільно довіряє, виконана обіцянка дає більше ніжності.\n\nЩо ви задаєте. Клас обирає стосунки: романтика, союзник, нейтральний чи ворог (ворог має шкалу ворожості). Стартові значення ставлять кожне почуття від −20 до +20 на початку історії; 0 — незнайомець. Риси (домінування, впевненість, сором'язливість, терпіння, цікавість) — 0–100 і фіксуються після збереження. Спектри нахиляють швидкість зростання почуттів. Тригери й цінності — до 12 кожних: підказка звичайними словами, подія, уражена статистика й сила 1,5 чи 2. «Як діє під тиском» — один рядок, який модель бачить у стресовий момент.\n\nТипово: душу мають лише головні персонажі. Дрібні фігури, яких історія вигадує (охоронці, перехожі), грають з множником 1 і нульовим стартом.\n\nЧого це не робить. Душа не змінюється під час гри: те, що ВІДБУВАЄТЬСЯ, живе в чаті. Її можна будь-коли видалити — і персонаж знову грає нейтрально.\n\nУвага: збережені риси й спектри діють у кожному чаті з цією карткою. Перед зміною вкладка попередить; минулі ходи лишаються як є."
+      },
+      "aliases": {
+        "en": "soul personality rating attitude traits class relationship dashboard start values",
+        "uk": "душа особистість оцінка ставлення риси клас стосунки дашборд стартові значення"
+      },
+      "extends": "help.soul",
+      "related": [
+        "kb.soul-rate",
+        "kb.habits",
+        "kb.persona"
+      ],
+      "sources": [
+        {
+          "path": "docs/SOUL.md",
+          "lines": "3-3",
+          "quote": "A soul tells the `relations` plugin how one character reacts: her class toward the user,"
+        },
+        {
+          "path": "docs/SOUL.md",
+          "lines": "35-35",
+          "quote": "Attitude toward the user when the story begins, as the card and its first message set it up (a sworn advisor already trusts and respects; a rival distrusts)."
+        },
+        {
+          "path": "docs/SOUL.md",
+          "lines": "36-36",
+          "quote": "Fixed temperament. `shyness` > 60 caps trust and comfort growth at +1 per turn."
+        },
+        {
+          "path": "docs/SOUL.md",
+          "lines": "57-57",
+          "quote": "Minor figures the story model brings in"
+        }
+      ]
+    },
+    {
+      "id": "kb.soul-rate",
+      "group": "characters",
+      "title": {
+        "en": "Let a model rate the soul",
+        "uk": "Оцінка душі моделлю"
+      },
+      "short": {
+        "en": "Rate now asks a model to propose a soul from what the card and its lore say. Review the proposal, then Accept all, save one soul, or Dismiss.",
+        "uk": "«Оцінити зараз» просить модель запропонувати душу з тексту картки та її лору. Перегляньте пропозицію, потім «Прийняти всі», зберегти одну душу або відхилити."
+      },
+      "where": {
+        "en": "Soul tab: Rate now / Rate again / Rate with Molfar. The proposal shows Accept all and Save soul per character.",
+        "uk": "Вкладка «Душа»: «Оцінити зараз» / «Оцінити знову» / «Оцінити з Мольфаром». Пропозиція має «Прийняти всі» й «Зберегти душу» для кожного персонажа."
+      },
+      "details": {
+        "en": "Who gets a proposal. Only main characters: the card's own character and, on a narrator card, the named recurring characters. Minor figures get no proposal at all.\n\nHow to use it. Press Rate now. A model reads the card's description, personality, scenario, first message, the lorebooks the card and its chats use, and recent chat messages — whatever describes the character. It proposes class, start values, traits, spectra, triggers, values and coping. Review it, then either Accept all, or open one character and press Save soul for that character alone, or Dismiss.\n\nRate with Molfar writes the same proposal, but Molfar picks the values: you can ask it to explain and adjust before saving.\n\nWhat is on by default. \"Rate characters automatically\" (Settings, on by default) rates a card right after import and on the first update of a chat whose card has no soul, so start values count from the first snapshot.\n\nWatch out: until you accept or dismiss, the proposal acts in play as a provisional soul. Dismissing stops the automatic rating for this card only — Rate now still works. A saved soul is rated again only when you press Rate again on that character.",
+        "uk": "Хто отримує пропозицію. Лише головні персонажі: власний персонаж картки й, на картці-оповідачі, названі повторювані герої. Дрібні фігури пропозиції не отримують.\n\nЯк користуватися. Натисніть «Оцінити зараз». Модель читає опис, характер, сценарій і перше повідомлення картки, лорбуки й останні повідомлення чату. Вона пропонує клас, стартові значення, риси, спектри, тригери, цінності й «як діє під тиском». Перегляньте, потім «Прийняти всі», або відкрийте одного персонажа й натисніть «Зберегти душу» лише для неї, або відхиліть.\n\n«Оцінити з Мольфаром» пише ту саму пропозицію, але значення обирає Мольфар: можна попросити його пояснити й виправити перед збереженням.\n\nТипово ввімкнено. «Оцінювати персонажів автоматично» (Налаштування) оцінює картку одразу після імпорту та при першому оновленні чату без душі. Тоді стартові значення рахуються від першого знімка.\n\nУвага: поки ви не приймете чи не відхилите, пропозиція діє в грі як тимчасова душа. Відхилення зупиняє автоматичну оцінку лише для цієї картки — «Оцінити зараз» далі працює. Збережену душу переоцінюють тільки кнопкою «Оцінити знову»."
+      },
+      "aliases": {
+        "en": "rate auto propose soul review accept dismiss generate molfar proposal",
+        "uk": "оцінити автоматично запропонувати душа переглянути прийняти відхилити згенерувати мольфар пропозиція"
+      },
+      "extends": "help.soul-rate",
+      "related": [
+        "kb.soul",
+        "kb.voices",
+        "kb.habits"
+      ],
+      "sources": [
+        {
+          "path": "docs/SOUL.md",
+          "lines": "56-56",
+          "quote": "Only main characters get a soul: the card's own character, and for a narrator card the named"
+        },
+        {
+          "path": "docs/SOUL.md",
+          "lines": "60-60",
+          "quote": "A proposal never touches `card.json`. It is one file per card,"
+        },
+        {
+          "path": "docs/SOUL.md",
+          "lines": "93-93",
+          "quote": "Until the user accepts or dismisses it, a proposal is used in play for every name the card"
+        },
+        {
+          "path": "docs/SOUL.md",
+          "lines": "98-98",
+          "quote": "The plugin rates by itself (setting \"Rate characters automatically\", on by default) after a"
+        }
+      ]
+    },
+    {
+      "id": "kb.voices",
+      "group": "characters",
+      "title": {
+        "en": "Voices for a Narrator",
+        "uk": "Голоси для Оповідача"
+      },
+      "short": {
+        "en": "For a card that plays several characters (a Narrator): list who speaks under Colors - Voices, and each one's lines get their own colour.",
+        "uk": "Для картки, що грає кількох персонажів (Оповідач): перелічіть, хто говорить, у «Кольори → Голоси», і репліки кожного матимуть свій колір."
+      },
+      "where": {
+        "en": "Open a card, Colors section, Voices.",
+        "uk": "Відкрийте картку, розділ «Кольори», «Голоси»."
+      },
+      "details": {
+        "en": "What it is for. On a narrator card one reply voices several characters. Voices colour each speaker's lines so you can tell them apart at a glance.\n\nHow to use it. Under Colors, Voices: add a voice, type the character's name, pick a colour. Colours you do not pick come from a built-in palette, in a fixed order.\n\nHow the speaker is found. The name before a colon (\"Aria: ...\"), or the first name in the line. A line that names nobody keeps the previous speaker. Dialogue set off by a dash (— Hello) is tinted the same way.\n\nWhat it does not do. Voices never reach the prompt: they are colours only.\n\nOne thing that surprises people. A voice is found even when the story spells its name in another script (a Latin name inside Cyrillic narration), and inflected forms count too.",
+        "uk": "Навіщо це. На картці-оповідачі одна відповідь озвучує кількох персонажів. Голоси фарбують репліки кожного, щоб їх було видно з одного погляду.\n\nЯк користуватися. У розділі «Кольори», «Голоси»: додайте голос, введіть ім'я персонажа, оберіть колір. Кольори, яких ви не вибрали, беруться з вбудованої палітри, у фіксованому порядку.\n\nЯк знаходиться мовець. Ім'я перед двокрапкою («Арія: …») або перше ім'я в рядку. Рядок без імені зберігає попереднього мовця. Репліка через тире (— Привіт) фарбується так само.\n\nЧого це не робить. Голоси ніколи не потрапляють у промпт: це лише кольори.\n\nОдна несподіванка. Голос знаходиться навіть коли історія пише ім'я іншим письмом (Ember як Ембер); відмінювані форми теж зараховуються."
+      },
+      "aliases": {
+        "en": "voices dialogue colour speaker narrator quote dash script cross",
+        "uk": "голоси діалог колір мовець оповідач репліка тире письмо"
+      },
+      "extends": "new.voices",
+      "related": [
+        "kb.voices-dash",
+        "kb.soul",
+        "kb.colors"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2820-2820",
+          "quote": "List who speaks: each one\\'s lines get their own colour."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2825-2825",
+          "quote": "Colours not picked yet come from a built-in palette, in this order."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "61-61",
+          "quote": "Dialogue after a dash (`— text`, with the author's words between two dashes) is tinted like quoted speech"
+        },
+        {
+          "path": "src/lib/dialogue-voices.ts",
+          "lines": "63-63",
+          "quote": "in one script is also found written in the other (Ember in a Russian narration: Эмбер, Изабелла for Isabella)."
+        }
+      ]
+    },
+    {
+      "id": "kb.voices-dash",
+      "group": "characters",
+      "title": {
+        "en": "Voices in dashes and other scripts",
+        "uk": "Голоси з тире й іншими письмами"
+      },
+      "short": {
+        "en": "The extra cases of Voices: dialogue set off by a dash, names written in the other script, and unnamed speech that keeps the previous speaker.",
+        "uk": "Особливі випадки «Голосів»: репліки через тире, імена іншим письмом і безіменна репліка, що зберігає попереднього мовця."
+      },
+      "where": {
+        "en": "No extra steps: works in the chat view by itself.",
+        "uk": "Додаткових кроків не треба: працює у вікні чату саме собою."
+      },
+      "details": {
+        "en": "Dash dialogue. A line like \"— Hello\" is tinted like quoted speech; the author's words between two dashes stay plain.\n\nAnother script. A voice is found when the story spells its name in the other script — a Latin name inside Cyrillic narration, or the reverse. Inflected forms are allowed too.\n\nUnnamed speech. A speech paragraph that names nobody keeps the speaker of the narration right before it, so a long quote keeps one colour.\n\nOn the Dashboard. A rated character the story keeps naming joins the scene even when the reader missed them. Colours never touch the prompt.",
+        "uk": "Репліка через тире. Рядок «— Привіт» фарбується як репліка в лапках; слова автора між двома тире лишаються без кольору.\n\nІнше письмо. Голос знаходиться, коли історія пише ім'я іншим письмом (Ember як Ембер). Відмінювані форми теж зараховуються.\n\nБезіменна репліка. Абзац репліки, де мовця не названо, бере мовця з оповіді просто перед ним — довга цитата тримає один колір.\n\nУ Дашборді. Оцінений персонаж, якого історія раз у раз називає, потрапляє в сцену, навіть якщо читач його пропустив. Кольори ніколи не чіпають промпт."
+      },
+      "aliases": {
+        "en": "voices dash dialogue script speaker unnamed previous scene dashboard",
+        "uk": "голоси тире діалог письмо мовець безіменний попередній сцена дашборд"
+      },
+      "extends": "new.voices-dash",
+      "related": [
+        "kb.voices",
+        "kb.soul",
+        "kb.group-turns"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "436-436",
+          "quote": "Dialogue set off by a dash (— Hello) is coloured like quoted speech, with the author\\'s words between two dashes left plain."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "436-436",
+          "quote": "A voice is found when the story spells its name in the other script (Ember as Эмбер)."
+        },
+        {
+          "path": "src/components/markdown.tsx",
+          "lines": "216-216",
+          "quote": "carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry"
+        }
+      ]
+    },
+    {
+      "id": "kb.habits",
+      "group": "characters",
+      "title": {
+        "en": "Habits of a character",
+        "uk": "Звички персонажа"
+      },
+      "short": {
+        "en": "Habits are short rules for how a character acts — reactions and manners, not abilities. Write them by hand, or accept what the story or Molfar proposes.",
+        "uk": "Звички — короткі правила, як діє персонаж: реакції й манери, не здібності. Напишіть вручну або прийміть те, що запропонує історія чи Molfar."
+      },
+      "where": {
+        "en": "Card Memory tab (waiting habits), Library Habits tab (earned ones), Litopys settings.",
+        "uk": "Вкладка «Пам'ять» картки (звички на черзі), вкладка «Звички» в Бібліотеці (здобуті), налаштування Літопису."
+      },
+      "details": {
+        "en": "What it is for. A habit is one short rule used in every chat with this card: \"Answers threats with silence. Never raises their voice.\" It is written once and never repeated in the prompt as memory.\n\nHow to use it. In the card's Memory tab press Add a habit: a name, a rule of 1-6 lines (say what the character does, not who they are), optionally when. Habits proposed by Molfar or from a story wait for your yes — \"Waiting for your yes\" — and are not used in chats until you accept them.\n\nEarned from the story. In the Library Habits tab, when a character shows the same behaviour in scene after scene, Litopys notices a candidate. A candidate acts only after it forms (the \"Formed after\" setting, 1-5 scenes; default 2). You can Accept now, Reject (it does not come back for this chat), or Keep on the card (every chat with that card uses it).\n\nNumbers you meet on screen. A card keeps at most 30 habits; 12 live candidates per chat; the token room is set in Litopys settings (\"Room for habits\", 50-800, default 250).\n\nWatch out: habits are not for your own character, and a switch-off keeps the rule but stops it reaching the model.",
+        "uk": "Навіщо це. Звичка — одне коротке правило, що діє в кожному чаті з цією карткою: «Відповідає на погрози мовчанням. Ніколи не підвищує голосу». Пишеться раз і не дублюється в пам'яті.\n\nЯк користуватися. У вкладці «Пам'ять» картки натисніть «Додати звичку»: назва, правило на 1–6 рядків, за бажанням «коли». Правило каже, що персонаж робить, а не ким він є. Звички від Molfar чи з історії чекають вашого «так» — і в чатах не використовуються, доки ви їх не приймете.\n\nЗдобуті з історії. У вкладці «Звички» Бібліотеки, коли персонаж проявляє одну поведінку в сцені за сценою, Літопис помічає кандидата. Кандидат діє лише після закріплення (налаштування «Formed after», 1–5 сцен; типово 2). Далі три дороги. «Прийняти зараз» — діє в цьому чаті. «Відхилити» — не повернеться в цей чат. «Зберегти в картці» — кожен чат із цією карткою його використовує.\n\nЧисла, які ви бачите на екрані. Картка тримає щонайбільше 30 звичок; 12 живих кандидатів на чат; місце в токенах задається в налаштуваннях Літопису (50–800, типово 250).\n\nУвага: звички не стосуються вашого персонажа, а вимкнення лишає правило, але воно перестає сягати моделі."
+      },
+      "aliases": {
+        "en": "habits skills memory rules behaviour manners reactions story earned accepted",
+        "uk": "звички навички пам’ять правила поведінка манери реакції історія здобуті прийняті"
+      },
+      "extends": "new.habits",
+      "related": [
+        "kb.soul",
+        "kb.voices",
+        "kb.litopys",
+        "kb.persona"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3103-3103",
+          "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6550-6550",
+          "quote": "\"Чекають на ваше «так» ({n})\""
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "148-148",
+          "quote": "called skills until Roleplay 4.67.0, and files with the old keys `skills`, `nextSkill`,"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3195-3195",
+          "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
+        }
+      ]
+    },
+    {
+      "id": "kb.persona",
+      "group": "characters",
+      "title": {
+        "en": "Your persona",
+        "uk": "Ваша персона"
+      },
+      "short": {
+        "en": "A persona is who you play: name, pronouns and description. \"Use this persona\" makes it your default and switches the open chat to it on the spot.",
+        "uk": "Персона — це ви в грі: ім'я, займенники й опис. «Use this persona» робить її типовою й одразу перемикає на неї відкритий чат."
+      },
+      "where": {
+        "en": "Personas section in the menu; the chat header pill (preset, persona, model).",
+        "uk": "Розділ «Персони» в меню; плашка в шапці чату (пресет, персона, модель)."
+      },
+      "details": {
+        "en": "What it is for. The persona is your side of the story: the model sees the persona's name and description wherever a prompt says {{user}}.\n\nHow to use it. New persona: name, pronouns, a title, a description, an avatar, a dialogue colour. Press \"Use this persona\" on one: it becomes the default, and the chat you have open switches to it immediately. The five questions on the Personas page rewrite the description for you.\n\nBindings. Binding mode \"Lock to character\" starts new chats with this persona only for the characters you tick; \"Lock to chat\" is saved but changes nothing here; Auto-lock sorts it out when two personas claim one character.\n\nWhat it does not do. Deleting a persona does not delete chats: \"Their avatar and description go with them, chats keep their messages.\" A persona can carry lorebooks: they are always in scope for that persona's chats.\n\nOne thing that surprises people. The identity note (\"what I want from stories\") is private: it never reaches the model.",
+        "uk": "Навіщо це. Персона — ваш бік історії: модель бачить ім'я й опис персони там, де в промпті стоїть {{user}}.\n\nЯк користуватися. Нова персона: ім'я, займенники, титул, опис, аватар, колір реплік. Натисніть «Use this persona» — вона стане типовою, а відкритий чат перемкнеться на неї одразу. П'ять питань на сторінці «Персони» перепишуть опис за вас.\n\nПрив'язки. Режим «Lock to character» обмежує нові чати з цією персоною лише позначеними вами персонажами. «Lock to chat» зберігається, але тут нічого не міняє. «Auto-lock» розв'язує, коли дві персони претендують на одного персонажа.\n\nЧого це не робить. Видалення персони не видаляє чати: повідомлення лишаються, а аватар і опис персони зникають. Персона може нести лорбуки: вони завжди діють у чатах цієї персони.\n\nОдна несподіванка. Нотатка «що я хочу від історій» приватна: вона ніколи не потрапляє до моделі."
+      },
+      "aliases": {
+        "en": "persona user player profile me binding lock character identity pronouns",
+        "uk": "персона користувач гравець профіль я прив’язка блокування персонаж особистість займенники"
+      },
+      "extends": "help.persona",
+      "related": [
+        "kb.soul",
+        "kb.habits",
+        "kb.groups",
+        "kb.profile"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "831-831",
+          "quote": "A persona is who you play: name, pronouns and description. “Use this persona” makes it your default and switches the open chat to it."
+        },
+        {
+          "path": "src/components/views/personas-view.tsx",
+          "lines": "195-195",
+          "quote": "Their avatar and description go with them, chats keep their messages."
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "2181-2181",
+          "quote": "usePersona: (id) => {"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "235-235",
+          "quote": "card's `molfar_profile`, written by the Personas page's five questions, its Profile section,"
+        }
+      ]
+    },
+    {
+      "id": "kb.groups",
+      "group": "characters",
+      "title": {
+        "en": "Groups of characters",
+        "uk": "Групи персонажів"
+      },
+      "short": {
+        "en": "A group puts several characters into one chat. Create one with New group; the editor has Overview, Members, Scene, Turns, Lore and Chats.",
+        "uk": "Група збирає кількох персонажів в один чат. Створіть її кнопкою «Нова група»; у редакторі — Огляд, Учасники, Сцена, Черги, Книги й Чати."
+      },
+      "where": {
+        "en": "Groups section in the menu, right after Characters. New group picks the members.",
+        "uk": "Розділ «Групи» в меню, одразу після «Персонажів». «Нова група» обирає учасників."
+      },
+      "details": {
+        "en": "What it is for. One chat, several characters answering each other — and you.\n\nHow to use it. New group, pick members, name it. The editor tabs: Overview (name, tags, a note for yourself that is never sent, a shared scenario that replaces each member's own in this group's chats, openings, per-member dialogue colours, members' portraits), Members (add, mute, remove, talkativeness, opening), Scene, Turns, Lore, Chats.\n\nBy default: a new group starts as Narrator — one reply voices everyone — and members answer by name when you name them.\n\nWhat it does not do. A group is not a card: members stay in the library; only the chat belongs to the group. Deleting the group deletes its chats — \"This removes the group and all of its chats. Its members stay.\"\n\nOne thing that surprises people. Talkativeness is guessed from each card when unset; set it by hand and it wins.",
+        "uk": "Навіщо це. Один чат, кілька персонажів, що відповідають один одному — і вам.\n\nЯк користуватися. «Нова група», оберіть учасників, назвіть. Вкладки редактора: «Огляд» — назва, теги, нотатка для себе (ніколи не надсилається), спільний сценарій, відкриття, кольори реплік і портрети учасників. «Учасники» — додати, заглушити, прибрати, балакучість, відкриття. Ще «Сцена», «Черги», «Книги» й «Чати».\n\nТипово: нова група починає як Оповідач, і учасники відповідають за ім'ям, коли ви когось назвете.\n\nЧого це не робить. Група — не картка: учасники лишаються в бібліотеці; лише чат належить групі. Видалення групи видаляє всі її чати, а учасники лишаються.\n\nОдна несподіванка. Балакучість здогадується з картки, якщо не задана; задана вручну — перемагає."
+      },
+      "aliases": {
+        "en": "groups ensemble party members chat multi-character group editor turns scene",
+        "uk": "групи ансамбль компанія учасники чат кілька персонажів редактор групи черги сцена"
+      },
+      "extends": "help.groups",
+      "related": [
+        "kb.group-turns",
+        "kb.voices",
+        "kb.persona"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "808-808",
+          "quote": "A group puts several characters into one chat. Create one with New group; its editor has Overview, Members, Scene, Turns, Lore and Chats."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "244-244",
+          "quote": "chat's meta has `groupId` and no `characterId`. Deleting a group deletes its chats; its members stay."
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1800-1800",
+          "quote": "body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1703-1703",
+          "quote": "'group.ed.noteHint': 'Never sent to the model',"
+        }
+      ]
+    },
+    {
+      "id": "kb.group-turns",
+      "group": "characters",
+      "title": {
+        "en": "Who answers in a group",
+        "uk": "Хто відповідає в групі"
+      },
+      "short": {
+        "en": "The Turns tab decides who answers: Narrator (one reply voices everyone) or Each in turn, then who picks — by name and talkativeness, in order, or only you.",
+        "uk": "Вкладка «Черги» вирішує, хто відповідає: Оповідач (одна відповідь озвучує всіх) чи «По черзі» з трьома способами обрання мовця."
+      },
+      "where": {
+        "en": "Group editor, Turns tab. Each chat can change its own with the Turns button above the message box.",
+        "uk": "Редактор групи, вкладка «Черги». Кожен чат може мати свої — кнопкою «Черги» над полем повідомлення."
+      },
+      "details": {
+        "en": "Generation mode. \"Narrator: one reply voices everyone\" — the whole group answers as one reply. \"Each in turn: one member writes each message\" — one member speaks at a time (only the speaker's card in the prompt). \"Each in turn, every card in the prompt\" — every unmuted member's card rides along.\n\nWho answers (Each in turn only). Natural: whoever you name, else the talkativeness guess picks one. Everyone in order. Only the member you pick — in the chat, \"You pick\": nobody answers on their own; tap a name above the message box to make them speak.\n\nBy default: the narrator always answers, whatever Who answers says.\n\nThe scene keeps going. \"Keep the scene going on its own\" lets members keep talking without your messages, with an auto delay in seconds between replies.\n\nWatch out: the same member may answer twice in a row unless you switch that off; muted members are out of the prompt and get no opening.",
+        "uk": "Режим генерації. «Оповідач: одна відповідь озвучує всіх» — уся група відповідає однією відповіддю. «По черзі: один учасник пише кожне повідомлення» — говорить один за раз (в промпті лише картка мовця). «По черзі, усі картки в промпті» — картка кожного незаглушеного учасника їде разом.\n\nХто відповідає (лише для «По черзі»). Природно: кого ви назвали, інакше обирає здогад балакучості. Усі за порядком. Лише той, кого ви оберете — у чаті це «You pick»: ніхто не відповідає сам. Торкніться імені над полем, щоб він заговорив.\n\nТипово: оповідач відповідає завжди, що б не стояло в «Хто відповідає».\n\nСцена йде сама. «Сцена йде сама» дозволяє учасникам говорити далі без ваших повідомлень, з автоматичною паузою в секундах між відповідями.\n\nУвага: той самий учасник може відповідати двічі підряд, якщо це не вимкнути; заглушені учасники поза промптом і без відкриття."
+      },
+      "aliases": {
+        "en": "group turns narrator order talkativeness auto mode manual list scene",
+        "uk": "група черги оповідач порядок балакучість авто режим ручний список сцена"
+      },
+      "extends": "help.group-turns",
+      "related": [
+        "kb.groups",
+        "kb.voices",
+        "kb.soul"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1824-1824",
+          "quote": "'group.ed.generationModeNarrator': 'Narrator: one reply voices everyone',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1848-1848",
+          "quote": "'turns.short.manual': 'You pick',"
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "819-819",
+          "quote": "In a group’s Turns tab, Generation mode is either Narrator (one reply voices everyone) or Each in turn."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "250-250",
+          "quote": "Who answers: `natural` (whoever the user names, else one pick by talkativeness), `list` (everyone in order), `manual` (only a triggered member)."
+        }
+      ]
+    },
+    {
+      "id": "kb.dashboard",
+      "group": "story",
+      "title": {
+        "en": "Scene dashboard",
+        "uk": "Дашборд сцени"
+      },
+      "aliases": {
+        "en": "dashboard moods relationships scene mode sensor event",
+        "uk": "дашборд настрій стосунки сцена режим сенсор подія"
+      },
+      "short": {
+        "en": "Dashboard reads the scene after each reply and shows moods, relationships, events and notes for the chat.",
+        "uk": "Дашборд читає сцену після кожної відповіді й показує настрій, стосунки, події й нотатки чату."
+      },
+      "where": {
+        "en": "Open with the plugin; click a portrait in chat and choose Dashboard.",
+        "uk": "Відкривається з плагіном; клацніть портрет у чаті й виберіть «Дашборд»."
+      },
+      "details": {
+        "en": "With the plugin on it reads the story after each reply and updates who is present, how each character feels about you, and what they know. Moods are per character; relationships show warmth, trust and power. The reader builds events and notes. Modes: live reading after reply (default), manual refresh, or off. A note can be pinned or tagged everyday or important. The mood is not written into the chat file; it is rebuilt from the messages the reader reads.\n\nWatch out: a short reply may miss an event, so check the event list before deciding the scene changed.",
+        "uk": "З плагіном він читає історію після кожної відповіді. Тоді оновлюється, хто присутній, як кожен персонаж ставиться до вас і що знає. Настрій — для кожного персонажа; стосунки показують тепло, довіру й силу. Читач будує події й нотатки. Режими: читання після відповіді (типово), ручне оновлення або вимкнено. Нотатку можна закріпити чи позначити як важливу або буденну. Настрій не пишеться у файл чату; він будується з повідомлень, які читає читач.\n\nУвага: коротка відповідь може пропустити подію. Перевірте список подій, перш ніж вирішити, що сцена змінилась."
+      },
+      "related": [
+        "new.quests",
+        "kb.quests",
+        "kb.notebook",
+        "kb.memory",
+        "kb.soul"
+      ],
+      "extends": "help.dashboard",
+      "sources": [
+        {
+          "path": "src/components/dashboard/dash-common.tsx",
+          "lines": "418-418",
+          "quote": "{char.mood && ("
+        },
+        {
+          "path": "src/components/dashboard/dash-common.tsx",
+          "lines": "419-419",
+          "quote": "<Field label={t('dash.mood')}>"
+        },
+        {
+          "path": "src/components/dashboard/dash-common.tsx",
+          "lines": "421-421",
+          "quote": "{char.moodWas && <span className=\"ml-1 text-[11px] text-muted-foreground\">({t('dash.moodWas', { mood: char.moodWas })})</span>}"
+        },
+        {
+          "path": "src/components/dashboard/dash-common.tsx",
+          "lines": "336-336",
+          "quote": "export type Tone = 'scene' | 'people' | 'memory' | 'plot'"
+        }
+      ]
+    },
+    {
+      "id": "kb.quests",
+      "group": "story",
+      "title": {
+        "en": "Story threads as quests",
+        "uk": "Сюжетні лінії як квести"
+      },
+      "aliases": {
+        "en": "quests main side everyday steps suggestions twist",
+        "uk": "квести головний побічний буденний кроки пропозиції поворот"
+      },
+      "short": {
+        "en": "Quests are the open threads: main, side, everyday, with steps and suggestions for what the story forgot.",
+        "uk": "Квести — це відкриті лінії: головні, побічні, буденні, з кроками й пропозиціями для того, що історія забула."
+      },
+      "where": {
+        "en": "Dashboard panel; click “Threads” in the chat menu (plugin required).",
+        "uk": "Панель «Дашборд»; натисніть «Лінії» у меню чату (потрібен плагін)."
+      },
+      "details": {
+        "en": "A main quest has steps (sub-questions); a side one is smaller; everyday quests close themselves. When a quest has no room or the story left it alone too long, it moves to Suggestions and waits for your answer: accept it, reject it, edit it, or do nothing. “Story, move” can pull a quest or its step, or add a Twist, something outside quests. The list updates after each reply when the plugin reads the scene. You can edit a title and steps by hand; the list lives in the dashboard state, not in the chat file.\n\nWatch out: a twist does not become a quest; it is one-time. A quest that the story has left alone stays in Suggestions even if it has open steps.",
+        "uk": "Головний квест має кроки (підпитання); побічний — менший; буденні закриваються самі. Коли для квесту немає місця або історія давно його не торкалась, він потрапляє до «Пропозицій» і чекає вашої відповіді. Варіанти: прийняти, відхилити, змінити або нічого не робити. «Історія, рухайся» може потягнути квест чи його крок або додати Поворот, щось поза квестами. Список оновлюється після кожної відповіді, коли плагін читає сцену. Назву й кроки можна змінити вручну. Список живе в пам'яті дашборду, не у файлі чату.\n\nУвага: поворот не стає квестом; він одноразовий. Квест, який історія давно не торкалась, лишається в «Пропозиціях» навіть із відкритими кроками."
+      },
+      "related": [
+        "help.threads",
+        "kb.dashboard",
+        "kb.nudge",
+        "kb.scenes"
+      ],
+      "extends": "new.quests",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "628-628",
+          "quote": "Quests are the open questions and promises that drive the story: main ones (what it is about now), side ones, and small everyday ones that end by themselves."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "425-425",
+          "quote": "Story, move can pick a quest or a step, or add a Twist: something outside the quests."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "652-652",
+          "quote": "The arrow beside it picks one open quest to pull on."
+        }
+      ]
+    },
+    {
+      "id": "kb.notebook",
+      "group": "story",
+      "title": {
+        "en": "Character notebook",
+        "uk": "Записник персонажа"
+      },
+      "aliases": {
+        "en": "notebook notes knowledge saw heard guess important pinned",
+        "uk": "записник нотатка знання бачив чув здогадується важлива закріплена"
+      },
+      "short": {
+        "en": "The notebook lists what a character knows and how: saw, heard, guessed; you can add, edit, pin, tag or remove notes.",
+        "uk": "Записник показує, що персонаж знає й звідки: бачив, чув, здогадується; ви можете додати, змінити, закріпити, позначити чи видалити нотатку."
+      },
+      "where": {
+        "en": "Dashboard > Notebook (requires plugin).",
+        "uk": "Дашборд > Записник (потрібен плагін)."
+      },
+      "details": {
+        "en": "Notes are built from the messages the reader reads: who saw what, heard it, or guessed it. You can add a note by hand, edit or remove it, pin it so it stays at the top, and mark it as important or everyday. Everyday notes sit lower in the list; pinned notes stay visible. The notebook is what the character knows about you, not a diary of the story. Nothing here is written to the card; the notes live in the dashboard state and are rebuilt from the story.\n\nWatch out: removing a note does not erase the fact from the story; it only hides it from the notebook. A pinned note can go stale if the story contradicts it.",
+        "uk": "Нотатки будуються з повідомлень, які читає читач: хто що бачив, чув чи здогадувався. Можна додати нотатку вручну, змінити чи видалити, закріпити вгорі й позначити як важливу або буденну. Буденні нотатки стоять нижче в списку; закріплені лишаються видимими. Записник — це те, що персонаж знає про вас, а не щоденник історії. Тут нічого не пишеться в картку; нотатки живуть у стані дашборду й будуються з історії.\n\nУвага: видалення нотатки не стирає факт з історії; воно лише ховає його з записника. Закріплена нотатка може застаріти, якщо історія їй суперечить."
+      },
+      "related": [
+        "kb.dashboard",
+        "kb.memory",
+        "kb.author-note"
+      ],
+      "extends": "help.notebook",
+      "sources": [
+        {
+          "path": "src/components/dashboard/dash-notebook.tsx",
+          "lines": "184-184",
+          "quote": "<Box id={id} data-guide=\"dash.notebook\" title={t('dash.notebook', { name })} tone=\"memory\" icon={NotebookIcon}"
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "640-640",
+          "quote": "You can add a note, edit one, pin it or mark it important or everyday, and remove it or bring it back."
+        }
+      ]
+    },
+    {
+      "id": "kb.nudge",
+      "group": "story",
+      "title": {
+        "en": "Story nudge",
+        "uk": "Поштовх історії"
+      },
+      "aliases": {
+        "en": "nudge story move twist send next reply",
+        "uk": "поштовх історія рух поворот надіслати наступна відповідь"
+      },
+      "short": {
+        "en": "The “Story, move” button arms a one-time nudge for the next reply; an arrow picks a quest or adds a twist.",
+        "uk": "Кнопка «Історія, рухайся» готує одноразовий поштовх для наступної відповіді; стрілка вибирає квест чи додає поворот."
+      },
+      "where": {
+        "en": "Next to Send in chat (plugin required); arrow beside the button picks a quest or twist.",
+        "uk": "Біля «Надіслати» у чаті (потрібен плагін); стрілка поруч вибирає квест чи поворот."
+      },
+      "details": {
+        "en": "Press the button, then Send (even with an empty box) and the next reply moves the story on. The arrow beside the button picks one open quest or a step to pull on; the menu also has Twist, something outside the quests. The nudge is one-time: it applies to the very next reply and is not saved in the chat. If the quest you picked is closed before you send, arming fails and nothing is armed. On a phone it is an icon.\n\nWatch out: sending a long message does not cancel the nudge, it spends it. The twist is a free push; it does not add a quest.",
+        "uk": "Натисніть кнопку, потім «Надіслати» (навіть з порожнім полем) — і наступна відповідь зрушить історію. Стрілка біля кнопки вибирає один відкритий квест чи крок; у меню є також Поворот, щось поза квестами. Поштовх одноразовий: він діє лише на наступну відповідь і не зберігається в чаті. Якщо обраний квест закриється до надсилання, підготовка не вдасться і нічого не готується. На телефоні це значок.\n\nУвага: довге повідомлення не скасовує поштовх, воно його витрачає. Поворот — вільний поштовх; він не додає квест."
+      },
+      "related": [
+        "kb.quests",
+        "kb.dashboard",
+        "kb.scenes"
+      ],
+      "extends": "help.nudge",
+      "sources": [
+        {
+          "path": "src/lib/dashboard.ts",
+          "lines": "347-347",
+          "quote": "export async function armNudge(chatId: string, threadId: string | null, twist = false): Promise<Nudge | null> {"
+        },
+        {
+          "path": "src/lib/dashboard.ts",
+          "lines": "346-346",
+          "quote": "Throws with the server's message (409 when the thread is no longer open)."
+        },
+        {
+          "path": "src/lib/dashboard.ts",
+          "lines": "352-352",
+          "quote": "/** Cancel the pending nudge (DELETE /dashboard/nudge); the new nudge is always null. */"
+        }
+      ]
+    },
+    {
+      "id": "kb.author-note",
+      "group": "story",
+      "title": {
+        "en": "Author’s note",
+        "uk": "Нотатка автора"
+      },
+      "aliases": {
+        "en": "author note depth role system user assistant steer",
+        "uk": "нотатка автора глибина роль система користувач помічник скерувати"
+      },
+      "short": {
+        "en": "The author’s note is text added to the request for this chat, at a depth and with a role you choose.",
+        "uk": "Нотатка автора — це текст, який додається до запиту для цього чату, на обраній глибині й з обраною роллю."
+      },
+      "where": {
+        "en": "Chat header > Note (on a phone: Menu).",
+        "uk": "Шапка чату > Нотатка (на телефоні: Меню)."
+      },
+      "details": {
+        "en": "The note is stored with the chat, not with the card. It has a position: before the system prompt, after it, or inside the chat at a depth you set in messages from the end. It also has a role, system, user or assistant, and a frequency setting. The text is added to the request when the app builds the prompt; the messages themselves stay untouched. It is meant for steering the scene: a short instruction like a reminder, a style hint, or a plot push. The note belongs to this chat only.\n\nWatch out: a depth deeper than the visible history can push the note out of what the model sees. Check the depth after you shrink the context or delete messages.",
+        "uk": "Нотатка зберігається з чатом, а не з карткою. У неї є позиція: перед системним запитом, після нього або всередині чату на глибині, яку ви задаєте повідомленнями від кінця. Ще в неї є роль, system, user чи assistant, і налаштування частоти. Текст додається до запиту, коли застосунок будує промпт; самі повідомлення не змінюються. Вона для скерування сцени: коротка підказка-нагадування, натяк на стиль або сюжетний поштовх. Нотатка належить лише цьому чату.\n\nУвага: глибина, більша за видиму історію, може виштовхнути нотатку за межі того, що бачить модель. Перевірте глибину після зменшення контексту чи видалення повідомлень."
+      },
+      "related": [
+        "kb.dashboard",
+        "kb.nudge",
+        "kb.memory"
+      ],
+      "extends": "help.author-note",
+      "sources": [
+        {
+          "path": "src/lib/types.ts",
+          "lines": "247-247",
+          "quote": "authorNote: {"
+        },
+        {
+          "path": "src/lib/types.ts",
+          "lines": "249-249",
+          "quote": "position: 'before-system' | 'after-system' | 'in-chat'"
+        },
+        {
+          "path": "src/lib/types.ts",
+          "lines": "252-252",
+          "quote": "frequency: number"
+        }
+      ]
+    },
+    {
+      "id": "kb.memory",
+      "group": "characters",
+      "title": {
+        "en": "Long-term character memory",
+        "uk": "Довготривала пам’ять персонажа"
+      },
+      "aliases": {
+        "en": "memory sources stories habits inject facts notes said compacting",
+        "uk": "пам’ять джерела історії звички впорскування факти нотатки сказане"
+      },
+      "short": {
+        "en": "Memory keeps facts, notes and said lines from finished chats. You pick what to keep, and set how much room it takes in new chats.",
+        "uk": "Пам'ять зберігає факти, нотатки й сказане з завершених чатів. Ви обираєте, що зберегти, і задаєте, скільки місця вона займе в нових чатах."
+      },
+      "where": {
+        "en": "Card editor, Memory tab. The Stories list shows which chats the character remembers.",
+        "uk": "Редактор картки, вкладка «Пам'ять». Список «Історії» показує, які чати персонаж пам'ятає."
+      },
+      "details": {
+        "en": "What it is for. A character who lived through a story remembers it in the next one: the summary, the facts, its own notes and said lines, and the habits earned there.\n\nHow to use it. Import a finished chat: you see what would be kept before anything is saved, and tick what to keep. A switch turns one story off for new chats without removing it. Deleting the original chat changes nothing.\n\nBy default: the memory size is Compact (800 tokens). Auto takes 15% of the model's context window, at least 800 tokens; a custom size runs from 200 to 16000. When the whole record fits, all of it is sent.\n\nWhat it does not do. Memory is not part of the card and never appears in an export. It does not change the description or the Soul.\n\nWatch out: a large memory crowds the context. Lower the size or switch stories off.",
+        "uk": "Навіщо це. Персонаж, що прожив історію, пам'ятає її в наступній: підсумок, факти, власні нотатки й сказані рядки, а також звички, здобуті там.\n\nЯк користуватися. Імпортуйте завершений чат: до будь-якого збереження видно, що саме лишиться, і ви відзначаєте, що зберегти. Перемикач вимикає одну історію для нових чатів, не видаляючи її. Видалення оригінального чату нічого не змінює.\n\nТипово: розмір пам'яті — «Компактна» (800 токенів). «Авто» бере 15% контекстного вікна моделі, не менше 800 токенів; свій розмір — від 200 до 16000. Коли весь запис вміщується, надсилається весь.\n\nЧого це не робить. Пам'ять не є частиною картки й ніколи не потрапляє в експорт. Вона не змінює опис чи Душу.\n\nУвага: велика пам'ять заповнює контекст. Зменшіть розмір або вимкніть історії."
+      },
+      "related": [
+        "kb.notebook",
+        "kb.story-record",
+        "kb.dashboard"
+      ],
+      "extends": "new.memory",
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3005-3005",
+          "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "126-126",
+          "quote": "**The card's long memory.** Not part of the card either: `characters/<id>/memory.json`, written by the Litopys"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "131-131",
+          "quote": "A source is a snapshot taken when a chat is imported (the arc, the"
+        },
+        {
+          "path": "src/components/settings/memory-summary-section.tsx",
+          "lines": "22-22",
+          "quote": "const COMPACT_SIZE = 800"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2144-2144",
+          "quote": "'lit.set.sizeAuto': 'Auto',"
+        }
+      ]
+    },
+    {
+      "id": "kb.story-record",
+      "group": "story",
+      "title": {
+        "en": "Chat story record",
+        "uk": "Запис історії чату"
+      },
+      "aliases": {
+        "en": "litopys record chapters facts proposals rebuild scenes habits",
+        "uk": "літопис запис розділи факти пропозиції перебудувати сцени звички"
+      },
+      "short": {
+        "en": "The record keeps chapters, facts and proposals for this chat in the Library; you can rebuild it from scratch.",
+        "uk": "Запис зберігає розділи, факти й пропозиції цього чату в Бібліотеці; можна перебудувати з нуля."
+      },
+      "where": {
+        "en": "Chat header, Record (on a phone: Menu); also the Library view.",
+        "uk": "Шапка чату, «Запис» (на телефоні: Меню); також Бібліотека."
+      },
+      "details": {
+        "en": "What it is for. The record reads the chat and, in the background, writes one chapter per finished scene: what changed, not a retelling. With chapters come facts. It also proposes habits and scenes worth setting apart.\n\nHow to use it. \"Record\" in the chat header opens this chat's record in a side panel. \"Rebuild from scratch\" writes a new record beside the old one and swaps it in when done.\n\nBy default: a chapter is written once the NEXT scene begins, so the last scene may have none yet. Rebuilding keeps your own, edited and pinned facts and your edited chapters.\n\nWhat it does not do. With no closed scene a rebuild refuses to start; a rebuild that wrote no chapter is dropped instead of replacing the record in use.\n\nChapters and facts feed the memory, quests and the dashboard.",
+        "uk": "Навіщо це. Запис читає чат і в фоні пише один розділ на завершену сцену: що змінилось, а не переказ. З розділами приходять факти. Він ще пропонує звички й сцени, варті окремого виділення.\n\nЯк користуватися. «Запис» у шапці чату відкриває запис цього чату в бічній панелі. «Перебудувати з нуля» пише новий запис поруч зі старим і підміняє його, коли готовий.\n\nТипово: розділ пишеться, коли починається НАСТУПНА сцена, тож у останньої сцени його може ще не бути. Перебудова зберігає ваші власні, редаговані й закріплені факти та ваші відредаговані розділи.\n\nЧого це не робить. Без завершеної сцени перебудова не почнеться; перебудова без жодного розділу відкидається, а не підміняє чинний запис.\n\nРозділи й факти живлять пам'ять, квести й дашборд."
+      },
+      "related": [
+        "kb.scenes",
+        "kb.memory",
+        "kb.dashboard"
+      ],
+      "extends": "help.story-record",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "734-734",
+          "quote": "Record in the chat header (on a phone: Menu) opens the Library record of this chat in a side panel: chapters, facts and proposals, with an option to rebuild"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "lines": "628-628",
+          "quote": "which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay)."
+        },
+        {
+          "path": "CHANGELOG.md",
+          "lines": "177-177",
+          "quote": "Rebuild from scratch no longer empties a chat's record: with no closed scene it refuses to start"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "lines": "623-623",
+          "quote": "**Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling)"
+        }
+      ]
+    },
+    {
+      "id": "kb.scenes",
+      "group": "story",
+      "title": {
+        "en": "Scenes in the story",
+        "uk": "Сцени в історії"
+      },
+      "aliases": {
+        "en": "scenes mark save turning point scene heading time place",
+        "uk": "сцени виділити зберегти поворотний заголовок час місце"
+      },
+      "short": {
+        "en": "A scene is a run of messages with one place and time; you can mark a run by hand so the record keeps it apart.",
+        "uk": "Сцена — відрізок повідомлень з одним місцем і часом; виділений вручну, запис тримає його окремо."
+      },
+      "where": {
+        "en": "Message menu, Story, Save as a scene. Scene headings appear in the chat.",
+        "uk": "Меню повідомлення, «Сюжет», «Зберегти як сцену». Заголовки сцен з'являються в чаті."
+      },
+      "details": {
+        "en": "What it is for. The record cuts the story into scenes: a new place or a jump in time closes one at once, however short the next scene is.\n\nHow to use it. Mark a run by hand: in the message menu, Story, Save as a scene, then pick the start and the end. A marked run is always a scene of its own, counts as closed even at the end of the chat, and its chapter is treated as a turning point.\n\nBy default: overlapping marks and marks whose messages are gone are ignored.\n\nWhat it does not do. Marking does not change the messages; it only changes how the record reads them.\n\nWatch out: chapters over the same messages are marked stale and rewritten for the new scene layout, unless you edited them.",
+        "uk": "Навіщо це. Запис ріже історію на сцени: нове місце або стрибок у часі закриває сцену одразу, якою б короткою не була наступна.\n\nЯк користуватися. Виділіть відрізок вручну: в меню повідомлення «Сюжет», «Зберегти як сцену», потім оберіть початок і кінець. Виділений відрізок завжди є окремою сценою, рахується завершеною навіть у кінці чату, а його розділ вважається поворотним моментом.\n\nТипово: перекриті виділення й виділення без повідомлень ігноруються.\n\nЧого це не робить. Виділення не змінює повідомлення; воно лише змінює, як запис їх читає.\n\nУвага: розділи над тими самими повідомленнями позначаються застарілими й переписуються під нове розташування сцен, якщо ви їх не редагували."
+      },
+      "related": [
+        "kb.story-record",
+        "kb.quests",
+        "kb.nudge"
+      ],
+      "extends": "new.scenes",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "468-468",
+          "quote": "Litopys follows the scenes you see"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "179-179",
+          "quote": "A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`"
+        },
+        {
+          "path": "src/components/chat/scene-mark-dialog.tsx",
+          "lines": "12-12",
+          "quote": "/** Set a run of messages apart as a scene of its own: the story record never folds it into a longer one and is told it matters. */"
+        }
+      ]
+    },
+    {
+      "id": "kb.litopys",
+      "group": "story",
+      "title": {
+        "en": "Litopys: chapters and proposals",
+        "uk": "Літопис: розділи й пропозиції"
+      },
+      "aliases": {
+        "en": "library litopys chronicler record chapters facts proposals memory summary",
+        "uk": "бібліотека літопис літописець розділи факти пропозиції памʼять підсумок"
+      },
+      "short": {
+        "en": "Litopys writes a chapter after each scene closes and keeps the facts. Proposals suggest merges, retirements, rewrites and pins. The Library shows it all.",
+        "uk": "Літопис пише розділ після кожної завершеної сцени й веде факти. Пропозиції радять об'єднати, зняти, переписати чи закріпити. Бібліотека показує все."
+      },
+      "where": {
+        "en": "Chat header, Record (on a phone: Menu), or open the Library.",
+        "uk": "Шапка чату, «Запис» (на телефоні: Меню), або відкрийте Бібліотеку."
+      },
+      "details": {
+        "en": "What it is for. A chapter per finished scene (\"what changed, not a retelling\") and the facts the story established, fed into the memory.\n\nHow to use it. Nothing to start: the record writes itself in the background. Read it in the Library: Chapters, Facts, Proposals, Habits, Activity. Accept or reject each proposal there; facts you can edit, pin, retire or add by hand. Rebuild the whole record from the messages when you want a fresh start.\n\nBy default: memory size is Compact (800 tokens); Auto takes 15% of the model's context window; custom goes up to 16000. Suggestions is \"Ask me first\": every pin and rewrite waits for your yes. You can switch to quiet: a pin or a reworded fact is applied at once, written in Activity with an Undo. Retiring and merging facts, and facts you wrote, edited or pinned, always wait for you. \"Tidy facts automatically\" runs after 30 new facts: Litopys looks for duplicates and contradictions by itself.\n\nWatch out: if the messages changed since a chapter was written, the chapter is marked Stale and rewritten.",
+        "uk": "Навіщо це. Розділ на завершену сцену («що змінилось, а не переказ») і факти, які історія встановила, живлять пам'ять.\n\nЯк користуватися. Запускати нічого не треба: запис пишеться сам у фоні. Читайте його в Бібліотеці: Розділи, Факти, Пропозиції, Звички, Журнал. Кожну пропозицію приймаєте чи відхиляєте там; факти можна редагувати, закріплювати, знімати й додавати вручну. Якщо хочете почати з чистого аркуша — перебудуйте весь запис із повідомлень.\n\nТипово: розмір пам'яті «Компактна» (800 токенів); «Авто» бере 15% контекстного вікна моделі; свій — до 16000. «Пропозиції» — «Спершу питати»: кожне закріплення й переписування чекає вашого «так». Можна перейти на тихі: закріплення чи переписаний факт застосовуються одразу, лишають рядок у Журналі з кнопкою «Скасувати». Зняття й об'єднання фактів, і факти, які ви написали, змінили чи закріпили, завжди чекають на вас. «Впорядковувати факти автоматично» спрацьовує після 30 нових фактів: Літопис сам шукає дублі й суперечності.\n\nУвага: якщо повідомлення змінилися після написання розділу, він позначається «Застарілим» і переписується."
+      },
+      "related": [
+        "help.facts",
+        "kb.library-views",
+        "kb.chats-map",
+        "kb.habits"
+      ],
+      "extends": "help.library",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "688-688",
+          "quote": "Litopys, the chronicler, writes a chapter after each scene closes and keeps facts about the story."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2138-2138",
+          "quote": "'lit.set.proposalsQuiet': 'Apply pins and rewrites quietly',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2140-2140",
+          "quote": "'lit.set.autoConsolidate': 'Tidy facts automatically',"
+        },
+        {
+          "path": "src/components/settings/memory-summary-section.tsx",
+          "lines": "22-22",
+          "quote": "const COMPACT_SIZE = 800"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2144-2144",
+          "quote": "'lit.set.sizeAuto': 'Auto',"
+        }
+      ]
+    },
+    {
+      "id": "kb.library-views",
+      "group": "story",
+      "title": {
+        "en": "Overview vs Details",
+        "uk": "Огляд чи Деталі"
+      },
+      "aliases": {
+        "en": "library view overview details timeline ledger tabs chapters facts proposals",
+        "uk": "огляд деталі бібліотека вкладки розділи факти пропозиції часова шкала"
+      },
+      "short": {
+        "en": "Overview shows a chat's story as a timeline with its characters beside it. Details shows the same record as five tabs: Chapters, Facts, Proposals, Habits and Activity.",
+        "uk": "«Огляд» показує історію чату як часову шкалу з персонажами поруч. «Деталі» — той самий запис у п'яти вкладках: Розділи, Факти, Пропозиції, Звички й Журнал."
+      },
+      "where": {
+        "en": "Library view; the mode switch near the title.",
+        "uk": "Бібліотека; перемикач режимів біля назви."
+      },
+      "details": {
+        "en": "What it is for. Two ways to read one record. Overview: the chapters as a timeline, arcs as bands over their chapters, a card per character, the waiting proposals, and the worker's line. Details: tabs for Chapters, Facts, Proposals, Habits and Activity, with filters and search.\n\nHow to use it. Switch modes any time; the data is the same, only the layout changes. The mode you pick is saved for the next visit.\n\nIn Details you edit facts, accept proposals and read the Activity log. In Overview you see the whole story at a glance.\n\nWhat it does not do. Neither view writes the story itself: they only read and manage what the chronicler wrote.",
+        "uk": "Навіщо це. Два способи читати один запис. «Огляд»: розділи як часова шкала, арки смугами над своїми розділами, картка на кожного персонажа, пропозиції на черзі й рядок робітника. «Деталі»: вкладки Розділи, Факти, Пропозиції, Звички й Журнал, з фільтрами й пошуком.\n\nЯк користуватися. Перемикайте режини будь-коли: дані ті самі, змінюється лише вигляд. Обраний режим зберігається до наступного візиту.\n\nУ «Деталях» ви редагуєте факти, приймаєте пропозиції й читаєте Журнал подій. У «Огляді» бачите всю історію одним поглядом.\n\nЧого це не робить. Жоден з режимів не пише саму історію: вони лише читають і керують тим, що написав літописець."
+      },
+      "related": [
+        "kb.litopys",
+        "kb.facts",
+        "kb.chats-map"
+      ],
+      "extends": "help.library-views",
+      "sources": [
+        {
+          "path": "src/components/library/ledger.tsx",
+          "lines": "21-21",
+          "quote": "TAB_IDS = ['chapters', 'facts', 'proposals', 'habits', 'activity']"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2027-2027",
+          "quote": "'lit.mode': 'Library view',"
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "700-700",
+          "quote": "Overview shows a chat’s story as a timeline of chapters with its characters beside it."
+        }
+      ]
+    },
+    {
+      "id": "kb.facts",
+      "group": "story",
+      "title": {
+        "en": "Facts and proposals",
+        "uk": "Факти й пропозиції"
+      },
+      "aliases": {
+        "en": "facts weight type event trait change relation world plan pinned propose merge retire rewrite",
+        "uk": "факти вага тип подія риса зміна стосунок світ план закріпити пропозиція обʼєднати зняти переписати"
+      },
+      "short": {
+        "en": "Facts are one-sentence truths of the story, each with a type, a weight and who knows it. Proposals suggest fixes; you accept or reject each.",
+        "uk": "Факти — істини історії по одному реченню, кожен із типом, вагою й тим, хто його знає. Пропозиції радять виправлення; ви приймаєте чи відхиляєте кожну."
+      },
+      "where": {
+        "en": "Library, Details, Facts tab; also the Inbox when proposals wait.",
+        "uk": "Бібліотека, «Деталі», вкладка «Факти»; також «Вхідні», коли пропозиції чекають."
+      },
+      "details": {
+        "en": "What it is for. One short sentence that stays true for the story: \"Medli hides her wings at the market.\" Types: Event, Trait, Change, Relation, World, Plan. Weight: Everyday, Important or Key. You set who knows it: a name, several names, or everyone.\n\nHow to use it. Pin the important ones (there is a limit per character). When a fact repeats or contradicts another, Litopys proposes a fix: merge, retire, rewrite or pin. Accept or reject each proposal here or from the Inbox.\n\nBy default: every pin and rewrite waits for your yes (\"Ask me first\"). With quiet suggestions a pin or a reworded fact applies at once — it appears in Activity as \"Applied by itself\" with an Undo. Retiring and merging facts always wait for you, and so does a fact you wrote, edited or pinned.\n\nYou can add a fact by hand from the Facts tab; it joins the active list at once.",
+        "uk": "Навіщо це. Одне коротке речення, що лишається правдою для історії: «Медлі ховає крила на ринку». Типи: Подія, Риса, Зміна, Стосунок, Світ, План. Вага: Буденна, Важлива чи Ключова. Ви вказуєте, хто знає: ім'я, кілька імен чи всі.\n\nЯк користуватися. Закріплюйте важливе (є межа на персонажа). Коли факт повторюється чи суперечить іншому, Літопис пропонує виправлення: об'єднати, зняти, переписати чи закріпити. Прийміть чи відхиліть кожну пропозицію тут або у «Вхідних».\n\nТипово: кожне закріплення й переписування чекає вашого «так» («Спершу питати»). З тихими пропозиціями закріплення чи переписаний факт застосовується одразу — у Журналі він видно як «Застосовано саме» з кнопкою «Скасувати». Зняття й об'єднання фактів завжди чекають на вас, як і факти, які ви написали, змінили чи закріпили.\n\nФакт можна додати вручну у вкладці «Факти»; він одразу приєднується до активних."
+      },
+      "related": [
+        "kb.litopys",
+        "kb.library-views",
+        "kb.chats-map"
+      ],
+      "extends": "help.facts",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "710-710",
+          "quote": "Facts are things the story has established, each with a type, a weight and who knows it; pin the important ones."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2061-2061",
+          "quote": "'lit.type.event': 'Event',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2067-2067",
+          "quote": "'lit.weight.everyday': 'Everyday',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2085-2085",
+          "quote": "'lit.pstatus.auto': 'Applied by itself',"
+        }
+      ]
+    },
+    {
+      "id": "kb.chats-map",
+      "group": "story",
+      "title": {
+        "en": "Map of chats",
+        "uk": "Мапа чатів"
+      },
+      "aliases": {
+        "en": "map chats link continue backstory sequel branch graph canvas links",
+        "uk": "мапа чатів звʼязок продовження передісторія гілка граф звʼязки"
+      },
+      "short": {
+        "en": "The map shows which chats continue which. A linked earlier chat brings its story as backstory. View-only: links are edited on the Canvas.",
+        "uk": "Мапа показує, який чат продовжує який. Пов'язаний попередній чат приносить свою історію як передісторію. Лише перегляд: зв'язки змінюють на Полотні."
+      },
+      "where": {
+        "en": "Library, Details; the map section. Or open the Canvas board.",
+        "uk": "Бібліотека, «Деталі», розділ мапи. Або відкрийте Полотно."
+      },
+      "details": {
+        "en": "What it is for. A sequel needs its prequel. The map draws the chain: the chat this one continues from, above; the ones that continue from it, below. A solid line is a continuation (backstory flows); a dashed line is a branch forked from a message.\n\nHow to use it. Pan, zoom, open a chat from the map. To change a link, open the Canvas board from the Library map — the map here is view-only, links are edited in one place.\n\nBy default: the linked chat's story rides with this chat's replies as backstory, within the backstory budget in Library settings. The nearest chat in the chain gets the largest share.\n\nWhat it does not do. A chat with no links shows alone.",
+        "uk": "Навіщо це. Продовженню потрібна передісторія. Мапа малює ланцюг: чат, з якого цей продовжується, угорі; ті, що продовжуються з нього, унизу. Суцільна лінія — продовження (передісторія тече); пунктирна — гілка, що відгалузилась від повідомлення.\n\nЯк користуватися. Панорамуйте, наближайте, відкривайте чат із мапи. Щоб змінити зв'язок, відкрийте Полотно з мапи Бібліотеки — мапа тут лише для перегляду, зв'язки правляться в одному місці.\n\nТипово: історія пов'язаного чату йде з відповідями цього як передісторія, в межах бюджету передісторії в налаштуваннях Бібліотеки. Найближчий чат у ланцюгу отримує найбільшу частку.\n\nЧого це не робить. Чат без зв'язків показується сам."
+      },
+      "related": [
+        "kb.litopys",
+        "kb.library-views",
+        "kb.world-dm"
+      ],
+      "extends": "help.chats-map",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "722-722",
+          "quote": "The map shows which chats continue which, and it is view-only."
+        },
+        {
+          "path": "src/components/library/chats-map.tsx",
+          "lines": "52-52",
+          "quote": "Links are edited in one place, the Canvas tab (one editor for one thing)"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2275-2275",
+          "quote": "'lit.map.hint': 'The map of this chat: the chats it continues above, the ones that continue it below."
+        }
+      ]
+    },
+    {
+      "id": "kb.world-dm",
+      "group": "world",
+      "title": {
+        "en": "World DM levels",
+        "uk": "Рівні майстра світу"
+      },
+      "aliases": {
+        "en": "world dm game master gm chronicler living director antagonist chaos level profile records events",
+        "uk": "світ майстер гри дм хроніст живий світ режисер антагоніст хаос рівень профіль записи події"
+      },
+      "short": {
+        "en": "World DM has six levels, from Off to Total chaos. Each level controls how the world moves and whether events reach the next reply. It is off until you pick a level.",
+        "uk": "Майстер світу має шість рівнів, від Вимкнено до Повного хаосу. Кожен рівень керує, як рухається світ і чи доходять події до наступної відповіді. Поки не оберете рівень, він вимкнений."
+      },
+      "where": {
+        "en": "Chat header → World (on a phone: Menu → World). Pick a level to turn it on.",
+        "uk": "Шапка чату → «Світ» (на телефоні: Меню → «Світ»). Оберіть рівень, щоб увімкнути."
+      },
+      "details": {
+        "en": "Off: no DM runs; nothing extra reaches the model.\n\nChronicler: records people, places and events in the chat’s own lorebook. It adds no events of its own.\n\nLiving world: factions and threats move off screen. News may reach the characters as a rumour, but nothing is forced.\n\nDirector: brings hooks, complications and visitors into the scene; the next reply must use them.\n\nAntagonist: applies consequences and pressure aimed at what the characters care about.\n\nTotal chaos: anything may happen, whatever the genre. It never rewrites the story and waits out explicit scenes.\n\nThe DM runs after replies (or on a manual World turn) and writes records into the chat’s world book. A chat picks its profile in the DM sheet; each profile holds prompts for one level.",
+        "uk": "Вимкнено: майстер не працює, нічого зайвого не йде моделі.\n\nХроніст: записує людей, місця й події у власний лорбук чату. Власних подій не додає.\n\nЖивий світ: фракції й загрози діють поза кадром. Новини можуть дійти як чутка, але нічого не навʼязується.\n\nРежисер: приводить у сцену зачіпки, ускладнення й гостей; наступна відповідь мусить їх використати.\n\nАнтагоніст: наслідки й тиск, спрямовані на те, що важливо для персонажів.\n\nПовний хаос: може статися будь-що, незалежно від жанру. Ніколи не переписує історію й чекає явних сцен.\n\nМайстер запускається після відповідей (або вручну через «Світовий хід») і пише записи в книгу світу чату. Чат обирає профіль у панелі майстра; кожен профіль містить промпти для одного рівня."
+      },
+      "related": [
+        "kb.world-profiles",
+        "kb.world-start",
+        "kb.world-backgrounds",
+        "kb.litopys"
+      ],
+      "extends": "help.world-dm",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "746-746",
+          "quote": "World in the chat header (on a phone: Menu) switches on a game master for this chat."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "36-36",
+          "quote": "'world.level.off.hint': 'No DM in this chat. Nothing extra is sent to any model.',"
+        },
+        {
+          "path": "src/components/world/world-common.tsx",
+          "lines": "10-10",
+          "quote": "{ off: Prohibit, chronicler: BookBookmark, living: Compass, director: Crown, antagonist: Skull, chaos: Sparkle }"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "68-68",
+          "quote": "'world.level.chaos.hint': 'Anything may happen, whatever the genre. Still never rewrites the story, and waits out explicit scenes.',"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "339-339",
+          "quote": "The World DM plugin (`plugins/world/`) keeps the world around the characters for one chat."
+        }
+      ]
+    },
+    {
+      "id": "kb.world-profiles",
+      "group": "world",
+      "title": {
+        "en": "World profiles",
+        "uk": "Профілі світу"
+      },
+      "aliases": {
+        "en": "world profile dm profile prompt custom built-in chronicler director antagonist chaos",
+        "uk": "профіль світу майстер профіль промпт вбудований хроніст режисер антагоніст хаос"
+      },
+      "short": {
+        "en": "The Profiles tab holds the five built-in DM profiles and any custom ones. Open one, change its prompts, roll a block back to default. A chat picks its profile in the DM sheet.",
+        "uk": "Вкладка «Профілі» містить п’ять вбудованих профілів майстра й ваші власні. Відкрийте будь-який, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра."
+      },
+      "where": {
+        "en": "World → Profiles tab.",
+        "uk": "Світ → вкладка Профілі."
+      },
+      "details": {
+        "en": "A profile defines how the DM behaves at its level: what it reads, what it writes, and how it picks events. Built-in profiles are named after their level: Chronicler, Living world, Director, Antagonist and Total chaos. Each profile has blocks (prompts) that you can edit by hand.\n\nIf you change a block, the profile saves the edit; a small indicator shows it is no longer the default. To restore the original, use the rollback option in that block. Custom profiles work the same way: you can create your own from a copy of a built-in one and set its name, description and prompts.\n\nA chat picks one profile in its DM sheet; that profile’s prompts reach the model for every DM run in that chat.",
+        "uk": "Профіль визначає, як поводиться майстер на своєму рівні: що він читає, що пише і як обирає події. Вбудовані профілі названі за рівнем: Хроніст, Живий світ, Режисер, Антагоніст і Повний хаос. Кожен має блоки (промпти), які можна редагувати вручну.\n\nЯкщо ви зміните блок, профіль зберігає правку; невеликий індикатор показує, що це вже не типово. Щоб повернути оригінал, скористайтесь поверненням у блоці. Власні профілі працюють так само: можна створити копію вбудованого й задати назву, опис і промпти.\n\nЧат обирає один профіль у своїй панелі майстра; промпти цього профілю йдуть моделі при кожному запуску майстра в цьому чаті."
+      },
+      "related": [
+        "kb.world-dm",
+        "kb.world-start",
+        "kb.world-backgrounds"
+      ],
+      "extends": "new.world-profiles",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "232-232",
+          "quote": "In World, the Profiles tab holds the five built-in DMs and your own: open one, change its prompts, roll a block back to the default."
+        },
+        {
+          "path": "src/components/world/world-common.tsx",
+          "lines": "82-82",
+          "quote": "A profile's name: a built-in one is its level's, an own one has its own."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "342-342",
+          "quote": "the chat's world book, a normal lorebook with `ownerChatId`"
+        }
+      ]
+    },
+    {
+      "id": "kb.world-start",
+      "group": "world",
+      "title": {
+        "en": "Starting a world",
+        "uk": "Початок світу"
+      },
+      "aliases": {
+        "en": "world start build interview cards recipe draft records fronts scenario first message",
+        "uk": "світ початок будувати інтервʼю картки рецепт чернетка записи фронти сценарій перше повідомлення"
+      },
+      "short": {
+        "en": "The Start tab drafts records and fronts from cards or a short interview. You remove what you do not want and accept the rest. Save a world and start new chats in it.",
+        "uk": "Вкладка «Старт» складає чернетку записів і фронтів із карток або короткого інтервʼю. Ви прибираєте зайве й приймаєте решту. Збережіть світ і починайте в ньому нові чати."
+      },
+      "where": {
+        "en": "World → Start tab (in a chat) or World → Worlds → New world.",
+        "uk": "Світ → вкладка Старт (у чаті) або Світ → Світи → Новий світ."
+      },
+      "details": {
+        "en": "From cards: the DM reads the cards you tick and writes what they imply: places, people, factions and a conflict. It does not copy the cards; it invents the world around them. You review each draft record and front, remove unwanted ones, and accept the rest.\n\nFrom interview: a short form asks about genre, conflict and tone. You can pick from options or write your own words. The same review step applies.\n\nWhen you accept, the world is saved; any character can start a new chat in it. The DM drafts that chat’s scenario and first message; you edit both before play begins. A saved world keeps its folder and settings; new chats in it copy them.",
+        "uk": "З карток: майстер читає обрані картки й пише, що з них випливає: місця, люди, фракції й конфлікт. Він не копіює картки, а вигадує світ навколо них. Ви переглядаєте кожен запис і фронт, прибираєте зайве й приймаєте решту.\n\nЗ інтервʼю: коротка форма питає про жанр, конфлікт і тон. Можна вибрати варіант або написати своїми словами. Той самий крок перегляду.\n\nКоли приймаєте, світ зберігається; будь-який персонаж може почати в ньому новий чат. Майстер пише сценарій і перше повідомлення чату; ви правите обидва до початку гри. Збережений світ зберігає теку й налаштування; нові чати в ньому їх копіюють."
+      },
+      "related": [
+        "kb.world-dm",
+        "kb.world-profiles",
+        "kb.world-backgrounds"
+      ],
+      "extends": "new.world-start",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "242-242",
+          "quote": "Start tab drafts records and fronts from its cards or a short interview"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "296-296",
+          "quote": "'world.recipe.from-cards.desc': 'The DM reads the cards and their lorebooks and writes what they imply: places, people, factions, a conflict.',"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "381-381",
+          "quote": "state.draft` holds a Start in progress or waiting for the player"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "393-393",
+          "quote": "world/library/w-<id>.json`: a saved world"
+        }
+      ]
+    },
+    {
+      "id": "kb.world-backgrounds",
+      "group": "world",
+      "title": {
+        "en": "World backgrounds",
+        "uk": "Тла світу"
+      },
+      "aliases": {
+        "en": "world backgrounds images pictures folder set scene dashboard change webp vision model name tags",
+        "uk": "тло світу картинки зображення тека набір сцена дашборд змінити webp модель зору назва теги"
+      },
+      "short": {
+        "en": "The Backgrounds tab plans a set of pictures for a world’s places. You review the plan, then images are drawn one by one. Turn on scene-based switching and the Dashboard picks the fitting image.",
+        "uk": "Вкладка «Тла» планує набір картинок для місць світу. Ви перевіряєте план, потім зображення малюються по одному. Увімкніть зміну за сценою — і Дашборд обере відповідну картинку."
+      },
+      "where": {
+        "en": "World → Backgrounds tab (in a chat) or the world’s saved folder.",
+        "uk": "Світ → вкладка Тла (у чаті) або тека збереженого світу."
+      },
+      "details": {
+        "en": "Link a folder from the Backgrounds library. Pick places from the cards or add them by hand. The DM plans names, prompts and tags for each place; you review the plan before anything is drawn. Once accepted, images are drawn one by one (each uses the image model set for the world or the app).\n\nOld images are named by a vision model: it suggests English names and tags; you confirm before anything is renamed. All new images are stored as WebP for a smaller size. Tools > Backgrounds can convert old formats.\n\nIf the chat has “Change the background by scene” turned on, the Dashboard’s reader picks from the world’s folder the image that fits the place and mood of the current reply. Nothing outside this changes the background.",
+        "uk": "Привʼяжіть теку з бібліотеки Тла. Оберіть місця з карток або додайте вручну. Майстер планує імена, промпти й теги для кожного місця; ви перевіряєте план до малювання. Після прийняття зображення малюються одне за одним. Кожне використовує модель зображень світу чи застосунку.\n\nСтарі зображення називаються моделлю зору: вона пропонує англійські імена й теги; ви підтверджуєте перед перейменуванням. Усі нові зображення зберігаються як WebP — менший розмір. «Інструменти > Тла» вміє перетворювати старі формати кнопкою «Перетворити на WebP».\n\nКоли в чаті ввімкнено «Змінювати тло за сценою», читач Дашборду сам обирає зображення з теки світу. Воно пасує місцю й настрою поточної відповіді. Нічого поза цим не змінює тло."
+      },
+      "related": [
+        "kb.world-dm",
+        "kb.world-start",
+        "kb.world-profiles"
+      ],
+      "extends": "new.world-backgrounds",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "252-252",
+          "quote": "Backgrounds tab links a folder, plans a set of pictures for its places"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "389-389",
+          "quote": "'world.bg.setHint': 'The DM plans names and prompts for the places you pick; you check the plan, then the pictures are drawn one by one.',"
+        },
+        {
+          "path": "src/components/world/world-backgrounds.tsx",
+          "lines": "16-16",
+          "quote": "import { storeBackground } from '@/lib/webp';"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "374-374",
+          "quote": "Backgrounds of a world: a folder of the app's Backgrounds library"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "490-490",
+          "quote": "'world.bg.auto': 'Change the background by scene'"
+        }
+      ]
+    },
+    {
+      "id": "kb.swipes",
+      "group": "chat",
+      "title": {
+        "en": "Swipe versions of a reply",
+        "uk": "Варіанти відповіді (свайпи)"
+      },
+      "aliases": {
+        "en": "swipe versions arrows regenerate new reply counter picker list all messages",
+        "uk": "свайп варіанти стрілки перегенерувати нова відповідь лічильник список усі повідомлення"
+      },
+      "short": {
+        "en": "Under each reply you can flip through alternate versions the model produced. A counter shows which version is active; the right arrow on the last version asks for a new one.",
+        "uk": "Під кожною відповіддю можна перемикати альтернативні варіанти, які згенерувала модель. Лічильник показує активний варіант; права стрілка на останньому просить новий."
+      },
+      "where": {
+        "en": "Under any non-user reply in the chat log.",
+        "uk": "Під будь-якою відповіддю моделі в журналі чату."
+      },
+      "details": {
+        "en": "By default, swipe arrows appear only on the newest reply. A display setting shows them on every reply, each with its active version number and arrows.\n\nClick the counter to open the swipe picker: every version with its model, \"Use\", \"Branch\", and \"Delete\". The last version's right arrow regenerates the reply; on earlier versions it advances to the next one.\n\nSwipes are hidden while a reply is still streaming and never appear on your own messages.",
+        "uk": "За замовчуванням стрілки свіпів видно лише на найновішій відповіді. Налаштування показу робить їх видимими на кожній відповіді, з номером активного варіанту.\n\nНатисніть на лічильник, щоб відкрити вікно з усіма варіантами: модель, «Use», «Branch» і «Delete». Права стрілка на останньому варіанті просить новий; на попередніх — переходить до наступного.\n\nПід час генерації відповіді свіпи не показуються, і на ваших повідомленнях їх немає."
+      },
+      "related": [
+        "kb.edit-message",
+        "kb.branch",
+        "kb.chat-menu"
+      ],
+      "extends": "help.swipes",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "507-507",
+          "quote": "the arrows flip between its versions (swipes). The right arrow on the last version asks the model for a new one"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "570-570",
+          "quote": "const showSwipes = !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "191-191",
+          "quote": "swipeCountAllMessages: false,"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "1093-1093",
+          "quote": "Swipe {index + 1}"
+        }
+      ]
+    },
+    {
+      "id": "kb.edit-message",
+      "group": "chat",
+      "title": {
+        "en": "Edit any message in chat",
+        "uk": "Редагувати будь-яке повідомлення"
+      },
+      "aliases": {
+        "en": "edit rewrite fix message text save cancel change",
+        "uk": "редагувати переписати виправити повідомлення текст зберегти скасувати змінити"
+      },
+      "short": {
+        "en": "Point at a message to reveal the Edit button. Change the text and save, or cancel to discard the draft. The edit changes the active swipe's content.",
+        "uk": "Наведіть на повідомлення, щоб з'явилась кнопка «Редагувати». Змініть текст і збережіть, або скасуйте, щоб скинути чернетку. Редагування змінює вміст активного свіпу."
+      },
+      "where": {
+        "en": "Under any message when you hover or on touch when actions are pinned.",
+        "uk": "Під будь-яким повідомленням при наведенні або на сенсорному екрані з закріпленими діями."
+      },
+      "details": {
+        "en": "Press \"Edit\" under a message. A text box opens with the current active swipe's content (or the message text if there is no swipe). \"Save\" writes the new text into the chat; \"Cancel\" closes the box without saving.\n\nEditing is blocked while the message is streaming or already being edited, and hidden messages stay hidden after an edit. If the message has reasoning text, you can edit that separately with its own \"Edit thinking\" button.",
+        "uk": "Натисніть «Редагувати» під повідомленням. Відкриється поле з текстом активного свіпу (або повідомлення, якщо свіпів немає). «Зберегти» записує новий текст у чат; «Скасувати» закриває поле без збереження.\n\nРедагування неможливе під час генерації або якщо повідомлення вже редагується. Приховані повідомлення лишаються прихованими після редагування. Якщо є текст роздумів, його можна редагувати окремо кнопкою «Редагувати роздуми»."
+      },
+      "related": [
+        "kb.swipes",
+        "kb.message-menu",
+        "kb.peek"
+      ],
+      "extends": "help.edit-message",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "519-519",
+          "quote": "press Edit to change its text, then Save. The buttons appear when you point at a message"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "534-534",
+          "quote": "setDraft(swipe?.content ?? '')"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "828-828",
+          "quote": "<Button size=\"sm\" onClick={() => { editMessage(chat.id, message.id, draft); setEditing(false) }}>Save</Button>"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "964-964",
+          "quote": "aria-label={t('msg.edit')}"
+        }
+      ]
+    },
+    {
+      "id": "kb.regen-hint",
+      "group": "chat",
+      "title": {
+        "en": "Regenerate with a hint",
+        "uk": "Перегенерувати з підказкою"
+      },
+      "aliases": {
+        "en": "regenerate hint redo direction instruction guide change reply",
+        "uk": "перегенерувати підказка напрямок інструкція зміна відповідь"
+      },
+      "short": {
+        "en": "The + menu holds \"Regenerate with a hint…\". Type what the new reply should change; the hint goes only to this reply's regeneration and is never saved.",
+        "uk": "У меню + є пункт «Перегенерувати з підказкою…». Напишіть, що має змінити нова відповідь; підказка йде лише для цієї регенерації й не зберігається."
+      },
+      "where": {
+        "en": "In the message box's + menu (composer options).",
+        "uk": "У меню + поля повідомлення (опції композитора)."
+      },
+      "details": {
+        "en": "Open the dialog from the + menu. The text area accepts up to 2000 characters. You can press Ctrl+Enter to submit quickly. The hint is sent to the model for the new reply version only; it does not become part of the chat history.\n\nIf the hint field is empty, the button is disabled. The dialog's description explains that the hint directs the model for that one reply, matching the app's own wording.",
+        "uk": "Відкрийте діалог з меню +. Поле приймає до 2000 символів. Можна натиснути Ctrl+Enter для швидкої відправки. Підказка надсилається моделі лише для цієї нової версії відповіді; вона не стає частиною історії чату.\n\nЯкщо поле порожнє, кнопка неактивна. Опис діалога пояснює, що підказка спрямовує модель лише для цієї відповіді — як написано в самому застосунку."
+      },
+      "related": [
+        "kb.swipes",
+        "kb.slash",
+        "kb.chat-menu"
+      ],
+      "extends": "help.regen-hint",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "531-531",
+          "quote": "redoes the last reply and lets you say what to change. The hint goes to the model for that one reply"
+        },
+        {
+          "path": "src/components/chat/regenerate-hint-dialog.tsx",
+          "lines": "10-11",
+          "quote": "/** Regenerate with a hint: one direction for the next variant of the last\n *  reply. It goes to the model for that reply only and is never saved. */"
+        },
+        {
+          "path": "src/components/chat/regenerate-hint-dialog.tsx",
+          "lines": "32-32",
+          "quote": "maxLength={2000}"
+        },
+        {
+          "path": "src/components/chat/regenerate-hint-dialog.tsx",
+          "lines": "36-36",
+          "quote": "if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go() }"
+        }
+      ]
+    },
+    {
+      "id": "kb.message-menu",
+      "group": "chat",
+      "title": {
+        "en": "More actions on a message",
+        "uk": "Дії з повідомленням (меню «Ще»)"
+      },
+      "aliases": {
+        "en": "more menu copy translate speak bookmark fork hide move delete generation data prompt peek",
+        "uk": "ще меню копіювати переклад озвучити закладка розгалужити сховати перемістити видалити дані генерації підглянути промпт"
+      },
+      "short": {
+        "en": "The \"More\" button under a message opens groups for message actions (copy, translate, speak, bookmark, fork, generation data, prompt peek), story actions (hide, scene, move), and delete.",
+        "uk": "Кнопка «Ще» під повідомленням відкриває групи дій: дії з повідомленням, сюжет, видалення. На сенсорних екранах дії видно завжди."
+      },
+      "where": {
+        "en": "Under any message, to the right of Edit and Copy buttons.",
+        "uk": "Під будь-яким повідомленням, праворуч від кнопок «Редагувати» та «Копіювати»."
+      },
+      "details": {
+        "en": "The menu has three groups. The message group has copy, translate (toggles off if already translated), speak (toggles off if already speaking), bookmark, fork, generation data, and prompt peek. The story group has hide (toggles off if hidden), scene, and move up/down (disabled at the start or end of the chat). The delete group has delete and delete below (also disabled at the end).\n\nOn touch screens, the actions are pinned and always visible; otherwise they appear on hover or focus.",
+        "uk": "Меню має три групи. Група повідомлення: копіювати, перекладати (вимикається, якщо вже перекладено), озвучити (вимикається, якщо вже звучить), закладка, розгалужити, дані генерації та підглянути промпт. Група історії: сховати (вимикається, якщо вже приховано), сцена та перемістити вгору/вниз (неактивні на початку чи в кінці чату). Група видалення: «Видалити це» і «Видалити це й нижче»; обидва неактивні в кінці чату.\n\nНа сенсорних екранах дії видно завжди; інакше з'являються при наведенні чи фокусі."
+      },
+      "related": [
+        "kb.swipes",
+        "kb.peek",
+        "kb.branch"
+      ],
+      "extends": "help.message-menu",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "543-543",
+          "quote": "holds Copy text, Translate, Speak, Bookmark, Fork here, Generation data, Prompt peek, Hide from AI, Move up and down"
+        },
+        {
+          "path": "src/lib/message-actions.ts",
+          "lines": "45-46",
+          "quote": "const message: MessageActionGroup = {\n    id: 'message',"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "606-606",
+          "quote": "<DropdownMenuContent align=\"end\" className=\"w-64\">"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "964-964",
+          "quote": "<Button variant=\"ghost\" size=\"sm\" className=\"ls-act\" aria-label={t('msg.edit')} onClick={startEdit}>"
+        }
+      ]
+    },
+    {
+      "id": "kb.branch",
+      "group": "chat",
+      "title": {
+        "en": "Branch from a message",
+        "uk": "Розгалуження з повідомлення"
+      },
+      "aliases": {
+        "en": "branch fork new chat from this message sibling parent tree",
+        "uk": "гілка розгалуження форк новий чат з цього повідомлення суміжний батьківський дерево"
+      },
+      "short": {
+        "en": "\"Fork here\" in a message's More menu creates a new chat starting from that reply, leaving the original unchanged. The chat menu's \"Branches\" shows the full tree.",
+        "uk": "«Розгалужити тут» у меню «Ще» повідомлення створює новий чат від цієї відповіді, не змінюючи оригінал. У меню чату пункт «Branches» показує повне дерево гілок."
+      },
+      "where": {
+        "en": "In a message's More menu, and in the chat's top menu under \"Branches\".",
+        "uk": "У меню «Ще» повідомлення та у верхньому меню чату під пунктом «Branches»."
+      },
+      "details": {
+        "en": "Choosing \"Fork here\" on any message creates a new chat that continues from that point. The original chat stays intact. Open \"Branches\" from the chat's top menu to see this chat's forks, its sibling branches, and its parent chat. You can also branch from an individual swipe using the swipe picker.\n\nThe branch list is rebuilt when chats change, so new forks appear immediately.",
+        "uk": "«Розгалужити тут» на будь-якому повідомленні створює новий чат, що продовжується з цього місця. Оригінальний чат лишається без змін. Відкрийте «Branches» з верхнього меню чату, щоб побачити розгалуження цього чату, суміжні гілки й батьківський чат. Також можна розгалужитися з окремого свіпу через вікно вибору свіпів.\n\nСписок гілок оновлюється при зміні чатів, тому нові форки з'являються одразу."
+      },
+      "related": [
+        "kb.message-menu",
+        "kb.swipes",
+        "kb.chat-menu"
+      ],
+      "extends": "help.branch",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "555-555",
+          "quote": "starts a new chat from that message and leaves the original unchanged"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "639-639",
+          "quote": "{ key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "579-579",
+          "quote": "case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1653-1653",
+          "quote": "toast.success('Forked into a new chat')"
+        }
+      ]
+    },
+    {
+      "id": "kb.peek",
+      "group": "chat",
+      "title": {
+        "en": "Prompt peek and generation data",
+        "uk": "Підглянути промпт і дані генерації"
+      },
+      "aliases": {
+        "en": "prompt peek inspector assembly request tokens cost model raw API",
+        "uk": "підглянути промпт інспектор збірка запит токени вартість модель сирий API"
+      },
+      "short": {
+        "en": "\"Prompt peek\" shows the exact assembled prompt the model received for a message — macros expanded, sources highlighted, token count shown. \"Generation data\" shows model, tokens, cost and time.",
+        "uk": "«Підглянути промпт» показує точний зібраний промпт, який отримала модель для повідомлення — макроси розкриті, джерела підсвічені, кількість токенів видна. «Дані генерації» показують модель, токени, вартість і час."
+      },
+      "where": {
+        "en": "In a message's More menu: \"Prompt peek\" and \"Generation data\".",
+        "uk": "У меню «Ще» повідомлення: «Підглянути промпт» та «Дані генерації»."
+      },
+      "details": {
+        "en": "Prompt peek opens a dialog with the full request the engine assembled for that message point: the system prompt, the messages, the expanded macros, the preset parameters, and optional reasoning or tool calls. Click a source span to highlight where a piece came from. A collapsible section shows the exact raw request as sent to the model service.\n\nGeneration data opens a separate dialog for the same message: the model name, estimated or real token usage, cost, generation time, temperature and top-P settings, and any tool calls made. Both are read-only.",
+        "uk": "«Підглянути промпт» відкриває діалог із повним зібраним запитом двигуна для цього моменту повідомлення. Там системний промпт, повідомлення, розкриті макроси, параметри пресету, за потреби роздуми чи виклики інструментів. Натисніть на фрагмент джерела, щоб підсвітити, звідки взято вміст. У згорнутому розділі видно точний запит, який піде до сервісу моделі.\n\n«Дані генерації» відкривають окремий діалог для того ж повідомлення. Там назва моделі, оцінка чи реальна кількість токенів, вартість, час генерації, температурата й top-P, виклики інструментів. Обидва діалоги лише для читання."
+      },
+      "related": [
+        "kb.message-menu",
+        "kb.slash",
+        "kb.chat-menu"
+      ],
+      "extends": "help.peek",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "567-567",
+          "quote": "shows the request behind that reply, and Generation data shows its model, tokens, cost and time"
+        },
+        {
+          "path": "src/components/chat/prompt-peek-dialog.tsx",
+          "lines": "15-17",
+          "quote": "/**\n * The REAL assembled prompt for a chat, straight from the engine's preview\n * route — macros expanded, world info / summary / depth injections spliced,"
+        },
+        {
+          "path": "src/components/chat/prompt-peek-dialog.tsx",
+          "lines": "29-29",
+          "quote": "/** scope the assembly to one message: the prompt as of that point */"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "1028-1028",
+          "quote": "<DialogTitle>Generation data</DialogTitle>"
+        }
+      ]
+    },
+    {
+      "id": "kb.slash",
+      "group": "chat",
+      "title": {
+        "en": "Slash commands and macros",
+        "uk": "Команди та макроси (слеш)"
+      },
+      "aliases": {
+        "en": "slash command macro /continue /regenerate /swipe /help quick reply dice roll variable",
+        "uk": "слеш команда макрос /continue /regenerate /swipe /help швидка відповідь кубик змінна"
+      },
+      "short": {
+        "en": "Type / in the message box to see built-in commands and your quick-reply shortcuts. Macros like {{char}} and {{roll:d20}} expand automatically; /help opens the full reference.",
+        "uk": "Введіть / у полі повідомлення, щоб побачити вбудовані команди та ваші швидкі відповіді. Макроси на кшталт {{char}} і {{roll:d20}} розкриваються автоматично; /help відкриває повний довідник."
+      },
+      "where": {
+        "en": "In the composer message box: start a message with / or {{.",
+        "uk": "У полі повідомлення композитора: почніть повідомлення з / або {{."
+      },
+      "details": {
+        "en": "Built-in slash commands include /continue, /impersonate, /regenerate, /swipe, /gallery, /imagine (when image generation is enabled), and /help. Each command either inserts text or triggers an action directly. Quick reply sets that are enabled appear as /qr-... shortcuts with a label from the set name.\n\nMacros are expanded by the app before sending. Common ones: {{char}} (character name), {{user}} (your persona), {{roll:d20}} (dice roll), {{date}}, and variable macros (setvar/getvar/addvar/incvar/decvar). The autocomplete shows hints for both kinds; the reference panel (\"All commands and macros\") lists everything.",
+        "uk": "Вбудовані команди слешу: /continue, /impersonate, /regenerate, /swipe, /gallery, /imagine (коли ввімкнено генерацію зображень) і /help. Кожна команда або вставляє текст, або викликає дію одразу. Увімкнені набори швидких відповідей з'являються як /qr-... з назвою набору.\n\nМакроси розкриваються застосунком перед відправкою. Поширені: {{char}} (ім'я персонажа), {{user}} (ваша персона), {{roll:d20}} (кидок кубика), {{date}} та макроси змінних (setvar/getvar/addvar/incvar/decvar). Автодоповнення показує підказки для обох видів; панель довідника («Усі команди й макроси») містить усе."
+      },
+      "related": [
+        "kb.message-menu",
+        "kb.chat-menu",
+        "kb.peek"
+      ],
+      "extends": "help.slash",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "578-578",
+          "quote": "such as /continue, /impersonate, /regenerate and your own shortcuts. Macros like {{char}}, {{user}} and {{roll:d20}} are filled in"
+        },
+        {
+          "path": "src/components/chat/composer-autocomplete.tsx",
+          "lines": "52-53",
+          "quote": "const BUILTIN_SLASH: AcItem[] = [\n  { key: \"/continue\", label: \"/continue\", insert: \"\", hint: \"Continue the last reply\", kind: \"slash\", action: \"continue\" },"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2991-2991",
+          "quote": "'guide.help.reference': 'All commands and macros',"
+        },
+        {
+          "path": "src/components/chat/composer-autocomplete.tsx",
+          "lines": "23-24",
+          "quote": "export const MACROS: { name: string; hint: string }[] = [\n  { name: \"char\", hint: \"Character's name\" },"
+        }
+      ]
+    },
+    {
+      "id": "kb.chat-menu",
+      "group": "chat",
+      "title": {
+        "en": "The chat menu",
+        "uk": "Меню чату"
+      },
+      "aliases": {
+        "en": "chat menu more branches bookmarks display settings convert group delete manage files author note lore record world",
+        "uk": "меню чату ще гілки закладки відображення налаштування конвертувати група видалити керувати файлами нотатка лор запис світ"
+      },
+      "short": {
+        "en": "The top \"More\" button opens the chat menu: story tools (Author's note, Lore, Record, World), chat settings (Convert to group, Branches, Bookmarks, Display), and management (Start new chat, Delete messages, Manage chat files).",
+        "uk": "Верхня кнопка «Ще» відкриває меню чату: інструменти історії, налаштування чату й дії. Друге натискання закриває."
+      },
+      "where": {
+        "en": "Top-right of the chat view; on a phone it is the Menu button.",
+        "uk": "Угорі праворуч перегляду чату; на телефоні — кнопка Menu."
+      },
+      "details": {
+        "en": "The menu splits into two sections. The first holds Convert to group, Branches, Bookmarks, and Display settings, plus Author's note, Lore, Record, and World (on desktop these sit in the header; on a phone they sit above the rest of this menu). The second holds Start new chat, Delete messages, and Manage chat files.\n\nOn desktop, the story tools are also shown as buttons in the header bar when there is enough width; the menu duplicates them for access on narrower screens. Delete messages opens a selection mode rather than removing anything immediately.",
+        "uk": "Меню поділено на дві частини. Перша група: Конвертувати в групу, Гілки, Закладки, Налаштування відображення. Ще тут Нотатка, Лор, Запис і Світ. На десктопі ці кнопки в шапці; на телефоні — над рештою меню. Друга група: Почати новий чат, Видалити повідомлення, Керувати файлами чату.\n\nНа десктопі інструменти історії також показуються в шапці при достатній ширині. Меню дублює їх для вузьких екранів. «Видалити повідомлення» відкриває режим вибору, а не видаляє негайно."
+      },
+      "related": [
+        "kb.branch",
+        "kb.message-menu",
+        "kb.slash"
+      ],
+      "extends": "help.chat-menu",
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "590-590",
+          "quote": "holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "633-633",
+          "quote": "{ key: 'note', icon: Note, label: \"Author's note\", onSelect: () => setNotesOpen(true) },"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "646-646",
+          "quote": "{ key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "649-649",
+          "quote": "// the story tools sit in the header (desktop, when it is wide enough) or on top of the phone menu; the lists keep the rest"
+        }
+      ]
+    },
+    {
+      "id": "kb.links-board",
+      "group": "canvas",
+      "title": {
+        "en": "Link chats on the board",
+        "uk": "Зв’язуйте чати на полотні"
+      },
+      "short": {
+        "en": "The links board shows which chat continues which. Drag a wire from a bottom dot to a top dot; dashed wires are branches. Chats not placed yet wait on the shelf. The Library map's Edit on canvas opens this board.",
+        "uk": "Полотно зв’язків показує, який чат продовжує який. Протягніть дріт від нижньої точки до верхньої; пунктир — гілки. Чати без місця чекають на полиці. Кнопка на мапі Бібліотеки відкриває це полотно з вибраним чатом."
+      },
+      "where": {
+        "en": "Canvas → the links board; Library map → the Edit-on-canvas button.",
+        "uk": "Полотно → полотно зв’язків; мапа Бібліотеки → кнопка редагування на полотні."
+      },
+      "details": {
+        "en": "Each chat is a card with a dot at the bottom (what it continues) and one at the top (what continues into it). A solid wire from a bottom dot to a top dot means the second chat continues the first and gets the earlier story as backstory. A dashed wire is a branch forked from a single message, not from the end. Chats that are not on the board yet wait on the shelf on the left; drag one in, or drop it back on the shelf to take it off the board. Taking a chat off the board does not delete the chat. In view mode nothing can be dragged, so nothing moves by accident. The Library map shows the same links read-only; its Edit on canvas button opens this board with that chat already selected. That selection is passed once and clears after the board reads it, so reopening the board later starts without a selection.",
+        "uk": "Кожен чат — картка з точкою знизу (що він продовжує) і точкою зверху (що входить у нього). Суцільний дріт від нижньої точки до верхньої означає: другий чат продовжує перший і отримує його історію як передісторію. Пунктирний дріт — гілка, відкладена від одного повідомлення, а не від кінця. Чатів, яких ще немає на полотні, тримає полиця зліва; перетягніть їх туди або поверніть на полицю, щоб зняти з полотна. Зняти чат з полотна — не видалити сам чат. У режимі перегляду нічого не перетягується, тож нічого не зсунеться випадково. Мапа Бібліотеки показує ті самі зв’язки лише для читання; кнопка редагування на полотні відкриває його з уже вибраним чатом. Цей вибір передається один раз і зникає після читання, тож пізніше полотно відкриється без вибору."
+      },
+      "aliases": {
+        "en": "links board canvas wire continue backstory shelf branch edit on canvas",
+        "uk": "зв’язки полотно дріт продовження передісторія полиця гілка"
+      },
+      "extends": "tour.canvas.board",
+      "related": [
+        "kb.prompt-board",
+        "kb.prompt-part"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "130-130",
+          "quote": "the second continues the first and gets the earlier story as backstory. Dashed wires are branches forked from a message."
+        },
+        {
+          "path": "src/components/canvas/canvas-focus.ts",
+          "lines": "1-1",
+          "quote": "The Library map hands a chat to the Canvas tab: \"Edit on canvas\" opens the chat-links board with"
+        }
+      ]
+    },
+    {
+      "id": "kb.prompt-board",
+      "group": "canvas",
+      "title": {
+        "en": "Prompt board",
+        "uk": "Полотно промпта"
+      },
+      "short": {
+        "en": "Every part of a chat's next request, with token counts. Switch parts off for this chat only — the preset and the card stay as they are. Details show what was taken and why.",
+        "uk": "Усі частини наступного запиту чату, з токенами. Вимикайте частини лише для цього чату — пресет і картка не змінюються. Деталі показують, що взято і чому."
+      },
+      "where": {
+        "en": "Canvas → the Prompt board, next to the links board.",
+        "uk": "Полотно → полотно промпта, поруч зі зв’язками."
+      },
+      "details": {
+        "en": "Pick a chat and the board lists every part of its next request: preset sections, card fields, persona, lorebook entries, examples, the author's note, chat history and more, each with its token count. Most rows have a switch that turns that part off for this chat only. History has no switch: filter it in its Details instead. Parts the preset or a condition already leaves out, parts not meant for this kind of reply and empty parts have no switch either; the \"Only what is sent\" filter hides them, and the \"Not sent\" count says how many are hidden. Click a row for Details: what text was taken from it, why anything was left out, and the text itself. \"Turn everything on\" brings back every switch you have flipped. The total at the bottom is everything that stays on, in order — what the model actually gets.",
+        "uk": "Виберіть чат, і полотно перелічить кожну частину його наступного запиту. Серед них розділи пресету, поля картки, персону, записи лорбуків, приклади й нотатку автора. Кожна частина показана з кількістю токенів. У більшості рядків є перемикач, що вимикає частину лише для цього чату. В «Історії» перемикача немає: фільтруйте її в «Деталях». Частини, які пресет чи умова вже виключив, стоять без перемикача. Це ж стосується неактивних для цього типу відповіді та порожніх. Фільтр «Лише надіслане» їх ховає, а лічильник «Не надіслано» показує їх кількість. Натисніть рядок — у «Деталях» буде взятий текст, причина пропуску й сам текст. Кнопка «Увімкнути все» повертає всі ваші перемикачі. Всього внизу — усе ввімкнене, по порядку: саме це отримає модель."
+      },
+      "aliases": {
+        "en": "prompt board tokens parts switch off details only what is sent",
+        "uk": "полотно промпта токени частини перемикач деталі"
+      },
+      "extends": "new.prompt-board",
+      "related": [
+        "kb.prompt-part",
+        "kb.history-filter",
+        "kb.links-board"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "34-34",
+          "quote": "See every part of a chat’s request to the model with its tokens, and switch parts off for that chat only."
+        },
+        {
+          "path": "src/components/canvas/prompt-board.tsx",
+          "lines": "92-92",
+          "quote": "A part the chat can switch: on or off now (a part the preset or a condition left out has no switch)."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1097-1097",
+          "quote": "'canvas.prompt.state.presetOff': 'Off in the preset'"
+        }
+      ]
+    },
+    {
+      "id": "kb.history-filter",
+      "group": "canvas",
+      "title": {
+        "en": "History filter on the board",
+        "uk": "Фільтр історії на полотні"
+      },
+      "short": {
+        "en": "The history card on the Prompt board has no switch. Its Details choose the last N messages, whose messages count, and whether thinking blocks go along. Desktop only.",
+        "uk": "У картки «Історія чату» на полотні перемикача немає. У «Деталях» обирають останні N повідомлень, чиї повідомлення й чи надсилати роздуми. Лише на комп’ютері."
+      },
+      "where": {
+        "en": "Canvas → Prompt board → the history card → Details.",
+        "uk": "Полотно → полотно промпта → картка «Історія» → «Деталі»."
+      },
+      "details": {
+        "en": "History always stays in the request — it anchors the board — so it has no on/off switch. Open the history row's Details to pick exactly what goes in: only the last N messages instead of the whole chat; whose messages count (everyone's, only the player's, only the character's); and whether the model also sees the thinking blocks of past replies. A summary line under the card shows the current picks, and the details list the included and left-out messages, each with its reason. Nothing is written back to the preset or the card: the picks are kept for that chat only, and the chat's own history still keeps every message.",
+        "uk": "Історія завжди лишається в запиті — вона тримає полотно, — тож перемикача в неї немає. Відкрийте «Деталі» рядка історії й оберіть, що саме піде. Можна взяти лише останні N повідомлень замість усього чату. Можна обрати, чиї повідомлення рахувати: усіх, лише гравця чи лише персонажа. Окремий перемикач ховає роздуми минулих відповідей. Рядок-підсумок під карткою показує поточний вибір, а деталі перелічують включені та пропущені повідомлення — кожне з причиною. У пресет і картку нічого не пишеться: вибір зберігається лише для цього чату, а власна історія чату зберігає всі повідомлення."
+      },
+      "aliases": {
+        "en": "history filter last messages only user char thinking blocks details",
+        "uk": "історія фільтр останні повідомлення гравець персонаж роздуми деталі"
+      },
+      "extends": "new.history-filter",
+      "related": [
+        "kb.prompt-part",
+        "kb.prompt-board"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "47-47",
+          "quote": "only the last N messages, whose messages (everyone’s, only the player’s, only the character’s), and whether to send thinking blocks"
+        },
+        {
+          "path": "src/components/canvas/prompt-board.tsx",
+          "lines": "246-246",
+          "quote": "if (h.lastN === 0 && h.only === 'all' && h.thinking) return t('canvas.prompt.history.summary.all')"
+        },
+        {
+          "path": "src/lib/engine.ts",
+          "lines": "1086-1086",
+          "quote": "export const DEFAULT_PROMPT_HISTORY: PromptBoardHistory = { lastN: 0, only: 'all', thinking: true }"
+        }
+      ]
+    },
+    {
+      "id": "kb.prompt-part",
+      "group": "canvas",
+      "title": {
+        "en": "Parts of the request",
+        "uk": "Частини запиту"
+      },
+      "short": {
+        "en": "Each row is one part of the request: preset sections, card fields, persona, lorebooks. A row's status explains why a part goes out or not; preset groups travel as one block.",
+        "uk": "Кожен рядок — одна частина запиту: розділи пресету, поля картки, персона, лорбуки. Стан рядка пояснює, частина виходить чи ні; групи пресету їдуть одним блоком."
+      },
+      "where": {
+        "en": "Canvas → Prompt board → a part row.",
+        "uk": "Полотно → полотно промпта → рядок частини."
+      },
+      "details": {
+        "en": "A row's status tells you at a glance why a part is or is not going out: on and switchable, off for this chat, off in the preset, its condition not met, not meant for this kind of reply, or empty. Rows of one preset group sit together and count as one block; the sent count covers every member, even the ones the filter hides. In the total view you see everything that stays on, in order, with the combined token count — handy on small context windows. A row's Details show the exact text taken from that part and why anything was left out. Together with the history card's Details this is the whole picture of the request: nothing else is added on the way out.",
+        "uk": "Стан рядка одразу пояснює, частина виходить чи ні. Вона може бути увімкнена з перемикачем, вимкнена для цього чату чи в пресеті. Ще стани: умова не виконана, не для цього типу відповіді, порожня. Рядки однієї групи пресету сидять разом і рахуються як один блок; кількість надісланих покриває всіх учасників, навіть прихованих фільтром. У підсумку видно все, що лишається ввімкненим, по порядку, із загальною кількістю токенів — це зручно на малих контекстах. «Деталі» рядка показують точний текст, взятий із частини, і чому щось пропущено. Разом з «Деталями» картки історії це повна картина запиту: по дорозі більше нічого не додається."
+      },
+      "aliases": {
+        "en": "prompt part row status preset section condition group total details",
+        "uk": "частина запиту рядок стан розділ пресету умова група всього деталі"
+      },
+      "extends": "tour.prompt.part",
+      "related": [
+        "kb.prompt-board",
+        "kb.history-filter",
+        "kb.links-board"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "162-162",
+          "quote": "Each card is one part: preset sections, card fields, persona, lorebooks. Most have a switch that turns the part off for this chat only."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "150-150",
+          "quote": "The board shows what this chat sends to the model with its next reply."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "171-171",
+          "quote": "Everything that stays on, in order, with the total tokens."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "180-180",
+          "quote": "Details list what was taken and why something was left out, and show the text itself."
+        }
+      ]
+    },
+    {
+      "id": "kb.lorebooks",
+      "group": "world",
+      "title": {
+        "en": "Lorebook entries and triggers",
+        "uk": "Записи лорбука й тригери"
+      },
+      "short": {
+        "en": "Entries carry keywords, a position in the prompt, a firing chance and timed effects; a few are sent every message. Link books to a card in its Lorebook tab; import and export keep JSON.",
+        "uk": "У запису є ключові слова, позиція в промпті, шанс спрацювання і часові ефекти; деякі надсилаються щоразу. Прив’язуйте книги до картки на вкладці «Лорбук»; імпорт та експорт — у JSON."
+      },
+      "where": {
+        "en": "Lorebooks page; card editor → Lorebook tab.",
+        "uk": "Сторінка «Лорбуки»; редактор картки → вкладка «Лорбук»."
+      },
+      "details": {
+        "en": "An entry fires when one of its keys turns up in the scanned messages. Keys match whole words, and Ukrainian and Russian keys match every form of their words; secondary keys narrow a match down with AND or NOT logic. An entry can fire on a key, be sent every message (keep those few and short), or fire by meaning. Its position decides where the text goes: around the character definition, around the examples or the author's note, or at a depth inside the chat; when the preset has no place for it, the entry joins the end of the system block. A percentage is the chance it fires when triggered. Sticky keeps it on for more messages, cooldown waits before it fires again, delay holds back the first firing. The book's settings cap how much room entries may take, set how deep the scan goes, and can let entries trigger each other. Import and export use JSON; a book can also be embedded in a card, and links live on the card or group only.",
+        "uk": "Запис спрацьовує, коли один із його ключів трапляється у просканованих повідомленнях. Ключі збігаються цілими словами. Українські й російські збігаються в усіх формах слова. Другорядні ключі звужують збіг за логікою «І» чи «НЕ». Запис може спрацьовувати на ключ, надсилатися щоразу (тримайте таких небагато й коротко) чи вмикатися за змістом. Позиція визначає, куди піде текст: біля опису персонажа, прикладів чи нотатки автора, або на глибині всередині чату. Якщо пресет не має для неї місця, запис стає в кінець системного блоку. Відсоток — це шанс спрацювати після тригера. Липкість тримає запис увімкненим далі, перезарядка чекає перед повторним спрацюванням, затримка — перед першим. Налаштування книги обмежують місце записів, задають глибину сканування й дозволяють записам вмикати одне одного. Імпорт та експорт — у JSON; книгу можна й вбудувати в картку, а прив’язки живуть лише на картці чи групі."
+      },
+      "aliases": {
+        "en": "lorebook entry keyword secondary keys position probability sticky cooldown delay constant vectorized",
+        "uk": "лорбук запис ключове слово другорядні ключі позиція ймовірність липкість перезарядка затримка"
+      },
+      "extends": "help.lorebooks",
+      "related": [
+        "kb.lore-global",
+        "kb.lore-test",
+        "kb.prompt-part"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "857-857",
+          "quote": "A lorebook is a set of entries about your world. An entry joins the request when its keywords show up in the chat, or always if you set it so."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "323-323",
+          "quote": "Percent chance to fire when keyed; omit for always."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2489-2489",
+          "quote": "Grey keywords: words in the chat that trigger the entry."
+        }
+      ]
+    },
+    {
+      "id": "kb.lore-global",
+      "group": "world",
+      "title": {
+        "en": "Global lorebook",
+        "uk": "Глобальний лорбук"
+      },
+      "short": {
+        "en": "The Global switch puts a book in every chat, before any card or persona. A book without it stays silent until a card, a group, a persona or the chat itself links it.",
+        "uk": "Перемикач «Глобальна» додає книгу в кожен чат — до будь-якої картки чи персони. Книга без нього мовчить, доки її не прив’яже картка, група, персона чи сам чат."
+      },
+      "where": {
+        "en": "Lorebooks → open a book → Global switch.",
+        "uk": "Лорбуки → відкрийте книгу → перемикач «Глобальна»."
+      },
+      "details": {
+        "en": "A chat assembles its lore from several places: every book marked Global, the book embedded in the character's card, every book linked on the card, the books bound to the active persona, and the chat's own world book. In a group chat the members' books are filtered by the group's own rule about whose books count. Global needs no link and reaches every chat, whichever character or persona is in it. Leave it off, and the book works only where something links it. Links live on the card or the group only — an old field that linked books to characters from the book's own side is not read. One more kind exists: a chat's world book, written by the World DM, belongs to that chat alone, never shows in the Lorebooks library, and a fork of the chat gets its own copy.",
+        "uk": "Чат збирає лор з кількох місць. Це всі книги з позначкою «Глобальна», книга всередині картки персонажа і книги, прив’язані до картки. Ще книги активної персони та власна книга чату. У груповому чаті книги учасників фільтрує правило групи про те, чиї книги рахувати. Глобальній книзі прив’язка не потрібна: вона є в кожному чаті, хоч би який персонаж чи персона там були. Вимкніть її — і книга працює лише там, де її щось прив’язало. Прив’язки живуть лише на картці чи групі; старе поле, що прив’язувало книги до персонажів із боку самої книги, не читається. Книга чату від World DM належить лише цьому чату. Вона не показується в бібліотеці «Лорбуки», а копія чату отримує власну копію книги."
+      },
+      "aliases": {
+        "en": "global lorebook every chat scope linked embedded persona world book",
+        "uk": "глобальний лорбук кожен чат область прив’язана вбудована персона книга світу"
+      },
+      "extends": "help.lore-global",
+      "related": [
+        "kb.lorebooks",
+        "kb.lore-test",
+        "kb.prompt-part"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "869-869",
+          "quote": "The Global switch adds a book to every chat, whichever character or persona is in it."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2486-2486",
+          "quote": "'lore.global.info': 'A global book is added to every chat, whichever character or persona is in it."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "293-293",
+          "quote": "Links live on the card (or the group) only"
+        }
+      ]
+    },
+    {
+      "id": "kb.lore-test",
+      "group": "world",
+      "title": {
+        "en": "Test lore triggers",
+        "uk": "Перевірити тригери лорбука"
+      },
+      "short": {
+        "en": "Paste a message and the book shows its work: which entries would fire, which were held back, and what happened to each. The book's scan settings apply here too.",
+        "uk": "Вставте повідомлення — і книга покаже свою роботу: які записи спрацюють, які стримано й що з ними сталося. Налаштування сканування книги діють і тут."
+      },
+      "where": {
+        "en": "Lorebooks → open a book → Test triggers; chat header → Lore.",
+        "uk": "Лорбуки → відкрийте книгу → «Перевірити тригери»; шапка чату → «Лор»."
+      },
+      "details": {
+        "en": "The test panel scans the pasted text the way a reply would: the book's settings decide how it reads — whether case matters, whether keys match whole words, and whether Ukrainian keys match every form of their word. Entries that would fire show up with their keys and position. The rest are held back, and the view says what happened to each. An entry can also miss by chance when its firing percentage is under 100, and timed effects can hold it back. The test reads with a budget line at the top: it shows how many characters the fired entries take out of the book's cap, so an entry can also miss because the budget is full. The preset's sections are left out of the test. Lore in the chat header (on a phone: Menu) shows the same for the chat you have open, and why.",
+        "uk": "Панель перевірки сканує вставлений текст так, як зробила б відповідь. Налаштування книги вирішують, як вона читає: чи має значення регістр, чи ключі збігаються цілими словами. Окремо задається, чи українські збігаються в усіх формах. Записи, що спрацювали б, показуються зі своїми ключами й позицією. Решту стримано, і вікно пояснює, що сталося з кожним. Запис може й не випасти за шансом, коли його відсоток менший за 100, а часові ефекти можуть його стримати. Угорі перевірки йде рядок бюджету. Він показує, скільки знаків зайняли запали записи з ліміту книги. Запис може не потрапити й через повний бюджет. Розділи пресету до перевірки не входять. «Лор» у шапці чату (на телефоні: Меню) показує те саме для відкритого чату — і чому."
+      },
+      "aliases": {
+        "en": "lore test trigger scan keyword match fire held back reason case sensitive whole words",
+        "uk": "тест лору тригер скан ключ збіг спрацював стримано причина регістр цілі слова"
+      },
+      "extends": "help.lore-test",
+      "related": [
+        "kb.lorebooks",
+        "kb.lore-global",
+        "kb.prompt-part"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "881-881",
+          "quote": "Paste a message to see which entries of a book would fire and why, or what was held back."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2490-2490",
+          "quote": "'lore.testKeys': 'Test triggers'"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "314-314",
+          "quote": "Words of 3 letters or fewer match only exactly."
+        }
+      ]
+    },
+    {
+      "id": "kb.presets",
+      "group": "setup",
+      "title": {
+        "en": "Presets: sections, variables, samplers",
+        "uk": "Пресети: розділи, змінні, семплери"
+      },
+      "short": {
+        "en": "Inside a preset: sections you can switch, groups that send as one block, variables the player picks per chat, samplers, and a peek at the final request. Built-in presets are read-only.",
+        "uk": "Усередині пресету: розділи з перемикачами, групи, що йдуть одним блоком, змінні для вибору на чат, семплери й підгляд підсумкового запиту. Вбудовані пресети — лише для читання."
+      },
+      "where": {
+        "en": "Presets page; chat top pill; Prompt peek.",
+        "uk": "Сторінка «Пресети»; верхня плашка чату; «Prompt peek»."
+      },
+      "details": {
+        "en": "The Prompt manager lists the sections of the instructions; each can be switched off. Sections that share a group are sent as one block, optionally wrapped in tags named after the group, so the model sees where, say, the lore starts and ends. A condition can turn a section on or off by a variable: on when the variable is set, the opposite with a negation, or when it equals a value. Variables are the options the player picks per chat — a choice from a list, a toggle, a number or free text. Each chat remembers its picks, and a new chat with the same character starts from them. Samplers like temperature are the preset's generation settings. On engines with model parameters the model's values win, and the preset fills only what the model leaves unset — unless the override switch in the editor is on. Utility prompts drive app features such as the summary. Stock presets are read-only: copy one to edit its text. Prompt peek shows the final request this preset builds for a chat.",
+        "uk": "«Prompt manager» перелічує розділи інструкцій; кожен можна вимкнути. Розділи однієї групи надсилаються одним блоком, опційно загорнутим у теги за назвою групи, тож модель бачить, де, скажімо, починається лор. Умова може вмикати чи вимикати розділ за змінною: увімкнено, коли змінну задано, навпаки із запереченням, або коли вона дорівнює значенню. Змінні — це опції, які гравець обирає на чат: вибір зі списку, перемикач, число чи вільний текст. Кожен чат пам’ятає свій вибір, і новий чат з тим самим персонажем починає з нього. Семплери, як-от температура, — налаштування генерації пресету. У двигунів із параметрами моделі перемагають значення моделі. Пресет заповнює лише те, чого модель не задала, — якщо не ввімкнено перемикач перевизначення в редакторі. Utility-промпти керують функціями застосунку, як-от підсумок. Штатні пресети лише для читання: скопіюйте один, щоб редагувати текст. «Prompt peek» показує підсумковий запит, який цей пресет складає для чату."
+      },
+      "aliases": {
+        "en": "preset sections groups condition variables samplers temperature override read only prompt peek",
+        "uk": "пресет розділи групи умова змінні семплери температура перевизначення лише читання підгляд"
+      },
+      "extends": "help.presets",
+      "related": [
+        "kb.prompt-board",
+        "kb.prompt-part",
+        "kb.links-board"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "895-895",
+          "quote": "A preset is the set of instructions and settings the model gets with every reply."
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "410-410",
+          "quote": "A preset is the prompt the model gets around the chat, plus sampler settings."
+        },
+        {
+          "path": "src/lib/guide-tips.ts",
+          "lines": "1059-1059",
+          "quote": "Shows the final request this preset builds for a chat, so you can see what the model really gets."
+        }
+      ]
+    }
+  ]
+}

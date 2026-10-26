@@ -3,13 +3,25 @@
 // A new feature that users decide with gets a tip here with `since` = the release that
 // ships it, so What's new points it out once.
 
-import type { Tip, Tour } from './guide'
+import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
+import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.69.0'
+export const APP_VERSION = '4.70.0'
 
-export const TIPS: Tip[] = [
+const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.forge',
+    since: '4.70.0',
+    help: 'canvas',
+    keywords: { en: 'agents forge canvas memory litopys facts', uk: 'агенти кузня полотно памʼять літопис факти' },
+    title: { en: 'The agent forge and a longer memory', uk: 'Кузня агентів і довша памʼять' },
+    body: {
+      en: 'Canvas has an Agents tab: build small agents from cards on a board, try them on a made-up turn, and let them show notes, bars and choices in the chat. Litopys keeps long stories: a bigger memory size (or Auto), the whole record when it fits, and quiet fact suggestions. Needs engine 1.5.0 for agents with several model calls and for ranking by meaning.',
+      uk: 'На Полотні є вкладка «Агенти»: збирайте малих агентів із карток на дошці, пробуйте на вигаданому ході й показуйте нотатки, смуги та варіанти в чаті. Літопис тримає довгі історії: більший розмір памʼяті (або Авто), весь запис, коли він вміщується, і тихі пропозиції щодо фактів. Агентам із кількома запитами до моделі та ранжуванню за змістом потрібен рушій 1.5.0.',
+    },
+  },
   {
     id: 'new.prompt-board',
     since: '4.44.0',
@@ -1049,6 +1061,9 @@ export const TIPS: Tip[] = [
     },
   },
 ]
+
+/** The tips as the app uses them: the hand-written ones plus the long articles of help-articles.json. */
+export const TIPS: Tip[] = mergeArticles(HAND_TIPS, articles.entries as unknown as ArticleEntry[])
 
 export const TOURS: Tour[] = [
   {

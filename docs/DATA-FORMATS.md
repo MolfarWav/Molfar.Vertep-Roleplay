@@ -687,7 +687,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   a plugin only the newest round's answers.
   Rounds: every question that can be asked now is asked in one round, so cards side by side cost one round, not many; a
   question that needs an earlier answer waits for the next round. The plugin's `manifest.json` carries
-  `limits: { passes: 8, concurrency: 3 }`, which the engine reads (the engine release after 1.4.2; an older engine keeps 3 passes and
+  `limits: { passes: 8, concurrency: 3 }`, which the engine reads (engine 1.5.0 and later; an older engine keeps 3 passes and
   runs an agent with more than two model calls in a row never to the end). The checker refuses an agent with more than
   `AGENT_MAX_ROUNDS` (7) model calls on one path (`E_ROUNDS`), and a run that is still asking after the seventh round fails
   with that reason in the log instead of vanishing. The engine runs the questions of one round up to three at a time, at least
