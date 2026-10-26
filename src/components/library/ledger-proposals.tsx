@@ -47,7 +47,7 @@ export function UndoAuto({ chat, proposal, onChat, onRefresh }: { chat: LitChat;
     }
   }
   return (
-    <Button size="sm" variant="outline" className="min-h-9 md:min-h-8" disabled={busy} onClick={() => void run()} data-testid="proposal-undo">
+    <Button size="sm" variant="outline" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void run()} data-testid="proposal-undo">
       <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />
       {t('lit.undo')}
     </Button>

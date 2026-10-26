@@ -93,23 +93,22 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
     return (
       <div className="flex flex-col gap-3 sm:col-span-2">
         <Field>
-          <FieldLabel htmlFor="lit-size">{t('lit.set.size')}</FieldLabel>
-          <select
-            id="lit-size"
+          <FieldLabel>{t('lit.set.size')}</FieldLabel>
+          <Segmented
+            label={t('lit.set.size')}
             value={mode}
-            onChange={(e) => {
-              const v = e.target.value as 'compact' | 'custom'
+            onChange={(v) => {
               setSizeMode(v)
               if (v === 'compact') {
                 setCfg({ ...cfg, budget: COMPACT_SIZE })
                 save({ budget: COMPACT_SIZE })
               }
             }}
-            className="w-56 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-          >
-            <option value="compact">{t('lit.set.sizeCompact', { n: COMPACT_SIZE })}</option>
-            <option value="custom">{t('lit.set.sizeCustom')}</option>
-          </select>
+            options={[
+              { value: 'compact', label: t('lit.set.sizeCompact', { n: COMPACT_SIZE }) },
+              { value: 'custom', label: t('lit.set.sizeCustom') },
+            ]}
+          />
           <p className="text-xs text-muted-foreground">{t('lit.set.sizeHint')}</p>
         </Field>
         {mode === 'custom' && keyField('budget', { id: 'lit-budget', label: t('lit.set.budget'), hint: t('lit.set.sizeCustomHint', { max: BUDGET_MAX }), min: 200, max: BUDGET_MAX })}
@@ -257,20 +256,19 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <Block title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')}>
         <Field>
-          <FieldLabel htmlFor="lit-proposals">{t('lit.set.proposals')}</FieldLabel>
-          <select
-            id="lit-proposals"
+          <FieldLabel>{t('lit.set.proposals')}</FieldLabel>
+          <Segmented
+            label={t('lit.set.proposals')}
             value={cfg.proposals ?? 'ask'}
-            onChange={(e) => {
-              const v = e.target.value as 'ask' | 'quiet'
+            onChange={(v) => {
               setCfg({ ...cfg, proposals: v })
               save({ proposals: v })
             }}
-            className="w-72 max-w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-          >
-            <option value="ask">{t('lit.set.proposalsAsk')}</option>
-            <option value="quiet">{t('lit.set.proposalsQuiet')}</option>
-          </select>
+            options={[
+              { value: 'ask', label: t('lit.set.proposalsAsk') },
+              { value: 'quiet', label: t('lit.set.proposalsQuiet') },
+            ]}
+          />
           <p className="text-xs text-muted-foreground">{t('lit.set.proposalsHint')}</p>
         </Field>
         {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? cfg.proposals === 'quiet', (v) => save({ autoConsolidate: v }))}
@@ -280,6 +278,25 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         <EmbedRow />
       </Block>
+    </div>
+  )
+}
+
+/** Two or three choices, all visible at once (a select hides them). Same look as the Library's Overview | Ledger switch. */
+function Segmented<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-1 rounded-md bg-muted p-0.5 text-sm">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`min-h-10 flex-1 rounded px-3 md:min-h-8 ${value === o.value ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }

@@ -42,10 +42,10 @@ export function ArcsOfferNotice() {
       <p className="text-sm font-medium">{t('lit.arcsOffer.title')}</p>
       <p className="text-xs text-muted-foreground">{t('lit.arcsOffer.body')}</p>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" className="min-h-9" disabled={busy} onClick={() => void answer({ arcMode: 'auto' }, t('lit.arc.autoToast'))}>
+        <Button size="sm" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void answer({ arcMode: 'auto' }, t('lit.arc.autoToast'))}>
           {t('lit.arcsOffer.on')}
         </Button>
-        <Button variant="ghost" size="sm" className="min-h-9" disabled={busy} onClick={() => void answer({ arcNotice: 'done' })}>
+        <Button variant="ghost" size="sm" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void answer({ arcNotice: 'done' })}>
           {t('lit.arcsOffer.keep')}
         </Button>
       </div>
