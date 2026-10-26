@@ -17,6 +17,8 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
   const [busy, setBusy] = useState(false)
   // the limit is typed freely and saved when the field is left, not on every digit
   const [draft, setDraft] = useState<string | null>(null)
+  // opened by the user, or by itself while the limit blocks the agent; it must not close under a hand that just fixed the limit
+  const [opened, setOpened] = useState(false)
   const own: AgentOwn = agent.own ?? { models: {}, maxCalls: 0 }
   const roles = Object.keys(agent.models ?? {})
   // an agent with no model call has nothing to choose or limit
@@ -35,12 +37,14 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
   const over = own.maxCalls > 0 && agent.maxCalls > own.maxCalls
 
   return (
-    <details className="text-xs" open={over || undefined} data-testid={`agent-own-${agent.id}`}>
-      <summary className="cursor-pointer select-none text-muted-foreground max-md:py-2">{t('ag.own.title')}</summary>
+    <details className="text-xs" open={opened || over} onToggle={(e) => setOpened(e.currentTarget.open)} data-testid={`agent-own-${agent.id}`}>
+      <summary className="cursor-pointer select-none text-muted-foreground max-md:py-3">{t('ag.own.title')}</summary>
       <div className="mt-1.5 flex flex-col gap-2.5">
+        <p className="text-muted-foreground">{t('ag.own.roleHelp')}</p>
         {roles.map((role) => (
           <div key={role} className="flex flex-col gap-1">
-            <p className="font-medium">{role}{agent.models?.[role]?.hint && <span className="ml-1.5 font-normal text-muted-foreground">{agent.models[role].hint}</span>}</p>
+            <p className="font-medium">{role}</p>
+            {agent.models?.[role]?.hint && <p className="text-muted-foreground">{agent.models[role].hint}</p>}
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 break-all font-mono text-[11px]">{own.models[role] || t('ag.own.default')}</span>
               <SoulModelPicker disabled={busy} label={t('ag.own.pick')} onPick={(ref) => void setModel(role, ref)} />
@@ -74,7 +78,7 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
                 </>
               )}
             </div>
-            {over && <p className="text-amber-600 dark:text-amber-400" data-testid="agent-own-over">{t('ag.own.over', { n: agent.maxCalls, cap: own.maxCalls })}</p>}
+            {over && <p className="text-amber-700 dark:text-amber-400" data-testid="agent-own-over">{t('ag.own.over', { n: agent.maxCalls, cap: own.maxCalls })}</p>}
           </div>
         )}
       </div>
