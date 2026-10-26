@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Built-in presets reach you on update: when you update the app, a built-in preset copy that is still read-only (FRANKENX, Molfar, Vertep Lite) takes the text the app ships, so a change to the shipped preset, like the HTML panels pick in Vertep Lite, no longer stays behind in a workspace that already had the preset. A copy you made editable keeps its text. A hint typed by hand into a read-only copy is replaced too.
+
 - Help, 48 articles: most features in Help now have a longer text behind "More" (what it is for, where to find it, what is on by default, what it does not do, "See also" links), in English and Ukrainian: Profile, Soul, Habits, Voices, Persona, Groups, the Dashboard, Litopys, the World DM, the Prompt board, Lorebooks, Presets and more. They extend the existing short tips, so nothing shows twice. Search now ranks the best match first (a word in the title, then in the search words, the short text and the article), finds the start of a word, and also reads the article text; with a search the list is one ranked run instead of groups. The articles are plain data (`src/lib/help-articles.json`, format in docs/HELP-ARTICLES.md); `scripts/validate-help.mjs` checks every claim's quote against the code.
 
 - Help, 18 more articles: Regex, Shortcuts that run by themselves, the Inbox, Themes and Custom CSS, Tags and folders, every Tools tab (Translation, TTS, Image Generation, Data Bank, Backgrounds, MCP, Plugins, Tool Calling), the Settings sections, Polish, Translate, "Generate image" and switching a chat's model. Each says what the screen offers and what is on by default. The old Backgrounds tip now says Tools, where the tab is.
