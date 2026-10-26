@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { ApiError, j } from './engine'
-import type { MsgKey, Vars } from './i18n'
+import { t as tr, type MsgKey, type Vars } from './i18n'
 
 export type AgentPhase = 'before' | 'parallel' | 'after' | 'manual'
 
@@ -31,7 +31,8 @@ export interface AgentInfo {
   blocker: string
 }
 
-export interface ChatAgentItem { agent: string; on: boolean; phase?: AgentPhase; show: string | null }
+/** `wait: false` = the reply does not wait for an agent set to run before it: it runs beside the reply and its hint goes into the next one. Absent = the reply waits. */
+export interface ChatAgentItem { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean; show: string | null }
 
 /** GET|POST /chats/:id/agents: what the chat runs now. */
 export interface ChatAgents {
@@ -48,7 +49,7 @@ export type ChatAgentsOp =
   | { op: 'preset'; preset: string | null }
   | { op: 'reset' }
   | { op: 'add'; agent: string; phase?: AgentPhase }
-  | { op: 'remove' | 'toggle' | 'phase' | 'move' | 'show'; agent: string; on?: boolean; phase?: AgentPhase | null; to?: number; place?: string | null }
+  | { op: 'remove' | 'toggle' | 'phase' | 'move' | 'show' | 'wait'; agent: string; on?: boolean; phase?: AgentPhase | null; to?: number; place?: string | null; wait?: boolean }
 
 /** What an agent left for the chat: a note under the reply, choices, a hint for the next reply, or a silent state change. */
 export interface AgentOutput {
@@ -135,9 +136,14 @@ export async function editChatAgents(chatId: string, op: ChatAgentsOp): Promise<
 }
 
 /** The installed agents; null when the app has no agents plugin. */
+/** When each installed agent runs by its own trigger, as the last list said: a send reads it without asking the plugin again. */
+const triggers = new Map<string, AgentPhase | undefined>()
+
 export async function listInstalledAgents(): Promise<AgentInfo[] | null> {
   try {
     const agents = (await j<{ agents: AgentInfo[] }>('/agents/list')).agents
+    triggers.clear()
+    for (const a of agents) triggers.set(a.id, a.trigger.when)
     useAgentsLive.setState({ names: Object.fromEntries(agents.map((a) => [a.id, a.name])) })
     return agents
   } catch (e) {
@@ -321,8 +327,19 @@ interface RunReply {
 }
 
 /**
+ * Toasts the runs that failed since `seen` (an agent set to run before or beside the reply fails inside the engine, where
+ * the app is not looking, so the log is read). The toast has a button that runs that agent again by hand.
+ */
+function reportFailures(chatId: string, runs: AgentRun[], seen: Set<string>): void {
+  for (const run of runs) {
+    if (run.status !== 'failed' || seen.has(runId(run))) continue
+    toast.error(`${nameOf(run.agent)}: ${run.reason ?? 'failed'}`, { action: { label: tr('ag.runAgain'), onClick: () => void runAgents(chatId, run.agent) } })
+  }
+}
+
+/**
  * Runs the chat's agents (or one, `agent`, by hand). Returns the plugin's answer, or null when there is no plugin
- * or a run for this chat is already going. Failures are shown as a toast; a skipped agent stays quiet.
+ * or a run for this chat is already going. Failures are shown as a toast with a Run again button; a skipped agent stays quiet.
  */
 export async function runAgents(chatId: string, agent?: string): Promise<RunReply | null> {
   if (inFlight.has(chatId)) return null
@@ -331,13 +348,11 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
   try {
     const before = new Set((useAgentsLive.getState().runs[chatId] ?? []).map(runId))
     const r = await j<RunReply>('/agents/run', { method: 'POST', body: JSON.stringify({ chatId, ...(agent ? { agent } : {}) }) })
-    for (const x of r.ran ?? []) if (x.status === 'failed') toast.error(`${x.agent}: ${x.reason ?? 'failed'}`)
-    if (r.ran?.length) {
-      // the notes under the reply, and the toasts the agents asked for
-      const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
-      for (const run of runs.filter((x) => !before.has(runId(x))))
-        for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text) toast.message(o.title || nameOf(run.agent), { description: o.text })
-    }
+    // the log tells what ran before and beside the reply as well; the notes under the reply and the toasts agents asked for come from it
+    const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
+    reportFailures(chatId, runs, before)
+    for (const run of runs.filter((x) => !before.has(runId(x))))
+      for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text) toast.message(o.title || nameOf(run.agent), { description: o.text })
     return r
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null
@@ -350,6 +365,31 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
       return { running }
     })
   }
+}
+
+/** Does this agent run beside the reply: set to, or set to run before it with the reply not waiting? */
+function runsBeside(it: ChatAgentItem, trigger: AgentPhase | undefined): boolean {
+  const when = it.phase ?? trigger
+  return when === 'parallel' || (when === 'before' && it.wait === false)
+}
+
+/**
+ * A send has started: the agents set to run beside the reply start now, on what the user wrote (the engine has not saved it
+ * yet). Quiet when the chat has none, so a plain send costs nothing; what they leave appears when they are done.
+ */
+export async function triggerParallelAgents(chatId: string, userText: string): Promise<void> {
+  try {
+    let list = useAgentsLive.getState().chats[chatId]
+    if (!list) list = await loadChatAgents(chatId)
+    const on = list.items.filter((it) => it.on)
+    if (!on.length) return
+    if (on.some((it) => !triggers.has(it.agent))) await listInstalledAgents()
+    if (!on.some((it) => runsBeside(it, triggers.get(it.agent)))) return
+    const seen = new Set((useAgentsLive.getState().runs[chatId] ?? []).map(runId))
+    await j('/agents/run', { method: 'POST', body: JSON.stringify({ chatId, phase: 'parallel', userText }) })
+    const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
+    reportFailures(chatId, runs, seen)
+  } catch { /* the plugin is absent or the engine is busy: nothing runs beside this reply */ }
 }
 
 /**

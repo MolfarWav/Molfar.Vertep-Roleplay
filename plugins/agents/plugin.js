@@ -1046,7 +1046,7 @@ function cleanItems(list) {
   for (const it of list) {
     if (!isObj(it) || typeof it.agent !== "string" || !AG_ID.test(it.agent) || seen.has(it.agent)) continue;
     seen.add(it.agent);
-    out.push({ agent: it.agent, on: it.on !== false, ...(AG_PHASES.includes(it.phase) ? { phase: it.phase } : {}) });
+    out.push({ agent: it.agent, on: it.on !== false, ...(AG_PHASES.includes(it.phase) ? { phase: it.phase } : {}), ...(it.wait === false ? { wait: false } : {}) });
     if (out.length >= 50) break;
   }
   return out;
@@ -1184,9 +1184,10 @@ const lastTextOf = (outputs) => {
 
 // ---------- /agents/run ----------
 
-function everyNOk(trigger, msgs) {
+// `extra` is 1 before and beside a reply: the reply being made is one more than the replies there are now.
+function everyNOk(trigger, msgs, extra) {
   const n = isObj(trigger) && Number.isInteger(trigger.everyN) && trigger.everyN > 1 ? trigger.everyN : 1;
-  return n === 1 || msgs.filter(isReplyMsg).length % n === 0;
+  return n === 1 || (msgs.filter(isReplyMsg).length + (extra || 0)) % n === 0;
 }
 function keywordsOk(trigger, msgs) {
   const kw = isObj(trigger) && Array.isArray(trigger.keywords) ? trigger.keywords.filter((k) => typeof k === "string" && k.trim()) : [];
@@ -1195,61 +1196,89 @@ function keywordsOk(trigger, msgs) {
   return kw.some((k) => text.includes(k.trim().toLowerCase()));
 }
 
-function runRoute(req, host) {
-  const fsx = host.fs;
-  const b = isObj(req.body) ? req.body : {};
-  const chatId = str(b.chatId);
-  if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const chat = readChatFiles(fsx, chatId);
-  if (!chat) return ok({ error: "no such chat" }, 404);
-  const manual = str(b.agent);
-  const last = chat.msgs.length ? chat.msgs[chat.msgs.length - 1] : null;
-  if (!last) return ok({ ok: true, skipped: "empty chat" });
-  const key = msgKey(last);
-  const items = chatAgents(fsx, chat.meta).filter((it) => it.on && (manual ? it.agent === manual : (it.phase || "") !== "manual"));
-  const runsFile = readJsonAt(fsx, runsPath(chatId), { v: 1, runs: [] });
-  const runs = Array.isArray(runsFile.runs) ? runsFile.runs : [];
+/** A short stable tag of a text, so a turn that has no message id yet can still be told from another. */
+function shortHash(text) {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+/**
+ * The turn an agent run belongs to. After a reply it is that reply (`id#swipe`). Before and beside a reply the user's
+ * message is not saved yet, so the turn is the last saved message plus a tag of what the user wrote: the same send
+ * run again replaces its own run instead of counting twice.
+ */
+function turnOf(phase, last, userText) {
+  if (phase === "after") return { id: String(last.id), key: msgKey(last) };
+  const id = (last ? String(last.id) : "start") + ">" + shortHash(userText);
+  return { id, key: id };
+}
+
+/** The chat as agents of a phase before the reply see it: the saved messages, and the user's new message at the end. */
+function stagedView(chat, userText) {
+  return { meta: chat.meta, msgs: [...chat.msgs, { id: "staged", role: "user", name: "", text: userText, swipe: 0 }] };
+}
+
+/**
+ * Which agents of the chat run in `phase`, and why the others do not. `manual` names one agent to run whatever its
+ * trigger says. `view` is what the agents will read, `turn` the turn they belong to.
+ */
+function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, skipped) {
   const picks = [];
-  const skipped = [];
+  const extra = phase === "after" ? 0 : 1;
   for (const it of items) {
     const agent = loadAgent(fsx, it.agent);
     if (!agent) { skipped.push({ agent: it.agent, why: "not installed" }); continue; }
-    const when = it.phase || (isObj(agent.file.agent && agent.file.agent.trigger) ? agent.file.agent.trigger.when : "");
+    const set = it.phase || (isObj(agent.file.agent && agent.file.agent.trigger) ? agent.file.agent.trigger.when : "");
+    // an agent set to run before the reply that the reply does not wait for runs beside it, and its hint goes into the next reply
+    const when = set === "before" && it.wait === false ? "parallel" : set;
     if (manual) { /* a manual run goes ahead whatever the trigger says */ }
-    else if (when !== "after") { skipped.push({ agent: it.agent, why: when === "manual" ? "manual" : "this runner starts only agents set to run after a reply" }); continue; }
-    else if (!isReplyMsg(last)) { skipped.push({ agent: it.agent, why: "no new reply" }); continue; }
-    else if (!everyNOk(agent.file.agent.trigger, chat.msgs) || !keywordsOk(agent.file.agent.trigger, chat.msgs)) { skipped.push({ agent: it.agent, why: "its trigger did not fire" }); continue; }
+    else if (when !== phase) { skipped.push({ agent: it.agent, why: when === "manual" ? "manual" : "runs " + (when === "after" ? "after" : when === "before" ? "before" : "beside") + " the reply, not " + (phase === "parallel" ? "beside" : phase) + " it" }); continue; }
+    else if (phase === "after" && !isReplyMsg(last)) { skipped.push({ agent: it.agent, why: "no new reply" }); continue; }
+    else if (!everyNOk(agent.file.agent.trigger, chat.msgs, extra) || !keywordsOk(agent.file.agent.trigger, view.msgs)) { skipped.push({ agent: it.agent, why: "its trigger did not fire" }); continue; }
     const why = blocker(agent, grantedOf(fsx, it.agent));
     if (why) { skipped.push({ agent: it.agent, why }); continue; }
-    if (!manual && runs.some((r) => r.agent === it.agent && r.key === key && r.status !== "failed")) { skipped.push({ agent: it.agent, why: "already ran for this reply" }); continue; }
+    if (!manual && runs.some((r) => r.agent === it.agent && r.key === turn.key && r.status !== "failed")) { skipped.push({ agent: it.agent, why: phase === "after" ? "already ran for this reply" : "already ran for this message" }); continue; }
     picks.push({ item: it, agent });
   }
-  if (!picks.length) return ok({ ok: true, ran: [], skipped });
+  return picks;
+}
 
-  // every pass asks again from the start; the cards that cost nothing are cheap, and a pass can lose nothing
+/** A model's answer as it travels from one pass to the next (the engine hands the plugin only the newest pass's answers). */
+const packAnswer = (r) => (isObj(r) ? { text: typeof r.text === "string" ? r.text : "", model: typeof r.model === "string" ? r.model : "", ...(r.error ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : {}) } : null);
+
+/**
+ * One round of a run. Every agent is run again from the start with all the answers so far (the cards that cost
+ * nothing are cheap, and a pass can lose nothing); the questions that can be asked now are asked together.
+ * Returns { pending } with what the next pass needs (the answers so far), or { results } when every agent has what it needs.
+ */
+function stepRun(host, fsx, view, picks, last, stash) {
+  const answersAll = isObj(stash && stash.answers) ? { ...stash.answers } : {};
+  const fresh = host.llm && host.llm.results ? host.llm.results : {};
+  for (const k of Object.keys(fresh)) { const a = packAnswer(fresh[k]); if (a) answersAll[k] = a; }
+  const lastMsg = view.msgs.length ? view.msgs[view.msgs.length - 1] : null;
   const results = picks.map((pick, ai) => {
     const schema = (pick.agent.file.agent && pick.agent.file.agent.state) || {};
-    const st = loadOwn(fsx, chatId, pick.item.agent, schema);
+    const st = loadOwn(fsx, view.chatId, pick.item.agent, schema);
     // a regenerated reply replaces the run of the same message instead of counting twice
-    const before = st.raw && isObj(st.raw.before) && String(st.raw.before.id) === String(last.id) ? st.raw.before.own : null;
+    const before = st.raw && isObj(st.raw.before) && String(st.raw.before.id) === String(view.turnId) ? st.raw.before.own : null;
     const base = before ? { ...initialOwn(schema), ...before } : st.own;
     const inputs = {};
     for (const g of (pick.agent.file.nodes.find((n) => n.type === "agent.input") || { params: {} }).params.give || []) {
-      inputs[g.id] = sourceValue(fsx, chat, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
+      inputs[g.id] = sourceValue(fsx, view, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
     }
-    const ctx = { inputs, own: base, dash: {}, chat: { messageCount: chat.msgs.length, lastSpeaker: str(last.name) } };
+    const ctx = { inputs, own: base, dash: {}, chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) } };
     const answers = {};
     pick.agent.file.nodes.forEach((n, ni) => {
-      const r = host.llm.results[`ag_${ai}_${ni}`];
+      const r = answersAll[`ag_${ai}_${ni}`];
       if (!r) return;
-      const text = typeof r.text === "string" ? r.text : "";
-      answers[n.id] = r.error || !text.trim() ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : { text, model: r.model };
+      answers[n.id] = r.error || !r.text.trim() ? { error: r.error || "the model sent no answer" } : { text: r.text, model: r.model };
     });
     return { ai, pick, schema, base, st, res: runAgent(pick.agent.file, ctx, answers), answers };
   });
 
   // one pass for each model call in a row: past the limit an agent fails with a reason instead of vanishing when the engine drops the pass
-  const pass = Number(req.stash && req.stash.pass) || 0;
+  const pass = Number(stash && stash.pass) || 0;
   if (pass >= AGENT_MAX_ROUNDS) {
     for (const r of results) {
       if (r.res.status === "need") r.res = { status: "failed", reason: "It needs more than " + AGENT_MAX_ROUNDS + " model calls one behind another", node: r.res.requests[0] ? r.res.requests[0].node : "", trace: r.res.trace };
@@ -1261,7 +1290,7 @@ function runRoute(req, host) {
     if (r.res.status !== "need") continue;
     for (const q of r.res.requests) {
       const ni = r.pick.agent.file.nodes.findIndex((n) => n.id === q.node);
-      const model = modelFor(fsx, chat.meta, q.role);
+      const model = modelFor(fsx, view.meta, q.role);
       host.llm.request(`ag_${r.ai}_${ni}`, {
         ...(model ? { model } : {}),
         systemPrompt: AGENT_SYSTEM,
@@ -1271,17 +1300,19 @@ function runRoute(req, host) {
       asked++;
     }
   }
-  if (asked) return { __llmPending: true, stash: { started: Number(req.stash && req.stash.started) || Date.now(), pass: pass + 1 } };
+  if (asked) return { pending: { started: Number(stash && stash.started) || Date.now(), pass: pass + 1, answers: answersAll } };
+  return { results };
+}
 
-  // every agent has an answer: commit
+/** Every agent has its answer: keep the state, the log and the hints. Returns what each agent did. */
+function commitRun(fsx, chatId, results, turn, runs, started, phase) {
   const now = Date.now();
-  const started = Number(req.stash && req.stash.started) || now;
   const ranOut = [];
   const inserts = readJsonAt(fsx, insertsPath(chatId), { v: 1, items: [] });
   let items2 = Array.isArray(inserts.items) ? inserts.items : [];
   for (const r of results) {
     const id = r.pick.item.agent;
-    const entry = { agent: id, key, at: now, ms: now - started, status: "ok", trace: r.res.trace };
+    const entry = { agent: id, key: turn.key, at: now, ms: now - started, status: "ok", ...(phase !== "after" ? { phase } : {}), trace: r.res.trace };
     if (r.res.status === "failed") {
       runs.push({ ...entry, status: "failed", reason: r.res.reason, node: r.res.node });
       ranOut.push({ agent: id, status: "failed", reason: r.res.reason });
@@ -1289,14 +1320,89 @@ function runRoute(req, host) {
     }
     const applied = applyWrites(r.schema, r.base, r.res.writes);
     const outputs = r.res.outputs.map((o) => (o.show || r.pick.item.show ? { ...o, show: r.pick.item.show && (SHOW_BY_KIND[o.kind] || []).includes(r.pick.item.show) ? r.pick.item.show : o.show } : o));
-    writeJsonAt(fsx, statePath(chatId, id), { v: 1, own: applied.own, last: lastTextOf(outputs), before: { id: String(last.id), own: r.base } });
+    writeJsonAt(fsx, statePath(chatId, id), { v: 1, own: applied.own, last: lastTextOf(outputs), before: { id: turn.id, own: r.base } });
     items2 = items2.filter((x) => x.agent !== id).concat(outputs.filter((o) => o.kind === "prompt-insert" && o.text).map((o) => ({ agent: id, label: o.label, text: o.text, position: o.position, at: now })));
     runs.push({ ...entry, calls: r.res.calls, writes: r.res.writes, refused: applied.refused, outputs });
     ranOut.push({ agent: id, status: "ok", calls: r.res.calls, writes: r.res.writes.length, outputs: outputs.length });
   }
   writeJsonAt(fsx, runsPath(chatId), { v: 1, runs: runs.slice(-AG_RUNS_MAX) });
   writeJsonAt(fsx, insertsPath(chatId), { v: 1, items: items2 });
-  return ok({ ok: true, ran: ranOut, skipped });
+  return ranOut;
+}
+
+/**
+ * POST /agents/run { chatId, agent?, phase?, userText? }. `phase` is "after" (default: the agents set to run after a
+ * reply), or "parallel" (the agents set to run beside the reply: the app calls it when a send starts and passes what the
+ * user wrote, which is not saved yet). `agent` runs that one agent by hand.
+ */
+function runRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChatFiles(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const manual = str(b.agent);
+  const phase = b.phase === "parallel" ? "parallel" : "after";
+  const userText = phase === "parallel" ? clip(str(b.userText).trim(), 8000) : "";
+  if (phase === "parallel" && !userText) return ok({ error: "userText required" }, 400);
+  const last = chat.msgs.length ? chat.msgs[chat.msgs.length - 1] : null;
+  if (!last && phase === "after") return ok({ ok: true, skipped: "empty chat" });
+  const turn = turnOf(phase, last, userText);
+  const view = phase === "after" ? { meta: chat.meta, msgs: chat.msgs } : stagedView(chat, userText);
+  view.chatId = chatId;
+  view.turnId = turn.id;
+  const items = chatAgents(fsx, chat.meta).filter((it) => it.on && (manual ? it.agent === manual : (it.phase || "") !== "manual"));
+  const runsFile = readJsonAt(fsx, runsPath(chatId), { v: 1, runs: [] });
+  const runs = Array.isArray(runsFile.runs) ? runsFile.runs : [];
+  const skipped = [];
+  const picks = pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, skipped);
+  if (!picks.length) return ok({ ok: true, ran: [], skipped });
+
+  const step = stepRun(host, fsx, view, picks, last, req.stash);
+  if (step.pending) return { __llmPending: true, stash: step.pending };
+  const started = Number(req.stash && req.stash.started) || Date.now();
+  return ok({ ok: true, ran: commitRun(fsx, chatId, step.results, turn, runs, started, phase), skipped });
+}
+
+/** The text of the last user message of a model request, as the model gets it. */
+function lastUserText(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!isObj(m) || m.role !== "user") continue;
+    const c = m.content;
+    const t = typeof c === "string" ? c : Array.isArray(c) ? c.map((p) => (isObj(p) && typeof p.text === "string" ? p.text : "")).join("\n") : "";
+    return t.trim();
+  }
+  return "";
+}
+
+/**
+ * The agents set to run before a reply, run inside the reply's request hook, so their hint reaches this very reply.
+ * Returns { pending } while they still wait for the model (the hook hands it back as its next ctx), or null once they
+ * are done, or when there is nothing to run. A failure never stops the reply: it goes without the hint.
+ */
+function runBefore(ctx, host, fsx, chatId, req) {
+  const chat = readChatFiles(fsx, chatId);
+  if (!chat) return null;
+  const userText = clip(lastUserText(req.messages), 8000);
+  if (!userText) return null;
+  const items = chatAgents(fsx, chat.meta).filter((it) => it.on && (it.phase || "") !== "manual");
+  if (!items.length) return null;
+  const last = chat.msgs.length ? chat.msgs[chat.msgs.length - 1] : null;
+  const turn = turnOf("before", last, userText);
+  const view = stagedView(chat, userText);
+  view.chatId = chatId;
+  view.turnId = turn.id;
+  const runsFile = readJsonAt(fsx, runsPath(chatId), { v: 1, runs: [] });
+  const runs = Array.isArray(runsFile.runs) ? runsFile.runs : [];
+  const picks = pickAgents(fsx, chat, view, items, "before", "", turn, runs, last, []);
+  if (!picks.length) return null;
+  const stash = isObj(ctx.stash) ? ctx.stash : null;
+  const step = stepRun(host, fsx, view, picks, last, stash);
+  if (step.pending) return { pending: step.pending };
+  commitRun(fsx, chatId, step.results, turn, runs, Number(stash && stash.started) || Date.now(), "before");
+  return null;
 }
 
 // ---------- install, list, grant, remove ----------
@@ -1561,6 +1667,12 @@ export function llmRequest(ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx || !AG_CHAT.test(chatId) || !Array.isArray(req.messages)) return null;
   try {
+    // the agents set to run before the reply ask the model first; their hint then goes into this very reply
+    if (ctx.turn && ctx.turn.op === "send") {
+      let before = null;
+      try { before = runBefore(ctx, host, fsx, chatId, req); } catch (e) { try { host.log("agents before: " + (e && e.message ? e.message : String(e))); } catch {} }
+      if (before && before.pending) return { ...ctx, stash: before.pending };
+    }
     const f = readJsonAt(fsx, insertsPath(chatId), null);
     if (!isObj(f) || !Array.isArray(f.items) || !f.items.length) return null;
     const meta = readJsonAt(fsx, "chats/" + chatId + ".meta.json", null);

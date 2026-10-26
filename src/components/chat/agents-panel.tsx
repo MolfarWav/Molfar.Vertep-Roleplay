@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, GearSix, Plus, Robot, Star, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowCounterClockwise, Check, GearSix, HourglassMedium, Plus, Robot, Star, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import {
   deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, grantAgent, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
-  loadChatAgents, loadDefaultAgentSet, removeAgent, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
+  loadChatAgents, loadDefaultAgentSet, removeAgent, runAgents, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
   type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
 import { cn } from '@/lib/utils'
@@ -105,6 +105,7 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
   const when = useRelativeTime()
   const edit = useEdit(chatId)
   const { list, installed, sets, lastRun } = data
+  const running = useAgentsLive((s) => !!s.running[chatId])
   if (installed === null) return <p className="px-3 py-3 text-xs text-muted-foreground">{t('ag.noPlugin')}</p>
   const items = list?.items ?? []
   const inChat = new Set(items.map((it) => it.agent))
@@ -114,8 +115,6 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
     const w = waitingFor(info, t, installed !== undefined)
     if (w) return { text: w, warn: true }
     if (installed === undefined) return { text: '…', warn: false }
-    const ph = phaseOf(it, info)
-    if (ph && ph !== 'after') return { text: t('ag.phase.later'), warn: true }
     const r = lastRun.get(it.agent)
     if (!r) return { text: t('ag.notYet'), warn: false }
     return r.status === 'failed' ? { text: t('ag.failed', { why: r.reason ?? '?' }), warn: true } : { text: t('ag.ranAt', { when: when(r.at) }), warn: false }
@@ -131,16 +130,41 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
           const ph = phaseOf(it, info)
           return (
             <CommandItem key={it.agent} value={`agent ${info?.name ?? ''} ${it.agent}`} onSelect={() => void edit({ op: 'toggle', agent: it.agent, on: !it.on })}
-              className={cn(itemCls, it.on && activeItemCls)} data-testid={`agent-row-${it.agent}`}>
+              className={cn(itemCls, 'max-md:flex-wrap', it.on && activeItemCls)} data-testid={`agent-row-${it.agent}`}>
               <span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full', it.on ? 'bg-emerald-500/15 text-emerald-500' : 'text-transparent')}>
                 <Check className="size-3" aria-hidden="true" />
               </span>
-              <span className="min-w-0 flex-1">
+              <span className="min-w-[7rem] flex-1">
                 <span className={cn('block truncate text-xs', it.on && 'font-semibold', !it.on && 'text-muted-foreground')}>{info?.name ?? it.agent}</span>
                 <span className={cn('block truncate text-[10px]', st.warn ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
-                  {ph && !st.warn ? `${t(`ag.phase.${ph}` as 'ag.phase.after')} · ` : ''}{st.text}
+                  {ph && !st.warn ? `${t(`ag.phase.${ph === 'before' && it.wait === false ? 'parallel' : ph}` as 'ag.phase.after')} · ` : ''}{st.text}
                 </span>
               </span>
+              <span className="ml-auto flex shrink-0 items-center">
+              {ph === 'before' && (
+                <button
+                  type="button"
+                  aria-pressed={it.wait !== false}
+                  aria-label={it.wait === false ? t('ag.sync.off') : t('ag.sync.on')}
+                  title={it.wait === false ? t('ag.sync.off') : t('ag.sync.on')}
+                  data-testid={`agent-wait-${it.agent}`}
+                  onClick={(e) => { e.stopPropagation(); void edit({ op: 'wait', agent: it.agent, wait: it.wait === false }) }}
+                  className={cn('flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-background max-md:size-10', it.wait === false ? 'text-muted-foreground' : 'text-violet-500')}
+                >
+                  <HourglassMedium className="size-3.5" aria-hidden="true" />
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={t('ag.runAgain.title')}
+                title={t('ag.runAgain.title')}
+                disabled={running || !it.on || !!waitingFor(info, t, installed !== undefined)}
+                data-testid={`agent-run-${it.agent}`}
+                onClick={(e) => { e.stopPropagation(); void runAgents(chatId, it.agent) }}
+                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40 max-md:size-10"
+              >
+                <ArrowClockwise className={cn('size-3.5', running && 'animate-spin')} aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 aria-label={t('ag.removeFromChat')}
@@ -150,6 +174,7 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
               >
                 <X className="size-3.5" aria-hidden="true" />
               </button>
+              </span>
             </CommandItem>
           )
         })}
