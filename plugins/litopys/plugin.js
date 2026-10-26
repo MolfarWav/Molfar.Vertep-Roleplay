@@ -155,6 +155,11 @@ export const DEFAULT_CONFIG = {
   arcMode: "auto",
   // "pending": the Library offers an install that kept "ask" to switch to "auto", once; "done": nothing to offer
   arcNotice: "done",
+  // wave 1: "ask" waits for a click on every proposal; "quiet" applies a pin or a rewrite by itself and logs it with an Undo
+  // (a retire or a merge always waits)
+  proposals: "ask",
+  // Consolidate facts runs by itself after this many new facts; null = on only while proposals are "quiet"
+  autoConsolidate: null,
   arcKeep: 4,
   arcThreshold: 0,
   arcSizeMin: 5,
@@ -168,6 +173,7 @@ export const DEFAULT_CONFIG = {
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
 export const ARC_MODES = ["ask", "auto", "off"];
+export const PROPOSAL_MODES = ["ask", "quiet"];
 
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
 export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
@@ -367,6 +373,8 @@ export function loadConfig(fsx) {
   cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
   cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
+  cfg.proposals = PROPOSAL_MODES.includes(cfg.proposals) ? cfg.proposals : DEFAULT_CONFIG.proposals;
+  cfg.autoConsolidate = typeof cfg.autoConsolidate === "boolean" ? cfg.autoConsolidate : null;
   cfg.arcKeep = clamp(intOf(cfg.arcKeep, 4), 1, 50);
   cfg.arcThreshold = arcThresholdValue(cfg.arcThreshold);
   cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
@@ -412,6 +420,8 @@ export function patchConfig(fsx, body) {
     next.arcNotice = "done";
   }
   if (b.arcNotice !== undefined) next.arcNotice = "done";
+  if (b.proposals !== undefined) next.proposals = PROPOSAL_MODES.includes(str(b.proposals)) ? str(b.proposals) : DEFAULT_CONFIG.proposals;
+  if (b.autoConsolidate !== undefined) next.autoConsolidate = typeof b.autoConsolidate === "boolean" ? b.autoConsolidate : null;
   if (b.arcKeep !== undefined) next.arcKeep = clamp(intOf(b.arcKeep, 4), 1, 50);
   if (b.arcThreshold !== undefined) next.arcThreshold = arcThresholdValue(b.arcThreshold);
   if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);
@@ -1421,6 +1431,60 @@ export function parseWorkerReply(text) {
     const got = workerShape(parseObj(cutStr));
     if (got) return got;
   }
+  return null;
+}
+
+// ---------- quiet proposals (memory wave 1) ----------
+/**
+ * With config `proposals: "quiet"`, a pin or a rewrite the worker (or Consolidate) proposes is applied at once: the
+ * proposal is kept as accepted with `auto: true` and what is needed to take it back, and the Activity gets a row
+ * with an Undo. Never a retire or a merge. Left pending, for the user: a rewrite of a fact the user wrote or edited or
+ * pinned, and a pin that would pass the pin limit. Returns how many were applied.
+ */
+export function applyQuiet(st, cfg, now) {
+  if (!cfg || cfg.proposals !== "quiet") return 0;
+  let n = 0;
+  for (const p of st.proposals) {
+    if (!isObj(p) || p.status !== "pending" || (p.op !== "pin" && p.op !== "rewrite")) continue;
+    const target = st.facts.find((f) => f.id === arr(p.targets)[0] && f.status === "active");
+    if (!target) continue;
+    if (p.op === "rewrite") {
+      const text = cut(str(p.text), 300);
+      if (!text || text === str(target.text) || target.edited === true || target.pinned === true) continue;
+      p.undo = { text: str(target.text) };
+      target.text = text;
+      target.updatedAt = now;
+      settle(p, "accepted", now);
+    } else {
+      if (target.pinned === true || pinFact(st, target, "", Number(cfg.pinLimit) || 5, now)) continue;
+      p.undo = { pinned: true };
+    }
+    p.auto = true;
+    const text = p.op === "pin" ? str(target.text) : str(p.text);
+    addActivity(st, "worker", "proposal.auto", "Applied a proposal by itself: " + str(p.op) + " " + quote(text), [p.id, target.id], now, { op: str(p.op), text });
+    n++;
+  }
+  return n;
+}
+
+/** POST /litopys/proposals op "undo": takes back a proposal applied by itself, unless the fact changed since. */
+function undoProposal(st, p, now) {
+  if (p.auto !== true || p.status !== "accepted" || !isObj(p.undo)) return { status: 409, json: { error: "nothing to undo" } };
+  const target = st.facts.find((f) => f.id === arr(p.targets)[0] && f.status === "active");
+  if (!target) return { status: 409, json: { error: "target gone" } };
+  if (p.op === "rewrite") {
+    if (str(target.text) !== str(p.text)) return { status: 409, json: { error: "changed since" } };
+    target.text = str(p.undo.text);
+  } else {
+    if (target.pinned !== true) return { status: 409, json: { error: "changed since" } };
+    target.pinned = false;
+  }
+  target.updatedAt = now;
+  p.status = "rejected";
+  p.undone = true;
+  p.settledAt = now;
+  const text = p.op === "pin" ? str(target.text) : str(p.text);
+  addActivity(st, "user", "proposal.undo", "Took back a proposal: " + str(p.op) + " " + quote(text), [p.id, target.id], now, { op: str(p.op), text });
   return null;
 }
 
@@ -2523,6 +2587,8 @@ export function onTick(_ctx, host) {
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
+              // a rebuild's generation is written beside the record in use: its proposals are never applied by themselves
+              if (g === cur) applyQuiet(cur, cfg, now);
               const span = "messages " + (w.scene.fromIdx + 1) + "-" + (w.scene.toIdx + 1);
               const verb = w.replaces ? "Rewrote" : "Wrote";
               addActivity(cur, by, "chapter.write", verb + ' the chapter "' + (chapter.label || chapter.id) + '" (' + span + "): " + added.length + " facts, " + proposed + " proposals", [chapter.id, ...added], now, { label: chapter.label || "", from: w.scene.fromIdx + 1, to: w.scene.toIdx + 1, facts: added.length, proposals: proposed, rewrite: !!w.replaces });
@@ -3087,8 +3153,13 @@ const consolidateKey = (chatId, job) => "lit_cons_" + chatId + "_" + job.at + "_
 
 /** One tick's Consolidate step: apply an answer, else send the next batch. true = the tick is done. */
 function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
+  if (!isObj(st.consolidate) || st.consolidate.state !== "working") {
+    if (!autoConsolidateDue(st, cfg)) return false;
+    // written down first: the request below is answered on a later tick, which reads the job from the file
+    startConsolidate(st, now, true);
+    if (!saveChatFile(fsx, st)) return true;
+  }
   const job = st.consolidate;
-  if (!isObj(job) || job.state !== "working") return false;
   const batches = arr(job.batches);
   const next = Number(job.next) || 0;
   if (next >= batches.length) {
@@ -3111,6 +3182,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
         addActivity(cur, "worker", "consolidate.fail", "Consolidating facts failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
       } else {
         const added = addConsolidateProposals(cur, ops, now);
+        applyQuiet(cur, cfg, now);
         cur.consolidate = { ...cur.consolidate, next: next + 1, proposed: (Number(cur.consolidate.proposed) || 0) + added };
         if (next + 1 >= batches.length) finishConsolidate(cur, now);
       }
@@ -3135,6 +3207,30 @@ function finishConsolidate(st, now) {
   const proposed = Number(st.consolidate && st.consolidate.proposed) || 0;
   st.consolidate = { state: "done", proposed, at: now };
   addActivity(st, "worker", "consolidate.done", proposed ? "Consolidating facts proposed " + proposed + " changes" : "Consolidating facts found nothing to change", [], now, { proposed });
+}
+
+/** Active facts the chat must have gained since the last Consolidate for the automatic one to start. */
+export const CONSOLIDATE_AUTO_GROWTH = 30;
+
+/** Does the chat's Consolidate run by itself now: switched on, enough new facts, no run or proposal of its own waiting. */
+export function autoConsolidateDue(st, cfg) {
+  const on = cfg && (cfg.autoConsolidate === true || (cfg.autoConsolidate == null && cfg.proposals === "quiet"));
+  if (!on || !st || isObj(st.rebuild)) return false;
+  if (isObj(st.consolidate) && st.consolidate.state === "working") return false;
+  if (arr(st.proposals).some((p) => isObj(p) && p.status === "pending" && p.origin === "consolidate")) return false;
+  const active = consolidateBatches(st).reduce((n, x) => n + x.length, 0);
+  const was = isObj(st.consolidateAt) ? Number(st.consolidateAt.active) || 0 : 0;
+  return active >= CONSOLIDATE_MIN && active - was >= CONSOLIDATE_AUTO_GROWTH;
+}
+
+/** Starts a Consolidate run on the record (asked by the user, or by itself); the tick sends its batches. */
+function startConsolidate(st, now, auto) {
+  const batches = consolidateBatches(st);
+  const active = batches.reduce((n, x) => n + x.length, 0);
+  st.consolidate = { state: "working", batches, next: 0, proposed: 0, at: now, ...(auto ? { auto: true } : {}) };
+  st.consolidateAt = { active, at: now };
+  addActivity(st, auto ? "worker" : "user", "consolidate.ask", (auto ? "Started consolidating " : "Asked to consolidate ") + active + " facts" + (auto ? " by itself" : ""), [], now, { facts: active, ...(auto ? { auto: true } : {}) });
+  return active;
 }
 
 /** The view's Consolidate line: the active count, and the run in progress or its outcome. */
@@ -3170,12 +3266,10 @@ export function consolidateRoute(fsx, body) {
     }
     if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
     if (isObj(st.consolidate) && st.consolidate.state === "working") return { status: 409, json: { error: "already consolidating" } };
-    const batches = consolidateBatches(st);
-    const active = batches.reduce((n, x) => n + x.length, 0);
+    const active = consolidateBatches(st).reduce((n, x) => n + x.length, 0);
     if (active < CONSOLIDATE_MIN) return { status: 409, json: { error: "too few facts", min: CONSOLIDATE_MIN, active } };
-    st.consolidate = { state: "working", batches, next: 0, proposed: 0, at: now };
+    startConsolidate(st, now, false);
     woke = true;
-    addActivity(st, "user", "consolidate.ask", "Asked to consolidate " + active + " facts", [], now, { facts: active });
   });
   if (woke && res.status === 200) wake(fsx, chatId, true);
   return res;
@@ -3921,16 +4015,17 @@ export function sceneRoute(fsx, body) {
   return res;
 }
 
-/** POST /litopys/proposals { chatId, id, op: "accept"|"reject", replace? } */
+/** POST /litopys/proposals { chatId, id, op: "accept"|"reject"|"undo", replace? } (undo: only a proposal applied by itself) */
 export function proposalRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
-  if (op !== "accept" && op !== "reject") return bad("unknown op");
+  if (op !== "accept" && op !== "reject" && op !== "undo") return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
     const p = st.proposals.find((x) => x.id === str(b.id));
     if (!p) return { status: 404, json: { error: "no such proposal" } };
+    if (op === "undo") return undoProposal(st, p, now);
     if (p.status !== "pending") return { status: 409, json: { error: "not pending" } };
     const what = str(p.op) + (p.text ? " " + quote(p.text) : "");
     if (op === "reject") {
