@@ -179,6 +179,7 @@ export function LedgerChat({
             {(chat.lastInsert.arcs ?? 0) > 0 && (
               <span>{t('lit.arc.inInsert', { n: chat.lastInsert.arcs ?? 0 })}</span>
             )}
+            {chat.lastInsert.full === true && <span>{t('lit.fullRecord')}</span>}
           </div>
         )}
 

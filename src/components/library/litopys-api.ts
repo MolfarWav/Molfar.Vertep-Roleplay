@@ -242,7 +242,7 @@ export interface LitChat {
   worker: LitWorker & { facts?: { got: number; added: number; skipped: number } } | null
   cut: { count: number; upTo: string | null }
   /** arcs: M4d, missing in inserts made before arcs */
-  lastInsert: { at: number; tokens: number; facts: number; chapters: number; arcs?: number; cut: number } | null
+  lastInsert: { at: number; tokens: number; facts: number; chapters: number; arcs?: number; cut: number; full?: boolean } | null
   rebuildScenes: number
   rebuilding: { chapters: number; startedAt: number } | null
   /** M4a */
