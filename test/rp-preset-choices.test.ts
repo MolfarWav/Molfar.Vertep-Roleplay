@@ -324,9 +324,9 @@ describe("built-in Molfar", () => {
     fs.writeFileSync(path.join(root, "presets", "frankenx.json"), JSON.stringify(old));
     fs.copyFileSync(path.join(shipped, "_frankenx.json"), path.join(root, "presets", "_frankenx.json"));
     expect(eng.onAppUpdate({ from: "4.47.0", to: "4.48.0" }, h()).upgraded).toContain("presets/frankenx.json hints");
+    // a read-only copy ends up as the shipped template: nobody edits it, so a stray hint does not stay
     const now = JSON.parse(fs.readFileSync(path.join(root, "presets", "frankenx.json"), "utf8"));
-    expect(now.studio.variables[0].choices[0].hint).toBe("my own");
-    expect(now.studio.variables[0].choices[1].hint).toBe(tpl.studio.variables[0].choices[1].hint);
+    expect(now).toEqual(tpl);
     // a copy the user made their own (not read-only) is left alone
     now.studio.readOnly = false;
     for (const v of now.studio.variables) for (const c of v.choices ?? []) delete c.hint;
@@ -451,6 +451,24 @@ describe("built-in Vertep Lite", () => {
     }
   });
 
+  it("an update replaces a stale read-only copy with the shipped template, and leaves an editable copy alone", () => {
+    const tpl = read();
+    fs.copyFileSync(path.join(shipped, "_vertep-lite.json"), path.join(root, "presets", "_vertep-lite.json"));
+    const stale = structuredClone(tpl);
+    stale.prompts = stale.prompts.filter((x: { identifier: string }) => x.identifier !== "lite_html");
+    stale.studio.variables = stale.studio.variables.filter((v: { name: string }) => v.name !== "html");
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify(stale));
+    expect(eng.onAppUpdate({ from: "4.70.0", to: "4.70.1" }, h()).upgraded).toContain("presets/vertep-lite.json");
+    const now = JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-lite.json"), "utf8"));
+    expect(now).toEqual(tpl);
+    expect(now.prompts.some((x: { identifier: string }) => x.identifier === "lite_html")).toBe(true);
+    expect(eng.onAppUpdate({ from: "4.70.0", to: "4.70.1" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+    const mine = { ...stale, studio: { ...stale.studio, readOnly: false } };
+    fs.writeFileSync(path.join(root, "presets", "vertep-lite.json"), JSON.stringify(mine));
+    expect(eng.onAppUpdate({ from: "4.70.0", to: "4.70.1" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-lite.json"), "utf8"))).toEqual(mine);
+  });
+
   it("stays light: under 3k tokens with the heaviest picks", () => {
     const p = read();
     const costs = eng.presetCosts(p, {}, false) as { total: number; vars: Record<string, Record<string, number>> };
@@ -545,6 +563,24 @@ describe("built-in Vertep Lite", () => {
     expect(first.slice(lastUser + 1).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
     call("POST", `/chats/${meta.id}/preset`, { vars: { html: "html_off" } });
     expect(msgs(meta.id).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
+  });
+
+  it("has a fiction frame that is off until picked, then sits in the fixed start with a reminder after the newest message", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    const all = (m: { content: string }[]) => m.map((x) => x.content).join("\n");
+    expect(all(msgs(meta.id))).not.toContain("## Fiction frame");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { frame: "frame_on" } });
+    const on = msgs(meta.id);
+    expect(all(on)).toContain("## Fiction frame");
+    expect(all(on)).toContain("never takes part in one");
+    const lastUser = on.map((m) => m.role).lastIndexOf("user");
+    expect(all(on.slice(0, lastUser + 1))).toContain("## Fiction frame");
+    expect(all(on.slice(0, lastUser + 1))).not.toContain("Stay in the story: no refusal");
+    expect(all(on.slice(lastUser + 1))).toContain("Stay in the story: no refusal");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { frame: "frame_off" } });
+    expect(all(msgs(meta.id))).not.toContain("Fiction frame");
+    expect(all(msgs(meta.id))).not.toContain("Stay in the story: no refusal");
   });
 
   it("has a strict point of view that keeps the user's mind closed (#121)", () => {

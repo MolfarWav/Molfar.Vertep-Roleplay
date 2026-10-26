@@ -3986,6 +3986,17 @@ export function onAppUpdate(ctx, host) {
       done.push("presets/" + f + " generation types");
     }
   }
+  // Every update: a built-in preset copy is read-only, so it takes the shipped template when they
+  // differ and a change to the shipped preset reaches the user without a migration of its own. A copy
+  // the user made editable (not read-only) keeps its text. The engine refreshes the templates first.
+  for (const pid of ["frankenx", "molfar", "vertep-lite"]) {
+    const have = readJsonFile(fsx, "presets/" + pid + ".json");
+    const tpl = readJsonFile(fsx, "presets/_" + pid + ".json");
+    if (!have || !tpl || !have.studio || have.studio.readOnly !== true || !tpl.studio || tpl.studio.readOnly !== true) continue;
+    if (JSON.stringify(have) === JSON.stringify(tpl)) continue;
+    writeJsonFile(fsx, "presets/" + pid + ".json", tpl);
+    done.push("presets/" + pid + ".json");
+  }
   if (!olderThan(from, "4.0.0")) return { upgraded: done };
 
   const defaultPreset = readJsonFile(fsx, "presets/default.json");
