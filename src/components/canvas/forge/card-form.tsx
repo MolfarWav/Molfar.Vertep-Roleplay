@@ -4,6 +4,7 @@ import { SHOW_BY_KIND } from '@/canvas-kit/boards/agent'
 import type { CanvasNode, Graph } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import { INPUT_SOURCES, OUTPUT_KINDS, portsOf, setWire, wireChoices } from '@/lib/forge'
@@ -34,7 +35,7 @@ export function NativeSelect({ value, onChange, children, label }: { value: stri
 }
 
 /** A number box that keeps what is being typed (an empty box, a minus sign) and reports only whole numbers. */
-export function NumberBox({ value, onChange, min, max, label }: { value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number; label?: string }) {
+export function NumberBox({ value, onChange, min, max, label, placeholder }: { value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number; label?: string; placeholder?: string }) {
   const [text, setText] = useState(value === undefined ? '' : String(value))
   useEffect(() => { setText(value === undefined ? '' : String(value)) }, [value])
   return (
@@ -42,6 +43,7 @@ export function NumberBox({ value, onChange, min, max, label }: { value: number 
       inputMode="numeric"
       value={text}
       aria-label={label}
+      placeholder={placeholder}
       className="max-md:h-10"
       onChange={(e) => {
         const raw = e.target.value
@@ -204,14 +206,166 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
   )
 }
 
+// ---------- the cards that work in code: dice, pick, extract, cut ----------
+
+/** A whole-number field. It keeps what is typed (the Input's number draft); text that is not a number is not reported. */
+function IntBox({ value, onChange, min, max, label, placeholder, className }: { value: number | string; onChange: (n: number) => void; min?: number; max?: number; label: string; placeholder?: string; className?: string }) {
+  return (
+    <Input
+      type="number" inputMode="numeric" step={1} min={min} max={max} value={value} aria-label={label} placeholder={placeholder}
+      className={cn('max-md:h-10', className)}
+      onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) onChange(n) }}
+    />
+  )
+}
+
+const PICK_MAX = 40
+const FLAGS = ['i', 'm', 's'] as const
+type Line = { text: string; weight?: number }
+
+function DiceForm({ p, onParams }: { p: Params; onParams: (p: Params) => void }) {
+  const t = useT()
+  const count = typeof p.count === 'number' ? p.count : 1
+  const sides = typeof p.sides === 'number' ? p.sides : 20
+  const bonus = typeof p.bonus === 'number' ? p.bonus : 0
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label={t('fg.dice.count')}><IntBox value={count} min={1} max={20} label={t('fg.dice.count')} onChange={(n) => onParams({ ...p, count: n })} /></Field>
+        <Field label={t('fg.dice.sides')}><IntBox value={sides} min={2} max={1000} label={t('fg.dice.sides')} onChange={(n) => onParams({ ...p, sides: n })} /></Field>
+      </div>
+      <Field label={t('fg.dice.bonus')} hint={t('fg.dice.bonusHint')}>
+        <IntBox value={p.bonus === undefined ? '' : bonus} min={-1000} max={1000} label={t('fg.dice.bonus')} placeholder="0" className="w-28"
+          onChange={(n) => { const { bonus: _b, ...rest } = p; onParams(n === 0 ? rest : { ...rest, bonus: n }) }} />
+      </Field>
+      <p className="text-xs font-medium" data-testid="dice-preview">{t('fg.dice.preview', { dice: `${count}d${sides}${bonus > 0 ? `+${bonus}` : bonus < 0 ? String(bonus) : ''}` })}</p>
+      <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.dice.out')}</p>
+    </>
+  )
+}
+
+function PickForm({ p, set }: { p: Params; set: (patch: Params) => void }) {
+  const t = useT()
+  const items = (Array.isArray(p.items) ? p.items : []) as Line[]
+  const write = (next: Line[]) => set({ items: next })
+  const edit = (i: number, patch: Partial<Line>) => write(items.map((x, k) => (k === i ? { ...x, ...patch } : x)))
+  return (
+    <Field label={t('fg.pick.items', { n: items.length, max: PICK_MAX })} hint={t('fg.pick.hint')}>
+      <div className="flex flex-col gap-1.5" data-testid="pick-lines">
+        <div className="flex gap-1.5 text-[11px] text-muted-foreground" aria-hidden="true">
+          <span className="min-w-0 flex-1">{t('fg.pick.text')}</span>
+          <span className="w-16 shrink-0">{t('fg.pick.weight')}</span>
+          <span className="w-8 shrink-0 max-md:w-10" />
+        </div>
+        {items.map((it, i) => (
+          <div key={i} className="flex gap-1.5">
+            <Input value={it.text} maxLength={400} aria-label={t('fg.pick.line', { n: i + 1 })} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => edit(i, { text: e.target.value })} />
+            <IntBox value={it.weight ?? 1} min={1} max={100} label={t('fg.pick.weightOf', { n: i + 1 })} className="w-16 shrink-0" onChange={(n) => edit(i, { weight: n })} />
+            <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.pick.remove', { n: i + 1 })} disabled={items.length <= 2} onClick={() => write(items.filter((_, k) => k !== i))}>
+              <Trash className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" className="self-start max-md:h-10" disabled={items.length >= PICK_MAX} onClick={() => write([...items, { text: '', weight: 1 }])}>
+          <Plus className="size-3.5" aria-hidden="true" />{t('fg.pick.add')}
+        </Button>
+      </div>
+    </Field>
+  )
+}
+
+function ExtractForm({ p, set, onParams }: { p: Params; set: (patch: Params) => void; onParams: (p: Params) => void }) {
+  const t = useT()
+  const flags = typeof p.flags === 'string' ? p.flags : ''
+  const toggle = (f: string) => {
+    const next = FLAGS.filter((x) => (x === f ? !flags.includes(x) : flags.includes(x))).join('')
+    const { flags: _f, ...rest } = p
+    onParams(next ? { ...rest, flags: next } : rest)
+  }
+  return (
+    <>
+      <Field label={t('fg.extract.pattern')} hint={t('fg.extract.patternHint')}>
+        <Input value={String(p.pattern ?? '')} maxLength={200} spellCheck={false} autoCapitalize="off" autoCorrect="off" className="font-mono max-md:h-10" onChange={(e) => set({ pattern: e.target.value })} data-testid="extract-pattern" />
+      </Field>
+      <Field label={t('fg.extract.flags')}>
+        <div className="flex flex-wrap gap-1.5">
+          {FLAGS.map((f) => {
+            const on = flags.includes(f)
+            return (
+              <button key={f} type="button" aria-pressed={on} onClick={() => toggle(f)} data-testid={`extract-flag-${f}`}
+                className={cn('flex min-h-8 items-center gap-1.5 rounded-md border px-2 text-xs max-md:min-h-10', on ? 'border-primary bg-primary/10 text-foreground' : 'border-input text-muted-foreground hover:bg-muted')}>
+                <b className="font-mono">{f}</b>{t(`fg.extract.flag.${f}` as MsgKey)}
+              </button>
+            )
+          })}
+        </div>
+      </Field>
+      <Field label={t('fg.extract.group')} hint={t('fg.extract.groupHint')}>
+        <IntBox value={typeof p.group === 'number' ? p.group : 0} min={0} max={9} label={t('fg.extract.group')} className="w-24" onChange={(n) => set({ group: n })} />
+      </Field>
+      <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm max-md:min-h-10">
+        <Switch size="sm" checked={p.all === true} aria-label={t('fg.extract.all')} onCheckedChange={(on) => set({ all: on })} data-testid="extract-all" />
+        {t('fg.extract.all')}
+      </label>
+      {p.all === true && (
+        <Field label={t('fg.extract.join')} hint={t('fg.extract.joinHint')}>
+          <Input value={typeof p.join === 'string' ? p.join : ', '} maxLength={20} className="max-md:h-10" onChange={(e) => set({ join: e.target.value })} />
+        </Field>
+      )}
+      <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.extract.none')}</p>
+    </>
+  )
+}
+
+function CutForm({ p, set }: { p: Params; set: (patch: Params) => void }) {
+  const t = useT()
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label={t('fg.cut.keep')}>
+          <NativeSelect value={p.keep === 'last' ? 'last' : 'first'} label={t('fg.cut.keep')} onChange={(keep) => set({ keep })}>
+            <option value="first">{t('fg.cut.first')}</option>
+            <option value="last">{t('fg.cut.last')}</option>
+          </NativeSelect>
+        </Field>
+        <Field label={t('fg.cut.n')}>
+          <IntBox value={typeof p.n === 'number' ? p.n : 50} min={1} max={20000} label={t('fg.cut.n')} onChange={(n) => set({ n })} />
+        </Field>
+      </div>
+      <Field label={t('fg.cut.unit')}>
+        <NativeSelect value={['chars', 'words', 'lines'].includes(String(p.unit)) ? String(p.unit) : 'words'} label={t('fg.cut.unit')} onChange={(unit) => set({ unit })}>
+          <option value="chars">{t('fg.cut.chars')}</option>
+          <option value="words">{t('fg.cut.words')}</option>
+          <option value="lines">{t('fg.cut.lines')}</option>
+        </NativeSelect>
+      </Field>
+    </>
+  )
+}
+
+/** What the checker says about one card, under its form. */
+function Problems({ messages }: { messages: string[] }) {
+  if (!messages.length) return null
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-destructive/50 bg-destructive/5 p-2" data-testid="card-problems">
+      {messages.map((m, i) => <p key={i} role="alert" className="break-words text-[11px] leading-snug text-destructive">{m}</p>)}
+    </div>
+  )
+}
+
+/** Sources that give a list, and how many entries they give when the card does not say. */
+const LIMITED: Record<string, { def: number; max: number }> = { litopysFacts: { def: 20, max: 60 }, lorebook: { def: 8, max: 20 } }
+
 // ---------- the form of one card ----------
 
-const SOURCE_ID: Record<string, string> = { lastReply: 'reply', lastUserMessage: 'message', history: 'history', card: 'card', persona: 'persona', authorNote: 'authorNote', myPrevious: 'previous' }
+const SOURCE_ID: Record<string, string> = { lastReply: 'reply', lastUserMessage: 'message', history: 'history', card: 'card', persona: 'persona', authorNote: 'authorNote', myPrevious: 'previous', litopysFacts: 'facts', lorebook: 'lore' }
 
-export function CardForm({ node, graph, fields, onParams, onTitle, onNote, onGraph, onDelete, deletable }: {
+export function CardForm({ node, graph, fields, problems = [], onParams, onTitle, onNote, onGraph, onDelete, deletable }: {
   node: CanvasNode
   graph: Graph
   fields: StateFields
+  /** what the check says about this card (its error messages) */
+  problems?: string[]
   onParams: (p: Params) => void
   onTitle: (title: string) => void
   onNote: (text: string) => void
@@ -230,7 +384,7 @@ export function CardForm({ node, graph, fields, onParams, onTitle, onNote, onGra
   const kind = String(p.kind ?? 'note')
   const places = SHOW_BY_KIND[kind] ?? []
   const { ins } = portsOf(node)
-  const give = (Array.isArray(p.give) ? p.give : []) as { id: string; source: string }[]
+  const give = (Array.isArray(p.give) ? p.give : []) as { id: string; source: string; limit?: number }[]
 
   const stateField = (types: string[], extra?: (name: string) => Params) => {
     const names = fieldsOf(...types)
@@ -255,15 +409,27 @@ export function CardForm({ node, graph, fields, onParams, onTitle, onNote, onGra
         <Field label={t('fg.input.give')} hint={t('fg.input.hint')}>
           <div className="flex flex-col gap-1.5">
             {INPUT_SOURCES.map((s) => {
-              const on = give.some((g) => g.source === s)
+              const entry = give.find((g) => g.source === s)
+              const on = !!entry
+              const lim = LIMITED[s]
               return (
-                <label key={s} className="flex min-h-8 cursor-pointer items-center gap-2 text-sm max-md:min-h-10">
-                  <input type="checkbox" checked={on} className="size-4" onChange={() => {
-                    const next = on ? give.filter((g) => g.source !== s) : [...give, { id: SOURCE_ID[s] ?? s, source: s }]
-                    if (next.length) set({ give: next })
-                  }} />
-                  {t(`fg.source.${s}` as MsgKey)}
-                </label>
+                <div key={s} className="flex flex-col gap-1">
+                  <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm max-md:min-h-10">
+                    <input type="checkbox" checked={on} className="size-4" onChange={() => {
+                      const next = on ? give.filter((g) => g.source !== s) : [...give, { id: SOURCE_ID[s] ?? s, source: s }]
+                      if (next.length) set({ give: next })
+                    }} />
+                    {t(`fg.source.${s}` as MsgKey)}
+                  </label>
+                  {on && lim && (
+                    <div className="ml-6 flex flex-col gap-1">
+                      <span className="text-[11px] font-medium">{t('fg.input.limit')}</span>
+                      <NumberBox value={typeof entry.limit === 'number' ? entry.limit : undefined} min={1} max={lim.max} label={`${t(`fg.source.${s}` as MsgKey)}: ${t('fg.input.limit')}`} placeholder={String(lim.def)}
+                        onChange={(n) => set({ give: give.map((g) => { if (g.source !== s) return g; const { limit: _l, ...rest } = g; return n === undefined ? rest : { ...rest, limit: n } }) })} />
+                      <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.input.limitHint', { n: lim.def, max: lim.max })}</span>
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -315,6 +481,11 @@ export function CardForm({ node, graph, fields, onParams, onTitle, onNote, onGra
           <NumberBox value={typeof p.count === 'number' ? p.count : 2} min={2} max={8} onChange={(n) => set({ count: n ?? 2 })} />
         </Field>
       )}
+
+      {node.type === 'random.dice' && <DiceForm p={p} onParams={onParams} />}
+      {node.type === 'random.pick' && <PickForm p={p} set={set} />}
+      {node.type === 'text.extract' && <ExtractForm p={p} set={set} onParams={onParams} />}
+      {node.type === 'text.cut' && <CutForm p={p} set={set} />}
 
       {(node.type === 'state.read' || node.type === 'state.set') && stateField(['number', 'text', 'flag'], (f) => ({ as: fields[f]?.type ?? 'number' }))}
 
@@ -379,6 +550,8 @@ export function CardForm({ node, graph, fields, onParams, onTitle, onNote, onGra
           <Textarea value={node.note ?? ''} rows={4} onChange={(e) => onNote(e.target.value)} />
         </Field>
       )}
+
+      <Problems messages={problems} />
 
       {ins.length > 0 && (
         <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.wires')}>

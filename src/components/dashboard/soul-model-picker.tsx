@@ -23,7 +23,7 @@ export function SoulModelPicker({ disabled, onPick, label, open: openProp, onOpe
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         disabled={disabled}
-        render={<Button variant="outline" size="sm" className="rounded-none">{label ?? t('soul.chooseModel')}</Button>}
+        render={<Button variant="outline" size="sm" className="rounded-none max-md:h-10">{label ?? t('soul.chooseModel')}</Button>}
       />
       <PopoverContent align="start" className="w-80 overflow-hidden p-0">
         <Command>

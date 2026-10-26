@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowCounterClockwise, Check, Warning } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, DiceFive, Warning } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -13,6 +13,9 @@ import { Field } from './card-form'
 type Json = Record<string, any>
 interface Edits { inputs: Record<string, string>; own: Record<string, unknown>; replies: Record<string, string> }
 const NONE: Edits = { inputs: {}, own: {}, replies: {} }
+const newSeed = () => Math.random().toString(36).slice(2, 10)
+/** The cards that roll: a trial keeps their result until the person asks for a new one. */
+export const hasRandom = (file: Pick<DryFile, 'nodes'> | null) => !!file?.nodes.some((n) => n.type === 'random.dice' || n.type === 'random.pick')
 
 /**
  * The trial run: what the person set (on top of the examples) and what the real executor makes of it. It runs only
@@ -20,15 +23,17 @@ const NONE: Edits = { inputs: {}, own: {}, replies: {} }
  */
 export function useDry(file: DryFile | null, key: string, active: boolean) {
   const [edits, setEdits] = useState<Edits>(NONE)
-  useEffect(() => setEdits(NONE), [key])
+  // the seed of the dice and picks: it stays while the person edits, and changes only with "Roll again"
+  const [seed, setSeed] = useState('try')
+  useEffect(() => { setEdits(NONE); setSeed('try') }, [key])
   const examples = useMemo(() => (file ? sampleInputs(file) : {}), [file])
   const result = useMemo<DryResult | null>(() => {
     if (!file || !active) return null
     try {
-      return dryRun(file, { inputs: { ...examples, ...edits.inputs }, own: edits.own, replies: edits.replies, chat: { messageCount: 6, lastSpeaker: 'Character' } })
+      return dryRun(file, { inputs: { ...examples, ...edits.inputs }, own: edits.own, replies: edits.replies, chat: { messageCount: 6, lastSpeaker: 'Character' }, seed })
     } catch { return null }
-  }, [file, active, examples, edits])
-  return { edits, setEdits, result, examples }
+  }, [file, active, examples, edits, seed])
+  return { edits, setEdits, result, examples, reroll: () => setSeed(newSeed()) }
 }
 export type Dry = ReturnType<typeof useDry>
 
@@ -36,7 +41,7 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…`
 
 export function TryPanel({ file, errors, dry, titleOf }: { file: DryFile; errors: number; dry: Dry; titleOf: (id: string) => string }) {
   const t = useT()
-  const { edits, setEdits, result, examples } = dry
+  const { edits, setEdits, result, examples, reroll } = dry
   const schema = (file.agent?.state ?? {}) as Json
   const own = startOwn(schema, edits.own)
   const give = file.nodes.filter((n) => n.type === 'agent.input').flatMap((n) => (n.params?.give ?? []) as Json[])
@@ -54,6 +59,15 @@ export function TryPanel({ file, errors, dry, titleOf }: { file: DryFile; errors
           </Button>
         )}
       </div>
+
+      {hasRandom(file) && (
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="shrink-0 max-md:h-10" onClick={reroll} data-testid="try-reroll">
+            <DiceFive className="size-3.5" aria-hidden="true" />{t('fg.try.reroll')}
+          </Button>
+          <p className="min-w-0 flex-1 text-[11px] leading-snug text-muted-foreground">{t('fg.try.rerollHint')}</p>
+        </div>
+      )}
 
       <section className="flex flex-col gap-2" aria-label={t('fg.try.inputs')}>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.try.inputs')}</h4>

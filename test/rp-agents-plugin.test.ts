@@ -587,4 +587,60 @@ describe("config", () => {
     call("POST", "/agents/run", { chatId: "c1" });
     expect(requests[0][1].model).toBe("openrouter/y");
   });
+
+  describe("the user's own choices for one agent", () => {
+    const own = (v: Json) => j("/agents/config", "PUT", { byAgent: v });
+    const ask = () => { makeChat("c1", CHAT); useAgent("dungeon-keeper"); requests.length = 0; call("POST", "/agents/run", { chatId: "c1" }); };
+
+    it("keeps a model per role and a call limit, drops junk and an empty entry", () => {
+      const next = own({
+        "dungeon-keeper": { models: { fast: "openrouter/z", "bad role!": "q", slow: "has space" }, maxCalls: 2 },
+        "Bad Id": { maxCalls: 1 },
+        "scene-echo": { maxCalls: 0 },
+        mood: { maxCalls: 99 },
+      });
+      expect(next.byAgent).toEqual({ "dungeon-keeper": { models: { fast: "openrouter/z" }, maxCalls: 2 } });
+      expect(own({}).byAgent).toBeUndefined();
+    });
+
+    it("an agent's own model wins over the role's model and the default", () => {
+      j("/agents/config", "PUT", { model: "openrouter/def", models: { fast: "openrouter/y" } });
+      own({ "dungeon-keeper": { models: { fast: "openrouter/mine" } } });
+      j("/agents/install", "PUT", { file: copy(keeper), grant: true });
+      ask();
+      expect(requests[0][1].model).toBe("openrouter/mine");
+      own({});
+      ask();
+      expect(requests[0][1].model).toBe("openrouter/y");
+    });
+
+    it("the list carries the choices, and a limit below the agent's calls blocks it with the reason", () => {
+      j("/agents/install", "PUT", { file: chainAgent(3), grant: true });
+      const get = () => j("/agents/list").agents.find((x: Json) => x.id === "chain");
+      expect(get().maxCalls).toBe(3);
+      own({ chain: { models: { fast: "openrouter/mine" }, maxCalls: 3 } });
+      expect(get().own).toEqual({ models: { fast: "openrouter/mine" }, maxCalls: 3 });
+      expect(get().runnable).toBe(true);
+      expect(Object.keys(get().models)).toEqual(["fast"]);
+      own({ chain: { maxCalls: 2 } });
+      expect(get().runnable).toBe(false);
+      expect(get().blocker).toBe("Can make up to 3 model calls a run, over your limit of 2 for this agent");
+      makeChat("c1", CHAT);
+      useAgent("chain");
+      requests.length = 0;
+      call("POST", "/agents/run", { chatId: "c1" });
+      expect(requests).toEqual([]);
+      own({});
+      expect(get().runnable).toBe(true);
+    });
+
+    it("removing the agent drops its choices, and an update keeps them", () => {
+      j("/agents/install", "PUT", { file: copy(keeper), grant: true });
+      own({ "dungeon-keeper": { maxCalls: 5 }, other: { maxCalls: 3 } });
+      j("/agents/install", "PUT", { file: copy(keeper), grant: true });
+      expect(j("/agents/config").byAgent["dungeon-keeper"]).toEqual({ maxCalls: 5 });
+      call("DELETE", "/agents/dungeon-keeper");
+      expect(j("/agents/config").byAgent).toEqual({ other: { maxCalls: 3 } });
+    });
+  });
 });

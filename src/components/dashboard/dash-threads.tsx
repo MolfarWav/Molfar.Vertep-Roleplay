@@ -20,6 +20,7 @@ import {
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { useNotesAct } from './dash-context'
+import { FreshProvider, useFreshClass } from './dash-motion'
 
 const FIELD = 'rounded-none'
 const THREAD_MAX = 200
@@ -44,6 +45,7 @@ function ThreadRow({ th, editable, openOnly, step }: { th: Thread; editable: boo
   const [text, setText] = useState(th.text)
   const [kind, setKind] = useState<QuestKind>(questKindOf(th))
   const open = th.status === 'open'
+  const rise = useFreshClass(th.id)
   const kindChanged = !step && kind !== questKindOf(th)
   const save = () => {
     void act({ op: 'thread-edit', id: th.id, ...(text.trim() !== th.text ? { text: text.trim() } : {}), ...(kindChanged ? { kind } : {}) }).then((ok) => { if (ok) setEditing(false) })
@@ -51,7 +53,7 @@ function ThreadRow({ th, editable, openOnly, step }: { th: Thread; editable: boo
   const setStatus = (status: 'open' | 'resolved') => { void act({ op: 'thread-edit', id: th.id, status }) }
   const cancel = () => { setText(th.text); setKind(questKindOf(th)); setEditing(false) }
   return (
-    <li className={cn('flex gap-1.5 text-xs leading-snug', !open && 'text-muted-foreground')}>
+    <li className={cn(rise, 'flex gap-1.5 text-xs leading-snug', !open && 'text-muted-foreground')}>
       <span aria-hidden="true" className={cn('mt-[5px] size-1.5 shrink-0 bg-cta', step ? 'rounded-full' : 'rotate-45')} />
       {editing ? (
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -204,7 +206,7 @@ function GroupTitle({ kind, n, max }: { kind: QuestKind; n: number; max?: number
  * the story's suggestions waiting for an answer. `openOnly` is the strip's flat short list. An older plugin
  * sends no `limits` or `proposals`: the lists still work.
  */
-export function ThreadList({ threads, limit, openOnly, editable, canAdd, maxOpen, limits, proposals }: {
+type ThreadListProps = {
   threads: DashView['threads']
   limit?: number
   openOnly?: boolean
@@ -213,7 +215,17 @@ export function ThreadList({ threads, limit, openOnly, editable, canAdd, maxOpen
   maxOpen?: number
   limits?: QuestLimits
   proposals?: QuestProposal[]
-}) {
+}
+export function ThreadList(props: ThreadListProps) {
+  // a quest that turns up while the list is open fades in; the first showing does not animate
+  return (
+    <FreshProvider ids={props.threads.map((th) => th.id)}>
+      <ThreadListBody {...props} />
+    </FreshProvider>
+  )
+}
+
+function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, limits, proposals }: ThreadListProps) {
   const t = useT()
   const lim = questLimitsOf(limits, maxOpen)
   const g = questGroups(threads)

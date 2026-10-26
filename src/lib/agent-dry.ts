@@ -15,6 +15,8 @@ export interface DrySetup {
   own: Record<string, unknown>
   replies: Record<string, string>
   chat: { messageCount: number; lastSpeaker: string }
+  /** makes Dice and Pick repeatable: the same seed rolls the same, another seed rolls anew. Without one the seed is empty (still repeatable). */
+  seed?: string
 }
 
 export type WireView = { state: 'value'; value: unknown } | { state: 'skip' | 'wait' | 'missing' }
@@ -49,6 +51,8 @@ const SAMPLE_INPUT: Record<string, string> = {
   myPrevious: '',
   preGenInjections: '',
   parallelResults: '',
+  litopysFacts: '- The guard captain owes the innkeeper money.\n- The north gate closes at dusk.\n- Strangers are searched at the gate.',
+  lorebook: '- Silver Gate: The north gate of the city. It closes at dusk.\n- Captain Orren: Leads the city guard and trusts no one new.',
 }
 
 /** A made-up value for each thing the Input card gives; a Dashboard field starts empty (missing data is a case worth trying). */
@@ -95,7 +99,7 @@ export function dryRun(file: DryFile, setup: DrySetup): DryResult {
     }
   }
   const own = startOwn(schema, setup.own)
-  const ctx = { inputs, own, dash, chat: setup.chat, explain: true }
+  const ctx = { inputs, own, dash, chat: setup.chat, explain: true, seed: setup.seed ?? '' }
   const answers: Record<string, { text: string }> = {}
   const asked = new Map<string, Asked>()
   let res: Json = { status: 'failed', reason: 'The run did not start', trace: [], wires: {} }

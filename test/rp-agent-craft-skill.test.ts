@@ -21,6 +21,12 @@ describe("agent-craft recipes", () => {
     for (const f of files) expect(skill).toContain(f);
   });
 
+  it("tells Molfar to say so when the cards cannot do the job, not to invent one", () => {
+    const skill = fs.readFileSync(new URL("../SKILL.md", dir), "utf8");
+    expect(skill).toContain("Say so when the cards cannot do it");
+    expect(skill).toContain("Never invent a card type");
+  });
+
   it.each(files)("%s passes the checker clean and compiles without help", (f) => {
     const r = compileAgent(load(f)) as Json;
     expect(r.error).toBeUndefined();

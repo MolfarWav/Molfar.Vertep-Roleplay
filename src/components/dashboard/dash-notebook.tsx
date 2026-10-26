@@ -9,6 +9,7 @@ import { NOTE_TAGS, sortedNotes, type DashChar, type How, type Note, type NoteTa
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { Box, GOLD_TEXT, HOW_TEXT, Label, useTx } from './dash-common'
+import { FreshProvider, useFreshClass } from './dash-motion'
 import { useNotesAct } from './dash-context'
 import { SaidBlock } from './dash-said'
 
@@ -65,8 +66,9 @@ function NoteRow({ note, you, editable }: { note: Note; you: string; editable: b
       ? t('dash.how.heardFrom', { from })
       : tx('dash.how', note.how)
   const mark = (tag: NoteTag | null) => { void act({ op: 'edit', id: note.id, tag }) }
+  const rise = useFreshClass(note.id)
   return (
-    <li className="flex min-w-0 items-start gap-2 border-b border-dashed border-border py-1.5 first:pt-0 last:border-b-0 last:pb-0">
+    <li className={cn(rise, 'flex min-w-0 items-start gap-2 border-b border-dashed border-border py-1.5 first:pt-0 last:border-b-0 last:pb-0')}>
       <HowIcon how={note.how} />
       <div className="min-w-0 flex-1">
         {editing ? (
@@ -187,9 +189,11 @@ export function Notebook({ name, char, userName, className, id, compact }: {
       {entries.length === 0 ? (
         <div className="text-sm text-muted-foreground">{t('dash.notebook.none')}</div>
       ) : (
-        <ul className="flex flex-col">
-          {entries.map((n) => <NoteRow key={n.id} note={n} you={you} editable={editable} />)}
-        </ul>
+        <FreshProvider ids={entries.map((n) => n.id)}>
+          <ul className="flex flex-col">
+            {entries.map((n) => <NoteRow key={n.id} note={n} you={you} editable={editable} />)}
+          </ul>
+        </FreshProvider>
       )}
       {editable && <AddNote name={name} />}
       {removed.length > 0 && (

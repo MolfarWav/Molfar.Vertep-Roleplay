@@ -88,6 +88,66 @@ export function askPrompt(prompt, answer) {
   return prompt;
 }
 
+// ---------- dice, pick, extract, cut: plain code, no model ----------
+
+const hash32 = (str) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+};
+/** A small seeded generator (mulberry32): the same seed gives the same numbers on every pass of one run. */
+export function seeded(seed) {
+  let a = hash32(String(seed));
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** `count` dice of `sides` sides plus `bonus`: { total, rolls: "4, 17" }. */
+export function rollDice(seed, p) {
+  const count = Number.isInteger(p.count) ? p.count : 1;
+  const sides = Number.isInteger(p.sides) ? p.sides : 20;
+  const bonus = Number.isInteger(p.bonus) ? p.bonus : 0;
+  const rnd = seeded(seed);
+  const rolls = Array.from({ length: count }, () => 1 + Math.floor(rnd() * sides));
+  return { total: rolls.reduce((a, b) => a + b, 0) + bonus, rolls: rolls.join(', ') };
+}
+
+/** One line by weight (a weight is 1 when none is given): { index: 1-based, text }. */
+export function pickWeighted(seed, items) {
+  const weights = items.map((i) => (Number.isInteger(i.weight) ? i.weight : 1));
+  let at = seeded(seed)() * weights.reduce((a, b) => a + b, 0);
+  let index = 0;
+  while (index < items.length - 1 && at >= weights[index]) { at -= weights[index]; index++; }
+  return { index: index + 1, text: items[index].text };
+}
+
+/** The first match of a pattern (or every match, joined) as text; null when nothing matched. At most 20 matches. */
+export function extractText(text, p) {
+  const re = new RegExp(p.pattern, (p.flags || '') + 'g');
+  const group = Number.isInteger(p.group) ? p.group : 0;
+  const found = [];
+  const src = clip(String(text), TEXT_MAX);
+  for (let m = re.exec(src); m && found.length < (p.all ? 20 : 1); m = re.exec(src)) {
+    if (m[0] === '') re.lastIndex++;
+    const v = m[group];
+    if (typeof v === 'string' && v.trim()) found.push(v.trim());
+  }
+  return found.length ? clip(found.join(typeof p.join === 'string' ? p.join : ', '), TEXT_MAX) : null;
+}
+
+/** The first or last `n` characters, words or lines of a text. */
+export function cutText(text, p) {
+  const t = String(text);
+  const take = (parts, glue) => (p.keep === 'last' ? parts.slice(-p.n) : parts.slice(0, p.n)).join(glue);
+  if (p.unit === 'words') return take(t.split(/\s+/).filter(Boolean), ' ');
+  if (p.unit === 'lines') return take(t.split('\n'), '\n');
+  return p.keep === 'last' ? t.slice(-p.n) : t.slice(0, p.n);
+}
+
 // ---------- If ----------
 
 const Y = 'yes';
@@ -198,7 +258,8 @@ const fill = (text, values) => String(text ?? '').replace(slotRe, (_, id) => asT
 const short = (v) => (typeof v === 'string' ? clip(v, 200) : v);
 
 /**
- * ctx: { inputs: { <give id>: text | number | undefined }, own: { <field>: value }, dash: { <field>: value }, chat: { messageCount, lastSpeaker } }
+ * ctx: { inputs: { <give id>: text | number | undefined }, own: { <field>: value }, dash: { <field>: value }, chat: { messageCount, lastSpeaker }, seed }
+ *   `seed` makes the dice and picks repeatable: the host gives the same text for the same reply, so every pass of a run rolls the same.
  *   `inputs` is what the host read for the agent's Input card; the executor trusts nothing else about the chat.
  * answers: { <model.ask card id>: { text } | { error } }
  * Returns { status: "need", requests, trace }, { status: "done", writes, outputs, calls, trace } or { status: "failed", reason, node, trace }.
@@ -375,6 +436,28 @@ function runCards(file, ctx, answers, seen) {
         if (!w || (w.op === 'own.set' && w.value === undefined)) skip();
         else { writes.push(w); out('done', true); ran({ [w.op]: w.field }); }
       }
+    } else if (node.type === 'random.dice' || node.type === 'random.pick') {
+      const g = gate([], 'when');
+      if (g === 'skip') skip();
+      else if (g === 'wait') wait();
+      else {
+        const seed = String((ctx && ctx.seed) || '') + '|' + id;
+        if (node.type === 'random.dice') { const r = rollDice(seed, p); out('total', r.total); out('rolls', r.rolls); ran({ total: r.total, rolls: r.rolls }); }
+        else { const r = pickWeighted(seed, p.items || []); out('text', r.text); out('index', r.index); ran({ text: short(r.text), index: r.index }); }
+      }
+    } else if (node.type === 'text.extract') {
+      const g = gate(['in']);
+      if (g === 'skip') skip(); else if (g === 'wait') wait();
+      else {
+        const v = extractText(ins.in, p);
+        setAll(node, SKIP);
+        if (v === null) { out('none', true); ran({ none: 'no match' }); }
+        else { out('match', v); ran({ match: short(v) }); }
+      }
+    } else if (node.type === 'text.cut') {
+      const g = gate(['in']);
+      if (g === 'skip') skip(); else if (g === 'wait') wait();
+      else { const v = cutText(ins.in, p); out('text', v); ran({ text: short(v) }); }
     } else if (node.type === 'agent.output') {
       const g = gate(['in']);
       if (g === 'skip') skip();

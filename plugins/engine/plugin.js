@@ -1077,12 +1077,30 @@ function forkWorld(fsx, fromId, meta, msgs) {
   } catch {}
 }
 
-/** Semantic prep shared by send/peek: the scan-window embedding text plus
- *  the bound books' vectorized entries that lack a cached vector. Returns
- *  null when neither semantic memories nor vectorized entries need work. */
-function semanticEmbedWork(fsx, meta, extraBookIds) {
+/** Does Litopys keep vectors for this chat that a reply could be ranked against? Vectors exist
+ *  once a chapter was written with an embedding connection; a chat with Litopys switched off,
+ *  or Litopys itself off or not inserting, has nothing to rank, so no pass is paid for it. */
+function litopysHasVectors(fsx, meta) {
+  const id = meta && typeof meta.id === "string" ? meta.id : "";
+  if (!id) return false;
+  try {
+    const off = meta.promptBoard && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
+    if (off.includes("plugin:litopys")) return false;
+    try {
+      const cfg = JSON.parse(fsx.read("litopys/config.json"));
+      if (cfg && (cfg.enabled === false || cfg.insert === false)) return false;
+    } catch {}
+    return fsx.list("litopys/vectors").includes(id + ".json");
+  } catch { return false; }
+}
+
+/** Semantic prep shared by send/peek: the bound books' vectorized entries that lack a cached
+ *  vector, and whether the scan window itself is to be embedded (the bound books have vectorized
+ *  entries, or Litopys has vectors for this chat). Returns null when neither needs an embedding. */
+export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
   const vecMap = loadWiVectors(fsx);
   const needed = [];
+  let anyVec = false;
   const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
   let books = [];
   try {
@@ -1096,6 +1114,7 @@ function semanticEmbedWork(fsx, meta, extraBookIds) {
       if (entry.enabled === false) return;
       const isVec = entry.vectorized === true || entry.status === "vectorized";
       if (!isVec) return;
+      anyVec = true;
       const key = wiVectorKey(book, entry, i);
       const cached = vecMap[key];
       const hash = strHash(String(entry.content || "") + "|" + String(entry.keys || ""));
@@ -1104,8 +1123,10 @@ function semanticEmbedWork(fsx, meta, extraBookIds) {
       if (text.trim()) needed.push({ key, hash, text });
     });
   }
-  if (!needed.length) return null;
-  return { needed };
+  // an empty scan window has nothing to compare: embedding "" only fails
+  const wantScan = String(scanText || "").trim() !== "" && (anyVec || litopysHasVectors(fsx, meta));
+  if (!needed.length && !wantScan) return null;
+  return { needed, wantScan };
 }
 /** Store freshly embedded entry vectors into the sidecar cache. */
 function cacheWiVectorBatch(fsx, entries, vectors) {
@@ -1117,12 +1138,20 @@ function cacheWiVectorBatch(fsx, entries, vectors) {
   saveWiVectors(fsx, map);
 }
 
-/** The embed pass of a reply op. When memory vectors or vectorized entries
+/** The turn labels of a reply request, with the embedding of the scan window when there is one and the
+ *  model's context size: the Litopys hook ranks by the first and sizes its record by the second (never sent to the model). */
+function turnLabels(labels, sp, a) {
+  const out = sp && Array.isArray(sp.scanVec) && sp.scanVec.length ? { ...labels, scanVec: sp.scanVec } : { ...labels };
+  if (a && Number.isFinite(a.contextTokens) && a.contextTokens > 0) out.contextTokens = a.contextTokens;
+  return out;
+}
+
+/** The embed pass of a reply op. When Litopys vectors or vectorized entries
  *  exist, the scan window (pending user text + the last 4 messages) is embedded
  *  first: returns { pending } (the caller marks the chat generating and returns
  *  it as the route result) or { scanVec } (null when nothing embedded). The
  *  runtime allows 3 passes: embed, model request, commit. */
-function semanticPrep(host, fsx, meta, staged, text, req) {
+export function semanticPrep(host, fsx, meta, staged, text, req) {
   if (host.llm.embed && embedCap(fsx)) {
     const scanEmbedText = (text ? text + "\n" : "") + staged.slice(-4).map((m) => m.text || "").join("\n");
     const personaIds = (() => {
@@ -3416,6 +3445,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // 0.9.2: by default the model's parameters win in the engine; this preset switch lets its own win
     ...(preset && preset.samplers_override_model === true ? { paramsSource: "request" } : {}),
     trimmed,
+    // the context window this prompt was budgeted against, for hooks that size what they add
+    contextTokens: presetMaxCtx(preset),
   };
 }
 
@@ -5300,7 +5331,7 @@ const toolX = (r) => ({
           wantsTools: true,
           stream: { chatId: id, name: speaker ? speaker.name : "" },
           // who speaks and what kind of turn, for llmRequest hooks (never sent to the model)
-          turn: { op: "send", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: speaker ? speaker.name : "" },
+          turn: turnLabels({ op: "send", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: speaker ? speaker.name : "" }, sp, a),
         });
         markGenerating();
         return pendingOut(meta, a.trimmed || plan ? { ...(a.trimmed ? { trimmed: a.trimmed } : {}), ...(plan ? { plan } : {}) } : undefined);
@@ -5382,7 +5413,7 @@ const toolX = (r) => ({
           ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: speaker.name },
-          turn: { op: "next", chatId: id, speakerId: speaker.id, speakerName: speaker.name },
+          turn: turnLabels({ op: "next", chatId: id, speakerId: speaker.id, speakerName: speaker.name }, sp, a),
         });
         markGenerating();
         return pendingOut(meta, a.trimmed ? { trimmed: a.trimmed } : undefined);
@@ -5463,7 +5494,7 @@ const toolX = (r) => ({
           ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
-          turn: { op: "swipe", chatId: id, speakerId: speaker.id, speakerName: speaker.name, targetId: msg.id },
+          turn: turnLabels({ op: "swipe", chatId: id, speakerId: speaker.id, speakerName: speaker.name, targetId: msg.id }, sp, a),
         });
         markGenerating();
         return pendingOut(meta);
@@ -5593,7 +5624,7 @@ const toolX = (r) => ({
           ...(a.sources ? { promptSources: a.sources } : {}),
           wantsTools: true,
           stream: { chatId: id, name: msg.name },
-          turn: { op: "continue", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: msg.name, targetId: msg.id },
+          turn: turnLabels({ op: "continue", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: msg.name, targetId: msg.id }, sp, a),
         });
         markGenerating();
         return pendingOut(meta);

@@ -4,6 +4,7 @@ import { signed, tierIndex, trend } from '@/lib/dashboard'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { useTx } from './dash-common'
+import { useGlide } from './dash-motion'
 
 const minus = (v: number) => signed(v).replace('-', '−')
 
@@ -34,7 +35,9 @@ export function SignedBar({ stat, value, prev, tier, compact }: {
   const tx = useTx()
   const color = STAT_COLORS[stat]
   const label = t(`soul.stat.${stat}`)
-  const half = Math.min(100, Math.abs(value)) / 100 * 50
+  // the bar glides from last turn's value to this turn's; the number and the meter say the true one
+  const drawn = useGlide(value, prev)
+  const half = Math.min(100, Math.abs(drawn)) / 100 * 50
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2">
@@ -47,11 +50,11 @@ export function SignedBar({ stat, value, prev, tier, compact }: {
           aria-label={label}
           className={cn('relative min-w-0 flex-1 bg-foreground/10', compact ? 'h-1.5' : 'h-2')}
         >
-          {value !== 0 && (
+          {(drawn !== 0 || value !== 0) && (
             <div
               aria-hidden="true"
-              className="absolute inset-y-0 box-border"
-              style={value > 0
+              className="absolute inset-y-0 box-border motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out"
+              style={(drawn !== 0 ? drawn : value) > 0
                 ? { left: '50%', width: `${half}%`, background: color }
                 : {
                     right: '50%',
@@ -84,6 +87,7 @@ export function PulseBar({ stat, value, base, prev }: {
   const t = useT()
   const color = STAT_COLORS[stat]
   const label = t(`soul.stat.${stat}`)
+  const drawn = useGlide(value, prev)
   return (
     <div className="flex items-center gap-2">
       <Label>{label}</Label>
@@ -95,7 +99,7 @@ export function PulseBar({ stat, value, base, prev }: {
         aria-label={label}
         className="relative h-2 min-w-0 flex-1 bg-foreground/10"
       >
-        <div className="absolute inset-y-0 left-0" style={{ width: `${Math.min(100, value)}%`, background: color }} aria-hidden="true" />
+        <div className="absolute inset-y-0 left-0 motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out" style={{ width: `${Math.min(100, drawn)}%`, background: color }} aria-hidden="true" />
         <div
           className="absolute inset-y-[-2px] w-px bg-foreground/60"
           style={{ left: `${base}%` }}

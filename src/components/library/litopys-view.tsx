@@ -154,7 +154,7 @@ export function LitopysView() {
         }
       />
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] grid-cols-1 overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t('lit.settingsTitle')}</DialogTitle>
           </DialogHeader>

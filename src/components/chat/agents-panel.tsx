@@ -4,6 +4,7 @@ import { ArrowClockwise, ArrowCounterClockwise, Check, GearSix, HourglassMedium,
 import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
+import { AgentOwnLimits } from '@/components/chat/agent-own-limits'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useConfirm } from '@/components/ui/confirm'
@@ -284,6 +285,7 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
   const [busy, setBusy] = useState(false)
   useEffect(() => { if (focus) ref.current?.scrollIntoView({ block: 'nearest' }) }, [focus])
   const waiting = agent.missing.length > 0
+  const capped = !!agent.own && agent.own.maxCalls > 0 && agent.maxCalls > agent.own.maxCalls
   const supported = agent.needs.filter((n) => !agent.unsupported.includes(n))
   // allowed before and asking for more now = a new version: only what is new needs a decision
   const added = supported.filter((n) => !agent.granted.includes(n))
@@ -324,7 +326,9 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           <p className="truncate text-sm font-semibold">{agent.name}{agent.version && <span className="ml-1.5 font-normal text-muted-foreground">{agent.version}</span>}</p>
           {agent.author && <p className="truncate text-[11px] text-muted-foreground">{t('ag.by', { name: agent.author })}</p>}
         </div>
-        {!waiting && !agent.unsupported.length && !agent.errors.length && <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>}
+        {!waiting && !agent.unsupported.length && !agent.errors.length && (capped
+          ? <span className="shrink-0 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid="agent-capped">{t('ag.own.badge')}</span>
+          : <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>)}
       </div>
       {agent.description && <p className="text-xs leading-relaxed text-muted-foreground">{agent.description}</p>}
       {agent.errors.length > 0 && <p className="text-xs text-destructive">{t('ag.wait.errors')}: {agent.errors[0].message}</p>}
@@ -356,6 +360,7 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           <ul className="list-disc pl-4">{agent.unsupported.map((n) => <li key={n}>{describeNeed(n, t)}</li>)}</ul>
         </div>
       )}
+      {!waiting && <AgentOwnLimits agent={agent} onChanged={onChanged} />}
       <div className="flex flex-wrap items-center gap-2">
         {waiting && supported.some((n) => !agent.granted.includes(n)) && (
           <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void allow()}>{update ? t('ag.update.allow') : t('ag.review.allow')}</Button>

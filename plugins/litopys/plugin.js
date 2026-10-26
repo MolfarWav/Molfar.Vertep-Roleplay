@@ -35,6 +35,14 @@ const VAULT_DIR = "vault-chats";
 const RETRY_MS = 600000;
 /** The most tokens the prompt insert may be given (wave 1 of the memory work; it was 4000). */
 export const BUDGET_MAX = 16000;
+/** Auto memory size: this share of the model's context window, never below AUTO_MIN. A first guess, to be tuned on real chats. */
+export const AUTO_SHARE = 0.15;
+export const AUTO_MIN = 800;
+/** The memory size for a model with `contextTokens` of context; null when the engine did not say. */
+export function autoBudget(contextTokens) {
+  const n = Number(contextTokens);
+  return Number.isFinite(n) && n > 0 ? clamp(Math.round(n * AUTO_SHARE), AUTO_MIN, BUDGET_MAX) : null;
+}
 /** Sanity cap on the chapters and arcs the ranked insert considers; the budget is the real limit. */
 const CHAPTERS_MAX = 60;
 /** Of what is left after the pinned and present facts and the bridge, chapters and arcs get at least this share. */
@@ -147,6 +155,7 @@ export const DEFAULT_CONFIG = {
   pinLimit: 5,
   insert: true,
   budget: 800,
+  budgetMode: "fixed",
   // 0.9.2: the most the backstory of a linked earlier chat may take (0 = none)
   linkBudget: 800,
   // M4d arcs: older chapters merged into one summary when they outgrow the budget. A new install merges by itself
@@ -370,6 +379,7 @@ export function loadConfig(fsx) {
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
+  cfg.budgetMode = cfg.budgetMode === "auto" ? "auto" : "fixed";
   cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
   cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
@@ -413,6 +423,7 @@ export function patchConfig(fsx, body) {
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);
+  if (b.budgetMode !== undefined) next.budgetMode = b.budgetMode === "auto" ? "auto" : "fixed";
   if (b.linkBudget !== undefined) next.linkBudget = clamp(intOf(b.linkBudget, 800), 0, 3000);
   if (b.arcMode !== undefined) {
     next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
@@ -995,11 +1006,79 @@ export function factRecency({ written, lastUsed, uses }, turn) {
   const used = Math.min(USE_CAP, Math.max(0, Number(uses) || 0)) / USE_CAP;
   return 0.5 + 0.5 * Math.exp(-age / RECENCY_SPAN) + 0.2 * used;
 }
+/** Cosine of two vectors; null on a shape mismatch, a non-number or a zero vector. */
+export function cosine(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || !a.length) return null;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+    dot += x * y;
+    na += x * x;
+    nb += y * y;
+  }
+  return na === 0 || nb === 0 ? null : dot / Math.sqrt(na * nb);
+}
+/** What a standard deviation above the pool's mean cosine adds to a score; about one rare word hit. */
+const SEM_WEIGHT = 12;
+/** Past this many deviations a match adds no more. */
+const SEM_Z_CAP = 3;
+/** Fewest items with a vector for the pool's mean and spread to mean anything. */
+const SEM_MIN_POOL = 4;
+/**
+ * Wave 2: a score bonus per item from how close its vector lies to the scan window's. Cosines are
+ * compared inside the pool, not against a fixed line, because models differ in what "unrelated"
+ * scores (0.1 for one, 0.75 for another); only items above the pool's mean get a bonus, so the
+ * words still decide when the vectors say nothing. `sem` is `{ vec, of(item) -> vector | null }`;
+ * no `sem`, a pool of fewer than SEM_MIN_POOL, or equal cosines: no bonus, ranking is by words alone.
+ */
+export function semanticBonuses(items, sem) {
+  const out = new Map();
+  if (!sem || !Array.isArray(sem.vec) || !sem.vec.length) return out;
+  const cos = [];
+  for (const it of items) {
+    const v = sem.of(it);
+    const c = v ? cosine(v, sem.vec) : null;
+    if (c !== null) cos.push([it, c]);
+  }
+  if (cos.length < SEM_MIN_POOL) return out;
+  const mean = cos.reduce((t, [, c]) => t + c, 0) / cos.length;
+  const sd = Math.sqrt(cos.reduce((t, [, c]) => t + (c - mean) * (c - mean), 0) / cos.length);
+  if (!(sd > 1e-6)) return out;
+  for (const [it, c] of cos) {
+    const z = (c - mean) / sd;
+    if (z > 0) out.set(it, SEM_WEIGHT * Math.min(SEM_Z_CAP, z));
+  }
+  return out;
+}
+/** A stored vector, when it is still of the text it was made from (an edited fact's old vector is not). */
+function vectorOf(vectors, id, text) {
+  const e = isObj(vectors) ? vectors[id] : null;
+  return isObj(e) && e.hash === fnv1a(text) && Array.isArray(e.vector) ? e.vector : null;
+}
+/** An arc has no vector of its own: it takes the vector of the member chapter nearest to the scan window. */
+export function bestMemberVector(members, vectors, scanVec) {
+  let best = null;
+  let bestCos = -2;
+  for (const c of arr(members).filter(isObj)) {
+    const v = vectorOf(vectors, c.id, str(c.text));
+    const k = v ? cosine(v, scanVec) : null;
+    if (k !== null && k > bestCos) {
+      bestCos = k;
+      best = v;
+    }
+  }
+  return best;
+}
 /**
  * Rank facts for group d: relevant facts, newest first on ties. `recency(f)` (optional, #50)
- * multiplies a fact's relevance; it changes nothing on disk.
+ * multiplies a fact's relevance; `sem` (optional, wave 2) adds the vector bonus to it. Nothing here
+ * changes anything on disk.
  */
-export function rankFacts(facts, scanText, recency) {
+export function rankFacts(facts, scanText, recency, sem) {
   const list = arr(facts).filter(isObj);
   const df = new Map();
   const keysMap = new Map();
@@ -1011,13 +1090,14 @@ export function rankFacts(facts, scanText, recency) {
   const n = Math.max(1, list.length);
   const scan = wordTokensM3b(scanText || "");
   const inScan = scanMatcherM3b(scan);
+  const bonus = semanticBonuses(list, sem);
   return list
-    .map((f) => ({ f, score: factScore(f, scan, inScan, df, n) * (recency ? recency(f) : 1) }))
+    .map((f) => ({ f, score: (factScore(f, scan, inScan, df, n) + (bonus.get(f) || 0)) * (recency ? recency(f) : 1) }))
     .sort((a, b) => b.score - a.score || (b.f.updatedAt || 0) - (a.f.updatedAt || 0))
     .map((x) => x.f);
 }
-/** Rank chapters before the cut: score on label + text; the bridge chapter stays first when it qualifies. */
-export function rankChapters(chapters, scanText) {
+/** Rank chapters before the cut: score on label + text (and, wave 2, the vector bonus); the bridge chapter stays first when it qualifies. */
+export function rankChapters(chapters, scanText, sem) {
   const list = arr(chapters).filter(isObj);
   const df = new Map();
   const keysMap = new Map();
@@ -1029,8 +1109,9 @@ export function rankChapters(chapters, scanText) {
   const n = Math.max(1, list.length);
   const scan = wordTokensM3b(scanText || "");
   const inScan = scanMatcherM3b(scan);
+  const bonus = semanticBonuses(list, sem);
   const score = (ch) => {
-    let s = 0;
+    let s = bonus.get(ch) || 0;
     if (scan.length) {
       for (const k of keysMap.get(ch)) {
         if (inScan(k)) {
@@ -1047,7 +1128,7 @@ export function rankChapters(chapters, scanText) {
 }
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used }) {
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   const cut = cutCount(st, line, cfg);
   // who is present: the newest snapshot of the line, else the names in the recent window
@@ -1106,8 +1187,14 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
     return factRecency({ written: writtenAt(f), lastUsed: Number(u.turn), uses: u.n }, line.length);
   };
   const rest = active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f));
-  const d = rankFacts(rest, scanText, recency);
-  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText).slice(0, CHAPTERS_MAX);
+  // wave 2: when the engine embedded the scan window and Litopys holds vectors, meaning counts beside words;
+  // an arc has no vector of its own: it takes the best of its chapters'
+  const useVec = Array.isArray(scanVec) && scanVec.length > 0 && isObj(vectors);
+  const factSem = useVec && { vec: scanVec, of: (f) => vectorOf(vectors, f.id, str(f.text)) };
+  const chapterVec = (ch) => (arcs.includes(ch) ? bestMemberVector(arr(ch.chapterIds).map((id) => allBefore.find((c) => c.id === id)), vectors, scanVec) : vectorOf(vectors, ch.id, str(ch.text)));
+  const chapterSem = useVec && { vec: scanVec, of: chapterVec };
+  const d = rankFacts(rest, scanText, recency, factSem);
+  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText, chapterSem).slice(0, CHAPTERS_MAX);
 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the
@@ -1252,7 +1339,13 @@ export function llmRequest(ctx, host) {
     // the use record (#50) lives in the insert file: one write per reply, gone with the chat
     const prevInsert = litOff ? null : readJson(fsx, INSERT_DIR + chatId + ".json", null);
     const used = isObj(prevInsert) && isObj(prevInsert.used) ? prevInsert.used : {};
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg, scanText, speakerName, used }) : null;
+    // wave 2: the engine embedded the scan window (ctx.turn.scanVec); Litopys ranks by it too when it holds vectors
+    // Auto memory size: a share of the model's context window (the engine says it in the turn labels)
+    const autoSize = cfg.budgetMode === "auto" ? autoBudget(ctx.turn.contextTokens) : null;
+    const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
+    const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
+    const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's

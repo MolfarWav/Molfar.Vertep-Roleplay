@@ -49,7 +49,7 @@ export const readCanvasFile = (raw) => {
 
 const SOURCE_TYPE = {
   lastReply: 'text', lastUserMessage: 'text', history: 'text', card: 'text', persona: 'text', summary: 'text',
-  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', state: null,
+  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', state: null,
 };
 const shapeType = (spec) => (spec === 'number' ? 'number' : spec === 'bool' ? 'flag' : 'text'); // enum:a|b and text are text
 const PORT_ID = /^[A-Za-z0-9_-]+$/;
@@ -57,6 +57,7 @@ const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z
 const shapeOut = (shape) => Object.entries((shape ?? {})).map(([id, spec]) => ({ id, side: 'out', type: shapeType(spec) }));
 const ownType = (as) => (as === 'number' ? 'number' : as === 'flag' ? 'flag' : 'text'); // a state value on a wire
 const itemPorts = (item) => Object.entries((item ?? {})).map(([id, spec]) => ({ id, side: 'in', type: ownType(spec) }));
+const whenIn = [{ id: 'when', side: 'in', type: 'signal', optional: true }];
 const whenDone = [{ id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }];
 const OUTPUT_TEXT_KINDS = ['prompt-insert', 'note', 'choices'];
 const NEEDS_BY_OUTPUT = { 'prompt-insert': ['write:prompt'], note: ['show:note'], choices: ['show:choices'] };
@@ -128,6 +129,26 @@ export const AGENT_CARDS = {
     label: 'Change own list', colorVar: '--k-write', hint: 'Add, update or remove one entry of an own list.',
     ports: (p) => [...(p.op === 'remove' ? [{ id: 'key', side: 'in', type: ownType((p.item ?? {})[p.key]) }] : itemPorts(p.item)), ...whenDone],
     needs: (p) => [`write:own.${p.field}`],
+  },
+  'random.dice': {
+    label: 'Dice', colorVar: '--k-logic', hint: 'Rolls dice in code, never the model. The same reply always gets the same roll.',
+    ports: () => [...whenIn, { id: 'total', side: 'out', type: 'number' }, { id: 'rolls', side: 'out', type: 'text' }],
+    needs: () => [],
+  },
+  'random.pick': {
+    label: 'Pick', colorVar: '--k-logic', hint: 'Picks one of your lines by weight, in code. The same reply always gets the same pick.',
+    ports: () => [...whenIn, { id: 'text', side: 'out', type: 'text' }, { id: 'index', side: 'out', type: 'number' }],
+    needs: () => [],
+  },
+  'text.extract': {
+    label: 'Extract', colorVar: '--k-data', hint: 'Takes the part of a text a pattern matches. Never calls the model.',
+    ports: () => [{ id: 'in', side: 'in', type: 'text' }, { id: 'match', side: 'out', type: 'text' }, { id: 'none', side: 'out', type: 'signal' }],
+    needs: () => [],
+  },
+  'text.cut': {
+    label: 'Cut', colorVar: '--k-data', hint: 'Keeps the first or last part of a text: characters, words or lines.',
+    ports: () => [{ id: 'in', side: 'in', type: 'text' }, { id: 'text', side: 'out', type: 'text' }],
+    needs: () => [],
   },
   note: { label: 'Note', colorVar: '--k-data', hint: 'A note for people; never sent to a model.', ports: () => [], needs: () => [] },
 };
@@ -261,6 +282,41 @@ function checkState(raw, err) {
     out[id] = { type: spec.type };
   }
   return out;
+}
+const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+export const PATTERN_MAX = 200;
+export const PICK_MAX = 40;
+/** A pattern that can run for a very long time on a short text: a quantified group that holds a quantifier or an alternation, or a back reference. The run is stopped by the sandbox after seconds, so refuse these up front. */
+export const riskyPattern = (src) => /\\[1-9]/.test(src) || /\((?:[^()\\]|\\.)*(?:[*+]|\{\d|\|)(?:[^()\\]|\\.)*\)[*+{]/.test(src);
+/** The parameters of the dice, pick, extract and cut cards. */
+function checkCodeCard(n, err) {
+  const p = n.params ?? {};
+  const bad = (code, msg) => err(code, `"${n.title}": ${msg}`, n.id);
+  if (n.type === 'random.dice') {
+    if (p.count !== undefined && !isInt(p.count, 1, 20)) bad('E_PARAM', 'count is a whole number from 1 to 20');
+    if (p.sides !== undefined && !isInt(p.sides, 2, 1000)) bad('E_PARAM', 'sides is a whole number from 2 to 1000');
+    if (p.bonus !== undefined && !isInt(p.bonus, -1000, 1000)) bad('E_PARAM', 'bonus is a whole number from -1000 to 1000');
+  } else if (n.type === 'random.pick') {
+    const items = Array.isArray(p.items) ? p.items : [];
+    if (items.length < 2 || items.length > PICK_MAX) bad('E_PARAM', `a pick needs 2 to ${PICK_MAX} lines`);
+    else if (items.some((i) => !isObj(i) || typeof i.text !== 'string' || !i.text.trim() || i.text.length > 400 || (i.weight !== undefined && !isInt(i.weight, 1, 100))))
+      bad('E_PARAM', 'every line needs text (up to 400 characters) and a weight from 1 to 100 or none');
+  } else if (n.type === 'text.extract') {
+    const flags = p.flags === undefined ? '' : p.flags;
+    if (typeof p.pattern !== 'string' || !p.pattern || p.pattern.length > PATTERN_MAX) { bad('E_PARAM', `pattern is text of 1 to ${PATTERN_MAX} characters`); return; }
+    if (typeof flags !== 'string' || !/^[ims]{0,3}$/.test(flags) || new Set(flags).size !== flags.length) bad('E_PARAM', 'flags may be i, m and s');
+    let groups = 0;
+    try { groups = new RegExp(p.pattern + '|', typeof flags === 'string' && /^[ims]{0,3}$/.test(flags) ? flags : '').exec('').length - 1; }
+    catch { bad('E_REGEX', 'the pattern is not a valid regular expression'); return; }
+    if (riskyPattern(p.pattern)) bad('E_REGEX_RISK', 'a repeated group that holds a repeat or a choice can take very long on some texts; write it without nesting');
+    if (p.group !== undefined && (!isInt(p.group, 0, 9) || p.group > groups)) bad('E_PARAM', `group is a whole number from 0 to ${groups}, the groups the pattern has`);
+    if (p.all !== undefined && typeof p.all !== 'boolean') bad('E_PARAM', 'all is true or false');
+    if (p.join !== undefined && (typeof p.join !== 'string' || p.join.length > 20)) bad('E_PARAM', 'join is text of up to 20 characters');
+  } else if (n.type === 'text.cut') {
+    if (!['first', 'last'].includes(p.keep)) bad('E_PARAM', 'keep is first or last');
+    if (!['chars', 'words', 'lines'].includes(p.unit)) bad('E_PARAM', 'unit is chars, words or lines');
+    if (!isInt(p.n, 1, 20000)) bad('E_PARAM', 'n is a whole number from 1 to 20000');
+  }
 }
 const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text' };
 export const PANEL_PLACES = ['top1', 'top2', 'float'];
@@ -483,6 +539,8 @@ export function validateAgent(raw) {
     maxCalls += card.calls ?? 0;
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
+    if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
+      checkCodeCard(n, err);
     if (n.type === 'model.ask' && !a.models?.[p.role])
       err('E_ROLE', `"${n.title}" asks for the model role "${p.role}", which agent.models does not declare`, n.id);
     if (n.type === 'logic.if') {

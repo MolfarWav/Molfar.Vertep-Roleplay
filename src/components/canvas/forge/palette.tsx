@@ -9,9 +9,9 @@ import type { MsgKey } from '@/lib/i18n'
 
 /** The cards a person may add, in groups. The Input is not here: every agent has its one. */
 const GROUPS: { key: MsgKey; types: string[] }[] = [
-  { key: 'fg.pal.data', types: ['state.read', 'text.template'] },
+  { key: 'fg.pal.data', types: ['state.read', 'text.template', 'text.extract', 'text.cut'] },
   { key: 'fg.pal.model', types: ['model.ask', 'data.parse'] },
-  { key: 'fg.pal.logic', types: ['logic.if', 'logic.merge'] },
+  { key: 'fg.pal.logic', types: ['logic.if', 'logic.merge', 'random.dice', 'random.pick'] },
   { key: 'fg.pal.write', types: ['state.set', 'state.add', 'state.list'] },
   { key: 'fg.pal.out', types: ['agent.output'] },
   { key: 'fg.pal.misc', types: ['note'] },

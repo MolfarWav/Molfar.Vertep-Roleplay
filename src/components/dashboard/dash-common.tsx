@@ -11,6 +11,7 @@ import { useLang } from '@/components/dashboard/use-lang'
 import { useT } from '@/hooks/use-t'
 import { useDashLive, type DashLast } from '@/lib/dash-live'
 import { DICTIONARIES, type MsgKey } from '@/lib/i18n'
+import { WeatherIcon, weatherKind } from '@/components/dashboard/dash-weather'
 
 /**
  * Translate a key built from data (a band, a constellation id, a family...). An id the
@@ -64,7 +65,8 @@ export const bandTextClass = (band: string | null | undefined): string => (band 
 
 export function BandMark({ band, className }: { band: string | null | undefined; className?: string }) {
   const look = band ? BAND_LOOK[band] : undefined
-  return look ? <span className={cn('shrink-0', className)} aria-hidden="true">{look.icon}</span> : null
+  // keyed by the band: when the time of day changes the new icon pops in where the old one was
+  return look ? <span key={band} className={cn('dash-pop shrink-0', className)} aria-hidden="true">{look.icon}</span> : null
 }
 
 /** Time (or band word) large, then date · band · day · minutes, place, weather. */
@@ -75,6 +77,7 @@ export function SceneBlock({ clock, calendar }: { clock: Clock | null; calendar?
   if (!clock) return null
   const band = clock.band ? tx('dash.band', clock.band) : null
   const date = clock.date ? formatStoryDate(clock.date, lang) : null
+  const weather = weatherKind(clock.weather)
   return (
     <div className="flex min-w-0 flex-col gap-1">
       {clock.time ? (
@@ -97,7 +100,12 @@ export function SceneBlock({ clock, calendar }: { clock: Clock | null; calendar?
         <DateEdit clock={clock} calendar={calendar ?? null} />
       </div>
       {clock.place && <div className="min-w-0 text-sm break-words">{clock.place}</div>}
-      {clock.weather && <div className="min-w-0 text-sm text-muted-foreground break-words">{clock.weather}</div>}
+      {clock.weather && (
+        <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+          {weather && <WeatherIcon kind={weather} night={clock.band === 'night'} />}
+          <span className="min-w-0 break-words">{clock.weather}</span>
+        </div>
+      )}
     </div>
   )
 }

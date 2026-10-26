@@ -8,12 +8,16 @@ Wire types: `text`, `number`, `flag` (yes or no), `signal` (fired or not; the `w
 
 | Card | params | Ports it gets |
 |---|---|---|
-| `agent.input` (exactly one) | `give: [{ id, source }]`, source one of `lastReply`, `lastUserMessage`, `history`, `card`, `persona`, `authorNote`, `myPrevious`. Not yet run: `summary`, `preGenInjections`, `parallelResults`, and `source: "state"` (a Dashboard field) | one text output per `id` |
+| `agent.input` (exactly one) | `give: [{ id, source }]`, source one of `lastReply`, `lastUserMessage`, `history`, `card`, `persona`, `authorNote`, `myPrevious`, `litopysFacts` (the chat's active Litopys facts, optional `limit` up to 60), `lorebook` (entries that are constant or keyed by the last six messages, optional `limit` up to 20). Not yet run: `summary`, `preGenInjections`, `parallelResults`, and `source: "state"` (a Dashboard field) | one text output per `id` |
 | `text.template` | `text` with `{{slot}}`s | one text input per slot, output `text` |
 | `model.ask` | `role` (`fast`), `prompt` with `{{slot}}`s, `answer`, `maxTokens`, `batchKey: null` | one text input per slot in the prompt. Outputs by `answer`: `{ "as": "text" }` gives `text`; `{ "as": "yesno" }` gives `answer` (flag) and `reason` (text); `{ "as": "json", "shape": { "mood": "enum:calm\|tense", "level": "number", "met": "bool", "who": "text" } }` gives one output per shape field |
 | `data.parse` | `shape` as above | input `text`, one output per field, and `failed` (signal) |
 | `logic.if` | `inputs: [{ id, type }]`, `match`: `all` / `any` / `none`, `rows: [{ left, op, right }]` | one input per `inputs` entry; outputs `yes`, `no`, `unknown` (signals) |
 | `logic.merge` | `count` (2 or more) | inputs `i1`..`iN` (signals), output `out`; fires when any input fires |
+| `random.dice` | `count` (1 to 20), `sides` (2 to 1000), optional `bonus` | optional `when` (signal); outputs `total` (number), `rolls` (text). The code rolls, never the model; one reply rolls the same every time |
+| `random.pick` | `items: [{ text, weight }]` (2 to 40, weight 1 to 100) | optional `when`; outputs `text`, `index` (number) |
+| `text.extract` | `pattern` (up to 200 characters, no repeated group that holds a repeat or a choice), `flags` (`i`, `m`, `s`), `group`, `all`, `join` | input `in`; outputs `match` (text) and `none` (signal: nothing matched) |
+| `text.cut` | `keep` (`first` / `last`), `unit` (`chars` / `words` / `lines`), `n` | input `in`, output `text` |
 | `state.read` | `field`, `as` (`number` / `text` / `flag`) | output `value` |
 | `state.set` | `field`, `as` | input `value`, optional `when`, output `done` |
 | `state.add` | `field` (a number field), `amount` (fixed, may be negative) | optional input `by` (number) instead of `amount`, optional `when`, output `done` |

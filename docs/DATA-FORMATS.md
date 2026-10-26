@@ -190,6 +190,15 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
   `full: true`, and the Prompt board part says "full record"). When it does not fit, chapters and arcs are held at
   least 40% of what is left after the pinned facts, the facts of those present and the chapter just before the cut,
   and what one kind leaves unused goes to the other; at most 60 ranked chapters. An item goes in whole or not at all.
+- `budgetMode` (`fixed`, default, or `auto`): in `auto` the memory size is 15% of the model's context window (at least
+  800, at most 16000) when the engine says the window in the turn labels (`turn.contextTokens`); without that label, or
+  in `fixed`, `budget` is used. 15% is a first guess, not tuned on real chats.
+- Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector } }`, one for each chapter and active fact, written
+  after a chapter when an embedding connection exists): when the engine passes the embedding of the scan window
+  (`turn.scanVec`), the facts and chapters that are ranked get a bonus for being near it in meaning (an arc takes the
+  nearest of its chapters). The bonus is relative to the pool's mean cosine, so models that score "unrelated" at
+  different levels behave alike; a vector whose `hash` no longer matches the text, or of another size, is ignored.
+  Fewer than 4 vectors in the pool, no `scanVec`, or an engine that does not pass it: words alone, as before.
 - `arcMode` (`ask`, `auto`, `off`): `auto` merges older chapters into an arc by itself (it only adds the arc over its
   chapters; nothing is deleted), `ask` offers the merge in the Library. A new install is `auto`. The first time the
   config is read, an install that already has Litopys data (a config file, chat records or the 1.x store) is written
@@ -553,6 +562,24 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
   `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `when` signal),
   `note`, and four cards for the agent's own state (below). A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
+- Code cards, no model and no permission, 0 model calls: `random.dice` (`count` 1 to 20, default 1; `sides` 2 to 1000,
+  default 20; optional `bonus` -1000 to 1000; optional `when` signal; outputs `total` (number) and `rolls` (text,
+  "4, 17")), `random.pick` (`items`: 2 to 40 `{ text, weight? }`, a weight 1 to 100 or 1 when absent; optional `when`; outputs
+  `text` and `index`, 1-based), `text.extract` (`pattern` of up to 200 characters, optional `flags` from `i`, `m`, `s`, `group`
+  0 to 9 and not above the pattern's groups, `all`: every match up to 20 joined with `join` (default `, `); input `in`;
+  outputs `match`, and `none` (signal) when nothing matched, so the match path is skipped) and `text.cut` (`keep` `first`
+  or `last`, `unit` `chars`, `words` or `lines`, `n` 1 to 20000; input `in`, output `text`). A bad parameter is `E_PARAM`, a
+  pattern that does not compile `E_REGEX`. A pattern with a repeated group that holds a repeat or a choice, or a back
+  reference, is `E_REGEX_RISK`: such a pattern can run for very long on a short text, and the plugin sandbox would be stopped
+  after seconds. Dice and picks are seeded: the host passes `ctx.seed` = chat id, agent id and the turn key (`id#swipe`), so every
+  pass of one run rolls the same, a regenerated reply with the same swipe repeats its roll, and a new swipe rolls again.
+- Input sources read by the host (`give[].source`, permission `read:<source>`): `litopysFacts` (the chat's active Litopys
+  facts, pinned first then the newest, `limit` 1 to 60, default 20, one "- fact" line each; missing when Litopys has no
+  record for the chat) and `lorebook` (entries of the books the chat uses, in this order: the card's embedded and linked
+  books, the chat's own and its world book, then the global ones; entries that are enabled and constant, or whose keys appear
+  in the last six messages; `limit` 1 to 20, default 8, "- title: text" lines). The lorebook source is an approximation of the
+  app's scan: keys are plain text, regular-expression keys, groups, probability and timed effects are not applied, and a group
+  chat reads only the first character's books.
 - `params.show` on an Output, where a result may appear: `state-patch` → `log`, `feed`, `top1`, `top2`, `float`, `toast`;
   `note` → `note`, `log`, `feed`, `top1`, `float`; `prompt-insert` → `inspector`, `note`; `choices` → `bottom`, `log`,
   `float`. Anything else is `E_SHOW_NOT_ALLOWED`. A `parallel` agent cannot insert into the prompt (`E_PARALLEL_INSERT`).
@@ -641,10 +668,10 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   errors and nothing is stored; one without `derived` is compiled), stores it and answers `{ id, needs, granted, missing,
   unsupported, warnings }`. `grant`: `true` or a list of permissions the user confirmed. A new version keeps the permissions
   already confirmed for what it still asks; it runs only when everything it asks for is confirmed.
-- `GET /agents/list` (each agent also carries `places`: where the chat may move its results, from its Outputs and panels, the author's default first), `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`.
+- `GET /agents/list` (each agent also carries `places`: where the chat may move its results, from its Outputs and panels, the author's default first), `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`. `agents/config.json` also holds the user's own choices per agent, never the agent's file: `byAgent: { <id>: { models?: { <role>: <model> }, maxCalls? } }` (`PUT` with `byAgent` replaces the whole map; `maxCalls` 1 to 50). The list carries them as `own` (with the agent's `models`, the roles its author named). The model for a question is the agent's own `models[role]`, then the app-wide `models[role]`, then `model`, then the rest of the chain below. An agent whose cards can make more calls than its `maxCalls` is blocked (`blocker`: "Can make up to N model calls a run, over your limit of M for this agent") and does not run; removing the agent drops its entry, an update keeps it.
 - `POST /agents/run` `{ chatId, agent? }`: runs the agents the chat uses (its binding, see above) that are set to run `after` a
   reply, in the engine's two-phase style: it asks the models and is called again with the answers. The model for a question is
-  the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped
+  the agent's own `byAgent[id].models[role]`, else the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped
   and why: not installed, off, waiting for permission, trigger (`everyN`, `keywords`) did not fire, already ran for this reply.
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).

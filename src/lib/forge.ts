@@ -11,11 +11,11 @@ type Params = Record<string, unknown>
 
 /** The cards in the order the "add a card" list shows them. `note` is a comment for people. */
 export const CARD_ORDER = [
-  'agent.input', 'text.template', 'model.ask', 'data.parse', 'logic.if', 'logic.merge',
-  'state.read', 'state.set', 'state.add', 'state.list', 'agent.output', 'note',
+  'agent.input', 'text.template', 'model.ask', 'data.parse', 'text.extract', 'text.cut', 'logic.if', 'logic.merge',
+  'random.dice', 'random.pick', 'state.read', 'state.set', 'state.add', 'state.list', 'agent.output', 'note',
 ] as const
 
-export const INPUT_SOURCES = ['lastReply', 'lastUserMessage', 'history', 'card', 'persona', 'authorNote', 'myPrevious'] as const
+export const INPUT_SOURCES = ['lastReply', 'lastUserMessage', 'history', 'card', 'persona', 'authorNote', 'myPrevious', 'litopysFacts', 'lorebook'] as const
 export const OUTPUT_KINDS = ['note', 'choices', 'prompt-insert', 'state-patch'] as const
 
 /** What a new card starts with: something the checker accepts as a shape, which the user then fills in. */
@@ -27,6 +27,10 @@ export function defaultParams(type: string): Params {
     case 'data.parse': return { shape: { value: 'text' } }
     case 'logic.if': return { inputs: [], match: 'all', rows: [] }
     case 'logic.merge': return { count: 2 }
+    case 'random.dice': return { count: 1, sides: 20 }
+    case 'random.pick': return { items: [{ text: 'Option A', weight: 1 }, { text: 'Option B', weight: 1 }] }
+    case 'text.extract': return { pattern: '(.+)', group: 1 }
+    case 'text.cut': return { keep: 'first', unit: 'words', n: 50 }
     case 'state.read': return { field: '', as: 'number' }
     case 'state.set': return { field: '', as: 'number' }
     case 'state.add': return { field: '', amount: 1 }
