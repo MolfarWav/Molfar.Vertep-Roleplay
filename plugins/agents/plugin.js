@@ -1226,7 +1226,8 @@ export function chatAgents(fsx, meta) {
   const own = cleanItems(b.own);
   const items = own || (preset ? cleanItems(preset.items) || [] : []);
   const show = isObj(b.show) ? b.show : {};
-  return items.map((it) => ({ ...it, show: AG_PLACES.includes(show[it.agent]) ? show[it.agent] : null }));
+  const also = isObj(b.also) ? b.also : {};
+  return items.map((it) => ({ ...it, show: AG_PLACES.includes(show[it.agent]) ? show[it.agent] : null, ...(also[it.agent] === true ? { also: true } : {}) }));
 }
 
 // ---------- what this runner can give an agent ----------

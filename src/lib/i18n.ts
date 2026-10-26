@@ -3447,6 +3447,11 @@ const en = {
   'ag.panel.open': 'Agents panel',
   'ag.choices.title': 'Ways to go on',
   'ag.choices.hide': 'Hide the choices',
+  'ag.also.label': 'Also show in the block',
+  'ag.also.hint': 'The latest result of this agent stays in a block above the message box, besides the place above.',
+  'ag.block.title': 'Agent results · {n}',
+  'ag.block.hint': 'A hint for the next reply',
+  'ag.block.quiet': 'Nothing to show from the last run.',
   'ag.panel.openNew': 'Agents panel, {n} new',
   'ag.manageTip': 'Install agents, give permissions, manage sets',
 } as const
@@ -6892,6 +6897,11 @@ const uk: Record<MsgKey, string> = {
   'ag.panel.open': 'Панель агентів',
   'ag.choices.title': 'Як діяти далі',
   'ag.choices.hide': 'Сховати варіанти',
+  'ag.also.label': 'Показувати ще й у блоці',
+  'ag.also.hint': 'Останній результат цього агента лишається в блоці над полем вводу, крім місця вище.',
+  'ag.block.title': 'Результати агентів · {n}',
+  'ag.block.hint': 'Підказка для наступної відповіді',
+  'ag.block.quiet': 'Остання робота нічого не залишила.',
   'ag.panel.openNew': 'Панель агентів, нових: {n}',
   'ag.manageTip': 'Встановити агентів, дати дозволи, керувати наборами',
 }

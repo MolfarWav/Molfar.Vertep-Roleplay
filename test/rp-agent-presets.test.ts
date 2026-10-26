@@ -48,6 +48,28 @@ describe("cleanAgentBinding", () => {
   });
 });
 
+describe("the block mirror (`also`)", () => {
+  const base = [{ agent: "scene-plan", on: true }, { agent: "mood-tracker", on: true }];
+  it("keeps only true flags for valid agent ids", () => {
+    expect(eng.cleanAgentBinding({ also: { "mood-tracker": true, "scene-plan": false, "Bad Id": true } })).toEqual({ v: 1, also: { "mood-tracker": true } });
+    expect(eng.cleanAgentBinding({ also: { "scene-plan": "yes" } })).toBeNull();
+  });
+  it("is set and cleared one agent at a time, and shows on the items", () => {
+    let b: Json = eng.editChatAgents({ v: 1, preset: "rp" }, base, { op: "also", agent: "mood-tracker", on: true }) as Json;
+    expect(b.also).toEqual({ "mood-tracker": true });
+    const items = eng.resolveChatAgents(b, presets(), null).items;
+    expect(items.find((i: Json) => i.agent === "mood-tracker").also).toBe(true);
+    expect(items.find((i: Json) => i.agent === "scene-plan").also).toBeUndefined();
+    b = eng.editChatAgents(b, base, { op: "also", agent: "mood-tracker", on: false }) as Json;
+    expect(b.also).toBeUndefined();
+  });
+  it("is refused for an agent that is not in the set, and dropped by a reset", () => {
+    expect((eng.editChatAgents({ v: 1, preset: "rp" }, base, { op: "also", agent: "ghost-one", on: true }) as Json).error).toBeTruthy();
+    const b = eng.editChatAgents({ v: 1, preset: "rp" }, base, { op: "also", agent: "scene-plan", on: true }) as Json;
+    expect(eng.editChatAgents(b, base, { op: "reset" })).toEqual({ v: 1, preset: "rp" });
+  });
+});
+
 describe("resolveChatAgents", () => {
   it("a chat with no binding follows the default preset", () => {
     const r = eng.resolveChatAgents(null, presets(), "rp");
