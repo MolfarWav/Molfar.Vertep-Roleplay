@@ -623,7 +623,7 @@ routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-ag
   already there is kept and returned with `existing: true`). A name is 1 to 100 characters: letters, digits, `_`, `-`.
 - **The editor (the Forge).** Canvas has a third tab, Agents: the drafts as a list, a new agent from a ready recipe, and one
   agent as cards on its own board (`forge/agent-board.tsx`: a row for each port, wires from port to port; the Chat links board of the kit is unchanged) with a form for the picked card and a tab for the agent itself (name, id, trigger,
-  its own state fields, panels as JSON). It checks the file as it changes with the same checker the plugin uses, saves the draft
+  its own state fields, panels by forms with the JSON folded below; renaming a state field renames it in the cards and panels too). It checks the file as it changes with the same checker the plugin uses, saves the draft
   after a short pause, and installs it through the drafts route; Install is off while the check has errors. The recipes it starts
   from are the skill's JSON files, copied into `src/lib/forge-recipes.ts` by `bun scripts/sync-agent-recipes.ts` (a test fails
   when the copy is old). A phone gets the cards as a list and the same forms in a sheet.

@@ -15,7 +15,7 @@ import {
   copyAgentToDraft, deleteAgentDraft, installAgentDraft, listAgentDrafts, listInstalledAgents, readAgentDraft, saveAgentDraft,
   type AgentDraft, type AgentInfo,
 } from '@/lib/agents'
-import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, newCard, prune, roomy, setCard } from '@/lib/forge'
+import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -74,8 +74,20 @@ export function AgentForge() {
     return () => clearTimeout(id)
   }, [cur, file])
 
-  const edit = (next: Graph) => { changed.current = true; setHist((h) => commit(h, next)) }
+  const edit = (next: Graph) => {
+    changed.current = true
+    // a card that waited for a signal and no longer has one would run on every reply, and the check cannot tell
+    for (const name of lostWhen(graph, next)) toast.warning(t('fg.lostWhen', { name }))
+    setHist((h) => commit(h, next))
+  }
   const editAgent = (agent: Agent) => { changed.current = true; setCur((c) => (c ? { ...c, agent } : c)) }
+  const renameStateField = (from: string, to: string) => {
+    if (!cur) return
+    const r = renameField(cur.agent, graph, from, to)
+    changed.current = true
+    setCur({ ...cur, agent: r.agent })
+    if (r.graph.nodes.some((n, i) => n !== graph.nodes[i])) setHist((h) => commit(h, r.graph))
+  }
   const editTitle = (title: string) => { changed.current = true; setCur((c) => (c ? { ...c, title } : c)) }
 
   const load = (name: string, f: Record<string, unknown>) => {
@@ -201,7 +213,7 @@ export function AgentForge() {
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
-            <AgentForm agent={cur.agent} title={cur.title} onAgent={editAgent} onTitle={editTitle} installed={!!installedCopy} />
+            <AgentForm agent={cur.agent} title={cur.title} onAgent={editAgent} onTitle={editTitle} onRename={renameStateField} installed={!!installedCopy} />
             {installedCopy && (
               <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.installedCopy')}>
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.installedCopy')}</h4>
