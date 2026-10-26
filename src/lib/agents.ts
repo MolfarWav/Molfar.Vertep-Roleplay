@@ -31,7 +31,14 @@ export interface AgentInfo {
   blocker: string
   /** the places the chat may move this agent's results to; the first is where the author put them */
   places?: string[]
+  /** the model roles the author named, each with a hint ("cheap, answers in JSON"); never a model id */
+  models?: Record<string, { hint?: string }>
+  /** the user's own choices for this agent (see saveAgentOwn) */
+  own?: AgentOwn
 }
+
+/** What the user set for one agent: a model for each role, and the most model calls a run may make (0 = no limit). */
+export interface AgentOwn { models: Record<string, string>; maxCalls: number }
 
 /** `wait: false` = the reply does not wait for an agent set to run before it: it runs beside the reply and its hint goes into the next one. Absent = the reply waits. */
 export interface ChatAgentItem { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean; show: string | null }
@@ -155,6 +162,18 @@ export async function listInstalledAgents(): Promise<AgentInfo[] | null> {
     if (e instanceof ApiError && e.status === 404) return null
     throw e
   }
+}
+
+/** Saves the user's model per role and call limit for one agent in agents/config.json; an empty set removes the entry. */
+export async function saveAgentOwn(id: string, own: AgentOwn): Promise<void> {
+  const cfg = await j<{ byAgent?: Record<string, { models?: Record<string, string>; maxCalls?: number }> }>('/agents/config')
+  const byAgent = { ...(cfg.byAgent ?? {}) }
+  const entry: { models?: Record<string, string>; maxCalls?: number } = {}
+  if (Object.keys(own.models).length) entry.models = own.models
+  if (own.maxCalls > 0) entry.maxCalls = own.maxCalls
+  if (Object.keys(entry).length) byAgent[id] = entry
+  else delete byAgent[id]
+  await j('/agents/config', { method: 'PUT', body: JSON.stringify({ byAgent }) })
 }
 
 export interface InstallReply { id: string; updated: boolean; needs: string[]; granted: string[]; missing: string[]; unsupported: string[]; warnings: { code: string; message: string }[] }

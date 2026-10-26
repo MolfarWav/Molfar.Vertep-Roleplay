@@ -641,10 +641,10 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   errors and nothing is stored; one without `derived` is compiled), stores it and answers `{ id, needs, granted, missing,
   unsupported, warnings }`. `grant`: `true` or a list of permissions the user confirmed. A new version keeps the permissions
   already confirmed for what it still asks; it runs only when everything it asks for is confirmed.
-- `GET /agents/list` (each agent also carries `places`: where the chat may move its results, from its Outputs and panels, the author's default first), `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`.
+- `GET /agents/list` (each agent also carries `places`: where the chat may move its results, from its Outputs and panels, the author's default first), `POST /agents/grant` `{ id, tokens }`, `DELETE /agents/<id>`, `GET|PUT /agents/config`. `agents/config.json` also holds the user's own choices per agent, never the agent's file: `byAgent: { <id>: { models?: { <role>: <model> }, maxCalls? } }` (`PUT` with `byAgent` replaces the whole map; `maxCalls` 1 to 50). The list carries them as `own` (with the agent's `models`, the roles its author named). The model for a question is the agent's own `models[role]`, then the app-wide `models[role]`, then `model`, then the rest of the chain below. An agent whose cards can make more calls than its `maxCalls` is blocked (`blocker`: "Can make up to N model calls a run, over your limit of M for this agent") and does not run; removing the agent drops its entry, an update keeps it.
 - `POST /agents/run` `{ chatId, agent? }`: runs the agents the chat uses (its binding, see above) that are set to run `after` a
   reply, in the engine's two-phase style: it asks the models and is called again with the answers. The model for a question is
-  the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped
+  the agent's own `byAgent[id].models[role]`, else the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped
   and why: not installed, off, waiting for permission, trigger (`everyN`, `keywords`) did not fire, already ran for this reply.
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).

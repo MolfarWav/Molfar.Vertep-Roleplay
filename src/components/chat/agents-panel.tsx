@@ -4,6 +4,7 @@ import { ArrowClockwise, ArrowCounterClockwise, Check, GearSix, HourglassMedium,
 import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
+import { AgentOwnLimits } from '@/components/chat/agent-own-limits'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useConfirm } from '@/components/ui/confirm'
@@ -356,6 +357,7 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           <ul className="list-disc pl-4">{agent.unsupported.map((n) => <li key={n}>{describeNeed(n, t)}</li>)}</ul>
         </div>
       )}
+      {!waiting && <AgentOwnLimits agent={agent} onChanged={onChanged} />}
       <div className="flex flex-wrap items-center gap-2">
         {waiting && supported.some((n) => !agent.granted.includes(n)) && (
           <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void allow()}>{update ? t('ag.update.allow') : t('ag.review.allow')}</Button>

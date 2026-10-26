@@ -1030,7 +1030,7 @@ function runCards(file, ctx, answers, seen) {
  * Data (under the app's data/ dir):
  *   agents/<id>.vertep-agent.json        the installed agent, checked and compiled
  *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...] }
- *   agents/config.json                   { model?, models?: { <role>: <model> } }
+ *   agents/config.json                   { model?, models?: { <role>: <model> }, byAgent?: { <id>: { models?: { <role>: <model> }, maxCalls? } } }
  *   agents/state/<chatId>/<id>.json      the agent's own fields in that chat, { v, own, last, before }
  *   agents/runs/<chatId>.json            the newest runs: { v, runs: [...] }
  *   agents/inserts/<chatId>.json         prompt inserts waiting for the next reply: { v, items: [...] }
@@ -1110,13 +1110,15 @@ const grantedOf = (fsx, id) => {
 };
 
 /** Why an installed agent cannot run now, or "" when it can. */
-function blocker(agent, granted) {
+function blocker(agent, granted, cap) {
   if (agent.report.errors.length) return "The file does not pass the check: " + agent.report.errors[0].message;
   const needs = agent.report.derived ? agent.report.derived.needs : [];
   const no = unsupportedNeeds(needs);
   if (no.length) return "Needs something this version cannot give yet: " + no.join(", ");
   const missing = needs.filter((t) => !granted.includes(t));
   if (missing.length) return "Waiting for permission: " + missing.join(", ");
+  const calls = agent.report.derived ? agent.report.derived.maxCalls : 0;
+  if (cap && calls > cap) return "Can make up to " + calls + " model calls a run, over your limit of " + cap + " for this agent";
   return "";
 }
 
@@ -1179,11 +1181,18 @@ function sourceValue(fsx, chat, give, last) {
 
 // ---------- which model answers an agent's question ----------
 
-function modelFor(fsx, meta, role) {
+/** The user's own limits for one agent (`byAgent` of agents/config.json): a model for each role and the most model calls a run may make. */
+function ownOf(cfg, id) {
+  const o = isObj(cfg) && isObj(cfg.byAgent) && isObj(cfg.byAgent[id]) ? cfg.byAgent[id] : {};
+  return { models: isObj(o.models) ? o.models : {}, maxCalls: Number.isInteger(o.maxCalls) && o.maxCalls > 0 ? o.maxCalls : 0 };
+}
+const capOf = (fsx, id) => ownOf(readJsonAt(fsx, "agents/config.json", {}), id).maxCalls;
+
+function modelFor(fsx, meta, role, agentId) {
   const cfg = readJsonAt(fsx, "agents/config.json", {});
   const dash = readJsonAt(fsx, "dashboard/config.json", null);
   const settings = readJsonAt(fsx, "settings.json", null);
-  const list = [isObj(cfg.models) ? cfg.models[role] : "", cfg.model, isObj(dash) ? dash.sensorModel : "", meta && meta.model, isObj(settings) ? settings.model : ""];
+  const list = [ownOf(cfg, agentId).models[role], isObj(cfg.models) ? cfg.models[role] : "", cfg.model, isObj(dash) ? dash.sensorModel : "", meta && meta.model, isObj(settings) ? settings.model : ""];
   const hit = list.find((m) => AG_MODEL.test(str(m)));
   return hit ? str(hit) : "";
 }
@@ -1260,7 +1269,7 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
     else if (when !== phase) { skipped.push({ agent: it.agent, why: when === "manual" ? "manual" : "runs " + (when === "after" ? "after" : when === "before" ? "before" : "beside") + " the reply, not " + (phase === "parallel" ? "beside" : phase) + " it" }); continue; }
     else if (phase === "after" && !isReplyMsg(last)) { skipped.push({ agent: it.agent, why: "no new reply" }); continue; }
     else if (!everyNOk(agent.file.agent.trigger, chat.msgs, extra) || !keywordsOk(agent.file.agent.trigger, view.msgs)) { skipped.push({ agent: it.agent, why: "its trigger did not fire" }); continue; }
-    const why = blocker(agent, grantedOf(fsx, it.agent));
+    const why = blocker(agent, grantedOf(fsx, it.agent), capOf(fsx, it.agent));
     if (why) { skipped.push({ agent: it.agent, why }); continue; }
     if (!manual && runs.some((r) => r.agent === it.agent && r.key === turn.key && r.status !== "failed")) { skipped.push({ agent: it.agent, why: phase === "after" ? "already ran for this reply" : "already ran for this message" }); continue; }
     picks.push({ item: it, agent });
@@ -1314,7 +1323,7 @@ function stepRun(host, fsx, view, picks, last, stash) {
     if (r.res.status !== "need") continue;
     for (const q of r.res.requests) {
       const ni = r.pick.agent.file.nodes.findIndex((n) => n.id === q.node);
-      const model = modelFor(fsx, view.meta, q.role);
+      const model = modelFor(fsx, view.meta, q.role, r.pick.item.agent);
       host.llm.request(`ag_${r.ai}_${ni}`, {
         ...(model ? { model } : {}),
         systemPrompt: AGENT_SYSTEM,
@@ -1563,6 +1572,7 @@ function listRoute(req, host) {
     files = fsx.list("agents").filter((f) => f.endsWith(".vertep-agent.json"));
   } catch {}
   const agents = [];
+  const cfg = readJsonAt(fsx, "agents/config.json", {});
   for (const f of files) {
     const id = f.slice(0, -".vertep-agent.json".length);
     const agent = loadAgent(fsx, id);
@@ -1570,12 +1580,14 @@ function listRoute(req, host) {
     const a = agent.file.agent || {};
     const granted = grantedOf(fsx, id);
     const needs = agent.report.derived ? agent.report.derived.needs : [];
+    const own = ownOf(cfg, id);
     agents.push({
       id, name: str(a.name) || id, description: str(a.description), author: str(a.author), version: str(a.version),
       trigger: isObj(a.trigger) ? a.trigger : {}, models: isObj(a.models) ? a.models : {},
       needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs),
       maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: agent.report.errors, warnings: agent.report.warnings,
-      runnable: !blocker(agent, granted), blocker: blocker(agent, granted), places: placesOf(agent.file),
+      runnable: !blocker(agent, granted, own.maxCalls), blocker: blocker(agent, granted, own.maxCalls), places: placesOf(agent.file),
+      own: { models: own.models, maxCalls: own.maxCalls },
     });
   }
   return ok({ agents });
@@ -1600,6 +1612,8 @@ function removeRoute(req, host, id) {
   if (!AG_ID.test(id)) return ok({ error: "invalid id" }, 400);
   try { fsx.remove(agentPath(id)); } catch {}
   try { fsx.remove("agents/grants/" + id + ".json"); } catch {}
+  const cfg = readJsonAt(fsx, "agents/config.json", {});
+  if (isObj(cfg) && isObj(cfg.byAgent) && id in cfg.byAgent) { const by = { ...cfg.byAgent }; delete by[id]; const next = { ...cfg, byAgent: by }; if (!Object.keys(by).length) delete next.byAgent; writeJsonAt(fsx, "agents/config.json", next); }
   return ok({ ok: true });
 }
 
@@ -1635,7 +1649,7 @@ function panelsRoute(req, host) {
   for (const it of chatAgents(fsx, meta)) {
     if (!it.on) continue;
     const agent = loadAgent(fsx, it.agent);
-    if (!agent || blocker(agent, grantedOf(fsx, it.agent))) continue;
+    if (!agent || blocker(agent, grantedOf(fsx, it.agent), capOf(fsx, it.agent))) continue;
     const a = agent.file.agent || {};
     if (!Array.isArray(a.panels) || !a.panels.length) continue;
     const schema = isObj(a.state) ? a.state : {};
@@ -1657,6 +1671,20 @@ function configRoute(req, host) {
     const m = {};
     for (const [role, v] of Object.entries(b.models)) if (/^[A-Za-z0-9_-]{1,40}$/.test(role) && AG_MODEL.test(str(v))) m[role] = str(v);
     if (Object.keys(m).length) next.models = m; else delete next.models;
+  }
+  // the user's limits for one agent: the whole map is replaced, like `models`; an agent with nothing set has no entry
+  if ("byAgent" in b && isObj(b.byAgent)) {
+    const by = {};
+    for (const [id, v] of Object.entries(b.byAgent)) {
+      if (!AG_ID.test(id) || !isObj(v)) continue;
+      const entry = {};
+      const m = {};
+      if (isObj(v.models)) for (const [role, x] of Object.entries(v.models)) if (/^[A-Za-z0-9_-]{1,40}$/.test(role) && AG_MODEL.test(str(x))) m[role] = str(x);
+      if (Object.keys(m).length) entry.models = m;
+      if (Number.isInteger(v.maxCalls) && v.maxCalls >= 1 && v.maxCalls <= 50) entry.maxCalls = v.maxCalls;
+      if (Object.keys(entry).length) by[id] = entry;
+    }
+    if (Object.keys(by).length) next.byAgent = by; else delete next.byAgent;
   }
   writeJsonAt(fsx, "agents/config.json", next);
   return ok(next);
