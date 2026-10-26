@@ -1,7 +1,7 @@
 /** The agent editor's model (src/lib/forge.ts): an edit stays tidy and the checker stays the judge. */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, renameInTemplate, starterTemplate, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
+import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, exportOf, copyOf, freeId, moveItem, renameInTemplate, starterTemplate, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
 import { generated } from "../scripts/sync-agent-recipes";
 import { AGENT_RECIPES } from "../src/lib/forge-recipes";
 import { removeNode } from "../src/canvas-kit/graph";
@@ -194,6 +194,45 @@ describe("panels and memory", () => {
     const { agent: a2, graph: g2 } = renameField(agent, g, "tension", "dread");
     expect(a2.panels[0].widgets[0].template).toBe("<b>{{dread}}</b>{{#if dread}}!{{/if}}");
     expect(check(fileOf("x", a2, g2)).errors).toEqual([]);
+  });
+
+  it("exports a good agent as one checked file and refuses one with errors", () => {
+    const good = exportOf(fileOf("x", tension.agent as Json, { nodes: tension.nodes!, edges: tension.edges! } as Graph));
+    expect("error" in good).toBe(false);
+    if ("error" in good) return;
+    expect(good.name).toBe(`${(tension.agent as Json).id}.vertep-agent.json`);
+    expect((good.file.agent as Json).derived.hash).toMatch(/\w+/);
+    expect(check(good.file).errors).toEqual([]);
+    const bad = exportOf(fileOf("x", { ...(tension.agent as Json), id: "A" }, { nodes: tension.nodes!, edges: tension.edges! } as Graph));
+    expect("error" in bad).toBe(true);
+  });
+
+  it("a copy has its own id, its own name and a fresh check", () => {
+    const f = fileOf("Tension", tension.agent as Json, { nodes: tension.nodes!, edges: tension.edges! } as Graph);
+    const c = copyOf({ ...f, agent: { ...f.agent, derived: { stale: true } } }, ["x"], "Tension (copy)");
+    expect(c.id).toBe(`${(tension.agent as Json).id}-copy`);
+    expect((c.file.agent as Json).id).toBe(c.id);
+    expect((c.file.agent as Json).name).toBe("Tension (copy)");
+    expect(c.file.title).toBe("Tension (copy)");
+    expect((c.file.agent as Json).derived).toBeUndefined();
+    expect(check(c.file).errors).toEqual([]);
+    expect(copyOf(f, [c.id], "n").id).toBe(`${c.id}-2`);
+    expect(copyOf(c.file, [], "n").id).toBe(c.id);
+  });
+
+  it("moves an item one place and leaves the list alone at the ends", () => {
+    const l = ["a", "b", "c"];
+    expect(moveItem(l, 1, -1)).toEqual(["b", "a", "c"]);
+    expect(moveItem(l, 1, 1)).toEqual(["a", "c", "b"]);
+    expect(moveItem(l, 0, -1)).toBe(l);
+    expect(moveItem(l, 2, 1)).toBe(l);
+    expect(l).toEqual(["a", "b", "c"]);
+  });
+
+  it("free ids stay inside the checker's length", () => {
+    expect(freeId("a".repeat(60), []).length).toBe(41);
+    expect(freeId("a".repeat(41), ["a".repeat(41)]).length).toBeLessThanOrEqual(41);
+    expect(freeId("x", ["x", "x-2"])).toBe("x-3");
   });
 
   it("names the cards that lose their trigger when a card is removed", () => {

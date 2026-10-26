@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, FloppyDisk, PencilSimple, Play, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, DotsThreeVertical, FloppyDisk, PencilSimple, Play, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { AGENT_BOARD, AGENT_CARDS } from '@/canvas-kit/boards/agent'
 import { commit, fromFile, historyOf, redo, removeNode, undo } from '@/canvas-kit/graph'
@@ -15,7 +15,8 @@ import {
   copyAgentToDraft, deleteAgentDraft, installAgentDraft, listAgentDrafts, listInstalledAgents, readAgentDraft, saveAgentDraft,
   type AgentDraft, type AgentInfo,
 } from '@/lib/agents'
-import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
+import { blankAgent, check, CARD_ORDER, copyOf, exportOf, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
+import { downloadJson } from '@/lib/interop'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
 import { installMessage } from '@/lib/agent-install'
@@ -50,6 +51,7 @@ export function AgentForge() {
   const [pal, setPal] = useState<boolean | null>(null)
   const [saving, setSaving] = useState<'saved' | 'saving' | 'failed'>('saved')
   const [busy, setBusy] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const graph = hist.present
   const palOpen = !isMobile && (pal ?? (typeof window !== 'undefined' && window.innerWidth >= 1500))
   const changed = useRef(false)
@@ -162,6 +164,27 @@ export function AgentForge() {
       setTab('agent')
       toast.success(installMessage(t, cur.title, r))
     } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
+  }
+
+  const exportFile = () => {
+    if (!file) return
+    const r = exportOf(file)
+    if ('error' in r) { toast.error(t('fg.export.blocked', { why: r.error })); return }
+    downloadJson(r.file, r.name)
+    toast.success(t('fg.export.done', { file: r.name }))
+  }
+  const saveCopy = async () => {
+    if (!cur || !file) return
+    const taken = [...drafts.map((d) => d.name), ...drafts.map((d) => d.id), ...(installed ?? []).map((a) => a.id)]
+    const c = copyOf(file, taken, t('fg.copy.name', { name: cur.title }))
+    try {
+      await saveAgentDraft(cur.name, file)
+      await saveAgentDraft(c.id, c.file)
+      changed.current = false
+      await refresh()
+      load(c.id, c.file as unknown as Record<string, unknown>)
+      toast.success(t('fg.copy.done', { name: c.file.title }))
+    } catch (e) { toast.error(t('fg.open.failed', { why: errText(e) })) }
   }
 
   const addCard = (type: string) => {
@@ -337,6 +360,21 @@ export function AgentForge() {
           ))}
         </PopoverContent>
       </Popover>}
+      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger className="flex size-9 items-center justify-center rounded-md border border-border hover:bg-accent max-md:size-10" aria-label={t('fg.more')} title={t('fg.more')} data-testid="forge-more">
+          <DotsThreeVertical className="size-4" weight="bold" aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 p-1.5">
+          <button type="button" className="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-accent max-md:min-h-11" onClick={() => { setMoreOpen(false); exportFile() }} data-testid="forge-export">
+            <span className="text-sm font-medium">{t('fg.export')}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.export.hint')}</span>
+          </button>
+          <button type="button" className="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-accent max-md:min-h-11" onClick={() => { setMoreOpen(false); void saveCopy() }} data-testid="forge-copy">
+            <span className="text-sm font-medium">{t('fg.copy')}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.copy.hint')}</span>
+          </button>
+        </PopoverContent>
+      </Popover>
       <Button size="sm" className="max-md:h-10" disabled={busy || problems > 0} onClick={() => void install()} data-testid="forge-install">
         <UploadSimple className="size-4" aria-hidden="true" />{installedCopy ? t('ag.drafts.update') : t('ag.drafts.install')}
       </Button>

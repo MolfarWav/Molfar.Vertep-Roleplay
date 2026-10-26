@@ -187,6 +187,34 @@ export function check(file: CanvasFile): ForgeReport {
   return { errors: c.report.errors, warnings: c.report.warnings, needs: c.report.derived?.needs ?? [], maxCalls: c.report.derived?.maxCalls ?? 0 }
 }
 
+/**
+ * The agent as one shareable file: checked, with `agent.derived` filled in, and named `<id>.vertep-agent.json`.
+ * `error` while the check has errors, because a file with errors would be refused where it is installed.
+ */
+export function exportOf(file: CanvasFile): { file: CanvasFile; name: string } | { error: string } {
+  const c = compileAgent(file) as { error?: string; file?: CanvasFile; report?: { errors: AgentIssue[] } }
+  if (c.error || !c.file) return { error: c.error ?? 'Not an agent file' }
+  if (c.report?.errors.length) return { error: c.report.errors[0]!.message }
+  const id = String((c.file.agent as Record<string, unknown> | undefined)?.id ?? 'agent')
+  return { file: c.file, name: `${id}.vertep-agent.json` }
+}
+
+/** An id nobody has taken: `id`, `id-2`, `id-3` (the checker's slug, up to 41 characters). */
+export function freeId(base: string, taken: Iterable<string>): string {
+  const have = new Set(taken)
+  let id = base.slice(0, 41)
+  for (let i = 2; have.has(id); i++) id = `${base.slice(0, 41 - String(i).length - 1)}-${i}`
+  return id
+}
+
+/** The same agent as a new draft: its own id and name, and no `derived`, so the check fills it again. */
+export function copyOf(file: CanvasFile, taken: Iterable<string>, name: string): { id: string; file: CanvasFile } {
+  const agent = { ...((file.agent ?? {}) as Record<string, unknown>) }
+  const id = freeId(`${String(agent.id ?? 'agent')}-copy`.replace(/-copy-copy$/, '-copy'), taken)
+  const { derived: _gone, ...rest } = agent
+  return { id, file: { ...file, title: name, agent: { ...rest, id, name } } }
+}
+
 /** Issues grouped by the card they name, for the badge on a card. */
 export function issuesByNode(r: ForgeReport): Map<string, { errors: number; warnings: number }> {
   const m = new Map<string, { errors: number; warnings: number }>()
@@ -206,6 +234,15 @@ export function issuesByNode(r: ForgeReport): Map<string, { errors: number; warn
 
 type StateField = { type: string; item?: Record<string, string> }
 type State = Record<string, StateField>
+
+/** The list with the item at `i` moved one place up (-1) or down (1); the same list when there is no such place. */
+export function moveItem<T>(list: T[], i: number, by: -1 | 1): T[] {
+  const j = i + by
+  if (i < 0 || i >= list.length || j < 0 || j >= list.length) return list
+  const next = [...list]
+  ;[next[i], next[j]] = [next[j]!, next[i]!]
+  return next
+}
 
 /** The widgets a form can make. */
 export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions', 'html'] as const

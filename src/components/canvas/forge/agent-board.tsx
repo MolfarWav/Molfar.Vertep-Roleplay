@@ -55,6 +55,9 @@ interface DragState {
   dx?: number
   dy?: number
   from?: string
+  /** the wire being moved by its input end: its id, and the input it came from */
+  rewire?: string
+  was?: string
   start?: Pt
   moved?: boolean
 }
@@ -159,6 +162,7 @@ export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, sel
     const target = e.target as HTMLElement
     if (target.closest('[data-ctl]')) return
     const out = target.closest('[data-port-out]') as HTMLElement | null
+    const inEl = target.closest('[data-port-in]') as HTMLElement | null
     const nodeEl = target.closest('[data-node]') as HTMLElement | null
     const edgeEl = target.closest('[data-edge-hit]') as HTMLElement | null
     stage.current?.focus({ preventScroll: true })
@@ -173,6 +177,21 @@ export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, sel
         stage.current!.setPointerCapture(e.pointerId)
       }
       return
+    }
+    // an input that has a wire: pick the wire up by its end, to drop it on another input
+    const into = inEl && editable ? graph.edges.find((x) => x.to === `${inEl.dataset.pnode}:${inEl.dataset.portIn}`) : undefined
+    if (into) {
+      const [fn, fp] = splitEnd(into.from)
+      const a = byId.get(fn)
+      const start = a && portPoint(a, posOf(a), fp, 'out')
+      if (start) {
+        e.preventDefault()
+        setEdgeSel(null)
+        setDrag({ type: 'wire', sx: e.clientX, sy: e.clientY, from: into.from, rewire: into.id, was: into.to, start })
+        setEnd(toWorld(e.clientX, e.clientY))
+        stage.current!.setPointerCapture(e.pointerId)
+        return
+      }
     }
     if (nodeEl) {
       const n = byId.get(nodeEl.dataset.node!)
@@ -219,7 +238,9 @@ export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, sel
     setEnd(null)
     setOver(null)
     if (!to || !d.from) return
-    const r = connect(AGENT_BOARD, graph, d.from, to, nextEdgeId(graph))
+    if (d.rewire && to === d.was) return // dropped where it was: nothing changes
+    const base = d.rewire ? removeEdge(graph, d.rewire) : graph
+    const r = connect(AGENT_BOARD, base, d.from, to, nextEdgeId(base))
     if (r.verdict.ok) onChange(r.graph)
     else setReason(reasonText(r.verdict.reason))
   }
@@ -234,7 +255,8 @@ export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, sel
   const accepts = useMemo(() => {
     const ok = new Set<string>()
     if (drag?.type !== 'wire' || !drag.from) return ok
-    for (const n of graph.nodes) for (const p of portsOf(n).ins) if (canConnect(AGENT_BOARD, graph, drag.from, `${n.id}:${p.id}`).ok) ok.add(`${n.id}:${p.id}`)
+    const base = drag.rewire ? removeEdge(graph, drag.rewire) : graph
+    for (const n of graph.nodes) for (const p of portsOf(n).ins) if (canConnect(AGENT_BOARD, base, drag.from, `${n.id}:${p.id}`).ok) ok.add(`${n.id}:${p.id}`)
     return ok
   }, [drag, graph])
 
@@ -271,7 +293,7 @@ export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, sel
     >
       <div className="absolute left-0 top-0" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: '0 0' }}>
         <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">
-          {wires.map(({ e, pa, pb }) => {
+          {wires.filter(({ e }) => e.id !== drag?.rewire).map(({ e, pa, pb }) => {
             const hot = e.id === edgeSel || (selectedId !== null && (splitEnd(e.from)[0] === selectedId || splitEnd(e.to)[0] === selectedId))
             const seen = probe?.wires[e.from]
             const probed = seen?.state === 'value' ? 'stroke-emerald-500' : seen?.state === 'wait' || seen?.state === 'missing' ? 'stroke-amber-500' : ''
@@ -286,7 +308,7 @@ export function AgentBoard({ probe, graph, editable, onChange, onRemoveNode, sel
           {drag?.type === 'wire' && drag.start && end && <path d={curve(drag.start, end)} fill="none" stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 4" />}
         </svg>
 
-        {probe && wires.map(({ e, pa, pb }) => {
+        {probe && wires.filter(({ e }) => e.id !== drag?.rewire).map(({ e, pa, pb }) => {
           const seen = probe.wires[e.from]
           if (!seen || seen.state === 'skip') return null
           const m = mid(pa, pb)
