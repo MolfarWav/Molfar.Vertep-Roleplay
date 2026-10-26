@@ -285,7 +285,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 /** Two or three choices, all visible at once (a select hides them). Same look as the Library's Overview | Ledger switch. */
 function Segmented<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-1 rounded-md bg-muted p-0.5 text-sm">
+    <div role="group" aria-label={label} className="flex flex-wrap gap-1 rounded-md border border-border bg-muted p-0.5 text-sm">
       {options.map((o) => (
         <button
           key={o.value}

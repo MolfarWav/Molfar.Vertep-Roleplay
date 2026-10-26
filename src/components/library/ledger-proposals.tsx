@@ -177,11 +177,11 @@ function ProposalRow({ chat, proposal, onChat, onRefresh, pin, busy, setBusy }: 
         )}
         {proposal.status === 'pending' && (
           <div className="flex shrink-0 gap-1.5">
-            <Button size="sm" disabled={busy} onClick={() => void handleAccept()}>
+            <Button size="sm" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void handleAccept()}>
               <Check className="size-3.5" aria-hidden="true" />
               {t('lit.accept')}
             </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void handleReject()}>
+            <Button size="sm" variant="ghost" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void handleReject()}>
               <X className="size-3.5" aria-hidden="true" />
               {t('lit.reject')}
             </Button>
