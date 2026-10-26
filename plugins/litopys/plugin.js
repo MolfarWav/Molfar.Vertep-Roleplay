@@ -149,8 +149,12 @@ export const DEFAULT_CONFIG = {
   budget: 800,
   // 0.9.2: the most the backstory of a linked earlier chat may take (0 = none)
   linkBudget: 800,
-  // M4d arcs: older chapters merged into one summary when they outgrow the budget
-  arcMode: "ask",
+  // M4d arcs: older chapters merged into one summary when they outgrow the budget. A new install merges by itself
+  // (a merge only adds an arc over its chapters, nothing is deleted); an install that already had Litopys data
+  // keeps "ask" until its owner switches (stampInstall)
+  arcMode: "auto",
+  // "pending": the Library offers an install that kept "ask" to switch to "auto", once; "done": nothing to offer
+  arcNotice: "done",
   arcKeep: 4,
   arcThreshold: 0,
   arcSizeMin: 5,
@@ -303,8 +307,36 @@ export function saveProposals(fsx, p) {
   fsx.write(PROPOSALS_FILE, JSON.stringify(p, null, 2));
 }
 
+/**
+ * Memory wave 1: arcs merge by themselves on a new install, and an install that already has Litopys data keeps
+ * its choice ("ask" when it never made one) and is offered the switch once. Told apart by what is on disk the
+ * first time the config is read, then written down in config.json so a later chat file cannot change the answer.
+ */
+function stampInstall(fsx) {
+  const raw = readOwn(fsx, CONFIG_FILE, null);
+  if (isObj(raw) && "arcNotice" in raw) return;
+  let hasData = isObj(raw);
+  if (!hasData) {
+    try {
+      hasData = fsx.list(CHAT_DIR.replace(/\/$/, "")).length > 0 || fsx.list(LITOPYS_DIR.replace(/\/$/, "")).includes("store.json");
+    } catch {}
+  }
+  const next = isObj(raw) ? { ...raw } : {};
+  if (hasData) {
+    if (!ARC_MODES.includes(next.arcMode)) next.arcMode = "ask";
+    next.arcNotice = next.arcMode === "ask" ? "pending" : "done";
+  } else {
+    next.arcMode = "auto";
+    next.arcNotice = "done";
+  }
+  try {
+    fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
+  } catch {}
+}
+
 /** config.json as stored, minus prompts that are a default (so they follow it). */
 function storedConfig(fsx) {
+  stampInstall(fsx);
   const raw = readOwn(fsx, CONFIG_FILE, null);
   // only keys this version knows: the 1.x keys (extractEveryNTurns, inject, ...) are ignored
   const cfg = {};
@@ -334,6 +366,7 @@ export function loadConfig(fsx) {
   cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
   cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
+  cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
   cfg.arcKeep = clamp(intOf(cfg.arcKeep, 4), 1, 50);
   cfg.arcThreshold = arcThresholdValue(cfg.arcThreshold);
   cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
@@ -373,7 +406,12 @@ export function patchConfig(fsx, body) {
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);
   if (b.linkBudget !== undefined) next.linkBudget = clamp(intOf(b.linkBudget, 800), 0, 3000);
-  if (b.arcMode !== undefined) next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
+  if (b.arcMode !== undefined) {
+    next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
+    // a choice made on purpose settles the offer
+    next.arcNotice = "done";
+  }
+  if (b.arcNotice !== undefined) next.arcNotice = "done";
   if (b.arcKeep !== undefined) next.arcKeep = clamp(intOf(b.arcKeep, 4), 1, 50);
   if (b.arcThreshold !== undefined) next.arcThreshold = arcThresholdValue(b.arcThreshold);
   if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);

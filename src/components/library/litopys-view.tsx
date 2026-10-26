@@ -17,6 +17,7 @@ import { distinctName, fetchLitChats, type LitChat, type LitChatItem } from './l
 import { LedgerChat } from './ledger'
 import { WorkerDot } from './worker-dot'
 import { ChatsMap } from './chats-map'
+import { ArcsOfferNotice } from './arcs-offer'
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -238,6 +239,7 @@ function ChatPicker({
       <div className="flex flex-col gap-2 border-b border-border px-3 py-2">
         <ModeSwitch mode={mode} onMode={onMode} />
         <p className="text-[11px] text-muted-foreground">{t('lit.hint')}</p>
+        <ArcsOfferNotice />
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {error && <p className="p-3 text-xs text-destructive">{t('lit.loadError', { error })}</p>}

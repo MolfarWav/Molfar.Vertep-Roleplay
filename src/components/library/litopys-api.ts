@@ -287,6 +287,8 @@ export interface LitConfig {
   chapter: string
   /** M4d arcs; arcThreshold 0 = twice the budget */
   arcMode: LitArcMode
+  /** 'pending': the Library offers to switch arcs to automatic, once (an install that kept "ask") */
+  arcNotice?: 'pending' | 'done'
   arcKeep: number
   arcThreshold: number
   arcSizeMin: number

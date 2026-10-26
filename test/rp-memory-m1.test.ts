@@ -368,7 +368,9 @@ describe("M1.4 Litopys adopts the Archivarius store once", () => {
     expect(cfg.json.recentMessages).not.toBe(90);
     expect(JSON.parse(fs.readFileSync(path.join(root, "litopys", "store.json"), "utf8"))).toEqual(mine);
     expect(fs.existsSync(path.join(root, "litopys", "proposals.json"))).toBe(false);
-    expect(fs.existsSync(path.join(root, "litopys", "config.json"))).toBe(false);
+    // the config file may exist now (it records the install's arc default) but holds nothing of the old one
+    const own = path.join(root, "litopys", "config.json");
+    expect(fs.existsSync(own) ? JSON.parse(fs.readFileSync(own, "utf8")).recentMessages : undefined).toBeUndefined();
   });
 
   it("a file litopys already has is not overwritten by the move", async () => {
