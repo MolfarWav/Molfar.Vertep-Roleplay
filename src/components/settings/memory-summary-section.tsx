@@ -255,6 +255,27 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
       </Block>
 
+      <Block title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')}>
+        <Field>
+          <FieldLabel htmlFor="lit-proposals">{t('lit.set.proposals')}</FieldLabel>
+          <select
+            id="lit-proposals"
+            value={cfg.proposals ?? 'ask'}
+            onChange={(e) => {
+              const v = e.target.value as 'ask' | 'quiet'
+              setCfg({ ...cfg, proposals: v })
+              save({ proposals: v })
+            }}
+            className="w-72 max-w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+          >
+            <option value="ask">{t('lit.set.proposalsAsk')}</option>
+            <option value="quiet">{t('lit.set.proposalsQuiet')}</option>
+          </select>
+          <p className="text-xs text-muted-foreground">{t('lit.set.proposalsHint')}</p>
+        </Field>
+        {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? cfg.proposals === 'quiet', (v) => save({ autoConsolidate: v }))}
+      </Block>
+
       <Block title="Facts" hint="Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.">
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         <EmbedRow />

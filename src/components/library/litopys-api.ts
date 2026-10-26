@@ -166,6 +166,10 @@ export interface LitProposal {
   chapter?: string
   at?: number
   settledAt?: number
+  /** quiet mode applied it by itself (status 'accepted'); an Undo may take it back */
+  auto?: boolean
+  /** the Undo was used (status 'rejected') */
+  undone?: boolean
 }
 
 export type LitProposalStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
@@ -173,7 +177,7 @@ export type LitProposalStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
 export type LitActivityKind =
   | 'fact.add' | 'fact.edit' | 'fact.pin' | 'fact.unpin' | 'fact.retire' | 'fact.restore' | 'fact.delete'
   | 'chapter.edit' | 'chapter.rewrite' | 'chapter.delete' | 'chapter.write'
-  | 'proposal.accept' | 'proposal.reject'
+  | 'proposal.accept' | 'proposal.reject' | 'proposal.auto' | 'proposal.undo'
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
@@ -289,6 +293,10 @@ export interface LitConfig {
   arcMode: LitArcMode
   /** 'pending': the Library offers to switch arcs to automatic, once (an install that kept "ask") */
   arcNotice?: 'pending' | 'done'
+  /** 'ask': every proposal waits for a click; 'quiet': a pin or a rewrite is applied by itself and can be undone */
+  proposals?: 'ask' | 'quiet'
+  /** Consolidate facts by itself after 30 new facts; null/absent = on only while proposals are quiet */
+  autoConsolidate?: boolean | null
   arcKeep: number
   arcThreshold: number
   arcSizeMin: number
@@ -360,6 +368,8 @@ export const deleteLitArc = (chatId: string, id: string) => post<LitChat>('/lito
 
 export const acceptLitProposal = (chatId: string, id: string, replace?: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'accept', ...(replace ? { replace } : {}) })
 export const rejectLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'reject' })
+/** Takes back a proposal the plugin applied by itself (quiet mode). Refuses when the fact changed since. */
+export const undoLitProposal = (chatId: string, id: string) => post<LitChat>('/litopys/proposals', { chatId, id, op: 'undo' })
 
 /** #106 habits earned in a chat. keep copies an earned habit to the character's card (400 with a text when there is no card). */
 export type LitHabitOp = { op: 'on'; on: boolean } | { op: 'accept' } | { op: 'reject' } | { op: 'keep' } | { op: 'edit'; name?: string; rule?: string; when?: string }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, X, CaretDown, CaretRight } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, X, CaretDown, CaretRight } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -7,7 +7,7 @@ import { useT, useRelativeTime } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { LitChat, LitFact, LitProposal } from './litopys-api'
-import { acceptLitProposal, rejectLitProposal } from './litopys-api'
+import { acceptLitProposal, rejectLitProposal, undoLitProposal } from './litopys-api'
 import type { TabProps } from './ledger-facts'
 import { usePinFlow } from './ledger-facts'
 import type { MsgKey } from '@/lib/i18n'
@@ -24,6 +24,34 @@ const pstatusKeys: Record<string, MsgKey> = {
   accepted: 'lit.pstatus.accepted',
   rejected: 'lit.pstatus.rejected',
   expired: 'lit.pstatus.expired',
+}
+
+/** Can the Undo of a proposal applied by itself still be offered. */
+export const canUndo = (p: LitProposal | undefined): p is LitProposal => !!p && p.auto === true && p.status === 'accepted'
+
+/** The Undo of a proposal applied by itself: the fact goes back to what it was, unless it changed since. */
+export function UndoAuto({ chat, proposal, onChat, onRefresh }: { chat: LitChat; proposal: LitProposal; onChat: (c: LitChat) => void; onRefresh: () => void }) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const run = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      onChat(await undoLitProposal(chat.chatId, proposal.id))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error(msg === 'changed since' ? t('lit.undoChanged') : msg === 'target gone' ? t('lit.targetGone') : msg)
+      onRefresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button size="sm" variant="outline" className="min-h-9 md:min-h-8" disabled={busy} onClick={() => void run()} data-testid="proposal-undo">
+      <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />
+      {t('lit.undo')}
+    </Button>
+  )
 }
 
 function resolveFacts(chat: LitChat, ids: string[]) {
@@ -99,7 +127,9 @@ function ProposalRow({ chat, proposal, onChat, onRefresh, pin, busy, setBusy }: 
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="text-[10px]">{t(opKeys[proposal.op] ?? 'lit.op.merge')}</Badge>
             {proposal.status !== 'pending' && (
-              <Badge variant="outline" className="text-[10px]">{t(pstatusKeys[proposal.status] ?? 'lit.pstatus.pending')}</Badge>
+              <Badge variant="outline" className="text-[10px]">
+                {proposal.undone ? t('lit.pstatus.undone') : proposal.auto ? t('lit.pstatus.auto') : t(pstatusKeys[proposal.status] ?? 'lit.pstatus.pending')}
+              </Badge>
             )}
             {proposal.status !== 'pending' && settleTime && (
               <span className="text-[11px] text-muted-foreground">{settleTime}</span>
@@ -140,6 +170,11 @@ function ProposalRow({ chat, proposal, onChat, onRefresh, pin, busy, setBusy }: 
             {allMissing && <div className="text-muted-foreground">{t('lit.factGone')}</div>}
           </div>
         </div>
+        {canUndo(proposal) && (
+          <div className="flex shrink-0 gap-1.5">
+            <UndoAuto chat={chat} proposal={proposal} onChat={onChat} onRefresh={onRefresh} />
+          </div>
+        )}
         {proposal.status === 'pending' && (
           <div className="flex shrink-0 gap-1.5">
             <Button size="sm" disabled={busy} onClick={() => void handleAccept()}>
