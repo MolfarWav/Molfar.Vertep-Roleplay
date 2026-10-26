@@ -619,18 +619,18 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `GET /agent-presets`, `GET|PUT|DELETE /agent-presets/<id>` (PUT cleans the file and refuses one without `items`).
 - The default preset, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null }`, `GET|PUT /agent-settings`.
   A chat with no binding follows it.
-- A chat's binding, meta `agents`: `{ "v": 1, "preset"?, "own"?, "show"? }`. With `preset` and no `own` the chat follows the
+- A chat's binding, meta `agents`: `{ "v": 1, "preset"?, "own"?, "show"?, "also"? }`. With `preset` and no `own` the chat follows the
   preset live (a change to the preset reaches it at once). The first change made in the chat (turn an agent off, add or
   remove one, reorder, change a phase, pick another place to show) writes `own`, a copy of the items as they were, and from
   then on the chat does not follow the preset; `own: []` means "no agents". `show` maps an agent id to the place the user
   chose (`log`, `feed`, `top1`, `top2`, `float`, `toast`, `note`, `bottom`, `inspector`); whether that place suits the
-  agent's Output is checked when it runs. The chat's Agents tab offers only the places in the agent's `places`. A `note` shown in `feed` is drawn as a plain muted line under the reply instead of a card. A preset or an agent that is gone does not break the chat: the entry is
+  agent's Output is checked when it runs. `also` maps an agent id to `true`: the chat draws that agent's latest run in a folded block above the composer as well as in its place (`components/chat/agent-block.tsx`; a reset drops it). The chat's Agents tab offers only the places in the agent's `places`. A `note` shown in `feed` is drawn as a plain muted line under the reply instead of a card. A preset or an agent that is gone does not break the chat: the entry is
   skipped. Forks copy the binding with the rest of the meta. Set whole with `PATCH /chats/<id>` `{ agents }` (`null` = back
   to the default) or at creation, `POST /chats` `{ agents }`. Better, one change at a time: `POST /chats/<id>/agents`
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
-  `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `wait` (`wait`: false = the reply does
+  `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `also` (`on`: true = also in the block), `wait` (`wait`: false = the reply does
   not wait for this agent, true = it does); it answers what runs now,
-  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show } ] }`.
+  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ] }`.
 ### Running an agent (`agent-run.js`)
 
 `runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never

@@ -49,6 +49,7 @@ import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
 import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
+import { AgentBlock } from './agent-block'
 import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
@@ -1044,6 +1045,7 @@ export function ChatView() {
         </div>
       </div>
 
+      {!deleteMode && <AgentBlock chatId={chat.id} />}
       {!deleteMode && <AgentChoices chatId={chat.id} msgKey={lastAgentKey} />}
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">

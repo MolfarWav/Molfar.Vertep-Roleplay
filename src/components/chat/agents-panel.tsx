@@ -123,7 +123,7 @@ function PlacePicker({ chatId, item, info }: { chatId: string; item: ChatAgentIt
         title={t('ag.place.aria', { name: info.name })}
         data-testid={`agent-place-${item.agent}`}
         onClick={(e) => e.stopPropagation()}
-        className={cn('flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-background max-md:size-10', item.show ? 'text-violet-500' : 'text-muted-foreground')}
+        className={cn('flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-background max-md:size-10', item.show || item.also ? 'text-violet-500' : 'text-muted-foreground')}
       >
         <MapPin className="size-3.5" aria-hidden="true" />
       </PopoverTrigger>
@@ -143,6 +143,14 @@ function PlacePicker({ chatId, item, info }: { chatId: string; item: ChatAgentIt
             </button>
           ))}
         </div>
+        <button type="button" role="checkbox" aria-checked={!!item.also} className={cn(row, 'mt-1 border-t border-border rounded-t-none pt-2')} data-testid={`agent-also-${item.agent}`}
+          onClick={() => void edit({ op: 'also', agent: item.agent, on: !item.also })}>
+          <Check className={cn('size-3.5 shrink-0', item.also ? '' : 'invisible')} aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block">{t('ag.also.label')}</span>
+            <span className="block text-[11px] text-muted-foreground">{t('ag.also.hint')}</span>
+          </span>
+        </button>
       </PopoverContent>
     </Popover>
   )

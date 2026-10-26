@@ -404,7 +404,8 @@ describe("the same rules as the engine", () => {
     fs.writeFileSync(path.join(root, "agents", "settings.json"), JSON.stringify({ defaultPreset: "rp" }));
     const metas: (Json | undefined)[] = [undefined, {}, { agents: { v: 1, preset: "rp" } }, { agents: { v: 1, preset: "gone" } },
       { agents: { v: 1, own: [{ agent: "x-agent" }, { agent: "Bad Id" }, { agent: "x-agent" }] } },
-      { agents: { v: 1, preset: "rp", show: { "scene-plan": "top1", "mood-tracker": "moon" } } }, { agents: "nope" }];
+      { agents: { v: 1, preset: "rp", show: { "scene-plan": "top1", "mood-tracker": "moon" } } },
+      { agents: { v: 1, preset: "rp", also: { "scene-plan": true, "mood-tracker": false } } }, { agents: "nope" }];
     for (const meta of metas) {
       const want = engine.resolveChatAgents(meta?.agents && typeof meta.agents === "object" ? meta.agents : null, presets, "rp").items;
       expect(plugin.chatAgents(host().fs as never, meta ?? {})).toEqual(want);

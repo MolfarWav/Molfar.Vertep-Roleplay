@@ -2392,7 +2392,8 @@ export function cleanAgentPreset(x, id) {
   const name = typeof x.name === "string" && x.name.trim() ? x.name.trim().slice(0, 80) : id;
   return { format: "vertep-agent-preset", version: 1, id, name, items };
 }
-/** The chat's `meta.agents`: `{ v: 1, preset?, own?, show? }`. `own` is the chat's own copy of the items (an empty list = no agents). Null = nothing set. */
+/** The chat's `meta.agents`: `{ v: 1, preset?, own?, show?, also? }`. `own` is the chat's own copy of the items (an empty list = no agents).
+ *  `also` maps an agent id to `true`: the chat shows that agent's latest result in its block as well as in its place. Null = nothing set. */
 export function cleanAgentBinding(x) {
   if (!x || typeof x !== "object" || Array.isArray(x)) return null;
   const out = { v: 1 };
@@ -2407,14 +2408,22 @@ export function cleanAgentBinding(x) {
     }
     if (Object.keys(show).length) out.show = show;
   }
-  return out.preset || out.own || out.show ? out : null;
+  if (x.also && typeof x.also === "object" && !Array.isArray(x.also)) {
+    const also = {};
+    for (const [k, v] of Object.entries(x.also)) {
+      if (Object.keys(also).length >= AGENT_MAX_ITEMS) break;
+      if (AGENT_ID_RE.test(k) && v === true) also[k] = true;
+    }
+    if (Object.keys(also).length) out.also = also;
+  }
+  return out.preset || out.own || out.show || out.also ? out : null;
 }
 /** The agents a chat runs now. `presets`: id -> cleaned preset. A chat with no binding follows `defaultPresetId`. */
 export function resolveChatAgents(binding, presets, defaultPresetId) {
   const b = cleanAgentBinding(binding);
   const presetId = (b && b.preset) || defaultPresetId || null;
   const preset = presetId && presets ? presets[presetId] || null : null;
-  const items = (b && b.own ? b.own : preset ? preset.items : []).map((it) => ({ ...it, show: (b && b.show && b.show[it.agent]) || null }));
+  const items = (b && b.own ? b.own : preset ? preset.items : []).map((it) => ({ ...it, show: (b && b.show && b.show[it.agent]) || null, ...(b && b.also && b.also[it.agent] ? { also: true } : {}) }));
   return { presetId, presetMissing: !!presetId && !preset, followsPreset: !(b && b.own), items };
 }
 /** One change to a chat's agents (`wait`: whether the reply waits for an agent set to run before it). Any change except choosing a preset or resetting makes the chat's own copy first, from
@@ -2434,6 +2443,7 @@ export function editChatAgents(binding, baseItems, op) {
     const next = { ...b };
     delete next.own;
     delete next.show;
+    delete next.also;
     return cleanAgentBinding(next);
   }
   const items = (b.own || cleanAgentItems(baseItems) || []).map((it) => ({ ...it }));
@@ -2444,7 +2454,7 @@ export function editChatAgents(binding, baseItems, op) {
     if (at >= 0) return { error: "agent is already in the set" };
     if (items.length >= AGENT_MAX_ITEMS) return { error: "too many agents" };
     items.push({ agent: op.agent, on: true, ...(AGENT_PHASES.includes(op.phase) ? { phase: op.phase } : {}) });
-  } else if (["toggle", "remove", "phase", "move", "show", "wait"].includes(op.op)) {
+  } else if (["toggle", "remove", "phase", "move", "show", "also", "wait"].includes(op.op)) {
     if (at < 0) return { error: "agent is not in the set" };
     if (op.op === "toggle") items[at].on = op.on !== false;
     else if (op.op === "remove") items.splice(at, 1);
@@ -2460,6 +2470,12 @@ export function editChatAgents(binding, baseItems, op) {
       if (!Number.isInteger(op.to)) return { error: "move needs a whole number position" };
       const [it] = items.splice(at, 1);
       items.splice(Math.max(0, Math.min(items.length, op.to)), 0, it);
+    } else if (op.op === "also") {
+      // true = this agent's latest result is also drawn in the chat's block; false = it is not
+      const also = { ...(b.also || {}) };
+      if (op.on === true) also[op.agent] = true;
+      else delete also[op.agent];
+      next.also = also;
     } else {
       const show = { ...(b.show || {}) };
       if (op.place == null) delete show[op.agent];

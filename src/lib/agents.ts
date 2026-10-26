@@ -41,7 +41,7 @@ export interface AgentInfo {
 export interface AgentOwn { models: Record<string, string>; maxCalls: number }
 
 /** `wait: false` = the reply does not wait for an agent set to run before it: it runs beside the reply and its hint goes into the next one. Absent = the reply waits. */
-export interface ChatAgentItem { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean; show: string | null }
+export interface ChatAgentItem { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean; show: string | null; /** the chat also shows this agent's latest result in its block */ also?: boolean }
 
 /** GET|POST /chats/:id/agents: what the chat runs now. */
 export interface ChatAgents {
@@ -58,7 +58,7 @@ export type ChatAgentsOp =
   | { op: 'preset'; preset: string | null }
   | { op: 'reset' }
   | { op: 'add'; agent: string; phase?: AgentPhase }
-  | { op: 'remove' | 'toggle' | 'phase' | 'move' | 'show' | 'wait'; agent: string; on?: boolean; phase?: AgentPhase | null; to?: number; place?: string | null; wait?: boolean }
+  | { op: 'remove' | 'toggle' | 'phase' | 'move' | 'show' | 'also' | 'wait'; agent: string; on?: boolean; phase?: AgentPhase | null; to?: number; place?: string | null; wait?: boolean }
 
 /** What an agent left for the chat: a note under the reply, choices, a hint for the next reply, or a silent state change. */
 export interface AgentOutput {
