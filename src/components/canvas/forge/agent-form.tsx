@@ -6,15 +6,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import { Field, NativeSelect, NumberBox, ShapeEditor } from './card-form'
+import { PanelsForm } from './panels-form'
 
 type Agent = Record<string, any>
 
 /** The agent's own header: name, when it runs, the fields it keeps, its panels. Edits go back as a new header. */
-export function AgentForm({ agent, title, onAgent, onTitle, installed }: {
+export function AgentForm({ agent, title, onAgent, onTitle, onRename, installed }: {
   agent: Agent
   title: string
   onAgent: (a: Agent) => void
   onTitle: (t: string) => void
+  /** a state field was renamed: the cards and panels that use it must follow, so the editor does both at once */
+  onRename?: (from: string, to: string) => void
   installed: boolean
 }) {
   const t = useT()
@@ -24,9 +27,12 @@ export function AgentForm({ agent, title, onAgent, onTitle, installed }: {
   const setTrigger = (patch: Record<string, unknown>) => set({ trigger: { ...trigger, ...patch } })
   const setState = (next: Record<string, any>) => { if (Object.keys(next).length) set({ state: next }); else { const { state: _s, ...rest } = agent; onAgent(rest) } }
 
-  const [panels, setPanels] = useState(JSON.stringify(agent.panels ?? [], null, 2))
+  // the JSON below the forms: what the person is typing is kept while the box has the focus, otherwise it follows the forms
+  const [typed_, setTyped] = useState<string | null>(null)
   const [panelsBad, setPanelsBad] = useState(false)
-  useEffect(() => { setPanels(JSON.stringify(agent.panels ?? [], null, 2)); setPanelsBad(false) }, [agent.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const panelList = (Array.isArray(agent.panels) ? agent.panels : []) as Record<string, any>[]
+  const setPanelList = (next: Record<string, any>[]) => { if (next.length) set({ panels: next }); else { const { panels: _p, ...rest } = agent; onAgent(rest) } }
+  useEffect(() => { setTyped(null); setPanelsBad(false) }, [agent.id])
 
   const addField = () => {
     let i = Object.keys(state).length + 1
@@ -36,7 +42,8 @@ export function AgentForm({ agent, title, onAgent, onTitle, installed }: {
   const renameField = (from: string, to: string) => {
     const v = to.replace(/[^A-Za-z0-9_-]/g, '')
     if (!/^[A-Za-z]/.test(v) || v === from || v in state) return false
-    setState(Object.fromEntries(Object.entries(state).map(([k, f]) => [k === from ? v : k, f])))
+    if (onRename) onRename(from, v)
+    else setState(Object.fromEntries(Object.entries(state).map(([k, f]) => [k === from ? v : k, f])))
     return true
   }
   const typed = (name: string, type: string) => {
@@ -118,20 +125,26 @@ export function AgentForm({ agent, title, onAgent, onTitle, installed }: {
         <Button variant="outline" size="sm" className="self-start max-md:h-10" onClick={addField}><Plus className="size-3.5" aria-hidden="true" />{t('fg.state.add')}</Button>
       </section>
 
-      <details className="border-t border-border pt-3">
-        <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.panels')}</summary>
-        <div className="mt-2 flex flex-col gap-1.5">
-          <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.panels.lead')}</p>
-          <Textarea value={panels} rows={10} className={cn('font-mono text-xs', panelsBad && 'border-destructive')} aria-label={t('fg.panels')} onChange={(e) => {
-            setPanels(e.target.value)
-            try {
-              const v = JSON.parse(e.target.value)
-              if (Array.isArray(v)) { setPanelsBad(false); if (v.length) set({ panels: v }); else { const { panels: _p, ...rest } = agent; onAgent(rest) } } else setPanelsBad(true)
-            } catch { setPanelsBad(true) }
-          }} />
-          <span className={cn('text-[11px]', panelsBad ? 'text-destructive' : 'text-muted-foreground')}>{panelsBad ? t('fg.advanced.bad') : t('fg.panels.hint')}</span>
-        </div>
-      </details>
+      <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.panels')}>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.panels')}</h4>
+        <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.panels.lead')}</p>
+        <PanelsForm panels={panelList} state={state} onChange={setPanelList} />
+        <details>
+          <summary className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.panels.json')}</summary>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <Textarea value={typed_ ?? JSON.stringify(agent.panels ?? [], null, 2)} rows={10} className={cn('font-mono text-xs', panelsBad && 'border-destructive')} aria-label={t('fg.panels.json')}
+              onBlur={() => { setTyped(null); setPanelsBad(false) }}
+              onChange={(e) => {
+                setTyped(e.target.value)
+                try {
+                  const v = JSON.parse(e.target.value)
+                  if (Array.isArray(v)) { setPanelsBad(false); setPanelList(v) } else setPanelsBad(true)
+                } catch { setPanelsBad(true) }
+              }} />
+            <span className={cn('text-[11px]', panelsBad ? 'text-destructive' : 'text-muted-foreground')}>{panelsBad ? t('fg.advanced.bad') : t('fg.panels.hint')}</span>
+          </div>
+        </details>
+      </section>
     </div>
   )
 }

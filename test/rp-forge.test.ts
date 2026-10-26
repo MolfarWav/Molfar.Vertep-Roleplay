@@ -1,9 +1,10 @@
 /** The agent editor's model (src/lib/forge.ts): an edit stays tidy and the checker stays the judge. */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
+import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, fieldsFor, newPanel, newWidget, setWidgetKind, renameField, lostWhen, WIDGET_KINDS, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
 import { generated } from "../scripts/sync-agent-recipes";
 import { AGENT_RECIPES } from "../src/lib/forge-recipes";
+import { removeNode } from "../src/canvas-kit/graph";
 import { AGENT_CARDS } from "../src/canvas-kit/boards/agent";
 import type { Graph } from "../src/canvas-kit/graph";
 
@@ -112,5 +113,66 @@ describe("room for the wires", () => {
       const [hi, lo] = a.y <= b.y ? [a, b] : [b, a];
       expect(lo.y).toBeGreaterThanOrEqual(hi.y + cardHeight(hi));
     }
+  });
+});
+
+describe("panels and memory", () => {
+  const tension = AGENT_RECIPES.find((r) => (r.agent as Json).id === "tension-meter")!;
+  const state = (tension.agent as Json).state as Record<string, { type: string; item?: Record<string, string> }>;
+  const rich = { tension: { type: "number", min: 0, max: 10, start: 0 }, note: { type: "text" }, rooms: { type: "list", item: { name: "text", level: "number" }, max: 20 } };
+  const file = (agent: Json) => ({ ...(tension as Json), agent: { ...(tension.agent as Json), ...agent } }) as never;
+
+  it("offers a widget only the fields that fit it", () => {
+    expect(fieldsFor("meter", rich)).toEqual(["tension"]);
+    expect(fieldsFor("text", rich)).toEqual(["note"]);
+    expect(fieldsFor("table", rich)).toEqual(["rooms"]);
+    expect(fieldsFor("actions", rich)).toEqual([]);
+  });
+
+  it("makes a widget for every kind that the checker accepts", () => {
+    for (const kind of WIDGET_KINDS) {
+      const panel = { id: "p", title: "P", place: "float", widgets: [newWidget(kind, rich)] };
+      const r = check(file({ state: rich, panels: [panel] }));
+      expect(r.errors.filter((e) => e.code === "E_PANEL" || e.code === "E_WIDGET" || e.code === "E_BIND").map((e) => e.message)).toEqual([]);
+    }
+  });
+
+  it("a new panel starts with a widget that fits and has an id nobody uses", () => {
+    const a = newPanel([], rich, "Panel");
+    const b = newPanel([a], rich, "Panel");
+    expect(a.id).toBe("panel");
+    expect(b.id).toBe("panel-2");
+    expect((a.widgets as Json[])[0]!.w).toBe("meter");
+    expect((newPanel([], {}, "P").widgets as Json[])[0]!.w).toBe("actions");
+  });
+
+  it("changing the kind of a widget keeps the field when it still fits and picks another when it does not", () => {
+    const meter = newWidget("meter", rich);
+    expect(setWidgetKind(meter, "counter", rich).bind).toBe("tension");
+    const t = setWidgetKind(meter, "text", rich);
+    expect(t.bind).toBe("note");
+    expect(setWidgetKind(meter, "table", rich).columns).toEqual(["name", "level"]);
+    expect(setWidgetKind(meter, "actions", rich).w).toBe("actions");
+  });
+
+  it("renaming a field moves the cards and the panels with it", () => {
+    const agent = { ...(tension.agent as Json), panels: [{ id: "p", title: "P", place: "top1", widgets: [{ w: "meter", label: "T", bind: "tension" }] }] };
+    const g = { nodes: tension.nodes!, edges: tension.edges! } as Graph;
+    const before = check(fileOf("x", agent, g));
+    expect(before.errors).toEqual([]);
+    const { agent: a2, graph: g2 } = renameField(agent, g, "tension", "dread");
+    expect(Object.keys(a2.state)).toEqual(["dread"]);
+    expect(a2.panels[0].widgets[0].bind).toBe("dread");
+    expect(g2.nodes.filter((n) => n.params?.field).every((n) => n.params!.field === "dread")).toBe(true);
+    expect(check(fileOf("x", a2, g2)).errors).toEqual([]);
+  });
+
+  it("names the cards that lose their trigger when a card is removed", () => {
+    const g = { nodes: tension.nodes!, edges: tension.edges! } as Graph;
+    const gate = g.edges.find((e) => e.to.endsWith(":when"))!;
+    const gateNode = gate.from.split(":")[0]!;
+    const lost = lostWhen(g, prune(removeNode(g, gateNode)));
+    expect(lost.length).toBeGreaterThan(0);
+    expect(lostWhen(g, g)).toEqual([]);
   });
 });
