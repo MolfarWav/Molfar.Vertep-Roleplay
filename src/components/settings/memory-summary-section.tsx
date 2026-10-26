@@ -14,10 +14,16 @@ import { deleteLitPrompts, fetchLitConfig, putLitConfig, type LitConfig, type Li
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
+/** The default memory size (tokens) and the most a custom one may be: the plugin's own limits. */
+const COMPACT_SIZE = 800
+const BUDGET_MAX = 16000
+
 /** `inDialog`: the dialog's own title names it, so the card drops its heading. */
 export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean } = {}) {
   const t = useT()
   const [cfg, setCfg] = useState<LitConfig | null>(null)
+  // the memory size: Compact is the 800 tokens of the default; any other number is Custom (kept apart so choosing Custom with 800 works)
+  const [sizeMode, setSizeMode] = useState<'compact' | 'custom' | null>(null)
 
   useEffect(() => {
     void fetchLitConfig().then(setCfg).catch((e) => {
@@ -82,6 +88,33 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
   )
   const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
+  const sizeField = () => {
+    const mode = sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
+    return (
+      <div className="flex flex-col gap-3 sm:col-span-2">
+        <Field>
+          <FieldLabel>{t('lit.set.size')}</FieldLabel>
+          <Segmented
+            label={t('lit.set.size')}
+            value={mode}
+            onChange={(v) => {
+              setSizeMode(v)
+              if (v === 'compact') {
+                setCfg({ ...cfg, budget: COMPACT_SIZE })
+                save({ budget: COMPACT_SIZE })
+              }
+            }}
+            options={[
+              { value: 'compact', label: t('lit.set.sizeCompact', { n: COMPACT_SIZE }) },
+              { value: 'custom', label: t('lit.set.sizeCustom') },
+            ]}
+          />
+          <p className="text-xs text-muted-foreground">{t('lit.set.sizeHint')}</p>
+        </Field>
+        {mode === 'custom' && keyField('budget', { id: 'lit-budget', label: t('lit.set.budget'), hint: t('lit.set.sizeCustomHint', { max: BUDGET_MAX }), min: 200, max: BUDGET_MAX })}
+      </div>
+    )
+  }
   const sceneField = (key: 'minMessages' | 'maxMessages', o: { id: string; label: string; min: number; max: number }) =>
     numField({ ...o, value: cfg.scene[key], setLocal: (v) => setCfg({ ...cfg, scene: { ...cfg.scene, [key]: v } }), commit: (v) => saveScene({ [key]: v }) })
   const switchRow = (id: string, label: string, hint: string, checked: boolean, onChange: (v: boolean) => void) => (
@@ -108,7 +141,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <Block title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')}>
         <div className="grid gap-3 sm:grid-cols-2">
-          {keyField('budget', { id: 'lit-budget', label: t('lit.set.budget'), hint: t('lit.set.budgetHint'), min: 200, max: 4000 })}
+          {sizeField()}
           {keyField('linkBudget', { id: 'lit-link-budget', label: t('lit.set.linkBudget'), hint: t('lit.set.linkBudgetHint'), min: 0, max: 3000 })}
           {keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
         </div>
@@ -221,10 +254,49 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
       </Block>
 
+      <Block title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')}>
+        <Field>
+          <FieldLabel>{t('lit.set.proposals')}</FieldLabel>
+          <Segmented
+            label={t('lit.set.proposals')}
+            value={cfg.proposals ?? 'ask'}
+            onChange={(v) => {
+              setCfg({ ...cfg, proposals: v })
+              save({ proposals: v })
+            }}
+            options={[
+              { value: 'ask', label: t('lit.set.proposalsAsk') },
+              { value: 'quiet', label: t('lit.set.proposalsQuiet') },
+            ]}
+          />
+          <p className="text-xs text-muted-foreground">{t('lit.set.proposalsHint')}</p>
+        </Field>
+        {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? cfg.proposals === 'quiet', (v) => save({ autoConsolidate: v }))}
+      </Block>
+
       <Block title="Facts" hint="Short facts kept per chat. Pinned ones ride every prompt; the rest come back when the chat mentions them.">
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         <EmbedRow />
       </Block>
+    </div>
+  )
+}
+
+/** Two or three choices, all visible at once (a select hides them). Same look as the Library's Overview | Ledger switch. */
+function Segmented<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-1 rounded-md border border-border bg-muted p-0.5 text-sm">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`min-h-10 flex-1 rounded px-3 md:min-h-8 ${value === o.value ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }

@@ -27,9 +27,9 @@ function makeChatFile(chatId: string, chapters: any[], extra: Record<string, unk
 
 describe("arcs config", () => {
   it("defaults and arcThresholdOf", () => {
-    writeJson("litopys/config.json", {});
+    // a new install: no config file and no chats
     const cfg = L.loadConfig(mockHost().host.fs);
-    expect(cfg.arcMode).toBe("ask");
+    expect(cfg.arcMode).toBe("auto");
     expect(cfg.arcKeep).toBe(4);
     expect(cfg.arcThreshold).toBe(0);
     expect(cfg.arcSizeMin).toBe(5);
@@ -44,7 +44,7 @@ describe("arcs config", () => {
     const m = mockHost();
     L.patchConfig(m.host.fs, { arcMode: "weird", arcKeep: 0, arcThreshold: -5, arcSizeMin: 9, arcSizeMax: 3, arcWords: 5 });
     let cfg = L.loadConfig(m.host.fs);
-    expect(cfg.arcMode).toBe("ask");
+    expect(cfg.arcMode).toBe("auto");
     expect(cfg.arcKeep).toBe(1);
     expect(cfg.arcThreshold).toBe(0);
     expect(cfg.arcSizeMin).toBe(9);
@@ -58,7 +58,7 @@ describe("arcs config", () => {
     
     // survive a reload
     cfg = L.loadConfig(m.host.fs);
-    expect(cfg.arcMode).toBe("ask");
+    expect(cfg.arcMode).toBe("auto");
     expect(cfg.arcKeep).toBe(50);
     expect(cfg.arcThreshold).toBe(200);
     expect(cfg.arcSizeMin).toBe(9);

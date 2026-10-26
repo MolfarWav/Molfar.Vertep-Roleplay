@@ -33,6 +33,12 @@ const PROPOSALS_FILE = "litopys/proposals.json";
 const EMBED_STATUS_FILE = "litopys/embed-status.json";
 const VAULT_DIR = "vault-chats";
 const RETRY_MS = 600000;
+/** The most tokens the prompt insert may be given (wave 1 of the memory work; it was 4000). */
+export const BUDGET_MAX = 16000;
+/** Sanity cap on the chapters and arcs the ranked insert considers; the budget is the real limit. */
+const CHAPTERS_MAX = 60;
+/** Of what is left after the pinned and present facts and the bridge, chapters and arcs get at least this share. */
+const CHAPTER_SHARE = 0.4;
 const DICE_LIMIT = 0.85;
 
 // ---------- tiny utils ----------
@@ -143,8 +149,17 @@ export const DEFAULT_CONFIG = {
   budget: 800,
   // 0.9.2: the most the backstory of a linked earlier chat may take (0 = none)
   linkBudget: 800,
-  // M4d arcs: older chapters merged into one summary when they outgrow the budget
-  arcMode: "ask",
+  // M4d arcs: older chapters merged into one summary when they outgrow the budget. A new install merges by itself
+  // (a merge only adds an arc over its chapters, nothing is deleted); an install that already had Litopys data
+  // keeps "ask" until its owner switches (stampInstall)
+  arcMode: "auto",
+  // "pending": the Library offers an install that kept "ask" to switch to "auto", once; "done": nothing to offer
+  arcNotice: "done",
+  // wave 1: "ask" waits for a click on every proposal; "quiet" applies a pin or a rewrite by itself and logs it with an Undo
+  // (a retire or a merge always waits)
+  proposals: "ask",
+  // Consolidate facts runs by itself after this many new facts; null = on only while proposals are "quiet"
+  autoConsolidate: null,
   arcKeep: 4,
   arcThreshold: 0,
   arcSizeMin: 5,
@@ -158,6 +173,7 @@ export const DEFAULT_CONFIG = {
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
 export const ARC_MODES = ["ask", "auto", "off"];
+export const PROPOSAL_MODES = ["ask", "quiet"];
 
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
 export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
@@ -297,8 +313,36 @@ export function saveProposals(fsx, p) {
   fsx.write(PROPOSALS_FILE, JSON.stringify(p, null, 2));
 }
 
+/**
+ * Memory wave 1: arcs merge by themselves on a new install, and an install that already has Litopys data keeps
+ * its choice ("ask" when it never made one) and is offered the switch once. Told apart by what is on disk the
+ * first time the config is read, then written down in config.json so a later chat file cannot change the answer.
+ */
+function stampInstall(fsx) {
+  const raw = readOwn(fsx, CONFIG_FILE, null);
+  if (isObj(raw) && "arcNotice" in raw) return;
+  let hasData = isObj(raw);
+  if (!hasData) {
+    try {
+      hasData = fsx.list(CHAT_DIR.replace(/\/$/, "")).length > 0 || fsx.list(LITOPYS_DIR.replace(/\/$/, "")).includes("store.json");
+    } catch {}
+  }
+  const next = isObj(raw) ? { ...raw } : {};
+  if (hasData) {
+    if (!ARC_MODES.includes(next.arcMode)) next.arcMode = "ask";
+    next.arcNotice = next.arcMode === "ask" ? "pending" : "done";
+  } else {
+    next.arcMode = "auto";
+    next.arcNotice = "done";
+  }
+  try {
+    fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
+  } catch {}
+}
+
 /** config.json as stored, minus prompts that are a default (so they follow it). */
 function storedConfig(fsx) {
+  stampInstall(fsx);
   const raw = readOwn(fsx, CONFIG_FILE, null);
   // only keys this version knows: the 1.x keys (extractEveryNTurns, inject, ...) are ignored
   const cfg = {};
@@ -325,9 +369,12 @@ export function loadConfig(fsx) {
   cfg.recentMessages = clamp(cfg.recentMessages, 6, 200);
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
-  cfg.budget = clamp(cfg.budget, 200, 4000);
+  cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
   cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
+  cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
+  cfg.proposals = PROPOSAL_MODES.includes(cfg.proposals) ? cfg.proposals : DEFAULT_CONFIG.proposals;
+  cfg.autoConsolidate = typeof cfg.autoConsolidate === "boolean" ? cfg.autoConsolidate : null;
   cfg.arcKeep = clamp(intOf(cfg.arcKeep, 4), 1, 50);
   cfg.arcThreshold = arcThresholdValue(cfg.arcThreshold);
   cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
@@ -351,7 +398,7 @@ function arcThresholdValue(v) {
 
 /** The tokens the older chapters may take before an arc is offered. */
 export function arcThresholdOf(cfg) {
-  return (cfg && cfg.arcThreshold) || 2 * clamp(cfg && cfg.budget, 200, 4000);
+  return (cfg && cfg.arcThreshold) || 2 * clamp(cfg && cfg.budget, 200, BUDGET_MAX);
 }
 
 /** The PUT logic described in item 13. Writes the file, returns loadConfig(fsx). */
@@ -365,9 +412,16 @@ export function patchConfig(fsx, body) {
   if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 20), 6, 200);
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
-  if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, 4000);
+  if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);
   if (b.linkBudget !== undefined) next.linkBudget = clamp(intOf(b.linkBudget, 800), 0, 3000);
-  if (b.arcMode !== undefined) next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
+  if (b.arcMode !== undefined) {
+    next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;
+    // a choice made on purpose settles the offer
+    next.arcNotice = "done";
+  }
+  if (b.arcNotice !== undefined) next.arcNotice = "done";
+  if (b.proposals !== undefined) next.proposals = PROPOSAL_MODES.includes(str(b.proposals)) ? str(b.proposals) : DEFAULT_CONFIG.proposals;
+  if (b.autoConsolidate !== undefined) next.autoConsolidate = typeof b.autoConsolidate === "boolean" ? b.autoConsolidate : null;
   if (b.arcKeep !== undefined) next.arcKeep = clamp(intOf(b.arcKeep, 4), 1, 50);
   if (b.arcThreshold !== undefined) next.arcThreshold = arcThresholdValue(b.arcThreshold);
   if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);
@@ -1051,8 +1105,9 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
     const u = isObj(usedBy[f.id]) ? usedBy[f.id] : {};
     return factRecency({ written: writtenAt(f), lastUsed: Number(u.turn), uses: u.n }, line.length);
   };
-  const d = rankFacts(active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f)), scanText, recency);
-  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText).slice(0, 6);
+  const rest = active.filter((f) => !a.includes(f) && !b.includes(f) && !stillSeen(f));
+  const d = rankFacts(rest, scanText, recency);
+  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText).slice(0, CHAPTERS_MAX);
 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the
@@ -1061,6 +1116,24 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
+  const budget = clamp(cfg && cfg.budget, 200, BUDGET_MAX);
+  const byStory = (list) => list.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
+  const arcsOf = (list) => list.filter((x) => arcs.includes(x)).length;
+  const result = (facts, chapters, head, tail, full) => {
+    const text = [head, tail].filter(Boolean).join("\n\n");
+    return { text, head, tail, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcsOf(chapters), arcs: arcsOf(chapters), cut, full, factIds: facts.map((f) => f.id) };
+  };
+
+  // Full record: when everything known fits, none of it is ranked away. The chapters (the fresh arcs in
+  // place of their chapters) ride above the history in story order, so the head holds the same text until
+  // the next chapter closes; the facts ride in the tail.
+  const allChapters = byStory([...beforeCut, ...arcs]);
+  const allFacts = [...a, ...b, ...d];
+  const fullHead = allChapters.length ? ["[Story record (Litopys): the story so far, up to the messages below. " + (cfg.remembers || REMEMBERS) + "]", ...allChapters.map(chapterLine)].join("\n") : "";
+  const fullTail = allFacts.length ? ["[Story record (Litopys): what stays true. " + (cfg.remembers || REMEMBERS) + "]", "Facts:", ...allFacts.map(factLine)].join("\n") : "";
+  if (estimateTokens([fullHead, fullTail].filter(Boolean).join("\n\n")) <= budget) return result(allFacts, allChapters, fullHead, fullTail, true);
+
+  // Ranked: each item goes in whole or not at all; a group stops at its first item that does not fit
   const facts = [];
   const chapters = [];
   const renderHead = () => (bridge && chapters.includes(bridge) ? [headHeader, chapterLine(bridge)].join("\n") : "");
@@ -1068,31 +1141,33 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
     const others = chapters.filter((ch) => ch !== bridge);
     if (!others.length && !facts.length) return "";
     const out = [tailHeader];
-    if (others.length) {
-      const ordered = others.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
-      out.push("Earlier chapters:", ...ordered.map(chapterLine));
-    }
+    if (others.length) out.push("Earlier chapters:", ...byStory(others).map(chapterLine));
     if (facts.length) out.push("Facts:", ...facts.map(factLine));
     return out.join("\n");
   };
   const render = () => [renderHead(), renderTail()].filter(Boolean).join("\n\n");
-  const budget = clamp(cfg && cfg.budget, 200, 4000);
-  // each item goes in whole or not at all; a group stops at its first item that does not fit
-  const tryAdd = (list, item) => {
-    list.push(item);
-    if (estimateTokens(render()) <= budget) return true;
-    list.pop();
-    return false;
+  /** Adds items from `from` on while the whole insert stays within `limit`; returns where it stopped. */
+  const fill = (list, items, from, limit) => {
+    let i = from;
+    for (; i < items.length; i++) {
+      list.push(items[i]);
+      if (estimateTokens(render()) <= limit) continue;
+      list.pop();
+      break;
+    }
+    return i;
   };
-  for (const f of a) if (!tryAdd(facts, f)) break;
-  for (const f of b) if (!tryAdd(facts, f)) break;
-  if (bridge) tryAdd(chapters, bridge);
-  for (const f of d) if (!tryAdd(facts, f)) break;
-  for (const ch of e) if (!tryAdd(chapters, ch)) break;
+  fill(facts, a, 0, budget);
+  fill(facts, b, 0, budget);
+  if (bridge) fill(chapters, [bridge], 0, budget);
+  // chapters and arcs are held a share of what is left (when both kinds exist); what one leaves unused the other takes
+  const left = budget - estimateTokens(render());
+  const factLimit = d.length && e.length ? budget - Math.ceil(CHAPTER_SHARE * Math.max(0, left)) : budget;
+  const next = fill(facts, d, 0, factLimit);
+  fill(chapters, e, 0, budget);
+  fill(facts, d, next, budget);
   if (!facts.length && !chapters.length) return null;
-  const text = render();
-  const arcCount = chapters.filter((x) => arcs.includes(x)).length;
-  return { text, head: renderHead(), tail: renderTail(), tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcCount, arcs: arcCount, cut, factIds: facts.map((f) => f.id) };
+  return result(facts, chapters, renderHead(), renderTail(), false);
 }
 
 /** Most facts the insert file keeps a use record for: the most recently used win. */
@@ -1225,6 +1300,7 @@ export function llmRequest(ctx, host) {
           chapters: insert ? insert.chapters : 0,
           arcs: insert ? insert.arcs : 0,
           cut: insert ? insert.cut : 0,
+          ...(insert && insert.full ? { full: true } : {}),
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
           ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
@@ -1248,11 +1324,11 @@ export function llmRequest(ctx, host) {
     }
     if (insert && insert.head) {
       messages = withInsert(messages, insert.head);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · story so far", text: String(insert.head).trim() });
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: String(insert.head).trim() });
     }
     if (insert && insert.tail) {
       messages = withTailInsert(messages, insert.tail);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
@@ -1355,6 +1431,60 @@ export function parseWorkerReply(text) {
     const got = workerShape(parseObj(cutStr));
     if (got) return got;
   }
+  return null;
+}
+
+// ---------- quiet proposals (memory wave 1) ----------
+/**
+ * With config `proposals: "quiet"`, a pin or a rewrite the worker (or Consolidate) proposes is applied at once: the
+ * proposal is kept as accepted with `auto: true` and what is needed to take it back, and the Activity gets a row
+ * with an Undo. Never a retire or a merge. Left pending, for the user: a rewrite of a fact the user wrote or edited or
+ * pinned, and a pin that would pass the pin limit. Returns how many were applied.
+ */
+export function applyQuiet(st, cfg, now) {
+  if (!cfg || cfg.proposals !== "quiet") return 0;
+  let n = 0;
+  for (const p of st.proposals) {
+    if (!isObj(p) || p.status !== "pending" || (p.op !== "pin" && p.op !== "rewrite")) continue;
+    const target = st.facts.find((f) => f.id === arr(p.targets)[0] && f.status === "active");
+    if (!target) continue;
+    if (p.op === "rewrite") {
+      const text = cut(str(p.text), 300);
+      if (!text || text === str(target.text) || target.edited === true || target.pinned === true) continue;
+      p.undo = { text: str(target.text) };
+      target.text = text;
+      target.updatedAt = now;
+      settle(p, "accepted", now);
+    } else {
+      if (target.pinned === true || pinFact(st, target, "", Number(cfg.pinLimit) || 5, now)) continue;
+      p.undo = { pinned: true };
+    }
+    p.auto = true;
+    const text = p.op === "pin" ? str(target.text) : str(p.text);
+    addActivity(st, "worker", "proposal.auto", "Applied a proposal by itself: " + str(p.op) + " " + quote(text), [p.id, target.id], now, { op: str(p.op), text });
+    n++;
+  }
+  return n;
+}
+
+/** POST /litopys/proposals op "undo": takes back a proposal applied by itself, unless the fact changed since. */
+function undoProposal(st, p, now) {
+  if (p.auto !== true || p.status !== "accepted" || !isObj(p.undo)) return { status: 409, json: { error: "nothing to undo" } };
+  const target = st.facts.find((f) => f.id === arr(p.targets)[0] && f.status === "active");
+  if (!target) return { status: 409, json: { error: "target gone" } };
+  if (p.op === "rewrite") {
+    if (str(target.text) !== str(p.text)) return { status: 409, json: { error: "changed since" } };
+    target.text = str(p.undo.text);
+  } else {
+    if (target.pinned !== true) return { status: 409, json: { error: "changed since" } };
+    target.pinned = false;
+  }
+  target.updatedAt = now;
+  p.status = "rejected";
+  p.undone = true;
+  p.settledAt = now;
+  const text = p.op === "pin" ? str(target.text) : str(p.text);
+  addActivity(st, "user", "proposal.undo", "Took back a proposal: " + str(p.op) + " " + quote(text), [p.id, target.id], now, { op: str(p.op), text });
   return null;
 }
 
@@ -2457,6 +2587,8 @@ export function onTick(_ctx, host) {
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
+              // a rebuild's generation is written beside the record in use: its proposals are never applied by themselves
+              if (g === cur) applyQuiet(cur, cfg, now);
               const span = "messages " + (w.scene.fromIdx + 1) + "-" + (w.scene.toIdx + 1);
               const verb = w.replaces ? "Rewrote" : "Wrote";
               addActivity(cur, by, "chapter.write", verb + ' the chapter "' + (chapter.label || chapter.id) + '" (' + span + "): " + added.length + " facts, " + proposed + " proposals", [chapter.id, ...added], now, { label: chapter.label || "", from: w.scene.fromIdx + 1, to: w.scene.toIdx + 1, facts: added.length, proposals: proposed, rewrite: !!w.replaces });
@@ -3021,8 +3153,13 @@ const consolidateKey = (chatId, job) => "lit_cons_" + chatId + "_" + job.at + "_
 
 /** One tick's Consolidate step: apply an answer, else send the next batch. true = the tick is done. */
 function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
+  if (!isObj(st.consolidate) || st.consolidate.state !== "working") {
+    if (!autoConsolidateDue(st, cfg)) return false;
+    // written down first: the request below is answered on a later tick, which reads the job from the file
+    startConsolidate(st, now, true);
+    if (!saveChatFile(fsx, st)) return true;
+  }
   const job = st.consolidate;
-  if (!isObj(job) || job.state !== "working") return false;
   const batches = arr(job.batches);
   const next = Number(job.next) || 0;
   if (next >= batches.length) {
@@ -3045,6 +3182,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
         addActivity(cur, "worker", "consolidate.fail", "Consolidating facts failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
       } else {
         const added = addConsolidateProposals(cur, ops, now);
+        applyQuiet(cur, cfg, now);
         cur.consolidate = { ...cur.consolidate, next: next + 1, proposed: (Number(cur.consolidate.proposed) || 0) + added };
         if (next + 1 >= batches.length) finishConsolidate(cur, now);
       }
@@ -3069,6 +3207,30 @@ function finishConsolidate(st, now) {
   const proposed = Number(st.consolidate && st.consolidate.proposed) || 0;
   st.consolidate = { state: "done", proposed, at: now };
   addActivity(st, "worker", "consolidate.done", proposed ? "Consolidating facts proposed " + proposed + " changes" : "Consolidating facts found nothing to change", [], now, { proposed });
+}
+
+/** Active facts the chat must have gained since the last Consolidate for the automatic one to start. */
+export const CONSOLIDATE_AUTO_GROWTH = 30;
+
+/** Does the chat's Consolidate run by itself now: switched on, enough new facts, no run or proposal of its own waiting. */
+export function autoConsolidateDue(st, cfg) {
+  const on = cfg && (cfg.autoConsolidate === true || (cfg.autoConsolidate == null && cfg.proposals === "quiet"));
+  if (!on || !st || isObj(st.rebuild)) return false;
+  if (isObj(st.consolidate) && st.consolidate.state === "working") return false;
+  if (arr(st.proposals).some((p) => isObj(p) && p.status === "pending" && p.origin === "consolidate")) return false;
+  const active = consolidateBatches(st).reduce((n, x) => n + x.length, 0);
+  const was = isObj(st.consolidateAt) ? Number(st.consolidateAt.active) || 0 : 0;
+  return active >= CONSOLIDATE_MIN && active - was >= CONSOLIDATE_AUTO_GROWTH;
+}
+
+/** Starts a Consolidate run on the record (asked by the user, or by itself); the tick sends its batches. */
+function startConsolidate(st, now, auto) {
+  const batches = consolidateBatches(st);
+  const active = batches.reduce((n, x) => n + x.length, 0);
+  st.consolidate = { state: "working", batches, next: 0, proposed: 0, at: now, ...(auto ? { auto: true } : {}) };
+  st.consolidateAt = { active, at: now };
+  addActivity(st, auto ? "worker" : "user", "consolidate.ask", (auto ? "Started consolidating " : "Asked to consolidate ") + active + " facts" + (auto ? " by itself" : ""), [], now, { facts: active, ...(auto ? { auto: true } : {}) });
+  return active;
 }
 
 /** The view's Consolidate line: the active count, and the run in progress or its outcome. */
@@ -3104,12 +3266,10 @@ export function consolidateRoute(fsx, body) {
     }
     if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
     if (isObj(st.consolidate) && st.consolidate.state === "working") return { status: 409, json: { error: "already consolidating" } };
-    const batches = consolidateBatches(st);
-    const active = batches.reduce((n, x) => n + x.length, 0);
+    const active = consolidateBatches(st).reduce((n, x) => n + x.length, 0);
     if (active < CONSOLIDATE_MIN) return { status: 409, json: { error: "too few facts", min: CONSOLIDATE_MIN, active } };
-    st.consolidate = { state: "working", batches, next: 0, proposed: 0, at: now };
+    startConsolidate(st, now, false);
     woke = true;
-    addActivity(st, "user", "consolidate.ask", "Asked to consolidate " + active + " facts", [], now, { facts: active });
   });
   if (woke && res.status === 200) wake(fsx, chatId, true);
   return res;
@@ -3855,16 +4015,17 @@ export function sceneRoute(fsx, body) {
   return res;
 }
 
-/** POST /litopys/proposals { chatId, id, op: "accept"|"reject", replace? } */
+/** POST /litopys/proposals { chatId, id, op: "accept"|"reject"|"undo", replace? } (undo: only a proposal applied by itself) */
 export function proposalRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
-  if (op !== "accept" && op !== "reject") return bad("unknown op");
+  if (op !== "accept" && op !== "reject" && op !== "undo") return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
     const p = st.proposals.find((x) => x.id === str(b.id));
     if (!p) return { status: 404, json: { error: "no such proposal" } };
+    if (op === "undo") return undoProposal(st, p, now);
     if (p.status !== "pending") return { status: 409, json: { error: "not pending" } };
     const what = str(p.op) + (p.text ? " " + quote(p.text) : "");
     if (op === "reject") {

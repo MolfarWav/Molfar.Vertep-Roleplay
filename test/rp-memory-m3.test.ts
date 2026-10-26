@@ -92,6 +92,8 @@ it("buildInsert fill order, knownBy, budget and layout", () => {
     { id: "f5", text: "Bram knows a secret.", subject: "world", knownBy: ["Bram"], type: "event", weight: "everyday", pinned: false, status: "active" },
     { id: "f6", text: "The mill wheel broke.", subject: "world", knownBy: "all", type: "event", weight: "everyday", pinned: false, status: "active", src: { chapter: "c3" } },
     { id: "f7", text: "Aria saw the mill.", subject: "world", knownBy: ["Aria"], type: "event", weight: "everyday", pinned: false, status: "active" },
+    // too long to fit: the record does not fit whole, so this is the ranked layout
+    { id: "f8", text: "Filler " + "z".repeat(3200), subject: "world", knownBy: "all", type: "event", weight: "everyday", pinned: false, status: "active" },
   ];
 
   const scanText = "mill wheel turns";

@@ -5,6 +5,7 @@ import { useT, useRelativeTime } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import type { LitActivity, LitActivityKind } from './litopys-api'
 import type { TabProps } from './ledger-facts'
+import { UndoAuto, canUndo } from './ledger-proposals'
 import type { MsgKey } from '@/lib/i18n'
 
 type Filter = 'all' | 'user' | 'litopys'
@@ -54,6 +55,8 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
       return d.rewrite === true ? t('lit.act.chapterRewrote', { label, from, to }) : t('lit.act.chapterWrite', { label, from, to, facts, proposals })
     case 'proposal.accept': return t('lit.act.proposalAccept', { op, text })
     case 'proposal.reject': return t('lit.act.proposalReject', { op, text })
+    case 'proposal.auto': return t('lit.act.proposalAuto', { op, text })
+    case 'proposal.undo': return t('lit.act.proposalUndo', { op, text })
     case 'worker.fail': return t('lit.act.workerFail', { error })
     case 'import': return t('lit.act.import', { n })
     case 'notes.move': return t('lit.act.notesMove', { n })
@@ -73,7 +76,7 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'habit.seen': return t('lit.act.habitSeen', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'habit.earn': return t('lit.act.habitEarn', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'habit.accept': return t('lit.act.habitAccept', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
-    case 'consolidate.ask': return t('lit.act.consolidateAsk', { n: num(d.facts) })
+    case 'consolidate.ask': return d.auto === true ? t('lit.act.consolidateAuto', { n: num(d.facts) }) : t('lit.act.consolidateAsk', { n: num(d.facts) })
     case 'consolidate.done': return Number(d.proposed) > 0 ? t('lit.act.consolidateDone', { n: num(d.proposed) }) : t('lit.consolidate.nothing')
     case 'consolidate.fail': return t('lit.act.consolidateFail', { error })
     default: return a.text
@@ -88,7 +91,7 @@ function HabitIcon({ kind }: { kind: string }) {
   return null
 }
 
-export function ActivityTab({ chat }: TabProps) {
+export function ActivityTab({ chat, onChat, onRefresh }: TabProps) {
   const t = useT()
   const rel = useRelativeTime()
   const [filter, setFilter] = useState<Filter>('all')
@@ -148,6 +151,10 @@ export function ActivityTab({ chat }: TabProps) {
                 </Badge>
                 <HabitIcon kind={a.kind} />
                 <span className="text-sm break-words">{activityText(a, t)}</span>
+                {a.kind === 'proposal.auto' && (() => {
+                  const p = chat.proposals.find((x) => x.id === a.ids[0])
+                  return canUndo(p) ? <span className="ml-auto"><UndoAuto chat={chat} proposal={p} onChat={onChat} onRefresh={onRefresh} /></span> : null
+                })()}
               </div>
             </li>
           ))}
