@@ -131,7 +131,12 @@ card's Memory tab; it is never in `card.json` or in an export. Shape: `{ "v": 1,
 "enabled": true, "maxTokens": 400 } }`. A source is a snapshot taken when a chat is imported (the arc, the
 strongest facts, the character's own live notes and said lines of that chat); it keeps `chatId` and a copy of the
 `title` and never reads the chat again, so deleting the chat changes nothing. Keys the app does not know are kept
-when it saves the file. In a reply the Litopys plugin builds one part, "Litopys · character memory" (own Prompt
+when it saves the file. The `arc` of a source is the text built from the chat's arcs and chapters, or, when the import
+dialog sent `arcText`, the text the user settled on there (up to 1500 characters): the dialog can ask the model for a
+summary of the whole chat (`POST /litopys/story-summary { chatId, op: "start"|"cancel" }`, a job on the chat's
+record in `litopys/chats/<chatId>.json`: `storySummary: { state: "working"|"done"|"failed", at, sig, text?, model?,
+error? }`; `sig` is the record it was written from, so the preview says `stale` once a chapter changed; its prompt is
+`summary` in the Litopys config). Nothing reaches the card but what the user ticks. In a reply the Litopys plugin builds one part, "Litopys · character memory" (own Prompt
 board switch `plugin:cardmemory`), after the backstory and before the story so far: for the card of a chat (in a
 group, the speaker's card), skipping a source whose `chatId` is the chat itself or a chat of its backstory chain,
 a source that is off, and a `separate` canon unless the chat's meta `memory.sources[<id>]` is `true`; a line is left

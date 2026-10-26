@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeft, CheckCircle, ChatCircleText, CircleNotch, Warning, X } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,8 @@ import { resolveLanguage } from '@/lib/i18n'
 import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { type CardMemoryView, type MemChat, type MemPreview, importCardMemory, previewCardMemory } from './memory-api'
+import { Textarea } from '@/components/ui/textarea'
+import { type CardMemoryView, type MemChat, type MemPreview, type MemSummary, importCardMemory, previewCardMemory, summarizeChat } from './memory-api'
 
 const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e))
 const SEARCH_FROM = 8
@@ -81,6 +82,9 @@ function Body({
   const [ticks, setTicks] = useState<Ticks | null>(null)
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
+  // the text of the summary when it is not the one built from the record (written by the model, or edited by hand)
+  const [arcText, setArcText] = useState<string | null>(null)
+  const asked = useRef(false)
 
   // step 2: read the chat whenever one is chosen
   useEffect(() => {
@@ -88,6 +92,8 @@ function Body({
     let live = true
     setReading(true)
     setPreview(null)
+    setArcText(null)
+    asked.current = false
     previewCardMemory(card.id, chatId)
       .then((p) => { if (live) { setPreview(p); setTicks(ticksOf(p)) } })
       .catch((e) => { if (live) { toast.error(message(e)); setChatId(null) } })
@@ -95,12 +101,39 @@ function Body({
     return () => { live = false }
   }, [card.id, chatId])
 
+  // a summary being written: look again every few seconds; the answer replaces the text unless the user typed in it
+  const sumState = preview?.summary?.state
+  useEffect(() => {
+    if (sumState !== 'working' || !chatId) return
+    let live = true
+    const id = window.setInterval(() => {
+      previewCardMemory(card.id, chatId)
+        .then((p) => { if (live) setPreview((cur) => (cur ? { ...cur, summary: p.summary } : cur)) })
+        .catch(() => {})
+    }, 4000)
+    return () => { live = false; window.clearInterval(id) }
+  }, [card.id, chatId, sumState])
+  const sumText = preview?.summary?.state === 'done' ? preview.summary.text : ''
+  useEffect(() => {
+    if (!asked.current || !sumText) return
+    asked.current = false
+    setArcText((cur) => cur ?? sumText)
+    setTicks((cur) => (cur ? { ...cur, arc: true } : cur))
+  }, [sumText])
+  const askSummary = (op: 'start' | 'cancel') => {
+    if (!chatId) return
+    asked.current = op === 'start'
+    summarizeChat(chatId, op)
+      .then((r) => setPreview((cur) => (cur ? { ...cur, summary: r.summary } : cur)))
+      .catch((e) => { asked.current = false; toast.error(message(e)) })
+  }
+
   const count = ticks ? (ticks.arc ? 1 : 0) + ticks.facts.size + ticks.notes.size + ticks.said.size + ticks.habits.size : 0
   const submit = async () => {
     if (!preview || !ticks || !chatId || count === 0 || saving) return
     setSaving(true)
     try {
-      const view = await importCardMemory({ cardId: card.id, chatId, arc: ticks.arc, facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
+      const view = await importCardMemory({ cardId: card.id, chatId, arc: ticks.arc, ...(ticks.arc && arcText?.trim() ? { arcText } : {}), facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
       if (view.imported?.habitsLeft) toast.warning(t('mem.dlg.habitsLeft', { n: view.imported.habitsLeft }))
       onDone(view)
     } catch (e) {
@@ -209,11 +242,24 @@ function Body({
         )}
 
         <Section title={t('mem.dlg.arc')}>
-          {preview.arc ? (
-            <Tick checked={ticks.arc} onChange={(v) => setTicks({ ...ticks, arc: v })} label={t('mem.dlg.arc')}>
-              <span className="block max-h-40 overflow-y-auto rounded-md border border-border bg-muted p-2 text-xs whitespace-pre-wrap text-muted-foreground">{preview.arc.text}</span>
-              <span className="mt-1 block text-[11px] text-muted-foreground">~{preview.arc.tokens} tok</span>
-            </Tick>
+          {preview.arc || preview.summary?.can ? (
+            <>
+              {(preview.arc || arcText) && (
+                <Tick checked={ticks.arc} onChange={(v) => setTicks({ ...ticks, arc: v })} label={t('mem.dlg.arc')}>
+                  <Textarea
+                    value={arcText ?? preview.arc?.text ?? ''}
+                    onChange={(e) => setArcText(e.target.value)}
+                    aria-label={t('mem.dlg.sumEdit')}
+                    rows={5}
+                    maxLength={1500}
+                    className="max-h-48 min-h-24 text-xs"
+                    data-testid="mem-arc-text"
+                  />
+                  <span className="mt-1 block text-[11px] text-muted-foreground">~{Math.ceil((arcText ?? preview.arc?.text ?? '').length / 3.6)} tok</span>
+                </Tick>
+              )}
+              {preview.summary && <SummaryRow summary={preview.summary} used={arcText === preview.summary.text} onAsk={askSummary} onUse={() => { setArcText(preview.summary?.text ?? null); setTicks({ ...ticks, arc: true }) }} onPlain={() => setArcText(null)} plain={arcText !== null && !!preview.arc} />}
+            </>
           ) : (
             <p className="text-xs text-muted-foreground">{t('mem.dlg.none')}</p>
           )}
@@ -266,6 +312,40 @@ function Body({
         </div>
       </div>
     </>
+  )
+}
+
+/** Under the summary: ask the model for a better one, follow the run, take the written text. */
+function SummaryRow({ summary, used, plain, onAsk, onUse, onPlain }: { summary: MemSummary; used: boolean; plain: boolean; onAsk: (op: 'start' | 'cancel') => void; onUse: () => void; onPlain: () => void }) {
+  const t = useT()
+  if (summary.state === 'working') {
+    return (
+      <div className="flex flex-wrap items-center gap-2" role="status">
+        <p className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
+          <CircleNotch className="size-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />{t('mem.dlg.sumWorking')}
+        </p>
+        <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => onAsk('cancel')}>{t('home.cancel')}</Button>
+      </div>
+    )
+  }
+  const done = summary.state === 'done' && !!summary.text
+  return (
+    <div className="flex flex-col gap-1.5">
+      {summary.state === 'failed' && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300" role="status">
+          <Warning className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />{t('mem.dlg.sumFailed', { error: summary.error })}
+        </p>
+      )}
+      {done && summary.stale && <p className="text-xs text-muted-foreground">{t('mem.dlg.sumStale')}</p>}
+      {!done && summary.state !== 'failed' && <p className="text-xs text-muted-foreground">{t('mem.dlg.sumHint')}</p>}
+      <div className="flex flex-wrap gap-2">
+        {done && !used && <Button size="sm" className="max-md:h-10" onClick={onUse}>{t('mem.dlg.sumUse')}</Button>}
+        {done && used && plain && <Button variant="outline" size="sm" className="max-md:h-10" onClick={onPlain}>{t('mem.dlg.sumBuilt')}</Button>}
+        <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => onAsk('start')}>
+          {summary.state === 'failed' ? t('mem.dlg.sumRetry') : done ? t('mem.dlg.sumAgain') : t('mem.dlg.sumAsk')}
+        </Button>
+      </div>
+    </div>
   )
 }
 

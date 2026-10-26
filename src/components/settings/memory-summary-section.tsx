@@ -180,6 +180,18 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
             className="text-xs"
           />
         </Field>
+        <Field>
+          <PromptLabel id="lit-summary-prompt" label={t('lit.set.summaryPrompt')} changed={changed('summary')} onRestore={() => restore('summary')} />
+          <Textarea
+            id="lit-summary-prompt"
+            rows={5}
+            value={cfg.summary ?? ''}
+            onChange={(e) => setCfg({ ...cfg, summary: e.target.value })}
+            onBlur={() => save({ summary: cfg.summary ?? '' })}
+            className="text-xs"
+          />
+          <p className="text-xs text-muted-foreground">{t('lit.set.summaryPromptHint')}</p>
+        </Field>
       </Block>
 
       <Block title={t('lit.blk.wording')} hint={t('lit.blk.wordingHint')}>

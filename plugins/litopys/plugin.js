@@ -202,6 +202,19 @@ export const DEFAULT_PROMPTS = {
     "",
     "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
   ].join("\n"),
+  // the summary of a whole chat for a card's memory (#113): asked for in the import dialog, reviewed there
+  summary: [
+    "You keep the story record of an ongoing roleplay. The Record below is the story so far, as arcs and chapters in order. Write the summary of the whole story that a character who lived through it would carry into a new story with the same people.",
+    "",
+    "- Past tense, third person, names not pronouns.",
+    "- Keep what lasts: what happened in order, who did what to whom, how people's feelings toward each other changed, what was decided or promised, what is still open. Leave out scene detail and dialogue.",
+    "- When a later part undoes or settles something from an earlier one, keep only how it ended.",
+    "- Never invent; use only the record.",
+    "",
+    "Language: write the summary in English, whatever language the record is in. Keep every name exactly as the record spells it, in its own script: never translate or transliterate a name.",
+    "",
+    "Reply with the summary text only: plain prose, no title, no list, no code fences.",
+  ].join("\n"),
   // what the memory parts say about themselves (#113): sent with the story, not to a writing model
   remembers: REMEMBERS,
   continues: CONTINUES,
@@ -2381,6 +2394,8 @@ export function onTick(_ctx, host) {
         if (!work && arcStep(fsx, host, chatId, st, line, cfg, meta, now)) return;
         // #51: a Consolidate the user asked for, one batch per tick, after chapters and arcs
         if (!work && consolidateStep(fsx, host, chatId, st, cfg, meta, now)) return;
+        // #113: a story summary for a card's memory, after the chapters it is written from
+        if (!work && summaryStep(fsx, host, chatId, st, cfg, meta, now)) return;
         if (!work && st.arcFlight) {
           delete st.arcFlight;
           changed = true;
@@ -3095,6 +3110,143 @@ export function consolidateRoute(fsx, body) {
     st.consolidate = { state: "working", batches, next: 0, proposed: 0, at: now };
     woke = true;
     addActivity(st, "user", "consolidate.ask", "Asked to consolidate " + active + " facts", [], now, { facts: active });
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
+// ---------- a story summary for the card memory (#113) ----------
+// The import dialog can ask the model for the summary of a whole chat instead of the text built from its arcs and
+// chapters. st.storySummary = { state: "working" | "done" | "failed", at, sig, text?, model?, error? }; `sig` is the
+// record the text was written from, so a chapter written later shows it as old. The user reads and edits the text in
+// the dialog; nothing reaches the card by itself.
+export const SUMMARY_WORDS = 180;
+const SUMMARY_CHARS = 16000;
+const summaryKey = (chatId, job) => "lit_sum_" + chatId + "_" + job.at;
+
+/** The record in story order: a fresh arc stands in place of its chapters. [{ label, text }] */
+export function summaryRecord(st) {
+  const fresh = freshArcs(st);
+  const inArc = new Set(fresh.flatMap((a) => arr(a.chapterIds)));
+  const first = new Map(fresh.map((a) => [a.chapterIds[0], a]));
+  const parts = [];
+  for (const ch of arr(st && st.chapters)) {
+    const arc = first.get(ch.id);
+    if (arc) parts.push({ label: str(arc.label), text: str(arc.text) });
+    else if (!inArc.has(ch.id) && usable(ch) && str(ch.text)) parts.push({ label: str(ch.label), text: str(ch.text) });
+  }
+  return parts;
+}
+
+const summarySig = (parts) => fnv1a(parts.map((p) => p.label + "|" + p.text).join(String.fromCharCode(1)));
+
+export function buildSummaryRequest(parts, cfg, meta) {
+  const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const total = parts.reduce((n, p) => n + p.text.length, 0);
+  // a long record is cut evenly, so the first and the last parts both reach the model
+  const each = total > SUMMARY_CHARS ? Math.max(200, Math.floor(SUMMARY_CHARS / parts.length)) : Infinity;
+  const body = parts.map((p, i) => "Part " + (i + 1) + (p.label ? ": " + p.label : "") + "\n" + (p.text.length > each ? cut(p.text, each) : p.text));
+  const req = {
+    systemPrompt: (cfg.summary || DEFAULT_PROMPTS.summary) + "\n\nSize: at most " + SUMMARY_WORDS + " words.",
+    messages: [{ role: "user", content: "Record\n\n" + body.join("\n\n") }],
+    presetParams: { temperature: 0.3, max_tokens: 1200 },
+  };
+  if (model) req.model = model;
+  // NEVER set a reasoning field (reasoning stays off)
+  return req;
+}
+
+/** The summary as plain text; a model that wrapped it in JSON or a fence is understood too. null = nothing usable. */
+export function parseSummaryReply(text) {
+  if (!text) return null;
+  let s = String(text).trim();
+  const fence = /```(?:\w+)?\s*([\s\S]*?)```/.exec(s);
+  if (fence) s = fence[1].trim();
+  if (s.startsWith("{")) {
+    const fo = firstObject(s);
+    const v = fo.body ? parseObj(fo.body) : null;
+    if (!v) return null;
+    s = str(v.summary || v.text || (isObj(v.arc) ? v.arc.text : v.arc));
+  }
+  s = s.replace(/^["\u201c]+|["\u201d]+$/g, "").trim();
+  return s.length >= 40 ? cut(s, 1500) : null;
+}
+
+/** One tick's summary step: apply an answer, else send the request. true = the tick is done. */
+function summaryStep(fsx, host, chatId, st, cfg, meta, now) {
+  const job = st.storySummary;
+  if (!isObj(job) || job.state !== "working") return false;
+  const key = summaryKey(chatId, job);
+  const reply = host.llm && host.llm.results ? host.llm.results[key] : null;
+  if (reply) {
+    // re-read: the user may have cancelled since the request went out
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = attempt ? loadChatFile(fsx, chatId) : st;
+      if (!cur || !isObj(cur.storySummary) || cur.storySummary.state !== "working" || cur.storySummary.at !== job.at) break;
+      const text = reply.error ? null : parseSummaryReply(reply.text);
+      if (text) {
+        cur.storySummary = { state: "done", at: now, sig: str(job.sig), text, model: str(reply.model) };
+        addActivity(cur, "worker", "summary.done", "Wrote a story summary for a card's memory", [], now, {});
+      } else {
+        cur.storySummary = { state: "failed", at: now, error: cut(str(reply.error) || "empty or invalid reply", 200) };
+        addActivity(cur, "worker", "summary.fail", "The story summary failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
+      }
+      if (saveChatFile(fsx, cur)) {
+        wake(fsx, chatId, false);
+        break;
+      }
+    }
+    beat(fsx, chatId, now);
+    return true;
+  }
+  const parts = summaryRecord(st);
+  if (!parts.length) {
+    st.storySummary = { state: "failed", at: now, error: "the record has no chapter to summarise" };
+    if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
+    return true;
+  }
+  beat(fsx, chatId, now);
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildSummaryRequest(parts, cfg, meta));
+  return true;
+}
+
+/** What the import dialog shows of the summary: the run, the text, and whether the record moved on since. */
+export function summaryView(st) {
+  const parts = summaryRecord(st);
+  const s = st && isObj(st.storySummary) ? st.storySummary : null;
+  const done = s && s.state === "done";
+  return {
+    can: parts.length > 0,
+    state: s ? str(s.state) : "idle",
+    text: done ? str(s.text) : "",
+    tokens: done ? estimateTokens(str(s.text)) : 0,
+    stale: !!done && str(s.sig) !== summarySig(parts),
+    error: s && s.state === "failed" ? str(s.error) : "",
+    at: s ? Number(s.at) || 0 : 0,
+  };
+}
+
+/** POST /litopys/story-summary { chatId, op: start | cancel }: answers the summary view. */
+export function summaryRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (op !== "start" && op !== "cancel") return bad("unknown op");
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st) => {
+    const now = Date.now();
+    if (op === "cancel") {
+      if (isObj(st.storySummary) && st.storySummary.state === "working") delete st.storySummary;
+      return { save: true, status: 200, json: { summary: summaryView(st) } };
+    }
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    if (isObj(st.storySummary) && st.storySummary.state === "working") return { status: 409, json: { error: "already writing" } };
+    const parts = summaryRecord(st);
+    if (!parts.length) return { status: 409, json: { error: "the record has no chapter yet" } };
+    st.storySummary = { state: "working", at: now, sig: summarySig(parts) };
+    woke = true;
+    addActivity(st, "user", "summary.ask", "Asked for a story summary for a card's memory", [], now, {});
+    return { save: true, status: 200, json: { summary: summaryView(st) } };
   });
   if (woke && res.status === 200) wake(fsx, chatId, true);
   return res;
@@ -3995,6 +4147,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/scenes" && req.method === "POST") return sceneRoute(fsx, req.body);
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
+  if (path === "/litopys/story-summary" && req.method === "POST") return summaryRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
   if (path === "/litopys/habits" && req.method === "POST") return chatHabitRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
@@ -4227,6 +4380,7 @@ export function previewImport(fsx, cardId, chatId) {
     notes,
     said,
     habits,
+    summary: st ? summaryView(st) : null,
   };
 }
 
@@ -4239,7 +4393,9 @@ export function importChat(fsx, cardId, chatId, sel) {
   const notes = pick(prev.notes, sel.notes);
   const said = pick(prev.said, sel.said);
   const habits = pick(prev.habits, sel.habits);
-  const arc = sel.arc !== false && prev.arc ? prev.arc.text : "";
+  // the text the user settled on in the dialog (the model's summary, edited or not) replaces the one built from the record
+  const own = typeof sel.arcText === "string" ? cut(sel.arcText.trim(), 1500) : "";
+  const arc = sel.arc === false ? "" : own || (prev.arc ? prev.arc.text : "");
   if (!arc && !facts.length && !notes.length && !said.length && !habits.length) return { status: 400, json: { error: "nothing selected to remember" } };
   const mem = loadMemory(fsx, cardId);
   const now = Date.now();

@@ -177,6 +177,7 @@ export type LitActivityKind =
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
+  | 'summary.ask' | 'summary.done' | 'summary.fail'
   | 'habit.seen' | 'habit.earn' | 'habit.accept'
   | 'scene.mark' | 'scene.unmark'
 
@@ -271,7 +272,7 @@ export interface LitConsolidate {
 }
 
 /** The texts the user can change and restore. */
-export type LitPromptKey = 'chapter' | 'arc' | 'remembers' | 'continues' | 'cardMemory'
+export type LitPromptKey = 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory'
 
 export interface LitConfig {
   enabled: boolean
@@ -292,6 +293,8 @@ export interface LitConfig {
   arcSizeMax: number
   arcWords: number
   arc: string
+  /** #113: the prompt of the story summary for a card's memory */
+  summary?: string
   /** #113: the sentence each memory part opens with (a missing one is the plugin's default) */
   remembers?: string
   continues?: string
