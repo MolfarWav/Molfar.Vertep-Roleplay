@@ -1,6 +1,7 @@
 
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cleanPreview } from '@/lib/preview'
+import { EDIT_MESSAGE_EVENT } from '@/components/chat/opening-hint'
 import { CaretDown, PencilSimple, Copy, Trash, ArrowsClockwise, Translate, SpeakerHigh, Ghost, Eye, GitBranch, BookmarkSimple, CaretLeft, CaretRight, Info, Scan, Brain, DotsThree, CircleNotch, Square, Wrench, ArrowUp, ArrowDown, ArrowLineDown, Scroll } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -533,6 +534,17 @@ export const MessageRow = memo(function MessageRow({
     setDraft(swipe?.content ?? '')
     setEditing(true)
   }
+  // the hint under a continued chat's greeting asks for the editor from outside (#113)
+  const editRef = useRef(startEdit)
+  editRef.current = startEdit
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ chatId?: string; messageId?: string }>).detail
+      if (d?.chatId === chat.id && d.messageId === message.id) editRef.current()
+    }
+    window.addEventListener(EDIT_MESSAGE_EVENT, on)
+    return () => window.removeEventListener(EDIT_MESSAGE_EVENT, on)
+  }, [chat.id, message.id])
 
   const spacing = settings.messageSpacing
   const rowPad = spacing === 'compact' ? 'py-1' : spacing === 'cozy' ? 'py-2' : 'py-3'

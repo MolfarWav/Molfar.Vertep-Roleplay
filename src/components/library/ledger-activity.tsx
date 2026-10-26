@@ -72,6 +72,7 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'scene.unmark': return t('lit.act.sceneUnmark')
     case 'habit.seen': return t('lit.act.habitSeen', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'habit.earn': return t('lit.act.habitEarn', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
+    case 'habit.accept': return t('lit.act.habitAccept', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'consolidate.ask': return t('lit.act.consolidateAsk', { n: num(d.facts) })
     case 'consolidate.done': return Number(d.proposed) > 0 ? t('lit.act.consolidateDone', { n: num(d.proposed) }) : t('lit.consolidate.nothing')
     case 'consolidate.fail': return t('lit.act.consolidateFail', { error })
@@ -82,7 +83,7 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
 /** A small icon for the rows about habits (the other rows have none): a glance tells a habit seen from a habit earned. */
 function HabitIcon({ kind }: { kind: string }) {
   const cls = 'size-4 shrink-0 text-violet-700 dark:text-violet-300'
-  if (kind === 'habit.earn') return <Trophy className={cls} weight="fill" aria-hidden="true" />
+  if (kind === 'habit.earn' || kind === 'habit.accept') return <Trophy className={cls} weight="fill" aria-hidden="true" />
   if (kind === 'habit.seen') return <Eye className={cls} aria-hidden="true" />
   return null
 }

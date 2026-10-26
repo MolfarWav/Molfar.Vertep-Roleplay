@@ -19,7 +19,7 @@
  *
  * Routes (under /v1/apps/roleplay/):
  *  GET /litopys/config . PUT /litopys/config
- *  DELETE /litopys/config/prompts   back to the shipped prompts (?key=chapter|arc: only that one)
+ *  DELETE /litopys/config/prompts   back to the shipped prompts (?key=chapter|arc|remembers|continues|cardMemory: only that one)
  */
 
 // PART A: utils, config, legacy store, chat reading, scenes, worker request / parse / apply
@@ -159,6 +159,14 @@ export const DEFAULT_CONFIG = {
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
 export const ARC_MODES = ["ask", "auto", "off"];
 
+// What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
+export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
+export const CONTINUES =
+  "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
+// The sentences that tell the model what the memory parts are FOR are editable like the writing prompts (#113):
+// the bracketed lead of each part stays in code, only the sentence after it is the user's.
+export const CARD_MEMORY_RULE = "{name} lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+
 export const DEFAULT_PROMPTS = {
   chapter: [
     "You keep the story record of an ongoing roleplay. From the Scene messages, write the chapter of what happened and the durable facts that came out of it. The Previous chapter and the Known facts are background: do not retell them, repeat them or contradict them without cause.",
@@ -194,6 +202,23 @@ export const DEFAULT_PROMPTS = {
     "",
     "Reply with ONE JSON object and nothing else. No code fences, no commentary.",
   ].join("\n"),
+  // the summary of a whole chat for a card's memory (#113): asked for in the import dialog, reviewed there
+  summary: [
+    "You keep the story record of an ongoing roleplay. The Record below is the story so far, as arcs and chapters in order. Write the summary of the whole story that a character who lived through it would carry into a new story with the same people.",
+    "",
+    "- Past tense, third person, names not pronouns.",
+    "- Keep what lasts: what happened in order, who did what to whom, how people's feelings toward each other changed, what was decided or promised, what is still open. Leave out scene detail and dialogue.",
+    "- When a later part undoes or settles something from an earlier one, keep only how it ended.",
+    "- Never invent; use only the record.",
+    "",
+    "Language: write the summary in English, whatever language the record is in. Keep every name exactly as the record spells it, in its own script: never translate or transliterate a name.",
+    "",
+    "Reply with the summary text only: plain prose, no title, no list, no code fences.",
+  ].join("\n"),
+  // what the memory parts say about themselves (#113): sent with the story, not to a writing model
+  remembers: REMEMBERS,
+  continues: CONTINUES,
+  cardMemory: CARD_MEMORY_RULE,
 };
 
 export const ARC_SHAPE = '{"arc":{"label":"2-6 words","text":"the arc"}}';
@@ -202,10 +227,6 @@ export const WORKER_SHAPE =
   '{"chapter":{"label":"2-5 words","text":"3-6 sentences"},"facts":[{"op":"add","text":"","subject":"","knownBy":["names"]|"all","type":"event|trait|change|relation|world|plan","weight":"everyday|important|key"},{"op":"update","id":"f3","text":"","type":"change"?},{"op":"retire","id":"f4","reason":""}]}';
 
 /** Added to the chapter prompt while habits are on (#106), so a customised chapter prompt keeps working. */
-// What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
-export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
-export const CONTINUES =
-  "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 export const HABITS_RULE = [
   "Habits (optional, usually none):",
   "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
@@ -1036,8 +1057,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the
   // chapters picked by relevance change every reply, so they ride after the newest turn.
-  const headHeader = "[Story record (Litopys): what happened just before the messages below. " + REMEMBERS + "]";
-  const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + REMEMBERS + "]";
+  const headHeader = "[Story record (Litopys): what happened just before the messages below. " + (cfg.remembers || REMEMBERS) + "]";
+  const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const facts = [];
@@ -1172,6 +1193,7 @@ export function llmRequest(ctx, host) {
           speakerName,
           chosen: stable,
           dash: readDash(fsx, chatId),
+          cfg,
         });
       } catch (e) {
         try {
@@ -2372,6 +2394,8 @@ export function onTick(_ctx, host) {
         if (!work && arcStep(fsx, host, chatId, st, line, cfg, meta, now)) return;
         // #51: a Consolidate the user asked for, one batch per tick, after chapters and arcs
         if (!work && consolidateStep(fsx, host, chatId, st, cfg, meta, now)) return;
+        // #113: a story summary for a card's memory, after the chapters it is written from
+        if (!work && summaryStep(fsx, host, chatId, st, cfg, meta, now)) return;
         if (!work && st.arcFlight) {
           delete st.arcFlight;
           changed = true;
@@ -3091,6 +3115,143 @@ export function consolidateRoute(fsx, body) {
   return res;
 }
 
+// ---------- a story summary for the card memory (#113) ----------
+// The import dialog can ask the model for the summary of a whole chat instead of the text built from its arcs and
+// chapters. st.storySummary = { state: "working" | "done" | "failed", at, sig, text?, model?, error? }; `sig` is the
+// record the text was written from, so a chapter written later shows it as old. The user reads and edits the text in
+// the dialog; nothing reaches the card by itself.
+export const SUMMARY_WORDS = 180;
+const SUMMARY_CHARS = 16000;
+const summaryKey = (chatId, job) => "lit_sum_" + chatId + "_" + job.at;
+
+/** The record in story order: a fresh arc stands in place of its chapters. [{ label, text }] */
+export function summaryRecord(st) {
+  const fresh = freshArcs(st);
+  const inArc = new Set(fresh.flatMap((a) => arr(a.chapterIds)));
+  const first = new Map(fresh.map((a) => [a.chapterIds[0], a]));
+  const parts = [];
+  for (const ch of arr(st && st.chapters)) {
+    const arc = first.get(ch.id);
+    if (arc) parts.push({ label: str(arc.label), text: str(arc.text) });
+    else if (!inArc.has(ch.id) && usable(ch) && str(ch.text)) parts.push({ label: str(ch.label), text: str(ch.text) });
+  }
+  return parts;
+}
+
+const summarySig = (parts) => fnv1a(parts.map((p) => p.label + "|" + p.text).join(String.fromCharCode(1)));
+
+export function buildSummaryRequest(parts, cfg, meta) {
+  const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const total = parts.reduce((n, p) => n + p.text.length, 0);
+  // a long record is cut evenly, so the first and the last parts both reach the model
+  const each = total > SUMMARY_CHARS ? Math.max(200, Math.floor(SUMMARY_CHARS / parts.length)) : Infinity;
+  const body = parts.map((p, i) => "Part " + (i + 1) + (p.label ? ": " + p.label : "") + "\n" + (p.text.length > each ? cut(p.text, each) : p.text));
+  const req = {
+    systemPrompt: (cfg.summary || DEFAULT_PROMPTS.summary) + "\n\nSize: at most " + SUMMARY_WORDS + " words.",
+    messages: [{ role: "user", content: "Record\n\n" + body.join("\n\n") }],
+    presetParams: { temperature: 0.3, max_tokens: 1200 },
+  };
+  if (model) req.model = model;
+  // NEVER set a reasoning field (reasoning stays off)
+  return req;
+}
+
+/** The summary as plain text; a model that wrapped it in JSON or a fence is understood too. null = nothing usable. */
+export function parseSummaryReply(text) {
+  if (!text) return null;
+  let s = String(text).trim();
+  const fence = /```(?:\w+)?\s*([\s\S]*?)```/.exec(s);
+  if (fence) s = fence[1].trim();
+  if (s.startsWith("{")) {
+    const fo = firstObject(s);
+    const v = fo.body ? parseObj(fo.body) : null;
+    if (!v) return null;
+    s = str(v.summary || v.text || (isObj(v.arc) ? v.arc.text : v.arc));
+  }
+  s = s.replace(/^["\u201c]+|["\u201d]+$/g, "").trim();
+  return s.length >= 40 ? cut(s, 1500) : null;
+}
+
+/** One tick's summary step: apply an answer, else send the request. true = the tick is done. */
+function summaryStep(fsx, host, chatId, st, cfg, meta, now) {
+  const job = st.storySummary;
+  if (!isObj(job) || job.state !== "working") return false;
+  const key = summaryKey(chatId, job);
+  const reply = host.llm && host.llm.results ? host.llm.results[key] : null;
+  if (reply) {
+    // re-read: the user may have cancelled since the request went out
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = attempt ? loadChatFile(fsx, chatId) : st;
+      if (!cur || !isObj(cur.storySummary) || cur.storySummary.state !== "working" || cur.storySummary.at !== job.at) break;
+      const text = reply.error ? null : parseSummaryReply(reply.text);
+      if (text) {
+        cur.storySummary = { state: "done", at: now, sig: str(job.sig), text, model: str(reply.model) };
+        addActivity(cur, "worker", "summary.done", "Wrote a story summary for a card's memory", [], now, {});
+      } else {
+        cur.storySummary = { state: "failed", at: now, error: cut(str(reply.error) || "empty or invalid reply", 200) };
+        addActivity(cur, "worker", "summary.fail", "The story summary failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
+      }
+      if (saveChatFile(fsx, cur)) {
+        wake(fsx, chatId, false);
+        break;
+      }
+    }
+    beat(fsx, chatId, now);
+    return true;
+  }
+  const parts = summaryRecord(st);
+  if (!parts.length) {
+    st.storySummary = { state: "failed", at: now, error: "the record has no chapter to summarise" };
+    if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
+    return true;
+  }
+  beat(fsx, chatId, now);
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildSummaryRequest(parts, cfg, meta));
+  return true;
+}
+
+/** What the import dialog shows of the summary: the run, the text, and whether the record moved on since. */
+export function summaryView(st) {
+  const parts = summaryRecord(st);
+  const s = st && isObj(st.storySummary) ? st.storySummary : null;
+  const done = s && s.state === "done";
+  return {
+    can: parts.length > 0,
+    state: s ? str(s.state) : "idle",
+    text: done ? str(s.text) : "",
+    tokens: done ? estimateTokens(str(s.text)) : 0,
+    stale: !!done && str(s.sig) !== summarySig(parts),
+    error: s && s.state === "failed" ? str(s.error) : "",
+    at: s ? Number(s.at) || 0 : 0,
+  };
+}
+
+/** POST /litopys/story-summary { chatId, op: start | cancel }: answers the summary view. */
+export function summaryRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (op !== "start" && op !== "cancel") return bad("unknown op");
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st) => {
+    const now = Date.now();
+    if (op === "cancel") {
+      if (isObj(st.storySummary) && st.storySummary.state === "working") delete st.storySummary;
+      return { save: true, status: 200, json: { summary: summaryView(st) } };
+    }
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    if (isObj(st.storySummary) && st.storySummary.state === "working") return { status: 409, json: { error: "already writing" } };
+    const parts = summaryRecord(st);
+    if (!parts.length) return { status: 409, json: { error: "the record has no chapter yet" } };
+    st.storySummary = { state: "working", at: now, sig: summarySig(parts) };
+    woke = true;
+    addActivity(st, "user", "summary.ask", "Asked for a story summary for a card's memory", [], now, {});
+    return { save: true, status: 200, json: { summary: summaryView(st) } };
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
 // ---------- M4a+: is the worker alive ----------
 const WAKE_FILE = "litopys/wake.json";
 const BEAT_FILE = "litopys/worker.json";
@@ -3314,7 +3475,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
@@ -3337,7 +3498,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle }) {
+function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
@@ -3365,8 +3526,8 @@ function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle }) {
 
   const title = str(prc.meta && prc.meta.title) || from;
   const header = nearerTitle
-    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + CONTINUES + "]"
-    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + CONTINUES + "]";
+    ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]"
+    : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]";
   const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
   const facts = [];
   const story = [];
@@ -3986,6 +4147,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/scenes" && req.method === "POST") return sceneRoute(fsx, req.body);
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
+  if (path === "/litopys/story-summary" && req.method === "POST") return summaryRoute(fsx, req.body);
   if (path === "/litopys/proposals" && req.method === "POST") return proposalRoute(fsx, req.body);
   if (path === "/litopys/habits" && req.method === "POST") return chatHabitRoute(fsx, req.body);
   if (path === "/litopys/config/prompts" && req.method === "DELETE") {
@@ -4201,6 +4363,14 @@ export function previewImport(fsx, cardId, chatId) {
       const dup = flag(s.text, held("said"));
       return { id: s.id, who: s.holder, text: s.text, kind: s.kind, dup, checked: !dup && i < IMPORT_TOP.said };
     });
+  // habits this chat earned for the card's character (#113): the ones acting here, not yet on the card
+  const habits = (st ? st.habits : [])
+    .filter((k) => isObj(k) && k.status === "active" && !k.kept && mine(k.who) && str(k.name) && str(k.rule))
+    .slice(0, IMPORT_LIST)
+    .map((k) => {
+      const dup = mem.habits.some((h) => diceSimilarity(h.rule, k.rule) >= DICE_LIMIT) ? "memory" : null;
+      return { id: str(k.id), who: str(k.who), name: str(k.name), rule: str(k.rule), when: str(k.when), dup, checked: !dup };
+    });
   const already = mem.sources.find((s) => s.chatId === chatId);
   return {
     chat: { id: chatId, title: str(rc.meta.title) || chatId },
@@ -4209,6 +4379,8 @@ export function previewImport(fsx, cardId, chatId) {
     facts,
     notes,
     said,
+    habits,
+    summary: st ? summaryView(st) : null,
   };
 }
 
@@ -4220,9 +4392,19 @@ export function importChat(fsx, cardId, chatId, sel) {
   const facts = pick(prev.facts, sel.facts);
   const notes = pick(prev.notes, sel.notes);
   const said = pick(prev.said, sel.said);
-  const arc = sel.arc !== false && prev.arc ? prev.arc.text : "";
-  if (!arc && !facts.length && !notes.length && !said.length) return { status: 400, json: { error: "nothing selected to remember" } };
+  const habits = pick(prev.habits, sel.habits);
+  // the text the user settled on in the dialog (the model's summary, edited or not) replaces the one built from the record
+  const own = typeof sel.arcText === "string" ? cut(sel.arcText.trim(), 1500) : "";
+  const arc = sel.arc === false ? "" : own || (prev.arc ? prev.arc.text : "");
+  if (!arc && !facts.length && !notes.length && !said.length && !habits.length) return { status: 400, json: { error: "nothing selected to remember" } };
   const mem = loadMemory(fsx, cardId);
+  const now = Date.now();
+  // a habit goes to the card as an accepted habit of the story, like "keep" does; a rule the card has is as good as kept
+  const kept = [];
+  for (const k of habits) {
+    const err = editHabit(mem, { name: k.name, rule: k.rule, when: k.when, origin: "story", state: "accepted", from: { chatId, title: prev.chat.title, at: now } });
+    if (!err || /already there/.test(err)) kept.push(k.id);
+  }
   const body = {
     chatId,
     title: prev.chat.title,
@@ -4232,21 +4414,30 @@ export function importChat(fsx, cardId, chatId, sel) {
     notes: notes.map((n) => ({ who: n.who, how: n.how, text: n.text })),
     said: said.map((s) => ({ who: s.who, text: s.text, kind: s.kind })),
   };
-  const at = mem.sources.findIndex((s) => s.chatId === chatId);
-  if (at >= 0) mem.sources[at] = { ...mem.sources[at], ...body };
-  else {
-    mem.next += 1;
-    mem.sources.push({ id: "s" + mem.next, on: true, canon: "main", ...body });
+  // only habits ticked: no story is written, the habits are all this import takes
+  if (arc || facts.length || notes.length || said.length) {
+    const at = mem.sources.findIndex((s) => s.chatId === chatId);
+    if (at >= 0) mem.sources[at] = { ...mem.sources[at], ...body };
+    else {
+      mem.next += 1;
+      mem.sources.push({ id: "s" + mem.next, on: true, canon: "main", ...body });
+    }
   }
   const out = normalizeMemory(mem);
   saveMemory(fsx, cardId, out);
-  return { status: 200, json: cardMemoryView(fsx, cardId, out) };
+  if (kept.length) {
+    // the chat's habit now says where it went, so it is not offered or said twice
+    mutateChat(fsx, chatId, (st) => {
+      for (const k of st.habits) if (kept.includes(str(k.id))) k.kept = { cardId, at: now };
+    });
+  }
+  return { status: 200, json: { ...cardMemoryView(fsx, cardId, out), imported: { habits: kept.length, habitsLeft: habits.length - kept.length } } };
 }
 
 /** The card's memory with the chats it can still take one from, and what a new chat would receive. */
 function cardMemoryView(fsx, cardId, mem) {
   const card = cardOf(fsx, cardId);
-  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: habitLines(mem) });
+  const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: habitLines(mem), rule: loadConfig(fsx).cardMemory });
   const habits = cardHabitsText(mem, card, { cardSentences: [], chosen: [] });
   return {
     cardId,
@@ -4526,7 +4717,7 @@ export function cardMemoryText(mem, card, opts) {
     return true;
   };
   const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
-  const head = "[What " + name + " remembers from earlier stories (character memory): " + name + " lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+  const head = "[What " + name + " remembers from earlier stories (character memory): " + (str(opts.rule) || CARD_MEMORY_RULE).replaceAll("{name}", name);
   const out = [];
   const used = [];
   let spent = estimateTokens(head + "]");
@@ -4566,7 +4757,7 @@ export function cardMemoryText(mem, card, opts) {
 }
 
 /** The card behind this reply, and what the Litopys insert and the Dashboard already say, for the block above. */
-export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) {
+export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, cfg }) {
   const hit = cardOfReply(fsx, meta, speakerName);
   if (!hit) return null;
   const { card, cardId } = hit;
@@ -4592,7 +4783,7 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash }) 
     for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
   }
   const own = sourceSentences(fsx, meta);
-  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...habitLines(mem)].filter(Boolean), cardSentences: own });
+  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...habitLines(mem)].filter(Boolean), cardSentences: own, rule: cfg && cfg.cardMemory });
   return res ? { ...res, cardId } : null;
 }
 
@@ -4677,6 +4868,7 @@ function chatHabitRoute(fsx, body) {
       if (k.status === "proposed") {
         k.status = "active";
         k.earnedAt = now;
+        addActivity(st, "user", "habit.accept", "Accepted the habit " + quote(k.name) + " of " + k.who + " before it was seen again", [k.id], now, { who: k.who, name: k.name });
       }
     } else if (op === "reject") {
       k.status = "rejected";
@@ -4756,6 +4948,19 @@ function editStoryLine(source, line) {
 const SAID_KIND_SET = new Set(["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie", "other"]);
 
 // ---------- what a chat carries (the strip under the chat header, #107) ----------
+const OPENING_HINT_MAX = 4;
+/**
+ * A chat that continues another one but still opens with the card's own greeting (#113): the greeting was written
+ * for a first meeting, the memory above it says otherwise. { messageId, title } while the chat is young (the
+ * greeting is the first message of the line, nobody edited it, at most a few messages so far), else null.
+ */
+export function greetingOpening(fsx, chatId, line, titleOf) {
+  const link = loadLinks(fsx)[chatId];
+  const first = arr(line)[0];
+  if (!link || !str(link.from) || !isObj(first) || first.greeting !== true || first.edited || arr(line).length > OPENING_HINT_MAX) return null;
+  return { messageId: str(first.id), title: titleOf(link.from) };
+}
+
 /**
  * GET /litopys/carries?chatId=&speaker=: the parts that go into a reply besides the history, as they would be built
  * now (reading only): the card's memory, the Litopys backstory and the chat's own Litopys insert, with their token
@@ -4780,7 +4985,7 @@ function carriesRoute(fsx, query) {
   const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
   let card = null;
   try {
-    card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash });
+    card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash, cfg });
   } catch {}
   let cardName = "";
   if (card) {
@@ -4815,6 +5020,7 @@ function carriesRoute(fsx, query) {
         chapters: isObj(last) ? Number(last.chapters) || 0 : 0,
       },
       backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
+      opening: greetingOpening(fsx, chatId, line, titleOf),
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,

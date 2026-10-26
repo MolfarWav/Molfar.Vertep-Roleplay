@@ -698,7 +698,7 @@ const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
   "{ \"present\": [\"name\"], \"struck\": [\"name\"],",
-  "  \"minutes\": 0, \"time\": \"HH:MM or dawn|morning|late morning|day|evening|night\", \"day\": 1,",
+  "  \"minutes\": 0, \"time\": \"HH:MM or dawn|morning|late morning|day|evening|night\", \"day\": 1, \"date\": \"YYYY-MM-DD\",",
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
@@ -1588,6 +1588,7 @@ function buildInherit(fsx, chatId) {
     names,
     said,
     counters: end.state.counters,
+    calendar: isObj(end.state.calendar) ? end.state.calendar : null,
   };
 }
 
@@ -1596,6 +1597,8 @@ function applyInherit(state, seed) {
   for (const bag of ["notebook", "names", "said"]) {
     for (const [name, list] of Object.entries(seed[bag] || {})) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
   }
+  // the date of day 1 goes on from the earlier chat, unless the chat has a calendar of its own
+  if (isObj(seed.calendar) && !(isObj(state.calendar) && state.calendar.inherited !== true)) state.calendar = { ...seed.calendar, inherited: true };
   // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
   for (const k of ["note", "thread", "said"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
 }
@@ -1604,6 +1607,7 @@ function applyInherit(state, seed) {
 function dropInherit(state) {
   const was = isObj(state.inherited) ? state.inherited : {};
   state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", notes: was.notes || 0, threads: was.threads || 0, at: Date.now() };
+  if (isObj(state.calendar) && state.calendar.inherited === true) delete state.calendar;
   for (const bag of ["notebook", "names", "said"]) {
     for (const name of Object.keys(state[bag])) {
       state[bag][name] = arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY);
@@ -1678,6 +1682,7 @@ function logPlace(state, K, clock) {
     day: Number.isFinite(c.day) ? c.day : null,
     time: typeof c.time === "string" && c.time ? c.time : null,
     band: typeof c.band === "string" && c.band ? c.band : null,
+    ...(c.approx === true ? { approx: true } : {}),
   };
   const keys = Object.keys(state.places);
   for (const old of keys.slice(0, Math.max(0, keys.length - PLACES_LIMIT))) delete state.places[old];
@@ -1709,6 +1714,7 @@ export function scenesOf(state, keys) {
       day: Number.isFinite(rec.day) ? rec.day : null,
       time: typeof rec.time === "string" && rec.time ? rec.time : null,
       band: typeof rec.band === "string" && rec.band ? rec.band : null,
+      ...(rec.approx === true ? { approx: true } : {}),
     });
   }
   return out.slice(-SCENES_LIMIT);
@@ -2324,20 +2330,23 @@ function sensorSystem(cfg, vocab) {
     promptOf("sensor", cfg) +
     "\n\nEvent vocabulary\n" + vocabularyText(vocab, cfg) +
     "\n\nOutput shape\n" + OUTPUT_SHAPE +
-    "\nLeave out any key the new messages give nothing for."
+    "\nLeave out any key the new messages give nothing for. date: only a whole date the text states (day, month and year), never a guess."
   );
 }
 
-function clockLine(c) {
-  const when = c.time ? c.time + (c.band ? " (" + c.band + ")" : "") : c.band ? cap1(c.band) : "";
-  return (when ? when + ", day " : "Day ") + c.day + ".";
+function clockLine(c, cal) {
+  // a time worked out from the part of the day is not shown as a fact: the sensor would copy it as "stated"
+  const exact = c.time && c.approx !== true;
+  const when = exact ? c.time + (c.band ? " (" + c.band + ")" : "") : c.band ? cap1(c.band) : "";
+  const date = dateOf(cal, c.day);
+  return (when ? when + ", day " : "Day ") + c.day + (date ? " (" + dateWords(date) + ")" : "") + ".";
 }
 
 function previousStateText(ctx) {
   const B = ctx.base && ctx.base.snap;
   if (!B) return "Previous state\n(none: this is the start)\n" + limitsLine(ctx.cfg, []);
   const who = { user: ctx.userName, their: "their", self: "themself" };
-  const lines = [clockLine(B.clock || {})];
+  const lines = [clockLine(B.clock || {}, ctx.state && ctx.state.calendar)];
   const scene = [B.clock && B.clock.place, B.clock && B.clock.weather].filter(Boolean).join("; ");
   if (scene) lines.push(scene + ".");
   if (B.scene && B.scene.direction) lines.push("Scene direction: " + B.scene.direction + (B.scene.before ? " (before it: " + B.scene.before + ")" : "") + ".");
@@ -2570,17 +2579,34 @@ function bandOfHour(h) {
 
 const pad2 = (n) => (n < 10 ? "0" : "") + n;
 
+// Where each part of the day starts on the clock: a story that only says "evening" still gets a running clock (marked approx).
+const BAND_ANCHOR = { dawn: 6 * 60, morning: 9 * 60, "late morning": 11 * 60, day: 14 * 60, evening: 19 * 60, night: 23 * 60 };
+const hhmm = (total) => pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
+
 /** The clock after this turn. Minutes move a known time, rolling over midnight. */
 export function advanceClock(prevClock, out, op) {
   const c = { day: 1, time: null, minutes: 0, band: null, place: null, weather: null, ...(prevClock || {}) };
+  // the date is worked out from the chat's calendar when the clock is read, never kept in a snapshot
+  delete c.date;
   const day = num(out.day);
-  if (Number.isFinite(day) && day >= 1) c.day = Math.floor(day);
+  // the day count only goes forward: a model that writes "day 1" in a continued chat does not set it back
+  if (Number.isFinite(day) && day >= c.day) c.day = Math.floor(day);
   const t = str(out.time);
   const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
-  if (hm && Number(hm[1]) < 24 && Number(hm[2]) < 60) c.time = pad2(Number(hm[1])) + ":" + hm[2];
-  else if (BAND_WORDS.includes(t.toLowerCase())) {
-    c.band = t.toLowerCase();
-    c.time = null;
+  if (hm && Number(hm[1]) < 24 && Number(hm[2]) < 60) {
+    c.time = pad2(Number(hm[1])) + ":" + hm[2];
+    delete c.approx;
+  } else if (BAND_WORDS.includes(t.toLowerCase())) {
+    const band = t.toLowerCase();
+    // the part of the day the clock already shows stands; another part sets the clock to that part's start
+    if (!(c.time && bandOfHour(Number(c.time.split(":")[0])) === band)) {
+      c.band = band;
+      c.time = null;
+    }
+  }
+  if (!c.time && c.band && BAND_ANCHOR[c.band] !== undefined) {
+    c.time = hhmm(BAND_ANCHOR[c.band]);
+    c.approx = true;
   }
   const m = num(out.minutes);
   c.minutes = op === "continue" || !Number.isFinite(m) ? 0 : clamp(Math.round(m), 0, MAX_MINUTES);
@@ -2596,6 +2622,79 @@ export function advanceClock(prevClock, out, op) {
   if (str(out.weather)) c.weather = cut(str(out.weather), 200);
   return c;
 }
+
+// ---------- the calendar (#113): a date for the day counter ----------
+// state.calendar = { start: "YYYY-MM-DD" (the date of story day 1), src: "text" | "today" | "user", off?: true }.
+// The sensor reports `date` only when the text states a whole date; else the date is today's, as of the chat's first
+// snapshot. The user can set it or hide it. Snapshots keep the day number; the date is worked out when read.
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const utcOf = (y, m, d) => {
+  const t = new Date(0);
+  t.setUTCFullYear(y, m - 1, d);
+  return t;
+};
+const ymdOf = (t) => String(t.getUTCFullYear()).padStart(4, "0") + "-" + pad2(t.getUTCMonth() + 1) + "-" + pad2(t.getUTCDate());
+
+/** "YYYY-MM-DD" when the text is a real date (year 1 to 9999), else null. */
+export function parseYmd(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str(v));
+  if (!m) return null;
+  const y = Number(m[1]);
+  const t = utcOf(y, Number(m[2]), Number(m[3]));
+  return y >= 1 && ymdOf(t) === m[0] ? m[0] : null;
+}
+
+export function addDays(ymd, n) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const t = utcOf(y, m, d);
+  t.setUTCDate(t.getUTCDate() + n);
+  return ymdOf(t);
+}
+
+/** The date of story day `day` under a calendar, or null (no calendar, or hidden). */
+export function dateOf(cal, day) {
+  if (!isObj(cal) || cal.off === true || !parseYmd(cal.start)) return null;
+  return addDays(cal.start, Math.max(1, Math.floor(Number(day) || 1)) - 1);
+}
+
+/** Matches what dateWords writes. */
+export const DATE_WORDS_RE = /(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday) \d{1,2} [A-Z][a-z]+ \d{1,4}/g;
+
+/** "Saturday 26 October 2026". */
+export function dateWords(ymd) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return WEEKDAY_NAMES[utcOf(y, m, d).getUTCDay()] + " " + d + " " + MONTH_NAMES[m - 1] + " " + y;
+}
+
+/** The machine's own date today, "YYYY-MM-DD". */
+export function localToday(now) {
+  const t = now instanceof Date ? now : new Date();
+  return String(t.getFullYear()).padStart(4, "0") + "-" + pad2(t.getMonth() + 1) + "-" + pad2(t.getDate());
+}
+
+/**
+ * Keeps state.calendar in step with a turn that ended on story day `day`. A date the sensor read from the text
+ * moves the calendar (unless the user set it); with no calendar yet it starts from today's date.
+ */
+export function noteCalendar(state, day, stated, today) {
+  const cal = isObj(state.calendar) ? state.calendar : null;
+  if (cal && cal.src === "user") return;
+  const off = cal && cal.off === true ? { off: true } : {};
+  const date = parseYmd(stated);
+  if (date) state.calendar = { start: addDays(date, -(day - 1)), src: "text", ...off };
+  else if (!cal) state.calendar = { start: addDays(parseYmd(today) || localToday(), -(day - 1)), src: "today" };
+}
+
+/** What the Dashboard shows about the calendar: where it stands and whether it is hidden. null before the first reading. */
+export function calendarView(state) {
+  const c = isObj(state.calendar) && parseYmd(state.calendar.start) ? state.calendar : null;
+  return c ? { source: c.src === "text" || c.src === "user" ? c.src : "today", off: c.off === true } : null;
+}
+
+/** A clock with its date, for views and prompts. */
+export const clockWithDate = (clock, cal) => (isObj(clock) ? { ...clock, date: dateOf(cal, clock.day) } : clock);
 
 /** The story name a sensor spelling stands for (case-insensitive), else as given. */
 function canonName(name, known) {
@@ -3114,6 +3213,8 @@ function applySensor(ctx, out, op, model, unknownIds) {
   applyNotebook(ctx, out, present, turn, K);
   applySaid(ctx, out, present, turn, K);
   applyNames(ctx, out, present, turn, K);
+  const clock = advanceClock(B && B.clock, out, op);
+  noteCalendar(state, clock.day, out.date, ctx.today);
   const snapshot = {
     turn,
     at: Math.max(Date.now(), 1 + Math.max(0, ...Object.values(state.snapshots).map((x) => x.at || 0))),
@@ -3123,7 +3224,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     // the key this snapshot was computed from (null = the line start): standingFrom checks it still stands
     base: ctx.base ? ctx.base.key : null,
     ...(out.__partial ? { partial: true } : {}),
-    clock: advanceClock(B && B.clock, out, op),
+    clock,
     scene: readScene(out.scene, B && B.scene),
     present,
     events,
@@ -3715,8 +3816,13 @@ const FULL_FOCUS = 3;
 const pronounsOf = (soul) => PRONOUNS[soul && soul.pronouns] || PRONOUNS.they;
 const estimateTokens = (s) => Math.ceil(String(s).length / 3.2);
 
-function dayWords(clock) {
+function dayWords(clock, cal) {
   const day = Number(clock && clock.day) || 1;
+  const date = dateOf(cal, day);
+  if (date) {
+    const exact = clock && clock.time && clock.approx !== true ? ", " + clock.time : "";
+    return dateWords(date) + exact + (clock && clock.band ? ", " + clock.band : "");
+  }
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
   const band = clock && clock.band ? cap1(clock.band) : "";
   return band ? band + " of " + which : cap1(which);
@@ -3814,14 +3920,14 @@ function feelingsLine(c, user, who) {
 }
 
 /** Day, place and who is there: once, above the characters. */
-function sceneLine(snap, user) {
+function sceneLine(snap, user, cal) {
   const where = [snap.clock && snap.clock.place, snap.clock && snap.clock.weather].filter(Boolean).join("; ");
   const away = (n) => snap.chars && snap.chars[n] && CONTACT_WORDS[snap.chars[n].contact];
   const here = arr(snap.present).filter((n) => !away(n));
   const far = arr(snap.present).filter(away).map((n) => n + " " + away(n));
   // a texting scene used to send nothing at all, and the model forgot the talk was remote (#16)
   const remote = far.length ? " Not in the same place as " + user + ", in touch from elsewhere: " + far.join(", ") + "." : "";
-  return "[Background, the scene: " + dayWords(snap.clock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
+  return "[Background, the scene: " + dayWords(snap.clock, cal) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
 }
 
 /** Notes young enough for the insert: older ones are Litopys's now (pinned ones always stay). */
@@ -3968,6 +4074,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     names: activeNames(state, at.keys),
     // linked to an earlier chat but never started from it: the Dashboard cannot say what is unknown (see knowsLine)
     soft: !isObj(state.inherited) && !!linkedFrom(fsx, chatId),
+    calendar: state.calendar,
     // the notes follow the scene: the user's message, the newest messages, who is here
     sceneText: [str(turn.userText), typeof turn.recent === "string" ? turn.recent : line.slice(-3).map((m) => str(m.text)).join("\n"), ...present].join("\n"),
   };
@@ -3982,13 +4089,13 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   ];
   const threads = open.length ? "[Open threads the story can move toward: " + open.join("; ") + ".]" : "";
   // maxTokens is per character block; the scene, threads and closing lines come on top
-  const shared = estimateTokens(sceneLine(snap, ctx.user) + threads + CLOSING);
+  const shared = estimateTokens(sceneLine(snap, ctx.user, ctx.calendar) + threads + CLOSING);
   const budget = (Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
   // a character with no pinned note shows no notebook line once the limit is 0
   const hasPinned = (n) => arr(ctx.notebook[n]).some((x) => noteRank(x) === 0);
   const showsNotes = (n, notes, limit) => notes.includes(n) && (limit > 0 || hasPinned(n));
   const build = (withRest, notes, limit) => {
-    const blocks = [sceneLine(snap, ctx.user), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
+    const blocks = [sceneLine(snap, ctx.user, ctx.calendar), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
     if (threads) blocks.push(threads);
     blocks.push(threads ? CLOSING : CLOSING.replace("; the open threads are there to pull on", ""));
@@ -4231,7 +4338,7 @@ export function fastInstructions(ctx) {
     promptOf("fast", ctx.cfg),
     fastRules(ctx.cfg),
     "Event vocabulary\n" + vocabularyText(ctx.vocab, ctx.cfg),
-    "Output shape\n" + OUTPUT_SHAPE + "\nLeave out any key this turn gives nothing for.",
+    "Output shape\n" + OUTPUT_SHAPE + "\nLeave out any key this turn gives nothing for. date: only a whole date the text states (day, month and year), never a guess.",
     castText(ctx),
     previousStateText(ctx),
     ...notebookTexts(ctx),
@@ -4356,8 +4463,8 @@ function previewInsert(req, fsx) {
     insert,
     speakers,
     checks: {
-      // code writes no digits; any here come from story text the sensor reported
-      digits: (insert.text.match(/\d+/g) || []).length,
+      // code writes no digits but the date of the scene; any others here come from story text the sensor reported
+      digits: (insert.text.replace(DATE_WORDS_RE, "").match(/\d+/g) || []).length,
       noBlindSpot: !blind.some((b) => insert.text.includes(b)),
       notebookOf: insert.notebookOf,
     },
@@ -4658,8 +4765,10 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     fast: !!snap.fast,
     // the newest message has no snapshot yet: the catch-up has not run
     stale: idx !== keys.length - 1,
-    clock: isObj(snap.clock) ? snap.clock : null,
-    scenes: scenesOf(state, keys),
+    clock: isObj(snap.clock) ? clockWithDate(snap.clock, state.calendar) : null,
+    // where the date comes from (text, today, user) and whether it is shown: the Dashboard lets the user change it
+    calendar: calendarView(state),
+    scenes: scenesOf(state, keys).map((sc) => ({ ...sc, date: dateOf(state.calendar, sc.day) })),
     present,
     order,
     events: arr(snap.events),
@@ -4740,6 +4849,7 @@ function inheritRoute(req, fsx) {
     state.proposals = [];
     state.keptOut = null;
     state.lastError = null;
+    if (isObj(state.calendar) && state.calendar.src !== "user") delete state.calendar;
     applyInherit(state, seed);
     fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
     return ok({ ok: true, rebuilt: true, inherit: inheritInfo(fsx, chatId, state) });
@@ -4759,6 +4869,36 @@ function inheritRoute(req, fsx) {
   }
   fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
   return ok({ ok: true, inherit: inheritInfo(fsx, chatId, state) });
+}
+
+/**
+ * POST /dashboard/calendar { chatId, date?, off? }: the user's say about the date. `date` "YYYY-MM-DD" = the date of the
+ * story's present day (the calendar is moved so that today's story day has it); `date` null = automatic again (today's
+ * date, or the one the text states); `off` hides or shows the date. Answers the calendar and the clock with its date.
+ */
+function calendarRoute(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 400);
+  if ("date" in b && b.date !== null && !parseYmd(b.date)) return ok({ error: "date must be YYYY-MM-DD" }, 400);
+  const { state } = loadStateFor(fsx, chatId);
+  const keys = activeLine(chat.msgs).map((l) => l.key);
+  const i = nearestSnapshot(state, keys, keys.length);
+  const snap = i >= 0 ? state.snapshots[keys[i]] : activeInherit(state) ? state.inherited.snap : null;
+  const day = Math.max(1, Math.floor(Number(snap && snap.clock && snap.clock.day) || 1));
+  const was = isObj(state.calendar) ? state.calendar : null;
+  const off = typeof b.off === "boolean" ? b.off : was ? was.off === true : false;
+  if (typeof b.date === "string") state.calendar = { start: addDays(parseYmd(b.date), -(day - 1)), src: "user" };
+  else if (b.date === null) state.calendar = { start: addDays(localToday(), -(day - 1)), src: "today" };
+  else if (!was) state.calendar = { start: addDays(localToday(), -(day - 1)), src: "today" };
+  else state.calendar = { ...was };
+  delete state.calendar.inherited;
+  if (off) state.calendar.off = true;
+  else delete state.calendar.off;
+  fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  return ok({ ok: true, calendar: calendarView(state), date: dateOf(state.calendar, day), day });
 }
 
 function readState(req, fsx) {
@@ -5087,6 +5227,7 @@ export function handleRoute(req, host) {
   }
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/inherit" && method === "POST") return inheritRoute(req, fsx);
+  if (path === "/dashboard/calendar" && method === "POST") return calendarRoute(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/notice" && method === "GET") {
     const chatId = String((req.query && req.query.chatId) || "");

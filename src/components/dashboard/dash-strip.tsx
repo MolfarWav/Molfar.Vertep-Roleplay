@@ -91,7 +91,7 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
           {view.inherit && <CarriedBanner chatId={chatId} inherit={view.inherit} className="m-3" />}
           {(view.clock || present.length > 0) && (
             <div className={cn(section, 'flex flex-col gap-2.5')}>
-              <SceneBlock clock={view.clock} />
+              <SceneBlock clock={view.clock} calendar={view.calendar} />
               {present.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {present.map((n) => (

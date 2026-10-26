@@ -8,6 +8,8 @@ export interface CarriesAnswer {
   off: string[]
   litopys: { tokens: number; facts: number; chapters: number }
   backstory: { from: string; title: string; tokens: number; facts: number; chapters: number; text: string } | null
+  /** #113: the chat continues an earlier one but opens with the card's greeting (the first message is that greeting). */
+  opening?: { messageId: string; title: string } | null
   cardMemory: { cardId: string; name: string; tokens: number; dupes: number; sources: string[]; text: string } | null
   /** The card's habits (#106): null when the card has none, or when they are off for the chat (so an off chip cannot be told from no habits). */
   cardHabits?: { cardId: string; name: string; tokens: number; dupes: number; habits: string[]; text: string } | null

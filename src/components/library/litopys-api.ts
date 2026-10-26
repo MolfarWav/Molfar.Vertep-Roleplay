@@ -177,7 +177,8 @@ export type LitActivityKind =
   | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
-  | 'habit.seen' | 'habit.earn'
+  | 'summary.ask' | 'summary.done' | 'summary.fail'
+  | 'habit.seen' | 'habit.earn' | 'habit.accept'
   | 'scene.mark' | 'scene.unmark'
 
 /**
@@ -270,6 +271,9 @@ export interface LitConsolidate {
   at: number
 }
 
+/** The texts the user can change and restore. */
+export type LitPromptKey = 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory'
+
 export interface LitConfig {
   enabled: boolean
   model: string
@@ -289,6 +293,12 @@ export interface LitConfig {
   arcSizeMax: number
   arcWords: number
   arc: string
+  /** #113: the prompt of the story summary for a card's memory */
+  summary?: string
+  /** #113: the sentence each memory part opens with (a missing one is the plugin's default) */
+  remembers?: string
+  continues?: string
+  cardMemory?: string
   /** #106: look for habits in scenes (default on), and in how many different scenes a habit becomes a habit (1 to 5, default 2); missing from an older plugin */
   habits?: boolean
   habitsEarnAfter?: number
@@ -301,7 +311,7 @@ export const fetchLitChat = (chatId: string) => j<LitChat>(`/litopys/chat?chatId
 export const fetchLitConfig = () => j<LitConfig>('/litopys/config')
 export const putLitConfig = (patch: Record<string, unknown>) => j<LitConfig>('/litopys/config', { method: 'PUT', body: JSON.stringify(patch) })
 /** Both prompts back to the default, or only `key`. */
-export const deleteLitPrompts = (key?: 'chapter' | 'arc') =>
+export const deleteLitPrompts = (key?: LitPromptKey) =>
   j<LitConfig>(`/litopys/config/prompts${key ? `?key=${key}` : ''}`, { method: 'DELETE' })
 export const rebuildLitChat = (chatId: string) => j<{ scenes: number }>('/litopys/rebuild', { method: 'POST', body: JSON.stringify({ chatId }) })
 

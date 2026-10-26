@@ -34,7 +34,7 @@ export function DashPhoneBar({ view, focus, onOpen }: {
       aria-label={`${t('dash.open')}: ${tx('dash.const', char.constellation)}`}
       className="flex h-9 w-full shrink-0 items-center gap-2 border-b border-border bg-card px-3 text-left text-sm"
     >
-      {clock?.time ? <span className="shrink-0 font-mono text-[13px] tabular-nums">{clock.time}</span> : null}
+      {clock?.time ? <span className="shrink-0 font-mono text-[13px] tabular-nums" title={clock.approx ? t('dash.time.approx') : undefined}>{clock.approx ? '≈' : ''}{clock.time}</span> : null}
       {band && (
         <span className={cn('flex shrink-0 items-center gap-1', bandTextClass(clock?.band))}>
           <BandMark band={clock?.band} />
@@ -111,7 +111,7 @@ export function DashPhoneSheet({ chatId, view, focus, onFocus, onRefresh, refres
         <TabsContent value="scene">
           <div className="flex flex-col gap-4 pt-4">
             <CarriedBanner chatId={chatId} inherit={view.inherit} />
-            <SceneBlock clock={view.clock} />
+            <SceneBlock clock={view.clock} calendar={view.calendar} />
             {present.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {present.map((n) => (
