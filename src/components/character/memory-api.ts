@@ -62,17 +62,34 @@ export interface CardMemoryView {
   /** What the habits cost in a prompt now, and the room they are given. */
   habitsTokens: number
   habitsBudget: number
+  /** Only on the answer to an import: how many ticked habits went to the card and how many did not fit. */
+  imported?: { habits: number; habitsLeft: number }
 }
 
 export interface MemPreviewLine { id: string; text: string; dup: 'memory' | null; checked: boolean }
+export interface MemSummary {
+  /** The record has a chapter to write it from. */
+  can: boolean
+  state: 'idle' | 'working' | 'done' | 'failed'
+  text: string
+  tokens: number
+  /** The record changed after the text was written. */
+  stale: boolean
+  error: string
+  at: number
+}
 export interface MemPreview {
   chat: { id: string; title: string }
   /** The id of the source when this chat was imported already. */
   already: string | null
   arc: { text: string; tokens: number } | null
+  /** The model-written summary of this chat (#113); null = the chat has no record. */
+  summary: MemSummary | null
   facts: (MemPreviewLine & { subject: string; weight: string })[]
   notes: (MemPreviewLine & { who: string; how: string })[]
   said: (MemPreviewLine & { who: string; kind: string })[]
+  /** Habits this chat earned for the character (#113); `dup` = the card keeps this rule already. */
+  habits: { id: string; who: string; name: string; rule: string; when: string; dup: 'memory' | null; checked: boolean }[]
 }
 
 const q = (s: string) => encodeURIComponent(s)
@@ -94,7 +111,10 @@ export const deleteCardMemoryHabit = (cardId: string, habitId: string) =>
 export const previewCardMemory = (cardId: string, chatId: string) =>
   j<MemPreview>('/litopys/card-memory/preview', { method: 'POST', body: JSON.stringify({ cardId, chatId }) })
 
-export const importCardMemory = (body: { cardId: string; chatId: string; arc: boolean; facts: string[]; notes: string[]; said: string[] }) =>
+export const summarizeChat = (chatId: string, op: 'start' | 'cancel') =>
+  j<{ summary: MemSummary }>('/litopys/story-summary', { method: 'POST', body: JSON.stringify({ chatId, op }) })
+
+export const importCardMemory = (body: { cardId: string; chatId: string; arc: boolean; arcText?: string; facts: string[]; notes: string[]; said: string[]; habits: string[] }) =>
   j<CardMemoryView>('/litopys/card-memory/import', { method: 'POST', body: JSON.stringify(body) })
 
 export const MEM_MIN_TOKENS = 100

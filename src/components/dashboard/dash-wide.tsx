@@ -93,7 +93,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
           <Box>
             <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
               <div className="min-w-0 max-w-full sm:min-w-[220px]">
-                <SceneBlock clock={view.clock} />
+                <SceneBlock clock={view.clock} calendar={view.calendar} />
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <div className="flex flex-wrap gap-0.5">

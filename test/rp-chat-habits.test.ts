@@ -138,6 +138,11 @@ describe("chat habits: acting, and the user's say", () => {
     const { host } = mockHost();
     const call = (body: any) => route(host, "POST", "/litopys/habits", { chatId: "next", id: "k1", ...body });
     expect(call({ op: "accept" }).json.habits[0]).toMatchObject({ status: "active" });
+    // accepting by hand leaves a row in the activity log; accepting again (already active) does not add a second one
+    call({ op: "accept" });
+    const rows = readJson("litopys/chats/next.json").activity.filter((a: any) => a.kind === "habit.accept");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ by: "user", data: { who: "Aria", name: SILENCE.name } });
     expect(call({ op: "on", on: false }).json.habits[0]).toMatchObject({ on: false });
     expect(call({ op: "edit", rule: "She says nothing." }).json.habits[0]).toMatchObject({ rule: "She says nothing.", edited: true });
     expect(call({ op: "edit", name: "" }).status).toBe(400);
@@ -179,5 +184,49 @@ describe("chat habits: acting, and the user's say", () => {
     expect(L.loadConfig(host.fs)).toMatchObject({ habits: true, habitsEarnAfter: 2 });
     const cfg = L.patchConfig(host.fs, { habits: false, habitsEarnAfter: 99 });
     expect(cfg).toMatchObject({ habits: false, habitsEarnAfter: 5 });
+  });
+});
+
+describe("habits in the card import (#113)", () => {
+  function seedEarnedChat() {
+    seedCard();
+    writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
+    const st = L.emptyChat("next");
+    L.applyHabits(st, [SILENCE], c("c1", { earnAfter: 1 }));
+    writeJson("litopys/chats/next.json", st);
+  }
+
+  it("the preview offers the habits earned for the character, ticked, and the candidate or someone else's are not offered", () => {
+    seedEarnedChat();
+    const st = readJson("litopys/chats/next.json");
+    L.applyHabits(st, [{ ...SILENCE, who: "Bram", name: "Whistles when lying", rule: "He whistles a tune when he lies." }], c("c2", { earnAfter: 1 }));
+    L.applyHabits(st, [{ ...SILENCE, name: "Counts the exits", rule: "She counts the exits on entering a room." }], c("c3", { earnAfter: 2 }));
+    writeJson("litopys/chats/next.json", st);
+    const { host } = mockHost();
+    const p = route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "next" }).json;
+    expect(p.habits).toEqual([{ id: "k1", who: "Aria", name: SILENCE.name, rule: SILENCE.rule, when: SILENCE.when, dup: null, checked: true }]);
+  });
+
+  it("ticking only a habit puts it on the card, writes no story, and the chat says where it went", () => {
+    seedEarnedChat();
+    const { host } = mockHost();
+    const r = route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "next", arc: false, habits: ["k1"] });
+    expect(r.status).toBe(200);
+    expect(r.json.imported).toEqual({ habits: 1, habitsLeft: 0 });
+    const mem = readJson("characters/aria/memory.json");
+    expect(mem.sources).toEqual([]);
+    expect(mem.habits).toEqual([expect.objectContaining({ name: SILENCE.name, origin: "story", state: "accepted", from: expect.objectContaining({ chatId: "next", title: "Next" }) })]);
+    expect(readJson("litopys/chats/next.json").habits[0].kept).toMatchObject({ cardId: "aria" });
+    // once on the card it is not offered again
+    expect(route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "next" }).json.habits).toEqual([]);
+  });
+
+  it("a habit the card has in other words is marked and not ticked, and nothing ticked is refused", () => {
+    seedEarnedChat();
+    const { host } = mockHost();
+    route(host, "PUT", "/litopys/card-memory", { cardId: "aria", habit: { name: "Silent under threat", rule: SILENCE.rule } });
+    const p = route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "next" }).json;
+    expect(p.habits[0]).toMatchObject({ id: "k1", dup: "memory", checked: false });
+    expect(route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "next", arc: false, habits: [] }).status).toBe(400);
   });
 });

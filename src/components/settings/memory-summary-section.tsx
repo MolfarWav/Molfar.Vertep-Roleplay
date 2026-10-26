@@ -10,7 +10,7 @@ import { useT } from '@/hooks/use-t'
 import { toast } from 'sonner'
 import { embedConfig, embedStatus, setEmbedConfig } from '@/lib/engine'
 import { canOpenSettingsTab, openSettingsTab } from '@/lib/shell-bridge'
-import { deleteLitPrompts, fetchLitConfig, putLitConfig, type LitConfig } from '@/components/library/litopys-api'
+import { deleteLitPrompts, fetchLitConfig, putLitConfig, type LitConfig, type LitPromptKey } from '@/components/library/litopys-api'
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
@@ -33,8 +33,8 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
   }
 
   // an older plugin sends no `custom`: then both buttons stay, as before
-  const changed = (key: 'chapter' | 'arc') => !cfg?.custom || cfg.custom.includes(key)
-  const restore = (key: 'chapter' | 'arc') => {
+  const changed = (key: LitPromptKey) => !cfg?.custom || cfg.custom.includes(key)
+  const restore = (key: LitPromptKey) => {
     void deleteLitPrompts(key).then(setCfg).catch((e) => {
       toast.error(e instanceof Error ? e.message : String(e))
     })
@@ -180,6 +180,35 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
             className="text-xs"
           />
         </Field>
+        <Field>
+          <PromptLabel id="lit-summary-prompt" label={t('lit.set.summaryPrompt')} changed={changed('summary')} onRestore={() => restore('summary')} />
+          <Textarea
+            id="lit-summary-prompt"
+            rows={5}
+            value={cfg.summary ?? ''}
+            onChange={(e) => setCfg({ ...cfg, summary: e.target.value })}
+            onBlur={() => save({ summary: cfg.summary ?? '' })}
+            className="text-xs"
+          />
+          <p className="text-xs text-muted-foreground">{t('lit.set.summaryPromptHint')}</p>
+        </Field>
+      </Block>
+
+      <Block title={t('lit.blk.wording')} hint={t('lit.blk.wordingHint')}>
+        {(['remembers', 'continues', 'cardMemory'] as const).map((key) => (
+          <Field key={key}>
+            <PromptLabel id={`lit-${key}`} label={t(`lit.set.${key}`)} changed={changed(key)} onRestore={() => restore(key)} />
+            <Textarea
+              id={`lit-${key}`}
+              rows={3}
+              value={cfg[key] ?? ''}
+              onChange={(e) => setCfg({ ...cfg, [key]: e.target.value })}
+              onBlur={() => save({ [key]: cfg[key] ?? '' })}
+              className="text-xs"
+            />
+            <p className="text-xs text-muted-foreground">{t(`lit.set.${key}Hint`)}</p>
+          </Field>
+        ))}
       </Block>
 
       <Block title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')}>
