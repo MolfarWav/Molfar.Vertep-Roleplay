@@ -422,6 +422,8 @@ function checkStateCard(n, state, err) {
   if (JSON.stringify(canon(p.item)) !== JSON.stringify(canon(f.item)))
     err('E_STATE_TYPE', `"${n.title}": item does not match the entries of "${p.field}"`, n.id);
 }
+/** The most model calls an agent may make one behind another. The runner takes one pass for each, plus the pass that commits (the Agents plugin's `limits.passes` is this plus one). */
+export const AGENT_MAX_ROUNDS = 7;
 /** Checks an agent file. `derived` is what the file ought to declare (needs, calls, hash); a file that declares something else is refused. */
 export function validateAgent(raw) {
   const errors = [];
@@ -556,6 +558,21 @@ export function validateAgent(raw) {
       err('E_CYCLE', 'The wires make a loop. Agents have no loops in this version');
       break;
     }
+  }
+  // rounds: the most model calls one behind another on any path. Each round is one more pass of the runner, so the number is bounded
+  if (!errors.some((e) => e.code === 'E_CYCLE')) {
+    const memo = new Map();
+    const depth = (id) => {
+      if (memo.has(id))
+        return memo.get(id);
+      const own = byId.get(id)?.type === 'model.ask' ? 1 : 0;
+      const d = own + Math.max(0, ...(adj.get(id) ?? []).map(depth));
+      memo.set(id, d);
+      return d;
+    };
+    const rounds = Math.max(0, ...f.nodes.map((n) => depth(n.id)));
+    if (rounds > AGENT_MAX_ROUNDS)
+      err('E_ROUNDS', `A path of the graph asks the model ${rounds} times one after another, and an agent may ask at most ${AGENT_MAX_ROUNDS} times in a row. Ask in parallel, or put two questions into one`);
   }
   for (const n of f.nodes) {
     if (n.type === 'state.add' && !wiresIn.has(`${n.id}:by`) && !Number.isFinite(n.params?.amount))

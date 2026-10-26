@@ -9,5 +9,9 @@
     "fs",
     "hooks"
   ],
-  "priority": 40
+  "priority": 40,
+  "limits": {
+    "passes": 8,
+    "concurrency": 3
+  }
 }

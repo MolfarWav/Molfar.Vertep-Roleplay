@@ -11,8 +11,9 @@ import keeper from "./fixtures/dungeon-keeper.vertep-agent.json";
 import echo from "./fixtures/scene-echo.vertep-agent.json";
 import moves from "./fixtures/next-moves.vertep-agent.json";
 import mood from "./fixtures/mood-tracker.vertep-agent.json";
-import { compileAgent } from "../src/canvas-kit/boards/agent-check.js";
+import { AGENT_MAX_ROUNDS, compileAgent } from "../src/canvas-kit/boards/agent-check.js";
 import { generatedBlock, withBlock } from "../scripts/sync-agents-plugin";
+import { chainAgent } from "./fixtures/chain-agent";
 
 const plugin = (await import(new URL("../plugins/agents/plugin.js", import.meta.url).href)) as typeof import("../plugins/agents/plugin.js");
 const engine = (await import(new URL("../plugins/engine/plugin.js", import.meta.url).href)) as typeof import("../plugins/engine/plugin.js");
@@ -235,6 +236,48 @@ describe("a run after a reply", () => {
     setMessages("c1", [...CHAT, ["user", "x"], ["char", "The IMP bows."]]);
     install({ when: "after", keywords: ["imp"] });
     expect(runChat("c1").ran[0].status).toBe("ok"); // not case-sensitive, looked for in the last two messages
+  });
+});
+
+describe("model calls one behind another", () => {
+  const answers = (q: Json) => ({ text: "ANSWER" + (q.messages[0].content as string).length });
+
+  it("a chain of five dependent calls runs to the end, one question per round", () => {
+    j("/agents/install", "PUT", { file: chainAgent(5), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("chain");
+    const rounds: number[] = [];
+    results = {};
+    let out: Json | undefined;
+    for (let pass = 0; pass < 8; pass++) {
+      requests = [];
+      const r = call("POST", "/agents/run", { chatId: "c1" }, undefined, { started: 1, pass });
+      if (!r.__llmPending) { out = r.json as Json; break; }
+      rounds.push(requests.length);
+      for (const [k, q] of requests) results[k] = answers(q);
+    }
+    expect(rounds).toEqual([1, 1, 1, 1, 1]);
+    expect(out?.ran).toEqual([{ agent: "chain", status: "ok", calls: 5, writes: 0, outputs: 1 }]);
+  });
+
+  it("an agent that is still asking at the last allowed pass fails with a reason instead of vanishing", () => {
+    j("/agents/install", "PUT", { file: chainAgent(2), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("chain");
+    requests = [];
+    const r = call("POST", "/agents/run", { chatId: "c1" }, undefined, { started: 1, pass: 7 });
+    expect(r.__llmPending).toBeUndefined();
+    expect(requests).toEqual([]);
+    expect((r.json as Json).ran[0]).toMatchObject({ agent: "chain", status: "failed" });
+    expect((r.json as Json).ran[0].reason).toMatch(/more than 7 model calls one behind another/);
+    expect(j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0]).toMatchObject({ agent: "chain", status: "failed" });
+  });
+
+  it("the manifest asks the engine for the passes the runner needs, and no more", () => {
+    const m = JSON.parse(fs.readFileSync(new URL("../plugins/agents/manifest.json", import.meta.url), "utf8"));
+    expect(m.limits.passes).toBe(AGENT_MAX_ROUNDS + 1);
+    expect(m.limits.concurrency).toBeGreaterThan(1);
+    expect(m.limits.concurrency).toBeLessThanOrEqual(4);
   });
 });
 
