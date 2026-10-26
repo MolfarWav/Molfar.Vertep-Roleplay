@@ -183,7 +183,8 @@ describe("physics", () => {
     expect(P.advanceClock(t, { minutes: 900 }, "send").minutes).toBe(720);
     expect(P.advanceClock(t, { minutes: 20 }, "continue")).toMatchObject({ time: "00:10", minutes: 0 });
     const word = P.advanceClock(t, { time: "evening", day: 3 }, "send");
-    expect([word.day, word.time, word.band]).toEqual([3, null, "evening"]);
+    // a part of the day with no clock time starts the clock at the start of that part, marked approximate
+    expect([word.day, word.time, word.band, word.approx]).toEqual([3, "19:00", "evening", true]);
     expect(P.advanceClock(null, { time: "06:00" }, "send").band).toBe("dawn");
     expect(P.advanceClock(null, { time: "11:00" }, "send").band).toBe("late morning");
     expect(P.advanceClock(null, { time: "7:30", minutes: 90 }, "send")).toMatchObject({ time: "09:00", band: "morning" });
@@ -469,7 +470,7 @@ describe("update route", () => {
     const asked = mock.requests[1]!.req.messages[0].content as string;
     expect(asked).toContain("New messages\n[Aria] Thank you.\n[user] You are welcome.");
     expect(asked).not.toContain("Welcome.\n[user] I kept");
-    expect(asked).toContain("Previous state\nDay 1.");
+    expect(asked).toContain(`Previous state\nDay 1 (${P.dateWords(P.localToday())}).`);
     expect(asked).toContain("Notebook of Aria\nn1 saw: The user keeps their word");
   });
 
@@ -486,7 +487,7 @@ describe("update route", () => {
     expect(req.systemPrompt).not.toContain("learned_about_user");
     expect(req.systemPrompt).toContain("\n\nOutput shape\n{ \"present\"");
     expect(req.systemPrompt).toContain("\"open\": [ { \"id\": \"t1 or null\"");
-    expect(req.systemPrompt.endsWith("Leave out any key the new messages give nothing for.")).toBe(true);
+    expect(req.systemPrompt.endsWith("Leave out any key the new messages give nothing for. date: only a whole date the text states (day, month and year), never a guess.")).toBe(true);
     const user = req.messages[0].content as string;
     expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\nOpen thread limits: main 0/1, side 0/3, steps per main thread 4 (everyday threads are not counted).\n\nNew messages\n[user] Hello.")).toBe(true);
     expect(CYRILLIC.test(req.systemPrompt)).toBe(false);
@@ -1432,13 +1433,16 @@ describe("prompt insert", () => {
     setStats("c1", "m3#0", "Aria", { trust: 60, respect: -30, comfort: 0, attraction: 0, affection: 0 });
     const who = { user: "You", their: "their", self: "themself" };
     const text = insertOf(ask(mock, "c1"));
-    expect(text).not.toMatch(/\d/);
+    // the only digits are the date of the scene (#113)
+    expect(text.replace(P.DATE_WORDS_RE, "")).not.toMatch(/\d/);
+    expect(text).toContain(`the scene: ${P.dateWords(P.localToday())}.`);
     expect(text).toContain(P.tierPhrase("trust", 60, who));
     expect(text).toContain(P.tierPhrase("respect", -30, who));
     expect(P.tierPhrase("trust", 60, who)).not.toBe(P.tierPhrase("trust", 0, who));
     // comfort, attraction and affection sit at 0: below the threshold of 10, no phrase
     for (const stat of ["comfort", "attraction", "affection"]) expect(text).not.toContain(P.tierPhrase(stat, 0, who));
-    expect(text).toContain("The first day.");
+    // the scene says the date, not "the first day" (#113)
+    expect(text).not.toContain("The first day.");
     // the edge: 9 is silent, 10 and -10 speak
     setStats("c1", "m3#0", "Aria", { trust: 0, respect: 0, comfort: 9, attraction: -9, affection: 10 });
     const edge = insertOf(ask(mock, "c1"));
@@ -1453,8 +1457,13 @@ describe("prompt insert", () => {
     expect(Object.values(c).every((v) => v === 0)).toBe(true);
     const fresh = insertOf(ask(blank, "c2"));
     expect(fresh).toContain("Toward You: no history yet.");
-    expect(fresh).toContain("Evening of the third day.");
-    expect(fresh).not.toMatch(/\d/);
+    // the first reading of a chat puts today's date on the day it found (here day 3); the part of the day follows
+    expect(fresh).toContain(`the scene: ${P.dateWords(P.localToday())}, evening.`);
+    // a hidden date goes back to the day in words
+    drive(blank, { method: "POST", path: "/dashboard/calendar", body: { chatId: "c2", off: true } });
+    const hidden = insertOf(ask(blank, "c2"));
+    expect(hidden).toContain("Evening of the third day.");
+    expect(hidden).not.toMatch(/\d/);
   });
 
   it("7. the blind spot never reaches the prompt; the preview checks say so", () => {
@@ -1615,7 +1624,7 @@ describe("prompt insert", () => {
     expect(text).toContain("[Open threads the story can move toward: Who sank the ferry?.]");
     expect(text).toContain("the open threads are there to pull on");
     expect(text).toContain("Wants: find the ferry.");
-    expect(text).not.toMatch(/\d/);
+    expect(text.replace(P.DATE_WORDS_RE, "")).not.toMatch(/\d/);
     writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?")]);
     mock.push(reply({ present: ["Aria"], threads: { open: [], resolved: ["t1"] } }));
     expect(update(mock, "c1").json.ok).toBe(true);
@@ -4472,7 +4481,7 @@ describe("place log and scenes", () => {
       ["m9#0", "Hall"],
     ]);
     const first = view(mock).scenes[0];
-    expect(first).toEqual({ key: "m3#0", place: "Hall", day: 1, time: null, band: null });
+    expect(first).toEqual({ key: "m3#0", place: "Hall", day: 1, time: null, band: null, date: P.localToday() });
     // the log holds every written key, in order
     expect(Object.keys(readStateFile("c1").places)).toEqual(["m3#0", "m5#0", "m7#0", "m9#0"]);
     expect(readStateFile("c1").places["m7#0"]).toEqual({ place: "Garden", day: 1, time: null, band: null });
@@ -4563,8 +4572,8 @@ describe("place log and scenes", () => {
     const mock = mockHost();
     const before = fs.readFileSync(stateFile("c1"), "utf8");
     expect(view(mock).scenes).toEqual([
-      { key: "m3#0", place: "Hall", day: 2, time: "10:00", band: "morning" },
-      { key: "m7#0", place: "Garden", day: 3, time: "08:30", band: "morning" },
+      { key: "m3#0", place: "Hall", day: 2, time: "10:00", band: "morning", date: null },
+      { key: "m7#0", place: "Garden", day: 3, time: "08:30", band: "morning", date: null },
     ]);
     // the view never writes
     expect(fs.readFileSync(stateFile("c1"), "utf8")).toBe(before);

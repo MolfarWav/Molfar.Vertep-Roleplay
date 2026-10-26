@@ -2,7 +2,12 @@ import { useState, type ReactNode } from 'react'
 import { PencilSimple, type Icon } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { ageSeconds, type Clock, type DashChar, type DashView } from '@/lib/dashboard'
+import { ageSeconds, formatStoryDate, type Clock, type DashChar, type DashView } from '@/lib/dashboard'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
+import { useDashMaybe } from '@/components/dashboard/dash-context'
+import { useLang } from '@/components/dashboard/use-lang'
 import { useT } from '@/hooks/use-t'
 import { useDashLive, type DashLast } from '@/lib/dash-live'
 import { DICTIONARIES, type MsgKey } from '@/lib/i18n'
@@ -62,30 +67,111 @@ export function BandMark({ band, className }: { band: string | null | undefined;
   return look ? <span className={cn('shrink-0', className)} aria-hidden="true">{look.icon}</span> : null
 }
 
-/** Time (or band word) large, then band · day · minutes, place, weather. */
-export function SceneBlock({ clock }: { clock: Clock | null }) {
+/** Time (or band word) large, then date · band · day · minutes, place, weather. */
+export function SceneBlock({ clock, calendar }: { clock: Clock | null; calendar?: DashView['calendar'] }) {
   const t = useT()
   const tx = useTx()
+  const lang = useLang()
   if (!clock) return null
   const band = clock.band ? tx('dash.band', clock.band) : null
+  const date = clock.date ? formatStoryDate(clock.date, lang) : null
   return (
     <div className="flex min-w-0 flex-col gap-1">
       {clock.time ? (
-        <div className="font-heading text-3xl leading-none tabular-nums">{clock.time}</div>
+        <div className="font-heading text-3xl leading-none tabular-nums" title={clock.approx ? t('dash.time.approx') : undefined}>
+          {clock.approx && <span aria-hidden="true">~</span>}
+          {clock.time}
+          {clock.approx && <span className="sr-only">{t('dash.time.approx')}</span>}
+        </div>
       ) : band ? (
         <div className={cn('flex min-w-0 items-center gap-2 font-heading text-3xl leading-none break-words', bandTextClass(clock.band))}>
           <BandMark band={clock.band} />
           {band}
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
+        {date && <span className="text-foreground" data-testid="dash-date">{date}</span>}
         {clock.time && band && <span className={cn('flex items-center gap-1', bandTextClass(clock.band))}><BandMark band={clock.band} />{band}</span>}
         <span>{t('dash.day', { n: clock.day })}</span>
         {clock.minutes > 0 && <span>{t('dash.minutes', { n: clock.minutes })}</span>}
+        <DateEdit clock={clock} calendar={calendar ?? null} />
       </div>
       {clock.place && <div className="min-w-0 text-sm break-words">{clock.place}</div>}
       {clock.weather && <div className="min-w-0 text-sm text-muted-foreground break-words">{clock.weather}</div>}
     </div>
+  )
+}
+
+/**
+ * The pencil next to the date: where the date comes from, a field to set it, "Use today's date" and a switch to
+ * hide it. Not shown outside a chat's Dashboard, or before the calendar exists (the first reading makes it).
+ */
+function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calendar'] | null }) {
+  const t = useT()
+  const dash = useDashMaybe()
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  if (!dash || !calendar) return null
+  const hidden = calendar.off
+  const run = async (body: { date?: string | null; off?: boolean }) => {
+    setBusy(true)
+    try {
+      await dash.setCalendar(body)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Popover onOpenChange={(open) => { if (open) setDraft(clock.date ?? '') }}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground max-md:size-10"
+            aria-label={t('dash.date.edit')}
+            title={t('dash.date.edit')}
+            data-testid="dash-date-edit"
+          />
+        }
+      >
+        <PencilSimple className="size-3.5" aria-hidden="true" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-72 flex-col gap-3 font-sans text-xs">
+        <div className="flex flex-col gap-0.5">
+          <p className="text-sm font-medium">{t('dash.date.title')}</p>
+          <p className="text-muted-foreground">{t(`dash.date.from.${calendar.source}` as MsgKey)}</p>
+        </div>
+        {!hidden && (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="dash-date-input" className="font-medium">{t('dash.date.today')}</label>
+            <div className="flex gap-2">
+              <input
+                id="dash-date-input"
+                type="date"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-sm max-md:h-10"
+              />
+              <Button size="sm" className="h-9 max-md:h-10" disabled={busy || !/^\d{4}-\d{2}-\d{2}$/.test(draft) || draft === clock.date} onClick={() => void run({ date: draft })}>
+                {t('dash.date.set')}
+              </Button>
+            </div>
+            <p className="text-muted-foreground">{t('dash.date.hint')}</p>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex items-center gap-2 font-medium max-md:min-h-10">
+            <Switch checked={!hidden} onCheckedChange={(on) => void run({ off: !on })} disabled={busy} />
+            {t('dash.date.show')}
+          </label>
+          {calendar.source === 'user' && !hidden && (
+            <Button variant="ghost" size="sm" className="h-8 max-md:h-10" disabled={busy} onClick={() => void run({ date: null })}>
+              {t('dash.date.auto')}
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

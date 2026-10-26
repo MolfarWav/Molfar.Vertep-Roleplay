@@ -111,7 +111,7 @@ export function DashPhoneSheet({ chatId, view, focus, onFocus, onRefresh, refres
         <TabsContent value="scene">
           <div className="flex flex-col gap-4 pt-4">
             <CarriedBanner chatId={chatId} inherit={view.inherit} />
-            <SceneBlock clock={view.clock} />
+            <SceneBlock clock={view.clock} calendar={view.calendar} />
             {present.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {present.map((n) => (

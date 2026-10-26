@@ -1,15 +1,19 @@
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useTx } from '@/components/dashboard/dash-common'
 import { useT } from '@/hooks/use-t'
+import { useLang } from '@/components/dashboard/use-lang'
+import { formatStoryDate } from '@/lib/dashboard'
 
 /** The story time of a scene in the dashboard's own clock wording: "19:30 evening, day 2",
  *  or just the band word ("evening, day 2"), or the day alone. Null when nothing is known. */
-export function useSceneSub(): (s: { day: number | null; time: string | null; band: string | null }) => string | null {
+export function useSceneSub(): (s: { day: number | null; time: string | null; band: string | null; approx?: boolean; date?: string | null }) => string | null {
   const t = useT()
   const tx = useTx()
+  const lang = useLang()
   return (s) => {
-    const when = [s.time, s.band ? tx('dash.band', s.band) : null].filter(Boolean).join(' ')
-    const day = s.day != null ? t('dash.day', { n: s.day }).toLowerCase() : null
+    const when = [s.time ? (s.approx ? '~' : '') + s.time : null, s.band ? tx('dash.band', s.band) : null].filter(Boolean).join(' ')
+    // with a calendar the date says the day; without one, the day counter does
+    const day = s.date ? formatStoryDate(s.date, lang) : s.day != null ? t('dash.day', { n: s.day }).toLowerCase() : null
     return [when, day].filter(Boolean).join(', ') || null
   }
 }

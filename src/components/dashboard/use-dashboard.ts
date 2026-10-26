@@ -27,6 +27,8 @@ export interface UseDashboard {
   reload: () => Promise<void>
   /** change the user's notes or threads (POST /dashboard/notes) and redraw from the answer */
   act: (body: { op: string } & Record<string, unknown>) => Promise<boolean>
+  /** the story's date: set it ("YYYY-MM-DD"), back to automatic (null) or hide/show it (POST /dashboard/calendar) */
+  setCalendar: (body: { date?: string | null; off?: boolean }) => Promise<boolean>
   refreshing: boolean
   now: number
 }
@@ -107,6 +109,20 @@ export function useDashboard(chatId: string): UseDashboard {
     }
   }, [load])
 
+  const setCalendar = useCallback(async (body: { date?: string | null; off?: boolean }): Promise<boolean> => {
+    const id = chatRef.current
+    if (!id) return false
+    try {
+      const r = await j<{ ok?: boolean; error?: string }>('/dashboard/calendar', { method: 'POST', body: JSON.stringify({ chatId: id, ...body }) })
+      if (r?.ok === false) { toast.error(tRef.current('dash.date.error', { message: r.error || 'unknown error' })); return false }
+      await load()
+      return true
+    } catch (e) {
+      toast.error(tRef.current('dash.date.error', { message: String((e as Error)?.message ?? e) }))
+      return false
+    }
+  }, [load])
+
   const mine = data && data.chatId === chatId ? data.res : null
   const view = mine?.view ?? null
   const status: DashStatus = failed === chatId && !mine ? 'absent' : !mine ? 'loading' : !mine.exists || !view ? 'empty' : 'ready'
@@ -114,5 +130,5 @@ export function useDashboard(chatId: string): UseDashboard {
   const first = view ? view.order.find((n) => view.chars[n] && !view.chars[n].compact) ?? view.order[0] ?? '' : ''
   const focus = view && picked && view.chars[picked] ? picked : first
 
-  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload: load, act, refreshing, now }
+  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload: load, act, setCalendar, refreshing, now }
 }

@@ -4,6 +4,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Dashboard, date and clock (#113): the clock shows a date and a running time instead of only "Day N". The date comes from the story: when the sensor reads a whole date in the text (a year, a month and a day, or a weekday with a date), the calendar follows it. With none, or in a fantasy or remote setting, it counts from today's date on your computer or phone. The time of day is still kept (night, morning…) and now also has a time on the clock, marked `~` because it is a guess from the part of the day, not a reading. Tap the date to set it, return it to automatic, or hide it; a date you set is never moved by the text. The day number still never goes back. A chat that continues an earlier one carries the calendar on. `POST /dashboard/calendar`; `state.calendar` in the Dashboard file.
 - Habits and the card import (#113): the dialog that adds a chat to the card's memory also offers the habits the character earned in that chat (ticked, unless the card keeps the same rule already). A ticked habit goes onto the card as an accepted habit of that story, and the chat's habit remembers it is kept. Ticking only habits writes no story. If the card is full (30 habits), the dialog says how many did not fit.
 - Habits, activity log (#113): accepting a habit early ("Accept now") leaves a row in the chat's Activity tab, like earning one does.
 

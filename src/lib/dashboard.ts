@@ -21,6 +21,10 @@ export interface Clock {
   band: string | null
   place: string | null
   weather: string | null
+  /** the time was worked out from the part of the day, not stated by the story (#113) */
+  approx?: boolean
+  /** "YYYY-MM-DD" from the chat's calendar; null when it is hidden or there is none yet (#113) */
+  date?: string | null
 }
 
 export interface DashEvent {
@@ -164,7 +168,22 @@ export interface DashView {
   /** the pending "Story, move" nudge (threadId null = all open threads); absent on an older plugin */
   nudge?: Nudge | null
   /** where the story changed place along the active line: the message key ("<id>#<swipe>") and the new place, with the clock as it was then; absent on an older plugin */
-  scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null }[]
+  scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null; approx?: boolean; date?: string | null }[]
+  /** where the date comes from (the story's text, today's date, the user) and whether it is hidden; absent on an older plugin, null before the first reading (#113) */
+  calendar?: { source: 'text' | 'today' | 'user'; off: boolean } | null
+}
+
+/** "Mon, 26 Oct 2026" in the app's language; the date is a calendar date, so no time zone moves it. */
+export function formatStoryDate(ymd: string, lang: string, long = false): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (!m) return ymd
+  const d = new Date(0)
+  d.setUTCFullYear(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  try {
+    return d.toLocaleDateString(lang, { weekday: long ? 'long' : 'short', day: 'numeric', month: long ? 'long' : 'short', year: 'numeric', timeZone: 'UTC' })
+  } catch {
+    return ymd
+  }
 }
 
 export interface Nudge { threadId: string | null; /** a twist: an event in none of the quests (#117) */ twist?: boolean; at: number }
