@@ -1,7 +1,7 @@
 /** The agent editor's model (src/lib/forge.ts): an edit stays tidy and the checker stays the judge. */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, setCard, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
+import { blankAgent, check, defaultParams, fileOf, issuesByNode, newCard, nextNodeId, prune, roomy, cardHeight, setCard, setWire, tidyHeader, wireChoices, CARD_ORDER } from "../src/lib/forge";
 import { generated } from "../scripts/sync-agent-recipes";
 import { AGENT_RECIPES } from "../src/lib/forge-recipes";
 import { AGENT_CARDS } from "../src/canvas-kit/boards/agent";
@@ -87,5 +87,30 @@ describe("the recipes the editor starts from", () => {
   it("are the skill's files (run: bun scripts/sync-agent-recipes.ts)", () => {
     expect(fs.readFileSync(new URL("../src/lib/forge-recipes.ts", import.meta.url), "utf8")).toBe(generated());
     expect(AGENT_RECIPES.map((r) => (r.agent as Json).id)).toEqual(["next-moves-ai", "pacing-nudge", "scene-recap", "tension-meter"]);
+  });
+});
+
+describe("room for the wires", () => {
+  const tension = AGENT_RECIPES.find((r) => (r.agent as Json).id === "tension-meter")!;
+  const asGraph = (f: { nodes?: Graph["nodes"]; edges?: Graph["edges"] }): Graph => ({ nodes: f.nodes ?? [], edges: f.edges ?? [] });
+
+  it("opens up columns that are too close and leaves a roomy file alone", () => {
+    const g = asGraph(tension);
+    const wide = roomy(g);
+    const xs = (x: Graph) => [...new Set(x.nodes.map((n) => n.x))].sort((a, b) => a - b);
+    const gaps = (x: Graph) => xs(x).slice(1).map((v, i) => v - xs(x)[i]!);
+    expect(Math.min(...gaps(wide).filter((d) => d > 60))).toBeGreaterThanOrEqual(230);
+    expect(roomy(wide)).toBe(wide);
+    expect(wide.edges).toEqual(g.edges);
+  });
+
+  it("never leaves two cards of a column on top of each other", () => {
+    const g = asGraph(tension);
+    const wide = roomy(g);
+    for (const a of wide.nodes) for (const b of wide.nodes) {
+      if (a.id >= b.id || Math.abs(a.x - b.x) > 60) continue;
+      const [hi, lo] = a.y <= b.y ? [a, b] : [b, a];
+      expect(lo.y).toBeGreaterThanOrEqual(hi.y + cardHeight(hi));
+    }
   });
 });

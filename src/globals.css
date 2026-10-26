@@ -72,6 +72,12 @@
   --popover-foreground: #161616;
   --primary: #2eaf5a;
   --primary-foreground: #ffffff;
+  /* the colours of the agent cards on the Canvas (kind of card), after the Forge mockup */
+  --k-data: #3b82c4;
+  --k-model: #d9822b;
+  --k-logic: #7c5cd6;
+  --k-write: #2eaf5a;
+  --k-main: #3b82c4;
   /* second accent (primary button, active nav icon): follows the primary unless a theme sets it */
   --cta: var(--primary);
   --cta-foreground: var(--primary-foreground);
@@ -124,6 +130,11 @@
   --popover-foreground: #e6e6e6;
   --primary: #54d17d;
   --primary-foreground: #0d1f14;
+  --k-data: #6aaeea;
+  --k-model: #f0a35a;
+  --k-logic: #a68bf0;
+  --k-write: #54d17d;
+  --k-main: #6aaeea;
   --cta: var(--primary);
   --cta-foreground: var(--primary-foreground);
   --group: #a58bf5;

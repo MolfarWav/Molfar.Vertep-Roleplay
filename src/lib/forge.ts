@@ -48,7 +48,7 @@ export function nextNodeId(g: Graph, type: string): string {
   return `${base}${i}`
 }
 
-function nextEdgeId(g: Graph): string {
+export function nextEdgeId(g: Graph): string {
   const used = new Set(g.edges.map((e) => e.id))
   let i = g.edges.length + 1
   while (used.has(`e${i}`)) i++
@@ -59,6 +59,38 @@ function nextEdgeId(g: Graph): string {
 export function newCard(g: Graph, type: string, at: { x: number; y: number }): CanvasNode {
   const label = AGENT_CARDS[type]?.label ?? type
   return { id: nextNodeId(g, type), type, x: Math.round(at.x), y: Math.round(at.y), title: label, params: defaultParams(type) }
+}
+
+/** The size of a card on the board: a header and one row for each port pair. The editor and `roomy` share it. */
+export const CARD = { W: 190, HEAD: 36, ROW: 26, PAD: 6, NOTE: 44 } as const
+export function cardHeight(n: CanvasNode): number {
+  const { ins, outs } = portsOf(n)
+  const rows = Math.max(ins.length, outs.length)
+  return CARD.HEAD + (rows ? rows * CARD.ROW + CARD.PAD * 2 : CARD.NOTE)
+}
+
+/**
+ * Cards laid out for narrower ones would touch, with no room for a wire between them. When the columns are closer than
+ * `step`, the columns are opened up, and a card that then sits on the one above it moves down. Positions only; a file
+ * that already has room comes back as it is.
+ */
+export function roomy(g: Graph, step = 240): Graph {
+  const starts: number[] = []
+  for (const x of [...new Set(g.nodes.map((n) => n.x))].sort((a, b) => a - b)) if (!starts.length || x - starts[starts.length - 1] > 60) starts.push(x)
+  let gap = Infinity
+  for (let i = 1; i < starts.length; i++) gap = Math.min(gap, starts[i] - starts[i - 1])
+  const f = gap < step - 10 ? Math.min(1.6, step / gap) : 1
+  const col = (x: number) => starts.reduce((best, s0, i) => (Math.abs(x - s0) < Math.abs(x - starts[best]) ? i : best), 0)
+  const placed = g.nodes.map((n) => ({ ...n, x: Math.round(n.x * f) }))
+  const bottom = new Map<number, number>()
+  for (const n of [...placed].sort((a, b) => a.y - b.y)) {
+    const c = col(g.nodes.find((o) => o.id === n.id)!.x)
+    const free = bottom.get(c) ?? -Infinity
+    if (n.y < free) n.y = free
+    bottom.set(c, n.y + cardHeight(n) + 18)
+  }
+  const same = placed.every((n, i) => n.x === g.nodes[i].x && n.y === g.nodes[i].y)
+  return same ? g : { nodes: placed, edges: g.edges }
 }
 
 /** The wires whose ports no longer exist, or no longer fit each other, are dropped. */
