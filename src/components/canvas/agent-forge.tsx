@@ -18,6 +18,7 @@ import {
 import { blankAgent, check, CARD_ORDER, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
+import { installMessage } from '@/lib/agent-install'
 import { cn } from '@/lib/utils'
 import { AgentForm } from './forge/agent-form'
 import { AgentBoard } from './forge/agent-board'
@@ -153,10 +154,10 @@ export function AgentForge() {
       await saveAgentDraft(cur.name, file)
       changed.current = false
       setSaving('saved')
-      await installAgentDraft(cur.name)
+      const r = await installAgentDraft(cur.name)
       await refresh()
       setTab('agent')
-      toast.success(t('ag.drafts.done', { name: cur.title }))
+      toast.success(installMessage(t, cur.title, r))
     } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
   }
 

@@ -14,6 +14,7 @@ import {
   type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
 import type { MsgKey } from '@/lib/i18n'
+import { installMessage } from '@/lib/agent-install'
 import { cn } from '@/lib/utils'
 
 const errText = (e: unknown) => String((e as Error)?.message ?? e)
@@ -284,6 +285,9 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
   useEffect(() => { if (focus) ref.current?.scrollIntoView({ block: 'nearest' }) }, [focus])
   const waiting = agent.missing.length > 0
   const supported = agent.needs.filter((n) => !agent.unsupported.includes(n))
+  // allowed before and asking for more now = a new version: only what is new needs a decision
+  const added = supported.filter((n) => !agent.granted.includes(n))
+  const update = waiting && agent.granted.length > 0 && added.length > 0
 
   const allow = async () => {
     setBusy(true)
@@ -298,15 +302,18 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
     setBusy(true)
     try { await removeAgent(agent.id); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
   }
+  const needRow = (n: string, isNew: boolean) => (
+    <li key={n} className="flex items-start gap-1.5">
+      <Check className={cn('mt-0.5 size-3 shrink-0', agent.granted.includes(n) ? 'text-emerald-500' : 'text-transparent')} aria-hidden="true" />
+      <span className="min-w-0 flex-1">{describeNeed(n, t)}</span>
+      {isNew && <span className="shrink-0 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid="agent-need-new">{t('ag.update.new')}</span>}
+    </li>
+  )
+  const callsRow = agent.maxCalls > 0 && <li className="pl-[18px] text-[11px] text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</li>
   const needsList = (
     <ul className="flex flex-col gap-1 text-xs">
-      {supported.map((n) => (
-        <li key={n} className="flex items-start gap-1.5">
-          <Check className={cn('mt-0.5 size-3 shrink-0', agent.granted.includes(n) ? 'text-emerald-500' : 'text-transparent')} aria-hidden="true" />
-          <span>{describeNeed(n, t)}</span>
-        </li>
-      ))}
-      {agent.maxCalls > 0 && <li className="pl-[18px] text-[11px] text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</li>}
+      {supported.map((n) => needRow(n, false))}
+      {callsRow}
     </ul>
   )
 
@@ -321,7 +328,16 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
       </div>
       {agent.description && <p className="text-xs leading-relaxed text-muted-foreground">{agent.description}</p>}
       {agent.errors.length > 0 && <p className="text-xs text-destructive">{t('ag.wait.errors')}: {agent.errors[0].message}</p>}
-      {waiting ? (
+      {update ? (
+        <div className="flex flex-col gap-1.5" data-testid="agent-update">
+          <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">{t('ag.update.lead', { name: agent.name, n: added.length })}</p>
+          <ul className="flex flex-col gap-1 text-xs">{added.map((n) => needRow(n, true))}</ul>
+          <details className="text-xs">
+            <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.update.same', { n: supported.length - added.length })}</summary>
+            <ul className="mt-1.5 flex flex-col gap-1">{supported.filter((n) => !added.includes(n)).map((n) => needRow(n, false))}{callsRow}</ul>
+          </details>
+        </div>
+      ) : waiting ? (
         <div className="flex flex-col gap-1.5">
           <p className="text-[11px] font-medium">{t('ag.review.lead', { name: agent.name })}</p>
           {needsList}
@@ -342,7 +358,7 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
       )}
       <div className="flex flex-wrap items-center gap-2">
         {waiting && supported.some((n) => !agent.granted.includes(n)) && (
-          <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void allow()}>{t('ag.review.allow')}</Button>
+          <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void allow()}>{update ? t('ag.update.allow') : t('ag.review.allow')}</Button>
         )}
         <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground max-md:h-10" disabled={busy} onClick={() => void remove()}>
           <Trash className="size-3.5" aria-hidden="true" /> {t('ag.removeAgent')}
@@ -374,7 +390,7 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
       await refreshInstalled()
       await loadDrafts()
       setFresh(r.id)
-      toast.success(t('ag.drafts.done', { name: d.title }))
+      toast.success(installMessage(t, d.title, r))
     } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
   }
   const dropDraft = async (d: AgentDraft) => {
@@ -391,6 +407,7 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
       const r = await installAgentFile(json)
       await refreshInstalled()
       setFresh(r.id)
+      if (r.updated) toast.success(installMessage(t, String((json as { agent?: { name?: string } }).agent?.name ?? r.id), r))
     } catch (e) { toast.error(t('ag.install.failed', { why: errText(e) })) } finally { setBusy(false) }
   }
 
