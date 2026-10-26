@@ -33,11 +33,15 @@ export interface RunContext {
   /** Dashboard fields */
   dash?: Record<string, string | number | undefined>
   chat?: { messageCount?: number; lastSpeaker?: string }
+  /** the editor's trial run: also return `wires` */
+  explain?: boolean
 }
+/** What an output port carried in a run (only with `explain`). */
+export type WireDump = Record<string, { state: 'value'; value: unknown } | { state: 'skip' | 'wait' | 'missing' }>
 export type RunResult =
-  | { status: 'need'; requests: AskRequest[]; trace: TraceStep[] }
-  | { status: 'done'; writes: Write[]; outputs: AgentOutput[]; calls: number; trace: TraceStep[] }
-  | { status: 'failed'; reason: string; node?: string; trace: TraceStep[] }
+  | { status: 'need'; requests: AskRequest[]; trace: TraceStep[]; wires?: WireDump }
+  | { status: 'done'; writes: Write[]; outputs: AgentOutput[]; calls: number; trace: TraceStep[]; wires?: WireDump }
+  | { status: 'failed'; reason: string; node?: string; trace: TraceStep[]; wires?: WireDump }
 
 export function runAgent(file: CanvasFile, ctx: RunContext, answers: Record<string, { text?: string; error?: string }>): RunResult
 export function applyWrites(schema: StateSchema | undefined, own: Own | undefined, writes: Write[]): { own: Own; refused: Array<{ write: Write; why: string }> }

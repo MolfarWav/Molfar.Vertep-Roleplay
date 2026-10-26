@@ -557,6 +557,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   the frame has `sandbox=""` and a `Content-Security-Policy` of `default-src 'none'; style-src 'unsafe-inline'; img-src data:`,
   and a template the checker would refuse is not drawn. The widget shows in the floating window; a bar above the chat
   skips it. `templateProblems(template, state)` of the checker is what the editor shows while the template is typed.
+- Trial run (editor only): `runAgent(file, { …, explain: true }, answers)` also returns `wires`, `{ "<node>:<port>": { state: "value", value } | { state: "skip" | "wait" | "missing" } }` for every output port. The runner plugin never sets `explain`. `src/lib/agent-dry.ts` loops the executor, answering each model request from the person's text or an example.
 - Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
   `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
   "phase": "before" | "parallel" | "after" | "manual", "wait"?: false } ] }`. `wait: false` (only read for an agent that runs

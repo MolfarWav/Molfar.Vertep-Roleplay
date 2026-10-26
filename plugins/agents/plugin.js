@@ -828,8 +828,20 @@ const short = (v) => (typeof v === 'string' ? clip(v, 200) : v);
  *   `inputs` is what the host read for the agent's Input card; the executor trusts nothing else about the chat.
  * answers: { <model.ask card id>: { text } | { error } }
  * Returns { status: "need", requests, trace }, { status: "done", writes, outputs, calls, trace } or { status: "failed", reason, node, trace }.
+ * With `ctx.explain` the result also has `wires`: what every output port carries, for the editor's trial run
+ * (`{ "<node>:<port>": { state: "value", value } | { state: "skip" | "wait" | "missing" } }`). The runner never asks for it.
  */
 function runAgent(file, ctx, answers) {
+  const seen = ctx && ctx.explain ? new Map() : null;
+  const r = runCards(file, ctx, answers, seen);
+  if (seen) {
+    r.wires = {};
+    for (const [k, v] of seen) r.wires[k] = v === SKIP ? { state: 'skip' } : v === PENDING ? { state: 'wait' } : v === undefined ? { state: 'missing' } : { state: 'value', value: v };
+  }
+  return r;
+}
+
+function runCards(file, ctx, answers, seen) {
   const nodes = file.nodes;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const schema = (file.agent && file.agent.state) || {};
@@ -863,7 +875,7 @@ function runAgent(file, ctx, answers) {
   }
   if (order.length !== nodes.length) return { status: 'failed', reason: 'The wires make a loop', trace };
 
-  const wire = new Map(); // "node:port" -> value | SKIP | PENDING
+  const wire = seen || new Map(); // "node:port" -> value | SKIP | PENDING
   const setAll = (node, state) => { for (const p of AGENT_CARDS[node.type].ports(node.params || {})) if (p.side === 'out') wire.set(node.id + ':' + p.id, state); };
 
   for (const id of order) {

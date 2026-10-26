@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, FloppyDisk, PencilSimple, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowCounterClockwise, CaretDown, CaretLeft, Check, FloppyDisk, PencilSimple, Play, Plus, Robot, Trash, UploadSimple, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { AGENT_BOARD, AGENT_CARDS } from '@/canvas-kit/boards/agent'
 import { commit, fromFile, historyOf, redo, removeNode, undo } from '@/canvas-kit/graph'
@@ -24,6 +24,7 @@ import { AgentForm } from './forge/agent-form'
 import { AgentBoard } from './forge/agent-board'
 import { CardForm, type StateFields } from './forge/card-form'
 import { Abilities, Palette, PlacesGuide } from './forge/palette'
+import { TryPanel, useDry } from './forge/try-panel'
 
 type Agent = Record<string, any>
 interface Current { name: string; title: string; agent: Agent }
@@ -42,7 +43,7 @@ export function AgentForge() {
   const [cur, setCur] = useState<Current | null>(null)
   const [hist, setHist] = useState<History>(() => historyOf({ nodes: [], edges: [] }))
   const [selected, setSelected] = useState<string | null>(null)
-  const [tab, setTab] = useState<'card' | 'agent'>('agent')
+  const [tab, setTab] = useState<'card' | 'agent' | 'try'>('agent')
   const [sheet, setSheet] = useState(false)
   const [fit, setFit] = useState(0)
   // the side list of cards: shown by itself on a wide window, and the person can open or close it
@@ -64,6 +65,8 @@ export function AgentForge() {
   const issues = useMemo(() => (report ? issuesByNode(report) : new Map<string, { errors: number; warnings: number }>()), [report])
   const fields = useMemo<StateFields>(() => (cur?.agent.state ?? {}) as StateFields, [cur])
   const installedCopy = installed?.find((a) => a.id === cur?.agent.id)
+  const errorCount = report?.errors.length ?? 0
+  const dry = useDry(file, cur?.name ?? '', tab === 'try' && errorCount === 0)
 
   // saved a moment after the last change; a draft is not installed, so a half-done one does no harm
   useEffect(() => {
@@ -188,10 +191,10 @@ export function AgentForge() {
   const inspector = cur && (
     <div className="flex min-h-0 flex-1 flex-col">
       <div role="tablist" className="flex shrink-0 gap-1 border-b border-border p-1.5">
-        {(['card', 'agent'] as const).map((k) => (
+        {(['card', 'agent', 'try'] as const).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={cn('flex-1 rounded-md px-2 py-1.5 text-xs font-semibold max-md:min-h-10', tab === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent')}>
-            {k === 'card' ? t('fg.tab.card') : t('fg.tab.agent')}
+            {k === 'card' ? t('fg.tab.card') : k === 'agent' ? t('fg.tab.agent') : t('fg.tab.try')}
           </button>
         ))}
       </div>
@@ -211,6 +214,8 @@ export function AgentForge() {
               deletable={(AGENT_BOARD.types[node.type]?.deletable ?? true) && node.type !== 'agent.input'}
             />
           ) : <p className="text-xs text-muted-foreground">{t('fg.card.none')}</p>
+        ) : tab === 'try' ? (
+          file && <TryPanel file={file as never} errors={errorCount} dry={dry} titleOf={(id) => graph.nodes.find((n) => n.id === id)?.title ?? id} />
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
@@ -372,9 +377,14 @@ export function AgentForge() {
           <>
             {toolbar}
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <button type="button" className="mb-3 flex min-h-11 w-full items-center gap-2 rounded-md border border-border px-3 text-left text-sm font-medium" onClick={() => { setTab('agent'); setSelected(null); setSheet(true) }}>
-                <Robot className="size-4" aria-hidden="true" />{t('fg.tab.agent')}
-              </button>
+              <div className="mb-3 flex gap-2">
+                <button type="button" className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-border px-3 text-left text-sm font-medium" onClick={() => { setTab('agent'); setSelected(null); setSheet(true) }}>
+                  <Robot className="size-4" aria-hidden="true" />{t('fg.tab.agent')}
+                </button>
+                <button type="button" className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-border px-3 text-left text-sm font-medium" onClick={() => { setTab('try'); setSelected(null); setSheet(true) }} data-testid="forge-try-open">
+                  <Play className="size-4" aria-hidden="true" />{t('fg.tab.try')}
+                </button>
+              </div>
               <ul className="flex flex-col gap-1.5" aria-label={t('fg.cards')}>
                 {[...graph.nodes].sort((a, b) => a.x - b.x || a.y - b.y).map((n) => {
                   const i = issues.get(n.id)
@@ -395,7 +405,7 @@ export function AgentForge() {
             {checkPanel}
             <Sheet open={sheet} onOpenChange={setSheet}>
               <SheetContent side="bottom" className="flex max-h-[88dvh] flex-col p-0">
-                <SheetHeader className="p-3 pb-0"><SheetTitle>{tab === 'card' ? node?.title ?? t('fg.tab.card') : t('fg.tab.agent')}</SheetTitle></SheetHeader>
+                <SheetHeader className="p-3 pb-0"><SheetTitle>{tab === 'card' ? node?.title ?? t('fg.tab.card') : tab === 'try' ? t('fg.tab.try') : t('fg.tab.agent')}</SheetTitle></SheetHeader>
                 {inspector}
               </SheetContent>
             </Sheet>
@@ -430,6 +440,7 @@ export function AgentForge() {
                 selectedId={selected}
                 onSelect={pick}
                 issues={issues}
+                probe={tab === 'try' ? dry.result : null}
                 fitSignal={fit}
               />
             </div>
