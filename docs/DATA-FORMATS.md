@@ -555,7 +555,9 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   sealed `srcdoc` frame without scripts.
 - Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
   `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
-  "phase": "before" | "parallel" | "after" | "manual" } ] }`. A preset names agents, never holds them, and gives no
+  "phase": "before" | "parallel" | "after" | "manual", "wait"?: false } ] }`. `wait: false` (only read for an agent that runs
+  `before` the reply) means the reply does not wait for it: it runs beside the reply and its hint goes into the next reply;
+  absent = the reply waits and the hint goes into this reply. A preset names agents, never holds them, and gives no
   permissions (the user confirmed those when installing the agent). The order of `items` is the order inside a phase;
   `phase` is optional (the agent's own `trigger.when` then applies); at most 50 items, an agent once. Routes:
   `GET /agent-presets`, `GET|PUT|DELETE /agent-presets/<id>` (PUT cleans the file and refuses one without `items`).
@@ -570,7 +572,8 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   skipped. Forks copy the binding with the rest of the meta. Set whole with `PATCH /chats/<id>` `{ agents }` (`null` = back
   to the default) or at creation, `POST /chats` `{ agents }`. Better, one change at a time: `POST /chats/<id>/agents`
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
-  `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null); it answers what runs now,
+  `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `wait` (`wait`: false = the reply does
+  not wait for this agent, true = it does); it answers what runs now,
   as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show } ] }`.
 ### Running an agent (`agent-run.js`)
 
@@ -599,8 +602,8 @@ list takes no new entry; each refusal is returned, nothing throws. `agent-run.js
 
 ### The runner: `plugins/agents`
 
-The Agents plugin installs checked agent files and runs them after a reply. Nothing in the app calls it yet (no screen); the
-routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-agent.json` (the installed, compiled agent),
+The Agents plugin installs checked agent files and runs them: after a reply, before it (inside the plugin's `llmRequest` hook) and
+beside it (a call the app makes when a send starts). The routes below and the hook are the whole interface. Files, all under `data/agents/`: `<id>.vertep-agent.json` (the installed, compiled agent),
 `grants/<id>.json` (`{ v: 1, needs: [...] }`, what the user confirmed), `config.json` (`{ model?, models?: { <role>: <model> } }`),
 `state/<chatId>/<id>.json` (`{ v: 1, own, last, before }`: the agent's own fields in that chat, the text it left for its
 `myPrevious`, and the state and message id before its last run), `runs/<chatId>.json` (`{ v: 1, runs }`, the newest 100) and
@@ -616,6 +619,16 @@ routes are the whole interface. Files, all under `data/agents/`: `<id>.vertep-ag
   and why: not installed, off, waiting for permission, trigger (`everyN`, `keywords`) did not fire, already ran for this reply.
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).
+  `phase` (default `after`) is `after` or `parallel`: with `parallel` the call comes from the app when a send starts, carries
+  `userText` (what the user wrote, not saved yet) and runs the agents set to run `parallel`, and those set to run `before` with
+  `wait: false`. They read the saved chat and that text as the last user message; a hint they leave goes into the next
+  reply. An agent set to run `before` the reply with `wait` on runs in the request hook of a `send` (not on a swipe, continue or
+  a group member's turn, which reuse the hint of the last run): it reads the saved chat plus the message as the model gets it,
+  and its hint is added to this reply. If it fails, the reply goes without the hint and the failure is in the log
+  (`phase: "before"`); the app shows it with a Run again button, which runs that agent by hand (`agent`). The run of the same
+  message is not repeated (`already ran for this message`); the number of replies for `everyN` counts the one being made.
+  The runner carries the answers of earlier rounds in the stash (route) or in the hook's ctx (`stash`), because the engine hands
+  a plugin only the newest round's answers.
   Rounds: every question that can be asked now is asked in one round, so cards side by side cost one round, not many; a
   question that needs an earlier answer waits for the next round. The plugin's `manifest.json` carries
   `limits: { passes: 8, concurrency: 3 }`, which the engine reads (the engine release after 1.4.2; an older engine keeps 3 passes and

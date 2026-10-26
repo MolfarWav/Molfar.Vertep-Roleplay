@@ -2350,7 +2350,7 @@ function cleanAgentItems(arr) {
   for (const it of arr) {
     if (!it || typeof it !== "object" || typeof it.agent !== "string" || !AGENT_ID_RE.test(it.agent) || seen.has(it.agent)) continue;
     seen.add(it.agent);
-    out.push({ agent: it.agent, on: it.on !== false, ...(AGENT_PHASES.includes(it.phase) ? { phase: it.phase } : {}) });
+    out.push({ agent: it.agent, on: it.on !== false, ...(AGENT_PHASES.includes(it.phase) ? { phase: it.phase } : {}), ...(it.wait === false ? { wait: false } : {}) });
     if (out.length >= AGENT_MAX_ITEMS) break;
   }
   return out;
@@ -2388,7 +2388,7 @@ export function resolveChatAgents(binding, presets, defaultPresetId) {
   const items = (b && b.own ? b.own : preset ? preset.items : []).map((it) => ({ ...it, show: (b && b.show && b.show[it.agent]) || null }));
   return { presetId, presetMissing: !!presetId && !preset, followsPreset: !(b && b.own), items };
 }
-/** One change to a chat's agents. Any change except choosing a preset or resetting makes the chat's own copy first, from
+/** One change to a chat's agents (`wait`: whether the reply waits for an agent set to run before it). Any change except choosing a preset or resetting makes the chat's own copy first, from
  *  `baseItems` (the preset's items). Returns the new binding (null = nothing left set) or `{ error }`. */
 export function editChatAgents(binding, baseItems, op) {
   const b = cleanAgentBinding(binding) || { v: 1 };
@@ -2415,11 +2415,15 @@ export function editChatAgents(binding, baseItems, op) {
     if (at >= 0) return { error: "agent is already in the set" };
     if (items.length >= AGENT_MAX_ITEMS) return { error: "too many agents" };
     items.push({ agent: op.agent, on: true, ...(AGENT_PHASES.includes(op.phase) ? { phase: op.phase } : {}) });
-  } else if (["toggle", "remove", "phase", "move", "show"].includes(op.op)) {
+  } else if (["toggle", "remove", "phase", "move", "show", "wait"].includes(op.op)) {
     if (at < 0) return { error: "agent is not in the set" };
     if (op.op === "toggle") items[at].on = op.on !== false;
     else if (op.op === "remove") items.splice(at, 1);
-    else if (op.op === "phase") {
+    else if (op.op === "wait") {
+      // false = the agent runs beside the reply, and its hint goes into the next one (only an agent set to run before the reply reads this)
+      if (op.wait === false) items[at].wait = false;
+      else delete items[at].wait;
+    } else if (op.op === "phase") {
       if (op.phase == null) delete items[at].phase;
       else if (AGENT_PHASES.includes(op.phase)) items[at].phase = op.phase;
       else return { error: "unknown phase" };

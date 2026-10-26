@@ -40,7 +40,7 @@ import {
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
 import { carryWorld, libraryBooks, triggerWorldUpdate } from './world'
-import { listAgentSets, triggerAgentsRun } from './agents'
+import { listAgentSets, triggerAgentsRun, triggerParallelAgents } from './agents'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
@@ -2662,6 +2662,8 @@ async function runGeneration(
       messages: [...c.messages, ...(stageUser ? [stageUser] : []), ...(waitsForPick ? [] : [pendingMsg])],
     } : c)),
   }))
+  // the agents set to run beside the reply start with it, on what the user wrote
+  if (op === 'send' && opts?.userText?.trim()) void triggerParallelAgents(chatId, opts.userText.trim())
   return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
 }
 

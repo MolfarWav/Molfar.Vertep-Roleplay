@@ -13,7 +13,7 @@ import moves from "./fixtures/next-moves.vertep-agent.json";
 import mood from "./fixtures/mood-tracker.vertep-agent.json";
 import { AGENT_MAX_ROUNDS, compileAgent } from "../src/canvas-kit/boards/agent-check.js";
 import { generatedBlock, withBlock } from "../scripts/sync-agents-plugin";
-import { chainAgent } from "./fixtures/chain-agent";
+import { chainAgent, hintAgent } from "./fixtures/chain-agent";
 
 const plugin = (await import(new URL("../plugins/agents/plugin.js", import.meta.url).href)) as typeof import("../plugins/agents/plugin.js");
 const engine = (await import(new URL("../plugins/engine/plugin.js", import.meta.url).href)) as typeof import("../plugins/engine/plugin.js");
@@ -66,13 +66,17 @@ const useAgent = (id: string, extra: Json = {}) => {
   fs.writeFileSync(path.join(root, "agents", "presets", "p.json"), JSON.stringify({ format: "vertep-agent-preset", version: 1, id: "p", name: "P", items: [{ agent: id, on: true, ...extra }] }));
   fs.writeFileSync(path.join(root, "agents", "settings.json"), JSON.stringify({ defaultPreset: "p" }));
 };
-/** Run until the plugin stops asking; `answer` plays the model for each question. */
+/** Run until the plugin stops asking, the way the engine does: it hands over only the newest pass's answers, and the stash
+ *  the plugin returned. `answer` plays the model for each question. */
 function runChat(chatId: string, body: Json = {}, answer: (q: Json, key: string) => Json = () => ({ text: "YES" })): Json {
   results = {};
-  for (let pass = 0; pass < 6; pass++) {
+  let stash: Json = { started: 1 };
+  for (let pass = 0; pass < 12; pass++) {
     requests = [];
-    const r = call("POST", "/agents/run", { chatId, ...body }, undefined, { started: 1 });
+    const r = call("POST", "/agents/run", { chatId, ...body }, undefined, stash) as { json?: Json; __llmPending?: boolean; stash?: Json };
     if (!r.__llmPending) return r.json as Json;
+    stash = r.stash ?? stash;
+    results = {};
     for (const [k, q] of requests) results[k] = answer(q, k);
   }
   throw new Error("never finished");
@@ -221,7 +225,7 @@ describe("a run after a reply", () => {
 
   it("a manual run goes ahead whatever the trigger says; a before-agent is not started after a reply", () => {
     fs.writeFileSync(path.join(root, "chats", "c1.meta.json"), JSON.stringify({ id: "c1", agents: { v: 1, own: [{ agent: "dungeon-keeper", on: true, phase: "before" }] } }));
-    expect(runChat("c1").skipped[0].why).toMatch(/only agents set to run after/);
+    expect(runChat("c1").skipped[0].why).toMatch(/runs before the reply, not after it/);
     expect(runChat("c1", { agent: "dungeon-keeper" }).ran[0].status).toBe("ok");
   });
 
@@ -242,22 +246,14 @@ describe("a run after a reply", () => {
 describe("model calls one behind another", () => {
   const answers = (q: Json) => ({ text: "ANSWER" + (q.messages[0].content as string).length });
 
-  it("a chain of five dependent calls runs to the end, one question per round", () => {
+  it("a chain of five dependent calls runs to the end, one question per round, with only the newest answers handed over each pass", () => {
     j("/agents/install", "PUT", { file: chainAgent(5), grant: true });
     makeChat("c1", CHAT);
     useAgent("chain");
     const rounds: number[] = [];
-    results = {};
-    let out: Json | undefined;
-    for (let pass = 0; pass < 8; pass++) {
-      requests = [];
-      const r = call("POST", "/agents/run", { chatId: "c1" }, undefined, { started: 1, pass });
-      if (!r.__llmPending) { out = r.json as Json; break; }
-      rounds.push(requests.length);
-      for (const [k, q] of requests) results[k] = answers(q);
-    }
+    const out = runChat("c1", {}, (q, k) => { rounds.push(1); return answers(q); });
     expect(rounds).toEqual([1, 1, 1, 1, 1]);
-    expect(out?.ran).toEqual([{ agent: "chain", status: "ok", calls: 5, writes: 0, outputs: 1 }]);
+    expect(out.ran).toEqual([{ agent: "chain", status: "ok", calls: 5, writes: 0, outputs: 1 }]);
   });
 
   it("an agent that is still asking at the last allowed pass fails with a reason instead of vanishing", () => {
@@ -281,9 +277,116 @@ describe("model calls one behind another", () => {
   });
 });
 
+/** What the engine does with a request hook: runs it, and while it asks the model runs it again with the newest answers and what it returned. */
+function runHook(ctx: Json, answer: (q: Json) => Json = () => ({ text: "mind the guard" })): { patch: Json | null; passes: number } {
+  let cur = ctx;
+  results = {};
+  for (let pass = 0; pass < 8; pass++) {
+    requests = [];
+    const out = plugin.llmRequest(cur as never, host() as never) as Json | null;
+    if (!requests.length) return { patch: out, passes: pass + 1 };
+    results = {};
+    for (const [k, q] of requests) results[k] = answer(q);
+    cur = out ?? cur;
+  }
+  throw new Error("the hook never finished");
+}
+const replyCtx = (text: string, op = "send"): Json => ({
+  key: "reply", plugin: "roleplay__engine", turn: { op, chatId: "c1" },
+  request: { sessionId: "c1", messages: [{ role: "system", content: "S" }, { role: "user", content: text }] },
+});
+const lastUserOf = (patch: Json | null): string => (patch ? patch.messages.at(-1).content : "");
+
+describe("agents before the reply", () => {
+  beforeEach(() => {
+    j("/agents/install", "PUT", { file: hintAgent("watcher", "before"), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("watcher");
+  });
+
+  it("asks about the message the user is sending and puts the answer into this very reply", () => {
+    const seen: string[] = [];
+    const { patch } = runHook(replyCtx("I open the door"), (q) => { seen.push(q.messages[0].content); return { text: "mind the guard" }; });
+    expect(seen).toEqual(["One hint for: I open the door"]);
+    expect(lastUserOf(patch)).toContain("I open the door");
+    expect(lastUserOf(patch)).toContain("[Hint]\nmind the guard");
+    expect(j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0]).toMatchObject({ agent: "watcher", status: "ok", phase: "before" });
+  });
+
+  it("the same message is not asked twice, a new one is", () => {
+    runHook(replyCtx("I open the door"));
+    let asked = 0;
+    runHook(replyCtx("I open the door"), () => { asked++; return { text: "again" }; });
+    expect(asked).toBe(0);
+    runHook(replyCtx("I close it"), () => { asked++; return { text: "again" }; });
+    expect(asked).toBe(1);
+  });
+
+  it("a failed question never stops the reply: no hint, the failure is logged with its reason", () => {
+    const { patch } = runHook(replyCtx("I open the door"), () => ({ error: "429 rate limit" }));
+    expect(patch).toBeNull();
+    expect(j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0]).toMatchObject({ agent: "watcher", status: "failed", phase: "before" });
+  });
+
+  it("runs only on a send; a swipe reuses the hint of the last run", () => {
+    runHook(replyCtx("I open the door"));
+    let asked = 0;
+    const { patch } = runHook(replyCtx("ignored", "swipe"), () => { asked++; return { text: "no" }; });
+    expect(asked).toBe(0);
+    expect(lastUserOf(patch)).toContain("mind the guard");
+  });
+
+  it("keywords are read in the message being sent", () => {
+    const f = hintAgent("watcher", "before", { keywords: ["door"] });
+    j("/agents/install", "PUT", { file: f, grant: true });
+    let asked = 0;
+    runHook(replyCtx("I sleep"), () => { asked++; return { text: "x" }; });
+    expect(asked).toBe(0);
+    runHook(replyCtx("I open the door"), () => { asked++; return { text: "x" }; });
+    expect(asked).toBe(1);
+  });
+
+  it("an agent the reply does not wait for is left to the run beside the reply, whose hint goes into the next one", () => {
+    useAgent("watcher", { wait: false });
+    let asked = 0;
+    const first = runHook(replyCtx("I open the door"), () => { asked++; return { text: "x" }; });
+    expect(asked).toBe(0);
+    expect(first.patch).toBeNull();
+    const r = runChat("c1", { phase: "parallel", userText: "I open the door" }, () => ({ text: "mind the guard" }));
+    expect(r.ran).toEqual([{ agent: "watcher", status: "ok", calls: 1, writes: 0, outputs: 1 }]);
+    expect(j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs[0]).toMatchObject({ agent: "watcher", phase: "parallel" });
+    expect(lastUserOf(runHook(replyCtx("I go on"), () => { asked++; return { text: "x" }; }).patch)).toContain("mind the guard");
+    expect(asked).toBe(0);
+  });
+});
+
+describe("agents beside the reply", () => {
+  it("a parallel agent runs on what the user sent, which is not saved yet, and a normal run after the reply skips it", () => {
+    j("/agents/install", "PUT", { file: hintAgent("side", "parallel", {}, { kind: "note", title: "Hint" }), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("side");
+    expect(runChat("c1").skipped[0].why).toMatch(/runs beside the reply, not after it/);
+    expect(runChat("c1", { phase: "parallel" }).error).toBe("userText required");
+    const seen: string[] = [];
+    const r = runChat("c1", { phase: "parallel", userText: "I open the door" }, (q) => { seen.push(q.messages[0].content); return { text: "ok" }; });
+    expect(r.ran[0]).toMatchObject({ agent: "side", status: "ok" });
+    expect(seen).toEqual(["One hint for: I open the door"]);
+    expect(runChat("c1", { phase: "parallel", userText: "I open the door" }).skipped[0].why).toBe("already ran for this message");
+  });
+
+  it("the wait switch is kept in the chat's items, like the engine's rules keep it", () => {
+    fs.mkdirSync(path.join(root, "chats"), { recursive: true });
+    fs.writeFileSync(path.join(root, "chats", "c1.meta.json"), JSON.stringify({ id: "c1", agents: { v: 1, own: [{ agent: "watcher", on: true, phase: "before", wait: false }, { agent: "other", on: true, wait: true }] } }));
+    expect(plugin.chatAgents(host().fs as never, { agents: { v: 1, own: [{ agent: "watcher", on: true, wait: false }, { agent: "other", on: true, wait: true }] } } as never)).toEqual([
+      { agent: "watcher", on: true, wait: false, show: null },
+      { agent: "other", on: true, show: null },
+    ]);
+  });
+});
+
 describe("the same rules as the engine", () => {
   it("chatAgents gives what the engine's resolveChatAgents gives", () => {
-    const presets = { rp: engine.cleanAgentPreset({ items: [{ agent: "scene-plan", phase: "before" }, { agent: "mood-tracker", on: false }] }, "rp") };
+    const presets = { rp: engine.cleanAgentPreset({ items: [{ agent: "scene-plan", phase: "before", wait: false }, { agent: "mood-tracker", on: false }] }, "rp") };
     fs.mkdirSync(path.join(root, "agents", "presets"), { recursive: true });
     fs.writeFileSync(path.join(root, "agents", "presets", "rp.json"), JSON.stringify(presets.rp));
     fs.writeFileSync(path.join(root, "agents", "settings.json"), JSON.stringify({ defaultPreset: "rp" }));
