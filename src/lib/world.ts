@@ -141,7 +141,11 @@ export interface WorldProfileBlock { key: WorldBlockKey; text: string; default: 
 export interface WorldProfileDefaults { everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
 /** clocks: who ticks the fronts' clocks ('code' = every clockEvery replies read); eventByClock: news worded by the clock's stage */
 /** deck: events come only from the chat's events deck (built at start; "New deck" when used up) */
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean }
+/** dice: code rolls 2d6 + one Dashboard number before a reply ('flavour' = a nudge the model may soften, 'strict' = binding); diceStat: which number; diceChance: percent of replies that get a roll */
+export type WorldDiceMode = 'off' | 'flavour' | 'strict'
+export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'affection'] as const
+export type WorldDiceStat = (typeof WORLD_DICE_STATS)[number]
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string

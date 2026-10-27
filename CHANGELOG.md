@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- World DM, dice (off by default): a DM profile option. Before a reply is written, code rolls 2d6 plus one of the speaking character's Dashboard numbers (trust, comfort, attraction, respect or affection, a twentieth of it, so -5 to +5) and tells the model how an uncertain action turns out: miss, no but, yes but, or full success. Two modes: Hint (the model may soften the result to stay in character) and Binding (it may not). No extra model call; a share of replies gets a roll (25% by default). The line shows in the prompt Inspector as "Dice", and every roll, quiet ones too, is kept per chat (`GET /world/dice?chatId=`, last 30). It follows the DM's guards: explicit scenes, combat (except Antagonist and Chaos), the prompt board switch, and a level above Chronicler with Insert on. A swipe rolls again, a reload does not. GitHub #155, part 1.
+
 ## 4.71.0 (2026-10-26)
 
 - Agents, a block for results: in a chat's Agents tab, the place button of an agent has a new switch, "Also show in the block". An agent with it on keeps its latest result (notes, hints for the next reply, choices, changes to its state) in a folded block above the message box, next to the place it already shows in; the block stays when the history scrolls away. It is per chat, saved in the chat's agents binding (`also`), never goes to the model, and the places themselves are unchanged.

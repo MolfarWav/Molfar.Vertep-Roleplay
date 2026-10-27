@@ -20,7 +20,7 @@ import {
   createProfile, draftOf, eventBlockOk, isDirty, refreshWorldProfiles, removeProfile, resetProfileBlock, saveProfileDraft, useWorldProfiles,
   type ProfileDraft,
 } from '@/lib/world-profiles'
-import { type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
+import { WORLD_DICE_STATS, type WorldDiceMode, type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
 import { LEVEL_ICON, LEVEL_TONE, LevelChip, useProfileHint, useProfileName } from './world-common'
 import { OwnMark } from './world-profile-picker'
 
@@ -203,6 +203,33 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
         <Switch checked={options.deck} onCheckedChange={(v) => onChange({ ...options, deck: v })} aria-label={t('world.prof.opt.deck')} />
       </div>
+      <div role="radiogroup" aria-label={t('world.opt.dice')} className="flex flex-col gap-1.5 text-sm" data-testid="dice-options">
+        <span className="font-medium">{t('world.opt.dice')}</span>
+        <span className="text-xs text-muted-foreground">{t('world.opt.diceHint')}</span>
+        {(['off', 'flavour', 'strict'] as const satisfies readonly WorldDiceMode[]).map((v) => (
+          <label key={v} className={cn('flex cursor-pointer items-start gap-2 rounded-md border p-2 max-md:min-h-11', options.dice === v ? 'border-primary bg-primary/5' : 'border-border')}>
+            <input type="radio" name="dice" checked={options.dice === v} onChange={() => onChange({ ...options, dice: v })} className="mt-1 accent-primary" />
+            <span className="min-w-0">
+              {t(`world.opt.dice.${v}` as MsgKey)}
+              <span className="block text-xs text-muted-foreground">{t(`world.opt.dice.${v}.hint` as MsgKey)}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {options.dice !== 'off' && (
+        <>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">{t('world.opt.diceStat')}<span className="block text-xs text-muted-foreground">{t('world.opt.diceStatHint')}</span></span>
+            <select value={options.diceStat} onChange={(e) => onChange({ ...options, diceStat: e.target.value as WorldProfileOptions['diceStat'] })} aria-label={t('world.opt.diceStat')} className="h-9 rounded-md border border-border bg-background px-2 text-sm max-md:h-11">
+              {WORLD_DICE_STATS.map((s) => <option key={s} value={s}>{t(`world.opt.diceStat.${s}` as MsgKey)}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">{t('world.opt.diceChance')}<span className="block text-xs text-muted-foreground">{t('world.opt.diceChanceHint')}</span></span>
+            <NumField label={t('world.opt.diceChance')} value={options.diceChance} min={1} max={100} onCommit={(n) => onChange({ ...options, diceChance: n })} />
+          </label>
+        </>
+      )}
     </section>
   )
 }
@@ -417,7 +444,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'affection', diceChance: 25 })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers

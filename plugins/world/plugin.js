@@ -569,7 +569,10 @@ const DEFAULT_PROFILE_SETTINGS = { everyN: DEFAULT_SETTINGS.everyN, stagnation: 
 // (Arbiter's way: cheaper and steadier on small models; the model then only adds and retires fronts), and
 // event wording that follows the front's clock (Story Engine's way: rumour, then visible, then unmistakable)
 // events deck (Arbiter's way, user 2026-10-19, off by default): built at start, the DM picks one by id
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false };
+// dice (user, 2026-10-27, off by default): code rolls 2d6 plus a Dashboard number before the reply is written
+export const DICE_MODES = ["off", "flavour", "strict"];
+export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affection"];
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "affection", diceChance: 25 };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -579,6 +582,9 @@ function cleanOptions(o) {
     clockEvery: Number.isFinite(n) ? clamp(Math.round(n), 2, 50) : DEFAULT_OPTIONS.clockEvery,
     eventByClock: b.eventByClock === true,
     deck: b.deck === true,
+    dice: DICE_MODES.includes(b.dice) ? b.dice : DEFAULT_OPTIONS.dice,
+    diceStat: DICE_STATS.includes(b.diceStat) ? b.diceStat : DEFAULT_OPTIONS.diceStat,
+    diceChance: Number.isFinite(Number(b.diceChance)) ? clamp(Math.round(Number(b.diceChance)), 1, 100) : DEFAULT_OPTIONS.diceChance,
   };
 }
 
@@ -1034,6 +1040,105 @@ function withLast(messages, text) {
   return [...messages, { role: "user", content: text }];
 }
 
+// ---------- the dice ----------
+// Code rolls before the reply is written (no model call): 2d6 plus a modifier from one of the
+// character's Dashboard numbers (-100..100, a twentieth of it, so -5..+5), read as four outcomes.
+// The line rides the reply request like the DM's event and shows in the prompt Inspector as "Dice".
+const DICE_BANDS = [5, 7, 9]; // up to 5 miss, 6-7 no but, 8-9 yes but, 10 and more full
+const DICE_OUTCOMES = {
+  miss: ["miss", "it fails outright and costs something"],
+  no_but: ["no, but", "it does not work, but something is gained or a way stays open"],
+  yes_but: ["yes, but", "it works, but with a complication or a price"],
+  full: ["full success", "it works cleanly, with no complication"],
+};
+const DICE_LOG_MAX = 30;
+const dicePath = (chatId) => "world/dice/" + chatId + ".json";
+
+function hashText(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** A small seeded generator: the same seed gives the same rolls, so a reload does not re-roll and a swipe does. */
+export function seededRandom(seed) {
+  let a = hashText(String(seed));
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export const diceMod = (value) => (Number.isFinite(value) ? clamp(Math.sign(value) * Math.round(Math.abs(value) / 20), -5, 5) : 0);
+
+export function diceOutcome(total) {
+  return total <= DICE_BANDS[0] ? "miss" : total <= DICE_BANDS[1] ? "no_but" : total <= DICE_BANDS[2] ? "yes_but" : "full";
+}
+
+/** One roll for one reply: first whether the die is on the table at all (chance, percent), then 2d6 + mod. */
+export function rollFate(seed, chance, mod) {
+  const rnd = seededRandom(seed);
+  const gate = Math.floor(rnd() * 100) + 1;
+  if (gate > chance) return { gated: false, gate };
+  const d1 = Math.floor(rnd() * 6) + 1;
+  const d2 = Math.floor(rnd() * 6) + 1;
+  const total = d1 + d2 + mod;
+  return { gated: true, gate, d1, d2, mod, total, outcome: diceOutcome(total) };
+}
+
+export function diceInsert(roll, mode, stat, who) {
+  const [label, meaning] = DICE_OUTCOMES[roll.outcome];
+  const sign = roll.mod >= 0 ? "+" : "-";
+  const from = who ? " (" + stat + " of " + who + ")" : "";
+  return [
+    "[FATE: a hidden roll for this reply. Never mention dice, numbers or this note.]",
+    "2d6 " + sign + " " + Math.abs(roll.mod) + from + " = " + roll.total + ": " + label + ".",
+    "If the user's character attempts something uncertain in this turn, " + meaning + ".",
+    mode === "strict" ? "This result binds: do not soften it, reverse it or add a way around it." : "Let it colour the scene and stay in character; bend it only where the character demands.",
+    "If nothing uncertain is attempted, ignore this note.",
+  ].join(" ");
+}
+
+/** The newest Dashboard snapshot on the chat's active line. */
+function lastSnapshot(fsx, chatId, msgs) {
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const snaps = isObj(dash) && isObj(dash.snapshots) ? dash.snapshots : null;
+  if (!snaps) return null;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const sn = snaps[keyOf(msgs[i])];
+    if (isObj(sn)) return sn;
+  }
+  return null;
+}
+
+/** The number the die adds: the speaker's (else the first present character's) Dashboard value toward the user. */
+export function diceStatOf(fsx, chatId, msgs, speakerName, stat) {
+  const sn = lastSnapshot(fsx, chatId, msgs);
+  if (!sn || !isObj(sn.chars)) return { who: "", value: null };
+  const present = arr(sn.present).filter((n) => isObj(sn.chars[n]));
+  const who = present.includes(speakerName) ? speakerName : present[0] || "";
+  const stats = who && isObj(sn.chars[who].stats) ? sn.chars[who].stats : null;
+  return { who, value: stats && Number.isFinite(stats[stat]) ? stats[stat] : null };
+}
+
+function logDice(fsx, chatId, entry) {
+  const old = readJson(fsx, dicePath(chatId), null);
+  const rolls = isObj(old) ? arr(old.rolls).filter(isObj) : [];
+  writeJson(fsx, dicePath(chatId), { v: 1, rolls: [...rolls, entry].slice(-DICE_LOG_MAX) });
+}
+
+function diceRoute(req, host) {
+  const chatId = String((req.query && req.query.chatId) || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const raw = readJson(host.fs, dicePath(chatId), null);
+  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [] });
+}
+
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply") return null;
   const req = ctx.request || {};
@@ -1043,11 +1148,14 @@ export function llmRequest(ctx, host) {
   const turn = isObj(ctx.turn) ? ctx.turn : isObj(req.turn) ? req.turn : {};
   if (!OPS_WITH_EVENT.includes(str(turn.op))) return null;
   try {
-    const raw = readJson(fsx, statePath(chatId), null);
-    if (!isObj(raw) || !isObj(raw.event)) return null;
-    const { state } = loadState(fsx, chatId);
+    const { state, existed } = loadState(fsx, chatId);
+    if (!existed) return null;
     const lv = state.settings.level;
-    if (!state.event || state.event.sent > 0 || !state.settings.insert || lv === "off" || lv === "chronicler") return null;
+    if (!state.settings.insert || lv === "off" || lv === "chronicler") return null;
+    const profile = profileFor(fsx, state.settings);
+    const eventDue = !!state.event && state.event.sent === 0;
+    const diceMode = profile && profile.options ? profile.options.dice : "off";
+    if (!eventDue && diceMode === "off") return null;
     const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
     const off = isObj(meta) && isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
     if (off.includes("plugin:world")) return null;
@@ -1055,12 +1163,25 @@ export function llmRequest(ctx, host) {
     const dir = directionOf(state, chat ? sceneOf(fsx, chatId, chat.msgs) : null);
     if (dir === "explicit") return null;
     if (dir === "combat" && lv !== "antagonist" && lv !== "chaos") return null;
-    const profile = profileFor(fsx, state.settings);
-    const text = eventInsert(state.event, profile && profile.blocks.event);
-    if (!text) return null;
-    state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now() };
-    saveState(fsx, state);
-    return { messages: withLast(req.messages, text), promptSources: { parts: [{ kind: "plugin", label: "World DM", text }] } };
+    const parts = [];
+    const eventText = eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
+    if (eventText) {
+      state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now() };
+      saveState(fsx, state);
+      parts.push({ kind: "plugin", label: "World DM", text: eventText });
+    }
+    if (diceMode !== "off") {
+      const opt = profile.options;
+      // the chat's own last message, not the request: other plugins rewrite the request text before or after this hook
+      const msgs = chat ? chat.msgs : [];
+      const seed = chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
+      const { who, value } = diceStatOf(fsx, chatId, msgs, str(turn.speakerName), opt.diceStat);
+      const roll = rollFate(seed, opt.diceChance, diceMod(value));
+      logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: opt.diceStat, who, value, chance: opt.diceChance, ...roll, inserted: roll.gated });
+      if (roll.gated) parts.push({ kind: "plugin", label: "Dice", text: diceInsert(roll, diceMode, opt.diceStat, who) });
+    }
+    if (!parts.length) return null;
+    return { messages: withLast(req.messages, parts.map((p) => p.text).join("\n\n")), promptSources: { parts } };
   } catch (e) {
     try {
       host.log("world insert: " + (e && e.message ? e.message : String(e)));
@@ -2725,6 +2846,7 @@ export function handleRoute(req, host) {
   if (path === "/world/update" && req.method === "POST") return updateRoute(req, host);
   if (path === "/world/chats" && req.method === "GET") return chatsRoute(req, host);
   if (path === "/world/runs" && req.method === "GET") return runsRoute(req, host);
+  if (path === "/world/dice" && req.method === "GET") return diceRoute(req, host);
   if (path === "/world/test" && req.method === "POST") return testRoute(req, host);
   if (path === "/world/profiles" && ["GET", "PUT", "DELETE"].includes(req.method)) return profilesRoute(req, host);
   if (path === "/world/records" && req.method === "PUT") return recordsRoute(req, host);
