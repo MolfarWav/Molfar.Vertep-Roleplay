@@ -370,6 +370,53 @@ it("recentMessages 20 of 30 messages: chapters covering 1-26 still cut only 1-10
   expect(contents.some((c) => hasNum(c, `user turn #14`))).toBe(true);
 });
 
+describe("cutMode scenes: a whole scene leaves once a chapter holds it", () => {
+  const BIG = { contextWindow: 200000, maxOutput: 1024 };
+  const has = (contents: string[], i: number) => contents.some((c) => hasNum(c, `user turn #${i}`));
+
+  it("replaces the finished scenes and keeps sceneKeep direct messages, whatever the window", async () => {
+    const { id, m } = await chatWithThirty();
+    writeJson("litopys/config.json", { cutMode: "scenes", sceneKeep: 2 });
+    expect(await cutOf(id, m)).toEqual({ count: 20, upTo: "c9" });
+    const contents = messageContents((await previewOf(id, m, BIG)).json);
+    for (let i = 0; i < 10; i++) expect(has(contents, i)).toBe(false);
+    for (let i = 10; i < 15; i++) expect(has(contents, i)).toBe(true);
+  });
+
+  it("never cuts a scene in the middle: a scene that still has a direct message inside the keep stays whole", async () => {
+    const { id, m } = await chatWithThirty();
+    // 30 messages, scenes end at 10 and 20; keeping 12 leaves room only for the first scene to go
+    writeJson("litopys/config.json", { cutMode: "scenes", sceneKeep: 12 });
+    expect(await cutOf(id, m)).toEqual({ count: 10, upTo: "c4" });
+    const contents = messageContents((await previewOf(id, m, BIG)).json);
+    for (let i = 0; i < 5; i++) expect(has(contents, i)).toBe(false);
+    for (let i = 5; i < 15; i++) expect(has(contents, i)).toBe(true);
+  });
+
+  it("a keep larger than the chat cuts nothing", async () => {
+    const { id, m } = await chatWithThirty();
+    writeJson("litopys/config.json", { cutMode: "scenes", sceneKeep: 1000 });
+    expect((await cutOf(id, m)).count).toBe(0);
+    const contents = messageContents((await previewOf(id, m, BIG)).json);
+    for (let i = 0; i < 15; i++) expect(has(contents, i)).toBe(true);
+  });
+
+  it("the window still trims further when the rest does not fit", async () => {
+    const { id, m } = await chatWithThirty();
+    writeJson("litopys/config.json", { cutMode: "scenes", sceneKeep: 2 });
+    const contents = messageContents((await previewOf(id, m, TIGHT)).json);
+    expect(has(contents, 14)).toBe(true);
+    expect(has(contents, 5)).toBe(false);
+  });
+
+  it("the default mode is untouched by an unknown cutMode", async () => {
+    const { id, m } = await chatWithThirty();
+    writeJson("litopys/config.json", { cutMode: "nonsense", recentMessages: 6 });
+    const contents = messageContents((await previewOf(id, m, BIG)).json);
+    for (let i = 0; i < 15; i++) expect(has(contents, i)).toBe(true);
+  });
+});
+
 it("a send writes where the prompt's history started; a preview does not", async () => {
   const { id, m } = await chatWithThirty();
   const file = path.join(root, "litopys", "prompt-cut", `${id}.json`);

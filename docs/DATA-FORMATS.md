@@ -193,6 +193,15 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
 - `budgetMode` (`fixed`, default, or `auto`): in `auto` the memory size is 15% of the model's context window (at least
   800, at most 16000) when the engine says the window in the turn labels (`turn.contextTokens`); without that label, or
   in `fixed`, `budget` is used. 15% is a first guess, not tuned on real chats.
+- `cutMode` (`fit`, default, or `scenes`) and `sceneKeep` (`litopys/config.json`): which of the messages a chapter
+  holds leave the prompt. `fit`: the cut is a ceiling (what chapters cover, outside the last `recentMessages`, default
+  100) and only as many leave as the model's window has no room for; a chat that fits is sent in full. `scenes`: a
+  scene leaves whole as soon as a chapter (or an arc over chapters) holds it, never in part, and the last `sceneKeep`
+  messages (2 and up, no upper limit that matters) always stay after it; the window still trims the rest. After a real
+  generation the engine writes `litopys/prompt-cut/<chatId>.json` (`{ count, upTo }`: where the prompt's word-for-word
+  history began, `count` 0 = the whole chat); the Litopys insert carries a chapter for every message before it, and in
+  `scenes` mode exactly those. `GET /chats/:id` returns that as `meta.promptCut` and the ceiling (or, in `scenes`, the
+  cut) as `meta.litopysCut`.
 - Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector } }`, one for each chapter and active fact, written
   after a chapter when an embedding connection exists): when the engine passes the embedding of the scan window
   (`turn.scanVec`), the facts and chapters that are ranked get a bonus for being near it in meaning (an arc takes the

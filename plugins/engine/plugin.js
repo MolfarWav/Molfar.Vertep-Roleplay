@@ -1593,31 +1593,58 @@ function litRangeOf(ch, line) {
   if (toAt >= fromIdx) return { fromIdx, toIdx: toAt, orphan: false, partial: false };
   return { fromIdx, toIdx: Math.min(line.length - 1, fromIdx + Math.max(1, Number(ch.count) || 1) - 1), orphan: false, partial: true };
 }
-function litCoveredCount(st, line) {
-  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return 0;
+/** The ends (count of line messages up to and including a chapter) of the chapters that cover the line
+ *  from its start without a gap, ascending: where a whole scene ends. */
+function litSceneEnds(st, line) {
+  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return [];
   const ranges = st.chapters
     .filter((ch) => ch && typeof ch === "object" && ch.stale !== true)
     .map((ch) => litRangeOf(ch, line))
     .filter((r) => !r.orphan && !r.partial)
     .sort((a, b) => a.fromIdx - b.fromIdx);
   let covered = 0;
+  const ends = new Set();
   for (const r of ranges) {
     if (r.fromIdx > covered) break;
     if (r.toIdx + 1 > covered) covered = r.toIdx + 1;
+    ends.add(Math.min(r.toIdx + 1, line.length));
   }
-  return Math.min(covered, line.length);
+  return [...ends].sort((a, b) => a - b);
 }
-/** How many of the line's first messages Litopys holds as chapters and the prompt may drop; 0 when Litopys is off. */
-function litopysCut(fsx, chatId, line) {
+function litCoveredCount(st, line) {
+  const ends = litSceneEnds(st, line);
+  return ends.length ? ends[ends.length - 1] : 0;
+}
+/** Litopys's settings that decide the cut. cutMode "fit" (default): the window decides how much of what
+ *  chapters cover leaves the prompt. "scenes": whole scenes leave as soon as a chapter holds them, and
+ *  `sceneKeep` (2 and up) direct messages stay after the last one. */
+function litopysCutConfig(fsx) {
   let cfg = {};
   try { const c = JSON.parse(fsx.read("litopys/config.json")); if (c && typeof c === "object") cfg = c; } catch {}
-  if (cfg.enabled === false || cfg.insert === false) return 0;
+  const n = Number(cfg.recentMessages);
+  const k = Number(cfg.sceneKeep);
+  return {
+    off: cfg.enabled === false || cfg.insert === false,
+    scenes: cfg.cutMode === "scenes",
+    recent: Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 100,
+    keep: Number.isFinite(k) ? Math.min(100000, Math.max(2, Math.round(k))) : 2,
+  };
+}
+/** How many of the line's first messages Litopys holds as chapters and the prompt may drop; 0 when Litopys is
+ *  off. In "fit" mode this is a ceiling (outside the last `recentMessages`); in "scenes" mode it is the cut
+ *  itself: the end of the last whole scene that leaves `sceneKeep` messages after it. */
+function litopysCut(fsx, chatId, line) {
+  const c = litopysCutConfig(fsx);
+  if (c.off) return 0;
   let st = null;
   try { st = JSON.parse(fsx.read("litopys/chats/" + chatId + ".json")); } catch {}
   if (!st) return 0;
-  const n = Number(cfg.recentMessages);
-  const recent = Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 100;
-  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - recent));
+  if (c.scenes) {
+    const limit = line.length - c.keep;
+    const ends = litSceneEnds(st, line).filter((e) => e <= limit);
+    return ends.length ? ends[ends.length - 1] : 0;
+  }
+  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - c.recent));
 }
 /** How many of the first `maxCut` line messages must leave the prompt for the rest to fit: the
  *  Litopys cut is a ceiling (what chapters cover, outside the recent stretch), the window decides
@@ -3151,7 +3178,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // Litopys's cut is a ceiling: only as many covered messages leave as the window needs
   const litCeiling = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
   const rawTokens = (m) => estimateTokens(m.text) + 4;
-  const litCut = litCeiling > 0
+  const litScenes = litCeiling > 0 && litopysCutConfig(fsx).scenes;
+  const litCut = litScenes ? litCeiling : litCeiling > 0
     ? litopysFitCut(litLine, litCeiling, fixedTokens() + litLine.reduce((a, m) => a + rawTokens(m), 0) - budget, rawTokens)
     : 0;
   if (isOff("plugin:litopys")) {
@@ -3222,7 +3250,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
   if (litCut > 0) {
-    omit("memory", litCut + " messages kept as Litopys chapters", "the window has no room for them; the Litopys insert carries them", undefined, "history");
+    omit("memory", litCut + " messages kept as Litopys chapters", litScenes ? "whole scenes the chapters hold; the Litopys insert carries them" : "the window has no room for them; the Litopys insert carries them", undefined, "history");
   }
 
   // compact chat history: the visible chat collapses into ONE message of the

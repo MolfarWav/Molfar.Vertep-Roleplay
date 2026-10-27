@@ -146,11 +146,17 @@ export function estimateTokens(text) {
 // ---------- config ----------
 /** Without a Dashboard snapshot, whoever wrote in this many latest messages counts as present. */
 const PRESENT_WINDOW = 20;
+/** Direct messages kept after the cut scenes: from 2, no upper limit that matters (a huge number cuts nothing). */
+const SCENE_KEEP_MAX = 100000;
 
 export const DEFAULT_CONFIG = {
   enabled: true,
   model: "",
   recentMessages: 100,
+  // "fit": the model's window decides how much of what chapters cover leaves the prompt; "scenes": a scene
+  // leaves whole as soon as its chapter exists, and sceneKeep (2 and up, no upper limit in practice) direct messages stay after the last one
+  cutMode: "fit",
+  sceneKeep: 2,
   scene: {
     minMessages: 6,
     maxMessages: 40,
@@ -379,6 +385,8 @@ export function loadConfig(fsx) {
   };
   if (cfg.scene.maxMessages < cfg.scene.minMessages) cfg.scene.maxMessages = cfg.scene.minMessages;
   cfg.recentMessages = clamp(cfg.recentMessages, 6, 200);
+  cfg.cutMode = cfg.cutMode === "scenes" ? "scenes" : "fit";
+  cfg.sceneKeep = clamp(cfg.sceneKeep, 2, SCENE_KEEP_MAX);
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
@@ -423,6 +431,8 @@ export function patchConfig(fsx, body) {
   if (b.enabled !== undefined) next.enabled = b.enabled !== false && b.enabled !== "off";
   if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
   if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 100), 6, 200);
+  if (b.cutMode !== undefined) next.cutMode = b.cutMode === "scenes" ? "scenes" : "fit";
+  if (b.sceneKeep !== undefined) next.sceneKeep = clamp(intOf(b.sceneKeep, 2), 2, SCENE_KEEP_MAX);
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);
@@ -740,8 +750,36 @@ export function coveredCount(st, line) {
   return Math.min(covered, line.length);
 }
 
-/** M3b item 2: the cut count = covered, at most line.length - recentMessages. */
+/** The ends (count of line messages up to the end of a chapter) of the chapters covering the line from its
+ *  start without a gap, ascending: where a whole scene ends. Same coverage rules as coveredCount. */
+export function sceneEnds(st, line) {
+  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return [];
+  const ranges = st.chapters
+    .filter((ch) => isObj(ch) && (ch.stale !== true || ch.edited === true))
+    .map((ch) => ({ ...rangeOf(ch, line), edited: ch.edited === true }))
+    .concat(skipRanges(st, line))
+    .filter((r) => !r.orphan && (!r.partial || r.edited))
+    .sort((a, b) => a.fromIdx - b.fromIdx);
+  let covered = 0;
+  const ends = new Set();
+  for (const r of ranges) {
+    if (r.fromIdx > covered) break;
+    if (r.toIdx + 1 > covered) covered = r.toIdx + 1;
+    ends.add(Math.min(r.toIdx + 1, line.length));
+  }
+  return [...ends].sort((a, b) => a - b);
+}
+
+/**
+ * M3b item 2: the cut count = covered, at most line.length - recentMessages. In cutMode "scenes" it is
+ * the end of the last whole scene that leaves sceneKeep messages after it (a scene goes whole or not at all).
+ */
 export function cutCount(st, line, cfg) {
+  if (cfg && cfg.cutMode === "scenes") {
+    const limit = line.length - clamp(cfg.sceneKeep, 2, SCENE_KEEP_MAX);
+    const ends = sceneEnds(st, line).filter((e) => e <= limit);
+    return ends.length ? ends[ends.length - 1] : 0;
+  }
   const covered = coveredCount(st, line);
   const recent = (cfg && cfg.recentMessages) || DEFAULT_CONFIG.recentMessages;
   const limit = Math.max(0, line.length - recent);
@@ -1133,9 +1171,12 @@ export function rankChapters(chapters, scanText, sem) {
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
-  // the prompt may have dropped more of the oldest messages than the recent window allows (a small
-  // window): the engine says where its history starts, and what lies before is carried here
-  const cut = Math.max(cutCount(st, line, cfg), Math.min(line.length, Math.max(0, Number(promptCut) || 0)));
+  // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
+  // window may have dropped more than the recent window allows: what lies before is carried here. In
+  // "scenes" mode the engine's cut is the cut: a scene still in the prompt is not carried twice.
+  const told = Number.isInteger(promptCut) && promptCut >= 0 ? Math.min(line.length, promptCut) : null;
+  const own = cutCount(st, line, cfg);
+  const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
   // who is present: the newest snapshot of the line, else the names in the recent window
   const present = new Set();
   let snapFound = false;
@@ -2218,13 +2259,14 @@ export function pickChats(fsx, now) {
 
 // ---------- M3b: the sweep, migrated weights, card repeats, dashboard notes, rebuild ----------
 const INSERT_DIR = "litopys/insert/";
-/** Where the engine's last prompt started its verbatim history (count of line messages before it),
- *  0 when the file is missing or the chat has changed since (the id at that place is another). */
+/** Where the engine's last prompt started its verbatim history (count of line messages before it);
+ *  null when it left no record or the chat has changed since (the id at that place is another). */
 function promptCutOf(fsx, chatId, line) {
   const r = readJson(fsx, "litopys/prompt-cut/" + chatId + ".json", null);
-  const n = isObj(r) ? Number(r.count) : 0;
-  if (!Number.isInteger(n) || n <= 0 || n > line.length) return 0;
-  return line[n - 1] && line[n - 1].id === r.upTo ? n : 0;
+  const n = isObj(r) ? Number(r.count) : NaN;
+  if (!Number.isInteger(n) || n < 0 || n > line.length) return null;
+  if (n === 0) return 0;
+  return line[n - 1] && line[n - 1].id === r.upTo ? n : null;
 }
 
 /** The weight of an old vault entry: by its importance (1-5), a pinned one at least important. */
