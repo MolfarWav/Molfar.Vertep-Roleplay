@@ -42,9 +42,9 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number }
+  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | '' }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
-  dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number } | null
+  dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt } | null
   ready: WorldLevel[]
   /** the profile in force: a level's id or an own profile's id; null when off */
   profile: string | null
@@ -145,11 +145,14 @@ export interface WorldProfileDefaults { everyN: number; stagnation: number; onTr
 /** deck: events come only from the chat's events deck (built at start; "New deck" when used up) */
 /** dice: code rolls 2d6 + one Dashboard number before a reply ('flavour' = a nudge the model may soften, 'strict' = binding); diceStat: which number; diceChance: percent of replies that get a roll */
 export type WorldDiceMode = 'off' | 'flavour' | 'strict'
+/** how kind the dice are: the limits between miss / no but / yes but / full success move by one */
+export const WORLD_DICE_TILTS = ['kind', 'even', 'harsh'] as const
+export type WorldDiceTilt = (typeof WORLD_DICE_TILTS)[number]
 export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'affection'] as const
 /** 'auto' = the model takes the stat the attempted action leans on */
 export const WORLD_DICE_STAT_CHOICES = ['auto', ...WORLD_DICE_STATS] as const
 export type WorldDiceStat = (typeof WORLD_DICE_STAT_CHOICES)[number]
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number }
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string
@@ -499,4 +502,31 @@ export async function linkWorldBackgrounds(ref: WorldRef, folderId: string | nul
 /** A vision model names one image (no model = the engine's Vision model). */
 export async function nameBackgroundImage(image: { data: string; mimeType: string }, o: { model?: string; hint?: string } = {}): Promise<{ ok: boolean; file?: string; tags?: string[]; error?: string; message?: string; code?: WorldErrorCode }> {
   return j('/world/backgrounds/name', { method: 'POST', body: JSON.stringify({ image, ...o }) })
+}
+
+/** One entry of the chat's roll log (`GET /world/dice`): a quiet roll has gated false and no dice. */
+export interface WorldDiceRoll {
+  at: number
+  op: string
+  mode: WorldDiceMode
+  stat: WorldDiceStat
+  tilt?: WorldDiceTilt
+  who: string
+  value: number | null
+  chance: number
+  gated: boolean
+  gate: number
+  d1?: number
+  d2?: number
+  mod?: number
+  total?: number
+  outcome?: 'miss' | 'no_but' | 'yes_but' | 'full'
+  /** auto only: the outcome for each present character and stat */
+  by?: Record<string, Record<string, string>>
+  inserted: boolean
+}
+
+/** The chat's last rolls, oldest first. */
+export async function loadWorldDice(chatId: string): Promise<WorldDiceRoll[]> {
+  return (await j<{ rolls: WorldDiceRoll[] }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)).rolls
 }

@@ -92,7 +92,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0 };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "" };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -183,6 +183,7 @@ function cleanSettings(s) {
     // this chat's dice over the profile's: "" / 0 = the profile decides (user, 2026-10-27: the switch sits in the chat's sheet)
     dice: DICE_MODES.includes(b.dice) ? b.dice : "",
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : "",
+    diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : "",
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
@@ -577,8 +578,10 @@ const DEFAULT_PROFILE_SETTINGS = { everyN: DEFAULT_SETTINGS.everyN, stagnation: 
 export const DICE_MODES = ["off", "flavour", "strict"];
 export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affection"];
 // "auto": the model takes the stat the attempted action leans on (code rolls the die once and gives the result for every stat)
+// how kind the dice are: the totals up to each limit are miss / no but / yes but, above the last one a full success
+export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25 };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even" };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -591,6 +594,7 @@ function cleanOptions(o) {
     dice: DICE_MODES.includes(b.dice) ? b.dice : DEFAULT_OPTIONS.dice,
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : DEFAULT_OPTIONS.diceStat,
     diceChance: Number.isFinite(Number(b.diceChance)) ? clamp(Math.round(Number(b.diceChance)), 1, 100) : DEFAULT_OPTIONS.diceChance,
+    diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : DEFAULT_OPTIONS.diceTilt,
   };
 }
 
@@ -1082,19 +1086,19 @@ export function seededRandom(seed) {
 
 export const diceMod = (value) => (Number.isFinite(value) ? clamp(Math.sign(value) * Math.round(Math.abs(value) / 20), -5, 5) : 0);
 
-export function diceOutcome(total) {
-  return total <= DICE_BANDS[0] ? "miss" : total <= DICE_BANDS[1] ? "no_but" : total <= DICE_BANDS[2] ? "yes_but" : "full";
+export function diceOutcome(total, bands = DICE_BANDS) {
+  return total <= bands[0] ? "miss" : total <= bands[1] ? "no_but" : total <= bands[2] ? "yes_but" : "full";
 }
 
 /** One roll for one reply: first whether the die is on the table at all (chance, percent), then 2d6 + mod. */
-export function rollFate(seed, chance, mod) {
+export function rollFate(seed, chance, mod, bands = DICE_BANDS) {
   const rnd = seededRandom(seed);
   const gate = Math.floor(rnd() * 100) + 1;
   if (gate > chance) return { gated: false, gate };
   const d1 = Math.floor(rnd() * 6) + 1;
   const d2 = Math.floor(rnd() * 6) + 1;
   const total = d1 + d2 + mod;
-  return { gated: true, gate, d1, d2, mod, total, outcome: diceOutcome(total) };
+  return { gated: true, gate, d1, d2, mod, total, outcome: diceOutcome(total, bands) };
 }
 
 export function diceInsert(roll, mode, stat, who) {
@@ -1111,16 +1115,16 @@ export function diceInsert(roll, mode, stat, who) {
 }
 
 /** Auto: one 2d6 for the whole scene, and the outcome it makes with each present character's numbers; the model takes the person the action is aimed at and the stat it leans on. */
-export function rollFateAuto(seed, chance, cast) {
-  const roll = rollFate(seed, chance, 0);
+export function rollFateAuto(seed, chance, cast, bands = DICE_BANDS) {
+  const roll = rollFate(seed, chance, 0, bands);
   if (!roll.gated) return roll;
   const base = roll.d1 + roll.d2;
   const by = {};
   for (const c of cast) {
     by[c.who] = {};
-    for (const st of DICE_STATS) by[c.who][st] = diceOutcome(base + diceMod(c.stats[st]));
+    for (const st of DICE_STATS) by[c.who][st] = diceOutcome(base + diceMod(c.stats[st]), bands);
   }
-  return { gated: true, gate: roll.gate, d1: roll.d1, d2: roll.d2, mod: 0, total: base, outcome: diceOutcome(base), by };
+  return { gated: true, gate: roll.gate, d1: roll.d1, d2: roll.d2, mod: 0, total: base, outcome: diceOutcome(base, bands), by };
 }
 
 export function diceInsertAuto(roll, mode) {
@@ -1198,6 +1202,7 @@ export function diceOf(profile, settings) {
     mode: settings.dice || o.dice,
     stat: settings.diceStat || o.diceStat,
     chance: settings.diceChance || o.diceChance,
+    tilt: settings.diceTilt || o.diceTilt,
   };
 }
 
@@ -1242,19 +1247,20 @@ export function llmRequest(ctx, host) {
     }
     if (diceMode !== "off") {
       const opt = { diceStat: dice.stat, diceChance: dice.chance };
+      const bands = DICE_TILTS[dice.tilt] || DICE_BANDS;
       // the chat's own last message, not the request: other plugins rewrite the request text before or after this hook
       const msgs = chat ? chat.msgs : [];
       const seed = chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
       let text = "";
       if (opt.diceStat === "auto") {
         const cast = diceCastOf(fsx, chatId, msgs, str(turn.speakerName));
-        const roll = rollFateAuto(seed, opt.diceChance, cast);
-        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: "auto", who: cast.map((c) => c.who).join(", "), value: null, chance: opt.diceChance, ...roll, inserted: roll.gated });
+        const roll = rollFateAuto(seed, opt.diceChance, cast, bands);
+        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: "auto", tilt: dice.tilt, who: cast.map((c) => c.who).join(", "), value: null, chance: opt.diceChance, ...roll, inserted: roll.gated });
         if (roll.gated) text = diceInsertAuto(roll, diceMode);
       } else {
         const { who, value } = diceStatOf(fsx, chatId, msgs, str(turn.speakerName), opt.diceStat);
-        const roll = rollFate(seed, opt.diceChance, diceMod(value));
-        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: opt.diceStat, who, value, chance: opt.diceChance, ...roll, inserted: roll.gated });
+        const roll = rollFate(seed, opt.diceChance, diceMod(value), bands);
+        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: opt.diceStat, tilt: dice.tilt, who, value, chance: opt.diceChance, ...roll, inserted: roll.gated });
         if (roll.gated) text = diceInsert(roll, diceMode, opt.diceStat, who);
       }
       if (text) parts.push({ kind: "plugin", label: "Dice", text });
@@ -2518,7 +2524,7 @@ function settingsRoute(req, host) {
   if (b.level !== undefined && !READY_LEVELS.includes(b.level)) return ok({ error: "unknown or unfinished level" }, 400);
   const { state, existed } = loadState(host.fs, chatId);
   const patch = {};
-  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance", "diceTilt"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, rollFate, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, rollFate, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0 });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "" });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -153,7 +153,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0 });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "" });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -390,9 +390,23 @@ describe("the dice (code rolls before the reply)", () => {
   };
 
   it("maps 2d6 plus the modifier to four outcomes and the stat to -5..+5", () => {
-    expect([2, 5, 6, 7, 8, 9, 10, 17].map(diceOutcome)).toEqual(["miss", "miss", "no_but", "no_but", "yes_but", "yes_but", "full", "full"]);
+    expect([2, 5, 6, 7, 8, 9, 10, 17].map((n) => diceOutcome(n))).toEqual(["miss", "miss", "no_but", "no_but", "yes_but", "yes_but", "full", "full"]);
     expect([-100, -50, 0, 9, 10, 100, 400, null].map((v) => diceMod(v as number))).toEqual([-5, -3, 0, 0, 1, 5, 5, 0]);
     expect(DICE_MODES).toEqual(["off", "flavour", "strict"]);
+  });
+
+  it("tilts the limits: kind, even and harsh move where each outcome starts", () => {
+    expect(DICE_TILTS.even).toEqual([5, 7, 9]);
+    expect([8, 9, 10, 11].map((n) => diceOutcome(n, DICE_TILTS.kind))).toEqual(["yes_but", "full", "full", "full"]);
+    expect([8, 9, 10, 11].map((n) => diceOutcome(n, DICE_TILTS.harsh))).toEqual(["no_but", "yes_but", "yes_but", "full"]);
+    expect(rollFate("k", 100, 0, DICE_TILTS.kind).outcome).toBe(diceOutcome((rollFate("k", 100, 0) as any).total, DICE_TILTS.kind));
+    // a chat's own tilt over the profile's, and the log keeps the tilt used
+    const m = withDice("flavour", {}, "living");
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceTilt: "harsh" }).json.dice.tilt).toBe("harsh");
+    llmRequest(req(), m.host);
+    expect(route(m.host, "GET", "/world/dice", {}, { chatId: "c1" }).json.rolls[0].tilt).toBe("harsh");
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceTilt: "" }).json.dice.tilt).toBe("even");
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceTilt: "nope" }).json.settings.diceTilt).toBe("");
   });
 
   it("rolls the same for the same seed and passes a chance gate", () => {
@@ -462,13 +476,13 @@ describe("the dice (code rolls before the reply)", () => {
     expect(llmRequest(req(), m.host)).toBe(null);
     const view = route(m.host, "PUT", "/world/settings", { chatId: "c1", dice: "strict", diceStat: "comfort", diceChance: 100 }).json;
     expect(view.settings).toMatchObject({ dice: "strict", diceStat: "comfort", diceChance: 100 });
-    expect(view.dice).toEqual({ mode: "strict", stat: "comfort", chance: 100 });
+    expect(view.dice).toEqual({ mode: "strict", stat: "comfort", chance: 100, tilt: "even" });
     const out = llmRequest(req(), m.host) as { promptSources: any };
     expect(out.promptSources.parts[0].text).toContain("(comfort of Odarka)");
     expect(out.promptSources.parts[0].text).toContain("This result binds");
     // "" hands the decision back to the profile
     const back = route(m.host, "PUT", "/world/settings", { chatId: "c1", dice: "", diceStat: "", diceChance: 0 }).json;
-    expect(back.dice).toEqual({ mode: "off", stat: "affection", chance: 100 });
+    expect(back.dice).toEqual({ mode: "off", stat: "affection", chance: 100, tilt: "even" });
     expect(llmRequest(req(), m.host)).toBe(null);
   });
 
@@ -842,6 +856,6 @@ describe("P3 stage 2: profile options", () => {
     // 3 replies read (m0, m2, m4): one tick, one reply carried over; the model's +2 ignored
     expect(after.fronts[0].clock).toBe(1);
     expect(after.clockReplies).toBe(1);
-    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25 });
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even" });
   });
 });

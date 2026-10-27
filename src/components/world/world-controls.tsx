@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DiceFields } from './dice-fields'
+import { DiceLog } from './dice-log'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
@@ -470,9 +471,11 @@ export function WorldControls({
           mode={view.dice.mode}
           stat={view.dice.stat}
           chance={view.dice.chance}
-          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}) })}
+          tilt={view.dice.tilt}
+          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}) })}
         />
       )}
+      {events && view.dice && view.dice.mode !== 'off' && <DiceLog chatId={chatId} />}
     </section>
   )
 

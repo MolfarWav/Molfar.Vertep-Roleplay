@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { WORLD_DICE_STAT_CHOICES, type WorldDiceMode, type WorldDiceStat } from '@/lib/world'
+import { WORLD_DICE_STAT_CHOICES, WORLD_DICE_TILTS, type WorldDiceMode, type WorldDiceStat, type WorldDiceTilt } from '@/lib/world'
 
 export function NumField({ label, value, min, max, onCommit }: { label: string; value: number; min: number; max: number; onCommit: (n: number) => void }) {
   const [text, setText] = useState(String(value))
@@ -34,11 +34,12 @@ export function NumField({ label, value, min, max, onCommit }: { label: string; 
 
 const MODES = ['off', 'flavour', 'strict'] as const satisfies readonly WorldDiceMode[]
 
-export function DiceFields({ mode, stat, chance, onChange }: {
+export function DiceFields({ mode, stat, chance, tilt, onChange }: {
   mode: WorldDiceMode
   stat: WorldDiceStat
   chance: number
-  onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number }) => void
+  tilt: WorldDiceTilt
+  onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number; diceTilt?: WorldDiceTilt }) => void
 }) {
   const t = useT()
   return (
@@ -68,6 +69,12 @@ export function DiceFields({ mode, stat, chance, onChange }: {
             <span className="min-w-0">{t('world.opt.diceStat')}<span className="block text-xs text-muted-foreground">{t('world.opt.diceStatHint')}</span></span>
             <select value={stat} onChange={(e) => onChange({ diceStat: e.target.value as WorldDiceStat })} aria-label={t('world.opt.diceStat')} className="h-9 rounded-md border border-border bg-background px-2 text-sm max-md:h-11">
               {WORLD_DICE_STAT_CHOICES.map((s) => <option key={s} value={s}>{t(`world.opt.diceStat.${s}` as MsgKey)}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">{t('world.opt.diceTilt')}<span className="block text-xs text-muted-foreground">{t('world.opt.diceTiltHint')}</span></span>
+            <select value={tilt} onChange={(e) => onChange({ diceTilt: e.target.value as WorldDiceTilt })} aria-label={t('world.opt.diceTilt')} className="h-9 rounded-md border border-border bg-background px-2 text-sm max-md:h-11">
+              {WORLD_DICE_TILTS.map((v) => <option key={v} value={v}>{t(`world.opt.diceTilt.${v}` as MsgKey)}</option>)}
             </select>
           </label>
           <label className="flex items-center justify-between gap-3 text-sm">
