@@ -25,7 +25,7 @@ export function WindowUnknownNote({ model, assumed }: { model: string; assumed: 
       {canOpenModelSettings() && (
         <button
           type="button"
-          className="shrink-0 underline underline-offset-2 hover:text-foreground max-md:min-h-10"
+          className="shrink-0 underline underline-offset-2 hover:text-foreground max-md:min-h-10 max-md:px-2"
           onClick={() => void openModelSettings(model).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}
         >
           {t('ctx.unknownSet')}

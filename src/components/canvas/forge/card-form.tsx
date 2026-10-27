@@ -52,6 +52,14 @@ export function NumberBox({ value, onChange, min, max, label, placeholder }: { v
         const n = Number(raw)
         if (Number.isFinite(n) && (min === undefined || n >= min) && (max === undefined || n <= max)) onChange(n)
       }}
+      onBlur={() => {
+        // a number outside the limits is not reported while typing; on leaving the box it is pulled
+        // to the nearest limit, so the box never shows a value the draft does not hold
+        const n = Number(text)
+        if (text.trim() === '' || !Number.isFinite(n)) return
+        const c = Math.min(max ?? n, Math.max(min ?? n, Math.round(n)))
+        if (String(c) !== text) { setText(String(c)); onChange(c) }
+      }}
     />
   )
 }

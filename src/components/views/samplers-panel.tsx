@@ -264,7 +264,7 @@ function FromModel({ label, value, note, model }: { label: string; value: number
   return (
     <div className="flex flex-col gap-1" data-testid="from-model">
       <Label className="text-xs">{label}</Label>
-      <div className="flex h-7 items-center gap-2">
+      <div className="flex min-h-7 items-center gap-2">
         {value === null ? (
           <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">{t('model.ctxUnknownTag')}</span>
         ) : (
@@ -274,7 +274,7 @@ function FromModel({ label, value, note, model }: { label: string; value: number
           </>
         )}
         {canOpenModelSettings() && model && (
-          <button type="button" className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => void openModelSettings(model).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
+          <button type="button" className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline max-md:min-h-10 max-md:px-2" onClick={() => void openModelSettings(model).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
             {t('model.setUp')}
           </button>
         )}
