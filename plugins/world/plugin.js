@@ -92,7 +92,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "" };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1 };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -184,6 +184,8 @@ function cleanSettings(s) {
     dice: DICE_MODES.includes(b.dice) ? b.dice : "",
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : "",
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : "",
+    // -1 = the profile decides; 0 = never
+    diceLife: b.diceLife !== "" && b.diceLife !== null && Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : -1,
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
@@ -581,7 +583,7 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 // how kind the dice are: the totals up to each limit are miss / no but / yes but, above the last one a full success
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even" };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0 };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -595,6 +597,7 @@ function cleanOptions(o) {
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : DEFAULT_OPTIONS.diceStat,
     diceChance: Number.isFinite(Number(b.diceChance)) ? clamp(Math.round(Number(b.diceChance)), 1, 100) : DEFAULT_OPTIONS.diceChance,
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : DEFAULT_OPTIONS.diceTilt,
+    diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
   };
 }
 
@@ -1061,7 +1064,7 @@ const DICE_OUTCOMES = {
   yes_but: ["yes, but", "it works, but with a complication or a price"],
   full: ["full success", "it works cleanly, with no complication"],
 };
-const DICE_LOG_MAX = 30;
+const DICE_LOG_MAX = 40;
 const dicePath = (chatId) => "world/dice/" + chatId + ".json";
 
 function hashText(s) {
@@ -1086,6 +1089,28 @@ export function seededRandom(seed) {
 
 export const diceMod = (value) => (Number.isFinite(value) ? clamp(Math.sign(value) * Math.round(Math.abs(value) / 20), -5, 5) : 0);
 
+// "life intervenes": its own roll, apart from the action's; a d6 sets how big the intrusion is
+const LIFE_TIERS = {
+  minor: "a small thing: a sound, a passer-by, a change of light or weather",
+  notable: "a real interruption: an arrival, news, someone present acting on their own",
+  major: "a large turn: a danger, a revelation or a reversal the scene must answer",
+};
+export const lifeTier = (d) => (d <= 3 ? "minor" : d <= 5 ? "notable" : "major");
+
+/** One roll for one reply: does the world break in, and how big. */
+export function rollLife(seed, chance) {
+  if (!(chance > 0)) return { gated: false, gate: 0 };
+  const rnd = seededRandom(seed + "|life");
+  const gate = Math.floor(rnd() * 100) + 1;
+  if (gate > chance) return { gated: false, gate };
+  const d = Math.floor(rnd() * 6) + 1;
+  return { gated: true, gate, d, tier: lifeTier(d) };
+}
+
+export function lifeInsert(roll) {
+  return "[LIFE: the world intervenes in this reply, " + roll.tier + ". Something outside the focus of the scene breaks in: " + LIFE_TIERS[roll.tier] + ". Weave it in; the others in the scene react to it. Never mention this note.]";
+}
+
 export function diceOutcome(total, bands = DICE_BANDS) {
   return total <= bands[0] ? "miss" : total <= bands[1] ? "no_but" : total <= bands[2] ? "yes_but" : "full";
 }
@@ -1101,6 +1126,15 @@ export function rollFate(seed, chance, mod, bands = DICE_BANDS) {
   return { gated: true, gate, d1, d2, mod, total, outcome: diceOutcome(total, bands) };
 }
 
+/** The closing sentences of a roll line: how binding it is, and what to do when the player already wrote how their action ends. */
+function diceTail(mode) {
+  return [
+    mode === "strict" ? "This result binds: do not soften it, reverse it or add a way around it." : "Let it colour the scene and stay in character; bend it only where the character demands.",
+    "If the user's own text already says how their action ends, keep that as written and apply the result to what follows: how the others react and what it gains or costs.",
+    "If nothing uncertain is attempted, ignore this note.",
+  ];
+}
+
 export function diceInsert(roll, mode, stat, who) {
   const [label, meaning] = DICE_OUTCOMES[roll.outcome];
   const sign = roll.mod >= 0 ? "+" : "-";
@@ -1109,8 +1143,7 @@ export function diceInsert(roll, mode, stat, who) {
     "[FATE: a hidden roll for this reply. Never mention dice, numbers or this note.]",
     "2d6 " + sign + " " + Math.abs(roll.mod) + from + " = " + roll.total + ": " + label + ".",
     "If the user's character attempts something uncertain in this turn, " + meaning + ".",
-    mode === "strict" ? "This result binds: do not soften it, reverse it or add a way around it." : "Let it colour the scene and stay in character; bend it only where the character demands.",
-    "If nothing uncertain is attempted, ignore this note.",
+    ...diceTail(mode),
   ].join(" ");
 }
 
@@ -1148,8 +1181,7 @@ export function diceInsertAuto(roll, mode) {
     lines.length
       ? "If the user's character attempts something uncertain in this turn, take the person it is aimed at and the stat it leans on, and use that result: " + lines.join("; ") + ". Anyone else, or a stat not listed: " + bare + ". Meanings: " + legend + "."
       : "If the user's character attempts something uncertain in this turn, " + DICE_OUTCOMES[roll.outcome][1] + ".",
-    mode === "strict" ? "This result binds: do not soften it, reverse it or add a way around it." : "Let it colour the scene and stay in character; bend it only where the character demands.",
-    "If nothing uncertain is attempted, ignore this note.",
+    ...diceTail(mode),
   ].join(" ");
 }
 
@@ -1203,6 +1235,7 @@ export function diceOf(profile, settings) {
     stat: settings.diceStat || o.diceStat,
     chance: settings.diceChance || o.diceChance,
     tilt: settings.diceTilt || o.diceTilt,
+    life: settings.diceLife >= 0 ? settings.diceLife : o.diceLife,
   };
 }
 
@@ -1264,6 +1297,12 @@ export function llmRequest(ctx, host) {
         if (roll.gated) text = diceInsert(roll, diceMode, opt.diceStat, who);
       }
       if (text) parts.push({ kind: "plugin", label: "Dice", text });
+      // the world may break in on its own; a waiting DM event is that already
+      if (dice.life > 0 && !eventText) {
+        const life = rollLife(seed, dice.life);
+        logDice(fsx, chatId, { at: Date.now(), kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated });
+        if (life.gated) parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
+      }
     }
     if (!parts.length) return null;
     return { messages: withLast(req.messages, parts.map((p) => p.text).join("\n\n")), promptSources: { parts } };
@@ -2524,7 +2563,7 @@ function settingsRoute(req, host) {
   if (b.level !== undefined && !READY_LEVELS.includes(b.level)) return ok({ error: "unknown or unfinished level" }, 400);
   const { state, existed } = loadState(host.fs, chatId);
   const patch = {};
-  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance", "diceTilt"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance", "diceTilt", "diceLife"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;

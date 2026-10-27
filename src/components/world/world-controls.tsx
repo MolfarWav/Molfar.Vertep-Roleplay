@@ -472,7 +472,8 @@ export function WorldControls({
           stat={view.dice.stat}
           chance={view.dice.chance}
           tilt={view.dice.tilt}
-          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}) })}
+          life={view.dice.life}
+          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}), ...(p.diceLife !== undefined ? { diceLife: p.diceLife } : {}) })}
         >
           <DiceLog chatId={chatId} />
         </DiceFields>

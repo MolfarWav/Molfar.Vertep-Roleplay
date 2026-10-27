@@ -20,6 +20,7 @@ export function DiceLog({ chatId }: { chatId: string }) {
   const outcome = (o: string | undefined) => (o ? t(`world.dice.out.${o}` as MsgKey) : '')
 
   const line = (r: WorldDiceRoll) => {
+    if (r.kind === 'life') return r.gated ? t('world.dice.life', { tier: t(`world.dice.tier.${r.tier}` as MsgKey) }) : t('world.dice.life.quiet')
     if (!r.gated) return t('world.dice.quiet', { gate: r.gate, chance: r.chance })
     const dice = `${r.d1}+${r.d2}`
     if (r.stat === 'auto') {
@@ -39,8 +40,8 @@ export function DiceLog({ chatId }: { chatId: string }) {
         {rolls && rolls.length === 0 && <p className="text-xs text-muted-foreground">{t('world.dice.log.empty')}</p>}
         {rolls && rolls.length > 0 && (
           <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-            {rolls.map((r) => (
-              <li key={r.at} className={r.gated ? 'text-foreground' : ''}>
+            {rolls.map((r, i) => (
+              <li key={`${r.at}-${i}`} className={r.gated ? 'text-foreground' : ''}>
                 {line(r)} <span className="text-muted-foreground">· {relativeTime(r.at)}</span>
               </li>
             ))}

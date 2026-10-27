@@ -50,12 +50,13 @@ function Row({ label, hint, children }: { label: string; hint: string; children:
 }
 
 /** The dice as one card: icon and title, a three-way switch with the explanation of the chosen position, then the settings in their own group. `children` (the roll log) closes the card. */
-export function DiceFields({ mode, stat, chance, tilt, onChange, children }: {
+export function DiceFields({ mode, stat, chance, tilt, life, onChange, children }: {
   mode: WorldDiceMode
   stat: WorldDiceStat
   chance: number
   tilt: WorldDiceTilt
-  onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number; diceTilt?: WorldDiceTilt }) => void
+  life: number
+  onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number; diceTilt?: WorldDiceTilt; diceLife?: number }) => void
   children?: ReactNode
 }) {
   const t = useT()
@@ -102,6 +103,9 @@ export function DiceFields({ mode, stat, chance, tilt, onChange, children }: {
           </Row>
           <Row label={t('world.opt.diceChance')} hint={t('world.opt.diceChanceHint')}>
             <NumField label={t('world.opt.diceChance')} value={chance} min={1} max={100} onCommit={(n) => onChange({ diceChance: n })} />
+          </Row>
+          <Row label={t('world.opt.diceLife')} hint={t('world.opt.diceLifeHint')}>
+            <NumField label={t('world.opt.diceLife')} value={life} min={0} max={100} onCommit={(n) => onChange({ diceLife: n })} />
           </Row>
         </div>
       )}
