@@ -184,6 +184,13 @@ block (`HtmlInlay`) is a sealed frame the app cannot measure, so its height is
 fixed with an Expand toggle. A solo card's `voices` (`studio.voices`) feed the
 same speaker finder as group members (`lineSpeakers`, `leadVoiceIn`).
 
+Fonts a reply may name (#126): `lib/reply-fonts.ts` lists them, `main.tsx` imports
+their Latin and Cyrillic files from `@fontsource/*`; `test/rp-reply-fonts.test.ts`
+keeps the three in step. A reply cannot bring a font (`@font-face` stays stripped),
+and the sealed html block does not see the app's fonts, so they dress the reply's
+own text, not what is inside that block. Adding a font = dependency (commit the
+`bun.lock` it produces) + both imports + a line in the list.
+
 IDS DO NOT TRAVEL. Anything pointing at another entity exports a `_…Names`
 sibling and the importer re-resolves it; ids are re-minted on the way in.
 Zip text is UTF-8 — never write latin1 into the archive.

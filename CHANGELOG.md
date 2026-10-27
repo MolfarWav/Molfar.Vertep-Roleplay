@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.72.0 (2026-10-27)
+
+- The context window is the model's alone: a preset no longer carries a window. The field is gone from the preset editor (Samplers shows the model's window read-only), from imports (ST `openai_max_context`, Studio `max_context`) and from the built-in presets, and a window stored in an old preset file is ignored. The window comes from the model: the catalog, the provider's model list, or the number you set in the model's own settings. When none is known the app assumes 32768 and says so under the chat, with a "Set it" button and a close X (remembered per model). Before, a preset's own number (16384 when absent) could silently cut a long chat's history on a model with a much larger window. See docs/DATA-FORMATS.md.
+- Agents, how often an agent runs: in the Agents sheet, an installed agent's "Model, limits and pace" has "Runs every N replies" (1 to 50). It overrides the author's cadence for you only, lives in your `agents/config.json` (`byAgent.<id>.everyN`), and "Use the author's" clears it. It is per installed agent, not per chat.
+- Agents, a bigger Input: the Input card's history source has "Most recent messages" (`last`, 10 by default, up to 60) in the form, and "Most tokens" (`tokens`, 100 to 100000): the oldest rows are dropped until the text fits, the newest message always stays. The count is an estimate (script-aware, so Ukrainian text is not undercounted). It is a cap the author sets, not an automatic fit to the role model's window: a plugin does not know that window.
+- Agents, Try shows the size: each asked model's card in Try says `~N tokens in`, so you see what the agent sends before it runs on a small model.
+- Fonts for replies (#126): a reply, or your Custom CSS, can name `Caveat`, `Marck Script`, `Lobster`, `Playfair Display`, `Cormorant Garamond`, `Oswald`, `PT Mono` or `Ruslan Display` in `font-family`, and the app now has them (Latin and Cyrillic, bundled with the app, nothing fetched from the net; a browser loads a file only when a page uses the family). A reply still cannot bring a font: `@font-face` stays stripped. The fenced html block runs in a sealed frame that does not see the app's fonts, so they apply to the reply's own text, not inside that block. A self-sizing html block stays open in #126.
+
 ## 4.71.0 (2026-10-26)
 
 - Agents, a block for results: in a chat's Agents tab, the place button of an agent has a new switch, "Also show in the block". An agent with it on keeps its latest result (notes, hints for the next reply, choices, changes to its state) in a folded block above the message box, next to the place it already shows in; the block stays when the history scrolls away. It is per chat, saved in the chat's agents binding (`also`), never goes to the model, and the places themselves are unchanged.
