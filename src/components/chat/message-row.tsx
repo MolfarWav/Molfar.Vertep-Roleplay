@@ -13,8 +13,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RichText } from '@/components/rich-blocks'
-import { DialogueVoices, Markdown } from '@/components/markdown'
-import { cardVoices, groupVoices, memberColor, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
+import { DialogueVoices, Markdown, VoiceLeadOnly } from '@/components/markdown'
+import { cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
 import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
@@ -495,9 +495,18 @@ export const MessageRow = memo(function MessageRow({
   const personaQuoteColor = isUser ? (speaker as Persona | undefined)?.dialogueColor : undefined
   // a single card that plays several characters (Narrator type) lists them in its `voices`
   const soloVoices = !groupChar && !isUser ? character?.voices : undefined
+  // the player's own message can carry other characters' lines ("Keiko: ..."): those take their colours, by
+  // the label only (see VoiceLeadOnly); the rest stays in the persona's colour
+  const userVoices = useMemo<DialogueVoice[]>(() => {
+    if (!isUser) return NO_VOICES
+    if (groupChar) return groupVoices(groupChar, characters)
+    if (character?.voices?.length) return cardVoices({ voices: character.voices })
+    const match = character?.colors?.dialogue ? voiceMatcher(character.name) : null
+    return match && character?.colors?.dialogue ? [{ name: character.name, color: character.colors.dialogue, match }] : NO_VOICES
+  }, [isUser, groupChar, characters, character])
   const voices = useMemo(
-    () => (groupChar && !isUser && !speakingMember ? groupVoices(groupChar, characters) : soloVoices?.length ? cardVoices({ voices: soloVoices }) : NO_VOICES),
-    [groupChar, isUser, speakingMember, characters, soloVoices],
+    () => (isUser ? userVoices : groupChar && !speakingMember ? groupVoices(groupChar, characters) : soloVoices?.length ? cardVoices({ voices: soloVoices }) : NO_VOICES),
+    [groupChar, isUser, userVoices, speakingMember, characters, soloVoices],
   )
   // expression sprites: the reply's own words pick the sprite (keyword
   // classifier + synonym resolution against the card's sprite set). Memoized:
@@ -848,6 +857,7 @@ export const MessageRow = memo(function MessageRow({
               }
             >
               <DialogueVoices.Provider value={voices}>
+              <VoiceLeadOnly.Provider value={isUser}>
               <div key={`${message.id}-${shownSwipe}`}>
                 {parts ? (
                   // committed tool-using reply: thinking, text and tool rows
@@ -914,6 +924,7 @@ export const MessageRow = memo(function MessageRow({
                   </div>
                 )}
               </div>
+              </VoiceLeadOnly.Provider>
               </DialogueVoices.Provider>
             </div>
           )}

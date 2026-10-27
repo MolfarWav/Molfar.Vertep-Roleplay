@@ -282,6 +282,10 @@ export interface LitConfig {
   enabled: boolean
   model: string
   recentMessages: number
+  /** 'fit' (default): the model's window decides what leaves the prompt; 'scenes': whole scenes leave once a chapter holds them */
+  cutMode?: 'fit' | 'scenes'
+  /** direct messages kept after the cut scenes in 'scenes' mode, from 2 */
+  sceneKeep?: number
   scene: { minMessages: number; maxMessages: number }
   pinLimit: number
   insert: boolean

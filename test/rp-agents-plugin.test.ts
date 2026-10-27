@@ -253,6 +253,21 @@ describe("a run after a reply", () => {
     install({ when: "after", keywords: ["imp"] });
     expect(runChat("c1").ran[0].status).toBe("ok"); // not case-sensitive, looked for in the last two messages
   });
+
+  it("the user's own everyN replaces the author's, and clearing it brings the author's back", () => {
+    const f = copy(keeper); f.agent.trigger = { when: "after", everyN: 2 }; delete f.agent.derived;
+    j("/agents/install", "PUT", { file: f, grant: true });
+    const own = (v: Json) => j("/agents/config", "PUT", { byAgent: v });
+    setMessages("c1", [...CHAT, ["user", "x"], ["char", "y"]]); // three replies: the author's 2 does not fire
+    expect(runChat("c1").skipped[0].why).toMatch(/trigger did not fire/);
+    own({ "dungeon-keeper": { everyN: 3 } }); // 3 % 3 == 0
+    expect(runChat("c1").ran[0].status).toBe("ok");
+    expect(j("/agents/list").agents.find((x: Json) => x.id === "dungeon-keeper").own.everyN).toBe(3);
+    own({ "dungeon-keeper": { everyN: 99 } }); // out of range: dropped
+    expect(j("/agents/config").byAgent).toBeUndefined();
+    own({});
+    expect(runChat("c1").skipped[0].why).toMatch(/trigger did not fire/);
+  });
 });
 
 describe("model calls one behind another", () => {
@@ -620,7 +635,7 @@ describe("config", () => {
       const get = () => j("/agents/list").agents.find((x: Json) => x.id === "chain");
       expect(get().maxCalls).toBe(3);
       own({ chain: { models: { fast: "openrouter/mine" }, maxCalls: 3 } });
-      expect(get().own).toEqual({ models: { fast: "openrouter/mine" }, maxCalls: 3 });
+      expect(get().own).toEqual({ models: { fast: "openrouter/mine" }, maxCalls: 3, everyN: 0 });
       expect(get().runnable).toBe(true);
       expect(Object.keys(get().models)).toEqual(["fast"]);
       own({ chain: { maxCalls: 2 } });

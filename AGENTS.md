@@ -184,6 +184,13 @@ block (`HtmlInlay`) is a sealed frame the app cannot measure, so its height is
 fixed with an Expand toggle. A solo card's `voices` (`studio.voices`) feed the
 same speaker finder as group members (`lineSpeakers`, `leadVoiceIn`).
 
+Fonts a reply may name (#126): `lib/reply-fonts.ts` lists them, `main.tsx` imports
+their Latin and Cyrillic files from `@fontsource/*`; `test/rp-reply-fonts.test.ts`
+keeps the three in step. A reply cannot bring a font (`@font-face` stays stripped),
+and the sealed html block does not see the app's fonts, so they dress the reply's
+own text, not what is inside that block. Adding a font = dependency (commit the
+`bun.lock` it produces) + both imports + a line in the list.
+
 IDS DO NOT TRAVEL. Anything pointing at another entity exports a `_…Names`
 sibling and the importer re-resolves it; ids are re-minted on the way in.
 Zip text is UTF-8 — never write latin1 into the archive.
@@ -422,3 +429,6 @@ Rules of thumb:
 - Writes you make through the app's own HTTP routes (POST /v1/apps/roleplay/…)
   commit to the app's git automatically; direct file edits stay pending until
   you commit them (or the engine sweeps them under an `out-of-band:` label).
+
+The Litopys cut (4.72.0): `litopysCut` in `plugins/engine/plugin.js` is a ceiling (messages a chapter covers, outside the last `recentMessages`); `litopysFitCut` takes only as many as the window needs (the same budget the trim loop uses). `GET /chats/:id` reports the ceiling as `litopysCut` and the last real prompt's start as `promptCut` (null before any prompt); the chat view draws its lines from `promptCut`, and from a window estimate until there is one. Previews (`promptPreview`, `fetchWIStatus`, `wiTest`) send the chat's model limits like a send does. After a real generation the engine writes `litopys/prompt-cut/<chat>.json` (where the verbatim history started) and Litopys's insert (`buildInsert`, `promptCut`) carries a chapter for every message before it, so a small window never drops messages that no chapter stands in for.
+In `cutMode: "scenes"` the cut is the end of the last whole scene (`litSceneEnds` in the engine, `sceneEnds` in Litopys) that leaves `sceneKeep` messages after it; the insert then takes the engine's `prompt-cut` as the cut exactly, in `fit` mode as a floor.

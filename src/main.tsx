@@ -9,6 +9,37 @@ import "@fontsource/kurale";
 import "@fontsource/noto-serif/400.css";
 import "@fontsource/noto-serif/700.css";
 import "@fontsource/noto-serif/400-italic.css";
+// Fonts a reply may name with font-family (see REPLY_FONTS in lib/reply-fonts.ts):
+// Latin and Cyrillic only, so a Ukrainian reply gets the same face as an English one.
+// The browser fetches a file only when a page actually uses the family.
+import "@fontsource/caveat/latin-400.css";
+import "@fontsource/caveat/cyrillic-400.css";
+import "@fontsource/caveat/latin-700.css";
+import "@fontsource/caveat/cyrillic-700.css";
+import "@fontsource/marck-script/latin-400.css";
+import "@fontsource/marck-script/cyrillic-400.css";
+import "@fontsource/lobster/latin-400.css";
+import "@fontsource/lobster/cyrillic-400.css";
+import "@fontsource/playfair-display/latin-400.css";
+import "@fontsource/playfair-display/cyrillic-400.css";
+import "@fontsource/playfair-display/latin-700.css";
+import "@fontsource/playfair-display/cyrillic-700.css";
+import "@fontsource/playfair-display/latin-400-italic.css";
+import "@fontsource/playfair-display/cyrillic-400-italic.css";
+import "@fontsource/cormorant-garamond/latin-400.css";
+import "@fontsource/cormorant-garamond/cyrillic-400.css";
+import "@fontsource/cormorant-garamond/latin-700.css";
+import "@fontsource/cormorant-garamond/cyrillic-700.css";
+import "@fontsource/cormorant-garamond/latin-400-italic.css";
+import "@fontsource/cormorant-garamond/cyrillic-400-italic.css";
+import "@fontsource/oswald/latin-400.css";
+import "@fontsource/oswald/cyrillic-400.css";
+import "@fontsource/oswald/latin-700.css";
+import "@fontsource/oswald/cyrillic-700.css";
+import "@fontsource/pt-mono/latin-400.css";
+import "@fontsource/pt-mono/cyrillic-400.css";
+import "@fontsource/ruslan-display/latin-400.css";
+import "@fontsource/ruslan-display/cyrillic-400.css";
 import "./globals.css";
 import { AppShell } from "@/components/shell/app-shell";
 import { noteReload } from "@/lib/engine";

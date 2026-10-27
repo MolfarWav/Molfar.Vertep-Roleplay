@@ -1508,10 +1508,25 @@ export function withModelLimits(preset, limits) {
   };
 }
 
-/** Context window (tokens) the preset asks for — the preset's openai_max_context. */
+/** The window a prompt is budgeted against when the model's own is not known (the provider does not report one
+ *  and the user has not set it in Settings > Models). A preset no longer carries a window. */
+export const UNKNOWN_WINDOW = 32768;
+/** The preset without the window an older file or an import may still carry: only the model's counts. */
+export function withoutPresetWindow(preset) {
+  if (!preset || typeof preset !== "object" || !("openai_max_context" in preset)) return preset;
+  const { openai_max_context: _ignored, ...rest } = preset;
+  return rest;
+}
+/** The preset with the model's limits in place (its own window never counts). */
+function budgeted(preset, limits) {
+  return withModelLimits(withoutPresetWindow(preset), limits);
+}
+
+/** Context window (tokens) the prompt is budgeted against: the model's, which withModelLimits put in
+ *  openai_max_context on this copy of the preset; UNKNOWN_WINDOW when it is not known. */
 function presetMaxCtx(preset) {
   return (preset && typeof preset.openai_max_context === "number" && preset.openai_max_context > 0)
-    ? preset.openai_max_context : 16384;
+    ? preset.openai_max_context : UNKNOWN_WINDOW;
 }
 /** Token estimate by script (the engine's estimateTextTokens): ASCII ~3.5 chars
  *  a token, other letters (Cyrillic, Greek...) ~2, CJK and the rest 1. chars/4
@@ -1578,31 +1593,83 @@ function litRangeOf(ch, line) {
   if (toAt >= fromIdx) return { fromIdx, toIdx: toAt, orphan: false, partial: false };
   return { fromIdx, toIdx: Math.min(line.length - 1, fromIdx + Math.max(1, Number(ch.count) || 1) - 1), orphan: false, partial: true };
 }
-function litCoveredCount(st, line) {
-  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return 0;
+/** The ends (count of line messages up to and including a chapter) of the chapters that cover the line
+ *  from its start without a gap, ascending: where a whole scene ends. */
+function litSceneEnds(st, line) {
+  if (!st || !Array.isArray(st.chapters) || !Array.isArray(line) || !line.length) return [];
   const ranges = st.chapters
     .filter((ch) => ch && typeof ch === "object" && ch.stale !== true)
     .map((ch) => litRangeOf(ch, line))
     .filter((r) => !r.orphan && !r.partial)
     .sort((a, b) => a.fromIdx - b.fromIdx);
   let covered = 0;
+  const ends = new Set();
   for (const r of ranges) {
     if (r.fromIdx > covered) break;
     if (r.toIdx + 1 > covered) covered = r.toIdx + 1;
+    ends.add(Math.min(r.toIdx + 1, line.length));
   }
-  return Math.min(covered, line.length);
+  return [...ends].sort((a, b) => a - b);
 }
-/** How many of the line's first messages Litopys holds as chapters and the prompt may drop; 0 when Litopys is off. */
-function litopysCut(fsx, chatId, line) {
+function litCoveredCount(st, line) {
+  const ends = litSceneEnds(st, line);
+  return ends.length ? ends[ends.length - 1] : 0;
+}
+/** Litopys's settings that decide the cut. cutMode "fit" (default): the window decides how much of what
+ *  chapters cover leaves the prompt. "scenes": whole scenes leave as soon as a chapter holds them, and
+ *  `sceneKeep` (2 and up) direct messages stay after the last one. */
+function litopysCutConfig(fsx) {
   let cfg = {};
   try { const c = JSON.parse(fsx.read("litopys/config.json")); if (c && typeof c === "object") cfg = c; } catch {}
-  if (cfg.enabled === false || cfg.insert === false) return 0;
+  const n = Number(cfg.recentMessages);
+  const k = Number(cfg.sceneKeep);
+  return {
+    off: cfg.enabled === false || cfg.insert === false,
+    scenes: cfg.cutMode === "scenes",
+    recent: Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 100,
+    keep: Number.isFinite(k) ? Math.min(100000, Math.max(2, Math.round(k))) : 2,
+  };
+}
+/** How many of the line's first messages Litopys holds as chapters and the prompt may drop; 0 when Litopys is
+ *  off. In "fit" mode this is a ceiling (outside the last `recentMessages`); in "scenes" mode it is the cut
+ *  itself: the end of the last whole scene that leaves `sceneKeep` messages after it. */
+function litopysCut(fsx, chatId, line) {
+  const c = litopysCutConfig(fsx);
+  if (c.off) return 0;
   let st = null;
   try { st = JSON.parse(fsx.read("litopys/chats/" + chatId + ".json")); } catch {}
   if (!st) return 0;
-  const n = Number(cfg.recentMessages);
-  const recent = Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 20;
-  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - recent));
+  if (c.scenes) {
+    const limit = line.length - c.keep;
+    const ends = litSceneEnds(st, line).filter((e) => e <= limit);
+    return ends.length ? ends[ends.length - 1] : 0;
+  }
+  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - c.recent));
+}
+/** How many of the first `maxCut` line messages must leave the prompt for the rest to fit: the
+ *  Litopys cut is a ceiling (what chapters cover, outside the recent stretch), the window decides
+ *  how much of it is used. `over` = tokens the history is over its room (<= 0: it all fits). A line
+ *  message that is not in the prompt costs nothing. A chat that fits the model's window keeps
+ *  every message; the chapters then only add to it. */
+function litopysFitCut(line, maxCut, over, tokensOf) {
+  if (maxCut <= 0 || over <= 0) return 0;
+  let freed = 0;
+  for (let i = 0; i < maxCut; i++) {
+    freed += tokensOf(line[i]);
+    if (freed >= over) return i + 1;
+  }
+  return maxCut;
+}
+/** Where the last real prompt of this chat started its word-for-word history, as {count, upTo} (the
+ *  messages before it were cut by Litopys or by the window); null when none was built yet or the chat has
+ *  changed since (the id at that place is another). count 0 = the prompt held the whole chat. */
+function lastPromptCut(fsx, chatId, line) {
+  let r = null;
+  try { r = JSON.parse(fsx.read("litopys/prompt-cut/" + chatId + ".json")); } catch {}
+  const n = r && Number(r.count);
+  if (!Number.isInteger(n) || n < 0 || n > line.length) return null;
+  if (n === 0) return { count: 0, upTo: null };
+  return line[n - 1] && line[n - 1].id === r.upTo ? { count: n, upTo: r.upTo } : null;
 }
 /** Whether Litopys holds this chat (then the old Memory keys of its meta can go). */
 function litopysHolds(fsx, chatId) {
@@ -2701,7 +2768,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     try { preset = JSON.parse(fsx.read("presets/" + defaultPresetId(fsx) + ".json")); } catch {}
   }
   // a preset whose samplers override the model keeps its own max output; the window is still the model's
-  preset = withModelLimits(preset, opts && opts.limits && preset && preset.samplers_override_model === true ? { ...opts.limits, maxOutput: 0 } : opts && opts.limits);
+  preset = budgeted(preset, opts && opts.limits && preset && preset.samplers_override_model === true ? { ...opts.limits, maxOutput: 0 } : opts && opts.limits);
   const presetName = preset && preset.name ? preset.name : "default";
   // studio bag: the full app preset rides the engine preset file
   const S = preset && preset.studio && typeof preset.studio.samplers === "object" ? preset.studio.samplers : null;
@@ -3102,7 +3169,19 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // than its recent window; its insert (the Litopys plugin's llmRequest hook) carries them
   let histMsgs = msgs;
   const litLine = litopysLine(msgs);
-  const litCut = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
+  // the room the history has: a token estimate against the window, minus the room the reply needs
+  // and what the sibling plugins' hooks add later
+  const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
+  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id) - 64;
+  const msgTokens = (m) => estimateTokens(m.content) + 4;
+  const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
+  // Litopys's cut is a ceiling: only as many covered messages leave as the window needs
+  const litCeiling = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
+  const rawTokens = (m) => estimateTokens(m.text) + 4;
+  const litScenes = litCeiling > 0 && litopysCutConfig(fsx).scenes;
+  const litCut = litScenes ? litCeiling : litCeiling > 0
+    ? litopysFitCut(litLine, litCeiling, fixedTokens() + litLine.reduce((a, m) => a + rawTokens(m), 0) - budget, rawTokens)
+    : 0;
   if (isOff("plugin:litopys")) {
     omit("memory", "Litopys", "off for this chat", undefined, "plugin:litopys");
   } else if (litCut > 0) {
@@ -3171,7 +3250,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
   if (litCut > 0) {
-    omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them", undefined, "history");
+    omit("memory", litCut + " messages kept as Litopys chapters", litScenes ? "whole scenes the chapters hold; the Litopys insert carries them" : "the window has no room for them; the Litopys insert carries them", undefined, "history");
   }
 
   // compact chat history: the visible chat collapses into ONE message of the
@@ -3195,12 +3274,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     history.push({ role, content: body });
   }
 
-  // context trimming: a token estimate against openai_max_context, minus the
-  // room the reply needs and what the sibling plugins' hooks add later
-  const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
-  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id) - 64;
-  const msgTokens = (m) => estimateTokens(m.content) + 4;
-  const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
+  // context trimming against the same budget, for what the Litopys cut did not already free
   // what fell out is reported: automatic compaction fires on it
   let trimmed = 0;
   let removedTokens = 0;
@@ -3213,6 +3287,19 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     trimmed++;
   }
   if (trimmed > 0) omit("history", trimmed + " oldest messages", "over the context budget", removedTokens, "history");
+  // where the verbatim history really starts, for the Litopys insert: it carries a chapter for every
+  // message before it that a chapter covers, however the window forced the cut (a compacted history
+  // is one message: nothing to say)
+  if (!opts || opts.dryRun !== true) {
+    try {
+      if (!compactOn && !isOff("plugin:litopys") && litLine.length) {
+        const first = visibleHist[trimmed];
+        const at = first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
+        const count = at < 0 ? 0 : at;
+        fsx.write("litopys/prompt-cut/" + meta.id + ".json", JSON.stringify({ count, upTo: count > 0 ? litLine[count - 1].id : null }));
+      }
+    } catch { /* the insert then uses the recent window alone */ }
+  }
   // a compacted history is one message: its turns stay substrings of it and nothing was trimmed
   for (const hp of histParts.slice(compactOn ? 0 : trimmed)) addPart(...hp);
 
@@ -3806,7 +3893,6 @@ function convertSectionsPreset(p) {
     prompt_order: [{ character_id: 100000, order: prompts.map((x) => ({ identifier: x.identifier, enabled: true })) }],
     ...(p.sampler && typeof p.sampler.temperature === "number" ? { temperature: p.sampler.temperature } : {}),
     ...(p.sampler && typeof p.sampler.maxTokens === "number" ? { openai_max_tokens: p.sampler.maxTokens } : {}),
-    ...(p.context && typeof p.context.maxTokens === "number" ? { openai_max_context: p.context.maxTokens } : {}),
     ...params,
   };
 }
@@ -4000,9 +4086,9 @@ export function onAppUpdate(ctx, host) {
   if (!olderThan(from, "4.0.0")) return { upgraded: done };
 
   const defaultPreset = readJsonFile(fsx, "presets/default.json");
-  // the old cramped generation defaults, only while never customized
+  // the old cramped generation defaults, only while never customized (the window is the model's now: only the reply length moves)
   if (defaultPreset && defaultPreset.openai_max_context === 16384 && defaultPreset.openai_max_tokens === 1024) {
-    writeJsonFile(fsx, "presets/default.json", { ...defaultPreset, openai_max_context: 128000, openai_max_tokens: 4096 });
+    writeJsonFile(fsx, "presets/default.json", { ...defaultPreset, openai_max_tokens: 4096 });
     done.push("default preset limits");
   }
 
@@ -4445,7 +4531,7 @@ export function handleRoute(req, host) {
     if (!chat) return err(404, "chat not found");
     const personaId = chat.meta.personaId || (() => { try { return JSON.parse(fsx.read("settings.json")).personaId; } catch { return null; } })();
     const persona = personaId ? readJson("personas/" + personaId + ".json", null) : null;
-    const preset = readJson("presets/" + (chat.meta.presetId || defaultPresetId(fsx)) + ".json", null);
+    const preset = budgeted(readJson("presets/" + (chat.meta.presetId || defaultPresetId(fsx)) + ".json", null), limitsOf(b));
     // what a normal send by the chat's (first) character would see
     const members = chatMembers(fsx, chat.meta);
     const lead = members[0] || null;
@@ -4501,7 +4587,7 @@ export function handleRoute(req, host) {
     } else return err(400, "books or bookIds required");
     const chat = b.chatId ? loadChat(fsx, String(b.chatId)) : null;
     if (b.chatId && !chat) return err(404, "chat not found");
-    const preset = readJson("presets/" + ((chat && chat.meta.presetId) || defaultPresetId(fsx)) + ".json", null);
+    const preset = budgeted(readJson("presets/" + ((chat && chat.meta.presetId) || defaultPresetId(fsx)) + ".json", null), limitsOf(b));
     const card = chat && chat.meta.characterId ? resolveCardVariants(readJson("characters/" + chat.meta.characterId + "/card.json", null), chat.meta.fieldVariantSelection) : null;
     const wi = activateWorldInfo(fsx, chat ? chat.meta : {}, [{ text }], [], wiBudgetChars(preset), {
       dryRun: true, books, config: preset && preset.studio && preset.studio.worldInfo,
@@ -5134,7 +5220,7 @@ const toolX = (r) => ({
       const line = litopysLine(chat.msgs);
       const count = litopysCut(fsx, meta.id, line);
       const litCut = { count, upTo: count > 0 ? line[count - 1].id : null };
-      return ok({ meta: { ...meta, litopysCut: litCut }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
+      return ok({ meta: { ...meta, litopysCut: litCut, promptCut: lastPromptCut(fsx, meta.id, line) }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
     }
 
     if (!op && req.method === "PATCH") {

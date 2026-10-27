@@ -15,6 +15,9 @@ import path from "node:path";
 export const litopysUrl = new URL("../plugins/litopys/plugin.js", import.meta.url).href;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const L = (await import(litopysUrl)) as Record<string, any>;
+// the memory tests describe the cut at the old default of 20 recent messages; the shipped default is
+// 100 (rp-litopys-window.test.ts reads it from a fresh copy of the module)
+L.DEFAULT_CONFIG.recentMessages = 20;
 
 export const env = { root: "" };
 

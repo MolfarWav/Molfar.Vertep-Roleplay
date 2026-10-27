@@ -97,12 +97,10 @@ function usePresetTotals(presetIds: ID[], chatId: ID, picks: Record<ID, unknown>
   return (id) => totalsCache.get(keyOf(id))
 }
 
-/** The second line of a preset in the picker: its size with this chat's picks, then its context window. */
-function presetMeta(p: { samplers: { contextSize: number } } | undefined, total: PresetTotal, t: ReturnType<typeof useT>): string {
+/** The second line of a preset in the picker: its size with this chat's picks (the context window is the model's, not the preset's). */
+function presetMeta(p: object | undefined, total: PresetTotal, t: ReturnType<typeof useT>): string {
   if (!p) return 'none'
-  const size = total === undefined ? '…' : total === null ? '' : t('pq.presetTokens', { n: compactTokens(total) })
-  const ctx = p.samplers.contextSize >= 1000 ? `${Math.round(p.samplers.contextSize / 1000)}k ctx` : ''
-  return [size, ctx].filter(Boolean).join(' · ')
+  return total === undefined ? '…' : total === null ? '' : t('pq.presetTokens', { n: compactTokens(total) })
 }
 
 /** `pill` is the header's compact trigger with the palette in a popover.
