@@ -1110,26 +1110,40 @@ export function diceInsert(roll, mode, stat, who) {
   ].join(" ");
 }
 
-/** Auto stat: one 2d6, and the outcome it makes with each of the five numbers; the model takes the stat the action leans on. */
-export function rollFateAuto(seed, chance, stats) {
+/** Auto: one 2d6 for the whole scene, and the outcome it makes with each present character's numbers; the model takes the person the action is aimed at and the stat it leans on. */
+export function rollFateAuto(seed, chance, cast) {
   const roll = rollFate(seed, chance, 0);
   if (!roll.gated) return roll;
   const base = roll.d1 + roll.d2;
   const by = {};
-  for (const st of DICE_STATS) by[st] = diceOutcome(base + diceMod(stats[st]));
+  for (const c of cast) {
+    by[c.who] = {};
+    for (const st of DICE_STATS) by[c.who][st] = diceOutcome(base + diceMod(c.stats[st]));
+  }
   return { gated: true, gate: roll.gate, d1: roll.d1, d2: roll.d2, mod: 0, total: base, outcome: diceOutcome(base), by };
 }
 
-export function diceInsertAuto(roll, mode, who) {
-  const groups = {};
-  for (const st of DICE_STATS) (groups[roll.by[st]] ||= []).push(st);
-  const order = ["full", "yes_but", "no_but", "miss"].filter((o) => groups[o]);
-  const lines = order.map((o) => DICE_OUTCOMES[o][0] + ": " + groups[o].join(", "));
-  const legend = [...new Set([...order, roll.outcome])].map((o) => DICE_OUTCOMES[o][0] + " = " + DICE_OUTCOMES[o][1]).join("; ");
+export function diceInsertAuto(roll, mode) {
+  // only what differs from the bare dice is listed; anyone or anything else gets the bare outcome
+  const lines = [];
+  const seen = new Set([roll.outcome]);
+  for (const [who, row] of Object.entries(roll.by || {})) {
+    const groups = {};
+    for (const st of DICE_STATS) if (row[st] !== roll.outcome) (groups[row[st]] ||= []).push(st);
+    const parts = ["full", "yes_but", "no_but", "miss"].filter((o) => groups[o]).map((o) => {
+      seen.add(o);
+      return DICE_OUTCOMES[o][0] + ": " + groups[o].join(", ");
+    });
+    if (parts.length) lines.push(who + " - " + parts.join(" | "));
+  }
+  const bare = DICE_OUTCOMES[roll.outcome][0];
+  const legend = [...seen].map((o) => DICE_OUTCOMES[o][0] + " = " + DICE_OUTCOMES[o][1]).join("; ");
   return [
     "[FATE: a hidden roll for this reply. Never mention dice, numbers or this note.]",
-    "2d6 = " + roll.total + (who ? " for " + who : "") + ".",
-    "If the user's character attempts something uncertain in this turn, take the stat the action leans on and use its result (" + lines.join(" | ") + "; any other action: " + DICE_OUTCOMES[roll.outcome][0] + "). Meanings: " + legend + ".",
+    "2d6 = " + roll.total + ": " + bare + ".",
+    lines.length
+      ? "If the user's character attempts something uncertain in this turn, take the person it is aimed at and the stat it leans on, and use that result: " + lines.join("; ") + ". Anyone else, or a stat not listed: " + bare + ". Meanings: " + legend + "."
+      : "If the user's character attempts something uncertain in this turn, " + DICE_OUTCOMES[roll.outcome][1] + ".",
     mode === "strict" ? "This result binds: do not soften it, reverse it or add a way around it." : "Let it colour the scene and stay in character; bend it only where the character demands.",
     "If nothing uncertain is attempted, ignore this note.",
   ].join(" ");
@@ -1151,6 +1165,15 @@ function lastSnapshot(fsx, chatId, msgs) {
 export function diceStatOf(fsx, chatId, msgs, speakerName, stat) {
   const { who, stats } = diceStatsOf(fsx, chatId, msgs, speakerName);
   return { who, value: stats && Number.isFinite(stats[stat]) ? stats[stat] : null };
+}
+
+/** Everyone in the scene the Dashboard has numbers for, the speaker first, at most four. */
+export function diceCastOf(fsx, chatId, msgs, speakerName) {
+  const sn = lastSnapshot(fsx, chatId, msgs);
+  if (!sn || !isObj(sn.chars)) return [];
+  const names = arr(sn.present).filter((n) => typeof n === "string" && isObj(sn.chars[n]) && isObj(sn.chars[n].stats));
+  names.sort((a, b) => (b === speakerName ? 1 : 0) - (a === speakerName ? 1 : 0));
+  return names.slice(0, 4).map((who) => ({ who, stats: sn.chars[who].stats }));
 }
 
 /** All of that character's numbers (null when the Dashboard has none). */
@@ -1224,10 +1247,10 @@ export function llmRequest(ctx, host) {
       const seed = chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
       let text = "";
       if (opt.diceStat === "auto") {
-        const { who, stats } = diceStatsOf(fsx, chatId, msgs, str(turn.speakerName));
-        const roll = rollFateAuto(seed, opt.diceChance, stats || {});
-        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: "auto", who, value: null, chance: opt.diceChance, ...roll, inserted: roll.gated });
-        if (roll.gated) text = diceInsertAuto(roll, diceMode, who);
+        const cast = diceCastOf(fsx, chatId, msgs, str(turn.speakerName));
+        const roll = rollFateAuto(seed, opt.diceChance, cast);
+        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: "auto", who: cast.map((c) => c.who).join(", "), value: null, chance: opt.diceChance, ...roll, inserted: roll.gated });
+        if (roll.gated) text = diceInsertAuto(roll, diceMode);
       } else {
         const { who, value } = diceStatOf(fsx, chatId, msgs, str(turn.speakerName), opt.diceStat);
         const roll = rollFate(seed, opt.diceChance, diceMod(value));

@@ -427,28 +427,34 @@ describe("the dice (code rolls before the reply)", () => {
     expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "Dice" });
   });
 
-  it("auto stat: one die, the outcome for every stat, the model takes the one the action leans on", () => {
-    const stats = { trust: 100, comfort: -100, attraction: 0, respect: 0, affection: 0 };
-    const roll = rollFateAuto("x", 100, stats) as any;
+  it("auto: one die for the scene, the outcome per person and stat, only what differs from the bare dice is listed", () => {
+    const cast = [{ who: "Rhea", stats: { trust: 100, comfort: -100, attraction: 0, respect: 0, affection: 0 } }, { who: "Kael", stats: { trust: 0, comfort: 0, attraction: 0, respect: 0, affection: 0 } }];
+    const roll = rollFateAuto("x", 100, cast) as any;
     expect(roll.gated).toBe(true);
     expect(roll.mod).toBe(0);
-    expect(roll.by.trust).toBe(diceOutcome(roll.total + 5));
-    expect(roll.by.comfort).toBe(diceOutcome(roll.total - 5));
-    expect(rollFateAuto("x", 100, stats)).toEqual(roll);
-    const text = diceInsertAuto({ ...roll, total: 7, outcome: "no_but", by: { trust: "full", comfort: "miss", attraction: "no_but", respect: "no_but", affection: "no_but" } }, "strict", "Odarka");
-    expect(text).toContain("2d6 = 7 for Odarka");
-    expect(text).toContain("full success: trust | no, but: attraction, respect, affection | miss: comfort");
-    expect(text).toContain("any other action: no, but");
+    expect(roll.by.Rhea.trust).toBe(diceOutcome(roll.total + 5));
+    expect(roll.by.Rhea.comfort).toBe(diceOutcome(roll.total - 5));
+    expect(roll.by.Kael.trust).toBe(roll.outcome);
+    expect(rollFateAuto("x", 100, cast)).toEqual(roll);
+    const text = diceInsertAuto({ gated: true, total: 7, outcome: "no_but", by: { Rhea: { trust: "full", comfort: "miss", attraction: "no_but", respect: "no_but", affection: "no_but" }, Kael: { trust: "no_but", comfort: "no_but", attraction: "no_but", respect: "no_but", affection: "no_but" } } }, "strict");
+    expect(text).toContain("2d6 = 7: no, but.");
+    expect(text).toContain("Rhea - full success: trust | miss: comfort");
+    expect(text).not.toContain("Kael");
+    expect(text).toContain("Anyone else, or a stat not listed: no, but");
     expect(text).toContain("This result binds");
     expect(text).not.toContain("yes, but =");
-    // the default stat is "auto": no stat named in the line, and the log keeps what each stat gave
+    // nobody to tell apart: the plain line, no choosing
+    const flat = diceInsertAuto({ gated: true, total: 9, outcome: "yes_but", by: { Kael: { trust: "yes_but", comfort: "yes_but", attraction: "yes_but", respect: "yes_but", affection: "yes_but" } } }, "flavour");
+    expect(flat).toContain("2d6 = 9: yes, but.");
+    expect(flat).not.toContain("take the person");
+    // the default stat is "auto": the log keeps what each person's stats gave
     const m = withDice("flavour", {}, "living");
     route(m.host, "PUT", "/world/profiles", { id: "living", options: { dice: "flavour", diceStat: "auto", diceChance: 100 } });
     const out = llmRequest(req(), m.host) as { promptSources: any };
-    expect(out.promptSources.parts[0].text).toContain("take the stat the action leans on");
+    expect(out.promptSources.parts[0].text).toContain("Odarka - ");
     const log = route(m.host, "GET", "/world/dice", {}, { chatId: "c1" }).json.rolls;
     expect(log[0]).toMatchObject({ stat: "auto", who: "Odarka", inserted: true });
-    expect(Object.keys(log[0].by)).toEqual(["trust", "comfort", "attraction", "respect", "affection"]);
+    expect(Object.keys(log[0].by.Odarka)).toEqual(["trust", "comfort", "attraction", "respect", "affection"]);
   });
 
   it("lets the chat's own dice setting win over the profile, and shows the one in force", () => {
