@@ -6,6 +6,8 @@ import { useConfirm } from '@/components/ui/confirm'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { DiceFields } from './dice-fields'
+import { DiceLog } from './dice-log'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
@@ -28,6 +30,7 @@ import {
   loadWorld,
   loadWorldScenario,
   peekWorld,
+  refreshDice,
   readWholeChat,
   runWorld,
   saveWorldConfig,
@@ -463,6 +466,20 @@ export function WorldControls({
       />
       {events && (
         <SwitchRow label={t('world.insert')} hint={t('world.insertHint')} checked={view.settings.insert} onChange={(v) => void save({ insert: v })} />
+      )}
+      {events && view.dice && (
+        <DiceFields
+          mode={view.dice.mode}
+          stat={view.dice.stat}
+          chance={view.dice.chance}
+          tilt={view.dice.tilt}
+          life={view.dice.life}
+          show={view.settings.diceShow}
+          onShow={(v) => void save({ diceShow: v }).then(() => refreshDice(chatId, true))}
+          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}), ...(p.diceLife !== undefined ? { diceLife: p.diceLife } : {}) })}
+        >
+          <DiceLog chatId={chatId} />
+        </DiceFields>
       )}
     </section>
   )

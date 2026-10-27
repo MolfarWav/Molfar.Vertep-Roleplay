@@ -5381,6 +5381,7 @@ const toolX = (r) => ({
         try { fsx.remove("lorebooks/" + worldBook + ".json"); } catch {}
       }
       try { fsx.remove("world/state/" + id + ".json"); } catch {}
+      try { fsx.remove("world/dice/" + id + ".json"); } catch {}
       return ok({ ok: true });
     }
 

@@ -48,6 +48,8 @@ import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
+import { DiceNote } from './dice-note'
+import { refreshDice } from '@/lib/world'
 import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
 import { AgentBlock } from './agent-block'
 import { WindowUnknownNote } from './window-unknown-note'
@@ -137,6 +139,14 @@ export function ChatView() {
   const isStreaming = useApp((s) => s.streaming !== null)
   const streamingMessageId = useApp((s) => s.streaming?.messageId ?? null)
   const tickStream = useApp((s) => s.tickStream)
+  // the dice marks under the replies: read when the chat opens, and again when a reply is done
+  const diceChatId = chat?.id ?? null
+  useEffect(() => {
+    if (diceChatId) void refreshDice(diceChatId, true)
+  }, [diceChatId])
+  useEffect(() => {
+    if (diceChatId && !isStreaming) void refreshDice(diceChatId)
+  }, [diceChatId, isStreaming])
   const settings = useApp((s) => s.settings)
   const updateChat = useApp((s) => s.updateChat)
   const openChat = useApp((s) => s.openChat)
@@ -1048,6 +1058,7 @@ export function ChatView() {
                 )}
                 {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
                 {!deleteMode && <AgentNotes chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
+                {!deleteMode && <DiceNote chatId={chat.id} message={msg} index={i} />}
                 {i === 0 && !deleteMode && !msg.edited && <OpeningHint chatId={chat.id} opening={carries.mine?.carries?.opening} />}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>

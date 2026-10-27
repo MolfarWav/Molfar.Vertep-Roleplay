@@ -21,6 +21,7 @@ import {
   type ProfileDraft,
 } from '@/lib/world-profiles'
 import { type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
+import { DiceFields, NumField } from './dice-fields'
 import { LEVEL_ICON, LEVEL_TONE, LevelChip, useProfileHint, useProfileName } from './world-common'
 import { OwnMark } from './world-profile-picker'
 
@@ -108,32 +109,6 @@ function AutoTextarea({ value, onChange, label, className }: { value: string; on
   )
 }
 
-function NumField({ label, value, min, max, onCommit }: { label: string; value: number; min: number; max: number; onCommit: (n: number) => void }) {
-  const [text, setText] = useState(String(value))
-  useEffect(() => setText(String(value)), [value])
-  const commit = () => {
-    const n = Math.round(Number(text))
-    if (!Number.isFinite(n)) { setText(String(value)); return }
-    const c = Math.min(max, Math.max(min, n))
-    setText(String(c))
-    if (c !== value) onCommit(c)
-  }
-  return (
-    <Input
-      type="number"
-      inputMode="numeric"
-      min={min}
-      max={max}
-      value={text}
-      aria-label={label}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') commit() }}
-      className="h-10 w-20 shrink-0 text-right md:h-8"
-    />
-  )
-}
-
 function DefaultsSection({ base, defaults, onChange }: { base: WorldLevel; defaults: WorldProfileDefaults; onChange: (d: WorldProfileDefaults) => void }) {
   const t = useT()
   return (
@@ -203,6 +178,14 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
         <Switch checked={options.deck} onCheckedChange={(v) => onChange({ ...options, deck: v })} aria-label={t('world.prof.opt.deck')} />
       </div>
+      <DiceFields
+        mode={options.dice}
+        stat={options.diceStat}
+        chance={options.diceChance}
+        tilt={options.diceTilt}
+        life={options.diceLife}
+        onChange={(patch) => onChange({ ...options, ...patch })}
+      />
     </section>
   )
 }
@@ -417,7 +400,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0 })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers
