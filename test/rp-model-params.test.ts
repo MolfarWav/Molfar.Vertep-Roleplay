@@ -1,13 +1,16 @@
 import { describe, expect, it } from "bun:test";
+import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { modelLimits, presetToBlock } from "../src/lib/model-params";
+import { modelLimits, presetToBlock, UNKNOWN_WINDOW } from "../src/lib/model-params";
 import { defaultSamplers } from "../src/lib/seed";
 import type { ModelInfo, Preset } from "../src/lib/types";
 
 const E = (await import(pathToFileURL(path.resolve(import.meta.dir, "../plugins/engine/plugin.js")).href)) as {
   limitsOf: (b: unknown) => { contextWindow: number; maxOutput: number };
   withModelLimits: (p: Record<string, unknown> | null, l: { contextWindow: number; maxOutput: number }) => Record<string, unknown> | null;
+  withoutPresetWindow: (p: Record<string, unknown> | null) => Record<string, unknown> | null;
+  UNKNOWN_WINDOW: number;
 };
 
 describe("model limits in the engine plugin", () => {
@@ -77,5 +80,28 @@ describe("the preset switch survives a save and a re-read", () => {
     const legacy = enginePresetToUI({ ...ep, studio: undefined } as never, "y");
     expect(legacy.samplersOverrideModel).toBe(true);
     expect(legacy.extendedSamplers?.samplers_override_model).toBeUndefined();
+  });
+});
+
+describe("the window is the model's alone", () => {
+  it("the file's own window is dropped, then the model's put in", () => {
+    const preset = { name: "p", openai_max_context: 4000, openai_max_tokens: 512 };
+    expect(E.withoutPresetWindow(preset)).toEqual({ name: "p", openai_max_tokens: 512 });
+    expect(preset.openai_max_context).toBe(4000);
+    const untouched = { name: "q" };
+    expect(E.withoutPresetWindow(untouched)).toBe(untouched);
+    expect(E.withoutPresetWindow(null)).toBeNull();
+  });
+
+  it("the client and the plugin assume the same window when the model's is unknown", () => {
+    expect(UNKNOWN_WINDOW).toBe(E.UNKNOWN_WINDOW);
+  });
+
+  it("no built-in preset ships a window", () => {
+    for (const f of fs.readdirSync(path.resolve(import.meta.dir, "../data/presets"))) {
+      const p = JSON.parse(fs.readFileSync(path.resolve(import.meta.dir, "../data/presets", f), "utf8"));
+      expect(p.openai_max_context).toBeUndefined();
+      expect(p.studio?.samplers?.contextSize).toBeUndefined();
+    }
   });
 });

@@ -236,13 +236,15 @@ describe("step 4: macros", () => {
 describe("step 5: samplers, reasoning, prefill, squash", () => {
   const withKeys = (extra: Record<string, unknown>) => run(make([P("Main", "x", { identifier: "main" })], [], extra));
 
-  it("the sampler knobs, context, prefill, squash, stop strings and extended sweep come over", () => {
+  it("the sampler knobs, prefill, squash, stop strings and extended sweep come over", () => {
     const r = withKeys({ temperature: 0.8, top_p: 0.9, top_k: 40, min_p: 0.05, top_a: 0.2, repetition_penalty: 1.1, frequency_penalty: 0.3, presence_penalty: 0.2,
       openai_max_tokens: 1500, openai_max_context: 64000, max_context_unlocked: true, assistant_prefill: "Sure.", squash_system_messages: true,
       stop: ["\nUser:"], seed: 7, stream_openai: false, dry_multiplier: 0.8 });
     const s = r.preset.samplers;
     expect([s.temperature.value, s.top_p.value, s.top_k.value, s.min_p.value, s.rep_pen.value, s.freq_pen.value, s.pres_pen.value]).toEqual([0.8, 0.9, 40, 0.05, 1.1, 0.3, 0.2]);
-    expect([s.maxTokens, s.contextSize, s.contextUnlocked, s.assistantPrefill, s.seed, s.streaming]).toEqual([1500, 64000, true, "Sure.", 7, false]);
+    expect([s.maxTokens, s.assistantPrefill, s.seed, s.streaming]).toEqual([1500, "Sure.", 7, false]);
+    // the window belongs to the model: an imported max_context is not kept
+    expect(s).not.toHaveProperty("contextSize");
     expect(s.stopStrings).toEqual(["\nUser:"]);
     expect(r.preset.squashSystemMessages).toBe(true);
     expect(r.preset.extendedSamplers).toMatchObject({ top_a: 0.2, dry_multiplier: 0.8 });

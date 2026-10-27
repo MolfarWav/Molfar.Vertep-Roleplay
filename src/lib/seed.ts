@@ -16,7 +16,7 @@ export function defaultSamplers(): SamplerSettings {
   return {
     temperature: v(0.85), top_p: v(0.95), top_k: v(40, false), min_p: v(0.05),
     rep_pen: v(1.08), freq_pen: v(0.1), pres_pen: v(0.05),
-    maxTokens: 512, contextSize: 8192, contextUnlocked: false, seed: -1,
+    maxTokens: 512, seed: -1,
     stopStrings: ['\\n{{user}}:', '</s>'], logitBias: [],
     reasoning: { enabled: true, effort: 'med', budget: 2048, autoParse: true, display: 'collapsed', thinkTagOpen: '<think>', thinkTagClose: '</think>' },
     streaming: true, streamingSpeed: 30, assistantPrefill: '',

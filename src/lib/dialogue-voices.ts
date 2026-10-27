@@ -99,11 +99,24 @@ export function firstVoiceIn(text: string, voices: DialogueVoice[]): DialogueVoi
 /** The voice a line opens with as a speaker label: `Name:`, `**Name:**`, `**Name**:` (the text of the
  *  line, markup gone, starts with the name and a colon). It beats a name that only appears in the line. */
 export function leadVoiceIn(line: string, voices: DialogueVoice[]): DialogueVoice | null {
-  const label = /^[\s*_~"“«(\[]*(\p{L}[\p{L}'’]*)[\s*_~)\]]*[:：]/u.exec(line)?.[1]
-  if (!label) return null
-  for (const v of voices) if (v.match.exec(label)?.index === 0) return v
+  const label = leadLabelIn(line)
+  if (label) for (const v of voices) if (v.match.exec(label)?.index === 0) return v
+  // a name of several words ("Bo Lin:") leads only as a whole: "Bo says:" is not a label
+  for (const v of voices) {
+    if (/\s/.test(v.name.trim()) && new RegExp(`^[\\s*_~"“«(\\[]*${v.name.trim().split(/\s+/).map(escRe).join('\\s+')}[\\s*_~)\\]]*[:：]`, 'iu').test(line)) return v
+  }
   return null
 }
+
+const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** The one-word speaker label a line opens with (`Name:`, `**Name:**`), or null. */
+export function leadLabelIn(line: string): string | null {
+  return /^[\s*_~"“«(\[]*(\p{L}[\p{L}'’]*)[\s*_~)\]]*[:：]/u.exec(line)?.[1] ?? null
+}
+
+/** Does the line open like a speaker label of one to three words (`Mary Jane:`)? Whose it is does not matter. */
+export const opensWithLabel = (line: string): boolean => /^[\s*_~"“«(\[]*\p{L}[\p{L}'’]*(?:[ \u00a0]\p{L}[\p{L}'’]*){0,2}[\s*_~)\]]*[:：]/u.test(line)
 
 /** Each member's dialogue colour in a group: the group's choice, else the card's, else the palette's by position. */
 export function memberColor(group: Character, member: Character): string {

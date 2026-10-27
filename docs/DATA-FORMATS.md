@@ -193,6 +193,15 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
 - `budgetMode` (`fixed`, default, or `auto`): in `auto` the memory size is 15% of the model's context window (at least
   800, at most 16000) when the engine says the window in the turn labels (`turn.contextTokens`); without that label, or
   in `fixed`, `budget` is used. 15% is a first guess, not tuned on real chats.
+- `cutMode` (`fit`, default, or `scenes`) and `sceneKeep` (`litopys/config.json`): which of the messages a chapter
+  holds leave the prompt. `fit`: the cut is a ceiling (what chapters cover, outside the last `recentMessages`, default
+  100) and only as many leave as the model's window has no room for; a chat that fits is sent in full. `scenes`: a
+  scene leaves whole as soon as a chapter (or an arc over chapters) holds it, never in part, and the last `sceneKeep`
+  messages (2 and up, no upper limit that matters) always stay after it; the window still trims the rest. After a real
+  generation the engine writes `litopys/prompt-cut/<chatId>.json` (`{ count, upTo }`: where the prompt's word-for-word
+  history began, `count` 0 = the whole chat); the Litopys insert carries a chapter for every message before it, and in
+  `scenes` mode exactly those. `GET /chats/:id` returns that as `meta.promptCut` and the ceiling (or, in `scenes`, the
+  cut) as `meta.litopysCut`.
 - Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector } }`, one for each chapter and active fact, written
   after a chapter when an embedding connection exists): when the engine passes the embedding of the scan window
   (`turn.scanVec`), the facts and chapters that are ranked get a bonus for being near it in meaning (an arc takes the
@@ -420,7 +429,8 @@ something risky, copy the preset to a new id first.
 | `prompt_order` | `[{ character_id, order: [{ identifier, enabled }] }]`: the order and on/off state. The app reads the list with `character_id` 100001 first, then any non-empty one; it writes 100000. |
 | `temperature`, `top_p`, `top_k`, `min_p`, `repetition_penalty`, `frequency_penalty`, `presence_penalty`, `seed`, `stop` | Samplers this preset asks for. On an engine with model parameters (0.9.2+) the MODEL's values win: they live in the workspace `model-params.json`, set in Settings under the model (Molfar asks the user before changing that file); the preset fills only what the model leaves unset. Change the preset's values HERE. |
 | `samplers_override_model` | `true`: this preset's samplers win over the model's parameters (the editor's switch, `studio.samplersOverrideModel`). |
-| `openai_max_tokens`, `openai_max_context` | Reply length limit and context size, in tokens. When the model's context window and its max output are known (0.9.2+), those are used instead. |
+| `openai_max_tokens` | Reply length limit, in tokens. When the model's max output is known (0.9.2+), that is used instead. |
+| `openai_max_context` | Not used (since 4.72.0). A preset carries no context window: the window is the model's (the catalog, the provider's model list, or the override in Settings, Models). A file or an import that still has the field is read and ignored; an unknown window is budgeted as 32768 tokens, and the chat says so. |
 | `reasoning`, `reasoningTags`, `thinkingBudget` | Reasoning effort (`low`, `medium`, `high`), the tags of inline thinking, its token budget. |
 | `utilityPrompts` | Prompts of app features (summary, impersonate, empty send, polish…), lifted from `studio` for the engine. `polish` (#15) is the instruction for Polish in the composer: the chat's model corrects and enriches the player's draft. Blank or missing = the built-in prompt (`plugins/polish/plugin.js`). |
 | `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`), `groups`, `variables` (see Variables), `description`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |
@@ -573,6 +583,10 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   reference, is `E_REGEX_RISK`: such a pattern can run for very long on a short text, and the plugin sandbox would be stopped
   after seconds. Dice and picks are seeded: the host passes `ctx.seed` = chat id, agent id and the turn key (`id#swipe`), so every
   pass of one run rolls the same, a regenerated reply with the same swipe repeats its roll, and a new swipe rolls again.
+- The `history` source takes `last` (the newest N messages, 1 to 60, default 10), `only` (`user` or `char`), `thinking`, and
+  `tokens` (100 to 100000, optional: the oldest messages are dropped until the text fits, the newest is always kept; the
+  size is estimated by script, not counted by the model's tokenizer). The agent's user can also set how often it runs
+  (`byAgent.<id>.everyN`, 1 to 50, in place of the author's `trigger.everyN`).
 - Input sources read by the host (`give[].source`, permission `read:<source>`): `litopysFacts` (the chat's active Litopys
   facts, pinned first then the newest, `limit` 1 to 60, default 20, one "- fact" line each; missing when Litopys has no
   record for the chat) and `lorebook` (entries of the books the chat uses, in this order: the card's embedded and linked

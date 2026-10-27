@@ -253,6 +253,7 @@ export interface Chat {
     includeInWIScan: boolean
   }
   litopysCut?: { count: number; upTo: string | null }
+  promptCut?: { count: number; upTo: string | null } | null
   temporary: boolean
   folderId: ID | null
   /** pinned to the top of the Chats page */
@@ -412,8 +413,6 @@ export interface SamplerSettings {
   freq_pen: { value: number; enabled: boolean }
   pres_pen: { value: number; enabled: boolean }
   maxTokens: number
-  contextSize: number
-  contextUnlocked: boolean
   seed: number
   stopStrings: string[]
   logitBias: { token: string; bias: number }[]

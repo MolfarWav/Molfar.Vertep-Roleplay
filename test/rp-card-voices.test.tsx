@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { cardVoices, leadVoiceIn, VOICE_PALETTE } from "../src/lib/dialogue-voices";
 
 (globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
-const { Markdown, DialogueVoices } = await import("../src/components/markdown");
+const { Markdown, DialogueVoices, VoiceLeadOnly } = await import("../src/components/markdown");
 
 const voices = cardVoices({ voices: [{ name: "Aria", color: "#111111" }, { name: "Bo Lin", color: "#222222" }, { name: "Cy", color: "" }] });
 const paint = (md: string) => renderToStaticMarkup(<DialogueVoices.Provider value={voices}><Markdown content={md} /></DialogueVoices.Provider>);
@@ -64,5 +64,26 @@ describe("voices on the card", () => {
     const saved = characterToCard(c) as { studio: { voices?: unknown } };
     expect(saved.studio.voices).toEqual(c.voices);
     expect((characterToCard({ ...c, voices: [] }) as { studio: { voices?: unknown } }).studio.voices).toBeUndefined();
+  });
+});
+
+describe("the player's own message paints other characters' labelled lines", () => {
+  const mine = (md: string) =>
+    [...renderToStaticMarkup(<DialogueVoices.Provider value={voices}><VoiceLeadOnly.Provider value={true}><Markdown content={md} /></VoiceLeadOnly.Provider></DialogueVoices.Provider>).matchAll(/<q(?: style="([^"]*)")?>/g)]
+      .map((m) => /#([0-9a-f]{6})/i.exec(m[1] ?? "")?.[1] ?? "own");
+
+  it("a quote on a line that opens with a character's name takes that colour; the player's own stays", () => {
+    expect(mine('Damion: "Yeah, long day."\n\nAria: "I never understood."\n\nBo Lin: "You were always like that."')).toEqual(["own", "111111", "222222"]);
+  });
+  it("a name said in the narration does not recolour the player's speech", () => {
+    expect(mine('Aria watches him. "I am tired," I say.')).toEqual(["own"]);
+    expect(mine('"Ask Aria," I say.')).toEqual(["own"]);
+  });
+  it("the colour holds on the lines after a label until another label, and a foreign label hands it back", () => {
+    expect(mine('Aria: "One."\n"Two."\nDamion: "Three."\n"Four."')).toEqual(["111111", "111111", "own", "own"]);
+  });
+  it("without voices nothing changes", () => {
+    const plain = renderToStaticMarkup(<VoiceLeadOnly.Provider value={true}><Markdown content={'Aria: "Hi."'} /></VoiceLeadOnly.Provider>);
+    expect(plain).not.toContain("--tap-quotes: color-mix");
   });
 });

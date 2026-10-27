@@ -124,11 +124,13 @@ async function newChat(m: ReturnType<typeof mockHost>) {
 async function trimmedFor(presetExtra: Record<string, unknown>, pairs = 22) {
   fs.rmSync(path.join(root, "chats"), { recursive: true, force: true });
   fs.mkdirSync(path.join(root, "chats"));
-  writePreset(presetExtra);
+  // a preset carries no window since 4.72.0: the small window of these cases is the model's, sent with the request
+  const { openai_max_context: contextWindow, ...presetOnly } = presetExtra;
+  writePreset(presetOnly);
   const m = mockHost();
   const id = await newChat(m);
   seedPairs(id, pairs, CYR);
-  const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again" } }, m);
+  const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again", ...(typeof contextWindow === "number" ? { contextWindow } : {}) } }, m);
   return { trimmed: Number(r.json.trimmed || 0), m };
 }
 
@@ -143,13 +145,25 @@ describe("M1.1 history budget in tokens, with reserves", () => {
 
   it("an English history of the same size does not trim, so the estimate is by script", async () => {
     const m = mockHost();
-    writePreset({ openai_max_context: 4000, openai_max_tokens: 256 });
+    writePreset({ openai_max_tokens: 256 });
     // M3: the Litopys insert reserves its budget by default; this test is about the estimate only
     writeJson("litopys/config.json", { insert: false });
     const id = await newChat(m);
     seedPairs(id, 22, "The traveler walked into the little cafe at the edge of the world and ordered tea. ".repeat(4));
-    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again" } }, m);
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again", contextWindow: 4000 } }, m);
     expect(r.json.trimmed).toBeUndefined();
+  });
+
+  it("a preset's own window never counts: the model's, else 32768", async () => {
+    // a preset file that still says 4000 (an old file or an import) and a request that carries no window
+    fs.rmSync(path.join(root, "chats"), { recursive: true, force: true });
+    fs.mkdirSync(path.join(root, "chats"));
+    writePreset({ openai_max_context: 4000, openai_max_tokens: 256 }); // 4000 kept in the file, none in the request
+    const m = mockHost();
+    const id = await newChat(m);
+    seedPairs(id, 22, CYR);
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again" } }, m);
+    expect(r.json.trimmed).toBeUndefined(); // 32768 unknown-window default, not the file's 4000
   });
 
   it("the reply reserve grows with openai_max_tokens", async () => {

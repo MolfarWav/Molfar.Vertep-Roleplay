@@ -93,7 +93,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
       {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
     </Field>
   )
-  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'sceneKeep' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
   const sizeField = () => {
     const mode: 'compact' | 'auto' | 'custom' = cfg.budgetMode === 'auto' ? 'auto' : sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
@@ -176,11 +176,32 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         {switchRow('lit-insert', t('lit.set.insert'), t('lit.set.insertHint'), cfg.insert, (v) => save({ insert: v }))}
       </Block>
 
-      <Block tone="scene" icon={Stack} defaultOpen title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')} summary={t('lit.sum.prompt', { size: sizeText, n: cfg.recentMessages })}>
+      <Block tone="scene" icon={Stack} defaultOpen title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')} summary={cfg.cutMode === 'scenes' ? t('lit.sum.promptScenes', { size: sizeText, n: cfg.sceneKeep ?? 2 }) : t('lit.sum.prompt', { size: sizeText, n: cfg.recentMessages })}>
         <div className="grid gap-3 sm:grid-cols-2">
           {sizeField()}
           {keyField('linkBudget', { id: 'lit-link-budget', label: t('lit.set.linkBudget'), hint: t('lit.set.linkBudgetHint'), unit: t('lit.unit.tokens'), min: 0, max: 3000 })}
-          {keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <Field>
+              <FieldLabel className="font-medium">{t('lit.set.cutMode')}</FieldLabel>
+              <Segmented
+                tone="scene"
+                label={t('lit.set.cutMode')}
+                value={cfg.cutMode === 'scenes' ? 'scenes' : 'fit'}
+                onChange={(v) => {
+                  setCfg({ ...cfg, cutMode: v })
+                  save({ cutMode: v })
+                }}
+                options={[
+                  { value: 'fit', label: t('lit.set.cutFit') },
+                  { value: 'scenes', label: t('lit.set.cutScenes') },
+                ]}
+              />
+              <p className="text-xs text-muted-foreground">{cfg.cutMode === 'scenes' ? t('lit.set.cutScenesHint') : t('lit.set.cutFitHint')}</p>
+            </Field>
+          </div>
+          {cfg.cutMode === 'scenes'
+            ? keyField('sceneKeep', { id: 'lit-scene-keep', label: t('lit.set.sceneKeep'), hint: t('lit.set.sceneKeepHint'), min: 2, max: 100000, fallback: 2 })
+            : keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
         </div>
       </Block>
 

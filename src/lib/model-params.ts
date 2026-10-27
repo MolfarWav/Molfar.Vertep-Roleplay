@@ -46,6 +46,9 @@ export async function putModelParams(ref: string, blocks: Record<string, ParamBl
   return body.models ?? {}
 }
 
+/** The window a reply is budgeted against when the model's is unknown (the engine plugin's UNKNOWN_WINDOW; a test keeps them equal). */
+export const UNKNOWN_WINDOW = 32768
+
 /**
  * What the reply request tells the engine plugin to budget with: the model's context window and the
  * max output of its Chat block. Absent values leave the preset's numbers in charge (older engines,

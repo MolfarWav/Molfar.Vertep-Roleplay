@@ -207,6 +207,30 @@ describe("the host: seeded run and the two new sources", () => {
     expect(lastRun().outputs[0].text).toBe("- pinned fact\n- newest fact");
   });
 
+  it("the history source gives the last N messages, and a token cap drops the oldest first", () => {
+    const text = (k: string) => k + " " + "word ".repeat(60); // about 300 characters, about 90 tokens
+    const msgs = [["user", text("one")], ["char", text("two")], ["user", text("three")], ["char", text("four")]];
+    const give = (extra: Json) => [{ id: "h", source: "history", ...extra }];
+    const cut = { type: "text.cut", params: { keep: "first", unit: "lines", n: 40 } } as Json;
+    setup(agentWith(cut, ["text", "in"], give({ last: 3 })), msgs);
+    runOnce();
+    const out = lastRun().outputs[0].text as string;
+    expect(out).not.toContain("one ");
+    expect(out).toContain("two ");
+    expect(out).toContain("four ");
+    // a cap of 100 tokens holds one message (the newest), 200 holds two
+    setup(agentWith(cut, ["text", "in"], give({ last: 4, tokens: 100 })), msgs);
+    runOnce();
+    const capped = lastRun().outputs[0].text as string;
+    expect(capped).toContain("four ");
+    expect(capped).not.toContain("three ");
+    setup(agentWith(cut, ["text", "in"], give({ last: 4, tokens: 200 })), msgs);
+    runOnce();
+    const two = lastRun().outputs[0].text as string;
+    expect(two).toContain("three ");
+    expect(two).not.toContain("two ");
+  });
+
   it("reads the lorebook entries that are constant or keyed by the last messages, from the books the chat uses", () => {
     const f = agentWith({ type: "text.cut", params: { keep: "first", unit: "lines", n: 20 } }, ["text", "in"], [{ id: "lore", source: "lorebook" }]);
     setup(f, [["user", "Tell me about the Dragon of the north."], ["char", "reply"]]);

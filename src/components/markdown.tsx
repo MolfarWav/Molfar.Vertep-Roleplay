@@ -12,7 +12,7 @@ import { cn, storedMediaUrl } from '@/lib/utils'
 import { proxyUrl } from '@/lib/engine'
 import { scopeCss } from '@/lib/scope-css'
 import { rehypeSafeStyle, safeRuleBody, stripRiskyAtRules } from '@/lib/safe-style'
-import { firstVoiceIn, leadVoiceIn, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
+import { firstVoiceIn, leadVoiceIn, opensWithLabel, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -189,6 +189,10 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
 /** The group voices a narrator's message is coloured by (none outside such messages). */
 export const DialogueVoices = createContext<DialogueVoice[]>([])
 
+/** True in the player's own message: a quote takes a character's colour only on a line that opens with
+ *  `Name:` (and the lines after it, until another label), never from a name said in the narration. */
+export const VoiceLeadOnly = createContext(false)
+
 /** The plain text of each line of a block, spoken quotes left out (a name said INSIDE a quote is the
  *  one spoken to, not the speaker). A line ends at a newline or a `<br>`. */
 function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): string[] {
@@ -210,9 +214,14 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
 
 /** Who speaks on each line: a `Name:` lead wins, else the first voice named in the line, else the
  *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null): (DialogueVoice | null)[] {
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false): (DialogueVoice | null)[] {
   let carry: DialogueVoice | null = carryIn
   return lineTexts(children).map((line) => {
+    if (leadOnly) {
+      // a label that names no voice (the player's own, or anyone else's) hands the lines back to the base colour
+      if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
+      return carry
+    }
     carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
     return carry
   })
@@ -281,9 +290,10 @@ function rehypeVoiceCarry(voices: DialogueVoice[]) {
 const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | 'td' | 'th') =>
   function Tinted({ children, ...rest }: { children?: ReactNode; 'data-carry'?: string }) {
     const voices = useContext(DialogueVoices)
+    const leadOnly = useContext(VoiceLeadOnly)
     const tinted = tintQuotes(children)
     const carryIn = voices.find((v) => v.name === rest['data-carry']) ?? null
-    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn), { line: 0 }) : tinted}</Tag>
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn, leadOnly), { line: 0 }) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
@@ -369,6 +379,7 @@ function MessageImage({ src, alt, title }: { src?: string; alt?: string; title?:
 // content string actually changes — not on every parent re-render
 export const Markdown = memo(function Markdown({ content, className, scope }: { content: string; className?: string; scope?: string }) {
   const voices = useContext(DialogueVoices)
+  const leadOnly = useContext(VoiceLeadOnly)
   return (
     <div
       className={cn(
@@ -402,7 +413,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
             rehypeSafeStyle,
             rehypeKatex,
             [rehypeHighlight, { detect: false, ignoreMissing: true }],
-            ...(voices.length ? [[rehypeVoiceCarry, voices] as [typeof rehypeVoiceCarry, DialogueVoice[]]] : []),
+            ...(voices.length && !leadOnly ? [[rehypeVoiceCarry, voices] as [typeof rehypeVoiceCarry, DialogueVoice[]]] : []),
           ]}
           components={mdComponents}
         >

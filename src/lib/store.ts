@@ -602,6 +602,13 @@ const quietStorage = {
   removeItem: (k: string) => localStorage.removeItem(k),
 }
 
+/** The context window and reply size of the model a chat uses: what its generations budget with, and so
+ *  what a preview of its prompt must budget with too. */
+export function chatLimits(chatId: ID | null | undefined): { contextWindow?: number; maxOutput?: number } {
+  const st = useApp.getState()
+  return modelLimits(st.modelFor(chatId), st.models, st.modelParams)
+}
+
 export const useApp = create<AppState>()(
   persist(
     (rawSet, get) => {

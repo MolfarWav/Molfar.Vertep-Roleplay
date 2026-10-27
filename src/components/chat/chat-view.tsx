@@ -19,7 +19,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { estimateTokens, formatCost, knownCost } from '@/lib/tokens'
-import { modelLimits } from '@/lib/model-params'
+import { modelLimits, UNKNOWN_WINDOW } from '@/lib/model-params'
 import { storeBackground } from '@/lib/webp'
 import { formatBytes, uniqueName } from '@/lib/world-backgrounds'
 import { AutoBackground } from '@/components/world/world-auto-bg'
@@ -50,6 +50,7 @@ import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
 import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
 import { AgentBlock } from './agent-block'
+import { WindowUnknownNote } from './window-unknown-note'
 import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
@@ -540,18 +541,21 @@ export function ChatView() {
   const modelParams = useApp((s) => s.modelParams)
   const chatPreset = presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
   const limits = modelLimits(defaultModel || null, models, modelParams)
-  const contextSize = limits.contextWindow ?? chatPreset?.samplers.contextSize ?? null
+  // the window is the model's alone (Settings, Models); unknown, replies budget against UNKNOWN_WINDOW and a note says so
+  const windowKnown = !!limits.contextWindow
+  const contextSize = limits.contextWindow ?? UNKNOWN_WINDOW
   const replyMax = (!chatPreset?.samplersOverrideModel && limits.maxOutput) || (chatPreset?.samplers.maxTokens ?? 512)
 
   // memory cutoff: walk from newest message backwards, accumulate token estimate against the context size
-  const cutoffIndex = useMemo(() => {
+  // The newest message that no longer fits the window (-1 = all fit): the last prompt's real start when
+  // there is one, else an estimate. Litopys's cut
+  // is a ceiling: of the messages its chapters cover, only those the window has no room for leave
+  // the prompt, so a chat that fits keeps every message.
+  const windowEstimate = useMemo(() => {
     if (!chat) return -1
-    const budget = (contextSize ?? 8192) - replyMax - 800 // reserve for system/response
+    const budget = contextSize - replyMax - 800 // reserve for system/response
     let used = 0
-    // messages covered by Litopys leave the prompt; the record stands in for
-    // them, so only the stretch below can fall out of context
-    const litCut = chat.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
-    for (let i = chat.messages.length - 1; i >= Math.max(0, litCut); i--) {
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
       const m = chat.messages[i]
       if (!m || m.hidden) continue
       used += estimateTokens(m.swipes[m.activeSwipe]?.content) + 8
@@ -559,6 +563,12 @@ export function ChatView() {
     }
     return -1
   }, [chat, contextSize, replyMax])
+  // the engine records where the last real prompt's history began; before any prompt, the estimate stands
+  const lastPromptIndex = !chat?.promptCut ? null : chat.promptCut.upTo ? chat.messages.findIndex((m) => m.id === chat.promptCut!.upTo) : -1
+  const windowIndex = lastPromptIndex !== null && (lastPromptIndex >= 0 || chat?.promptCut?.count === 0) ? lastPromptIndex : windowEstimate
+  const litCeiling = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
+  // out of the window and not held by a chapter: forgotten
+  const cutoffIndex = windowIndex > litCeiling ? windowIndex : -1
 
   // Actual spend: sum the REAL per-generation costs the engine reported on
   // each swipe. No pricing table is guessed client-side — messages generated
@@ -606,7 +616,8 @@ export function ChatView() {
     }
     return out
   }, [chat?.presetNotes, chat?.messages])
-  const summaryCutIndex = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
+  // out of the window and held by a chapter: older in the record
+  const summaryCutIndex = Math.min(litCeiling, windowIndex)
 
   // A dead 'chat' state (stale persisted id, the chat deleted from another
   // client mid-view) used to dead-end on "No chat selected" — fall back to
@@ -684,7 +695,7 @@ export function ChatView() {
       {a.label}
     </button>
   )
-  const chatContext = lastInput != null && contextSize ? { used: lastInput, total: contextSize } : null
+  const chatContext = lastInput != null && windowKnown ? { used: lastInput, total: contextSize } : null
 
   return (
     <DashProvider chatId={chat.id}>
@@ -1047,6 +1058,7 @@ export function ChatView() {
 
       {!deleteMode && <AgentBlock chatId={chat.id} />}
       {!deleteMode && <AgentChoices chatId={chat.id} msgKey={lastAgentKey} />}
+      {!deleteMode && !windowKnown && defaultModel && <WindowUnknownNote model={defaultModel} assumed={UNKNOWN_WINDOW} />}
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">
         {!deleteMode && <AgentFloat chatId={chat.id} msgKey={lastAgentKey} />}

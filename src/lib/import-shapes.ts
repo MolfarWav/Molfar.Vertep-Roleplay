@@ -127,7 +127,6 @@ export function presetExport(preset: Preset, scripts: RegexScript[] = []): WireP
     frequency_penalty: preset.samplers.freq_pen.value,
     presence_penalty: preset.samplers.pres_pen.value,
     openai_max_tokens: preset.samplers.maxTokens,
-    openai_max_context: preset.samplers.contextSize,
     impersonation_prompt: preset.utilityPrompts.impersonation,
     continue_nudge_prompt: preset.utilityPrompts.continueNudge,
     new_chat_prompt: preset.utilityPrompts.newChat,
@@ -309,7 +308,6 @@ function marinaraImport(json: unknown, name: string, base: Preset): Preset | nul
       freq_pen: { ...base.samplers.freq_pen, value: num(pr.frequencyPenalty, base.samplers.freq_pen.value) },
       pres_pen: { ...base.samplers.pres_pen, value: num(pr.presencePenalty, base.samplers.pres_pen.value) },
       maxTokens: num(pr.maxTokens, base.samplers.maxTokens),
-      contextSize: num(pr.maxContext, base.samplers.contextSize),
       stopStrings: stops.length ? stops : base.samplers.stopStrings,
       assistantPrefill: typeof pr.assistantPrefill === 'string' && pr.assistantPrefill.trim() ? pr.assistantPrefill : base.samplers.assistantPrefill,
       reasoning: effort ? { ...base.samplers.reasoning, enabled: true, effort } : base.samplers.reasoning,
@@ -480,8 +478,6 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
       freq_pen: { ...base.samplers.freq_pen, value: d.frequency_penalty ?? base.samplers.freq_pen.value },
       pres_pen: { ...base.samplers.pres_pen, value: d.presence_penalty ?? base.samplers.pres_pen.value },
       maxTokens: d.openai_max_tokens ?? base.samplers.maxTokens,
-      contextSize: d.openai_max_context ?? base.samplers.contextSize,
-      contextUnlocked: typeof d.max_context_unlocked === 'boolean' ? d.max_context_unlocked : base.samplers.contextUnlocked,
       seed: typeof d.seed === 'number' && d.seed >= 0 ? d.seed : base.samplers.seed,
       streaming: d.stream_openai ?? base.samplers.streaming,
       stopStrings: stops.length ? [...new Set(stops)] : base.samplers.stopStrings,
@@ -509,7 +505,7 @@ const ST_DEFAULTS: Record<string, string> = {
 
 /** What the file sets that has no equivalent here, and the samplers that came over. */
 function notePresetSettings(d: WirePresetJson, report: ImportReport, reasoning: boolean): void {
-  const knobs = ['temperature', 'top_p', 'top_k', 'min_p', 'repetition_penalty', 'frequency_penalty', 'presence_penalty', 'openai_max_tokens', 'openai_max_context']
+  const knobs = ['temperature', 'top_p', 'top_k', 'min_p', 'repetition_penalty', 'frequency_penalty', 'presence_penalty', 'openai_max_tokens']
   note(report, 'came', 'samplers', knobs.filter((k) => typeof d[k] === 'number').length)
   note(report, 'came', 'reasoning', reasoning ? 1 : 0)
   if (d.assistant_prefill?.trim()) note(report, 'came', 'prefill', 1)

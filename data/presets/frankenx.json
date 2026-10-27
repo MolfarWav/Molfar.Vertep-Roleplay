@@ -398,7 +398,6 @@
   "frequency_penalty": 0,
   "presence_penalty": 0,
   "openai_max_tokens": 512,
-  "openai_max_context": 8192,
   "seed": -1,
   "stop": [
     "\\n{{user}}:",
@@ -2123,8 +2122,6 @@
         "enabled": true
       },
       "maxTokens": 512,
-      "contextSize": 8192,
-      "contextUnlocked": false,
       "seed": -1,
       "stopStrings": [
         "\\n{{user}}:",

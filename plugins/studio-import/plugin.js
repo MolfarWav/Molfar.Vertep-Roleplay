@@ -522,9 +522,8 @@ function normalizePreset(raw, fallbackName) {
   const preset = {
     name: label,
     temperature: num("temperature") ?? num("temp") ?? undefined,
-    // token/context ceilings come under several names depending on the source UI
+    // the reply ceiling comes under several names depending on the source UI (the window is the model's, not the preset's)
     openai_max_tokens: num("openai_max_tokens") ?? num("max_tokens") ?? num("max_length") ?? num("n_predict") ?? undefined,
-    openai_max_context: num("openai_max_context") ?? num("max_context") ?? num("truncation_length") ?? undefined,
   };
   for (const k of SAMPLER_NUM_KEYS) if (num(k) != null) preset[k] = raw[k];
   for (const k of SAMPLER_STR_KEYS) if (typeof raw[k] === "string" && raw[k].trim()) preset[k] = raw[k];

@@ -37,8 +37,8 @@ export interface AgentInfo {
   own?: AgentOwn
 }
 
-/** What the user set for one agent: a model for each role, and the most model calls a run may make (0 = no limit). */
-export interface AgentOwn { models: Record<string, string>; maxCalls: number }
+/** What the user set for one agent: a model for each role, the most model calls a run may make (0 = no limit), and how often it runs (every N replies; 0 = as its author set). */
+export interface AgentOwn { models: Record<string, string>; maxCalls: number; everyN?: number }
 
 /** `wait: false` = the reply does not wait for an agent set to run before it: it runs beside the reply and its hint goes into the next one. Absent = the reply waits. */
 export interface ChatAgentItem { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean; show: string | null; /** the chat also shows this agent's latest result in its block */ also?: boolean }
@@ -166,11 +166,12 @@ export async function listInstalledAgents(): Promise<AgentInfo[] | null> {
 
 /** Saves the user's model per role and call limit for one agent in agents/config.json; an empty set removes the entry. */
 export async function saveAgentOwn(id: string, own: AgentOwn): Promise<void> {
-  const cfg = await j<{ byAgent?: Record<string, { models?: Record<string, string>; maxCalls?: number }> }>('/agents/config')
+  const cfg = await j<{ byAgent?: Record<string, { models?: Record<string, string>; maxCalls?: number; everyN?: number }> }>('/agents/config')
   const byAgent = { ...(cfg.byAgent ?? {}) }
-  const entry: { models?: Record<string, string>; maxCalls?: number } = {}
+  const entry: { models?: Record<string, string>; maxCalls?: number; everyN?: number } = {}
   if (Object.keys(own.models).length) entry.models = own.models
   if (own.maxCalls > 0) entry.maxCalls = own.maxCalls
+  if (own.everyN && own.everyN > 0) entry.everyN = own.everyN
   if (Object.keys(entry).length) byAgent[id] = entry
   else delete byAgent[id]
   await j('/agents/config', { method: 'PUT', body: JSON.stringify({ byAgent }) })
