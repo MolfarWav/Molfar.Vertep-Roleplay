@@ -473,9 +473,10 @@ export function WorldControls({
           chance={view.dice.chance}
           tilt={view.dice.tilt}
           onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}) })}
-        />
+        >
+          <DiceLog chatId={chatId} />
+        </DiceFields>
       )}
-      {events && view.dice && view.dice.mode !== 'off' && <DiceLog chatId={chatId} />}
     </section>
   )
 

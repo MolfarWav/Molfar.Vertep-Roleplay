@@ -32,7 +32,7 @@ export function DiceLog({ chatId }: { chatId: string }) {
   }
 
   return (
-    <details className="text-sm" onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) load() }} data-testid="dice-log">
+    <details className="rounded-md border border-border bg-background/60 px-3 text-sm" onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) load() }} data-testid="dice-log">
       <summary className="flex cursor-pointer items-center gap-2 py-1 font-medium max-md:min-h-11">{t('world.dice.log')}</summary>
       <div className="flex flex-col gap-1 pb-1">
         {failed && <p className="text-xs text-muted-foreground">{t('chats.panel.loading')}</p>}
