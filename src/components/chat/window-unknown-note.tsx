@@ -2,6 +2,7 @@ import { X } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useT } from '@/hooks/use-t'
+import { shortModel } from '@/lib/utils'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 
 const KEY = 'roleplay.windowNote.'
@@ -20,7 +21,7 @@ export function WindowUnknownNote({ model, assumed }: { model: string; assumed: 
   if (closed) return null
   return (
     <div className="mx-auto flex w-full max-w-[var(--chat-max,48rem)] items-start gap-2 px-4 py-1 text-[11px] leading-snug text-muted-foreground" role="note" data-testid="window-unknown-note">
-      <p className="min-w-0 flex-1">{t('ctx.unknown', { model, n: Math.round(assumed / 1000) })}</p>
+      <p className="min-w-0 flex-1">{t('ctx.unknown', { model: shortModel(model), n: Math.round(assumed / 1024) })}</p>
       {canOpenModelSettings() && (
         <button
           type="button"
