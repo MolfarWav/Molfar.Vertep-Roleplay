@@ -6,6 +6,23 @@ import { loadWorldDice, type WorldDiceRoll } from '@/lib/world'
 
 const SHOWN = 10
 
+type T = ReturnType<typeof useT>
+
+/** One roll as a short line: the dice, the total and what it made. */
+export function rollLine(t: T, r: WorldDiceRoll): string {
+  const outcome = (o: string | undefined) => (o ? t(`world.dice.out.${o}` as MsgKey) : '')
+  if (r.kind === 'life') return r.gated ? t('world.dice.life', { tier: t(`world.dice.tier.${r.tier}` as MsgKey) }) : t('world.dice.life.quiet')
+  if (!r.gated) return t('world.dice.quiet', { gate: r.gate, chance: r.chance })
+  const dice = `${r.d1}+${r.d2}`
+  if (r.stat === 'auto') {
+    // the model picks the person and the stat, so only what the dice and the cast allow is known
+    const who = r.who ? ` · ${r.who}` : ''
+    return `${dice} = ${r.total}: ${outcome(r.outcome)} (${t('world.dice.bare')})${who}`
+  }
+  const mod = r.mod ? ` ${r.mod > 0 ? '+' : '−'}${Math.abs(r.mod)}` : ''
+  return `${dice}${mod} = ${r.total}: ${outcome(r.outcome)} · ${t(`world.opt.diceStat.${r.stat}` as MsgKey)}${r.who ? ` (${r.who})` : ''}`
+}
+
 export function DiceLog({ chatId }: { chatId: string }) {
   const t = useT()
   const relativeTime = useRelativeTime()
@@ -14,22 +31,7 @@ export function DiceLog({ chatId }: { chatId: string }) {
 
   const load = () => {
     setFailed(false)
-    loadWorldDice(chatId).then((r) => setRolls(r.slice(-SHOWN).reverse())).catch(() => setFailed(true))
-  }
-
-  const outcome = (o: string | undefined) => (o ? t(`world.dice.out.${o}` as MsgKey) : '')
-
-  const line = (r: WorldDiceRoll) => {
-    if (r.kind === 'life') return r.gated ? t('world.dice.life', { tier: t(`world.dice.tier.${r.tier}` as MsgKey) }) : t('world.dice.life.quiet')
-    if (!r.gated) return t('world.dice.quiet', { gate: r.gate, chance: r.chance })
-    const dice = `${r.d1}+${r.d2}`
-    if (r.stat === 'auto') {
-      // the model picks the person and the stat, so only what the dice and the cast allow is known
-      const who = r.who ? ` · ${r.who}` : ''
-      return `${dice} = ${r.total}: ${outcome(r.outcome)} (${t('world.dice.bare')})${who}`
-    }
-    const mod = r.mod ? ` ${r.mod > 0 ? '+' : '−'}${Math.abs(r.mod)}` : ''
-    return `${dice}${mod} = ${r.total}: ${outcome(r.outcome)} · ${t(`world.opt.diceStat.${r.stat}` as MsgKey)}${r.who ? ` (${r.who})` : ''}`
+    loadWorldDice(chatId).then((r) => setRolls(r.rolls.slice(-SHOWN).reverse())).catch(() => setFailed(true))
   }
 
   return (
@@ -42,7 +44,7 @@ export function DiceLog({ chatId }: { chatId: string }) {
           <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
             {rolls.map((r, i) => (
               <li key={`${r.at}-${i}`} className={r.gated ? 'text-foreground' : ''}>
-                {line(r)} <span className="text-muted-foreground">· {relativeTime(r.at)}</span>
+                {rollLine(t, r)} <span className="text-muted-foreground">· {relativeTime(r.at)}</span>
               </li>
             ))}
           </ul>

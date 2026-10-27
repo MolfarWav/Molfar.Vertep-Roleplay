@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1 });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -153,7 +153,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1 });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -504,6 +504,16 @@ describe("the dice (code rolls before the reply)", () => {
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceLife: 0 }).json.dice.life).toBe(0);
     expect((llmRequest(req(), m.host) as any).promptSources.parts.map((p: any) => p.label)).toEqual(["Dice"]);
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceLife: -1 }).json.dice.life).toBe(100);
+  });
+
+  it("logs where each roll was made, and says whether the chat shows the marks", () => {
+    const m = withDice("flavour", {}, "living");
+    llmRequest(req(), m.host);
+    const first = route(m.host, "GET", "/world/dice", {}, { chatId: "c1" }).json;
+    expect(first.show).toBe(false);
+    expect(first.rolls[0]).toMatchObject({ op: "send", last: expect.stringContaining("#"), n: expect.any(Number), lastSwipes: expect.any(Number) });
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceShow: true }).json.settings.diceShow).toBe(true);
+    expect(route(m.host, "GET", "/world/dice", {}, { chatId: "c1" }).json.show).toBe(true);
   });
 
   it("lets the chat's own dice setting win over the profile, and shows the one in force", () => {

@@ -92,7 +92,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1 };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -184,6 +184,8 @@ function cleanSettings(s) {
     dice: DICE_MODES.includes(b.dice) ? b.dice : "",
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : "",
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : "",
+    // a small mark under each reply that had a roll (the chat's own; the profile has no say)
+    diceShow: b.diceShow === true,
     // -1 = the profile decides; 0 = never
     diceLife: b.diceLife !== "" && b.diceLife !== null && Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : -1,
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
@@ -1064,7 +1066,7 @@ const DICE_OUTCOMES = {
   yes_but: ["yes, but", "it works, but with a complication or a price"],
   full: ["full success", "it works cleanly, with no complication"],
 };
-const DICE_LOG_MAX = 40;
+const DICE_LOG_MAX = 60;
 const dicePath = (chatId) => "world/dice/" + chatId + ".json";
 
 function hashText(s) {
@@ -1243,7 +1245,8 @@ function diceRoute(req, host) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const raw = readJson(host.fs, dicePath(chatId), null);
-  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [] });
+  const { state } = loadState(host.fs, chatId);
+  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [], show: state.settings.diceShow === true });
 }
 
 export function llmRequest(ctx, host) {
@@ -1284,23 +1287,26 @@ export function llmRequest(ctx, host) {
       // the chat's own last message, not the request: other plugins rewrite the request text before or after this hook
       const msgs = chat ? chat.msgs : [];
       const seed = chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
+      // where in the chat this roll belongs, so a mark can sit under the reply it shaped
+      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      const place = { n: msgs.length, last: lastMsg ? keyOf(lastMsg) : "", lastSwipes: lastMsg && Array.isArray(lastMsg.swipes) ? lastMsg.swipes.length : 0 };
       let text = "";
       if (opt.diceStat === "auto") {
         const cast = diceCastOf(fsx, chatId, msgs, str(turn.speakerName));
         const roll = rollFateAuto(seed, opt.diceChance, cast, bands);
-        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: "auto", tilt: dice.tilt, who: cast.map((c) => c.who).join(", "), value: null, chance: opt.diceChance, ...roll, inserted: roll.gated });
+        logDice(fsx, chatId, { at: Date.now(), ...place, op: str(turn.op), mode: diceMode, stat: "auto", tilt: dice.tilt, who: cast.map((c) => c.who).join(", "), value: null, chance: opt.diceChance, ...roll, inserted: roll.gated });
         if (roll.gated) text = diceInsertAuto(roll, diceMode);
       } else {
         const { who, value } = diceStatOf(fsx, chatId, msgs, str(turn.speakerName), opt.diceStat);
         const roll = rollFate(seed, opt.diceChance, diceMod(value), bands);
-        logDice(fsx, chatId, { at: Date.now(), op: str(turn.op), mode: diceMode, stat: opt.diceStat, tilt: dice.tilt, who, value, chance: opt.diceChance, ...roll, inserted: roll.gated });
+        logDice(fsx, chatId, { at: Date.now(), ...place, op: str(turn.op), mode: diceMode, stat: opt.diceStat, tilt: dice.tilt, who, value, chance: opt.diceChance, ...roll, inserted: roll.gated });
         if (roll.gated) text = diceInsert(roll, diceMode, opt.diceStat, who);
       }
       if (text) parts.push({ kind: "plugin", label: "Dice", text });
       // the world may break in on its own; a waiting DM event is that already
       if (dice.life > 0 && !eventText) {
         const life = rollLife(seed, dice.life);
-        logDice(fsx, chatId, { at: Date.now(), kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated });
+        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated });
         if (life.gated) parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
       }
     }
@@ -2563,7 +2569,7 @@ function settingsRoute(req, host) {
   if (b.level !== undefined && !READY_LEVELS.includes(b.level)) return ok({ error: "unknown or unfinished level" }, 400);
   const { state, existed } = loadState(host.fs, chatId);
   const patch = {};
-  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance", "diceTilt", "diceLife"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;

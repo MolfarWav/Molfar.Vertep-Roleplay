@@ -42,7 +42,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number }
+  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; diceShow: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number } | null
   ready: WorldLevel[]
@@ -510,6 +510,10 @@ export interface WorldDiceRoll {
   /** 'life' = the world-intervenes roll (tier says how big); otherwise the action's roll */
   kind?: 'life'
   tier?: 'minor' | 'notable' | 'major'
+  /** where in the chat the roll was made: messages so far, the key of the last one (id#swipe) and its swipe count */
+  n?: number
+  last?: string
+  lastSwipes?: number
   op: string
   mode: WorldDiceMode
   stat: WorldDiceStat
@@ -529,7 +533,24 @@ export interface WorldDiceRoll {
   inserted: boolean
 }
 
-/** The chat's last rolls, oldest first. */
-export async function loadWorldDice(chatId: string): Promise<WorldDiceRoll[]> {
-  return (await j<{ rolls: WorldDiceRoll[] }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)).rolls
+/** The chat's last rolls, oldest first, and whether the chat shows them under the replies. */
+export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceRoll[]; show: boolean }> {
+  const r = await j<{ rolls: WorldDiceRoll[]; show?: boolean }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)
+  return { rolls: r.rolls, show: r.show === true }
+}
+
+interface DiceLiveState { chats: Record<string, { rolls: WorldDiceRoll[]; show: boolean }> }
+/** The newest read of each chat's rolls, for the marks under the replies. */
+export const useDiceLive = create<DiceLiveState>(() => ({ chats: {} }))
+
+/** Read the chat's rolls into the live store; a chat that does not show them is not read again until it is opened. */
+export async function refreshDice(chatId: string, force = false): Promise<void> {
+  const known = useDiceLive.getState().chats[chatId]
+  if (known && !known.show && !force) return
+  try {
+    const r = await loadWorldDice(chatId)
+    useDiceLive.setState((s) => ({ chats: { ...s.chats, [chatId]: r } }))
+  } catch {
+    // an app with no World DM has no rolls
+  }
 }

@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { DiceFive } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -50,12 +51,15 @@ function Row({ label, hint, children }: { label: string; hint: string; children:
 }
 
 /** The dice as one card: icon and title, a three-way switch with the explanation of the chosen position, then the settings in their own group. `children` (the roll log) closes the card. */
-export function DiceFields({ mode, stat, chance, tilt, life, onChange, children }: {
+export function DiceFields({ mode, stat, chance, tilt, life, show, onShow, onChange, children }: {
   mode: WorldDiceMode
   stat: WorldDiceStat
   chance: number
   tilt: WorldDiceTilt
   life: number
+  /** a mark under each reply that had a roll (the chat's own: the profile's card leaves it out) */
+  show?: boolean
+  onShow?: (v: boolean) => void
   onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number; diceTilt?: WorldDiceTilt; diceLife?: number }) => void
   children?: ReactNode
 }) {
@@ -104,6 +108,11 @@ export function DiceFields({ mode, stat, chance, tilt, life, onChange, children 
           <Row label={t('world.opt.diceChance')} hint={t('world.opt.diceChanceHint')}>
             <NumField label={t('world.opt.diceChance')} value={chance} min={1} max={100} onCommit={(n) => onChange({ diceChance: n })} />
           </Row>
+          {onShow && (
+            <Row label={t('world.opt.diceShow')} hint={t('world.opt.diceShowHint')}>
+              <Switch checked={show === true} onCheckedChange={onShow} aria-label={t('world.opt.diceShow')} />
+            </Row>
+          )}
           <Row label={t('world.opt.diceLife')} hint={t('world.opt.diceLifeHint')}>
             <NumField label={t('world.opt.diceLife')} value={life} min={0} max={100} onCommit={(n) => onChange({ diceLife: n })} />
           </Row>

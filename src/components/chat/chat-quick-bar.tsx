@@ -461,18 +461,18 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
             'flex h-8 min-w-0 max-w-full items-center rounded-lg border border-border bg-card/60 text-[11px]',
             'overflow-hidden hover:bg-accent/70 hover:text-foreground',
           )}
-          aria-label={`Switch context: preset ${preset?.name ?? 'none'}, persona ${persona?.name ?? 'none'}, model ${modelLabel}`}
-          title={`Preset: ${preset?.name ?? '—'}\nPersona: ${persona?.name ?? '—'}\nModel: ${current ? `${current.provider} · ${current.id}` : modelLabel}`}
+          aria-label={`Switch context: preset ${preset?.name ?? 'none'}, persona ${persona?.name ?? 'none'}, model ${modelLabel}, ${agentsLine}`}
+          title={`Preset: ${preset?.name ?? '—'}\nPersona: ${persona?.name ?? '—'}\nModel: ${current ? `${current.provider} · ${current.id}` : modelLabel}\nAgents: ${agentsLine}`}
         >
           {/* labels: the preset from md, persona and model from xl (the header must not be cut off) */}
-          {/* preset segment */}
-          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
+          {/* preset segment: each segment opens the palette on its own tab */}
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2" onClick={() => setTab('preset')}>
             <SlidersHorizontal className="size-3.5 shrink-0 text-amber-500/90" aria-hidden="true" />
             <span className="hidden max-w-24 truncate font-medium text-foreground/90 md:inline">{preset?.name ?? '—'}</span>
           </span>
           <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
           {/* persona segment */}
-          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2" onClick={() => setTab('persona')}>
             {persona?.avatar ? (
               <img
                 src={storedMediaUrl(persona.avatar) || DEFAULT_AVATAR}
@@ -487,9 +487,15 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
           </span>
           <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
           {/* model segment */}
-          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2">
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2" onClick={() => setTab('profile')}>
             <ModelMark model={chat ? (current?.ref ?? model ?? '') : ''} className="size-3.5 shrink-0 text-emerald-500/90" />
             <span className="hidden max-w-28 truncate font-mono text-muted-foreground xl:inline">{modelLabel}</span>
+          </span>
+          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+          {/* agents segment: visible at once, with how many are on once the list is read */}
+          <span className="flex min-w-0 items-center gap-1.5 px-2.5 md:px-2" onClick={() => setTab('agents')} data-testid="quick-bar-agents">
+            <Robot className="size-3.5 shrink-0 text-violet-500/90" aria-hidden="true" />
+            <span className="hidden max-w-24 truncate text-muted-foreground xl:inline">{agents.list ? agentsLine : t('ag.tab')}</span>
           </span>
           <CaretDown className="mr-1.5 size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         </PopoverTrigger>
