@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.72.0'
+export const APP_VERSION = '4.73.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -220,6 +220,19 @@ const HAND_TIPS: Tip[] = [
     body: {
       en: 'Chat header → World (on a phone: Menu → World): pick a level. Chronicler keeps the story’s people and places in the chat’s own lorebook; from Living world up the world moves and events reach the next reply. Off by default.',
       uk: 'Шапка чату → «Світ» (на телефоні: Меню → «Світ»): оберіть рівень. «Літописець» записує людей і місця історії у власний лорбук чату; від «Живого світу» світ рухається, а події потрапляють у наступну відповідь. Типово вимкнений.',
+    },
+  },
+  // ── What's new: the dice for the World DM (#155)
+  {
+    id: 'new.dice',
+    since: '4.73.0',
+    target: 'chat.story-tools',
+    open: { view: 'chat', narrowPanel: 'chat-menu' },
+    keywords: { en: 'dice roll luck chance world dm fate', uk: 'кубик кидок удача шанс майстер світ' },
+    title: { en: 'Dice for the World DM', uk: 'Кубик для майстра світу' },
+    body: {
+      en: 'World sheet → Dice (Living world and up): before a reply is written, code rolls 2d6 and tells the model how an uncertain action turns out, from miss to full success. Off by default; pick Hint or Binding, how kind the luck is, and how often. The prompt Inspector shows the line as “Dice”.',
+      uk: 'Шторка «Світ» → «Dice» (від «Живого світу»): перед відповіддю код кидає 2d6 і підказує моделі, чим закінчиться непевна дія: від промаху до повного успіху. Типово вимкнено; оберіть «Підказка» чи «Обов’язково», наскільки щедра удача і як часто. В інспекторі промптів рядок видно як «Dice».',
     },
   },
   // ── What's new: DM profiles and records
