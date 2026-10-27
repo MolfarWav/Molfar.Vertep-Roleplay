@@ -1171,7 +1171,7 @@ function runCards(file, ctx, answers, seen) {
  * Data (under the app's data/ dir):
  *   agents/<id>.vertep-agent.json        the installed agent, checked and compiled
  *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...] }
- *   agents/config.json                   { model?, models?: { <role>: <model> }, byAgent?: { <id>: { models?: { <role>: <model> }, maxCalls? } } }
+ *   agents/config.json                   { model?, models?: { <role>: <model> }, byAgent?: { <id>: { models?: { <role>: <model> }, maxCalls?, everyN? } } }
  *   agents/state/<chatId>/<id>.json      the agent's own fields in that chat, { v, own, last, before }
  *   agents/runs/<chatId>.json            the newest runs: { v, runs: [...] }
  *   agents/inserts/<chatId>.json         prompt inserts waiting for the next reply: { v, items: [...] }
@@ -1294,6 +1294,19 @@ const lastOf = (msgs, test) => {
   return null;
 };
 
+/** A token estimate by script (ASCII about 3.5 characters a token, other letters 2, CJK and the rest 1), as the engine's. */
+function approxTokens(text) {
+  const s = String(text == null ? "" : text);
+  let ascii = 0, alpha = 0, other = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) ascii++;
+    else if (c < 0x2e80) alpha++;
+    else other++;
+  }
+  return Math.ceil(ascii / 3.5 + alpha / 2 + other);
+}
+
 /** One `give` of the Input card -> text (or undefined when the chat has nothing for it). */
 function sourceValue(fsx, chat, give, last) {
   const { meta, msgs } = chat;
@@ -1304,6 +1317,9 @@ function sourceValue(fsx, chat, give, last) {
     const n = Number.isInteger(give.last) && give.last > 0 ? Math.min(give.last, 60) : 10;
     const only = give.only === "user" ? isUserMsg : give.only === "char" ? isReplyMsg : () => true;
     const rows = msgs.filter((m) => m.role !== "system" && only(m)).slice(-n).map((m) => (str(m.name) || (isUserMsg(m) ? "User" : "Character")) + ": " + msgText(m, give.thinking === true)).filter((r) => r.length > 2);
+    // an optional cap in tokens: the oldest rows go first, the newest always stays
+    const cap = Number.isInteger(give.tokens) && give.tokens >= 100 ? Math.min(give.tokens, 100000) : 0;
+    while (cap && rows.length > 1 && approxTokens(rows.join("\n\n")) > cap) rows.shift();
     return rows.length ? rows.join("\n\n") : undefined;
   }
   if (src === "card") {
@@ -1379,12 +1395,19 @@ function lorebookText(fsx, meta, msgs, give) {
 
 // ---------- which model answers an agent's question ----------
 
-/** The user's own limits for one agent (`byAgent` of agents/config.json): a model for each role and the most model calls a run may make. */
+/** The user's own limits for one agent (`byAgent` of agents/config.json): a model for each role, the most model calls a run may make,
+ *  and how often it runs (everyN: every N replies, in place of the author's trigger.everyN; 0 = the author's). */
 function ownOf(cfg, id) {
   const o = isObj(cfg) && isObj(cfg.byAgent) && isObj(cfg.byAgent[id]) ? cfg.byAgent[id] : {};
-  return { models: isObj(o.models) ? o.models : {}, maxCalls: Number.isInteger(o.maxCalls) && o.maxCalls > 0 ? o.maxCalls : 0 };
+  return {
+    models: isObj(o.models) ? o.models : {},
+    maxCalls: Number.isInteger(o.maxCalls) && o.maxCalls > 0 ? o.maxCalls : 0,
+    everyN: Number.isInteger(o.everyN) && o.everyN >= 1 && o.everyN <= EVERY_N_MAX ? o.everyN : 0,
+  };
 }
-const capOf = (fsx, id) => ownOf(readJsonAt(fsx, "agents/config.json", {}), id).maxCalls;
+const EVERY_N_MAX = 50;
+const ownFor = (fsx, id) => ownOf(readJsonAt(fsx, "agents/config.json", {}), id);
+const capOf = (fsx, id) => ownFor(fsx, id).maxCalls;
 
 function modelFor(fsx, meta, role, agentId) {
   const cfg = readJsonAt(fsx, "agents/config.json", {});
@@ -1419,6 +1442,10 @@ const lastTextOf = (outputs) => {
 function everyNOk(trigger, msgs, extra) {
   const n = isObj(trigger) && Number.isInteger(trigger.everyN) && trigger.everyN > 1 ? trigger.everyN : 1;
   return n === 1 || (msgs.filter(isReplyMsg).length + (extra || 0)) % n === 0;
+}
+/** The author's trigger with the user's own cadence in place of its everyN (0 = the author's stays). */
+function withOwnEvery(trigger, everyN) {
+  return everyN > 0 ? { ...(isObj(trigger) ? trigger : {}), everyN } : trigger;
 }
 function keywordsOk(trigger, msgs) {
   const kw = isObj(trigger) && Array.isArray(trigger.keywords) ? trigger.keywords.filter((k) => typeof k === "string" && k.trim()) : [];
@@ -1466,7 +1493,7 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
     if (manual) { /* a manual run goes ahead whatever the trigger says */ }
     else if (when !== phase) { skipped.push({ agent: it.agent, why: when === "manual" ? "manual" : "runs " + (when === "after" ? "after" : when === "before" ? "before" : "beside") + " the reply, not " + (phase === "parallel" ? "beside" : phase) + " it" }); continue; }
     else if (phase === "after" && !isReplyMsg(last)) { skipped.push({ agent: it.agent, why: "no new reply" }); continue; }
-    else if (!everyNOk(agent.file.agent.trigger, chat.msgs, extra) || !keywordsOk(agent.file.agent.trigger, view.msgs)) { skipped.push({ agent: it.agent, why: "its trigger did not fire" }); continue; }
+    else if (!everyNOk(withOwnEvery(agent.file.agent.trigger, ownFor(fsx, it.agent).everyN), chat.msgs, extra) || !keywordsOk(agent.file.agent.trigger, view.msgs)) { skipped.push({ agent: it.agent, why: "its trigger did not fire" }); continue; }
     const why = blocker(agent, grantedOf(fsx, it.agent), capOf(fsx, it.agent));
     if (why) { skipped.push({ agent: it.agent, why }); continue; }
     if (!manual && runs.some((r) => r.agent === it.agent && r.key === turn.key && r.status !== "failed")) { skipped.push({ agent: it.agent, why: phase === "after" ? "already ran for this reply" : "already ran for this message" }); continue; }
@@ -1788,7 +1815,7 @@ function listRoute(req, host) {
       needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs),
       maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: agent.report.errors, warnings: agent.report.warnings,
       runnable: !blocker(agent, granted, own.maxCalls), blocker: blocker(agent, granted, own.maxCalls), places: placesOf(agent.file),
-      own: { models: own.models, maxCalls: own.maxCalls },
+      own: { models: own.models, maxCalls: own.maxCalls, everyN: own.everyN },
     });
   }
   return ok({ agents });
@@ -1883,6 +1910,7 @@ function configRoute(req, host) {
       if (isObj(v.models)) for (const [role, x] of Object.entries(v.models)) if (/^[A-Za-z0-9_-]{1,40}$/.test(role) && AG_MODEL.test(str(x))) m[role] = str(x);
       if (Object.keys(m).length) entry.models = m;
       if (Number.isInteger(v.maxCalls) && v.maxCalls >= 1 && v.maxCalls <= 50) entry.maxCalls = v.maxCalls;
+      if (Number.isInteger(v.everyN) && v.everyN >= 1 && v.everyN <= EVERY_N_MAX) entry.everyN = v.everyN;
       if (Object.keys(entry).length) by[id] = entry;
     }
     if (Object.keys(by).length) next.byAgent = by; else delete next.byAgent;

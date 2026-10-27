@@ -354,7 +354,12 @@ function Problems({ messages }: { messages: string[] }) {
 }
 
 /** Sources that give a list, and how many entries they give when the card does not say. */
-const LIMITED: Record<string, { def: number; max: number }> = { litopysFacts: { def: 20, max: 60 }, lorebook: { def: 8, max: 20 } }
+// `key` is the field of the give entry that holds the number: the history keeps `last`, the lists keep `limit`
+const LIMITED: Record<string, { def: number; max: number; key: 'limit' | 'last' }> = {
+  history: { def: 10, max: 60, key: 'last' },
+  litopysFacts: { def: 20, max: 60, key: 'limit' },
+  lorebook: { def: 8, max: 20, key: 'limit' },
+}
 
 // ---------- the form of one card ----------
 
@@ -384,7 +389,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
   const kind = String(p.kind ?? 'note')
   const places = SHOW_BY_KIND[kind] ?? []
   const { ins } = portsOf(node)
-  const give = (Array.isArray(p.give) ? p.give : []) as { id: string; source: string; limit?: number }[]
+  const give = (Array.isArray(p.give) ? p.give : []) as { id: string; source: string; limit?: number; last?: number; tokens?: number }[]
 
   const stateField = (types: string[], extra?: (name: string) => Params) => {
     const names = fieldsOf(...types)
@@ -424,9 +429,17 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
                   {on && lim && (
                     <div className="ml-6 flex flex-col gap-1">
                       <span className="text-[11px] font-medium">{t('fg.input.limit')}</span>
-                      <NumberBox value={typeof entry.limit === 'number' ? entry.limit : undefined} min={1} max={lim.max} label={`${t(`fg.source.${s}` as MsgKey)}: ${t('fg.input.limit')}`} placeholder={String(lim.def)}
-                        onChange={(n) => set({ give: give.map((g) => { if (g.source !== s) return g; const { limit: _l, ...rest } = g; return n === undefined ? rest : { ...rest, limit: n } }) })} />
+                      <NumberBox value={typeof entry[lim.key] === 'number' ? entry[lim.key] : undefined} min={1} max={lim.max} label={`${t(`fg.source.${s}` as MsgKey)}: ${t('fg.input.limit')}`} placeholder={String(lim.def)}
+                        onChange={(n) => set({ give: give.map((g) => { if (g.source !== s) return g; const { [lim.key]: _l, ...rest } = g; return n === undefined ? rest : { ...rest, [lim.key]: n } }) })} />
                       <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.input.limitHint', { n: lim.def, max: lim.max })}</span>
+                      {s === 'history' && (
+                        <>
+                          <span className="mt-1 text-[11px] font-medium">{t('fg.input.tokens')}</span>
+                          <NumberBox value={typeof entry.tokens === 'number' ? entry.tokens : undefined} min={100} max={100000} label={t('fg.input.tokens')} placeholder={t('fg.input.tokensNone')}
+                            onChange={(n) => set({ give: give.map((g) => { if (g.source !== s) return g; const { tokens: _t, ...rest } = g; return n === undefined ? rest : { ...rest, tokens: n } }) })} />
+                          <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.input.tokensHint')}</span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

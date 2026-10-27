@@ -7,6 +7,7 @@ import { useT } from '@/hooks/use-t'
 import { describeWrite, dryRun, sampleInputs, startOwn, type DryFile, type DryResult } from '@/lib/agent-dry'
 import { fmtValue } from '@/lib/agent-template'
 import type { MsgKey } from '@/lib/i18n'
+import { estimateTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 import { Field } from './card-form'
 
@@ -95,6 +96,7 @@ export function TryPanel({ file, errors, dry, titleOf }: { file: DryFile; errors
             <div key={a.node} className="flex flex-col gap-1" data-testid={`try-reply-${a.node}`}>
               <div className="flex items-center gap-2 text-xs font-medium">
                 <span className="min-w-0 flex-1 truncate">{titleOf(a.node)}</span>
+                <span className="shrink-0 font-mono text-[10px] font-normal text-muted-foreground" title={t('fg.try.promptHint')} data-testid={`try-prompt-${a.node}`}>{t('fg.try.promptTokens', { n: estimateTokens(a.prompt).toLocaleString() })}</span>
                 <span className={cn('shrink-0 rounded-full border px-1.5 text-[10px] font-normal', a.example ? 'border-border text-muted-foreground' : 'border-primary/60 text-primary')}>{a.example ? t('fg.try.example') : t('fg.try.yours')}</span>
               </div>
               <Textarea rows={3} value={a.reply} className="font-mono text-xs" aria-label={titleOf(a.node)} onChange={(e) => set({ replies: { ...edits.replies, [a.node]: e.target.value } })} />

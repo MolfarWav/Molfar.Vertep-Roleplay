@@ -574,6 +574,10 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   reference, is `E_REGEX_RISK`: such a pattern can run for very long on a short text, and the plugin sandbox would be stopped
   after seconds. Dice and picks are seeded: the host passes `ctx.seed` = chat id, agent id and the turn key (`id#swipe`), so every
   pass of one run rolls the same, a regenerated reply with the same swipe repeats its roll, and a new swipe rolls again.
+- The `history` source takes `last` (the newest N messages, 1 to 60, default 10), `only` (`user` or `char`), `thinking`, and
+  `tokens` (100 to 100000, optional: the oldest messages are dropped until the text fits, the newest is always kept; the
+  size is estimated by script, not counted by the model's tokenizer). The agent's user can also set how often it runs
+  (`byAgent.<id>.everyN`, 1 to 50, in place of the author's `trigger.everyN`).
 - Input sources read by the host (`give[].source`, permission `read:<source>`): `litopysFacts` (the chat's active Litopys
   facts, pinned first then the newest, `limit` 1 to 60, default 20, one "- fact" line each; missing when Litopys has no
   record for the chat) and `lorebook` (entries of the books the chat uses, in this order: the card's embedded and linked
