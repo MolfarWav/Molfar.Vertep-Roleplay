@@ -547,14 +547,14 @@ export function ChatView() {
   const replyMax = (!chatPreset?.samplersOverrideModel && limits.maxOutput) || (chatPreset?.samplers.maxTokens ?? 512)
 
   // memory cutoff: walk from newest message backwards, accumulate token estimate against the context size
-  const cutoffIndex = useMemo(() => {
+  // The newest message that no longer fits the window (an estimate, -1 = all fit). Litopys's cut
+  // is a ceiling: of the messages its chapters cover, only those the window has no room for leave
+  // the prompt, so a chat that fits keeps every message.
+  const windowIndex = useMemo(() => {
     if (!chat) return -1
     const budget = contextSize - replyMax - 800 // reserve for system/response
     let used = 0
-    // messages covered by Litopys leave the prompt; the record stands in for
-    // them, so only the stretch below can fall out of context
-    const litCut = chat.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
-    for (let i = chat.messages.length - 1; i >= Math.max(0, litCut); i--) {
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
       const m = chat.messages[i]
       if (!m || m.hidden) continue
       used += estimateTokens(m.swipes[m.activeSwipe]?.content) + 8
@@ -562,6 +562,9 @@ export function ChatView() {
     }
     return -1
   }, [chat, contextSize, replyMax])
+  const litCeiling = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
+  // out of the window and not held by a chapter: forgotten
+  const cutoffIndex = windowIndex > litCeiling ? windowIndex : -1
 
   // Actual spend: sum the REAL per-generation costs the engine reported on
   // each swipe. No pricing table is guessed client-side — messages generated
@@ -609,7 +612,8 @@ export function ChatView() {
     }
     return out
   }, [chat?.presetNotes, chat?.messages])
-  const summaryCutIndex = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
+  // out of the window and held by a chapter: older in the record
+  const summaryCutIndex = Math.min(litCeiling, windowIndex)
 
   // A dead 'chat' state (stale persisted id, the chat deleted from another
   // client mid-view) used to dead-end on "No chat selected" — fall back to

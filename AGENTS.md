@@ -429,3 +429,5 @@ Rules of thumb:
 - Writes you make through the app's own HTTP routes (POST /v1/apps/roleplay/…)
   commit to the app's git automatically; direct file edits stay pending until
   you commit them (or the engine sweeps them under an `out-of-band:` label).
+
+The Litopys cut (4.72.0): `litopysCut` in `plugins/engine/plugin.js` is a ceiling (messages a chapter covers, outside the last `recentMessages`); `litopysFitCut` takes only as many as the window needs (the same budget the trim loop uses). `GET /chats/:id` still reports the ceiling as `litopysCut`; the chat view estimates the real boundary from the window. After a real generation the engine writes `litopys/prompt-cut/<chat>.json` (where the verbatim history started) and Litopys's insert (`buildInsert`, `promptCut`) carries a chapter for every message before it, so a small window never drops messages that no chapter stands in for.

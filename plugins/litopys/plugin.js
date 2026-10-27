@@ -144,10 +144,13 @@ export function estimateTokens(text) {
 }
 
 // ---------- config ----------
+/** Without a Dashboard snapshot, whoever wrote in this many latest messages counts as present. */
+const PRESENT_WINDOW = 20;
+
 export const DEFAULT_CONFIG = {
   enabled: true,
   model: "",
-  recentMessages: 20,
+  recentMessages: 100,
   scene: {
     minMessages: 6,
     maxMessages: 40,
@@ -419,7 +422,7 @@ export function patchConfig(fsx, body) {
   const next = { ...DEFAULT_CONFIG, ...stored };
   if (b.enabled !== undefined) next.enabled = b.enabled !== false && b.enabled !== "off";
   if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
-  if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 20), 6, 200);
+  if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 100), 6, 200);
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);
@@ -1128,9 +1131,11 @@ export function rankChapters(chapters, scanText, sem) {
 }
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors }) {
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
-  const cut = cutCount(st, line, cfg);
+  // the prompt may have dropped more of the oldest messages than the recent window allows (a small
+  // window): the engine says where its history starts, and what lies before is carried here
+  const cut = Math.max(cutCount(st, line, cfg), Math.min(line.length, Math.max(0, Number(promptCut) || 0)));
   // who is present: the newest snapshot of the line, else the names in the recent window
   const present = new Set();
   let snapFound = false;
@@ -1142,8 +1147,7 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
     }
   }
   if (!snapFound) {
-    const recent = Math.max(6, Number(cfg && cfg.recentMessages) || 6);
-    for (const m of line.slice(-recent)) if (str(m.name)) present.add(str(m.name));
+    for (const m of line.slice(-PRESENT_WINDOW)) if (str(m.name)) present.add(str(m.name));
   }
   if (str(speakerName)) present.add(str(speakerName));
   const userName = str(meta && meta.userName) || "You";
@@ -1345,7 +1349,7 @@ export function llmRequest(ctx, host) {
     const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
     const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors }) : null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line) }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
@@ -2214,6 +2218,14 @@ export function pickChats(fsx, now) {
 
 // ---------- M3b: the sweep, migrated weights, card repeats, dashboard notes, rebuild ----------
 const INSERT_DIR = "litopys/insert/";
+/** Where the engine's last prompt started its verbatim history (count of line messages before it),
+ *  0 when the file is missing or the chat has changed since (the id at that place is another). */
+function promptCutOf(fsx, chatId, line) {
+  const r = readJson(fsx, "litopys/prompt-cut/" + chatId + ".json", null);
+  const n = isObj(r) ? Number(r.count) : 0;
+  if (!Number.isInteger(n) || n <= 0 || n > line.length) return 0;
+  return line[n - 1] && line[n - 1].id === r.upTo ? n : 0;
+}
 
 /** The weight of an old vault entry: by its importance (1-5), a pinned one at least important. */
 function vaultWeight(m) {
@@ -3715,8 +3727,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
 
   // present: the names of the new chat's recent messages, the speaker and the user
   const here = new Set();
-  const recent = Math.max(6, Number(cfg && cfg.recentMessages) || 6);
-  for (const m of arr(line).slice(-recent)) if (str(m && m.name)) here.add(str(m.name).toLowerCase());
+  for (const m of arr(line).slice(-PRESENT_WINDOW)) if (str(m && m.name)) here.add(str(m.name).toLowerCase());
   if (str(speakerName)) here.add(str(speakerName).toLowerCase());
   here.add((str(meta && meta.userName) || "You").toLowerCase());
 

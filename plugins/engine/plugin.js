@@ -1616,8 +1616,22 @@ function litopysCut(fsx, chatId, line) {
   try { st = JSON.parse(fsx.read("litopys/chats/" + chatId + ".json")); } catch {}
   if (!st) return 0;
   const n = Number(cfg.recentMessages);
-  const recent = Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 20;
+  const recent = Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 100;
   return Math.max(0, Math.min(litCoveredCount(st, line), line.length - recent));
+}
+/** How many of the first `maxCut` line messages must leave the prompt for the rest to fit: the
+ *  Litopys cut is a ceiling (what chapters cover, outside the recent stretch), the window decides
+ *  how much of it is used. `over` = tokens the history is over its room (<= 0: it all fits). A line
+ *  message that is not in the prompt costs nothing. A chat that fits the model's window keeps
+ *  every message; the chapters then only add to it. */
+function litopysFitCut(line, maxCut, over, tokensOf) {
+  if (maxCut <= 0 || over <= 0) return 0;
+  let freed = 0;
+  for (let i = 0; i < maxCut; i++) {
+    freed += tokensOf(line[i]);
+    if (freed >= over) return i + 1;
+  }
+  return maxCut;
 }
 /** Whether Litopys holds this chat (then the old Memory keys of its meta can go). */
 function litopysHolds(fsx, chatId) {
@@ -3117,7 +3131,18 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // than its recent window; its insert (the Litopys plugin's llmRequest hook) carries them
   let histMsgs = msgs;
   const litLine = litopysLine(msgs);
-  const litCut = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
+  // the room the history has: a token estimate against the window, minus the room the reply needs
+  // and what the sibling plugins' hooks add later
+  const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
+  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id) - 64;
+  const msgTokens = (m) => estimateTokens(m.content) + 4;
+  const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
+  // Litopys's cut is a ceiling: only as many covered messages leave as the window needs
+  const litCeiling = isOff("plugin:litopys") ? 0 : litopysCut(fsx, meta.id, litLine);
+  const rawTokens = (m) => estimateTokens(m.text) + 4;
+  const litCut = litCeiling > 0
+    ? litopysFitCut(litLine, litCeiling, fixedTokens() + litLine.reduce((a, m) => a + rawTokens(m), 0) - budget, rawTokens)
+    : 0;
   if (isOff("plugin:litopys")) {
     omit("memory", "Litopys", "off for this chat", undefined, "plugin:litopys");
   } else if (litCut > 0) {
@@ -3186,7 +3211,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
   if (litCut > 0) {
-    omit("memory", litCut + " messages kept as Litopys chapters", "older than the recent window; the Litopys insert carries them", undefined, "history");
+    omit("memory", litCut + " messages kept as Litopys chapters", "the window has no room for them; the Litopys insert carries them", undefined, "history");
   }
 
   // compact chat history: the visible chat collapses into ONE message of the
@@ -3210,12 +3235,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     history.push({ role, content: body });
   }
 
-  // context trimming: a token estimate against openai_max_context, minus the
-  // room the reply needs and what the sibling plugins' hooks add later
-  const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
-  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id) - 64;
-  const msgTokens = (m) => estimateTokens(m.content) + 4;
-  const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
+  // context trimming against the same budget, for what the Litopys cut did not already free
   // what fell out is reported: automatic compaction fires on it
   let trimmed = 0;
   let removedTokens = 0;
@@ -3228,6 +3248,19 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     trimmed++;
   }
   if (trimmed > 0) omit("history", trimmed + " oldest messages", "over the context budget", removedTokens, "history");
+  // where the verbatim history really starts, for the Litopys insert: it carries a chapter for every
+  // message before it that a chapter covers, however the window forced the cut (a compacted history
+  // is one message: nothing to say)
+  if (!opts || opts.dryRun !== true) {
+    try {
+      if (!compactOn && !isOff("plugin:litopys") && litLine.length) {
+        const first = visibleHist[trimmed];
+        const at = first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
+        const count = at < 0 ? 0 : at;
+        fsx.write("litopys/prompt-cut/" + meta.id + ".json", JSON.stringify({ count, upTo: count > 0 ? litLine[count - 1].id : null }));
+      }
+    } catch { /* the insert then uses the recent window alone */ }
+  }
   // a compacted history is one message: its turns stay substrings of it and nothing was trimmed
   for (const hp of histParts.slice(compactOn ? 0 : trimmed)) addPart(...hp);
 

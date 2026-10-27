@@ -240,6 +240,19 @@ async function chatWithThirty() {
   return { id, m };
 }
 
+
+/** What Litopys may cut now (the ceiling the window then uses): the chat's litopysCut. */
+async function cutOf(id: string, m: ReturnType<typeof mockHost>) {
+  const r = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
+  return (r.json as { meta: { litopysCut: { count: number; upTo: string | null } } }).meta.litopysCut;
+}
+
+/** A window with no room for the chat: chatWithThirty's prompt, its Litopys reserve and a 100-token reply
+ *  leave the history too little for the covered stretch (20 messages), so all of it goes. */
+const TIGHT = { contextWindow: 1970, maxOutput: 100 };
+const previewOf = (id: string, m: ReturnType<typeof mockHost>, limits: Record<string, number> = {}) =>
+  drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, ...limits } }, m);
+
 /** "user turn #1" must not match "user turn #10". */
 const hasNum = (c: string, s: string) => {
   const at = c.indexOf(s);
@@ -250,19 +263,41 @@ function messageContents(r: Record<string, unknown>) {
   return ((r.messages ?? []) as { role: string; content: string }[]).map((x) => x.content);
 }
 
-it("chapters 1-10 and 11-20 with recentMessages 6 drop messages 1-20 from the preview", async () => {
+it("chapters 1-10 and 11-20 with recentMessages 6: a window with no room drops messages 1-20 from the preview", async () => {
   const { id, m } = await chatWithThirty();
-  const r = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id } }, m);
+  expect(await cutOf(id, m)).toEqual({ count: 20, upTo: "c9" });
+  const r = await previewOf(id, m, TIGHT);
   expect(r.status).toBe(200);
   const contents = messageContents(r.json);
   for (let i = 0; i < 10; i++) {
     expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(false);
     expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(false);
   }
-  for (let i = 10; i < 15; i++) {
+  for (let i = 11; i < 15; i++) {
     expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(true);
     expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(true);
   }
+});
+
+it("a chat that fits the window keeps every message, covered or not", async () => {
+  const { id, m } = await chatWithThirty();
+  const r = await previewOf(id, m, { contextWindow: 32768, maxOutput: 1024 });
+  const contents = messageContents(r.json);
+  for (let i = 0; i < 15; i++) {
+    expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(true);
+    expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(true);
+  }
+});
+
+it("the cut takes only as many covered messages as the window needs", async () => {
+  const { id, m } = await chatWithThirty();
+  // a little room short: the oldest covered messages go, the newer covered ones stay
+  const r = await previewOf(id, m, { contextWindow: 2040, maxOutput: 100 });
+  const contents = messageContents(r.json);
+  const has = (i: number) => contents.some((c) => hasNum(c, `user turn #${i}`));
+  expect(has(0)).toBe(false);
+  expect(has(8)).toBe(true);
+  expect(has(14)).toBe(true);
 });
 
 it("insert off leaves all messages; a gap leaves a gap; stale stops the cut", async () => {
@@ -270,12 +305,11 @@ it("insert off leaves all messages; a gap leaves a gap; stale stops the cut", as
   {
     const { id, m } = await chatWithThirty();
     writeJson("litopys/config.json", { insert: false, recentMessages: 6 });
-    const r = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id } }, m);
+    expect((await cutOf(id, m)).count).toBe(0);
+    const r = await previewOf(id, m, TIGHT);
     const contents = messageContents(r.json);
-    for (let i = 0; i < 15; i++) {
-      expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(true);
-      expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(true);
-    }
+    // no chapter holds them, so the cut leaves them to the budget alone: pair 9 is still the oldest kept
+    expect(contents.some((c) => hasNum(c, `user turn #14`))).toBe(true);
   }
   // gap: chapters 1-10 and 13-20
   {
@@ -291,17 +325,8 @@ it("insert off leaves all messages; a gap leaves a gap; stale stops the cut", as
       proposals: [],
       counters: { chapter: 2, fact: 0, proposal: 0 },
     });
-    const r = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id } }, m);
-    const contents = messageContents(r.json);
     // only messages 1-10 (pairs 0-4) are covered without a gap
-    for (let i = 0; i < 5; i++) {
-      expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(false);
-      expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(false);
-    }
-    for (let i = 10; i < 15; i++) {
-      expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(true);
-      expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(true);
-    }
+    expect(await cutOf(id, m)).toEqual({ count: 10, upTo: "c4" });
   }
   // stale first chapter
   {
@@ -317,12 +342,7 @@ it("insert off leaves all messages; a gap leaves a gap; stale stops the cut", as
       proposals: [],
       counters: { chapter: 2, fact: 0, proposal: 0 },
     });
-    const r = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id } }, m);
-    const contents = messageContents(r.json);
-    for (let i = 0; i < 15; i++) {
-      expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(true);
-      expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(true);
-    }
+    expect((await cutOf(id, m)).count).toBe(0);
   }
 });
 
@@ -337,17 +357,29 @@ it("recentMessages 20 of 30 messages: chapters covering 1-26 still cut only 1-10
     proposals: [],
     counters: { chapter: 1, fact: 0, proposal: 0 },
   });
-  const r = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id } }, m);
+  // the ceiling: messages 1-10 only, the last 20 stay however far the chapter reaches
+  expect(await cutOf(id, m)).toEqual({ count: 10, upTo: "c4" });
+  const r = await previewOf(id, m, { contextWindow: 1960, maxOutput: 100 });
   expect(r.status).toBe(200);
   const contents = messageContents(r.json);
+  // a window with no room: pairs 0-4 go (what the chapter covers), the later ones stay as far as they fit
   for (let i = 0; i < 5; i++) {
     expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(false);
     expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(false);
   }
-  for (let i = 5; i < 15; i++) {
-    expect(contents.some((c) => hasNum(c, `user turn #${i}`))).toBe(true);
-    expect(contents.some((c) => hasNum(c, `char reply #${i}`))).toBe(true);
-  }
+  expect(contents.some((c) => hasNum(c, `user turn #14`))).toBe(true);
+});
+
+it("a send writes where the prompt's history started; a preview does not", async () => {
+  const { id, m } = await chatWithThirty();
+  const file = path.join(root, "litopys", "prompt-cut", `${id}.json`);
+  await previewOf(id, m, TIGHT);
+  expect(fs.existsSync(file)).toBe(false);
+  await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello", ...TIGHT } }, m);
+  const rec = JSON.parse(fs.readFileSync(file, "utf8")) as { count: number; upTo: string };
+  // the window had no room for the covered 20 messages: the history starts at or after message 21
+  expect(rec.count).toBeGreaterThanOrEqual(20);
+  expect(typeof rec.upTo).toBe("string");
 });
 
 it("GET returns litopysCut matching the cut", async () => {
