@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "" });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0 });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -153,7 +153,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "" });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0 });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -425,6 +425,21 @@ describe("the dice (code rolls before the reply)", () => {
     expect(out.messages[1]!.content).toStartWith("I take her hand.\n\n[FATE");
     expect(out.promptSources.parts).toHaveLength(1);
     expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "Dice" });
+  });
+
+  it("lets the chat's own dice setting win over the profile, and shows the one in force", () => {
+    const m = withDice("off");
+    expect(llmRequest(req(), m.host)).toBe(null);
+    const view = route(m.host, "PUT", "/world/settings", { chatId: "c1", dice: "strict", diceStat: "comfort", diceChance: 100 }).json;
+    expect(view.settings).toMatchObject({ dice: "strict", diceStat: "comfort", diceChance: 100 });
+    expect(view.dice).toEqual({ mode: "strict", stat: "comfort", chance: 100 });
+    const out = llmRequest(req(), m.host) as { promptSources: any };
+    expect(out.promptSources.parts[0].text).toContain("(comfort of Odarka)");
+    expect(out.promptSources.parts[0].text).toContain("This result binds");
+    // "" hands the decision back to the profile
+    const back = route(m.host, "PUT", "/world/settings", { chatId: "c1", dice: "", diceStat: "", diceChance: 0 }).json;
+    expect(back.dice).toEqual({ mode: "off", stat: "affection", chance: 100 });
+    expect(llmRequest(req(), m.host)).toBe(null);
   });
 
   it("reads the speaker's number from the Dashboard and logs every roll, the quiet ones too", () => {

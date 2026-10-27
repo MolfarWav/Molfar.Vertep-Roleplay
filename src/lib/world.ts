@@ -42,7 +42,9 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string }
+  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number }
+  /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
+  dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number } | null
   ready: WorldLevel[]
   /** the profile in force: a level's id or an own profile's id; null when off */
   profile: string | null

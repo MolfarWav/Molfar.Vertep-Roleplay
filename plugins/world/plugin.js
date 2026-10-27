@@ -92,7 +92,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "" };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0 };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -180,6 +180,10 @@ function cleanSettings(s) {
     stagnation: Number.isFinite(st) ? clamp(Math.round(st), 0, 50) : DEFAULT_SETTINGS.stagnation,
     onTransition: typeof b.onTransition === "boolean" ? b.onTransition : DEFAULT_SETTINGS.onTransition,
     insert: typeof b.insert === "boolean" ? b.insert : DEFAULT_SETTINGS.insert,
+    // this chat's dice over the profile's: "" / 0 = the profile decides (user, 2026-10-27: the switch sits in the chat's sheet)
+    dice: DICE_MODES.includes(b.dice) ? b.dice : "",
+    diceStat: DICE_STATS.includes(b.diceStat) ? b.diceStat : "",
+    diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
   };
@@ -1132,6 +1136,16 @@ function logDice(fsx, chatId, entry) {
   writeJson(fsx, dicePath(chatId), { v: 1, rolls: [...rolls, entry].slice(-DICE_LOG_MAX) });
 }
 
+/** The dice in force for a chat: its own setting where set, else the profile's option. */
+export function diceOf(profile, settings) {
+  const o = profile && profile.options ? profile.options : DEFAULT_OPTIONS;
+  return {
+    mode: settings.dice || o.dice,
+    stat: settings.diceStat || o.diceStat,
+    chance: settings.diceChance || o.diceChance,
+  };
+}
+
 function diceRoute(req, host) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
@@ -1154,7 +1168,8 @@ export function llmRequest(ctx, host) {
     if (!state.settings.insert || lv === "off" || lv === "chronicler") return null;
     const profile = profileFor(fsx, state.settings);
     const eventDue = !!state.event && state.event.sent === 0;
-    const diceMode = profile && profile.options ? profile.options.dice : "off";
+    const dice = diceOf(profile, state.settings);
+    const diceMode = profile ? dice.mode : "off";
     if (!eventDue && diceMode === "off") return null;
     const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
     const off = isObj(meta) && isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
@@ -1171,7 +1186,7 @@ export function llmRequest(ctx, host) {
       parts.push({ kind: "plugin", label: "World DM", text: eventText });
     }
     if (diceMode !== "off") {
-      const opt = profile.options;
+      const opt = { diceStat: dice.stat, diceChance: dice.chance };
       // the chat's own last message, not the request: other plugins rewrite the request text before or after this hook
       const msgs = chat ? chat.msgs : [];
       const seed = chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
@@ -1904,7 +1919,7 @@ function draftRoute(req, host) {
   }
   saveState(fsx, state);
   const cfg = loadConfig(fsx);
-  return ok({ ok: true, added, ...stateView(state, chat.msgs, cfg, sceneOf(fsx, chatId, chat.msgs), playModel(fsx, cfg, chat.meta)) });
+  return ok({ ok: true, added, ...stateView(state, chat.msgs, cfg, sceneOf(fsx, chatId, chat.msgs), playModel(fsx, cfg, chat.meta), fsx) });
 }
 
 /** A new deck for the chat (the old one is used up, or the player wants another). One build call. */
@@ -2041,7 +2056,7 @@ function carryRoute(req, host) {
   }
   saveState(fsx, s);
   const cfg = loadConfig(fsx);
-  return ok({ ok: true, ...stateView(s, chat.msgs, cfg, sceneOf(fsx, toChatId, chat.msgs), playModel(fsx, cfg, chat.meta)) });
+  return ok({ ok: true, ...stateView(s, chat.msgs, cfg, sceneOf(fsx, toChatId, chat.msgs), playModel(fsx, cfg, chat.meta), fsx) });
 }
 
 // ---------- the chat's own scenario and first message ----------
@@ -2374,10 +2389,12 @@ function runView(r) {
   };
 }
 
-function stateView(state, msgs, cfg, scene, play) {
+function stateView(state, msgs, cfg, scene, play, fsx) {
   const unread = unreadMessages(msgs, state.lastKey);
   return {
     settings: state.settings,
+    // the dice in force (the chat's own over the profile's), for the sheet
+    dice: state.settings.level === "off" || !fsx ? null : diceOf(profileFor(fsx, state.settings), state.settings),
     ready: READY_LEVELS,
     // the profile in force (its own one, else the level's)
     profile: state.settings.level === "off" ? null : state.settings.profile || state.settings.level,
@@ -2414,7 +2431,7 @@ function stateRoute(req, host) {
   const chat = readChat(host.fs, chatId);
   if (!chat) return ok({ error: "no such chat" }, 404);
   const cfg = loadConfig(host.fs);
-  return ok(stateView(loadState(host.fs, chatId).state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta)));
+  return ok(stateView(loadState(host.fs, chatId).state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta), host.fs));
 }
 
 /** "Look at the world": the records only, newest first; the DM's plans (fronts, the event) stay its own. */
@@ -2437,7 +2454,7 @@ function settingsRoute(req, host) {
   if (b.level !== undefined && !READY_LEVELS.includes(b.level)) return ok({ error: "unknown or unfinished level" }, 400);
   const { state, existed } = loadState(host.fs, chatId);
   const patch = {};
-  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -2461,7 +2478,7 @@ function settingsRoute(req, host) {
   state.settings = next;
   saveState(host.fs, state);
   const cfg = loadConfig(host.fs);
-  return ok(stateView(state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta)));
+  return ok(stateView(state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta), host.fs));
 }
 
 /** The config with the models in force (for a chat when chatId names one). */
@@ -2621,7 +2638,7 @@ function updateRoute(req, host) {
     bindBook(fsx, chatId, chat.meta, state.bookId);
   }
   saveState(fsx, state);
-  return ok({ ok: true, changes, ...stateView(state, chat.msgs, cfg, scene, play) });
+  return ok({ ok: true, changes, ...stateView(state, chat.msgs, cfg, scene, play, fsx) });
 }
 
 /** The World section's list: every chat with a DM state, newest run first. Chats that are gone are skipped. */

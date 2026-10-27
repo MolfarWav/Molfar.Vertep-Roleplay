@@ -6,6 +6,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { DiceFields } from './dice-fields'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
@@ -463,6 +464,15 @@ export function WorldControls({
       />
       {events && (
         <SwitchRow label={t('world.insert')} hint={t('world.insertHint')} checked={view.settings.insert} onChange={(v) => void save({ insert: v })} />
+      )}
+      {events && view.dice && (
+        <DiceFields
+          mode={view.dice.mode}
+          stat={view.dice.stat}
+          chance={view.dice.chance}
+          idPrefix="chat-dice"
+          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}) })}
+        />
       )}
     </section>
   )
