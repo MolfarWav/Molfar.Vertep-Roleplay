@@ -19,7 +19,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { estimateTokens, formatCost, knownCost } from '@/lib/tokens'
-import { modelLimits } from '@/lib/model-params'
+import { modelLimits, UNKNOWN_WINDOW } from '@/lib/model-params'
 import { storeBackground } from '@/lib/webp'
 import { formatBytes, uniqueName } from '@/lib/world-backgrounds'
 import { AutoBackground } from '@/components/world/world-auto-bg'
@@ -50,6 +50,7 @@ import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
 import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
 import { AgentBlock } from './agent-block'
+import { WindowUnknownNote } from './window-unknown-note'
 import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
@@ -540,13 +541,15 @@ export function ChatView() {
   const modelParams = useApp((s) => s.modelParams)
   const chatPreset = presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
   const limits = modelLimits(defaultModel || null, models, modelParams)
-  const contextSize = limits.contextWindow ?? chatPreset?.samplers.contextSize ?? null
+  // the window is the model's alone (Settings, Models); unknown, replies budget against UNKNOWN_WINDOW and a note says so
+  const windowKnown = !!limits.contextWindow
+  const contextSize = limits.contextWindow ?? UNKNOWN_WINDOW
   const replyMax = (!chatPreset?.samplersOverrideModel && limits.maxOutput) || (chatPreset?.samplers.maxTokens ?? 512)
 
   // memory cutoff: walk from newest message backwards, accumulate token estimate against the context size
   const cutoffIndex = useMemo(() => {
     if (!chat) return -1
-    const budget = (contextSize ?? 8192) - replyMax - 800 // reserve for system/response
+    const budget = contextSize - replyMax - 800 // reserve for system/response
     let used = 0
     // messages covered by Litopys leave the prompt; the record stands in for
     // them, so only the stretch below can fall out of context
@@ -684,7 +687,7 @@ export function ChatView() {
       {a.label}
     </button>
   )
-  const chatContext = lastInput != null && contextSize ? { used: lastInput, total: contextSize } : null
+  const chatContext = lastInput != null && windowKnown ? { used: lastInput, total: contextSize } : null
 
   return (
     <DashProvider chatId={chat.id}>
@@ -1047,6 +1050,7 @@ export function ChatView() {
 
       {!deleteMode && <AgentBlock chatId={chat.id} />}
       {!deleteMode && <AgentChoices chatId={chat.id} msgKey={lastAgentKey} />}
+      {!deleteMode && !windowKnown && defaultModel && <WindowUnknownNote model={defaultModel} assumed={UNKNOWN_WINDOW} />}
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">
         {!deleteMode && <AgentFloat chatId={chat.id} msgKey={lastAgentKey} />}

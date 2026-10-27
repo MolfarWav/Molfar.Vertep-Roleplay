@@ -412,8 +412,6 @@ export interface SamplerSettings {
   freq_pen: { value: number; enabled: boolean }
   pres_pen: { value: number; enabled: boolean }
   maxTokens: number
-  contextSize: number
-  contextUnlocked: boolean
   seed: number
   stopStrings: string[]
   logitBias: { token: string; bias: number }[]

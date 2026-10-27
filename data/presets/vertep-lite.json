@@ -245,7 +245,6 @@
   "top_p": 0.95,
   "min_p": 0.05,
   "openai_max_tokens": 4096,
-  "openai_max_context": 32768,
   "seed": -1,
   "stop": [
     "\\n{{user}}:",
@@ -1141,8 +1140,6 @@
         "enabled": false
       },
       "maxTokens": 4096,
-      "contextSize": 32768,
-      "contextUnlocked": false,
       "seed": -1,
       "stopStrings": [
         "\\n{{user}}:",

@@ -1508,10 +1508,25 @@ export function withModelLimits(preset, limits) {
   };
 }
 
-/** Context window (tokens) the preset asks for — the preset's openai_max_context. */
+/** The window a prompt is budgeted against when the model's own is not known (the provider does not report one
+ *  and the user has not set it in Settings > Models). A preset no longer carries a window. */
+export const UNKNOWN_WINDOW = 32768;
+/** The preset without the window an older file or an import may still carry: only the model's counts. */
+export function withoutPresetWindow(preset) {
+  if (!preset || typeof preset !== "object" || !("openai_max_context" in preset)) return preset;
+  const { openai_max_context: _ignored, ...rest } = preset;
+  return rest;
+}
+/** The preset with the model's limits in place (its own window never counts). */
+function budgeted(preset, limits) {
+  return withModelLimits(withoutPresetWindow(preset), limits);
+}
+
+/** Context window (tokens) the prompt is budgeted against: the model's, which withModelLimits put in
+ *  openai_max_context on this copy of the preset; UNKNOWN_WINDOW when it is not known. */
 function presetMaxCtx(preset) {
   return (preset && typeof preset.openai_max_context === "number" && preset.openai_max_context > 0)
-    ? preset.openai_max_context : 16384;
+    ? preset.openai_max_context : UNKNOWN_WINDOW;
 }
 /** Token estimate by script (the engine's estimateTextTokens): ASCII ~3.5 chars
  *  a token, other letters (Cyrillic, Greek...) ~2, CJK and the rest 1. chars/4
@@ -2701,7 +2716,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     try { preset = JSON.parse(fsx.read("presets/" + defaultPresetId(fsx) + ".json")); } catch {}
   }
   // a preset whose samplers override the model keeps its own max output; the window is still the model's
-  preset = withModelLimits(preset, opts && opts.limits && preset && preset.samplers_override_model === true ? { ...opts.limits, maxOutput: 0 } : opts && opts.limits);
+  preset = budgeted(preset, opts && opts.limits && preset && preset.samplers_override_model === true ? { ...opts.limits, maxOutput: 0 } : opts && opts.limits);
   const presetName = preset && preset.name ? preset.name : "default";
   // studio bag: the full app preset rides the engine preset file
   const S = preset && preset.studio && typeof preset.studio.samplers === "object" ? preset.studio.samplers : null;
@@ -3806,7 +3821,6 @@ function convertSectionsPreset(p) {
     prompt_order: [{ character_id: 100000, order: prompts.map((x) => ({ identifier: x.identifier, enabled: true })) }],
     ...(p.sampler && typeof p.sampler.temperature === "number" ? { temperature: p.sampler.temperature } : {}),
     ...(p.sampler && typeof p.sampler.maxTokens === "number" ? { openai_max_tokens: p.sampler.maxTokens } : {}),
-    ...(p.context && typeof p.context.maxTokens === "number" ? { openai_max_context: p.context.maxTokens } : {}),
     ...params,
   };
 }
@@ -4000,9 +4014,9 @@ export function onAppUpdate(ctx, host) {
   if (!olderThan(from, "4.0.0")) return { upgraded: done };
 
   const defaultPreset = readJsonFile(fsx, "presets/default.json");
-  // the old cramped generation defaults, only while never customized
+  // the old cramped generation defaults, only while never customized (the window is the model's now: only the reply length moves)
   if (defaultPreset && defaultPreset.openai_max_context === 16384 && defaultPreset.openai_max_tokens === 1024) {
-    writeJsonFile(fsx, "presets/default.json", { ...defaultPreset, openai_max_context: 128000, openai_max_tokens: 4096 });
+    writeJsonFile(fsx, "presets/default.json", { ...defaultPreset, openai_max_tokens: 4096 });
     done.push("default preset limits");
   }
 
@@ -4445,7 +4459,7 @@ export function handleRoute(req, host) {
     if (!chat) return err(404, "chat not found");
     const personaId = chat.meta.personaId || (() => { try { return JSON.parse(fsx.read("settings.json")).personaId; } catch { return null; } })();
     const persona = personaId ? readJson("personas/" + personaId + ".json", null) : null;
-    const preset = readJson("presets/" + (chat.meta.presetId || defaultPresetId(fsx)) + ".json", null);
+    const preset = budgeted(readJson("presets/" + (chat.meta.presetId || defaultPresetId(fsx)) + ".json", null), limitsOf(b));
     // what a normal send by the chat's (first) character would see
     const members = chatMembers(fsx, chat.meta);
     const lead = members[0] || null;
@@ -4501,7 +4515,7 @@ export function handleRoute(req, host) {
     } else return err(400, "books or bookIds required");
     const chat = b.chatId ? loadChat(fsx, String(b.chatId)) : null;
     if (b.chatId && !chat) return err(404, "chat not found");
-    const preset = readJson("presets/" + ((chat && chat.meta.presetId) || defaultPresetId(fsx)) + ".json", null);
+    const preset = budgeted(readJson("presets/" + ((chat && chat.meta.presetId) || defaultPresetId(fsx)) + ".json", null), limitsOf(b));
     const card = chat && chat.meta.characterId ? resolveCardVariants(readJson("characters/" + chat.meta.characterId + "/card.json", null), chat.meta.fieldVariantSelection) : null;
     const wi = activateWorldInfo(fsx, chat ? chat.meta : {}, [{ text }], [], wiBudgetChars(preset), {
       dryRun: true, books, config: preset && preset.studio && preset.studio.worldInfo,

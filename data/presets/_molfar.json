@@ -2058,7 +2058,6 @@
   "temperature": 1,
   "top_p": 0.97,
   "openai_max_tokens": 8192,
-  "openai_max_context": 32768,
   "seed": -1,
   "studio": {
     "id": "molfar",
@@ -7792,8 +7791,6 @@
         "enabled": false
       },
       "maxTokens": 8192,
-      "contextSize": 32768,
-      "contextUnlocked": false,
       "seed": -1,
       "stopStrings": [],
       "logitBias": [],

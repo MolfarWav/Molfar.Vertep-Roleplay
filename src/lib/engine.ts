@@ -1301,7 +1301,6 @@ export function presetToEngine(p: Preset): EnginePreset {
     ...(num(S?.freq_pen) != null ? { frequency_penalty: num(S!.freq_pen) } : {}),
     ...(num(S?.pres_pen) != null ? { presence_penalty: num(S!.pres_pen) } : {}),
     ...(S?.maxTokens ? { openai_max_tokens: S.maxTokens } : {}),
-    ...(S?.contextSize ? { openai_max_context: S.contextSize } : {}),
     ...(S?.seed ? { seed: S.seed } : {}),
     ...(S?.stopStrings?.length ? { stop: S.stopStrings } : {}),
     ...(S?.reasoning?.enabled && S.reasoning.effort !== 'off'
@@ -1373,7 +1372,7 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     temperature: ep.temperature, top_p: ep.top_p, top_k: ep.top_k, min_p: ep.min_p,
     rep_pen: ep.repetition_penalty ?? ep.rep_pen, freq_pen: ep.frequency_penalty,
     pres_pen: ep.presence_penalty, maxTokens: ep.openai_max_tokens ?? 0,
-    contextSize: ep.openai_max_context ?? 8192, seed: ep.seed ?? 0,
+    seed: ep.seed ?? 0,
     stopStrings: (ep.stop as string[]) ?? [],
   }
   // engine presets carry flat numbers; the editor wants {value, enabled} —
@@ -1384,12 +1383,11 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     if (v == null) continue
     if (k === 'stopStrings') base.stopStrings = v as string[]
     else if (k === 'maxTokens') base.maxTokens = v as number
-    else if (k === 'contextSize') base.contextSize = v as number
     else if (k === 'seed') base.seed = v as number
     else (base as unknown as Record<string, { value: number; enabled: boolean }>)[k] = { value: v as number, enabled: true }
   }
   const samplers = bag?.samplers
-    ? { ...base, ...bag.samplers, ...Object.fromEntries(Object.entries(flat).filter(([, v]) => v != null).map(([k, v]) => [k, (k === 'stopStrings' || k === 'maxTokens' || k === 'contextSize' || k === 'seed') ? v : (typeof v === 'number' ? { value: v, enabled: true } : v)])) }
+    ? { ...base, ...bag.samplers, ...Object.fromEntries(Object.entries(flat).filter(([, v]) => v != null).map(([k, v]) => [k, (k === 'stopStrings' || k === 'maxTokens' || k === 'seed') ? v : (typeof v === 'number' ? { value: v, enabled: true } : v)])) }
     : base
   return {
     id,

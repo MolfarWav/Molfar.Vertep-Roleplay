@@ -1734,7 +1734,7 @@ describe("rp studio import", () => {
     }, m);
     expect(r.json.presets).toHaveLength(1);
     const preset = JSON.parse(fs.readFileSync(path.join(root, "presets", `${(r.json.presets as string[])[0]}.json`), "utf8"));
-    expect(preset.openai_max_context).toBe(16384); // truncation_length alias
+    expect(preset.openai_max_context).toBeUndefined(); // the window is the model's: an imported truncation_length is dropped
     expect(preset.dry_multiplier).toBe(0.8);
     expect(preset.xtc_probability).toBe(0.5);
     expect(preset.typical_p).toBe(0.9);

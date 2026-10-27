@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
-import { modelLimits } from '@/lib/model-params'
+import { modelLimits, UNKNOWN_WINDOW } from '@/lib/model-params'
 import { defaultSamplers } from '@/lib/seed'
 import { ScrollStrip } from '@/components/ui/scroll-strip'
 import { cn } from '@/lib/utils'
@@ -128,14 +128,7 @@ export function SamplersPanel({ preset }: { preset: Preset }) {
             {ctxFromModel ? (
               <FromModel label="Context size" value={ctxFromModel} note={t('model.ctxIsModel')} model={model} />
             ) : (
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Context size {sp.contextUnlocked && '(unlocked)'}</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="number" value={sp.contextSize} disabled={ro} onChange={(e) => up({ contextSize: Number(e.target.value) })} className="h-7 text-xs" aria-label="Context size" />
-                  <Switch checked={sp.contextUnlocked} disabled={ro} onCheckedChange={(v) => up({ contextUnlocked: v })} aria-label="Unlock context" />
-                </div>
-                <p className="text-[11px] text-muted-foreground">{t('model.ctxFromModel')}</p>
-              </div>
+              <FromModel label="Context size" value={null} note={t('model.ctxUnknown', { n: UNKNOWN_WINDOW.toLocaleString() })} model={model} />
             )}
             <Num label="Seed (-1 random)" value={sp.seed} onChange={(v) => up({ seed: v })} disabled={ro} wide />
           </div>
@@ -266,14 +259,20 @@ function ExtraParamAdder({ preset, disabled, onAdd }: {
 }
 
 /** A number the model decides, not this preset: shown, not edited here (Set up opens it in the shell). */
-function FromModel({ label, value, note, model }: { label: string; value: number; note: string; model: string | null }) {
+function FromModel({ label, value, note, model }: { label: string; value: number | null; note: string; model: string | null }) {
   const t = useT()
   return (
     <div className="flex flex-col gap-1" data-testid="from-model">
       <Label className="text-xs">{label}</Label>
       <div className="flex h-7 items-center gap-2">
-        <span className="font-mono text-xs tabular-nums">{value.toLocaleString()}</span>
-        <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] text-emerald-600 dark:text-emerald-400">model</span>
+        {value === null ? (
+          <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">{t('model.ctxUnknownTag')}</span>
+        ) : (
+          <>
+            <span className="font-mono text-xs tabular-nums">{value.toLocaleString()}</span>
+            <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] text-emerald-600 dark:text-emerald-400">model</span>
+          </>
+        )}
         {canOpenModelSettings() && model && (
           <button type="button" className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => void openModelSettings(model).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))}>
             {t('model.setUp')}

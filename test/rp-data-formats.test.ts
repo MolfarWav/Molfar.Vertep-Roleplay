@@ -72,7 +72,7 @@ describe("docs/DATA-FORMATS.md names every field the app writes", () => {
     const p = buildDefaultPreset();
     // every sampler on, so each conditional field is written
     for (const v of Object.values(p.samplers)) if (v && typeof v === "object" && "enabled" in v) (v as { enabled: boolean }).enabled = true;
-    Object.assign(p.samplers, { maxTokens: 300, contextSize: 8000, seed: 7, stopStrings: ["\n"] });
+    Object.assign(p.samplers, { maxTokens: 300, seed: 7, stopStrings: ["\n"] });
     p.samplers.reasoning = { ...p.samplers.reasoning, enabled: true, effort: "high", autoParse: true, budget: 100 };
     p.sections[0] = { ...p.sections[0]!, position: "in-chat", depth: 2 };
     const out = presetToEngine(p) as unknown as Record<string, unknown> & { prompts: Record<string, unknown>[]; prompt_order: Record<string, unknown>[] };

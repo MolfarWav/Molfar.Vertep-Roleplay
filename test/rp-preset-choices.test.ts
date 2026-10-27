@@ -219,7 +219,7 @@ describe("Marinara import", () => {
       samplers: {
         temperature: { value: 1, enabled: true }, top_p: { value: 1, enabled: true }, top_k: { value: 0, enabled: false }, min_p: { value: 0, enabled: false },
         rep_pen: { value: 1, enabled: false }, freq_pen: { value: 0, enabled: false }, pres_pen: { value: 0, enabled: false },
-        maxTokens: 1000, contextSize: 8000, contextUnlocked: false, seed: -1, stopStrings: [], logitBias: [],
+        maxTokens: 1000, seed: -1, stopStrings: [], logitBias: [],
         reasoning: { enabled: false, effort: "off", budget: 0, autoParse: true, display: "collapsed", thinkTagOpen: "", thinkTagClose: "" },
         streaming: true, streamingSpeed: 0, assistantPrefill: "",
       },

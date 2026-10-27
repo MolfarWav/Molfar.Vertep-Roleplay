@@ -217,7 +217,7 @@ describe("presetExport", () => {
       imported.sections.map((x) => [x.name, x.enabled, x.content]),
     );
     expect(again.samplers.temperature.value).toBe(0.7);
-    expect(again.samplers.contextSize).toBe(16000);
+    expect(again.samplers).not.toHaveProperty("contextSize");
   });
 
   it("writes the arrangement under the id the importer prefers", () => {
