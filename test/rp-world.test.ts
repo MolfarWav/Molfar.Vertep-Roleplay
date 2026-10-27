@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceMod, diceOutcome, rollFate, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, rollFate, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -375,7 +375,7 @@ describe("the llmRequest hook", () => {
 });
 
 describe("the dice (code rolls before the reply)", () => {
-  const diceProfile = (dice: string, extra: Record<string, unknown> = {}) => ({ id: "living", options: { dice, diceChance: 100, ...extra } });
+  const diceProfile = (dice: string, extra: Record<string, unknown> = {}) => ({ id: "living", options: { dice, diceStat: "affection", diceChance: 100, ...extra } });
   const req = (extra: Record<string, unknown> = {}) => ({ key: "reply", request: { sessionId: "c1", messages: [{ role: "system", content: "sys" }, { role: "user", content: "I take her hand." }] }, turn: { op: "send", ...extra } });
   const snap = (stats: Record<string, number>) => ({ ...calm("social"), present: ["Odarka"], chars: { Odarka: { stats } } });
   const withDice = (dice: string, extra: Record<string, string> = {}, level = "living") => {
@@ -425,6 +425,30 @@ describe("the dice (code rolls before the reply)", () => {
     expect(out.messages[1]!.content).toStartWith("I take her hand.\n\n[FATE");
     expect(out.promptSources.parts).toHaveLength(1);
     expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "Dice" });
+  });
+
+  it("auto stat: one die, the outcome for every stat, the model takes the one the action leans on", () => {
+    const stats = { trust: 100, comfort: -100, attraction: 0, respect: 0, affection: 0 };
+    const roll = rollFateAuto("x", 100, stats) as any;
+    expect(roll.gated).toBe(true);
+    expect(roll.mod).toBe(0);
+    expect(roll.by.trust).toBe(diceOutcome(roll.total + 5));
+    expect(roll.by.comfort).toBe(diceOutcome(roll.total - 5));
+    expect(rollFateAuto("x", 100, stats)).toEqual(roll);
+    const text = diceInsertAuto({ ...roll, total: 7, outcome: "no_but", by: { trust: "full", comfort: "miss", attraction: "no_but", respect: "no_but", affection: "no_but" } }, "strict", "Odarka");
+    expect(text).toContain("2d6 = 7 for Odarka");
+    expect(text).toContain("full success: trust | no, but: attraction, respect, affection | miss: comfort");
+    expect(text).toContain("any other action: no, but");
+    expect(text).toContain("This result binds");
+    expect(text).not.toContain("yes, but =");
+    // the default stat is "auto": no stat named in the line, and the log keeps what each stat gave
+    const m = withDice("flavour", {}, "living");
+    route(m.host, "PUT", "/world/profiles", { id: "living", options: { dice: "flavour", diceStat: "auto", diceChance: 100 } });
+    const out = llmRequest(req(), m.host) as { promptSources: any };
+    expect(out.promptSources.parts[0].text).toContain("take the stat the action leans on");
+    const log = route(m.host, "GET", "/world/dice", {}, { chatId: "c1" }).json.rolls;
+    expect(log[0]).toMatchObject({ stat: "auto", who: "Odarka", inserted: true });
+    expect(Object.keys(log[0].by)).toEqual(["trust", "comfort", "attraction", "respect", "affection"]);
   });
 
   it("lets the chat's own dice setting win over the profile, and shows the one in force", () => {
@@ -812,6 +836,6 @@ describe("P3 stage 2: profile options", () => {
     // 3 replies read (m0, m2, m4): one tick, one reply carried over; the model's +2 ignored
     expect(after.fronts[0].clock).toBe(1);
     expect(after.clockReplies).toBe(1);
-    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "affection", diceChance: 25 });
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25 });
   });
 });

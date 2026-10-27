@@ -70,7 +70,7 @@ World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit pro
 world book's records, editable by hand behind a spoiler confirm; `world-records.tsx`) and Runs (history,
 tokens, errors) on the right, and World settings (the play model for all chats, a model test). The Profiles
 tab (`world-profiles.tsx`, data in `lib/world-profiles.ts`) edits the five built-in levels and the player's
-own profiles: defaults, options (clocks by model or code, news by clock, dice: off, hint or binding, with the stat and the share of replies that get a roll); a chat's own dice setting (World DM sheet, `settings.dice/diceStat/diceChance`, empty = the profile's) wins, four prompt blocks with Changed
+own profiles: defaults, options (clocks by model or code, news by clock, dice: off, hint or binding, with the stat (auto = by the action, or one fixed) and the share of replies that get a roll); a chat's own dice setting (World DM sheet, `settings.dice/diceStat/diceChance`, empty = the profile's) wins, four prompt blocks with Changed
 badge, reset and Show default, a locked reply format, one Save with a dirty mark and a leave guard.
 The chat's Start tab (`world-start.tsx`) drafts records, fronts and an events deck from the cards or an interview, and the player
 removes items and accepts the rest; the Worlds tab (`world-library.tsx`) holds saved worlds, and "New chat in this world"

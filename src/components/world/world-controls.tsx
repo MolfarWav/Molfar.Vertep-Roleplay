@@ -470,7 +470,6 @@ export function WorldControls({
           mode={view.dice.mode}
           stat={view.dice.stat}
           chance={view.dice.chance}
-          idPrefix="chat-dice"
           onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}) })}
         />
       )}

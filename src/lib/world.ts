@@ -146,7 +146,9 @@ export interface WorldProfileDefaults { everyN: number; stagnation: number; onTr
 /** dice: code rolls 2d6 + one Dashboard number before a reply ('flavour' = a nudge the model may soften, 'strict' = binding); diceStat: which number; diceChance: percent of replies that get a roll */
 export type WorldDiceMode = 'off' | 'flavour' | 'strict'
 export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'affection'] as const
-export type WorldDiceStat = (typeof WORLD_DICE_STATS)[number]
+/** 'auto' = the model takes the stat the attempted action leans on */
+export const WORLD_DICE_STAT_CHOICES = ['auto', ...WORLD_DICE_STATS] as const
+export type WorldDiceStat = (typeof WORLD_DICE_STAT_CHOICES)[number]
 export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {

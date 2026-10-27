@@ -398,7 +398,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'affection', diceChance: 25 })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25 })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers
