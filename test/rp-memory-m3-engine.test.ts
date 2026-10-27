@@ -382,6 +382,17 @@ it("a send writes where the prompt's history started; a preview does not", async
   expect(typeof rec.upTo).toBe("string");
 });
 
+it("GET reports where the last prompt started, null before any, count 0 when the chat fitted", async () => {
+  const { id, m } = await chatWithThirty();
+  const getCut = async () => ((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json as { meta: { promptCut: { count: number; upTo: string | null } | null } }).meta.promptCut;
+  expect(await getCut()).toBeNull();
+  await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "one", ...TIGHT } }, m);
+  const tight = await getCut();
+  expect(tight && tight.count).toBeGreaterThanOrEqual(20);
+  await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "two", contextWindow: 200000, maxOutput: 1024 } }, m);
+  expect(await getCut()).toEqual({ count: 0, upTo: null });
+});
+
 it("GET returns litopysCut matching the cut", async () => {
   const { id, m } = await chatWithThirty();
   const r = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);

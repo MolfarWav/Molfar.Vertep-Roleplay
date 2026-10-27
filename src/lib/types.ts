@@ -253,6 +253,7 @@ export interface Chat {
     includeInWIScan: boolean
   }
   litopysCut?: { count: number; upTo: string | null }
+  promptCut?: { count: number; upTo: string | null } | null
   temporary: boolean
   folderId: ID | null
   /** pinned to the top of the Chats page */

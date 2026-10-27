@@ -547,10 +547,11 @@ export function ChatView() {
   const replyMax = (!chatPreset?.samplersOverrideModel && limits.maxOutput) || (chatPreset?.samplers.maxTokens ?? 512)
 
   // memory cutoff: walk from newest message backwards, accumulate token estimate against the context size
-  // The newest message that no longer fits the window (an estimate, -1 = all fit). Litopys's cut
+  // The newest message that no longer fits the window (-1 = all fit): the last prompt's real start when
+  // there is one, else an estimate. Litopys's cut
   // is a ceiling: of the messages its chapters cover, only those the window has no room for leave
   // the prompt, so a chat that fits keeps every message.
-  const windowIndex = useMemo(() => {
+  const windowEstimate = useMemo(() => {
     if (!chat) return -1
     const budget = contextSize - replyMax - 800 // reserve for system/response
     let used = 0
@@ -562,6 +563,9 @@ export function ChatView() {
     }
     return -1
   }, [chat, contextSize, replyMax])
+  // the engine records where the last real prompt's history began; before any prompt, the estimate stands
+  const lastPromptIndex = !chat?.promptCut ? null : chat.promptCut.upTo ? chat.messages.findIndex((m) => m.id === chat.promptCut!.upTo) : -1
+  const windowIndex = lastPromptIndex !== null && (lastPromptIndex >= 0 || chat?.promptCut?.count === 0) ? lastPromptIndex : windowEstimate
   const litCeiling = chat?.litopysCut?.upTo ? chat.messages.findIndex((m) => m.id === chat.litopysCut!.upTo) : -1
   // out of the window and not held by a chapter: forgotten
   const cutoffIndex = windowIndex > litCeiling ? windowIndex : -1

@@ -1633,6 +1633,17 @@ function litopysFitCut(line, maxCut, over, tokensOf) {
   }
   return maxCut;
 }
+/** Where the last real prompt of this chat started its word-for-word history, as {count, upTo} (the
+ *  messages before it were cut by Litopys or by the window); null when none was built yet or the chat has
+ *  changed since (the id at that place is another). count 0 = the prompt held the whole chat. */
+function lastPromptCut(fsx, chatId, line) {
+  let r = null;
+  try { r = JSON.parse(fsx.read("litopys/prompt-cut/" + chatId + ".json")); } catch {}
+  const n = r && Number(r.count);
+  if (!Number.isInteger(n) || n < 0 || n > line.length) return null;
+  if (n === 0) return { count: 0, upTo: null };
+  return line[n - 1] && line[n - 1].id === r.upTo ? { count: n, upTo: r.upTo } : null;
+}
 /** Whether Litopys holds this chat (then the old Memory keys of its meta can go). */
 function litopysHolds(fsx, chatId) {
   try { const st = JSON.parse(fsx.read("litopys/chats/" + chatId + ".json")); return !!(st && st.migrated === true); } catch { return false; }
@@ -5181,7 +5192,7 @@ const toolX = (r) => ({
       const line = litopysLine(chat.msgs);
       const count = litopysCut(fsx, meta.id, line);
       const litCut = { count, upTo: count > 0 ? line[count - 1].id : null };
-      return ok({ meta: { ...meta, litopysCut: litCut }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
+      return ok({ meta: { ...meta, litopysCut: litCut, promptCut: lastPromptCut(fsx, meta.id, line) }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
     }
 
     if (!op && req.method === "PATCH") {

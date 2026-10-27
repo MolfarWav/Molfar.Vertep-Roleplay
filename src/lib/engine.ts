@@ -96,6 +96,8 @@ export interface EngineChatMeta {
   autoBackground?: { on: boolean; folderId: string } | null
   temporary?: boolean
   litopysCut?: { count: number; upTo: string | null }
+  /** where the last real prompt's history started (messages before it were cut), null before any */
+  promptCut?: { count: number; upTo: string | null } | null
   fieldVariantSelection?: Chat['fieldVariantSelection']
   turns?: ChatTurns
   parentChatId?: string | null
@@ -997,6 +999,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     model: typeof meta.model === 'string' && meta.model ? meta.model : null,
     authorNote: meta.authorNoteObject ?? { ...DEFAULT_AUTHOR_NOTE, text: meta.authorNote ?? '' },
     litopysCut: meta.litopysCut,
+    promptCut: meta.promptCut ?? null,
     temporary: meta.temporary === true,
     folderId: meta.folderId ?? null,
     ...(meta.pinned === true ? { pinned: true } : {}),
@@ -1121,7 +1124,7 @@ export interface PromptSourceSpan { msg: number; start: number; end: number; par
  *  expanded, world info + summary + injections spliced) — powers prompt peek.
  *  With messageId the assembly is scoped to that message: the prompt as it
  *  existed at that point in the chat, not the current tail. */
-export function promptPreview(chatId: string, opts?: { userText?: string; messageId?: string }): Promise<{
+export async function promptPreview(chatId: string, opts?: { userText?: string; messageId?: string }): Promise<{
   systemPrompt: string | null
   messages: { role: string; content: string }[]
   presetParams: Record<string, unknown>
@@ -1138,12 +1141,23 @@ export function promptPreview(chatId: string, opts?: { userText?: string; messag
   sourceSpans?: PromptSourceSpan[]
 }> {
   const { userText, messageId } = opts ?? {}
+  const limits = await limitsOfChat(chatId)
   // ?siblingtools=1: the engine attaches the exact tool set a send's
   // wantsTools request would carry
   return j('/prompt/preview?siblingtools=1', {
     method: 'POST',
-    body: JSON.stringify({ chatId, ...(userText?.trim() ? { userText } : {}), ...(messageId ? { messageId } : {}) }),
+    body: JSON.stringify({ chatId, ...(userText?.trim() ? { userText } : {}), ...(messageId ? { messageId } : {}), ...limits }),
   })
+}
+
+/** The chat's model limits, as a send carries them: a preview or status that budgets against another
+ *  window would show a prompt the send never builds. (Imported late: the store imports this module.) */
+async function limitsOfChat(chatId: string): Promise<{ contextWindow?: number; maxOutput?: number }> {
+  try {
+    return (await import('./store')).chatLimits(chatId)
+  } catch {
+    return {}
+  }
 }
 
 /** World-info activation status for a chat — the same activation path a
@@ -1226,19 +1240,20 @@ export async function embedStatus(force = false): Promise<{ ok: boolean; via: st
   }
 }
 
-export function fetchWIStatus(chatId: string): Promise<WIStatus> {
+export async function fetchWIStatus(chatId: string): Promise<WIStatus> {
   return j('/wi-status', {
     method: 'POST',
-    body: JSON.stringify({ chatId }),
+    body: JSON.stringify({ chatId, ...(await limitsOfChat(chatId)) }),
   })
 }
 
 /** The keyword test: the real scanner on pasted text, against the editor's
  *  own (possibly unsaved) books. A chat lends its timed state and card. */
-export function wiTest(opts: { text: string; books: EngineLorebook[]; chatId?: string }, signal?: AbortSignal): Promise<WITestResult> {
+export async function wiTest(opts: { text: string; books: EngineLorebook[]; chatId?: string }, signal?: AbortSignal): Promise<WITestResult> {
+  const limits = opts.chatId ? await limitsOfChat(opts.chatId) : {}
   return j('/wi-test', {
     method: 'POST',
-    body: JSON.stringify({ text: opts.text, books: opts.books, ...(opts.chatId ? { chatId: opts.chatId } : {}) }),
+    body: JSON.stringify({ text: opts.text, books: opts.books, ...(opts.chatId ? { chatId: opts.chatId } : {}), ...limits }),
     signal,
   })
 }
