@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { useApp } from '@/lib/store'
+import { loadOwnBooks, useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
@@ -134,7 +134,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   // a translation waiting for Save / Discard: the fields show it, read-only
   const pending = usePendingTranslations((s) => s.byId[character.id])
   const preview = useMemo(
-    () => (pending ? previewPendingTranslation(pending, character, lorebooks.find((b) => b.id === pending.bookId)) : null),
+    () => (pending ? previewPendingTranslation(pending, character, lorebooks.find((b) => b.id === pending.bookId && !b.stub)) : null),
     [pending, character, lorebooks],
   )
   // every edit goes to the draft; the card is written once, by Save changes (GitHub #103)
@@ -186,7 +186,8 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const exportPng = async () => {
     try {
       const s = savedCard()
-      const bytes = await buildCardPng(s.avatar || DEFAULT_AVATAR, characterToExportCard(s, lorebooks))
+      // the card's own book is a summary until loaded: an export without it would lose the book
+      const bytes = await buildCardPng(s.avatar || DEFAULT_AVATAR, characterToExportCard(s, await loadOwnBooks([s])))
       downloadCardPng(bytes, s.name)
       toast.success(`Exported ${s.name} as a PNG card`)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
@@ -198,15 +199,17 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const exportCharx = async () => {
     try {
       const s = savedCard()
-      const bytes = await buildCharx(s, lorebooks)
+      const bytes = await buildCharx(s, await loadOwnBooks([s]))
       saveFile(new Blob([bytes as BlobPart], { type: 'application/zip' }), `${fileBaseOf(s)}.charx`)
       toast.success(`Exported ${s.name} as CHARX with ${s.expressions.length} emotion image${s.expressions.length === 1 ? '' : 's'}`)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
-  const exportJson = () => {
-    const s = savedCard()
-    saveFile(new Blob([cardJson(s, lorebooks)], { type: 'application/json' }), `${fileBaseOf(s)}.json`)
-    toast.success(`Exported ${s.name} as JSON`)
+  const exportJson = async () => {
+    try {
+      const s = savedCard()
+      saveFile(new Blob([cardJson(s, await loadOwnBooks([s]))], { type: 'application/json' }), `${fileBaseOf(s)}.json`)
+      toast.success(`Exported ${s.name} as JSON`)
+    } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 
   const changeAvatar = async (file: File | undefined) => {
@@ -399,7 +402,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                   <span>CHARX</span>
                   <span className="text-xs text-muted-foreground">With the emotion images and gallery</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => draftState.withSavedCard(t('cd.act.export'), exportJson)} className="flex-col items-start gap-0">
+                <DropdownMenuItem onClick={() => draftState.withSavedCard(t('cd.act.export'), () => void exportJson())} className="flex-col items-start gap-0">
                   <span>JSON</span>
                   <span className="text-xs text-muted-foreground">The card file alone (V2)</span>
                 </DropdownMenuItem>

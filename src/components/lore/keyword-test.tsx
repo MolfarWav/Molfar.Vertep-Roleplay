@@ -25,7 +25,7 @@ export function KeywordTest({ open, onOpenChange, book }: { open: boolean; onOpe
 
   // live results 400 ms after the typing stops
   useEffect(() => {
-    if (!open || !book || !text.trim()) { setResult(null); setError(null); setBusy(false); return }
+    if (!open || !book || book.stub || !text.trim()) { setResult(null); setError(null); setBusy(false); return }
     const ctl = new AbortController()
     const timer = setTimeout(() => {
       setBusy(true)

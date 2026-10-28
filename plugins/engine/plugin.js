@@ -1102,14 +1102,7 @@ export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
   const needed = [];
   let anyVec = false;
   const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
-  let books = [];
-  try {
-    books = fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
-      .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
-      .filter(Boolean);
-  } catch { books = []; }
-  for (const book of books) {
-    if (!bound.has(book.id || book.name)) continue;
+  for (const book of readBoundBooks(fsx, bound)) {
     (book.entries || []).forEach((entry, i) => {
       if (entry.enabled === false) return;
       const isVec = entry.vectorized === true || entry.status === "vectorized";
@@ -1701,18 +1694,13 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     // the keyword test hands its books in (an unsaved edit included): no scope filter
     books = options.books.filter((b) => b && typeof b === "object");
   } else {
-    try {
-      books = fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
-        .map((f) => { try { return JSON.parse(fsx.read("lorebooks/" + f)); } catch { return null; } })
-        .filter(Boolean);
-    } catch {
-      return { before: [], after: [], depth: [], emBefore: [], emAfter: [], anTop: [], anBottom: [], trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: 0, scope: [] };
-    }
     // A book scans only when it is in THIS chat's scope — bound
     // to the chat, embedded in / linked to the character, or global (the app
     // resolves all three into meta.lorebookIds before each send). An empty
     // scope means NO world info, never "scan the whole library".
     const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
+    // only the bound books are read: a library of a thousand books must not be parsed for every send
+    books = readBoundBooks(fsx, bound);
     // a group can leave members' books out (opts.excludeBookIds); a global or persona book stays
     const extra = new Set(extraBookIds || []);
     const excluded = new Set(Array.isArray(opts && opts.excludeBookIds) ? opts.excludeBookIds : []);
@@ -2161,35 +2149,25 @@ const shardOf = (id) => {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h % INDEX_SHARDS;
 };
-/** Summaries of every character. Cards not yet in the index are read until `budgetMs` runs out;
- *  `pending` counts the ones left, and the next call goes on from the index. On an engine without
- *  `fs.stat` there is no index: every card is read each time (still one at a time). */
-function characterSummaries(fsx, budgetMs) {
+/** Summaries of the files of one folder, from a size+mtime index in the local cache. `spec`: `ids`, `rel(id)` (the
+ *  file), `indexDir`, `summarize(parsed, id)`. Files not yet in the index are read until `budgetMs` runs out, one
+ *  at a time (never all in memory); `pending` counts the ones left, and the next call goes on from the index.
+ *  Needs `fs.stat`. */
+function indexedSummaries(fsx, spec, budgetMs) {
   const started = Date.now();
   const readJson = (rel, fb) => { try { return JSON.parse(fsx.read(rel)); } catch { return fb; } };
-  let ids = [];
-  try { ids = fsx.list("characters"); } catch {}
-  ids = ids.filter((cid) => !cid.startsWith("_")); // _-prefixed = AI-only template
-  const canStat = typeof fsx.stat === "function";
-  if (!canStat) {
-    const out = [];
-    for (const cid of ids) {
-      const card = readJson("characters/" + cid + "/card.json", null);
-      if (card) out.push(cardSummary(card, cid));
-    }
-    return { characters: out, pending: 0 };
-  }
+  const { ids, rel, indexDir, summarize } = spec;
   const shards = [];
   for (let i = 0; i < INDEX_SHARDS; i++) {
-    const s = readJson(INDEX_DIR + "/" + i + ".json", null);
+    const s = readJson(indexDir + "/" + i + ".json", null);
     shards.push({ entries: s && s.v === 2 && s.entries && typeof s.entries === "object" ? s.entries : {}, next: {}, dirty: false });
   }
-  // all in one call: one call per card cost ~3 ms, seconds for a big library
-  const rels = ids.map((cid) => "characters/" + cid + "/card.json");
+  // all in one call: one call per file cost ~3 ms, seconds for a big library
+  const rels = ids.map(rel);
   let stats = null;
   try { stats = fsx.stat(rels); } catch { /* a link that leads out: path by path below */ }
   if (!Array.isArray(stats)) {
-    stats = rels.map((rel) => { try { return fsx.stat(rel); } catch { return null; } });
+    stats = rels.map((r) => { try { return fsx.stat(r); } catch { return null; } });
   }
   const out = [];
   let pending = 0;
@@ -2206,20 +2184,103 @@ function characterSummaries(fsx, budgetMs) {
     }
     const rev = st.size + ":" + st.mtimeMs;
     if (Date.now() - started > budgetMs) { pending++; continue; }
-    const card = readJson("characters/" + cid + "/card.json", null);
-    if (!card) continue;
-    // rev: the client reloads a whole card it holds only when this moved
-    const summary = { ...cardSummary(card, cid), rev };
+    const parsed = readJson(rel(cid), null);
+    if (!parsed) continue;
+    // rev: the client reloads a whole file it holds only when this moved
+    const summary = { ...summarize(parsed, cid), rev };
     shard.next[cid] = { size: st.size, mtimeMs: st.mtimeMs, summary };
     shard.dirty = true;
     out.push(summary);
   }
   shards.forEach((s, i) => {
-    // a character that is gone leaves its shard too
+    // a file that is gone leaves its shard too
     if (!s.dirty && Object.keys(s.entries).length === Object.keys(s.next).length) return;
-    try { fsx.write(INDEX_DIR + "/" + i + ".json", JSON.stringify({ v: 2, entries: s.next })); } catch { /* the index is only a cache */ }
+    try { fsx.write(indexDir + "/" + i + ".json", JSON.stringify({ v: 2, entries: s.next })); } catch { /* the index is only a cache */ }
   });
-  return { characters: out, pending };
+  return { items: out, pending };
+}
+/** Summaries of every character. On an engine without `fs.stat` there is no index: every card is read
+ *  each time (still one at a time). */
+function characterSummaries(fsx, budgetMs) {
+  const readJson = (rel, fb) => { try { return JSON.parse(fsx.read(rel)); } catch { return fb; } };
+  let ids = [];
+  try { ids = fsx.list("characters"); } catch {}
+  ids = ids.filter((cid) => !cid.startsWith("_")); // _-prefixed = AI-only template
+  if (typeof fsx.stat !== "function") {
+    const out = [];
+    for (const cid of ids) {
+      const card = readJson("characters/" + cid + "/card.json", null);
+      if (card) out.push(cardSummary(card, cid));
+    }
+    return { characters: out, pending: 0 };
+  }
+  const r = indexedSummaries(fsx, { ids, rel: (cid) => "characters/" + cid + "/card.json", indexDir: INDEX_DIR, summarize: cardSummary }, budgetMs);
+  return { characters: r.items, pending: r.pending };
+}
+
+// ---------- lorebook summaries (the start-up list) ----------
+/** A book cut down to what the lists, the scope and the character pages need: no entries. A SillyTavern library
+ *  comes over with a book per character, and every book whole (~100 KB each) ran /bootstrap out of memory at
+ *  ~1,000 characters. `stub` marks it: the app loads the whole book (`GET /lorebooks/:id`) when it is opened,
+ *  and a stub is never written back over a book. */
+function bookSummary(book, id) {
+  const entries = Array.isArray(book.entries) ? book.entries : [];
+  let chars = 0;
+  for (const e of entries) if (e && typeof e.content === "string") chars += e.content.length;
+  return {
+    id: typeof book.id === "string" && book.id ? book.id : id, stub: true,
+    name: typeof book.name === "string" && book.name ? book.name : id,
+    folderId: typeof book.folderId === "string" ? book.folderId : null,
+    globalActive: book.globalActive === true,
+    isEmbedded: book.isEmbedded === true,
+    linkedCharacterIds: Array.isArray(book.linkedCharacterIds) ? book.linkedCharacterIds.filter((x) => typeof x === "string") : [],
+    ...(typeof book.ownerChatId === "string" && book.ownerChatId ? { ownerChatId: book.ownerChatId } : {}),
+    ...(book.settings && typeof book.settings === "object" ? { settings: book.settings } : {}),
+    ...(book.vectorized && typeof book.vectorized === "object" ? { vectorized: book.vectorized } : {}),
+    formatTemplate: typeof book.formatTemplate === "string" ? book.formatTemplate.slice(0, 2000) : "",
+    entryCount: entries.length,
+    tokens: Math.ceil(chars / 4),
+  };
+}
+const BOOK_INDEX_DIR = ".cache/lorebooks-index";
+/** Summaries of every book (the files of `lorebooks/`; a `_` prefix = AI-only template, a `.` prefix = the app's own cache, `.vectors.json`), through the same index
+ *  and budget as the characters. Without `fs.stat` every book is read, one at a time, on each call. */
+function bookSummaries(fsx, budgetMs) {
+  let files = [];
+  try { files = fsx.list("lorebooks"); } catch {}
+  const ids = files.filter((f) => f.endsWith(".json") && !f.startsWith("_") && !f.startsWith(".")).map((f) => f.slice(0, -5));
+  if (typeof fsx.stat !== "function") {
+    const out = [];
+    for (const id of ids) { try { out.push(bookSummary(JSON.parse(fsx.read("lorebooks/" + id + ".json")), id)); } catch {} }
+    return { books: out, pending: 0 };
+  }
+  const r = indexedSummaries(fsx, { ids, rel: (id) => "lorebooks/" + id + ".json", indexDir: BOOK_INDEX_DIR, summarize: bookSummary }, budgetMs);
+  return { books: r.items, pending: r.pending };
+}
+/** The books named in `bound` (by id, else by name), whole. A book's file is named after its id, so each is read by
+ *  its path; only when a name is left over does it go through the other files, one at a time, keeping the matches
+ *  (never the whole library in memory: 1,300 books of 100 KB ran every send out of memory). */
+function readBoundBooks(fsx, bound) {
+  const out = [];
+  const found = new Set();
+  const keep = (book) => {
+    const key = (book && (book.id || book.name)) || "";
+    if (!key || found.has(key) || !bound.has(key)) return;
+    found.add(key);
+    out.push(book);
+  };
+  for (const id of bound) {
+    if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(id)) continue;
+    try { keep(JSON.parse(fsx.read("lorebooks/" + id + ".json"))); } catch { /* no file of that name */ }
+  }
+  if ([...bound].every((k) => found.has(k))) return out;
+  let files = [];
+  try { files = fsx.list("lorebooks").filter((f) => f.endsWith(".json") && !f.startsWith(".")); } catch { return out; }
+  for (const f of files) {
+    if (found.has(f.slice(0, -5))) continue;
+    try { keep(JSON.parse(fsx.read("lorebooks/" + f))); } catch { /* unreadable */ }
+  }
+  return out;
 }
 
 function loadChat(fsx, id) {
@@ -4154,13 +4215,17 @@ export function handleRoute(req, host) {
     // Summaries, not cards: every card.json whole (texts, books, a portrait as a data URL)
     // ran the sandbox out of memory at ~700 characters and the app no longer started (#46).
     const roster = characterSummaries(fsx, 2500);
+    // The books the same way: a library that came over from SillyTavern has a book per character, and every
+    // book whole ran this call out of memory at ~1,000 characters. Entries come with GET /lorebooks/:id.
+    const shelf = bookSummaries(fsx, 2500);
     return ok({
       characters: roster.characters,
       charactersPending: roster.pending,
       groups: sub("/groups").items ?? [],
       personas: sub("/personas").items ?? [],
       presets: sub("/presets").items ?? [],
-      lorebooks: sub("/lorebooks").items ?? [],
+      lorebooks: shelf.books,
+      lorebooksPending: shelf.pending,
       regex: sub("/regex").items ?? [],
       settings: sub("/settings"),
       library: sub("/library"),
@@ -4359,6 +4424,16 @@ export function handleRoute(req, host) {
   // ---------- generic JSON entities ----------
   for (const kind of ["personas", "presets", "regex", "groups", "lorebooks"]) {
     if (head !== kind) continue;
+    // ?summaries=1: the books without their entries, as /bootstrap sends them (`pending` = not indexed yet, ask again)
+    if (kind === "lorebooks" && req.method === "GET" && !id && req.query && req.query.summaries) {
+      const shelf = bookSummaries(fsx, 5000);
+      return ok({ items: shelf.books, pending: shelf.pending });
+    }
+    // a summary carries no entries: written as a whole book it would blank them. The app loads the book first;
+    // this catches any path that did not.
+    if (kind === "lorebooks" && (req.method === "PUT" || req.method === "PATCH") && (body().stub === true || body()._stub === true)) {
+      return err(409, "this is a summary of the book, not the whole book: load the book first");
+    }
     if (req.method === "GET" && !id) {
       let items = [];
       try {
@@ -4540,8 +4615,8 @@ export function handleRoute(req, host) {
     const peekGroupCfg = chatGroup(fsx, chat.meta);
     const globalIds = (() => {
       try {
-        return fsx.list("lorebooks").filter((f) => f.endsWith(".json"))
-          .map((f) => readJson("lorebooks/" + f, null)).filter((b) => b && b.globalActive === true).map((b) => b.id);
+        // from the summaries (an index), not by parsing every book
+        return bookSummaries(fsx, 8000).books.filter((b) => b.globalActive === true).map((b) => b.id);
       } catch { return []; }
     })();
     const wi = activateWorldInfo(

@@ -242,11 +242,24 @@ export interface EngineBootstrap {
   /** Characters not in the list yet (the index ran out of time): ask /characters/summaries again.
    *  Absent before Roleplay 4.49.0's plugin. */
   charactersPending?: number
+  /** Books not in the list yet (the index ran out of time): ask /lorebooks?summaries=1 again.
+   *  `lorebooks` holds summaries (`stub: true`, no entries), not whole books. */
+  lorebooksPending?: number
 }
 
 /** The start-up list again (what /bootstrap left pending, or a refresh): summaries, not cards. */
 export function fetchCharacterSummaries(): Promise<{ characters: EngineCard[]; pending: number }> {
   return j<{ characters: EngineCard[]; pending: number }>('/characters/summaries')
+}
+
+/** The lorebook list again (what /bootstrap left pending, or a refresh): summaries, not whole books. */
+export function fetchBookSummaries(): Promise<{ items: Record<string, unknown>[]; pending: number }> {
+  return j<{ items: Record<string, unknown>[]; pending: number }>('/lorebooks?summaries=1')
+}
+
+/** One lorebook, whole (entries included). */
+export function fetchBook(id: string): Promise<EngineLorebook> {
+  return j<EngineLorebook>(`/lorebooks/${encodeURIComponent(id)}`)
 }
 
 /** One character's whole card. */
@@ -822,6 +835,7 @@ const ST_ROLE = ['system', 'user', 'assistant']
 
 /** A lorebook as a card-spec `character_book` (ST's extension fields; the importer reads them back). */
 export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
+  if (b.stub) throw new Error(`lorebook ${b.id} is only a summary: load the book before exporting it`)
   return {
     name: b.name,
     description: '',
@@ -888,6 +902,8 @@ export function characterToExportCard(c: Character, books: Lorebook[], opts?: { 
     ;(fields as Record<string, unknown>).studio = studio
   }
   const own = c.embeddedLorebookId ? books.find((b) => b.id === c.embeddedLorebookId) : undefined
+  // a summary has no entries: a card exported with it would lose the book. Callers load the book first.
+  if (own?.stub) throw new Error(`the card's lorebook ${own.id} is not loaded`)
   return {
     spec: 'chara_card_v2',
     spec_version: '2.0',
@@ -1520,6 +1536,8 @@ const LORE_ENTRY_KNOWN = new Set([
 ])
 const LORE_BOOK_KNOWN = new Set([
   'id', 'name', 'folderId', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
+  // a start-up summary's own fields (the plugin's bookSummary), never book data
+  'stub', 'entryCount', 'tokens', 'rev',
 ])
 const extraOf = (o: Record<string, unknown>, known: Set<string>): Record<string, unknown> | undefined => {
   const out: Record<string, unknown> = {}
@@ -1529,6 +1547,8 @@ const extraOf = (o: Record<string, unknown>, known: Set<string>): Record<string,
 const boolOrNull = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null)
 
 export function lorebookToEngine(b: Lorebook): EngineLorebook {
+  // a summary has no entries: written as a book it would blank the user's. The last guard; the store loads first.
+  if (b.stub) throw new Error(`lorebook ${b.id} is only a summary: load the book before saving it`)
   // uids are stable: kept from the file, new entries get the next free number
   const used = new Set<number>()
   for (const e of b.entries) if (typeof e.uid === 'number') used.add(e.uid)
@@ -1567,7 +1587,11 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
   }
 }
 
+/** How many entries a book has: a summary (`stub`) carries the count, a whole book its entries. */
+export const bookEntryCount = (b: Pick<Lorebook, 'stub' | 'entryCount' | 'entries'>): number => (b.stub ? b.entryCount ?? 0 : b.entries.length)
+
 export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
+  const stub = (b as { stub?: unknown }).stub === true
   return {
     id, name: b.name ?? 'Lorebook', folderId: (b.folderId as string | null) ?? null,
     globalActive: b.globalActive === true,
@@ -1610,6 +1634,13 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
     isEmbedded: b.isEmbedded === true,
     formatTemplate: (b.formatTemplate as string) ?? '',
     ...(extraOf(b, LORE_BOOK_KNOWN) ? { extra: extraOf(b, LORE_BOOK_KNOWN) } : {}),
+    ...(typeof b.rev === 'string' && b.rev ? { rev: b.rev } : {}),
+    // a start-up summary: the entries are not here yet
+    ...(stub ? {
+      stub: true as const,
+      entryCount: num(b.entryCount, 0),
+      tokens: num(b.tokens, 0),
+    } : {}),
   }
 }
 

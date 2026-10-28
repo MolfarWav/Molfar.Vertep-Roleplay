@@ -2371,14 +2371,22 @@ export function sourceSentences(fsx, meta) {
   }
   const bound = new Set(arr(meta && meta.lorebookIds).map(str));
   if (bound.size) {
-    let books = [];
-    try {
-      books = (fsx.list("lorebooks") || []).filter((f) => f.endsWith(".json"));
-    } catch {}
-    for (const f of books) {
-      const book = readJson(fsx, "lorebooks/" + f, null);
-      if (!isObj(book) || !bound.has(str(book.id || book.name))) continue;
+    const seen = new Set();
+    const take = (book) => {
+      const key = isObj(book) ? str(book.id || book.name) : "";
+      if (!key || seen.has(key) || !bound.has(key)) return;
+      seen.add(key);
       for (const e of arr(book.entries)) if (isObj(e) && e.enabled !== false) texts.push(str(e.content));
+    };
+    // a book's file is named after its id: those are read by path; the rest of the shelf (a thousand books
+    // after a big import) only when a name is left over
+    for (const id of bound) if (SAFE_ID.test(id)) take(readJson(fsx, "lorebooks/" + id + ".json", null));
+    if (bound.size > seen.size) {
+      let files = [];
+      try {
+        files = (fsx.list("lorebooks") || []).filter((f) => f.endsWith(".json") && !f.startsWith("."));
+      } catch {}
+      for (const f of files) if (!seen.has(f.slice(0, -5))) take(readJson(fsx, "lorebooks/" + f, null));
     }
   }
   const out = [];

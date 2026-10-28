@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
-import { useApp } from '@/lib/store'
+import { loadForExport, loadOwnBooks, useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
 import type { Character, Chat } from '@/lib/types'
 import { SectionPage } from '@/components/shell/section-page'
@@ -170,7 +170,9 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       // the list holds a summary: the export needs the whole card
       const c = (await loadCharacter(listed.id)) ?? listed
       if (c.stub) throw new Error(`Could not load ${c.name}: try again.`)
-      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToExportCard(c, useApp.getState().lorebooks))
+      // the card's own book comes whole too: the list holds only a summary of it
+      const books = await loadOwnBooks([c])
+      const bytes = await buildCardPng(c.avatar || DEFAULT_AVATAR, characterToExportCard(c, books))
       downloadCardPng(bytes, c.name)
       toast.success(`Exported ${c.name} as a PNG card`)
     } catch (e) {
@@ -411,12 +413,17 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const batchActions = (
     <div className="ml-auto flex shrink-0 items-center gap-1.5">
       <span className="text-xs text-muted-foreground">{selected.length} selected</span>
-      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => {
-        const picked = characters.filter((c) => selected.includes(c.id) && !c.isGroup)
-        downloadJson(picked.map((c) => characterToExportCard(c, useApp.getState().lorebooks)), `characters-${picked.length}`)
-        setSelected([])
-        toast.success(`Exported ${picked.length} card${picked.length === 1 ? '' : 's'} as JSON`)
-      }}>
+      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => void (async () => {
+        try {
+          // the list holds summaries of cards and of their books: the export needs both whole
+          const { cards, books } = await loadForExport(characters.filter((c) => selected.includes(c.id) && !c.isGroup).map((c) => c.id))
+          downloadJson(cards.map((c) => characterToExportCard(c, books)), `characters-${cards.length}`)
+          setSelected([])
+          toast.success(`Exported ${cards.length} card${cards.length === 1 ? '' : 's'} as JSON`)
+        } catch (e) {
+          toast.error(String((e as Error).message ?? e))
+        }
+      })()}>
         <DownloadSimple className="size-3.5" aria-hidden="true" />Export
       </Button>
       <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => setConfirmBatch(true)}>

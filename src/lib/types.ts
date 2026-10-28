@@ -595,6 +595,16 @@ export interface Lorebook {
   formatTemplate: string
   /** Book fields the app does not model, written back untouched */
   extra?: Record<string, unknown>
+  /** A start-up summary, not the whole book: `entries` is empty until `loadBook` brings the book.
+   *  Never saved whole (it would blank the book's entries). */
+  stub?: true
+  /** Summary only: how many entries the book has (`entries` is empty). Read it through `bookEntryCount`. */
+  entryCount?: number
+  /** Summary only: the engine's token estimate of the book's entries. */
+  tokens?: number
+  /** The book file's size and change time when it was read ("size:mtime"); a whole book held in
+   *  memory is fetched again only when the list brings a different one. */
+  rev?: string
 }
 
 // ── Quick replies ──
