@@ -2,7 +2,7 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.73.1 (2026-10-28)
 
 - A big imported library no longer stops the app from starting. The start-up list (`GET /bootstrap`) sent every lorebook whole, and a SillyTavern import brings a book per character (about 100 KB each), so past roughly 1,000 characters the plugin ran out of memory: "Can't reach the engine ... out of memory", and an import running at the same time died with "worker exited". Books now come as summaries (name, folder, switches, linked cards, number of entries and a token estimate; no entries), from an index in the app's local cache like the characters, and a whole book is loaded when it is opened. A card export loads its own book first, so nothing leaves without it. `GET /lorebooks?summaries=1` is the new list route; `PUT`/`PATCH` of a summary (`stub: true`) answers 409. Sending a message also read and parsed every book file of the library before keeping the ones in scope; it now reads only the books in scope (`readBoundBooks`), and so does Litopys' repeated-source check. No change to the files on disk.
 
