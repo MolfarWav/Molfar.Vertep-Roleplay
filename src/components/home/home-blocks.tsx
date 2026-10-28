@@ -7,6 +7,7 @@ import { useT } from '@/hooks/use-t'
 import { importCardFiles } from '@/lib/card-import'
 import { ASK_MOLFAR_MAX, askMolfar, canAskMolfar, canListApps, listOtherApps, openShellApp, type ShellApp } from '@/lib/shell-bridge'
 import { cn } from '@/lib/utils'
+import { bookEntryCount } from '@/lib/engine'
 import { Block, BlockLabel, Chip } from '@/components/home/home-ui'
 
 // Drafts handed to Molfar. They stay English on purpose: Molfar answers in the
@@ -166,7 +167,7 @@ export function AchievementsBlock() {
     return {
       messages: chats.reduce((n, c) => n + size(c), 0),
       longest: chats.reduce((n, c) => Math.max(n, size(c)), 0),
-      biggestBook: lorebooks.reduce((n, b) => Math.max(n, b.entries.length), 0),
+      biggestBook: lorebooks.reduce((n, b) => Math.max(n, bookEntryCount(b)), 0),
       biggestGroup: characters.reduce((n, c) => Math.max(n, c.isGroup ? c.members?.length ?? 0 : 0), 0),
       firstContact: chats.some((c) => c.hasUser === true),
       branching: chats.some((c) => c.parentChatId),

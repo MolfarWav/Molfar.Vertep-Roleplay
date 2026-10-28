@@ -354,6 +354,14 @@ src/lib/engine.ts owns every route call + the studio↔engine adapters; the stor
 actions are thin wrappers (optimistic write → API call → refresh). A feature
 without a working backend is marked unavailable in the UI, never stubbed.
 
+Lorebook summaries: like cards (`Character.stub`), the start-up list holds books as summaries (`Lorebook.stub`,
+`entries: []`, `entryCount`, `tokens`, `rev`; `GET /bootstrap` and `GET /lorebooks?summaries=1`, with
+`lorebooksPending` followed in the background), because a library imported from SillyTavern has a book per card and
+every book whole ran the plugin out of memory. The whole book comes from `loadBook(id)` (`GET /lorebooks/:id`,
+one request per id); a screen that shows entry counts uses `bookEntryCount`, one that reads or writes entries loads
+the book first. A summary is never written: `lorebookToEngine` throws on it and the engine answers 409. Exports
+call `loadOwnBooks` / `loadForExport` (store.ts) before `characterToExportCard`, which refuses a stubbed own book.
+
 ## Agent-editable data (live sync, v4.2)
 
 EVERYTHING lives in `data/` — one directory, plain JSON. This section is the

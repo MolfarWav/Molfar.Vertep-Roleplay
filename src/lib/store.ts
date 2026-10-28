@@ -34,6 +34,7 @@ import {
   j, fetchModels, fetchImageModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
   fetchCharacterSummaries, fetchCharacterCard, fetchCharacterAvatars, type EngineCard,
+  fetchBookSummaries, fetchBook,
   engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
@@ -201,6 +202,9 @@ interface AppState {
   /** Refresh ONLY the lorebooks list — the light path imports and single-book
    *  changes take; a full hydrate here would refetch every chat transcript. */
   refreshLorebooks: () => Promise<void>
+  /** The whole book of a lorebook the list holds only as a summary (`stub`); the book itself when it is
+   *  already whole. One request per id at a time. null: gone, or the engine did not answer. */
+  loadBook: (id: ID) => Promise<Lorebook | null>
   setModel: (model: string | null) => Promise<void>
   setView: (v: ViewKey) => void
   closeDrawer: () => void
@@ -750,7 +754,10 @@ export const useApp = create<AppState>()(
               if (changed) void j(`/presets/${encodeURIComponent(p.id)}`, { method: 'PUT', body: JSON.stringify({ ...presetToEngine(p), id: p.id }) }).catch(() => {})
             })
           }
-          const lorebooks = libraryBooks(boot.lorebooks).map((b) => engineLorebookToUI(b as never, String(b.id ?? '')))
+          // the list brings summaries (`stub`); a book already loaded whole stays whole (refreshed below)
+          const { books: lorebooks, stale: staleBooks } = reconcileBooks(
+            get().lorebooks, libraryBooks(boot.lorebooks).map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))), true,
+          )
           const regexScripts = boot.regex.map((r) => engineRegexToUI(r as never, String(r.id ?? '')))
           // Transcripts are NOT in the boot payload: chats start unloaded and
           // fill in on open (ensureChatMessages). Lists read preview/
@@ -885,6 +892,8 @@ export const useApp = create<AppState>()(
           }
           set({ rosterPending: boot.charactersPending ?? 0 })
           void finishRoster(set, get, boot.charactersPending ?? 0)
+          for (const b of staleBooks) void reloadBook(set, get, b.id, b.rev, true)
+          void finishBooks(set, get, boot.lorebooksPending ?? 0)
           if (settings.ui) {
             const ui = settings.ui as Record<string, unknown>
             // Object-valued bags (tts, translation, …) merge ONE level deep:
@@ -1121,10 +1130,23 @@ export const useApp = create<AppState>()(
       refreshLorebooks: async () => {
         const seqAtStart = mutateSeq
         try {
-          const res = await j<{ items: Record<string, unknown>[] }>('/lorebooks')
+          const res = await fetchBookSummaries()
           if (mutateSeq !== seqAtStart) return
-          set({ lorebooks: libraryBooks(res.items).map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))) })
+          // books the index has not reached yet are not gone: they stay until the follow-up brings the rest
+          const { books, stale } = reconcileBooks(
+            get().lorebooks, libraryBooks(res.items).map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))), res.pending === 0,
+          )
+          set({ lorebooks: books })
+          for (const b of stale) void reloadBook(set, get, b.id, b.rev, true)
+          void finishBooks(set, get, res.pending)
         } catch { /* offline — keep the current list */ }
+      },
+
+      loadBook: (id) => {
+        const have = get().lorebooks.find((b) => b.id === id)
+        if (!have) return Promise.resolve(null)
+        if (!have.stub) return Promise.resolve(have)
+        return reloadBook(set, get, id, have.rev, false)
       },
 
       modelFor: (chatId) => {
@@ -2283,10 +2305,19 @@ export const useApp = create<AppState>()(
       },
 
       updateLorebook: (id, patch) => {
+        const held = get().lorebooks.find((x) => x.id === id)
+        if (held?.stub) {
+          // a summary has no entries: the book saved from it would be written empty. Load the book, then apply the change.
+          void get().loadBook(id).then((full) => {
+            if (full && !full.stub) get().updateLorebook(id, patch)
+            else toast.error('Could not load the lorebook, so the change was not saved.')
+          })
+          return
+        }
         bumpMutate()
         set((s) => ({ lorebooks: s.lorebooks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
         const b = get().lorebooks.find((x) => x.id === id)
-        if (!b) return
+        if (!b || b.stub) return
         void j(`/lorebooks/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ ...lorebookToEngine(b), id }) })
           .catch((e) => toast.error(String((e as Error).message ?? e)))
       },
@@ -2306,13 +2337,15 @@ export const useApp = create<AppState>()(
       duplicateLorebook: (id) => {
         const b = get().lorebooks.find((x) => x.id === id)
         const newId = uid('book')
-        bumpMutate()
-        if (b) {
-          const copy = { ...b, id: newId, name: `${b.name} (copy)`, globalActive: false, isEmbedded: false,
-            entries: b.entries.map((e) => ({ ...e, id: uid('entry') })) }
-          set((s) => ({ lorebooks: [...s.lorebooks, copy] }))
-          writeThrough('the new lorebook', j(`/lorebooks/${encodeURIComponent(newId)}`, { method: 'PUT', body: JSON.stringify({ ...lorebookToEngine(copy), id: newId }) }))
+        if (b?.stub) {
+          // the copy is made from the whole book; the new id is handed back now, the copy appears when the book has loaded
+          void get().loadBook(id).then((full) => {
+            if (full && !full.stub) duplicateWhole(set, get, full, newId)
+            else toast.error('Could not load the lorebook, so it was not duplicated.')
+          })
+          return newId
         }
+        if (b) duplicateWhole(set, get, b, newId)
         return newId
       },
       deleteLorebook: (id) => {
@@ -3138,6 +3171,121 @@ function mergeSummaries(set: SetFn, get: GetFn, cards: EngineCard[]) {
     const characters = [...s.characters.filter((c) => !c.isGroup), ...added, ...s.characters.filter((c) => c.isGroup)]
     return { characters: characters.map((c) => (c.isGroup && c.group ? groupToCharacter(c.group, characters) : c)) }
   })
+}
+
+// ── whole lorebooks on demand ────────────────────────────────────────────────
+// Same idea as the cards above: the start-up list holds summaries (`stub`, no entries) because a
+// library that came over from SillyTavern has a book per character and every book whole ran the
+// plugin out of memory. The whole book comes when a screen needs its entries (`loadBook`). A
+// summary is NEVER written: `lorebookToEngine` refuses it, and so does the engine (409).
+
+const bookLoads = new Map<ID, Promise<Lorebook | null>>()
+/** Fetch one whole book and put it in place of what the list holds. One request per id at a time.
+ *  `fresh`: the book is held whole already and only checked against the disk, so a change made while
+ *  the answer was on its way wins (the answer is dropped). `rev`: the summary's, kept on the book. */
+function reloadBook(set: SetFn, get: GetFn, id: ID, rev: string | undefined, fresh: boolean): Promise<Lorebook | null> {
+  const running = bookLoads.get(id)
+  if (running) return running
+  const seq = mutateSeq
+  const p = (async () => {
+    try {
+      const raw = await fetchBook(id)
+      const prev = get().lorebooks.find((b) => b.id === id)
+      if (!prev) return null // deleted meanwhile
+      if (fresh && mutateSeq !== seq) return prev // edited meanwhile: the next hydrate checks again
+      const stamp = rev ?? prev.rev
+      const full: Lorebook = { ...engineLorebookToUI(raw, id), ...(stamp ? { rev: stamp } : {}) }
+      set((s) => ({ lorebooks: s.lorebooks.map((b) => (b.id === id ? full : b)) }))
+      return full
+    } catch (e) {
+      console.error(`[roleplay] could not load the lorebook ${id}`, e)
+      return null
+    } finally {
+      bookLoads.delete(id)
+    }
+  })()
+  bookLoads.set(id, p)
+  return p
+}
+
+/** The list the engine sent (summaries) against what the store holds. A book held whole stays whole:
+ *  the summary replaces it only when it is a whole book too. `stale`: held whole, but the file changed
+ *  on disk (Molfar, a sync, an undo, or our own save) or the engine gave no rev to compare: fetch it again.
+ *  `replaceMissing` false (the index is still being built): books the list does not hold yet stay. */
+export function reconcileBooks(current: Lorebook[], incoming: Lorebook[], replaceMissing: boolean): { books: Lorebook[]; stale: Lorebook[] } {
+  const held = new Map(current.filter((b) => !b.stub).map((b) => [b.id, b]))
+  const stale: Lorebook[] = []
+  const books = incoming.map((b) => {
+    const whole = b.stub ? held.get(b.id) : undefined
+    if (!whole) return b
+    if (!b.rev || b.rev !== whole.rev) stale.push(b)
+    return whole
+  })
+  if (!replaceMissing) {
+    const seen = new Set(incoming.map((b) => b.id))
+    for (const b of current) if (!seen.has(b.id)) books.push(b)
+  }
+  return { books, stale }
+}
+
+/** After start: the books the index had no time for. Runs in the background; the list fills in as it goes. */
+async function finishBooks(set: SetFn, get: GetFn, pending: number) {
+  for (let round = 0; pending > 0 && round < 30; round++) {
+    try {
+      const r = await fetchBookSummaries()
+      pending = r.pending
+      const have = new Set(get().lorebooks.map((b) => b.id))
+      const fresh = libraryBooks(r.items).map((b) => engineLorebookToUI(b as never, String(b.id ?? ''))).filter((b) => b.id && !have.has(b.id))
+      if (fresh.length) set((s) => ({ lorebooks: [...s.lorebooks, ...fresh.filter((b) => !s.lorebooks.some((x) => x.id === b.id))] }))
+    } catch (e) {
+      console.error('[roleplay] could not list the remaining lorebooks', e)
+      break
+    }
+  }
+}
+
+/** The copy of a whole book under a new id, written to the engine. */
+function duplicateWhole(set: SetFn, get: GetFn, b: Lorebook, newId: ID) {
+  bumpMutate()
+  const copy: Lorebook = { ...b, id: newId, name: `${b.name} (copy)`, globalActive: false, isEmbedded: false,
+    entries: b.entries.map((e) => ({ ...e, id: uid('entry') })) }
+  delete copy.rev // the copy is a new file: the next list brings its own
+  set((s) => ({ lorebooks: [...s.lorebooks, copy] }))
+  writeThrough('the new lorebook', j(`/lorebooks/${encodeURIComponent(newId)}`, { method: 'PUT', body: JSON.stringify({ ...lorebookToEngine(copy), id: newId }) }))
+}
+
+/** Runs `fn` over `items` a few at a time: a library-wide export must not open a thousand requests at once. */
+async function inPool<T>(items: T[], size: number, fn: (item: T) => Promise<unknown>): Promise<void> {
+  for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(fn))
+}
+
+/** The whole books for these cards' own lorebooks, loaded: what an export needs before it builds the card
+ *  (`characterToExportCard` refuses a summary rather than leave the book out). Returns the store's books.
+ *  Throws when a book cannot be loaded: an export must not be silently thinner. */
+export async function loadOwnBooks(cards: Pick<Character, 'embeddedLorebookId'>[]): Promise<Lorebook[]> {
+  const ids = [...new Set(cards.map((c) => c.embeddedLorebookId).filter((x): x is ID => !!x))]
+  await inPool(ids, 6, (id) => useApp.getState().loadBook(id))
+  const books = useApp.getState().lorebooks
+  for (const id of ids) {
+    const b = books.find((x) => x.id === id)
+    if (b?.stub) throw new Error(`Could not load the lorebook ${b.name}: try again.`)
+  }
+  return books
+}
+
+/** The whole cards of these characters (a group is left out) and the books their exports carry, ready for
+ *  `characterToExportCard`. A card or book that cannot be loaded throws: an export must not be silently thinner. */
+export async function loadForExport(ids: ID[]): Promise<{ cards: Character[]; books: Lorebook[] }> {
+  const cards: Character[] = []
+  await inPool(ids, 6, async (id) => {
+    const c = await useApp.getState().loadCharacter(id)
+    if (!c || c.isGroup) return
+    if (c.stub) throw new Error(`Could not load ${c.name}: try again.`)
+    cards.push(c)
+  })
+  const books = await loadOwnBooks(cards)
+  // in the order asked for
+  return { cards: ids.map((id) => cards.find((c) => c.id === id)).filter((c): c is Character => !!c), books }
 }
 
 /** The whole cards the screen needs now: the open chat's character (a group: its members) and

@@ -34,6 +34,18 @@ export function cancelTranslation(id: string): void { controllers.get(id)?.abort
 
 const lang = () => resolveLanguage(useApp.getState().settings.language)
 
+/** A book the pass may read: the whole one. The library list holds summaries (no entries), and a
+ *  pass over one would find nothing to translate and drop the book's texts without a word. */
+const wholeBook = (bid: string) => {
+  const b = useApp.getState().lorebooks.find((x) => x.id === bid)
+  return b && !b.stub ? b : undefined
+}
+/** Loads a character's own book, whole, before a pass reads it. */
+async function loadOwnBook(characterId: string): Promise<void> {
+  const own = useApp.getState().characters.find((c) => c.id === characterId)?.embeddedLorebookId
+  if (own) await useApp.getState().loadBook(own)
+}
+
 /** The progress toast of a pass, with a Cancel button (a click keeps the toast; the pass then replaces it). */
 function progressToast(id: string, message: string, tid?: string | number): string | number {
   return toast.loading(message, {
@@ -74,12 +86,13 @@ export async function translateCharacter(
   const { ac, tid } = begin(id, `Translating ${name}…`)
   const st = () => useApp.getState()
   try {
+    await loadOwnBook(id)
     const res = await translateInstalled(id, {
       translate: makeTranslator(opts.target, opts.translation),
       signal: ac.signal,
       getCharacter: (cid) => st().characters.find((c) => c.id === cid),
       updateCharacter: (cid, patch) => st().updateCharacter(cid, patch),
-      getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
+      getBook: wholeBook,
       updateBook: (bid, patch) => st().updateLorebook(bid, patch),
       progress: (done, total) => { if (!ac.signal.aborted) progressToast(id, `Translating ${name}: ${done}/${total}`, tid) },
     }, { target: opts.target, provider: opts.translation.provider || 'llm', at: new Date().toISOString() })
@@ -112,6 +125,7 @@ export async function translateLorebook(
   const st = () => useApp.getState()
   let copyId: string | null = null
   try {
+    await st().loadBook(bookId) // the copy and the pass both need the entries
     if (opts.keepCopy) {
       copyId = st().duplicateLorebook(bookId)
       st().updateLorebook(copyId, { name: `${name} (original)` })
@@ -119,7 +133,7 @@ export async function translateLorebook(
     const res = await translateBook(bookId, {
       translate: makeTranslator(opts.target, opts.translation),
       signal: ac.signal,
-      getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
+      getBook: wholeBook,
       updateBook: (bid, patch) => st().updateLorebook(bid, patch),
       progress: (done, total) => { if (!ac.signal.aborted) progressToast(bookId, `Translating ${name}: ${done}/${total}`, tid) },
     })
@@ -163,12 +177,13 @@ export async function previewTranslation(
   const { ac, tid } = begin(id, `Translating ${name}…`)
   const st = () => useApp.getState()
   try {
+    await loadOwnBook(id)
     const res = await translateInstalled(id, {
       translate: makeTranslator(opts.target, opts.translation),
       signal: ac.signal,
       getCharacter: (cid) => st().characters.find((c) => c.id === cid),
       updateCharacter: () => {},
-      getBook: (bid) => st().lorebooks.find((b) => b.id === bid),
+      getBook: wholeBook,
       updateBook: () => {},
       progress: (done, total) => { if (!ac.signal.aborted) progressToast(id, `Translating ${name}: ${done}/${total}`, tid) },
     }, { target: opts.target, provider: opts.translation.provider || 'llm', at: new Date().toISOString() }, { apply: false })
@@ -198,14 +213,19 @@ export async function previewTranslation(
 }
 
 /** Save the previewed translation (fields edited meanwhile keep the edit). */
-export function savePendingTranslation(id: string, name: string): void {
+export async function savePendingTranslation(id: string, name: string): Promise<void> {
   const p = usePendingTranslations.getState().byId[id]
   if (!p) return
+  // the book was loaded for the pass; a list refresh since must not make the save skip it
+  if (p.bookId) {
+    await useApp.getState().loadBook(p.bookId)
+    if (usePendingTranslations.getState().byId[id] !== p) return // discarded or replaced meanwhile
+  }
   const st = useApp.getState()
   const res = applyPendingTranslation(id, p, {
     getCharacter: (cid) => st.characters.find((c) => c.id === cid),
     updateCharacter: (cid, patch) => useApp.getState().updateCharacter(cid, patch),
-    getBook: (bid) => useApp.getState().lorebooks.find((b) => b.id === bid),
+    getBook: wholeBook,
     updateBook: (bid, patch) => useApp.getState().updateLorebook(bid, patch),
   })
   setPending(id, null)

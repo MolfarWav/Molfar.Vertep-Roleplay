@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenText, Plus, Trash, Copy, MagnifyingGlass, Globe, Flask, Pulse, CaretDown, CaretRight, Funnel,
   PushPin, Snowflake, ClockCountdown, Users, GearSix, ArrowSquareOut, Sparkle, DotsThreeVertical, UploadSimple, DownloadSimple,
-  UserCircle, UsersThree, LinkBreak, type Icon as PhosphorIcon,
+  UserCircle, UsersThree, LinkBreak, CircleNotch, type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -23,13 +23,14 @@ import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_DETAIL_EVENT } from '@/components/guide/events'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
-import { importLorebookFiles } from '@/lib/engine'
+import { bookEntryCount, importLorebookFiles } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import type { Lorebook, LoreEntry } from '@/lib/types'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { LoreStatusIcon } from '@/components/lore-status-icon'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
+import { useIsMobile } from '@/hooks/use-mobile'
 import type { MsgKey } from '@/lib/i18n'
 import { bookKind, bookUsage, type BookKind } from '@/lib/lore-usage'
 import { downloadJson } from '@/lib/interop'
@@ -72,6 +73,20 @@ export function LorebooksView() {
   const refreshLorebooks = useApp((s) => s.refreshLorebooks)
   const hydrate = useApp((s) => s.hydrate)
   const book = lorebooks.find((b) => b.id === selectedId) ?? lorebooks[0]
+  const loadBook = useApp((s) => s.loadBook)
+
+  // the list holds summaries: the book on screen is fetched whole (its entries come with it)
+  const [failedId, setFailedId] = useState<string | null>(null)
+  const [loadTry, setLoadTry] = useState(0)
+  const isMobile = useIsMobile()
+  useEffect(() => {
+    // a phone shows the list first: the book behind it is not fetched until it is opened
+    if (!book?.stub || (isMobile && !detailOpen)) return
+    const id = book.id
+    let live = true
+    void loadBook(id).then((whole) => { if (live && !whole) setFailedId(id) })
+    return () => { live = false }
+  }, [book?.id, book?.stub, isMobile, detailOpen, loadBook, loadTry])
 
   /** Import: native studio lorebook JSON (PUT as-is) or world-info
    *  JSON (normalized server-side by the import plugin). World files
@@ -225,7 +240,7 @@ export function LorebooksView() {
                         )}
                       </span>
                       <span className="flex min-w-0 gap-x-1.5 text-[11px] text-muted-foreground">
-                        <span className="shrink-0">{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
+                        <span className="shrink-0">{t(entriesKey(bookEntryCount(b)), { n: bookEntryCount(b) })}</span>
                         <span aria-hidden="true">·</span>
                         <span className={cn('min-w-0 truncate', use.muted && 'opacity-70')} title={use.text}>{use.text}</span>
                       </span>
@@ -242,7 +257,21 @@ export function LorebooksView() {
       </aside>
       }
       detail={
-        book ? (
+        book?.stub ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground" role="status">
+            {failedId === book.id ? (
+              <>
+                <span>{t('lore.openFailed')}</span>
+                <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => { setFailedId(null); setLoadTry((n) => n + 1) }}>{t('lore.openRetry')}</Button>
+              </>
+            ) : (
+              <span className="flex items-center gap-2">
+                <CircleNotch className="size-4 animate-spin" aria-hidden="true" />
+                {t('lore.opening', { name: book.name })}
+              </span>
+            )}
+          </div>
+        ) : book ? (
           <BookEditor
             key={book.id}
             book={book}
@@ -263,7 +292,7 @@ export function LorebooksView() {
       }
     />
 
-      <KeywordTest open={testOpen} onOpenChange={setTestOpen} book={book ?? null} />
+      <KeywordTest open={testOpen} onOpenChange={setTestOpen} book={book && !book.stub ? book : null} />
       <ActiveEntriesViewer open={activeViewerOpen} onOpenChange={setActiveViewerOpen} />
       {confirmDialog}
     </>
@@ -320,6 +349,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const characters = useApp((s) => s.characters)
   const openCharacterOnTab = useApp((s) => s.openCharacterOnTab)
   const updateLorebook = useApp((s) => s.updateLorebook)
+  const loadBook = useApp((s) => s.loadBook)
   const users = bookUsage(characters, book.id).users
 
   const counts = useMemo(() => {
@@ -351,10 +381,13 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
     onUpdate({ entries: book.entries.map((e) => e.id === id ? { ...e, ...patch } : e) })
   const bulk = (patch: Partial<LoreEntry>) => onUpdate({ entries: book.entries.map((e) => selected.includes(e.id) ? { ...e, ...patch } : e) })
 
-  const copyTo = (target: Lorebook) => {
+  const copyTo = async (target: Lorebook) => {
     if (!copyEntries) return
-    updateLorebook(target.id, { entries: [...target.entries, ...copyEntries.map((e) => asCopy(e))] })
-    toast.success(t('lore.copied', { n: copyEntries.length, name: target.name }))
+    // the target may be a summary: the entries are appended to the book as it is on disk
+    const whole = await loadBook(target.id)
+    if (!whole || whole.stub) { toast.error(t('lore.openFailed')); return }
+    updateLorebook(whole.id, { entries: [...whole.entries, ...copyEntries.map((e) => asCopy(e))] })
+    toast.success(t('lore.copied', { n: copyEntries.length, name: whole.name }))
     setCopyEntries(null)
   }
 
@@ -419,7 +452,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             </PopoverContent>
           </Popover>
           <BookTranslateMenu book={book} />
-          <Button variant="ghost" size="sm" onClick={() => downloadJson({ ...book, linkedCharacterIds: [], isEmbedded: false, globalActive: false }, book.name || 'lorebook')} aria-label={t('lore.export')} title={t('lore.export')}><DownloadSimple className="size-4" aria-hidden="true" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => { const { rev: _rev, ...rest } = book; downloadJson({ ...rest, linkedCharacterIds: [], isEmbedded: false, globalActive: false }, book.name || 'lorebook') }} aria-label={t('lore.export')} title={t('lore.export')}><DownloadSimple className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" onClick={onDuplicate} aria-label="Duplicate book" title="Duplicate book"><Copy className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete} aria-label="Delete book" title="Delete book"><Trash className="size-4" aria-hidden="true" /></Button>
         </div>
@@ -526,9 +559,9 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           <ul className="flex flex-col gap-1">
             {allBooks.filter((b) => b.id !== book.id).map((b) => (
               <li key={b.id}>
-                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => copyTo(b)}>
+                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => void copyTo(b)}>
                   {b.name}
-                  <span className="ml-auto text-[11px] text-muted-foreground">{t(entriesKey(b.entries.length), { n: b.entries.length })}</span>
+                  <span className="ml-auto text-[11px] text-muted-foreground">{t(entriesKey(bookEntryCount(b)), { n: bookEntryCount(b) })}</span>
                 </Button>
               </li>
             ))}
