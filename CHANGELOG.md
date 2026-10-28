@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.74.0 (2026-10-29)
+
 - Expression sprites keep their quality and the limit on how many a card holds is gone (#167). A sprite added in the editor, or one that comes with an imported card (charx, RisuAI PNG), is stored in the engine's asset store as a WebP with its transparency, up to 1024 px on the long side (was 256 px in the editor and 192-768 px in an import, shrunk until the whole pack fitted 2.8 MB), and the card keeps only its URL. Older sprites kept as data URLs move to the store the next time the card's sprites are edited. An engine without the asset store falls back to the old shrunk data URLs. Card format: a sprite `url` may be `/v1/assets/<id>` (`docs/DATA-FORMATS.md`).
 - Imported SillyTavern presets keep the card's post-history instructions: the preset's `jailbreak` entry now fills the post-history slot (the card's own text wins, `{{original}}` in it stands for the preset's text; with none on the card the preset's text goes out). No migration: presets already imported work as they are.
 - A narrator group no longer forbids writing the user's words outright: the line now ends "unless the preset's instructions say otherwise", so presets with auto, guided or co-writing modes are no longer contradicted.
