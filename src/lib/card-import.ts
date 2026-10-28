@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { API, j, fileToDataUrl, fileToRawBase64, downscaleRemoteImage } from '@/lib/engine'
+import { API, j, fileToDataUrl, fileToRawBase64, downscaleRemoteImage, storeImageAsset, SPRITE_MAX_PX, SPRITE_QUALITY } from '@/lib/engine'
 import { extractCharaFromPng } from '@/lib/interop'
 import { beginImport, type ImportRun } from '@/lib/import-progress'
 import { t } from '@/lib/i18n'
@@ -45,11 +45,9 @@ const assetsOf = (card: unknown): CardAsset[] => {
 }
 /** Emotion images: "emotion" in the V3 spec, "x-risu-asset" in RisuAI packs. */
 const isEmotionAsset = (a: CardAsset) => !!a && (a.type === 'emotion' || a.type === 'x-risu-asset') && typeof a.uri === 'string'
-/** Expressions are stored inside card.json (the plugin writes at most 4 MB a
- *  file, and keeps a pack under 3 MB), so the browser downscales them: as
- *  large as the pack allows, from 768 px down (a pack of 20-30 stays around
- *  512-640 px, 80+ images go near 320). A stopgap until plugins can write
- *  image files of their own. */
+/** The stopgap for an engine without the asset store: expressions as data URLs inside card.json (the plugin
+ *  writes at most 4 MB a file, and keeps a pack under 3 MB), so the browser downscales them: as large as the pack
+ *  allows, from 768 px down (a pack of 20-30 stays around 512-640 px, 80+ images go near 320). */
 const EMOTION_BUDGET = 2.8 * 1024 * 1024
 async function fitEmotions(blobs: [string, Blob][]): Promise<Record<string, string>> {
   let px = 768
@@ -65,6 +63,24 @@ async function fitEmotions(blobs: [string, Blob][]): Promise<Record<string, stri
     px = Math.max(192, Math.floor(px * Math.sqrt(EMOTION_BUDGET / total) * 0.95))
   }
   return out
+}
+/** Each emotion image goes to the engine's asset store (alpha kept, SPRITE_MAX_PX on the long side) and the card
+ *  keeps its URL, so a pack is not shrunk to fit the card file (#167). Falls back to fitEmotions when the store
+ *  cannot be reached. An image that does not decode is skipped. */
+async function storeEmotions(blobs: [string, Blob][]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {}
+  try {
+    for (const [key, blob] of blobs) {
+      try {
+        out[key] = await storeImageAsset(blob, SPRITE_MAX_PX, key, { alpha: true, quality: SPRITE_QUALITY })
+      } catch (e) {
+        if ((e as Error).message !== 'not an image') throw e
+      }
+    }
+    return out
+  } catch {
+    return fitEmotions(blobs)
+  }
 }
 const imageType = (path: string) => (/\.png$/i.test(path) ? 'image/png' : /\.webp$/i.test(path) ? 'image/webp' : /\.gif$/i.test(path) ? 'image/gif' : 'image/jpeg')
 
@@ -94,7 +110,7 @@ async function charxExtras(zipBytes: Uint8Array): Promise<{ avatar?: string; ass
       const p = pathOf(a)
       if (files[p] && !blobs.has(p)) blobs.set(p, new Blob([files[p]!], { type: imageType(p) }))
     }
-    const assets = await fitEmotions([...blobs])
+    const assets = await storeEmotions([...blobs])
     if (Object.keys(assets).length) out.assets = assets
     // the plugin gets card.json alone: its pictures came above, downscaled,
     // and the package itself can be 100 MB+ (a request is capped well below)
@@ -139,7 +155,7 @@ async function pngCardAssets(file: File, card: unknown): Promise<Record<string, 
       }
       off += 12 + len
     }
-    const out = await fitEmotions([...blobs])
+    const out = await storeEmotions([...blobs])
     return Object.keys(out).length ? out : undefined
   } catch {
     return undefined

@@ -1723,7 +1723,7 @@ function canEncodeWebp(): boolean {
  * alpha at a fraction of png's size; png is the fallback where it can't be
  * encoded.
  */
-export function fileToDataUrl(file: File | Blob, max = 192, opts: { alpha?: boolean } = {}): Promise<string> {
+export function fileToDataUrl(file: File | Blob, max = 192, opts: { alpha?: boolean; quality?: number } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
@@ -1736,7 +1736,7 @@ export function fileToDataUrl(file: File | Blob, max = 192, opts: { alpha?: bool
       canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
       URL.revokeObjectURL(url)
       if (!opts.alpha) { resolve(canvas.toDataURL('image/jpeg', 0.86)); return }
-      resolve(canEncodeWebp() ? canvas.toDataURL('image/webp', 0.9) : canvas.toDataURL('image/png'))
+      resolve(canEncodeWebp() ? canvas.toDataURL('image/webp', opts.quality ?? 0.9) : canvas.toDataURL('image/png'))
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')) }
     img.src = url
@@ -1752,11 +1752,17 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: m[1] || 'application/octet-stream' })
 }
 
+/** The long side of an expression sprite when it is stored. Sprites live in the asset store (the card keeps
+ *  their URLs), so the card's size limits no longer shrink them (GitHub #167). */
+export const SPRITE_MAX_PX = 1024
+/** Webp quality of a stored sprite (its transparency is kept). */
+export const SPRITE_QUALITY = 0.92
+
 /** Put an image (a file, or an image already held as a data URL) into the engine's asset store
  *  and return its URL, `/v1/assets/<id>`. A gallery item keeps only that URL: as data URLs inside
  *  card.json eight images passed the size limit of one save and vanished (GitHub #17). */
-export async function storeImageAsset(src: File | Blob | string, max = 1024, name?: string): Promise<string> {
-  const blob = typeof src === 'string' ? dataUrlToBlob(src) : dataUrlToBlob(await fileToDataUrl(src, max))
+export async function storeImageAsset(src: File | Blob | string, max = 1024, name?: string, opts: { alpha?: boolean; quality?: number } = {}): Promise<string> {
+  const blob = typeof src === 'string' ? dataUrlToBlob(src) : dataUrlToBlob(await fileToDataUrl(src, max, opts))
   const r = await fetch(`/v1/assets${name ? `?name=${encodeURIComponent(name.slice(0, 120))}` : ''}`, {
     method: 'PUT', headers: { 'content-type': blob.type }, body: blob,
   })

@@ -286,9 +286,9 @@ function normalizeCard(raw, avatarDataUrl) {
  *  point into the package (assetDict), ccdefault: is the source PNG, data:
  *  carries the bytes inline. Returns {avatar, expressions} with what could be
  *  resolved within size caps; unresolvable assets are skipped, never faked. */
-// The images ride inside card.json, and the sandbox writes at most 4 MB per
-// file: the expressions of one card stay under this total (the browser
-// downscales them before import, so a whole pack usually fits).
+// Data-URL images ride inside card.json, and the sandbox writes at most 4 MB per
+// file: the expressions that arrive as data URLs stay under this total. The
+// browser normally puts them in the asset store first and sends URLs (no limit).
 const EXPRESSIONS_BUDGET = 3 * 1024 * 1024;
 
 /** An expression's name without the "<character>_" prefix RisuAI packs use
@@ -305,6 +305,9 @@ function expressionName(name, cardName) {
   return name;
 }
 
+/** A picture the browser already put in the engine's asset store (a sprite): the card keeps the URL, not the bytes. */
+const ASSET_URL = /^\/v1\/assets\/[a-f0-9]{64}$/i;
+
 function resolveCardAssets(card, assetDict, sourceAvatar) {
   const out = { avatar: null, expressions: [], skipped: 0 };
   const assets = Array.isArray(card && card.assets) ? card.assets : [];
@@ -318,8 +321,8 @@ function resolveCardAssets(card, assetDict, sourceAvatar) {
     if (a.uri.startsWith("__asset:") || a.uri.startsWith("embeded://")) {
       const v = assetDict[a.uri.replace(/^(?:__asset:|embeded:\/\/)/, "")];
       // the browser sends ready data URLs (downscaled); the zip path raw base64
-      if (typeof v === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(v)) url = v;
-      else if (v) url = "data:image/" + (a.ext === "webp" ? "webp" : a.ext === "jpeg" || a.ext === "jpg" ? "jpeg" : "png") + ";base64," + v;
+      if (typeof v === "string" && (ASSET_URL.test(v) || /^data:image\/(png|jpeg|webp|gif);base64,/.test(v))) url = v;
+      else if (v && !String(v).startsWith("/v1/")) url = "data:image/" + (a.ext === "webp" ? "webp" : a.ext === "jpeg" || a.ext === "jpg" ? "jpeg" : "png") + ";base64," + v;
     } else if (a.uri === "ccdefault:") {
       url = sourceAvatar && sourceAvatar.startsWith("data:") ? sourceAvatar : null;
     } else if (a.uri.startsWith("data:")) {
@@ -1924,7 +1927,7 @@ export function handleRoute(req, host) {
         if (body.assets && typeof body.assets === "object" && !Array.isArray(body.assets)) {
           for (const k of Object.keys(body.assets).slice(0, 300)) {
             const v = body.assets[k];
-            if (typeof v === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(v) && k.length <= 200) assetDict[k] = v;
+            if (typeof v === "string" && (ASSET_URL.test(v) || /^data:image\/(png|jpeg|webp);base64,/.test(v)) && k.length <= 200) assetDict[k] = v;
           }
         }
         if (card) { writeCardWithBook(card, parsed, assetDict, null, fallback); return { status: 200, json: { ...summary, name: card.name } }; }

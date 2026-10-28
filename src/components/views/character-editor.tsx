@@ -43,7 +43,7 @@ import { useCardDraft } from '@/components/character/use-card-draft'
 import { useCardTasks } from '@/components/character/use-card-tasks'
 import { DraftDialogs } from '@/components/character/draft-dialogs'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
-import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset } from '@/lib/engine'
+import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset, SPRITE_MAX_PX, SPRITE_QUALITY } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
 import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
 import { ImageViewer } from '@/components/ui/image-viewer'
@@ -220,6 +220,14 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 
+  /** A sprite goes to the asset store at full quality with its transparency, and the card keeps the URL (#167). */
+  const storeSprite = (file: File) => storeImageAsset(file, SPRITE_MAX_PX, file.name, { alpha: true, quality: SPRITE_QUALITY })
+  /** Sprites an older version kept as data URLs inside the card move to the store in the same save. */
+  const moveOldSprites = (list: typeof c.expressions) => Promise.all(list.map(async (e) => {
+    if (!e.url?.startsWith('data:')) return e
+    try { return { ...e, url: await storeImageAsset(e.url, SPRITE_MAX_PX, e.name) } } catch { return e }
+  }))
+
   /** Sprites: a whole pack at once. Each file goes to the expression its
    *  FILENAME names ("joy.png" → joy), creating the slot when the character
    *  doesn't have it yet, so a downloaded pack drops in without hand-typing
@@ -228,23 +236,28 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     if (!files?.length) return
     const expressions = [...c.expressions]
     let n = 0
+    let failed = ''
     for (const file of Array.from(files)) {
       let url: string
-      try { url = await fileToDataUrl(file, 256, { alpha: true }) } catch { continue } // not an image
+      try { url = await storeSprite(file) } catch (e) {
+        if ((e as Error).message !== 'not an image') failed = `${file.name}: ${(e as Error).message}`
+        continue
+      }
       const name = expressionNameFromFile(file.name)
       const at = expressions.findIndex((e) => e.name.toLowerCase() === name)
       if (at >= 0) expressions[at] = { ...expressions[at]!, url }
       else expressions.push({ name, url })
       n++
     }
-    if (n) { up({ expressions }); toast.success(`Assigned ${n} sprite${n > 1 ? 's' : ''}`) }
+    if (n) { up({ expressions: await moveOldSprites(expressions) }); toast.success(`Assigned ${n} sprite${n > 1 ? 's' : ''}`) }
+    if (failed) toast.error(`Not added: ${failed}`)
   }
 
   const setSprite = async (name: string, file: File | undefined) => {
     if (!file) return
     try {
-      const url = await fileToDataUrl(file, 256, { alpha: true })
-      up({ expressions: c.expressions.map((e) => e.name === name ? { ...e, url } : e) })
+      const url = await storeSprite(file)
+      up({ expressions: await moveOldSprites(c.expressions.map((e) => e.name === name ? { ...e, url } : e)) })
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 

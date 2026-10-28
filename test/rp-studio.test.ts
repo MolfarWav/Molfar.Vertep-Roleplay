@@ -1498,6 +1498,26 @@ describe("rp studio import", () => {
     expect(String((r.json.notes as string[])[0])).toContain("emotion image(s) left out");
   });
 
+  it("batch: emotion images the browser already put in the asset store are kept as URLs, with no pack budget (#167)", async () => {
+    const m = mockHost();
+    const url = (n: number) => "/v1/assets/" + n.toString(16).padStart(64, "0");
+    const assets: Record<string, string> = {};
+    const list: Record<string, string>[] = [];
+    for (let i = 0; i < 40; i++) { assets[i] = url(i); list.push({ type: "emotion", name: `mood${i}`, uri: `__asset:${i}`, ext: "webp" }); }
+    assets[40] = "/v1/assets/not-a-hash"; // a URL that is not a store id is not a sprite
+    list.push({ type: "emotion", name: "bad", uri: "__asset:40", ext: "webp" });
+    const r = await drive(stUrl, {
+      method: "POST", path: "/import/batch",
+      body: { cards: [{ card: { spec: "chara_card_v3", data: { name: "Yrel", description: "d", first_mes: "hi", assets: list } }, assets }] },
+    }, m);
+    const id = (r.json.characters as string[])[0]!;
+    const card = JSON.parse(fs.readFileSync(path.join(root, "characters", id, "card.json"), "utf8"));
+    const got = card.studio.expressions as { name: string; url: string }[];
+    expect(got).toHaveLength(40);
+    expect(got[3]).toEqual({ name: "mood3", url: url(3) });
+    expect(got.some((e) => e.name === "bad")).toBe(false);
+  });
+
   it("batch: cards + worlds + presets + regex land in the app data", async () => {
     const m = mockHost();
     const r = await drive(stUrl, {
