@@ -36,7 +36,7 @@ import { j } from '@/lib/engine'
 import { speakText, stopSpeaking, useSpeakingKey, voiceFor } from '@/lib/tts'
 import type { Chat, Character, Message, Persona, RegexScript, ToolPart } from '@/lib/types'
 import { estimateTokens, formatCost, formatTokens, knownCost } from '@/lib/tokens'
-import { DEFAULT_AVATAR, cn, copyText, readableNameColor, shortModel } from '@/lib/utils'
+import { DEFAULT_AVATAR, cn, copyText, onImageError, readableNameColor, shortModel } from '@/lib/utils'
 import { toast } from 'sonner'
 
 const ACTION_ICONS: Record<MessageActionId, typeof Copy> = {
@@ -660,7 +660,7 @@ export const MessageRow = memo(function MessageRow({
           src={shownAvatar || DEFAULT_AVATAR}
           alt=""
           draggable={false}
-          onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
+          onError={(e) => { const img = e.currentTarget; onImageError(img, () => { img.src = DEFAULT_AVATAR }) }}
         />
       )}
     </div>
