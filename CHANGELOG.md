@@ -2,6 +2,12 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Imported SillyTavern presets keep the card's post-history instructions: the preset's `jailbreak` entry now fills the post-history slot (the card's own text wins, `{{original}}` in it stands for the preset's text; with none on the card the preset's text goes out). No migration: presets already imported work as they are.
+- A narrator group no longer forbids writing the user's words outright: the line now ends "unless the preset's instructions say otherwise", so presets with auto, guided or co-writing modes are no longer contradicted.
+- The Dashboard sensor and the Litopys worker read a reply without the blocks a preset hides (a plan, an inner voice, a log): prompt-only regex scripts that replace a match with nothing are run before the 1500-character cut. The stored chat text is never changed (`storyView` in both plugins; scripts with macros, depth limits or a replacement are left out). Issue #85.
+
 ## 4.73.1 (2026-10-28)
 
 - A big imported library no longer stops the app from starting. The start-up list (`GET /bootstrap`) sent every lorebook whole, and a SillyTavern import brings a book per character (about 100 KB each), so past roughly 1,000 characters the plugin ran out of memory: "Can't reach the engine ... out of memory", and an import running at the same time died with "worker exited". Books now come as summaries (name, folder, switches, linked cards, number of entries and a token estimate; no entries), from an index in the app's local cache like the characters, and a whole book is loaded when it is opened. A card export loads its own book first, so nothing leaves without it. `GET /lorebooks?summaries=1` is the new list route; `PUT`/`PATCH` of a summary (`stub: true`) answers 409. Sending a message also read and parsed every book file of the library before keeping the ones in scope; it now reads only the books in scope (`readBoundBooks`), and so does Litopys' repeated-source check. No change to the files on disk.
