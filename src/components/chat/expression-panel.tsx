@@ -4,6 +4,7 @@ import { X, ArrowsOutLineVertical } from '@phosphor-icons/react'
 import { useApp } from '@/lib/store'
 import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
 import type { Chat } from '@/lib/types'
+import { onImageError } from '@/lib/utils'
 
 const POS_KEY = 'expr-panel-pos'
 const SIZE_KEY = 'expr-panel-height'
@@ -131,7 +132,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
           aria-label={`Show ${label}`}
           title={`${label} (click to show, drag to move)`}
         >
-          <img src={sprite.url} alt="" draggable={false} onError={() => markBroken(sprite.url)} className="size-full object-cover object-top" />
+          <img src={sprite.url} alt="" draggable={false} onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))} className="size-full object-cover object-top" />
         </button>
       </div>
     )
@@ -156,7 +157,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
         alt={`${speaker.name} ${sprite.name}`}
         draggable={false}
         onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
-        onError={() => markBroken(sprite.url)}
+        onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
         style={{ height: h, maxHeight: '90dvh' }}
         className="w-auto rounded-lg border border-border/40 bg-card/60 shadow-lg [opacity:0] transition-opacity duration-200"
       />

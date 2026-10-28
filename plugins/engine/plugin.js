@@ -2310,6 +2310,9 @@ const injDepth = (v, fallback) => {
 };
 const MARKER_ORDER_FALLBACK = ["main", "worldInfoBefore", "charDescription", "charPersonality", "scenario", "personaDescription", "worldInfoAfter", "dialogueExamples", "chatHistory", "postHistory"];
 
+/** The slot an entry fills. An imported SillyTavern preset names its post-history entry `jailbreak`. */
+const slotOf = (p) => (p.identifier === "jailbreak" ? "postHistory" : p.identifier);
+
 function orderedPrompts(preset) {
   const prompts = Array.isArray(preset && preset.prompts) ? preset.prompts : [];
   const byId = new Map();
@@ -2955,7 +2958,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isGroup) {
     const roster = members.map((m) => m.name).join(", ");
     groupSceneLine = narrating
-      ? "This is a group scene with " + userName + ". Characters: " + rosterMembers.map((m) => m.name).join(", ") + ". You narrate the scene and voice these characters: write their actions and dialogue as the scene calls for, not every one of them every time. Give each character's speech its own paragraph and name the character in that paragraph. Never write " + userName + "'s words or actions."
+      ? "This is a group scene with " + userName + ". Characters: " + rosterMembers.map((m) => m.name).join(", ") + ". You narrate the scene and voice these characters: write their actions and dialogue as the scene calls for, not every one of them every time. Give each character's speech its own paragraph and name the character in that paragraph. Never write " + userName + "'s words or actions, unless the preset's instructions say otherwise."
       : "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
     markers.scenario = (markers.scenario ? markers.scenario + "\n\n" : "") + groupSceneLine;
   }
@@ -3009,6 +3012,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       placedWI(p.identifier === "worldInfoBefore" ? "before" : "after");
       return;
     }
+    if (p.identifier === "jailbreak" && String(markers.postHistory || "").trim()) { addPart("card", cardName + " · post-history instructions", t); return; }
     if (!p.marker || own) { addPart("preset", presetName + " · " + secName, t); return; }
     if (p.identifier === "dialogueExamples") {
       placedWI("emBefore");
@@ -3028,7 +3032,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         addPart("card", cardName + " · scenario", t.slice(0, at));
         addPart("group", "Group scene", line);
       } else addPart("card", cardName + " · scenario", t);
-    } else if (p.identifier === "postHistory") {
+    } else if (slotOf(p) === "postHistory") {
       if (speakerCard && speakerCard.post_history_instructions) addPart("card", cardName + " · post-history instructions", t);
     } else if (p.identifier === "personaDescription") {
       addPart("persona", "Persona · " + userName, t);
@@ -3065,9 +3069,15 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       const own = String(p.content || "").trim();
       const entries = markers[p.identifier] || "";
       raw = own && entries ? own + "\n" + entries : entries;
+    } else if (p.identifier === "jailbreak") {
+      // an imported SillyTavern post-history entry: the card's own instructions win
+      // (as there), {{original}} in them stands for the preset's text
+      const own = String(p.content || "");
+      const card = String(markers.postHistory || "").trim();
+      raw = card ? card.replace(/{{original}}/gi, () => own) : own;
     } else if (p.marker) {
       // other markers: engine-built text, overridable by preset content.
-      raw = String(p.content || "").trim() ? String(p.content) : (markers[p.identifier] != null ? String(markers[p.identifier]) : "");
+      raw = String(p.content || "").trim() ? String(p.content) : (markers[slotOf(p)] != null ? String(markers[slotOf(p)]) : "");
     } else {
       raw = String(p.content || "");
     }
@@ -3467,7 +3477,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     else if (!condPasses(bagSec ? bagSec.condition : null)) state = "condition";
     else if (trig && genTypes && !genTypes.some((g) => trig.includes(g))) state = "not-this-generation";
     const kind = p.identifier === "main" ? "main"
-      : ["charDescription", "charPersonality", "scenario", "postHistory"].includes(p.identifier) ? "card"
+      : ["charDescription", "charPersonality", "scenario", "postHistory"].includes(slotOf(p)) ? "card"
       : p.identifier === "personaDescription" ? "persona"
       : ["worldInfoBefore", "worldInfoAfter"].includes(p.identifier) ? "lorebook"
       : p.identifier === "dialogueExamples" ? "example" : "preset";

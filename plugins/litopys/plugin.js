@@ -886,6 +886,57 @@ export function sizeLimit(line, scene) {
   return Math.max(20, Math.ceil(sceneWords(line, scene) / 3));
 }
 
+/** The story as the model reads it. A preset hides blocks of a reply (a plan, an inner voice, a log) with prompt-only
+ *  regex scripts that delete them; a cut of a reply must not spend its characters on those. Returns (text, role) -> text
+ *  for one chat. Only scripts that replace a match with nothing are run (no macros, no depth limits), the stored text
+ *  never changes. */
+export function storyView(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  const chars = [m.characterId, ...(Array.isArray(m.characterIds) ? m.characterIds : [])].filter(Boolean);
+  const inScope = (s) => {
+    const sc = s.scope || "global";
+    if (sc === "global") return true;
+    if (!s.scopeTargetId) return false;
+    if (sc === "chat") return s.scopeTargetId === m.id;
+    if (sc === "character") return chars.includes(s.scopeTargetId);
+    if (sc === "preset") return s.scopeTargetId === (m.presetId || "default");
+    return false;
+  };
+  // the prompt stage: a script with the promptOnly flag, or one saved before the flags that listed "prompt"
+  const forPrompt = (s) => {
+    if (typeof s.promptOnly === "boolean" || typeof s.markdownOnly === "boolean") return s.promptOnly === true;
+    const pl = Array.isArray(s.placement) ? s.placement : [];
+    return !pl.includes("display") || pl.includes("prompt");
+  };
+  const wheres = (s) => (Array.isArray(s.placement) ? s.placement : []);
+  let found = [];
+  try {
+    found = fsx.list("regex").filter((f) => f.endsWith(".json")).map((f) => {
+      try { return JSON.parse(fsx.read("regex/" + f)); } catch { return null; }
+    }).filter(Boolean);
+  } catch { return (text) => text; }
+  const compiled = [];
+  for (const s of found) {
+    if (s.disabled || !inScope(s) || !forPrompt(s)) continue;
+    if (String(s.replaceString ?? "") !== "" || (s.macroMode && s.macroMode !== "none")) continue;
+    if ((s.minDepth != null && s.minDepth >= 0) || (s.maxDepth != null && s.maxDepth >= 0)) continue;
+    const find = String(s.findRegex ?? "");
+    if (!find || find.length > 500) continue;
+    try { compiled.push({ re: new RegExp(find, s.flags || "g"), where: wheres(s) }); } catch {}
+  }
+  if (!compiled.length) return (text) => text;
+  return (text, role) => {
+    const place = role === "user" ? "user_input" : "ai_output";
+    let out = String(text).slice(0, 20000);
+    for (const c of compiled) {
+      if (c.where.length && !c.where.includes(place)) continue;
+      c.re.lastIndex = 0;
+      out = out.replace(c.re, "");
+    }
+    return out;
+  };
+}
+
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
@@ -921,7 +972,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   for (let i = scene.fromIdx; i <= scene.toIdx; i++) {
     const m = line[i];
     const name = m.role === "user" ? meta && meta.userName ? meta.userName : m.name : m.name || "Character";
-    const text = cut(m.text, 1500);
+    const text = cut(opts.view ? opts.view(String(m.text), m.role) : m.text, 1500);
     if (text) msgLines.push("[" + name + "] " + text);
   }
   parts.push("Scene messages\n" + msgLines.join("\n"));
@@ -2705,7 +2756,7 @@ export function onTick(_ctx, host) {
             gen.inFlight = { key: shortKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
             if (!saveChatFile(fsx, st)) return;
             beat(fsx, chatId, now);
-            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords }));
+            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords, view: storyView(fsx, meta) }));
             return;
           }
           // applied to the record as it is on disk; a save that lost a race is redone once
@@ -2771,7 +2822,7 @@ export function onTick(_ctx, host) {
         gen.inFlight = { key: sendKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
         if (!saveChatFile(fsx, st)) return;
         beat(fsx, chatId, now);
-        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, retry ? { maxWords: retry.maxWords } : {});
+        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), view: storyView(fsx, meta) });
         if (host.llm && typeof host.llm.request === "function") host.llm.request(sendKey, req);
         return;
       } catch (e) {

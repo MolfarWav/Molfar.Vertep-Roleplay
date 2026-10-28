@@ -2389,6 +2389,57 @@ function notebookTexts(ctx) {
   return out;
 }
 
+/** The story as the model reads it. A preset hides blocks of a reply (a plan, an inner voice, a log) with prompt-only
+ *  regex scripts that delete them; a cut of a reply must not spend its characters on those. Returns (text, role) -> text
+ *  for one chat. Only scripts that replace a match with nothing are run (no macros, no depth limits), the stored text
+ *  never changes. */
+export function storyView(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  const chars = [m.characterId, ...(Array.isArray(m.characterIds) ? m.characterIds : [])].filter(Boolean);
+  const inScope = (s) => {
+    const sc = s.scope || "global";
+    if (sc === "global") return true;
+    if (!s.scopeTargetId) return false;
+    if (sc === "chat") return s.scopeTargetId === m.id;
+    if (sc === "character") return chars.includes(s.scopeTargetId);
+    if (sc === "preset") return s.scopeTargetId === (m.presetId || "default");
+    return false;
+  };
+  // the prompt stage: a script with the promptOnly flag, or one saved before the flags that listed "prompt"
+  const forPrompt = (s) => {
+    if (typeof s.promptOnly === "boolean" || typeof s.markdownOnly === "boolean") return s.promptOnly === true;
+    const pl = Array.isArray(s.placement) ? s.placement : [];
+    return !pl.includes("display") || pl.includes("prompt");
+  };
+  const wheres = (s) => (Array.isArray(s.placement) ? s.placement : []);
+  let found = [];
+  try {
+    found = fsx.list("regex").filter((f) => f.endsWith(".json")).map((f) => {
+      try { return JSON.parse(fsx.read("regex/" + f)); } catch { return null; }
+    }).filter(Boolean);
+  } catch { return (text) => text; }
+  const compiled = [];
+  for (const s of found) {
+    if (s.disabled || !inScope(s) || !forPrompt(s)) continue;
+    if (String(s.replaceString ?? "") !== "" || (s.macroMode && s.macroMode !== "none")) continue;
+    if ((s.minDepth != null && s.minDepth >= 0) || (s.maxDepth != null && s.maxDepth >= 0)) continue;
+    const find = String(s.findRegex ?? "");
+    if (!find || find.length > 500) continue;
+    try { compiled.push({ re: new RegExp(find, s.flags || "g"), where: wheres(s) }); } catch {}
+  }
+  if (!compiled.length) return (text) => text;
+  return (text, role) => {
+    const place = role === "user" ? "user_input" : "ai_output";
+    let out = String(text).slice(0, 20000);
+    for (const c of compiled) {
+      if (c.where.length && !c.where.includes(place)) continue;
+      c.re.lastIndex = 0;
+      out = out.replace(c.re, "");
+    }
+    return out;
+  };
+}
+
 const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2)));
 
 /** The "New messages" lines, and whether the 8000-character cut dropped earlier ones. */
@@ -2447,7 +2498,7 @@ function sensorUser(ctx) {
     ...notebookTexts(ctx),
     ...[threadCheckText(ctx)].filter(Boolean),
     ...[backdropText(ctx)].filter(Boolean),
-    newMessagesText(ctx.newMsgs),
+    newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }
 
@@ -3558,7 +3609,7 @@ function planUpdate(fsx, chatId, op) {
   // A new swipe of the newest message or an edit of it is an ordinary read.
   const from = bi + 2 + line.slice(bi + 1).findIndex((l) => str(l.msg.text));
   const earlier = cut && (at !== keys.length - 1 || !existing || !("base" in existing) || existing.base !== (base ? base.key : null));
-  const reread = earlier ? { from, ...(newMessagesBody(newMsgs).trimmed ? { trimmed: true } : {}) } : null;
+  const reread = earlier ? { from, ...(newMessagesBody(newMsgs, storyView(fsx, chat.meta)).trimmed ? { trimmed: true } : {}) } : null;
   return {
     fsx,
     chatId,

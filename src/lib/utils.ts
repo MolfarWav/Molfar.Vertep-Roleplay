@@ -15,6 +15,17 @@ export function storedMediaUrl(url: string): string {
   return m ? `${import.meta.env.BASE_URL}${m[1]}` : url
 }
 
+/** Call this from an image's onError. The app frame has no cookies: an `/v1/` picture (the asset store) first fails
+ *  there, and the bridge then swaps in a blob of it, so giving up on that first error hides a picture that is about
+ *  to load. `giveUp` runs at once for any other address, and for an `/v1/` one only if the picture has still not
+ *  loaded after a grace period. */
+export function onImageError(img: HTMLImageElement, giveUp: () => void, graceMs = 6000): void {
+  if (!img.getAttribute('src')?.startsWith('/v1/')) { giveUp(); return }
+  window.setTimeout(() => {
+    if (img.isConnected && !(img.complete && img.naturalWidth > 0)) giveUp()
+  }, graceMs)
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
