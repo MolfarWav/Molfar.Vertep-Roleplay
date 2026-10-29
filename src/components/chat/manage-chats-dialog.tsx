@@ -322,7 +322,7 @@ export function ManageChatsDialog({
         const lines = (await file.text())
           .split("\n").filter((l) => l.trim())
           .map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
-        if (!lines.length) { toast.error(`${file.name}: no messages found`); return false }
+        if (!lines.length) throw new Error("no messages found")
         run.step(tNow("imp.step.saving"), 0.5)
         const r = await j<{ chats: string[] }>("/import/batch", {
           method: "POST",
@@ -330,7 +330,7 @@ export function ManageChatsDialog({
         })
         toast.success(`Imported to ${character.name} (${r.chats.length} new)`)
         return true
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "could not parse JSONL"}`); return false }
+      } catch (e) { throw new Error((e as Error).message || "could not parse JSONL") }
     })
     await hydrate()
   }

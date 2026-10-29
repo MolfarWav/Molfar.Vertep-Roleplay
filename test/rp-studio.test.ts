@@ -1518,6 +1518,66 @@ describe("rp studio import", () => {
     expect(got.some((e) => e.name === "bad")).toBe(false);
   });
 
+  it("batch: a Marinara character export is unwrapped, its depth prompt and embedded book come over (#96)", async () => {
+    const m = mockHost();
+    const card = {
+      type: "marinara_character",
+      data: {
+        spec: "chara_card_v2", spec_version: "2.0",
+        data: {
+          name: "Mara", description: "d", first_mes: "hi",
+          extensions: { depth_prompt: { prompt: "Stay in voice.", depth: 2, role: "user" } },
+          character_book: { name: "Mara lore", entries: [{ keys: ["moon"], secondary_keys: ["tide"], content: "The moon rules.", insertion_order: 7, position: "after_char", enabled: true }] },
+        },
+      },
+    };
+    const r = await drive(stUrl, { method: "POST", path: "/import/batch", body: { cards: [card] } }, m);
+    expect(r.json.errors).toEqual([]);
+    const id = (r.json.characters as string[])[0]!;
+    const saved = JSON.parse(fs.readFileSync(path.join(root, "characters", id, "card.json"), "utf8"));
+    expect(saved.name).toBe("Mara");
+    expect(saved.studio.depthPrompt).toEqual({ text: "Stay in voice.", depth: 2, role: "user" });
+    expect(saved.extensions.depth_prompt.prompt).toBe("Stay in voice.");
+    const book = JSON.parse(fs.readFileSync(path.join(root, "lorebooks", saved.studio.embeddedLorebookId + ".json"), "utf8"));
+    expect(book.entries[0]).toMatchObject({ keys: ["moon"], secondaryKeys: ["tide"], order: 7, position: "after_char" });
+  });
+
+  it("batch: a depth prompt in extensions comes over for a plain JSON card; the card's own studio text wins (#96)", async () => {
+    const m = mockHost();
+    const ext = { depth_prompt: { prompt: "From the extension.", depth: 6, role: 2 } };
+    const r = await drive(stUrl, {
+      method: "POST", path: "/import/batch",
+      body: { cards: [
+        { spec: "chara_card_v2", data: { name: "Plain", extensions: ext } },
+        { spec: "chara_card_v2", data: { name: "Own", extensions: ext, studio: { depthPrompt: { text: "Mine.", depth: 1, role: "system" } } } },
+      ] },
+    }, m);
+    const read = (id: string) => JSON.parse(fs.readFileSync(path.join(root, "characters", id, "card.json"), "utf8"));
+    const ids = r.json.characters as string[];
+    expect(read(ids[0]!).studio.depthPrompt).toEqual({ text: "From the extension.", depth: 6, role: "assistant" });
+    expect(read(ids[1]!).studio.depthPrompt).toEqual({ text: "Mine.", depth: 1, role: "system" });
+  });
+
+  it("batch: a standalone V2-style lorebook keeps its keywords, order and position, wrapped or not (#96)", async () => {
+    const m = mockHost();
+    const entries = [
+      { keys: ["tavern"], secondary_keys: ["inn"], content: "A cozy tavern.", insertion_order: 12, position: "after_char", comment: "Tavern", enabled: true },
+      { keys: [], content: "Always on.", constant: true, insertion_order: 3, position: "before_char", enabled: false },
+    ];
+    const r = await drive(stUrl, {
+      method: "POST", path: "/import/batch",
+      body: { worldInfo: [{ name: "file-name", entries }, { type: "marinara_lorebook", name: "outer", data: { name: "Wrapped", entries } }] },
+    }, m);
+    const ids = r.json.lorebooks as string[];
+    expect(ids).toHaveLength(2);
+    const books = ids.map((id) => JSON.parse(fs.readFileSync(path.join(root, "lorebooks", id + ".json"), "utf8")));
+    expect(books.map((b) => b.name)).toEqual(["file-name", "Wrapped"]);
+    for (const b of books) {
+      expect(b.entries[0]).toMatchObject({ keys: ["tavern"], secondaryKeys: ["inn"], order: 12, position: "after_char", title: "Tavern", enabled: true });
+      expect(b.entries[1]).toMatchObject({ order: 3, position: "before_char", enabled: false, constant: true });
+    }
+  });
+
   it("batch: cards + worlds + presets + regex land in the app data", async () => {
     const m = mockHost();
     const r = await drive(stUrl, {

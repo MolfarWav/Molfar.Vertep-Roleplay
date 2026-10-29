@@ -39,6 +39,7 @@ export function AgentForge() {
   const isMobile = useIsMobile()
   const [confirm, confirmDialog] = useConfirm()
   const [drafts, setDrafts] = useState<AgentDraft[]>([])
+  const [addOpen, setAddOpen] = useState(false)
   // undefined = not read yet, null = the app has no agents plugin
   const [installed, setInstalled] = useState<AgentInfo[] | null | undefined>(undefined)
   const [cur, setCur] = useState<Current | null>(null)
@@ -136,7 +137,11 @@ export function AgentForge() {
     const base = recipe === null ? 'new-agent' : String(AGENT_RECIPES[recipe].agent?.id ?? 'agent')
     let id = base
     for (let i = 2; taken.has(id); i++) id = `${base}-${i}`
-    const f = recipe === null ? blankAgent(id, t('fg.new.name')) : { ...JSON.parse(JSON.stringify(AGENT_RECIPES[recipe])), agent: { ...(AGENT_RECIPES[recipe].agent ?? {}), id } }
+    // a blank agent gets a name no draft or installed agent has, so a list of them stays readable
+    const names = new Set([...drafts.map((d) => d.title), ...(installed ?? []).map((a) => a.name)])
+    let title = t('fg.new.name')
+    for (let i = 2; names.has(title); i++) title = `${t('fg.new.name')} ${i}`
+    const f = recipe === null ? blankAgent(id, title) : { ...JSON.parse(JSON.stringify(AGENT_RECIPES[recipe])), agent: { ...(AGENT_RECIPES[recipe].agent ?? {}), id } }
     try {
       await saveAgentDraft(id, f)
       await refresh()
@@ -191,6 +196,7 @@ export function AgentForge() {
     const n = graph.nodes.length
     const card = newCard(graph, type, { x: 10 + (n % 5) * 250, y: 280 + Math.floor(n / 5) * 150 })
     edit({ nodes: [...graph.nodes, card], edges: graph.edges })
+    setAddOpen(false)
     setSelected(card.id)
     setTab('card')
     if (isMobile) setSheet(true)
@@ -229,7 +235,8 @@ export function AgentForge() {
               node={node}
               graph={graph}
               fields={fields}
-              problems={report?.errors.filter((e) => e.node === node.id).map((e) => e.message) ?? []}
+              // an input with no wire is shown by its own box under Wires (red), so its message is not said twice
+              problems={report?.errors.filter((e) => e.node === node.id && e.code !== 'E_UNWIRED').map((e) => e.message) ?? []}
               onParams={(params) => patchCard(node.id, { params })}
               onTitle={(title) => patchCard(node.id, { title })}
               onNote={(text) => noteOf(node.id, text)}
@@ -348,7 +355,7 @@ export function AgentForge() {
       {!isMobile && (
         <Button variant={palOpen ? 'secondary' : 'ghost'} size="sm" aria-pressed={palOpen} onClick={() => { setPal(!palOpen); setTimeout(() => setFit((n) => n + 1), 50) }} data-testid="forge-blocks">{t('fg.pal.title')}</Button>
       )}
-      {!palOpen && <Popover>
+      {!palOpen && <Popover open={addOpen} onOpenChange={setAddOpen}>
         <PopoverTrigger className="flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium hover:bg-accent max-md:h-10" data-testid="forge-add-card">
           <Plus className="size-4" aria-hidden="true" />{t('fg.addCard')}
         </PopoverTrigger>

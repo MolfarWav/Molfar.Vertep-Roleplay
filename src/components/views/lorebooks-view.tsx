@@ -94,7 +94,7 @@ export function LorebooksView() {
    *  rides along as `name`. */
   const importFiles = async (files: FileList | null) => {
     if (!files) return
-    const ids = await importLorebookFiles(Array.from(files), (m) => toast.error(m))
+    const ids = await importLorebookFiles(Array.from(files))
     const added = ids.length
     const lastId = ids.at(-1) ?? null
     if (added) {

@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus, Trash, Asterisk, UploadSimple, DownloadSimple, Flask, X, CaretDown, CaretRight, SlidersHorizontal, Globe, UserCircle, Chats } from '@phosphor-icons/react'
 import { toast } from "sonner"
+import { forEachImport } from "@/lib/import-progress"
+import { t as tNow } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -126,26 +128,23 @@ export function RegexView() {
   const handleImport = async (files: FileList | null) => {
     if (!files) return
     let firstId: string | null = null
-    for (const file of Array.from(files)) {
-      try {
-        const json = JSON.parse(await file.text())
-        const arr = regexScriptsOf(json)
-        let ok = 0
-        for (const item of arr) {
-          const rx = regexImport(item)
-          if (rx) {
-            const id = uid("rx")
-            useApp.setState((s) => ({ regexScripts: [...s.regexScripts, { ...rx, id, order: s.regexScripts.length }] }))
-            firstId ??= id
-            ok++
-          }
+    // one unit per file on the shared progress card; a file that fails is listed there with its reason
+    await forEachImport(tNow("imp.title.regex"), Array.from(files), (f) => f.name, async (file) => {
+      let json: unknown
+      try { json = JSON.parse(await file.text()) } catch { throw new Error("invalid JSON") }
+      let ok = 0
+      for (const item of regexScriptsOf(json)) {
+        const rx = regexImport(item)
+        if (rx) {
+          const id = uid("rx")
+          useApp.setState((s) => ({ regexScripts: [...s.regexScripts, { ...rx, id, order: s.regexScripts.length }] }))
+          firstId ??= id
+          ok++
         }
-        if (ok > 0) toast.success(`${file.name}: ${ok} script${ok > 1 ? "s" : ""} imported`)
-        else toast.error(`${file.name}: no valid regex scripts`)
-      } catch {
-        toast.error(`${file.name}: invalid JSON`)
       }
-    }
+      if (ok === 0) throw new Error("no valid regex scripts")
+      toast.success(`${file.name}: ${ok} script${ok > 1 ? "s" : ""} imported`)
+    })
     if (firstId) setSelectedId(firstId)
   }
 

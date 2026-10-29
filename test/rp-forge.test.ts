@@ -82,6 +82,21 @@ describe("the cards that work in code", () => {
     // the limit is not an error when too large: the plugin clamps it (60 facts, 20 entries)
     expect(mk(61).errors.filter((e) => e.node === "in")).toEqual([]);
   });
+
+  it("a count the host would change is warned about on the Input card (#146)", () => {
+    const f = blankAgent("test-agent", "T");
+    const warned = (give: Json[]) => {
+      const g = setCard(graphOf(f), "in", { params: { give } });
+      return check(fileOf("T", f.agent as Json, g)).warnings.filter((w) => w.code === "W_LIMIT").map((w) => w.message);
+    };
+    expect(warned([{ id: "facts", source: "litopysFacts", limit: 5 }, { id: "h", source: "history", last: 60, tokens: 100 }])).toEqual([]);
+    expect(warned([{ id: "facts", source: "litopysFacts", limit: 61 }])[0]).toContain("is over 60, so 60 is used");
+    expect(warned([{ id: "lore", source: "lorebook", limit: 0 }])[0]).toContain("whole number from 1 to 20");
+    expect(warned([{ id: "lore", source: "lorebook", limit: 2.5 }])).toHaveLength(1);
+    expect(warned([{ id: "h", source: "history", last: 61, tokens: 50 }])).toHaveLength(2);
+    // sources with no count never warn, whatever is in the entry
+    expect(warned([{ id: "r", source: "lastReply", limit: 999 }])).toEqual([]);
+  });
 });
 
 describe("editing", () => {

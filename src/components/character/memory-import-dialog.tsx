@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
 import { resolveLanguage } from '@/lib/i18n'
+import { beginImport } from '@/lib/import-progress'
 import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -132,11 +133,18 @@ function Body({
   const submit = async () => {
     if (!preview || !ticks || !chatId || count === 0 || saving) return
     setSaving(true)
+    // the same progress card as every other import: one unit, so the bar only names the step
+    const run = beginImport(t('imp.title.memory'), 1)
+    run.start(card.name, t('imp.step.saving'))
     try {
       const view = await importCardMemory({ cardId: card.id, chatId, arc: ticks.arc, ...(ticks.arc && arcText?.trim() ? { arcText } : {}), facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
       if (view.imported?.habitsLeft) toast.warning(t('mem.dlg.habitsLeft', { n: view.imported.habitsLeft }))
+      run.finish(true)
+      run.end(t('imp.memory.done', { n: count }))
       onDone(view)
     } catch (e) {
+      run.finish(false, message(e))
+      run.end()
       toast.error(message(e))
       setSaving(false)
     }

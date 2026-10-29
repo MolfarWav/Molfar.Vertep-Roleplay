@@ -254,8 +254,24 @@ const CARD_KNOWN_FIELDS = new Set([
   "post_history_instructions", "character_book", "avatar", "extensions",
 ]);
 
+/** A Marinara export wraps the card spec one level deeper:
+ *  { type: "marinara_character" | "marinara_lorebook", data: <the card spec or the book> }. */
+function isMarinaraWrapper(raw) {
+  return !!raw && typeof raw === "object" && typeof raw.type === "string" && raw.type.startsWith("marinara_")
+    && !!raw.data && typeof raw.data === "object";
+}
+
+/** SillyTavern / Marinara `extensions.depth_prompt` ({ prompt, depth, role }) as the app's `studio.depthPrompt`. */
+function depthPromptOf(dp) {
+  if (!dp || typeof dp !== "object" || typeof dp.prompt !== "string" || !dp.prompt.trim()) return null;
+  const role = dp.role === 1 || dp.role === "user" ? "user" : dp.role === 2 || dp.role === "assistant" ? "assistant" : "system";
+  const depth = typeof dp.depth === "number" && Number.isFinite(dp.depth) && dp.depth >= 0 ? Math.floor(dp.depth) : 4;
+  return { text: dp.prompt, depth, role };
+}
+
 function normalizeCard(raw, avatarDataUrl) {
   if (!raw) return null;
+  if (isMarinaraWrapper(raw)) raw = raw.data;
   const d = raw && typeof raw.data === "object" && raw.data ? raw.data : raw;
   if (!d || typeof d.name !== "string" || !d.name) return null;
   // v3-only and unknown data fields ride the card verbatim
@@ -264,10 +280,15 @@ function normalizeCard(raw, avatarDataUrl) {
     if (!CARD_KNOWN_FIELDS.has(k) && v !== undefined && v !== null) passthrough[k] = v;
   }
   const isV3 = raw.spec === "chara_card_v3" || d.spec === "chara_card_v3";
+  // a depth prompt the card's own studio bag does not already carry comes over from the extension
+  const ownStudio = passthrough.studio && typeof passthrough.studio === "object" ? passthrough.studio : null;
+  const depthPrompt = d.extensions && typeof d.extensions === "object" && !(ownStudio && ownStudio.depthPrompt && ownStudio.depthPrompt.text)
+    ? depthPromptOf(d.extensions.depth_prompt) : null;
   return {
     spec: isV3 ? "chara_card_v3" : "chara_card_v2", name: d.name,
     ...(isV3 ? { spec_version: "3.0" } : {}),
     ...passthrough,
+    ...(depthPrompt ? { studio: { ...ownStudio, depthPrompt } } : {}),
     description: firstOf(d.description), personality: firstOf(d.personality),
     scenario: firstOf(d.scenario), first_mes: firstOf(d.first_mes), mes_example: firstOf(d.mes_example),
     ...(Array.isArray(d.alternate_greetings) && d.alternate_greetings.length ? { alternate_greetings: d.alternate_greetings.map(String) } : {}),
@@ -399,7 +420,16 @@ function embeddedBookToWorld(raw) {
 const ST_WI_POSITIONS = { 0: "before_char", 1: "after_char", 2: "before_an", 3: "after_an", 4: "at_depth", 5: "before_em", 6: "after_em" };
 // entry role: 0 system, 1 user, 2 assistant.
 function normalizeBook(raw, fallbackName) {
+  if (isMarinaraWrapper(raw)) {
+    raw = { ...raw.data, name: typeof raw.data.name === "string" && raw.data.name ? raw.data.name : raw.name };
+  }
   if (!raw || !raw.entries || typeof raw.entries !== "object") return null;
+  // the card-spec entry names (keys / secondary_keys / insertion_order), as a standalone book
+  // from Marinara or a V2 exporter: same rebuild an embedded book gets
+  if (Object.values(raw.entries).some((e) => e && typeof e === "object" && !("key" in e) && ("keys" in e || "insertion_order" in e))) {
+    const world = embeddedBookToWorld(raw);
+    raw = { name: raw.name, entries: world ? world.entries : {} };
+  }
   const name = typeof raw.name === "string" && raw.name ? raw.name : (fallbackName || "imported-book");
   const LOGIC = ["AND_ANY", "NOT_ALL", "NOT_ANY", "AND_ALL"];
   const ROLE = ["system", "user", "assistant"];
@@ -1636,6 +1666,7 @@ export function handleRoute(req, host) {
    *  resolve from the package bytes (assetDict) or inline data: URIs. */
   function writeCardWithBook(card, raw, assetDict, sourceAvatar, fallbackAvatar) {
     if (!card) return;
+    if (isMarinaraWrapper(raw)) raw = raw.data;
     const src = raw && raw.data && typeof raw.data === "object" && raw.data.character_book ? raw.data : raw;
     const book = src && src.character_book && typeof src.character_book === "object" ? src.character_book : null;
     const world = book ? embeddedBookToWorld(book) : null;
