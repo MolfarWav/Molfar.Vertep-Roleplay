@@ -2469,7 +2469,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -3329,6 +3329,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:cardhabits")) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
+  if (isOff("plugin:recollections")) {
+    omit("memory", "What the characters remember", "off for this chat", undefined, "plugin:recollections");
+  }
   const memoryTaken = (k) => !!(meta.memory && typeof meta.memory === "object" && meta.memory[k] === true);
   if (memoryTaken("persona") && isOff("plugin:personamemory")) {
     omit("memory", "Persona memory", "off for this chat", undefined, "plugin:personamemory");
@@ -3510,6 +3513,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:said", label: "What characters said", kind: "dashboard", state: isOff("plugin:said") ? "off" : "on" });
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
+  board.push({ key: "plugin:recollections", label: "What the characters remember", kind: "memory", state: isOff("plugin:recollections") ? "off" : "on" });
   // persona and world memory reach a chat only when the chat took them in (meta.memory.persona / .world): the rows
   // show once it did, and their switch then only mutes them
   if (memoryTaken("persona")) board.push({ key: "plugin:personamemory", label: "Persona memory", kind: "memory", state: isOff("plugin:personamemory") ? "off" : "on" });

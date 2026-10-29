@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { BookOpen, Bell, CaretDown, MagnifyingGlass, PencilSimple, PenNib, Repeat, Stack, TextT, TreeStructure, type Icon } from '@phosphor-icons/react'
+import { BookOpen, Bell, CaretDown, MagnifyingGlass, PencilSimple, PenNib, Quotes, Repeat, Stack, TextT, TreeStructure, type Icon } from '@phosphor-icons/react'
 import { MARK, TONE, type Tone } from '@/components/dashboard/dash-common'
 import { cn } from '@/lib/utils'
 import { ModelPicker } from '@/components/settings/model-picker'
@@ -281,6 +281,10 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
       <Block tone="people" icon={Repeat} title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')} summary={cfg.habits !== false ? t('lit.sum.habits', { n: cfg.habitsEarnAfter ?? 2 }) : onOff(false)}>
         {switchRow('lit-habits', t('lit.set.habits'), t('lit.set.habitsHint'), cfg.habits !== false, (v) => save({ habits: v }))}
         {cfg.habits !== false && keyField('habitsEarnAfter', { id: 'lit-habits-after', label: t('lit.set.habitsAfter'), hint: t('lit.set.habitsAfterHint'), min: 1, max: 5, fallback: 2 })}
+      </Block>
+
+      <Block tone="people" icon={Quotes} title={t('lit.blk.recollections')} hint={t('lit.blk.recollectionsHint')} summary={onOff(cfg.recollections !== false)}>
+        {switchRow('lit-recollections', t('lit.set.recollections'), t('lit.set.recollectionsHint'), cfg.recollections !== false, (v) => save({ recollections: v }))}
       </Block>
 
       <Block tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>

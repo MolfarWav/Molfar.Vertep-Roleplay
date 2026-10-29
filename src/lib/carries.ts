@@ -18,6 +18,8 @@ export interface CarriesAnswer {
   personaMemory?: SharedMemoryAnswer | null
   /** The same for the saved world the chat was started in. */
   worldMemory?: SharedMemoryAnswer | null
+  /** What the characters remember of closed scenes (#99): null = nothing for this reply. Returned even when muted. */
+  recollections?: { scenes: number; who: string[]; tokens: number; text: string } | null
   /** The chat's World DM: null when it is off for the chat. */
   world?: { level: WorldLevel; insert: boolean; waiting: boolean; tokens: number; text: string } | null
 }
@@ -35,10 +37,10 @@ export interface DashCarries {
 }
 
 /** 'world' is the World DM; the saved world's memory is 'worldmem' and the persona's is 'personamem'. */
-export type CarryKind = 'memory' | 'habits' | 'personamem' | 'worldmem' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
+export type CarryKind = 'memory' | 'habits' | 'personamem' | 'worldmem' | 'recollections' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
 /** Every kind, in strip order. */
-export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'personamem', 'worldmem', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
-export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
+export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'personamem', 'worldmem', 'recollections', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
+export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:recollections' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
 
 export interface CarryPart {
   key: CarryKind
@@ -60,6 +62,10 @@ export interface CarriesLabels {
   habits: (name: string) => string
   personaMemory: (name: string) => string
   worldMemory: (name: string) => string
+  /** names = the people joined with ", " (up to two) or labels.characters(n) */
+  recollections: (names: string) => string
+  /** "3 characters" */
+  characters: (n: number) => string
   backstory: (title: string) => string
   litopys: string
   dashboard: string
@@ -85,7 +91,7 @@ export interface CarriesResult {
   visible: boolean
 }
 
-/** Parts in order: card memory, card habits, persona memory, world memory, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
+/** Parts in order: card memory, card habits, persona memory, world memory, recollections, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
  *  not exist is left out, but one the user switched off stays so it can be switched back on. */
 export function buildCarries({ carries, dash, noteText, estimate, labels }: CarriesInput): CarriesResult {
   const offKeys = carries?.off ?? []
@@ -105,6 +111,13 @@ export function buildCarries({ carries, dash, noteText, estimate, labels }: Carr
   }
   shared(carries?.personaMemory, 'personamem', 'persona', 'plugin:personamemory', carries?.personaMemory ? labels.personaMemory(carries.personaMemory.name) : '')
   shared(carries?.worldMemory, 'worldmem', 'world', 'plugin:worldmemory', carries?.worldMemory ? labels.worldMemory(carries.worldMemory.name) : '')
+
+  // what each character remembers of a closed scene: a plain board switch, like the card's memory
+  const rc = carries?.recollections
+  if (rc) {
+    const names = rc.who.length <= 2 ? rc.who.join(', ') : labels.characters(rc.who.length)
+    parts.push({ key: 'recollections', kind: 'recollections', label: labels.recollections(names), tokens: rc.tokens, off: isOff('plugin:recollections'), switchKey: 'plugin:recollections' })
+  }
 
   const bs = carries?.backstory
   if (bs) parts.push({ key: 'backstory', kind: 'backstory', label: labels.backstory(bs.title), tokens: bs.tokens, off: isOff('plugin:litopys'), switchKey: 'plugin:litopys' })

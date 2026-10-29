@@ -7,6 +7,8 @@ const labels = {
   habits: (n: string) => `Habits of ${n}`,
   personaMemory: (n: string) => `Persona memory: ${n}`,
   worldMemory: (n: string) => `World memory: ${n}`,
+  recollections: (n: string) => `Recollections: ${n}`,
+  characters: (n: number) => `${n} characters`,
   backstory: (t: string) => `Backstory “${t}”`,
   litopys: "Litopys",
   dashboard: "Dashboard",

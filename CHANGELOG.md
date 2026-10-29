@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- What each character remembers of a closed scene (#99). When a scene has two or more named characters besides you, the chapter worker also writes one short recollection each, in their own voice and only of what they saw, heard or were told (kept on the chapter, shown and editable in the Library's chapter list). A reply carries its own character's recollections of the scenes that have left the prompt, as a block "What <name> remembers"; a narrator or a narrator group's reply carries everyone's, with the names, and is told that each knows only their own part. It sits in "What this chat carries", has a Prompt board row, and a Litopys setting turns the writing off.
+
 ## 4.76.0 (2026-10-29)
 
 - Memory across chats for a persona and for a saved world (#99). The card's long memory (stories imported from chats, kept with a copy of the chat's title) now exists for the player's persona and for a World DM library world too: a "Memory across chats" section on the persona page and in the world's detail, the same import dialog (the chat's story summary and the facts that are about the persona or the world), one file each (`memory/personas/<id>.json`, `memory/worlds/<id>.json`, never inside the persona, the world or an export). Off by default: a chat takes the memory in on its own, from "What this chat carries", and the Prompt board gets a row that mutes it. The block goes after the character's memory, never repeats a line the chat's Litopys, the character's memory or the persona's/world's own text already say, keeps its text still between replies (prompt cache), and a deleted chat, persona or world breaks nothing.
