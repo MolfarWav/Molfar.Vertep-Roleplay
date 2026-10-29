@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.75.0 (2026-10-29)
+
 - Canvas, Chat links: named boards (#108). A button beside Tidy shows the board on screen and opens the list: start a new empty board (every chat is on the shelf again), switch between boards, rename, delete. A board remembers which chats sit on it and where; the links between chats are the real ones and shared by every board, so nothing is lost by starting a new board. Edits always go to the board on screen. Stored in the settings as `canvasBoard` (with `id`, `name`, `seq`) and `canvasBoards`; an install with one board keeps it as "Main board".
 - Import: Marinara exports (#96). A `marinara_character` file is unwrapped (the card sits one level deeper), `marinara_lorebook` too; a standalone lorebook with the card-spec entry names (`keys`, `secondary_keys`, `insertion_order`, `position: "before_char"`) keeps its keywords, order and position; `extensions.depth_prompt` (SillyTavern, Marinara) becomes the card's depth prompt unless the card already has one.
 - Import progress (#116): the Regex page's import and the card Memory tab's import now use the shared progress card; a file that fails is listed there with its reason and no longer also raises a toast of its own.
