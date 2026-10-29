@@ -26,9 +26,9 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   )
 }
 
-export function NativeSelect({ value, onChange, children, label }: { value: string; onChange: (v: string) => void; children: React.ReactNode; label?: string }) {
+export function NativeSelect({ value, onChange, children, label, invalid }: { value: string; onChange: (v: string) => void; children: React.ReactNode; label?: string; invalid?: boolean }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={box}>
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} aria-invalid={invalid || undefined} className={cn(box, invalid && 'border-destructive')}>
       {children}
     </select>
   )
@@ -583,7 +583,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
             const current = choices.find((c) => c.wired)?.end ?? ''
             return (
               <Field key={port.id} label={`${port.label ?? port.id}${port.optional ? ` (${t('fg.optional')})` : ''}`}>
-                <NativeSelect value={current} label={port.id} onChange={(from) => onGraph(setWire(graph, end, from || null).graph)}>
+                <NativeSelect value={current} label={port.id} invalid={!port.optional && !current} onChange={(from) => onGraph(setWire(graph, end, from || null).graph)}>
                   <option value="">{port.optional ? t('fg.wires.none') : t('fg.wires.pick')}</option>
                   {choices.map((c) => <option key={c.end} value={c.end}>{c.label}</option>)}
                 </NativeSelect>

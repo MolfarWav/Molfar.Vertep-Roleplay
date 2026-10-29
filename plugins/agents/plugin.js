@@ -290,6 +290,21 @@ const PATTERN_MAX = 200;
 const PICK_MAX = 40;
 /** A pattern that can run for a very long time on a short text: a quantified group that holds a quantifier or an alternation, or a back reference. The run is stopped by the sandbox after seconds, so refuse these up front. */
 const riskyPattern = (src) => /\\[1-9]/.test(src) || /\((?:[^()\\]|\\.)*(?:[*+]|\{\d|\|)(?:[^()\\]|\\.)*\)[*+{]/.test(src);
+/** What each Input source that gives a list reads at most; the host clamps a number outside it and ignores a wrong one. */
+const GIVE_LIMITS = { history: { key: 'last', max: 60 }, litopysFacts: { key: 'limit', max: 60 }, lorebook: { key: 'limit', max: 20 } };
+/** A count on an Input source that the host would change on its own: said here, so it is not silent. */
+function checkGiveLimits(n, warn) {
+  const w = (msg) => warn('W_LIMIT', `"${n.title}": ${msg}`, n.id);
+  for (const g of n.params?.give ?? []) {
+    const lim = GIVE_LIMITS[g?.source];
+    if (!lim) continue;
+    const v = g[lim.key];
+    if (v !== undefined && !isInt(v, 1, lim.max))
+      w(Number.isInteger(v) && v > lim.max ? `${g.id}: ${lim.key} ${v} is over ${lim.max}, so ${lim.max} is used` : `${g.id}: ${lim.key} must be a whole number from 1 to ${lim.max}, so the default is used`);
+    if (g.source === 'history' && g.tokens !== undefined && !isInt(g.tokens, 100, 100000))
+      w(Number.isInteger(g.tokens) && g.tokens > 100000 ? `${g.id}: tokens ${g.tokens} is over 100000, so 100000 is used` : `${g.id}: tokens must be a whole number from 100 to 100000, so no cap is applied`);
+  }
+}
 /** The parameters of the dice, pick, extract and cut cards. */
 function checkCodeCard(n, err) {
   const p = n.params ?? {};
@@ -539,6 +554,8 @@ function validateAgent(raw) {
     for (const t of card.needs(p))
       needs.add(t);
     maxCalls += card.calls ?? 0;
+    if (n.type === 'agent.input')
+      checkGiveLimits(n, warn);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')

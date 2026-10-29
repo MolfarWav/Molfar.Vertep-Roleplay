@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { X } from '@phosphor-icons/react'
 import { popupInitialFocus } from "@/lib/popup-focus"
 import { useBackClosable } from "@/hooks/use-back-close"
+import { useT } from "@/hooks/use-t"
 
 function Dialog({ open, defaultOpen, onOpenChange, ...props }: Omit<DialogPrimitive.Root.Props, "actionsRef">) {
   const back = useBackClosable<DialogPrimitive.Root.ChangeEventDetails, DialogPrimitive.Root.Actions>(open, defaultOpen, onOpenChange)
@@ -52,6 +53,7 @@ function DialogContent({
 }) {
   // no auto-focus into text fields on open (mobile keyboards) — see popup-focus
   const popupRef = React.useRef<HTMLDivElement | null>(null)
+  const t = useT()
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -72,14 +74,15 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                // the mark stays small; on a phone the tap area grows past it (44 px) without moving the title
+                className="absolute top-2 right-2 max-md:after:absolute max-md:after:-inset-2"
                 size="icon-sm"
               />
             }
           >
             <X
             />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t('ui.close')}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

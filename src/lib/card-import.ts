@@ -163,13 +163,15 @@ async function pngCardAssets(file: File, card: unknown): Promise<Record<string, 
 }
 
 /** What one import call brought in: the new character ids and their names,
- *  and the per-file problems (also shown as toasts unless the call was quiet). */
+ *  and the per-file problems (listed on the import progress card, not as toasts). */
 export type ImportResult = { characters: string[]; names: string[]; errors: string[]; notes: string[] }
 
 /** The name inside a card object (V1/V2 flat, V2/V3 under `data`). */
 function nameOfCard(card: unknown): string {
-  const c = (card && typeof card === 'object' ? card : {}) as { name?: unknown; data?: { name?: unknown } }
-  const n = typeof c.data?.name === 'string' && c.data.name ? c.data.name : c.name
+  const c = (card && typeof card === 'object' ? card : {}) as { name?: unknown; data?: { name?: unknown; data?: { name?: unknown } } }
+  // a Marinara export nests the spec one level deeper (data.data)
+  const inner = typeof c.data?.data?.name === 'string' ? c.data.data.name : ''
+  const n = inner || (typeof c.data?.name === 'string' && c.data.name ? c.data.name : c.name)
   return typeof n === 'string' ? n.trim() : ''
 }
 
@@ -177,8 +179,8 @@ function nameOfCard(card: unknown): string {
  *  packages, single or bulk, through the studio-import plugin routes. Shared by
  *  the Characters page, Home and the Store (dropped files and downloaded
  *  cards alike). `hydrate` refreshes the store once the cards are in. Errors
- *  are shown as toasts and never thrown. `quiet` leaves the toasts to the
- *  caller (the problems stay in the result); `avatars` maps a file name to a
+ *  are listed on the progress card and never thrown. `quiet` leaves the
+ *  success toasts to the caller (the problems stay in the result); `avatars` maps a file name to a
  *  data URL, for JSON cards (they have no picture of their own). */
 export async function importCardFiles(files: FileList | File[] | null, hydrate: () => Promise<void>, opts?: { quiet?: boolean; avatars?: Record<string, string> }): Promise<ImportResult> {
   const out: ImportResult = { characters: [], names: [], errors: [], notes: [] }
@@ -270,7 +272,7 @@ export async function importCardFiles(files: FileList | File[] | null, hydrate: 
   run.end(t(run.cancelled() ? 'imp.cancelled' : 'imp.done', undefined, { ok: out.characters.length, total: list.length }))
   out.errors = errors
   out.notes = notes
-  if (!quiet) for (const e of errors) toast.error(e)
+  // the failed files are listed, with their reasons, on the progress card: no toast per file as well
   if (!quiet) for (const n of notes) toast.info(n)
   return out
 }

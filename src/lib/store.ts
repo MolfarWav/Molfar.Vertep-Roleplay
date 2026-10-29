@@ -398,6 +398,10 @@ let stopStreams: (() => void) | null = null
  *  that had not been flushed yet. */
 let flushStreamDeltas: (() => void) | null = null
 let uiSyncTimer: ReturnType<typeof setTimeout> | undefined
+// a settings edit is on its way to the disk (debounced, then in flight): a hydrate that reads the file now
+// would bring back the older copy over it, so it leaves the settings alone until the write has landed
+let uiEditSeq = 0
+let uiDirty = false
 /** The shell's language for an app whose user never picked one: undefined = not asked yet (0.9.5). */
 let shellLang: 'en' | 'uk' | null | undefined
 /** single-flight + trailing queue for hydrate: concurrent hydrates interleave
@@ -894,7 +898,7 @@ export const useApp = create<AppState>()(
           void finishRoster(set, get, boot.charactersPending ?? 0)
           for (const b of staleBooks) void reloadBook(set, get, b.id, b.rev, true)
           void finishBooks(set, get, boot.lorebooksPending ?? 0)
-          if (settings.ui) {
+          if (settings.ui && !uiDirty) {
             const ui = settings.ui as Record<string, unknown>
             // Object-valued bags (tts, translation, …) merge ONE level deep:
             // a partial bag on disk (hand-edited or from an older build) must
@@ -1291,8 +1295,12 @@ export const useApp = create<AppState>()(
         // disk — open clients pick agent edits up via look_changed → hydrate
         const ui = get().settings
         clearTimeout(uiSyncTimer)
+        const edit = ++uiEditSeq
+        uiDirty = true
         uiSyncTimer = setTimeout(() => {
-          writeThrough('settings', j('/settings', { method: 'PUT', body: JSON.stringify({ ui }) }))
+          const sent = j('/settings', { method: 'PUT', body: JSON.stringify({ ui }) })
+          writeThrough('settings', sent)
+          void sent.then(() => undefined, () => undefined).then(() => { if (uiEditSeq === edit) uiDirty = false })
         }, 500)
       },
 

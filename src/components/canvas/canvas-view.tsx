@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { useApp } from '@/lib/store'
 import { toast } from 'sonner'
 import { ChatShelf } from './chat-shelf'
+import { BoardMenu } from './board-menu'
 import { PromptBoard } from './prompt-board'
 import { AgentForge } from './agent-forge'
 import { AgentSets } from './forge/agent-sets'
@@ -60,8 +61,10 @@ const boardState = (): BoardState => {
   }
 }
 const saveBoardState = (part: Partial<BoardState>) => {
-  const next = { ...boardState(), ...part }
-  if (JSON.stringify(next) === JSON.stringify(useApp.getState().settings.canvasBoard)) return
+  const cur = useApp.getState().settings.canvasBoard
+  // the board's id, name and order (named boards) ride along with what changed
+  const next = { ...cur, ...boardState(), ...part }
+  if (JSON.stringify(next) === JSON.stringify(cur)) return
   useApp.getState().updateSettings({ canvasBoard: next })
 }
 
@@ -613,6 +616,7 @@ export function CanvasView() {
               <Sparkle className="mr-1.5 h-4 w-4" />
               {t('canvas.tidy')}
             </Button>
+            <BoardMenu onChanged={() => { setSelectedId(null); loadData() }} />
           </>
         )}
 

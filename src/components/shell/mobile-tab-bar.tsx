@@ -62,7 +62,7 @@ export function MobileTabBar() {
         <button
           type="button"
           onClick={() => setMoreOpen(true)}
-          aria-label={waiting > 0 ? `More sections, ${t('attn.waiting', { n: waiting })}` : 'More sections'}
+          aria-label={waiting > 0 ? `${t('nav.moreSections')}, ${t('attn.waiting', { n: waiting })}` : t('nav.moreSections')}
           className={cn(
             'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 border-t-[3px] font-heading text-[12px]',
             moreActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',

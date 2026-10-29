@@ -859,7 +859,9 @@ export interface AppSettings {
    *  and app backups, unlike engine credentials which stay in the vault. */
   translation: { provider: 'llm' | 'google' | 'lingva' | 'deepl'; targetLanguage: string; /** the language the model receives when auto-translating inputs */ internalLanguage: string; autoMode: 'none' | 'responses' | 'inputs' | 'both'; deeplKey?: string }
   /** The Canvas Chat links board: the chats on it and where their cards sit. */
-  canvasBoard?: { placed: string[]; positions: Record<string, { x: number; y: number }> }
+  canvasBoard?: { placed: string[]; positions: Record<string, { x: number; y: number }>; id?: string; name?: string; seq?: number }
+  /** The other named Chat links boards (the one on screen is `canvasBoard`). */
+  canvasBoards?: Array<{ id: string; name: string; placed: string[]; positions: Record<string, { x: number; y: number }>; seq: number }>
   /** Image generation via the engine's pi-ai images bridge (POST /v1/images). */
   /** The model for card tasks (Structure it, Fill empty, the Soul rating) when a card names none; empty = the sensor's, then the default. */
   cardTasks?: { model: string }

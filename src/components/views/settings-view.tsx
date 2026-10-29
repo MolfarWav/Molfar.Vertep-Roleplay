@@ -432,7 +432,7 @@ function STImportSection() {
         toast.success(`Preset imported: ${r.preset.name} (${r.preset.sections.length} prompts${r.scripts ? `, ${r.scripts} regex scripts` : ""})`)
         announceImportReport(r.preset.name, r.report)
         return true
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`); return false }
+      } catch (e) { throw new Error((e as Error).message || "invalid JSON") }
     })
   }
 
@@ -507,7 +507,7 @@ function STImportSection() {
           const rx = regexImport(item)
           return rx ? [regexExport({ ...rx, id: "", order: i })] : []
         })
-        if (!valid.length) { toast.error(`${file.name}: no valid regex scripts`); return false }
+        if (!valid.length) throw new Error("no valid regex scripts")
         run.step(tNow("imp.step.saving"), 0.5)
         const r = await j<{ regex: string[] }>("/import/batch", { method: "POST", body: JSON.stringify({ regex: valid }) })
         const ok = r.regex.length
@@ -516,15 +516,14 @@ function STImportSection() {
           await useApp.getState().hydrate()
           return true
         }
-        toast.error(`${file.name}: no valid regex scripts`)
-        return false
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "invalid JSON"}`); return false }
+        throw new Error("no valid regex scripts")
+      } catch (e) { throw new Error((e as Error).message || "invalid JSON") }
     })
   }
 
   const handleLorebooks = async (files: FileList | null) => {
     if (!files) return
-    const ids = await importLorebookFiles(Array.from(files), (m) => toast.error(m))
+    const ids = await importLorebookFiles(Array.from(files))
     if (!ids.length) return
     toast.success(`Imported ${ids.length} book${ids.length > 1 ? "s" : ""}`)
     await useApp.getState().hydrate()
@@ -542,7 +541,7 @@ function STImportSection() {
         // public chat jsonl: one message object per line — posted raw, the
         // studio-import plugin rebuilds the chat server-side and links it by name
         const lines = text.split("\n").filter((l) => l.trim()).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
-        if (!lines.length) { toast.error(`${file.name}: no messages found`); return false }
+        if (!lines.length) throw new Error("no messages found")
         run.step(tNow("imp.step.saving"), 0.5)
         const r = await j<{ chats: string[] }>("/import/batch", {
           method: "POST",
@@ -550,7 +549,7 @@ function STImportSection() {
         })
         toast.success(`Chat imported to ${char.name} (${r.chats.length} new)`)
         return true
-      } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? "could not parse JSONL"}`); return false }
+      } catch (e) { throw new Error((e as Error).message || "could not parse JSONL") }
     })
     await useApp.getState().hydrate()
   }

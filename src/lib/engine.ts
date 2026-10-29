@@ -1483,7 +1483,8 @@ const ENGINE_TO_POS: Record<string, LoreEntry['position']> = {
  *  book ids in order, and throws per file are reported by the caller. */
 export async function importLorebookFiles(
   files: File[],
-  onError: (message: string) => void,
+  /** a file that failed is listed with its reason on the progress card; this is for a caller that wants it too */
+  onError?: (message: string) => void,
 ): Promise<string[]> {
   const ids: string[] = []
   const run = beginImport(t('imp.title.lorebooks'), files.length)
@@ -1492,6 +1493,7 @@ export async function importLorebookFiles(
     if (run.cancelled()) break
     run.start(file.name, t('imp.step.reading'))
     let ok = true
+    let failure = ''
     try {
       const json = JSON.parse(await file.text()) as Record<string, unknown>
       run.step(t('imp.step.saving'), 0.5)
@@ -1513,9 +1515,10 @@ export async function importLorebookFiles(
       }
     } catch (e) {
       ok = false
-      onError(`${file.name}: ${(e as Error).message ?? 'could not parse'}`)
+      onError?.(`${file.name}: ${(e as Error).message ?? 'could not parse'}`)
+      failure = (e as Error).message || 'could not parse'
     }
-    run.finish(ok, ok ? '' : 'not imported')
+    run.finish(ok, ok ? '' : failure)
   }
   } finally {
     run.end(t(run.cancelled() ? 'imp.cancelled' : 'imp.done', undefined, { ok: ids.length, total: files.length }))
