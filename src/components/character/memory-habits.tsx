@@ -11,11 +11,11 @@ import { useConfirm } from '@/components/ui/confirm'
 import type { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import type { Character } from '@/lib/types'
-import { type CardMemoryView, type MemHabit, deleteCardMemoryHabit, putCardMemory } from './memory-api'
+import { type MemoryView, type MemHabit, deleteCardMemoryHabit, putCardMemory } from './memory-api'
 import { AddButton, Block } from './memory-block'
 
 type T = ReturnType<typeof useT>
-type Apply = (run: () => Promise<CardMemoryView>) => Promise<boolean>
+type Apply = (run: () => Promise<MemoryView>) => Promise<boolean>
 
 const NAME_MAX = 80
 const WHEN_MAX = 160
@@ -29,7 +29,7 @@ export interface Values { name: string; rule: string; when: string }
 
 /** The card's habits: short rules for how the character acts. Proposals wait for a yes at the top; the
  *  accepted ones have a switch each. Changes act at once, like the rest of the Memory tab. */
-export function HabitsBlock({ c, data, t, apply }: { c: Character; data: CardMemoryView; t: T; apply: Apply }) {
+export function HabitsBlock({ c, data, t, apply }: { c: Character; data: MemoryView; t: T; apply: Apply }) {
   const [confirm, confirmDialog] = useConfirm()
   // "new" adds a habit, an id edits that habit (proposal or accepted)
   const [editing, setEditing] = useState<string | null>(null)
@@ -91,7 +91,7 @@ export function HabitsBlock({ c, data, t, apply }: { c: Character; data: CardMem
     <Block tone="violet" icon={ListChecks} title={t('mem.habits')} count={accepted.length}>
       <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
         <p>{t('mem.habits.hint', { name: c.name })}</p>
-        <p data-testid="mem-habits-cost">{t('mem.habits.cost', { tokens: data.habitsTokens, budget: data.habitsBudget })}</p>
+        <p data-testid="mem-habits-cost">{t('mem.habits.cost', { tokens: data.habitsTokens ?? 0, budget: data.habitsBudget ?? 0 })}</p>
       </div>
 
       {proposed.length > 0 && (

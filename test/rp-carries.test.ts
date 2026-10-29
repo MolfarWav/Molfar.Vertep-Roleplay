@@ -4,6 +4,8 @@ import { buildCarries, flipOff, type CarriesAnswer } from "../src/lib/carries";
 const labels = {
   memory: (n: string) => `Memory of ${n}`,
   habits: (n: string) => `Habits of ${n}`,
+  personaMemory: (n: string) => `Persona memory: ${n}`,
+  worldMemory: (n: string) => `World memory: ${n}`,
   backstory: (t: string) => `Backstory “${t}”`,
   litopys: "Litopys",
   dashboard: "Dashboard",

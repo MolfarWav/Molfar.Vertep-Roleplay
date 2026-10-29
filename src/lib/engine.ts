@@ -1118,6 +1118,15 @@ export async function setChatPromptBoard(chatId: string, board: PromptBoardConfi
   return meta.promptBoard ?? null
 }
 
+/** Whether this chat takes in the memory of its persona or of its saved world (chat meta `memory.persona` / `memory.world`, off until set).
+ *  Only the named flag changes: the card's story choice and the other flag stay as they are. */
+export async function setChatMemoryOwner(chatId: string, owner: 'persona' | 'world', on: boolean): Promise<void> {
+  await j<unknown>(`/chats/${encodeURIComponent(chatId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ memory: { [owner]: on } }),
+  })
+}
+
 /** Which of the card's stories feed this chat (chat meta `memory.sources`): false = left out, true = a "separate" story let in. */
 export type ChatMemorySources = Record<string, boolean>
 

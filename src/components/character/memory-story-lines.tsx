@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { type CardMemoryView, type MemLinePatch, type MemSource, putCardMemory } from './memory-api'
+import { type MemLinePatch, type MemoryOwner, type MemoryView, type MemSource, putMemory } from './memory-api'
 
 type T = ReturnType<typeof useT>
 type ListName = 'facts' | 'notes' | 'said'
@@ -18,23 +18,25 @@ const ARC_MAX = 1500
 const KINDS = ['vow', 'promise', 'threat', 'confession', 'secret', 'order', 'refusal', 'lie', 'other'] as const
 
 /** What one story keeps, line by line: read, edit, remove (with Undo) and add by hand. Works the same
- *  when the chat is gone: the lines live in the card's memory file, not in the chat. */
+ *  when the chat is gone: the lines live in the owner's memory file, not in the chat. A persona's and a
+ *  world's story has only the summary and the facts; notes and said lines are a card's. */
 export function StoryLines({
-  cardId,
-  cardName,
+  owner,
   source,
   t,
   apply,
 }: {
-  cardId: string
-  cardName: string
+  owner: MemoryOwner
   source: MemSource
   t: T
-  apply: (run: () => Promise<CardMemoryView>) => Promise<boolean>
+  apply: (run: () => Promise<MemoryView>) => Promise<boolean>
 }) {
+  const lists: readonly ListName[] = owner.kind === 'card' ? ['facts', 'notes', 'said'] : ['facts']
+  // who a hand-written line is about: the card or persona by name; a world's facts are about "world" (as Litopys files them)
+  const subject = owner.kind === 'world' ? 'world' : owner.name
   // one line is edited or added at a time: "facts:2" edits the third fact, "facts:+" adds one
   const [at, setAt] = useState<string | null>(null)
-  const send = (line: MemLinePatch) => apply(() => putCardMemory(cardId, { source: { id: source.id, line } }))
+  const send = (line: MemLinePatch) => apply(() => putMemory(owner, { source: { id: source.id, line } }))
 
   const removeLine = async (list: ListName, index: number) => {
     const old = source[list][index]
@@ -88,7 +90,7 @@ export function StoryLines({
         )}
       </Block>
 
-      {(['facts', 'notes', 'said'] as const).map((list) => (
+      {lists.map((list) => (
         <Block key={list} title={t(`mem.ln.${list}` as MsgKey)} count={source[list].length}>
           {source[list].length === 0 && at !== `${list}:+` && <p className="text-xs text-muted-foreground">{t('mem.ln.none')}</p>}
           <ul className="flex flex-col">
@@ -128,8 +130,8 @@ export function StoryLines({
               onCancel={() => setAt(null)}
               onSubmit={async (text, kind) => {
                 const line: MemLinePatch = { list, add: true, text }
-                if (list === 'facts') line.subject = cardName
-                else line.who = cardName
+                if (list === 'facts') line.subject = subject
+                else line.who = owner.name
                 if (list === 'said') line.kind = kind
                 if (await send(line)) setAt(null)
               }}

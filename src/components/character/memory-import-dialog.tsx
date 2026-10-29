@@ -13,28 +13,30 @@ import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
-import { type CardMemoryView, type MemChat, type MemPreview, type MemSummary, importCardMemory, previewCardMemory, summarizeChat } from './memory-api'
+import { type MemChat, type MemoryOwner, type MemoryView, type MemPreview, type MemSummary, importMemory, previewMemory, summarizeChat } from './memory-api'
+import { MEMORY_TEXT } from './memory-kind'
 
 const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e))
 const SEARCH_FROM = 8
 
-/** Two steps: choose one of the card's chats, then tick what the card keeps from it. The chat can be
- *  deleted afterwards; what is ticked stays in the card's memory. A full-screen page on a phone. */
+/** Two steps: choose one of the owner's chats, then tick what the memory keeps from it. The chat can be
+ *  deleted afterwards; what is ticked stays in the memory. A persona's or a world's memory has only the
+ *  story summary and facts to tick. A full-screen page on a phone. */
 export function MemoryImportDialog({
   open,
   onOpenChange,
-  card,
+  owner,
   chats,
   initialChatId,
   onDone,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  card: { id: string; name: string }
+  owner: MemoryOwner
   chats: MemChat[]
   /** Skips the list: "Take from the chat again" opens straight on that chat's preview. */
   initialChatId: string | null
-  onDone: (view: CardMemoryView) => void
+  onDone: (view: MemoryView) => void
 }) {
   const t = useT()
   return (
@@ -45,8 +47,8 @@ export function MemoryImportDialog({
         className="flex flex-col gap-0 overflow-hidden p-0 max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0 md:h-[min(40rem,calc(100dvh-4rem))] sm:max-w-xl"
       >
         <DialogTitle className="sr-only">{t('mem.dlg.title')}</DialogTitle>
-        <DialogDescription className="sr-only">{t('mem.dlg.pick', { name: card.name })}</DialogDescription>
-        <Body card={card} chats={chats} initialChatId={initialChatId} onClose={() => onOpenChange(false)} onDone={onDone} />
+        <DialogDescription className="sr-only">{t(MEMORY_TEXT[owner.kind].dlgPick, { name: owner.name })}</DialogDescription>
+        <Body owner={owner} chats={chats} initialChatId={initialChatId} onClose={() => onOpenChange(false)} onDone={onDone} />
       </DialogContent>
     </Dialog>
   )
@@ -63,19 +65,21 @@ const ticksOf = (p: MemPreview): Ticks => ({
 })
 
 function Body({
-  card,
+  owner,
   chats,
   initialChatId,
   onClose,
   onDone,
 }: {
-  card: { id: string; name: string }
+  owner: MemoryOwner
   chats: MemChat[]
   initialChatId: string | null
   onClose: () => void
-  onDone: (view: CardMemoryView) => void
+  onDone: (view: MemoryView) => void
 }) {
   const t = useT()
+  const txt = MEMORY_TEXT[owner.kind]
+  const isCard = owner.kind === 'card'
   const lang = resolveLanguage(useApp((s) => s.settings.language))
   const [chatId, setChatId] = useState<string | null>(initialChatId)
   const [preview, setPreview] = useState<MemPreview | null>(null)
@@ -95,12 +99,12 @@ function Body({
     setPreview(null)
     setArcText(null)
     asked.current = false
-    previewCardMemory(card.id, chatId)
+    previewMemory(owner, chatId)
       .then((p) => { if (live) { setPreview(p); setTicks(ticksOf(p)) } })
       .catch((e) => { if (live) { toast.error(message(e)); setChatId(null) } })
       .finally(() => { if (live) setReading(false) })
     return () => { live = false }
-  }, [card.id, chatId])
+  }, [owner.kind, owner.id, chatId])
 
   // a summary being written: look again every few seconds; the answer replaces the text unless the user typed in it
   const sumState = preview?.summary?.state
@@ -108,12 +112,12 @@ function Body({
     if (sumState !== 'working' || !chatId) return
     let live = true
     const id = window.setInterval(() => {
-      previewCardMemory(card.id, chatId)
+      previewMemory(owner, chatId)
         .then((p) => { if (live) setPreview((cur) => (cur ? { ...cur, summary: p.summary } : cur)) })
         .catch(() => {})
     }, 4000)
     return () => { live = false; window.clearInterval(id) }
-  }, [card.id, chatId, sumState])
+  }, [owner.kind, owner.id, chatId, sumState])
   const sumText = preview?.summary?.state === 'done' ? preview.summary.text : ''
   useEffect(() => {
     if (!asked.current || !sumText) return
@@ -134,13 +138,13 @@ function Body({
     if (!preview || !ticks || !chatId || count === 0 || saving) return
     setSaving(true)
     // the same progress card as every other import: one unit, so the bar only names the step
-    const run = beginImport(t('imp.title.memory'), 1)
-    run.start(card.name, t('imp.step.saving'))
+    const run = beginImport(t(isCard ? 'imp.title.memory' : 'memx.imp.title'), 1)
+    run.start(owner.name, t('imp.step.saving'))
     try {
-      const view = await importCardMemory({ cardId: card.id, chatId, arc: ticks.arc, ...(ticks.arc && arcText?.trim() ? { arcText } : {}), facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
+      const view = await importMemory(owner, { chatId, arc: ticks.arc, ...(ticks.arc && arcText?.trim() ? { arcText } : {}), facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
       if (view.imported?.habitsLeft) toast.warning(t('mem.dlg.habitsLeft', { n: view.imported.habitsLeft }))
       run.finish(true)
-      run.end(t('imp.memory.done', { n: count }))
+      run.end(t(isCard ? 'imp.memory.done' : 'memx.imp.done', { n: count }))
       onDone(view)
     } catch (e) {
       run.finish(false, message(e))
@@ -172,12 +176,12 @@ function Body({
       <>
         {header(t('mem.dlg.title'))}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-          <p className="text-sm text-muted-foreground">{t('mem.dlg.pick', { name: card.name })}</p>
+          <p className="text-sm text-muted-foreground">{t(txt.dlgPick, { name: owner.name })}</p>
           {chats.length > SEARCH_FROM && (
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('mem.dlg.search')} aria-label={t('mem.dlg.search')} className="max-md:h-10" />
           )}
           {chats.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">{t('mem.dlg.noChats', { name: card.name })}</p>
+            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">{t(txt.dlgNoChats, { name: owner.name })}</p>
           ) : shown.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('mem.dlg.noMatch')}</p>
           ) : (
@@ -266,7 +270,7 @@ function Body({
                   <span className="mt-1 block text-[11px] text-muted-foreground">~{Math.ceil((arcText ?? preview.arc?.text ?? '').length / 3.6)} tok</span>
                 </Tick>
               )}
-              {preview.summary && <SummaryRow summary={preview.summary} used={arcText === preview.summary.text} onAsk={askSummary} onUse={() => { setArcText(preview.summary?.text ?? null); setTicks({ ...ticks, arc: true }) }} onPlain={() => setArcText(null)} plain={arcText !== null && !!preview.arc} />}
+              {preview.summary && <SummaryRow hint={txt.sumHint} summary={preview.summary} used={arcText === preview.summary.text} onAsk={askSummary} onUse={() => { setArcText(preview.summary?.text ?? null); setTicks({ ...ticks, arc: true }) }} onPlain={() => setArcText(null)} plain={arcText !== null && !!preview.arc} />}
             </>
           ) : (
             <p className="text-xs text-muted-foreground">{t('mem.dlg.none')}</p>
@@ -280,21 +284,25 @@ function Body({
           onFlip={(id, on) => flip('facts', id, on)}
           onAll={() => toggleAll('facts')}
         />
-        <LineSection
-          title={t('mem.dlg.notes')}
-          lines={preview.notes.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: x.who }))}
-          ticked={ticks.notes}
-          onFlip={(id, on) => flip('notes', id, on)}
-          onAll={() => toggleAll('notes')}
-        />
-        <LineSection
-          title={t('mem.dlg.said')}
-          lines={preview.said.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: x.who, kind: x.kind }))}
-          ticked={ticks.said}
-          onFlip={(id, on) => flip('said', id, on)}
-          onAll={() => toggleAll('said')}
-        />
-        {(preview.habits?.length ?? 0) > 0 && (
+        {isCard && (
+          <LineSection
+            title={t('mem.dlg.notes')}
+            lines={preview.notes.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: x.who }))}
+            ticked={ticks.notes}
+            onFlip={(id, on) => flip('notes', id, on)}
+            onAll={() => toggleAll('notes')}
+          />
+        )}
+        {isCard && (
+          <LineSection
+            title={t('mem.dlg.said')}
+            lines={preview.said.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: x.who, kind: x.kind }))}
+            ticked={ticks.said}
+            onFlip={(id, on) => flip('said', id, on)}
+            onAll={() => toggleAll('said')}
+          />
+        )}
+        {isCard && (preview.habits?.length ?? 0) > 0 && (
           <LineSection
             title={t('mem.dlg.habits')}
             lines={preview.habits.map((x) => ({ id: x.id, text: x.rule, dup: x.dup, lead: x.name }))}
@@ -305,7 +313,7 @@ function Body({
         )}
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t border-border p-3">
-        <p className="text-xs text-muted-foreground">{t('mem.dlg.after')}</p>
+        <p className="text-xs text-muted-foreground">{t(txt.dlgAfter)}</p>
         {count === 0 && (
           <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300" role="status" data-testid="mem-nothing">
             <Warning className="size-3.5 shrink-0" aria-hidden="true" />{t('mem.dlg.nothing')}
@@ -324,7 +332,7 @@ function Body({
 }
 
 /** Under the summary: ask the model for a better one, follow the run, take the written text. */
-function SummaryRow({ summary, used, plain, onAsk, onUse, onPlain }: { summary: MemSummary; used: boolean; plain: boolean; onAsk: (op: 'start' | 'cancel') => void; onUse: () => void; onPlain: () => void }) {
+function SummaryRow({ hint, summary, used, plain, onAsk, onUse, onPlain }: { hint: MsgKey; summary: MemSummary; used: boolean; plain: boolean; onAsk: (op: 'start' | 'cancel') => void; onUse: () => void; onPlain: () => void }) {
   const t = useT()
   if (summary.state === 'working') {
     return (
@@ -345,7 +353,7 @@ function SummaryRow({ summary, used, plain, onAsk, onUse, onPlain }: { summary: 
         </p>
       )}
       {done && summary.stale && <p className="text-xs text-muted-foreground">{t('mem.dlg.sumStale')}</p>}
-      {!done && summary.state !== 'failed' && <p className="text-xs text-muted-foreground">{t('mem.dlg.sumHint')}</p>}
+      {!done && summary.state !== 'failed' && <p className="text-xs text-muted-foreground">{t(hint)}</p>}
       <div className="flex flex-wrap gap-2">
         {done && !used && <Button size="sm" className="max-md:h-10" onClick={onUse}>{t('mem.dlg.sumUse')}</Button>}
         {done && used && plain && <Button variant="outline" size="sm" className="max-md:h-10" onClick={onPlain}>{t('mem.dlg.sumBuilt')}</Button>}

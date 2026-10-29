@@ -2469,7 +2469,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardhabits", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -2629,6 +2629,15 @@ export function cleanChatMemorySources(x) {
     if (/^s\d+$/.test(k) && typeof v === "boolean") out[k] = v;
   }
   return Object.keys(out).length ? out : null;
+}
+/** Which other memories this chat takes in (meta.memory.persona / meta.memory.world): only a present boolean counts,
+ *  so { persona: true } leaves the world as it was. Returns { persona?, world? } of the booleans given. */
+export function cleanChatMemoryOwners(x) {
+  const out = {};
+  if (x && typeof x === "object" && !Array.isArray(x)) {
+    for (const k of ["persona", "world"]) if (typeof x[k] === "boolean") out[k] = x[k];
+  }
+  return out;
 }
 /** The group as this chat plays it: the group file with the chat's own turn
  *  settings on top. The order override keeps only current members and puts
@@ -3320,6 +3329,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:cardhabits")) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
+  const memoryTaken = (k) => !!(meta.memory && typeof meta.memory === "object" && meta.memory[k] === true);
+  if (memoryTaken("persona") && isOff("plugin:personamemory")) {
+    omit("memory", "Persona memory", "off for this chat", undefined, "plugin:personamemory");
+  }
+  if (memoryTaken("world") && isOff("plugin:worldmemory")) {
+    omit("memory", "World memory", "off for this chat", undefined, "plugin:worldmemory");
+  }
   if (litCut > 0) {
     omit("memory", litCut + " messages kept as Litopys chapters", litScenes ? "whole scenes the chapters hold; the Litopys insert carries them" : "the window has no room for them; the Litopys insert carries them", undefined, "history");
   }
@@ -3494,6 +3510,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:said", label: "What characters said", kind: "dashboard", state: isOff("plugin:said") ? "off" : "on" });
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
+  // persona and world memory reach a chat only when the chat took them in (meta.memory.persona / .world): the rows
+  // show once it did, and their switch then only mutes them
+  if (memoryTaken("persona")) board.push({ key: "plugin:personamemory", label: "Persona memory", kind: "memory", state: isOff("plugin:personamemory") ? "off" : "on" });
+  if (memoryTaken("world")) board.push({ key: "plugin:worldmemory", label: "World memory", kind: "memory", state: isOff("plugin:worldmemory") ? "off" : "on" });
   // the World DM's events, only where its level sends any (its world book is a book row above)
   const worldLevel = (() => { try { const w = JSON.parse(fsx.read("world/state/" + meta.id + ".json")); return w && w.settings ? w.settings.level : ""; } catch { return ""; } })();
   if (["living", "director", "antagonist", "chaos"].includes(worldLevel)) {
@@ -5328,9 +5348,13 @@ const toolX = (r) => ({
       const agents = "agents" in b ? cleanAgentBinding(b.agents) : undefined;
       const agentsSame = agents === undefined || same(agents, meta.agents);
       // memory: which of the card's stories feed this chat; only `sources` is ours, other keys of meta.memory stay
-      const memorySources = "memory" in b ? cleanChatMemorySources(b.memory) : undefined;
+      // (a body that names only persona/world leaves the stories as they are; null clears the stories, as before)
+      const memoryBody = b.memory && typeof b.memory === "object" && !Array.isArray(b.memory) ? b.memory : null;
+      const memorySources = "memory" in b && (!memoryBody || "sources" in memoryBody) ? cleanChatMemorySources(b.memory) : undefined;
       const memorySame = memorySources === undefined || same(memorySources, meta.memory && meta.memory.sources);
-      if (turnsSame && promptBoardSame && agentsSame && memorySame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
+      const memoryOwners = memoryBody ? cleanChatMemoryOwners(memoryBody) : {};
+      const ownersSame = Object.entries(memoryOwners).every(([k, v]) => (meta.memory && meta.memory[k]) === (v ? true : undefined));
+      if (turnsSame && promptBoardSame && agentsSame && memorySame && ownersSame && keys.every((k) => !(k in b) || same(b[k], meta[k]))) return ok(meta);
       if (!turnsSame) {
         if (turns) meta.turns = turns;
         else delete meta.turns;
@@ -5343,10 +5367,16 @@ const toolX = (r) => ({
         if (agents) meta.agents = agents;
         else delete meta.agents;
       }
-      if (!memorySame) {
+      if (!memorySame || !ownersSame) {
         const mem = meta.memory && typeof meta.memory === "object" && !Array.isArray(meta.memory) ? { ...meta.memory } : {};
-        if (memorySources) mem.sources = memorySources;
-        else delete mem.sources;
+        if (!memorySame) {
+          if (memorySources) mem.sources = memorySources;
+          else delete mem.sources;
+        }
+        for (const [k, v] of Object.entries(memoryOwners)) {
+          if (v) mem[k] = true;
+          else delete mem[k];
+        }
         if (Object.keys(mem).length) meta.memory = mem;
         else delete meta.memory;
       }

@@ -24,6 +24,7 @@ import { fileToDataUrl } from '@/lib/engine'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { PersonaQuestionnaire } from '@/components/persona/persona-questionnaire'
 import { PersonaDescription } from '@/components/persona/persona-profile'
+import { MemorySection } from '@/components/character/memory-section'
 import { applyAnswers, personaAdditions, type PersonaAnswers } from '@/lib/profile'
 
 export function PersonasView() {
@@ -290,6 +291,8 @@ export function PersonasView() {
                 </label>
               ))}
             </div>
+
+            <MemorySection key={p.id} owner={{ kind: 'persona', id: p.id, name: p.name }} framed />
           </div>
         </ScrollArea>
       ) : (
