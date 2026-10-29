@@ -24,6 +24,12 @@ describe("requestOrder: the board's request list follows the request, not the sw
       "section:main", "plugin:litopys", "history", "plugin:relations", "section:checklist",
     ]);
   });
+  it("puts the card, persona and world memory in that order just above the history", () => {
+    const board = ["plugin:worldmemory", "plugin:personamemory", "plugin:cardmemory", "history", "section:main"].map(row);
+    expect(requestOrder(board, parts, spans).map((r) => r.item.key)).toEqual([
+      "section:main", "plugin:cardmemory", "plugin:personamemory", "plugin:worldmemory", "history",
+    ]);
+  });
   it("keeps the board order with no spans, and puts rows with no place last", () => {
     const board = ["b", "a"].map(row);
     expect(requestOrder(board, parts, undefined)).toEqual(board);

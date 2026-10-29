@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { BookOpenText, Brain, ListChecks, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, Note } from '@phosphor-icons/react'
+import { BookOpenText, Brain, ListChecks, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, MapTrifold, Note, UserCircle } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
 import { buildCarries, flipOff, ownStoryChats, type CarriesAnswer, type CarriesResult, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
 import type { MsgKey } from '@/lib/i18n'
-import { fetchWIStatus, getChatPromptBoard, j, setChatPromptBoard } from '@/lib/engine'
+import { fetchWIStatus, getChatPromptBoard, j, setChatMemoryOwner, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { habitCounts } from '@/lib/habit-earned'
 import { announceEarned } from '@/lib/habit-earned-toast'
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
 
-const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, habits: ListChecks, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
+const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, habits: ListChecks, personamem: UserCircle, worldmem: MapTrifold, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
 
 interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
@@ -64,7 +64,7 @@ export interface CarriesState {
 
 /** What the chat carries into the prompt besides the history (#107), read again after each message, with the counters
  *  the header's story tools show (#109). The header and the phone menu show them; `CarriesPanel` is the panel behind. */
-export function useCarries(chatId: string, noteText: string, msgCount: number): CarriesState & { mine: Loaded | null; refetch: () => Promise<void>; flip: (key: string) => Promise<void> } {
+export function useCarries(chatId: string, noteText: string, msgCount: number): CarriesState & { mine: Loaded | null; refetch: () => Promise<void>; flip: (key: string) => Promise<void>; flipShared: (part: CarryPart) => Promise<void> } {
   const t = useT()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [open, setOpen] = useState(false)
@@ -98,6 +98,8 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
   const labels = useMemo(() => ({
     memory: (name: string) => t('carries.label.memory', { name }),
     habits: (name: string) => t('carries.label.habits', { name }),
+    personaMemory: (name: string) => t('carries.label.persona', { name }),
+    worldMemory: (name: string) => t('carries.label.worldmem', { name }),
     backstory: (title: string) => t('carries.label.backstory', { title }),
     litopys: t('carries.label.litopys'),
     dashboard: t('carries.label.dashboard'),
@@ -111,6 +113,48 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
     [mine, noteText, labels],
   )
 
+  /** Saves the chat's prompt switches with one key flipped, through the same calls the Prompt board saves with. */
+  const saveFlip = async (key: string) => {
+    const cur = await getChatPromptBoard(chatId)
+    const off = flipOff(cur?.off ?? [], key)
+    const next = off.length > 0 || cur?.history ? { v: 1 as const, ...(off.length > 0 ? { off } : {}), ...(cur?.history ? { history: cur.history } : {}) } : null
+    await setChatPromptBoard(chatId, next)
+  }
+
+  /** The switch of a persona's or a world's memory. On = the chat takes it in and the Prompt board mute (if any) is lifted;
+   *  off = the chat stops taking it in. */
+  const flipShared = async (part: CarryPart) => {
+    const opt = part.optIn
+    const key = part.switchKey
+    const answer = mine?.carries
+    if (!opt || !key || !answer) return
+    seq.current++
+    const m = opt.owner === 'persona' ? answer.personaMemory : answer.worldMemory
+    if (!m) return
+    const before = answer.off
+    const muted = before.includes(key)
+    const turnOn = part.off
+    const field = opt.owner === 'persona' ? 'personaMemory' : 'worldMemory'
+    const patch = (taken: boolean, off: string[]) =>
+      setLoaded((l) => (l && l.carries ? { ...l, carries: { ...l.carries, off, [field]: { ...m, taken } } } : l))
+    patch(turnOn, turnOn ? before.filter((k) => k !== key) : before)
+    try {
+      if (turnOn) {
+        if (!m.taken) await setChatMemoryOwner(chatId, opt.owner, true)
+        if (muted) await saveFlip(key)
+      } else {
+        await setChatMemoryOwner(chatId, opt.owner, false)
+      }
+      // the tokens of this part come back at once from the one route that knows them; the full read below follows
+      const fresh = await j<CarriesAnswer>(`/litopys/carries?chatId=${encodeURIComponent(chatId)}`).catch(() => null)
+      if (fresh) setLoaded((l) => (l && l.chatId === chatId && l.carries ? { ...l, carries: { ...l.carries, off: fresh.off, personaMemory: fresh.personaMemory, worldMemory: fresh.worldMemory } } : l))
+    } catch (e) {
+      patch(m.taken, before)
+      toast.error(t('carries.saveFailed', { error: e instanceof Error ? e.message : String(e) }))
+    }
+    void refetch()
+  }
+
   /** Flips one key of the chat's prompt switches through the same calls the Prompt board saves with. */
   const flip = async (key: string) => {
     // the switch turns at once; a failed save puts it back
@@ -119,10 +163,7 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
     const optimistic = flipOff(before, key)
     setLoaded((l) => (l && l.carries ? { ...l, carries: { ...l.carries, off: optimistic } } : l))
     try {
-      const cur = await getChatPromptBoard(chatId)
-      const off = flipOff(cur?.off ?? [], key)
-      const next = off.length > 0 || cur?.history ? { v: 1 as const, ...(off.length > 0 ? { off } : {}), ...(cur?.history ? { history: cur.history } : {}) } : null
-      await setChatPromptBoard(chatId, next)
+      await saveFlip(key)
     } catch (e) {
       setLoaded((l) => (l && l.carries ? { ...l, carries: { ...l.carries, off: before } } : l))
       toast.error(t('carries.saveFailed', { error: e instanceof Error ? e.message : String(e) }))
@@ -130,14 +171,14 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
     void refetch()
   }
 
-  return { result, loreFired: mine?.loreFired ?? null, chapters: mine?.chapters ?? null, open, setOpen, mine, refetch, flip }
+  return { result, loreFired: mine?.loreFired ?? null, chapters: mine?.chapters ?? null, open, setOpen, mine, refetch, flip, flipShared }
 }
 
 /** The panel "What this chat carries": a switch per part, the exact lines, and shortcuts. Opens from the header's
  *  "~N tok" button (the phone menu's row); the Author's note has its own drawer, linked from here. */
 export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; state: ReturnType<typeof useCarries>; onOpenNote: () => void }) {
   const t = useT()
-  const { result, mine, open, setOpen, refetch, flip } = state
+  const { result, mine, open, setOpen, refetch, flip, flipShared } = state
   const chipText = (p: CarryPart) => (p.empty ? t('carries.empty') : t('carries.tok', { n: p.tokens }))
 
   return (
@@ -161,7 +202,7 @@ export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; st
               t={t}
               chatId={chatId}
               onChanged={() => void refetch()}
-              onFlip={() => p.switchKey && void flip(p.switchKey)}
+              onFlip={() => (p.optIn ? void flipShared(p) : p.switchKey && void flip(p.switchKey))}
               onLeave={() => setOpen(false)}
             />
           ))}
@@ -187,9 +228,11 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
   const sk = carries?.cardHabits
   const bs = carries?.backstory
   const wd = carries?.world
-  const text = part.kind === 'memory' ? cm?.text : part.kind === 'habits' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
+  const shared = part.kind === 'personamem' ? carries?.personaMemory : part.kind === 'worldmem' ? carries?.worldMemory : null
+  const text = part.kind === 'memory' ? cm?.text : shared ? shared.text : part.kind === 'habits' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
   const detail =
     part.kind === 'memory' ? (cm && cm.sources.length === 0 ? t('carries.memory.none') : t('carries.memory.detail', { n: cm?.sources.length ?? 0 }))
+    : shared ? t(part.kind === 'personamem' ? 'carries.persona.detail' : 'carries.worldmem.detail', { n: shared.stories, name: shared.name })
     : part.kind === 'habits' ? t('carries.habits.detail', { n: sk?.habits.length ?? 0, name: sk?.name ?? '' })
     : part.kind === 'backstory' ? t('carries.backstory.detail', { facts: bs?.facts ?? 0, chapters: bs?.chapters ?? 0 })
     : part.kind === 'litopys' ? t('carries.litopys.detail', { facts: carries?.litopys.facts ?? 0, chapters: carries?.litopys.chapters ?? 0 })
@@ -197,7 +240,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
     : part.kind === 'world' ? (wd?.level === 'chronicler' ? t('carries.world.chronicler') : wd?.waiting ? t('carries.world.waiting') : t('carries.world.idle'))
     : t('carries.said.detail')
   const inherit = part.kind === 'dashboard' && dash?.inherit?.on ? dash.inherit : null
-  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' || part.kind === 'habits' ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' || part.kind === 'habits' ? t('carries.memory.show') : t('carries.backstory.show')
+  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' || part.kind === 'habits' || shared ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' || part.kind === 'habits' || shared ? t('carries.memory.show') : t('carries.backstory.show')
   const textId = `carries-text-${part.key}`
   return (
     <li className="flex flex-col gap-1.5 border-b border-border p-3" data-testid={`carries-row-${part.key}`}>
@@ -206,7 +249,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <span className={cn('block break-words text-sm font-medium', part.off && 'text-muted-foreground line-through')}>{part.label}</span>
-          {part.off && <span className="block text-[11px] text-muted-foreground">{t('carries.offNow')}</span>}
+          {part.off && <span className="block text-[11px] text-muted-foreground" data-testid={`carries-off-${part.key}`}>{part.optIn && !part.optIn.taken ? t('carries.shared.notTaken') : t('carries.offNow')}</span>}
         </div>
         <span className={cn('shrink-0 text-xs tabular-nums text-muted-foreground', part.off && 'line-through')}>{t('carries.tok', { n: part.tokens })}</span>
       </div>
@@ -215,6 +258,9 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
       {part.kind === 'memory' && !!cm && cm.dupes > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: cm.dupes })}</p>
       )}
+      {!!shared && shared.dupes > 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: shared.dupes })}</p>
+      )}
       {part.kind === 'habits' && !!chatHabits && (chatHabits.earned > 0 || chatHabits.candidates > 0) && (
         <p className="text-xs text-muted-foreground" data-testid="carries-habits-earned">{t('carries.habits.chat', { earned: chatHabits.earned, candidates: chatHabits.candidates })}</p>
       )}
@@ -222,7 +268,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.habits.dupes', { n: sk.dupes })}</p>
       )}
       <div className="flex flex-wrap gap-1">
-        {(part.kind === 'memory' || part.kind === 'habits' || part.kind === 'backstory' || part.kind === 'world') && !!text && (
+        {(part.kind === 'memory' || part.kind === 'habits' || part.kind === 'backstory' || part.kind === 'world' || !!shared) && !!text && (
           <Button variant="ghost" size="sm" className="max-md:h-10" aria-expanded={shown} aria-controls={textId} onClick={() => setShown((v) => !v)}>{showLabel}</Button>
         )}
         {part.kind === 'memory' && !!cm && (
@@ -230,6 +276,12 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         )}
         {part.kind === 'habits' && !!sk && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(sk.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>
+        )}
+        {part.kind === 'personamem' && !!shared && (
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().focusPersona(shared.id) }}>{t('carries.persona.edit')}</Button>
+        )}
+        {part.kind === 'worldmem' && !!shared && (
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().focusWorldWorld(shared.id) }}>{t('carries.worldmem.edit')}</Button>
         )}
         {part.kind === 'backstory' && !!bs && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openChat(bs.from) }}>{t('carries.backstory.open')}</Button>

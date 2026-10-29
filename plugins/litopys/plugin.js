@@ -20,6 +20,9 @@
  * Routes (under /v1/apps/roleplay/):
  *  GET /litopys/config . PUT /litopys/config
  *  DELETE /litopys/config/prompts   back to the shipped prompts (?key=chapter|arc|remembers|continues|cardMemory: only that one)
+ *  GET|PUT|DELETE /litopys/memory ?kind=card|persona|world&id=   a long memory by owner (memory/personas/<id>.json,
+ *                            memory/worlds/<id>.json; a card's stays characters/<id>/memory.json); POST /litopys/memory/preview
+ *                            and /import { kind, id, chatId, ... }. /litopys/card-memory* is the card's own, unchanged
  */
 
 // PART A: utils, config, legacy store, chat reading, scenes, worker request / parse / apply
@@ -1416,7 +1419,14 @@ export function llmRequest(ctx, host) {
   };
   // the Litopys switch does not take the card's own memory with it: that one has its own (plugin:cardmemory)
   const litOff = offForChat(fsx, chatId, "plugin:litopys");
-  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory") && offForChat(fsx, chatId, "plugin:cardhabits")) return null;
+  // persona and world memory are the chat's own opt-in (meta.memory.persona / .world), muted by their own switches
+  const takenIn = (kind) => {
+    const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+    return !!(m && isObj(m.memory) && m.memory[kind] === true) && !offForChat(fsx, chatId, kind === "persona" ? "plugin:personamemory" : "plugin:worldmemory");
+  };
+  const takesPersona = takenIn("persona");
+  const takesWorld = takenIn("world");
+  if (litOff && offForChat(fsx, chatId, "plugin:cardmemory") && offForChat(fsx, chatId, "plugin:cardhabits") && !takesPersona && !takesWorld) return null;
   try {
     const cfg = loadConfig(fsx);
     if (cfg.enabled === false || cfg.insert === false) return null;
@@ -1465,6 +1475,22 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
+    // the player's character and the world, when this chat took their memory in: after the character's own, so a line
+    // the card memory already carries is not said again
+    const memoryOwn = (kind, taken, prior) => {
+      if (!taken) return null;
+      try {
+        return ownerMemoryFor({ fsx, kind, chatId, meta: rc.meta, chosen: [...stable, ...prior], dash: readDash(fsx, chatId) });
+      } catch (e) {
+        try {
+          host.log("litopys " + kind + " memory: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+        return null;
+      }
+    };
+    const cardLines = cardMem ? String(cardMem.text).split("\n") : [];
+    const personaMem = memoryOwn("persona", takesPersona, cardLines);
+    const worldMem = memoryOwn("world", takesWorld, [...cardLines, ...(personaMem ? String(personaMem.text).split("\n") : [])]);
     // what the character does, from its card's habits (#106): rules, so they need no story and no Litopys record
     let habits = null;
     if (!offForChat(fsx, chatId, "plugin:cardhabits")) {
@@ -1476,7 +1502,7 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !habits) return null;
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1492,6 +1518,8 @@ export function llmRequest(ctx, host) {
           ...(insert && insert.full ? { full: true } : {}),
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
+          ...(personaMem ? { personaMemory: { personaId: personaMem.ownerId, tokens: personaMem.tokens, sources: personaMem.sources, dupes: personaMem.dupes } } : {}),
+          ...(worldMem ? { worldMemory: { worldId: worldMem.ownerId, tokens: worldMem.tokens, sources: worldMem.sources, dupes: worldMem.dupes } } : {}),
           ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
         }),
       );
@@ -1506,6 +1534,14 @@ export function llmRequest(ctx, host) {
     if (cardMem) {
       messages = withInsert(messages, cardMem.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
+    }
+    if (personaMem) {
+      messages = withInsert(messages, personaMem.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: String(personaMem.text).trim() });
+    }
+    if (worldMem) {
+      messages = withInsert(messages, worldMem.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: String(worldMem.text).trim() });
     }
     if (habits) {
       messages = withInsert(messages, habits.text);
@@ -4503,9 +4539,12 @@ export function handleRoute(req, host) {
   if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/carries" && req.method === "GET") return carriesRoute(fsx, req.query || {});
-  if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
-  if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview");
-  if (path === "/litopys/card-memory/import" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "import");
+  if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx, "card");
+  if (path === "/litopys/memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
+  if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview", "card");
+  if (path === "/litopys/card-memory/import" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "import", "card");
+  if (path === "/litopys/memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview");
+  if (path === "/litopys/memory/import" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "import");
   if (path === "/litopys/links" && req.method === "GET") return { status: 200, json: { links: loadLinks(fsx) } };
   if (path === "/litopys/links" && req.method === "POST") return linkRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
@@ -4536,6 +4575,45 @@ const memoryPath = (cardId) => "characters/" + cardId + "/memory.json";
 
 function cardOf(fsx, cardId) {
   return SAFE_ID.test(cardId) ? readJson(fsx, "characters/" + cardId + "/card.json", null) : null;
+}
+
+// ---------- persona and world memory (issue #99): the same file and the same rules, a different owner ----------
+// A persona's memory is memory/personas/<id>.json, a saved World DM world's is memory/worlds/<id>.json. Same shape
+// as a card's (stories imported from chats, kept with a copy of the chat's title), but only the story and its facts:
+// no habits, no per-character notes. A chat takes them in on its own (meta.memory.persona / .world): off until then.
+const MEMORY_KINDS = ["card", "persona", "world"];
+const OWNER_TOKENS = { card: CARD_MEMORY_TOKENS, persona: 300, world: 300 };
+const WORLD_LIB_ID = /^w-[a-z0-9]{4,40}$/;
+const PERSONA_MEMORY_RULE = "the characters recognise these when reminded or asked, and do not bring them up unprompted.";
+const WORLD_MEMORY_RULE = "this is the established history of the world; keep it true, and do not retell it unprompted.";
+const memoryFile = (kind, id) => (kind === "persona" ? "memory/personas/" + id + ".json" : kind === "world" ? "memory/worlds/" + id + ".json" : memoryPath(id));
+const docName = (doc) => str(isObj(doc) ? doc.name || (isObj(doc.data) ? doc.data.name : "") : "");
+
+/** The owner of a memory: { kind, id, doc, name, names } or null when it does not exist (a deleted persona or world). */
+function ownerOf(fsx, kind, id) {
+  if (!SAFE_ID.test(str(id))) return null;
+  let doc = null;
+  if (kind === "card") doc = cardOf(fsx, id);
+  else if (kind === "persona") doc = readJson(fsx, "personas/" + id + ".json", null);
+  else if (kind === "world" && WORLD_LIB_ID.test(id)) doc = readJson(fsx, "world/library/" + id + ".json", null);
+  if (!isObj(doc)) return null;
+  const names = kind === "card" ? cardNamesOf(doc) : new Set([docName(doc).toLowerCase()].filter(Boolean));
+  return { kind, id, doc, name: docName(doc), names };
+}
+
+/** The persona a chat plays with now: its own pick, else the app's. */
+function personaIdOf(fsx, meta) {
+  const own = str(meta && meta.personaId);
+  if (own) return own;
+  const set = readJson(fsx, "settings.json", null);
+  return isObj(set) ? str(set.personaId) : "";
+}
+
+/** The saved world a chat was started in (World DM state origin), or "". */
+function worldIdOf(fsx, chatId) {
+  if (!SAFE_ID.test(str(chatId))) return "";
+  const st = readJson(fsx, "world/state/" + chatId + ".json", null);
+  return isObj(st) && isObj(st.origin) && st.origin.kind === "library" ? str(st.origin.worldId) : "";
 }
 
 /** The names a card answers to: its own, and the characters of its Soul (a narrator card has several). */
@@ -4586,7 +4664,7 @@ function normalizeHabit(raw) {
 }
 
 /** The file as the code reads it; keys it does not know ride along (changes come later, #106). */
-export function normalizeMemory(raw) {
+export function normalizeMemory(raw, kind = "card") {
   const m = isObj(raw) ? raw : {};
   const { sources: _s, inject: _i, v: _v, next: _n, habits: _k, nextHabit: _nk, skills: _ok, nextSkill: _onk, ...rest } = m;
   const items = (list, pick) => arr(list).filter((x) => isObj(x) && str(x.text)).map(pick);
@@ -4622,14 +4700,14 @@ export function normalizeMemory(raw) {
     habits,
     inject: {
       enabled: inj.enabled !== false,
-      maxTokens: clamp(Math.round(Number(inj.maxTokens)) || CARD_MEMORY_TOKENS, 100, 1500),
+      maxTokens: clamp(Math.round(Number(inj.maxTokens)) || OWNER_TOKENS[kind] || CARD_MEMORY_TOKENS, 100, 1500),
       habitsMaxTokens: clamp(Math.round(Number(inj.habitsMaxTokens ?? inj.skillsMaxTokens)) || HABITS_TOKENS, 50, 800),
     },
   };
 }
 
-export const loadMemory = (fsx, cardId) => normalizeMemory(readJson(fsx, memoryPath(cardId), null));
-const saveMemory = (fsx, cardId, mem) => fsx.write(memoryPath(cardId), JSON.stringify(mem, null, 2));
+export const loadMemory = (fsx, id, kind = "card") => normalizeMemory(readJson(fsx, memoryFile(kind, id), null), kind);
+const saveMemory = (fsx, id, mem, kind = "card") => fsx.write(memoryFile(kind, id), JSON.stringify(mem, null, 2));
 
 /** Whether a text is already said by one of the lines (a copy, a near copy, or contained in a longer line). */
 function saidAlready(text, lines) {
@@ -4660,8 +4738,9 @@ function liveSaid(dash, line, overlay) {
   return out;
 }
 
-/** The chats a card can take a memory from: the ones with this card, newest first. */
-function cardChats(fsx, cardId, mem) {
+/** The chats a card can take a memory from: the ones with this card, newest first. A persona's: the ones played with it;
+ *  a world's: the ones started in it. */
+function cardChats(fsx, cardId, mem, kind = "card") {
   let files = [];
   try {
     files = fsx.list("chats").filter((f) => f.endsWith(".meta.json"));
@@ -4672,7 +4751,9 @@ function cardChats(fsx, cardId, mem) {
     const meta = readJson(fsx, "chats/" + f, null);
     if (!SAFE_ID.test(id) || !isObj(meta) || meta.temporary) continue;
     let mine = str(meta.characterId) === cardId;
-    if (!mine && str(meta.groupId)) mine = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str).includes(cardId);
+    if (kind === "persona") mine = personaIdOf(fsx, meta) === cardId;
+    else if (kind === "world") mine = worldIdOf(fsx, id) === cardId;
+    else if (!mine && str(meta.groupId)) mine = arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds).map(str).includes(cardId);
     if (!mine) continue;
     const src = mem.sources.find((s) => s.chatId === id);
     out.push({ id, title: str(meta.title) || id, updatedAt: Number(meta.updatedAt) || 0, imported: src ? src.id : null });
@@ -4682,13 +4763,14 @@ function cardChats(fsx, cardId, mem) {
 }
 
 /** What an import of this chat would take, before anything is written. Items carry the chat's own ids. */
-export function previewImport(fsx, cardId, chatId) {
-  const card = cardOf(fsx, cardId);
+export function previewImport(fsx, cardId, chatId, kind = "card") {
+  const owner = ownerOf(fsx, kind, cardId);
   const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
-  if (!isObj(card) || !rc) return null;
-  const mem = loadMemory(fsx, cardId);
-  const names = cardNamesOf(card);
+  if (!owner || !rc) return null;
+  const mem = loadMemory(fsx, cardId, kind);
+  const names = owner.names;
   const mine = (holder) => names.has(str(holder).toLowerCase());
+  if (kind !== "card") return previewShared(fsx, owner, mem, chatId, rc);
   const line = activeLine(rc.msgs);
   const st = loadChatFile(fsx, chatId);
   const dash = readDash(fsx, chatId);
@@ -4750,9 +4832,57 @@ export function previewImport(fsx, cardId, chatId) {
   };
 }
 
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const nameMention = (name) => new RegExp("(^|[^\\p{L}\\p{N}])" + escapeRe(name) + "(?![\\p{L}\\p{N}])", "iu");
+
+
+/**
+ * The import preview of a persona's or a world's memory: the chat's story, and the facts that are about the owner.
+ * A persona: facts whose subject is the persona (its name now, or the name the chat used) or whose text names it.
+ * A world: facts about the world itself (subject "world" or type "world"). No notes, no said lines, no habits.
+ */
+function previewShared(fsx, owner, mem, chatId, rc) {
+  const st = loadChatFile(fsx, chatId);
+  const others = mem.sources.filter((s) => s.chatId !== chatId);
+  const held = others.flatMap((s) => arr(s.facts).map((x) => x.text));
+  let arc = "";
+  if (st) {
+    const arcs = arr(st.arcs).filter((a) => isObj(a) && str(a.text) && a.stale !== true);
+    arc = arcs.length ? arcs.map((a) => str(a.text)).join(" ") : arr(st.chapters).slice(-3).map((c) => str(c.text)).filter(Boolean).join(" ");
+  }
+  arc = cut(arc, 1200);
+  const userName = str(rc.meta.userName).toLowerCase();
+  const mention = owner.kind === "persona" && owner.name.length >= 2 ? nameMention(owner.name) : null;
+  const about = (f) => {
+    const subj = str(f.subject).toLowerCase();
+    if (owner.kind === "world") return subj === "world" || f.type === "world";
+    return (!!subj && (owner.names.has(subj) || subj === userName)) || (!!mention && mention.test(str(f.text)));
+  };
+  const facts = (st ? st.facts : [])
+    .filter((f) => isObj(f) && f.status === "active" && str(f.text) && (f.knownBy === "all" || f.knownBy === undefined) && about(f))
+    .sort((a, b) => rankFact(b) - rankFact(a))
+    .slice(0, IMPORT_LIST)
+    .map((f, i) => {
+      const dup = saidAlready(f.text, held) ? "memory" : null;
+      return { id: str(f.id), text: str(f.text), subject: str(f.subject), weight: f.weight || null, dup, checked: !dup && i < IMPORT_TOP.facts };
+    });
+  const already = mem.sources.find((s) => s.chatId === chatId);
+  return {
+    kind: owner.kind,
+    chat: { id: chatId, title: str(rc.meta.title) || chatId },
+    already: already ? already.id : null,
+    arc: arc ? { text: arc, tokens: estimateTokens(arc) } : null,
+    facts,
+    notes: [],
+    said: [],
+    habits: [],
+    summary: st ? summaryView(st) : null,
+  };
+}
+
 /** Write the chosen items as a source (a second import of the same chat refreshes that source). */
-export function importChat(fsx, cardId, chatId, sel) {
-  const prev = previewImport(fsx, cardId, chatId);
+export function importChat(fsx, cardId, chatId, sel, kind = "card") {
+  const prev = previewImport(fsx, cardId, chatId, kind);
   if (!prev) return { status: 404, json: { error: "no such card or chat" } };
   const pick = (items, ids) => items.filter((x) => arr(ids).map(str).includes(x.id));
   const facts = pick(prev.facts, sel.facts);
@@ -4763,7 +4893,7 @@ export function importChat(fsx, cardId, chatId, sel) {
   const own = typeof sel.arcText === "string" ? cut(sel.arcText.trim(), 1500) : "";
   const arc = sel.arc === false ? "" : own || (prev.arc ? prev.arc.text : "");
   if (!arc && !facts.length && !notes.length && !said.length && !habits.length) return { status: 400, json: { error: "nothing selected to remember" } };
-  const mem = loadMemory(fsx, cardId);
+  const mem = loadMemory(fsx, cardId, kind);
   const now = Date.now();
   // a habit goes to the card as an accepted habit of the story, like "keep" does; a rule the card has is as good as kept
   const kept = [];
@@ -4789,23 +4919,29 @@ export function importChat(fsx, cardId, chatId, sel) {
       mem.sources.push({ id: "s" + mem.next, on: true, canon: "main", ...body });
     }
   }
-  const out = normalizeMemory(mem);
-  saveMemory(fsx, cardId, out);
+  const out = normalizeMemory(mem, kind);
+  saveMemory(fsx, cardId, out, kind);
   if (kept.length) {
     // the chat's habit now says where it went, so it is not offered or said twice
     mutateChat(fsx, chatId, (st) => {
       for (const k of st.habits) if (kept.includes(str(k.id))) k.kept = { cardId, at: now };
     });
   }
-  return { status: 200, json: { ...cardMemoryView(fsx, cardId, out), imported: { habits: kept.length, habitsLeft: habits.length - kept.length } } };
+  return { status: 200, json: { ...cardMemoryView(fsx, cardId, out, kind), imported: { habits: kept.length, habitsLeft: habits.length - kept.length } } };
 }
 
 /** The card's memory with the chats it can still take one from, and what a new chat would receive. */
-function cardMemoryView(fsx, cardId, mem) {
-  const card = cardOf(fsx, cardId);
+function cardMemoryView(fsx, cardId, mem, kind = "card") {
+  const owner = ownerOf(fsx, kind, cardId);
+  const card = owner && owner.doc;
+  if (kind !== "card") {
+    const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: [], kind });
+    return { kind, ownerId: cardId, name: owner ? owner.name : "", memory: mem, chats: cardChats(fsx, cardId, mem, kind), tokens: block ? block.tokens : 0, budget: mem.inject.maxTokens };
+  }
   const block = cardMemoryText(mem, card, { exclude: new Set(), only: null, chosen: habitLines(mem), rule: loadConfig(fsx).cardMemory });
   const habits = cardHabitsText(mem, card, { cardSentences: [], chosen: [] });
   return {
+    kind,
     cardId,
     memory: mem,
     chats: cardChats(fsx, cardId, mem),
@@ -5065,8 +5201,11 @@ export function cardMemoryText(mem, card, opts) {
   if (!mem.inject.enabled || !isObj(card)) return null;
   const { exclude, only, chosen } = opts;
   const own = arr(opts.cardSentences);
+  const shared = opts.kind === "persona" || opts.kind === "world";
   const live = mem.sources.filter((s) => {
     if (!s.on || (s.chatId && exclude.has(s.chatId))) return false;
+    // a persona's or a world's stories are one canon: a chat picks the whole memory, not its stories one by one
+    if (shared) return s.canon !== "separate";
     if (only && only[s.id] === false) return false;
     return s.canon !== "separate" || (only && only[s.id] === true);
   });
@@ -5083,7 +5222,12 @@ export function cardMemoryText(mem, card, opts) {
     return true;
   };
   const name = str(card.name || (isObj(card.data) ? card.data.name : "")) || "the character";
-  const head = "[What " + name + " remembers from earlier stories (character memory): " + (str(opts.rule) || CARD_MEMORY_RULE).replaceAll("{name}", name);
+  const head =
+    opts.kind === "persona"
+      ? "[What " + name + " (the player's character) has lived through in earlier stories (persona memory): " + PERSONA_MEMORY_RULE
+      : opts.kind === "world"
+        ? "[What happened in " + name + " in earlier stories (world memory): " + WORLD_MEMORY_RULE
+        : "[What " + name + " remembers from earlier stories (character memory): " + (str(opts.rule) || CARD_MEMORY_RULE).replaceAll("{name}", name);
   const out = [];
   const used = [];
   let spent = estimateTokens(head + "]");
@@ -5129,14 +5273,7 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, cf
   const { card, cardId } = hit;
   const mem = loadMemory(fsx, cardId);
   if (!mem.sources.length) return null;
-  // the story this chat already carries by itself: itself and the chats of its backstory chain
-  const exclude = new Set([chatId]);
-  const links = loadLinks(fsx);
-  const seen = new Set([chatId]);
-  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && seen.size <= CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
-    seen.add(cur);
-    exclude.add(cur);
-  }
+  const { exclude, seen } = storyChain(fsx, chatId);
   const mc = isObj(meta.memory) ? meta.memory : {};
   // What it is compared with must not move between replies (the block sits above the history, so a moving text
   // would break the provider's prompt cache every turn): the active facts of the chat's own Litopys record and of
@@ -5153,15 +5290,60 @@ export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, cf
   return res ? { ...res, cardId } : null;
 }
 
-function cardMemoryRoute(req, fsx) {
+/** The story this chat already carries by itself: itself and the chats of its backstory chain (ids, and the same as an ordered set). */
+function storyChain(fsx, chatId) {
+  const exclude = new Set([chatId]);
+  const links = loadLinks(fsx);
+  const seen = new Set([chatId]);
+  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && seen.size <= CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
+    seen.add(cur);
+    exclude.add(cur);
+  }
+  return { exclude, seen };
+}
+
+/**
+ * A persona's or a world's memory for this reply, or null: the chat must have taken it in (meta.memory.persona /
+ * .world), the owner must still exist and hold a story. `chosen` = what is already in the prompt (the story so far,
+ * the card's memory block); a line that repeats one of those, the chat's carried-in notes or the owner's own text is left out.
+ */
+export function ownerMemoryFor({ fsx, kind, chatId, meta, chosen, dash }) {
+  const mc = isObj(meta && meta.memory) ? meta.memory : {};
+  if (mc[kind] !== true) return null;
+  const id = kind === "persona" ? personaIdOf(fsx, meta) : worldIdOf(fsx, chatId);
+  const owner = id ? ownerOf(fsx, kind, id) : null;
+  if (!owner) return null;
+  const mem = loadMemory(fsx, id, kind);
+  if (!mem.sources.length) return null;
+  const { exclude, seen } = storyChain(fsx, chatId);
+  // same stable comparison set as the card's block: the prompt cache needs a text that does not move between replies
+  const stableFacts = [...seen].flatMap((cid) => arr((loadChatFile(fsx, cid) || {}).facts).filter((f) => isObj(f) && f.status === "active").map((f) => str(f.text)));
+  const carried = [];
+  for (const bag of [dash && dash.notebook, dash && dash.said]) {
+    for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
+  }
+  const ownText = [str(owner.doc.description), str(owner.doc.scenario)].flatMap((t) => t.split(SENTENCE_SPLIT)).map((t) => t.trim()).filter((t) => t.length >= 12);
+  const own = [...sourceSentences(fsx, meta), ...ownText];
+  const res = cardMemoryText(mem, owner.doc, { exclude, only: null, chosen: [...arr(chosen), ...stableFacts, ...carried].filter(Boolean), cardSentences: own, kind });
+  return res ? { ...res, ownerId: id, kind, name: owner.name } : null;
+}
+
+function cardMemoryRoute(req, fsx, fixedKind) {
   const method = req.method;
   const q = req.query || {};
   const b = isObj(req.body) ? req.body : {};
-  const cardId = str(method === "GET" || method === "DELETE" ? q.cardId : b.cardId);
-  if (!cardOf(fsx, cardId)) return { status: 404, json: { error: "no such card" } };
-  if (method === "GET") return { status: 200, json: cardMemoryView(fsx, cardId, loadMemory(fsx, cardId)) };
+  const src = method === "GET" || method === "DELETE" ? q : b;
+  // /litopys/card-memory is the card's; /litopys/memory names its owner (kind: card|persona|world, id)
+  const kind = fixedKind || (MEMORY_KINDS.includes(str(src.kind)) ? str(src.kind) : "card");
+  const cardId = str(fixedKind ? src.cardId : src.id || src.cardId);
+  if (!ownerOf(fsx, kind, cardId)) return { status: 404, json: { error: "no such " + kind } };
+  if (kind !== "card" && (isObj(b.habit) || str(q.habitId))) return { status: 400, json: { error: "only a card has habits" } };
+  const loadMem = () => loadMemory(fsx, cardId, kind);
+  const saveMem = (m) => saveMemory(fsx, cardId, m, kind);
+  const view = (m) => cardMemoryView(fsx, cardId, normalizeMemory(m, kind), kind);
+  if (method === "GET") return { status: 200, json: cardMemoryView(fsx, cardId, loadMem(), kind) };
   if (method === "PUT") {
-    const mem = loadMemory(fsx, cardId);
+    const mem = loadMem();
     if (isObj(b.inject)) {
       if (typeof b.inject.enabled === "boolean") mem.inject.enabled = b.inject.enabled;
       if (Number.isFinite(Number(b.inject.maxTokens))) mem.inject.maxTokens = clamp(Math.round(Number(b.inject.maxTokens)), 100, 1500);
@@ -5178,27 +5360,28 @@ function cardMemoryRoute(req, fsx) {
       if (b.source.canon === "main" || b.source.canon === "separate") s.canon = b.source.canon;
       // one line of a story: edit its text, remove it, or add a line by hand (the story keeps working when its chat is gone)
       if (isObj(b.source.line)) {
+        if (kind !== "card" && !["arc", "facts"].includes(str(b.source.line.list))) return { status: 400, json: { error: "list must be arc or facts" } };
         const err = editStoryLine(s, b.source.line);
         if (err) return { status: 400, json: { error: err } };
       }
     }
-    saveMemory(fsx, cardId, mem);
-    return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
+    saveMem(mem);
+    return { status: 200, json: view(mem) };
   }
   if (method === "DELETE") {
-    const mem = loadMemory(fsx, cardId);
+    const mem = loadMem();
     const habitId = str(q.habitId);
     if (habitId) {
       if (!mem.habits.some((k) => k.id === habitId)) return { status: 404, json: { error: "no such habit" } };
       mem.habits = mem.habits.filter((k) => k.id !== habitId);
-      saveMemory(fsx, cardId, mem);
-      return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
+      saveMem(mem);
+      return { status: 200, json: view(mem) };
     }
     const id = str(q.sourceId);
     if (!mem.sources.some((s) => s.id === id)) return { status: 404, json: { error: "no such source" } };
     mem.sources = mem.sources.filter((s) => s.id !== id);
-    saveMemory(fsx, cardId, mem);
-    return { status: 200, json: cardMemoryView(fsx, cardId, normalizeMemory(mem)) };
+    saveMem(mem);
+    return { status: 200, json: view(mem) };
   }
   return { status: 405, json: { error: "method not allowed" } };
 }
@@ -5269,15 +5452,16 @@ function chatHabitRoute(fsx, body) {
   });
 }
 
-function cardMemoryPostRoute(req, fsx, sub) {
+function cardMemoryPostRoute(req, fsx, sub, fixedKind) {
   const b = isObj(req.body) ? req.body : {};
-  const cardId = str(b.cardId);
+  const kind = fixedKind || (MEMORY_KINDS.includes(str(b.kind)) ? str(b.kind) : "card");
+  const cardId = str(fixedKind ? b.cardId : b.id || b.cardId);
   const chatId = str(b.chatId);
   if (sub === "preview") {
-    const p = previewImport(fsx, cardId, chatId);
-    return p ? { status: 200, json: p } : { status: 404, json: { error: "no such card or chat" } };
+    const p = previewImport(fsx, cardId, chatId, kind);
+    return p ? { status: 200, json: p } : { status: 404, json: { error: "no such " + kind + " or chat" } };
   }
-  return importChat(fsx, cardId, chatId, b);
+  return importChat(fsx, cardId, chatId, b, kind);
 }
 
 /**
@@ -5368,6 +5552,31 @@ function carriesRoute(fsx, query) {
     habitsName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
   }
   const titleOf = (id) => str((readChat(fsx, id) || { meta: {} }).meta.title) || id;
+  // persona and world memory: what this chat could take in, whether it did, and what it would say now
+  const stableHead = [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n"));
+  const sharedMemory = (kind) => {
+    const id = kind === "persona" ? personaIdOf(fsx, rc.meta) : worldIdOf(fsx, chatId);
+    const owner = id ? ownerOf(fsx, kind, id) : null;
+    if (!owner) return null;
+    const mem = loadMemory(fsx, id, kind);
+    const taken = isObj(rc.meta.memory) && rc.meta.memory[kind] === true;
+    let res = null;
+    if (taken) {
+      try {
+        res = ownerMemoryFor({ fsx, kind, chatId, meta: rc.meta, chosen: [...stableHead, ...(card ? String(card.text).split("\n") : [])], dash });
+      } catch {}
+    }
+    return {
+      id,
+      name: owner.name,
+      taken,
+      stories: mem.sources.filter((x) => x.on).length,
+      tokens: res ? res.tokens : 0,
+      dupes: res ? res.dupes : 0,
+      sources: res ? res.sources : [],
+      text: res ? res.text : "",
+    };
+  };
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
   const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
   const wset = isObj(wr) && isObj(wr.settings) ? wr.settings : {};
@@ -5390,6 +5599,8 @@ function carriesRoute(fsx, query) {
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
+      personaMemory: sharedMemory("persona"),
+      worldMemory: sharedMemory("world"),
     },
   };
 }

@@ -121,3 +121,42 @@ export const MEM_MIN_TOKENS = 100
 export const MEM_MAX_TOKENS = 1500
 export const HABITS_MIN_TOKENS = 50
 export const HABITS_MAX_TOKENS = 800
+
+// ---- any owner of a long memory: a card, a persona or a saved World DM world (#99)
+
+export type MemoryKind = 'card' | 'persona' | 'world'
+/** Whose memory it is. The card keeps its own routes (`/litopys/card-memory*`); the others use `/litopys/memory*`. */
+export interface MemoryOwner { kind: MemoryKind; id: string; name: string }
+
+/** The answer for any owner. A persona's or world's view has no habits, so those fields are optional. */
+export interface MemoryView extends Omit<CardMemoryView, 'cardId' | 'habitsTokens' | 'habitsBudget'> {
+  kind?: MemoryKind
+  cardId?: string
+  ownerId?: string
+  name?: string
+  habitsTokens?: number
+  habitsBudget?: number
+}
+
+/** The patch a persona's or world's memory takes: stories with arc and facts lines, and the room. */
+export type MemoryPatch = { source?: { id: string; on?: boolean; line?: MemLinePatch }; inject?: { enabled?: boolean; maxTokens?: number } }
+
+const sharedBody = (o: MemoryOwner, rest: object) => JSON.stringify({ kind: o.kind, id: o.id, ...rest })
+
+export const fetchMemory = (o: MemoryOwner): Promise<MemoryView> =>
+  o.kind === 'card' ? fetchCardMemory(o.id) : j<MemoryView>(`/litopys/memory?kind=${q(o.kind)}&id=${q(o.id)}`)
+
+export const putMemory = (o: MemoryOwner, patch: MemoryPatch | Parameters<typeof putCardMemory>[1]): Promise<MemoryView> =>
+  o.kind === 'card' ? putCardMemory(o.id, patch as Parameters<typeof putCardMemory>[1]) : j<MemoryView>('/litopys/memory', { method: 'PUT', body: sharedBody(o, patch) })
+
+export const deleteMemorySource = (o: MemoryOwner, sourceId: string): Promise<MemoryView> =>
+  o.kind === 'card' ? deleteCardMemorySource(o.id, sourceId) : j<MemoryView>(`/litopys/memory?kind=${q(o.kind)}&id=${q(o.id)}&sourceId=${q(sourceId)}`, { method: 'DELETE' })
+
+export const previewMemory = (o: MemoryOwner, chatId: string): Promise<MemPreview> =>
+  o.kind === 'card' ? previewCardMemory(o.id, chatId) : j<MemPreview>('/litopys/memory/preview', { method: 'POST', body: sharedBody(o, { chatId }) })
+
+/** Notes, said lines and habits only exist on a card; for the others they are sent empty. */
+export const importMemory = (o: MemoryOwner, body: { chatId: string; arc: boolean; arcText?: string; facts: string[]; notes: string[]; said: string[]; habits: string[] }): Promise<MemoryView> =>
+  o.kind === 'card'
+    ? importCardMemory({ cardId: o.id, ...body })
+    : j<MemoryView>('/litopys/memory/import', { method: 'POST', body: sharedBody(o, { ...body, notes: [], said: [], habits: [] }) })

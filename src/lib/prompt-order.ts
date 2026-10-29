@@ -34,6 +34,8 @@ export function requestOrder<T extends { item: { key: string } }>(
     if (key === 'plugin:relations' && historyEnd !== -Infinity) return historyEnd + 0.5
     if (key === 'plugin:said' && historyEnd !== -Infinity) return historyEnd + 0.6
     if (key === 'plugin:cardmemory' && historyStart !== Infinity) return historyStart - 0.4
+    if (key === 'plugin:personamemory' && historyStart !== Infinity) return historyStart - 0.39
+    if (key === 'plugin:worldmemory' && historyStart !== Infinity) return historyStart - 0.38
     if (key === 'plugin:cardhabits' && historyStart !== Infinity) return historyStart - 0.35
     return undefined
   }

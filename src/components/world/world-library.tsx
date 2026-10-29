@@ -31,6 +31,7 @@ import {
   type BuildingWorld,
   type SavedWorld,
 } from '@/lib/world'
+import { MemorySection } from '@/components/character/memory-section'
 import { LevelChip } from './world-common'
 import { WorldBackgrounds } from './world-backgrounds'
 
@@ -331,6 +332,8 @@ export function WorldDetail({
         <h3 className="font-heading text-base">{t('world.tab.backgrounds')}</h3>
         <WorldBackgrounds wref={{ worldId: world.id }} worldName={world.name} onOpenSettings={onOpenSettings} />
       </section>
+
+      <MemorySection key={world.id} owner={{ kind: 'world', id: world.id, name: world.name }} />
 
       {confirmDialog}
     </div>

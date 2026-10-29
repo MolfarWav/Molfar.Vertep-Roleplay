@@ -92,3 +92,48 @@ describe("chat memory: which stories feed this chat", () => {
     expect(fs.statSync(metaFile(id)).mtimeMs).toBe(stamp);
   });
 });
+
+describe("chat memory: persona and world memory taken in by the chat", () => {
+  it("cleans the flags: only booleans that are given", () => {
+    expect(eng.cleanChatMemoryOwners(null)).toEqual({});
+    expect(eng.cleanChatMemoryOwners({ persona: true, world: "yes", sources: { s1: true } })).toEqual({ persona: true });
+    expect(eng.cleanChatMemoryOwners({ persona: false, world: true })).toEqual({ persona: false, world: true });
+  });
+
+  it("sets and clears meta.memory.persona / .world without touching the stories or the other flag", () => {
+    const id = newChat();
+    call("PATCH", "/chats/" + id, { memory: { sources: { s1: false } } });
+    let meta = call("PATCH", "/chats/" + id, { memory: { persona: true } }) as Record<string, any>;
+    expect(meta.memory).toEqual({ sources: { s1: false }, persona: true });
+    meta = call("PATCH", "/chats/" + id, { memory: { world: true } }) as Record<string, any>;
+    expect(meta.memory).toEqual({ sources: { s1: false }, persona: true, world: true });
+    meta = call("PATCH", "/chats/" + id, { memory: { persona: false } }) as Record<string, any>;
+    expect(meta.memory).toEqual({ sources: { s1: false }, world: true });
+    // null clears the stories, as before; the flags stay
+    meta = call("PATCH", "/chats/" + id, { memory: null }) as Record<string, any>;
+    expect(meta.memory).toEqual({ world: true });
+    meta = call("PATCH", "/chats/" + id, { memory: { world: false } }) as Record<string, any>;
+    expect("memory" in meta).toBe(false);
+  });
+
+  it("an identical flag write touches nothing", () => {
+    const id = newChat();
+    call("PATCH", "/chats/" + id, { memory: { persona: true } });
+    const stamp = fs.statSync(metaFile(id)).mtimeMs;
+    call("PATCH", "/chats/" + id, { memory: { persona: true } });
+    expect(fs.statSync(metaFile(id)).mtimeMs).toBe(stamp);
+  });
+
+  it("the prompt board lists the two switches only once the chat took the memory in, and keeps them in the off list", () => {
+    const id = newChat();
+    const keys = (b: any[]) => b.map((x) => x.key);
+    const board = () => ((call("POST", "/prompt/preview", { chatId: id, userText: "Hello." }) as any).sources?.board ?? []) as any[];
+    expect(call("PATCH", "/chats/" + id, { promptBoard: { v: 1, off: ["plugin:personamemory", "plugin:worldmemory", "plugin:nope"] } }).promptBoard.off).toEqual(["plugin:personamemory", "plugin:worldmemory"]);
+    call("PATCH", "/chats/" + id, { memory: { persona: true } });
+    const b = board();
+    expect(keys(b)).toContain("plugin:litopys");
+    expect(keys(b)).toContain("plugin:personamemory");
+    expect(keys(b)).not.toContain("plugin:worldmemory");
+    expect(b.find((x) => x.key === "plugin:personamemory").state).toBe("off");
+  });
+});

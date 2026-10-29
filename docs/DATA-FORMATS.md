@@ -247,6 +247,33 @@ of it as one text (`identity.comment` holds the private "what I want from storie
 compiled; both notes texts go into `notes.description`). Text added by hand after the compiled lines is kept on the next save; an edit inside
 them is replaced after the app asks.
 
+**A persona's and a saved world's long memory** (issue #99). Not part of the persona or the world either:
+`memory/personas/<personaId>.json` and `memory/worlds/<worldId>.json` (a World DM library world, `w-<id>`), written by
+the Litopys plugin and never inside `personas/<id>.json`, `world/library/<id>.json` or an export. The same file as the
+card's memory (see the card section: `sources` with `chatId`, a copy of the `title`, `arc`, `facts`, and `inject`),
+with these differences: `notes`, `said` and `habits` stay empty, `canon` is not used (one canon: every source that is
+`on` counts), the default `inject.maxTokens` is 300 (100 to 1500). Routes: `GET/PUT/DELETE /litopys/memory` with `kind`
+(`card`, `persona`, `world`) and `id` (query for GET and DELETE, body for PUT), `POST /litopys/memory/preview` and
+`/import` with `{ kind, id, chatId, ... }`; the card's own `/litopys/card-memory*` routes are unchanged. The import
+preview offers the chat's story and, for a persona, the active facts everybody knows whose subject is the persona (its
+name now or the `userName` the chat used) or whose text names it; for a world, the facts about the world itself
+(subject `world` or type `world`). The chats an owner can import from: for a persona, the chats it plays in (the chat's
+`personaId`, else the app's `settings.personaId`); for a world, the chats whose `world/state/<chatId>.json` has
+`origin: { kind: "library", worldId }`.
+
+**A chat takes them in on its own, off by default**: the chat meta's `memory.persona` / `memory.world` (`true` = this
+chat gets the persona's / the world's memory; `PATCH /chats/:id { memory: { persona: true } }`, each flag on its own,
+the card's `memory.sources` untouched). Which persona or world: the chat's current persona, and the world the chat
+was started in. In a reply the Litopys plugin builds "Litopys · persona memory" and "Litopys · world memory" (Prompt
+board switches `plugin:personamemory` and `plugin:worldmemory`, listed on the board only once the chat took the memory
+in; the switch then only mutes it), right after the character memory: a source is skipped when its `chatId` is the chat
+itself or in its backstory chain, and a line is left out when the chat's Litopys facts (and its chain's), the story so
+far, the notes carried in, the character's memory block that came first, the persona's / world's `description` or the
+cards' own text already say it. Same cache rule as the card's: the text does not move between replies. Deleting a chat
+changes nothing (a source keeps its copy); deleting the persona or the world leaves the file in place and the chat
+simply gets nothing. `GET /litopys/carries` also answers `personaMemory` / `worldMemory`
+(`{ id, name, taken, stories, tokens, dupes, sources, text }` or `null`) for the "What this chat carries" panel.
+
 ## Groups: `data/groups/<id>.json`
 
 A group is not a card: it names its members (cards stay where they are) and how they share a chat. A group

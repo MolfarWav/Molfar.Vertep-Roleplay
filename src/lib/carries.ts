@@ -13,9 +13,16 @@ export interface CarriesAnswer {
   cardMemory: { cardId: string; name: string; tokens: number; dupes: number; sources: string[]; text: string } | null
   /** The card's habits (#106): null when the card has none, or when they are off for the chat (so an off chip cannot be told from no habits). */
   cardHabits?: { cardId: string; name: string; tokens: number; dupes: number; habits: string[]; text: string } | null
+  /** The memory of the persona the chat is played with (#99): null = the chat has none, or it is gone. `taken` = the chat opted in;
+   *  `stories` = how many of its stories are on; `tokens` and `text` are what it says now (0 and "" when not taken). */
+  personaMemory?: SharedMemoryAnswer | null
+  /** The same for the saved world the chat was started in. */
+  worldMemory?: SharedMemoryAnswer | null
   /** The chat's World DM: null when it is off for the chat. */
   world?: { level: WorldLevel; insert: boolean; waiting: boolean; tokens: number; text: string } | null
 }
+
+export interface SharedMemoryAnswer { id: string; name: string; taken: boolean; stories: number; tokens: number; dupes: number; sources: string[]; text: string }
 
 export type WorldLevel = 'chronicler' | 'living' | 'director' | 'antagonist' | 'chaos'
 
@@ -27,10 +34,11 @@ export interface DashCarries {
   inherit?: { title?: string; from?: string; on?: boolean } | null
 }
 
-export type CarryKind = 'memory' | 'habits' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
+/** 'world' is the World DM; the saved world's memory is 'worldmem' and the persona's is 'personamem'. */
+export type CarryKind = 'memory' | 'habits' | 'personamem' | 'worldmem' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
 /** Every kind, in strip order. */
-export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
-export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
+export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'personamem', 'worldmem', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
+export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
 
 export interface CarryPart {
   key: CarryKind
@@ -42,11 +50,16 @@ export interface CarryPart {
   switchKey: CarrySwitch | null
   /** The Author's note chip with nothing written in it. */
   empty?: boolean
+  /** A persona's or a world's memory: the chat takes it in only when it opted in. Its switch flips that opt-in
+   *  (and clears the Prompt board mute), it is not the board's off list. `taken` = the chat opted in. */
+  optIn?: { owner: 'persona' | 'world'; taken: boolean }
 }
 
 export interface CarriesLabels {
   memory: (name: string) => string
   habits: (name: string) => string
+  personaMemory: (name: string) => string
+  worldMemory: (name: string) => string
   backstory: (title: string) => string
   litopys: string
   dashboard: string
@@ -72,7 +85,7 @@ export interface CarriesResult {
   visible: boolean
 }
 
-/** Parts in order: card memory, card habits, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
+/** Parts in order: card memory, card habits, persona memory, world memory, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
  *  not exist is left out, but one the user switched off stays so it can be switched back on. */
 export function buildCarries({ carries, dash, noteText, estimate, labels }: CarriesInput): CarriesResult {
   const offKeys = carries?.off ?? []
@@ -84,6 +97,14 @@ export function buildCarries({ carries, dash, noteText, estimate, labels }: Carr
 
   const sk = carries?.cardHabits
   if (sk) parts.push({ key: 'habits', kind: 'habits', label: labels.habits(sk.name), tokens: sk.tokens, off: isOff('plugin:cardhabits'), switchKey: 'plugin:cardhabits' })
+
+  // a persona's or a world's memory: shown when it has a story on; off until the chat took it in, and off while muted on the board
+  const shared = (m: SharedMemoryAnswer | null | undefined, kind: 'personamem' | 'worldmem', owner: 'persona' | 'world', switchKey: CarrySwitch, label: string) => {
+    if (!m || m.stories <= 0) return
+    parts.push({ key: kind, kind, label, tokens: m.taken ? m.tokens : 0, off: !m.taken || isOff(switchKey), switchKey, optIn: { owner, taken: m.taken } })
+  }
+  shared(carries?.personaMemory, 'personamem', 'persona', 'plugin:personamemory', carries?.personaMemory ? labels.personaMemory(carries.personaMemory.name) : '')
+  shared(carries?.worldMemory, 'worldmem', 'world', 'plugin:worldmemory', carries?.worldMemory ? labels.worldMemory(carries.worldMemory.name) : '')
 
   const bs = carries?.backstory
   if (bs) parts.push({ key: 'backstory', kind: 'backstory', label: labels.backstory(bs.title), tokens: bs.tokens, off: isOff('plugin:litopys'), switchKey: 'plugin:litopys' })
