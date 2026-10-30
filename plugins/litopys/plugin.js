@@ -193,6 +193,10 @@ export const DEFAULT_CONFIG = {
   // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
   // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
+  // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
+  // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
+  // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
+  recallScoring: "phrases",
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -424,6 +428,7 @@ export function loadConfig(fsx) {
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
+  cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   return cfg;
 }
 
@@ -1213,13 +1218,114 @@ export function bestMemberVector(members, vectors, scanVec) {
   }
   return best;
 }
+// ---------- recall scoring: names, phrases, words the chat uses all the time (#99 piece 3) ----------
+/** A name found in the text counts this much more than a plain word of the same rarity. */
+const NAME_WEIGHT = 1.6;
+/** Two content words in a row that the scan also has in a row add this share of their own weights again. */
+const PHRASE_SHARE = 0.5;
+/** A word that every message of the chat uses weighs 1 / (1 + FREQ_K) of what it would. */
+const FREQ_K = 3;
+/** Fewest messages for the chat's own word counts to mean anything, and how many of the newest are read. */
+const FREQ_MIN_MSGS = 20;
+const FREQ_WINDOW = 200;
+
+/**
+ * How many of the chat's newest messages use a word (by stem): `share(stem)` in 0..1, or null when the chat is too
+ * short to say. Words like "door" or "said" that every scene has tell nothing about which fact matters now.
+ */
+export function chatWordShare(line) {
+  const msgs = arr(line).filter((m) => isObj(m) && str(m.text)).slice(-FREQ_WINDOW);
+  if (msgs.length < FREQ_MIN_MSGS) return null;
+  const count = new Map();
+  for (const m of msgs) {
+    for (const w of new Set(wordTokensM3b(str(m.text)).map(wordStemM3b))) count.set(w, (count.get(w) || 0) + 1);
+  }
+  return (stem) => (count.get(stem) || 0) / msgs.length;
+}
+
+/** The stems of the names in a text: a capitalised word that does not open a sentence, and the given names (a fact's subject, who knows it). */
+function nameStems(text, given) {
+  const out = new Set();
+  const add = (w) => {
+    const t = wordTokensM3b(w)[0];
+    if (t) out.add(wordStemM3b(t));
+  };
+  const src = String(text);
+  for (const m of src.matchAll(/\p{L}[\p{L}'’]*/gu)) {
+    const w = m[0];
+    if (w.length < 3 || w === w.toLowerCase() || w === w.toUpperCase()) continue;
+    const before = src.slice(0, m.index).replace(/[\s"'“”«(\[*_]+$/u, "");
+    if (!before || /[.!?…:;\n]$/u.test(before)) continue;
+    add(w);
+  }
+  for (const g of arr(given)) if (str(g) && str(g).toLowerCase() !== "world" && str(g).toLowerCase() !== "all") add(str(g));
+  return out;
+}
+
+/**
+ * A scorer for a pool of items: `(item) => lexical score against the scan`. With no `opts` it is the old rule (a word of
+ * the item that the scan has adds 10 * ln(1 + N / df), df counted inside the pool). With `opts` ({ share }): a name
+ * weighs NAME_WEIGHT times more, a word the chat uses in many messages weighs less (share), and two content words
+ * in a row that the scan has in a row add PHRASE_SHARE of their weights again.
+ */
+function lexicalScorer(list, textOf, givenOf, scanText, opts) {
+  const df = new Map();
+  const toks = new Map();
+  for (const it of list) {
+    const all = wordTokensM3b(textOf(it));
+    toks.set(it, all);
+    for (const w of new Set(all.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
+  }
+  const n = Math.max(1, list.length);
+  const scan = wordTokensM3b(scanText || "");
+  const inScan = scanMatcherM3b(scan);
+  const share = opts && typeof opts.share === "function" ? opts.share : null;
+  const scanPairs = new Set();
+  if (opts) for (let i = 0; i + 1 < scan.length; i++) scanPairs.add(wordStemM3b(scan[i]) + " " + wordStemM3b(scan[i + 1]));
+  return (it) => {
+    if (!scan.length) return 0;
+    const all = toks.get(it);
+    const names = opts ? nameStems(textOf(it), givenOf ? givenOf(it) : []) : null;
+    const weight = (k) => {
+      const stem = wordStemM3b(k);
+      let w = 10 * Math.log(1 + n / (df.get(stem) || 1));
+      if (opts) {
+        if (names.has(stem)) w *= NAME_WEIGHT;
+        if (share) w /= 1 + FREQ_K * share(stem);
+      }
+      return w;
+    };
+    let score = 0;
+    for (const k of new Set(all)) if (inScan(k)) score += weight(k);
+    if (opts && scanPairs.size) {
+      const seen = new Set();
+      for (let i = 0; i + 1 < all.length; i++) {
+        const pair = wordStemM3b(all[i]) + " " + wordStemM3b(all[i + 1]);
+        if (seen.has(pair) || !scanPairs.has(pair)) continue;
+        seen.add(pair);
+        score += PHRASE_SHARE * (weight(all[i]) + weight(all[i + 1]));
+      }
+    }
+    return score;
+  };
+}
+
 /**
  * Rank facts for group d: relevant facts, newest first on ties. `recency(f)` (optional, #50)
- * multiplies a fact's relevance; `sem` (optional, wave 2) adds the vector bonus to it. Nothing here
+ * multiplies a fact's relevance; `sem` (optional, wave 2) adds the vector bonus to it; `opts` (optional, #99) is the
+ * recall scoring with names, phrases and the chat's own word counts ({ share }, see lexicalScorer). Nothing here
  * changes anything on disk.
  */
-export function rankFacts(facts, scanText, recency, sem) {
+export function rankFacts(facts, scanText, recency, sem, opts) {
   const list = arr(facts).filter(isObj);
+  if (opts) {
+    const lex = lexicalScorer(list, (f) => str(f.text), (f) => [f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : [])], scanText, opts);
+    const extra = semanticBonuses(list, sem);
+    return list
+      .map((f) => ({ f, score: (weightBonus(f) + lex(f) + (extra.get(f) || 0)) * (recency ? recency(f) : 1) }))
+      .sort((a, b) => b.score - a.score || (b.f.updatedAt || 0) - (a.f.updatedAt || 0))
+      .map((x) => x.f);
+  }
   const df = new Map();
   const keysMap = new Map();
   for (const f of list) {
@@ -1237,8 +1343,16 @@ export function rankFacts(facts, scanText, recency, sem) {
     .map((x) => x.f);
 }
 /** Rank chapters before the cut: score on label + text (and, wave 2, the vector bonus); the bridge chapter stays first when it qualifies. */
-export function rankChapters(chapters, scanText, sem) {
+export function rankChapters(chapters, scanText, sem, opts) {
   const list = arr(chapters).filter(isObj);
+  if (opts) {
+    const lex = lexicalScorer(list, (ch) => str(ch.label) + " " + str(ch.text), null, scanText, opts);
+    const extra = semanticBonuses(list, sem);
+    return list
+      .map((ch) => ({ ch, score: lex(ch) + (extra.get(ch) || 0) }))
+      .sort((a, b) => b.score - a.score || (b.ch.at || 0) - (a.ch.at || 0))
+      .map((x) => x.ch);
+  }
   const df = new Map();
   const keysMap = new Map();
   for (const ch of list) {
@@ -1337,8 +1451,10 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const factSem = useVec && { vec: scanVec, of: (f) => vectorOf(vectors, f.id, str(f.text)) };
   const chapterVec = (ch) => (arcs.includes(ch) ? bestMemberVector(arr(ch.chapterIds).map((id) => allBefore.find((c) => c.id === id)), vectors, scanVec) : vectorOf(vectors, ch.id, str(ch.text)));
   const chapterSem = useVec && { vec: scanVec, of: chapterVec };
-  const d = rankFacts(rest, scanText, recency, factSem);
-  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText, chapterSem).slice(0, CHAPTERS_MAX);
+  // #99: names, phrases and the chat's own word counts weigh in, unless the hand-edited key asks for the old rule
+  const recall = cfg && cfg.recallScoring === "words" ? null : { share: chatWordShare(line) };
+  const d = rankFacts(rest, scanText, recency, factSem, recall);
+  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText, chapterSem, recall).slice(0, CHAPTERS_MAX);
 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the

@@ -185,6 +185,13 @@ recollections of the scenes that have left the prompt, newest first within 300 t
 own, or everyone's it voices (a group in narrator mode, a narrator card). The block is "Litopys · recollections", muted by the
 Prompt board key `plugin:recollections`, and listed as `recollections { scenes, who, tokens, text }` in `GET /litopys/carries`.
 
+**Recall scoring (#99).** Which facts and chapters go into the Litopys insert when they do not all fit is ranked by the words of
+the last messages (`rankFacts`, `rankChapters`). Besides a rare word counting by how few facts have it, a name found in the text
+(a capitalised word that does not open a sentence, a fact's `subject` or who knows it) weighs 1.6 times more, two content words in a
+row that the last messages also have in a row add half of their weights again, and a word that many of the chat's newest 200
+messages use weighs `1 / (1 + 3 * share)` of what it would (only once the chat has 20 messages). Config key `recallScoring`:
+`"phrases"` (default) or `"words"` for the old rule; it has no setting in the app and is kept when the settings page saves.
+
 **Scenes set apart by hand.** `litopys/chats/<chatId>.json`, key `marks`: `[{ "id": "s1", "from": "<message id>", "to": "<message id>", "at": <ms> }]`.
 A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`
 does not fold it into the scene before, it counts as closed even at the end of the chat, its chapter carries
