@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.77.0 (2026-10-30)
+
+- Sprites: several outfits per emotion, sprites per character, a dialog and a progress bar for a batch (#169, #170). Adding many sprites at once opens a dialog that reads each file name into character, outfit and emotion (`Aria_joy_dress.png` is Aria, dress, joy), lets you fix them, counts the files that would replace a sprite already on the card or each other, and only then stores them under the shared progress card (current file, Cancel, a summary that names the files that failed). A card holds several sprites per emotion, grouped in outfits; the Sprites tab groups them by outfit, and by character on a Narrator card, where each voice has its own set and the chat shows the sprite of the voice that speaks last in the reply. A switch in the sprite panel picks the outfit for the chat. Old cards look and work as before; CHARX export and import keep the character and outfit in the asset name (`character__outfit__emotion`). Format in `docs/DATA-FORMATS.md`.
+- Characters: tags as folders (#151). A tag marked "folder" in the tag manager shows as a chip above the list with its count; a character can sit in several. Regex section of `docs/DATA-FORMATS.md` rewritten to the real fields; the Shortcuts page no longer prints the raw scope.
+- World: a "Build model" row in World settings (#164), and both "Pick another model" links open it; the model that builds a world from cards or an interview was settable in the plugin but not in the UI.
+- Litopys: a fact may name its cause (#178). The chapter worker can give a new fact `because: <earlier fact>`; when the effect makes it into the insert and the cause still fits the budget it follows, and never pushes out a ranked fact. The Library row shows "because: ..." and "N effects" ("cause retired" when it is gone). The insert file counts how often a cause was pulled in or missed (`causeStats`); hidden config key `causes` turns the feature off.
+- Fix: importing a preset that carries hundreds of regex scripts sat on "Checking 30%" for minutes, because each script was saved by its own engine call. They are saved in batches of 100 through `POST /regex/batch` (223 scripts import in about 7 s).
+
 ## 4.76.1 (2026-10-30)
 
 - Fix: on the Personas page every persona you opened stacked another Description block (and Profile) above the last one, and the stacked copies could not be typed into. 4.76.0 gave the Description block and the new Memory section the same React key, so React duplicated them and never removed the old ones. They now have separate keys.

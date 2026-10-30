@@ -1971,10 +1971,11 @@ export const useApp = create<AppState>()(
         bumpMutate()
         set((s) => ({ presets: [...s.presets, preset] }))
         const scripts: RegexScript[] = []
-        for (const rx of imported.regex) {
-          const script: RegexScript = { ...rx, id: uid('rx'), scope: 'preset', scopeTargetId: preset.id, order: scripts.length }
-          await j(`/regex/${encodeURIComponent(script.id)}`, { method: 'PUT', body: JSON.stringify({ ...regexToEngine(script), id: script.id }) })
-          scripts.push(script)
+        for (const rx of imported.regex) scripts.push({ ...rx, id: uid('rx'), scope: 'preset', scopeTargetId: preset.id, order: scripts.length })
+        // a preset can carry hundreds of scripts and every engine call costs seconds: send them in batches
+        for (let i = 0; i < scripts.length; i += REGEX_BATCH) {
+          const items = scripts.slice(i, i + REGEX_BATCH).map((script) => ({ ...regexToEngine(script), id: script.id }))
+          await j('/regex/batch', { method: 'POST', body: JSON.stringify({ items }) })
         }
         if (scripts.length) set((s) => ({ regexScripts: [...s.regexScripts, ...scripts] }))
         return { preset, scripts: scripts.length, report }
@@ -2729,6 +2730,8 @@ async function runGeneration(
 }
 
 /** The engine's limit on one app request body (1.0.7: 8 MB; 1 MB before). */
+/** Regex scripts sent to the engine per call when a preset is imported. */
+const REGEX_BATCH = 100
 const APP_BODY_CAP = 8 * 1024 * 1024
 
 const LANDED = Symbol('landed')

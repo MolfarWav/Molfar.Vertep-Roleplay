@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "bun:test";
 
 const store = new Map<string, string>();
 const puts: { url: string; body: any }[] = [];
+const posts: number[] = [];
 let useApp: any;
 let base: any;
 
@@ -15,6 +16,11 @@ beforeAll(async () => {
   };
   (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
     if (init?.method === "PUT") puts.push({ url: String(url), body: JSON.parse(String(init.body)) });
+    // scripts travel in batches: each item counts as one save of /regex/<id>
+    if (init?.method === "POST" && String(url).endsWith("/regex/batch")) {
+      posts.push(JSON.parse(String(init.body)).items.length);
+      for (const it of JSON.parse(String(init.body)).items) puts.push({ url: "/regex/" + it.id, body: it });
+    }
     return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
   };
   useApp = (await import("../src/lib/store")).useApp;
@@ -39,6 +45,18 @@ describe("regex scripts of an imported preset", () => {
   }
 });
 
+describe("a preset with hundreds of scripts", () => {
+  it("is saved in a few calls, not one per script", async () => {
+    puts.length = 0;
+    posts.length = 0;
+    const many = { ...stPreset, extensions: { regex_scripts: Array.from({ length: 223 }, (_, i) => script("S" + i)) } };
+    const r = await useApp.getState().importPreset(many, "Big", base);
+    expect(r.scripts).toBe(223);
+    expect(posts).toEqual([100, 100, 23]);
+    expect(new Set(puts.filter((p) => p.url.includes("/regex/")).map((p) => p.body.id)).size).toBe(223);
+  });
+});
+
 describe("the name of an imported preset", () => {
   it("importing the same file again gives (2), (3) instead of the same name", async () => {
     const { uniquePresetName } = await import("../src/lib/preset-report");
@@ -49,5 +67,17 @@ describe("the name of an imported preset", () => {
     const names: string[] = [];
     for (let i = 0; i < 3; i++) names.push((await useApp.getState().importPreset(stPreset, "Same file", base)).preset.name);
     expect(names).toEqual(["Same file", "Same file (2)", "Same file (3)"]);
+  });
+});
+
+describe("the engine's regex batch route", () => {
+  it("writes each item under its id and refuses path-shaped ids", async () => {
+    const { handleRoute } = await import("../plugins/engine/plugin.js");
+    const files: Record<string, string> = {};
+    const fs = { read: (p: string) => { if (!(p in files)) throw new Error("ENOENT"); return files[p]!; }, write: (p: string, s: string) => { files[p] = s; }, remove: () => {}, list: () => [] };
+    const r = handleRoute({ method: "POST", path: "/regex/batch", query: {}, body: { items: [{ id: "rx_a", scriptName: "A" }, { id: "../evil", scriptName: "B" }, { scriptName: "no id" }, { id: "rx_b", scriptName: "C" }] } }, { fs }) as any;
+    expect(r.json).toEqual({ ok: true, written: 2 });
+    expect(Object.keys(files).sort()).toEqual(["regex/rx_a.json", "regex/rx_b.json"]);
+    expect(JSON.parse(files["regex/rx_a.json"]!).scriptName).toBe("A");
   });
 });

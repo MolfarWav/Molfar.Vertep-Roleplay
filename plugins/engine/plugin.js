@@ -4490,6 +4490,17 @@ export function handleRoute(req, host) {
       } catch {}
       return ok({ items });
     }
+    // many scripts in one call (a preset import carries hundreds, and every route call recompiles this file)
+    if (kind === "regex" && id === "batch" && req.method === "POST") {
+      const items = Array.isArray(body().items) ? body().items.slice(0, 1000) : [];
+      let written = 0;
+      for (const it of items) {
+        if (!it || typeof it !== "object" || typeof it.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(it.id)) continue;
+        writeJson("regex/" + it.id + ".json", it);
+        written++;
+      }
+      return ok({ ok: true, written });
+    }
     if (!id) return err(400, kind + " id required");
     if (req.method === "GET") {
       const v = readJson(kind + "/" + id + ".json", null);
