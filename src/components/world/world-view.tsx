@@ -159,8 +159,8 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
   // a chat with the DM off and no records is not in the list, but a sheet can send you to it
   const storeTitle = useApp((s) => s.chats.find((c) => c.id === chatId)?.title)
   // a row of Places opens its record in Records, with the records already read
-  const [openRec, setOpenRec] = useState<{ records: WorldRecord[]; editId?: string; add?: 'place' } | undefined>(undefined)
-  const toRecords = (o: { records: WorldRecord[]; editId?: string; add?: 'place' }) => { setOpenRec(o); onTabChange('records') }
+  const [openRec, setOpenRec] = useState<{ records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' } | undefined>(undefined)
+  const toRecords = (o: { records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' }) => { setOpenRec(o); onTabChange('records') }
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-border p-3 md:p-5">
@@ -198,8 +198,8 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
         {tab === 'overview' && <WorldControls key={chatId} chatId={chatId} where="hub" wide onOpenSettings={onOpenSettings} />}
-        {tab === 'places' && <WorldPlaces key={chatId} chatId={chatId} onOpenBackgrounds={() => onTabChange('backgrounds')} onOpenRecord={(r, all) => toRecords({ records: all, editId: r.id })} onAdd={(all) => toRecords({ records: all, add: 'place' })} />}
-        {tab === 'records' && <WorldRecords key={`${chatId}:${openRec?.editId ?? ''}${openRec?.add ?? ''}`} chatId={chatId} initial={openRec} />}
+        {tab === 'places' && <WorldPlaces key={chatId} wref={{ chatId }} onOpenBackgrounds={() => onTabChange('backgrounds')} onOpenRecord={(r, all) => toRecords({ records: all, editId: r.id })} onAdd={(kind, all) => toRecords({ records: all, add: kind })} />}
+        {tab === 'records' && <WorldRecords key={`${chatId}:${openRec?.editId ?? ''}${openRec?.add ?? ''}`} wref={{ chatId }} initial={openRec} />}
         {tab === 'start' && <WorldStart key={chatId} chatId={chatId} onOpenSettings={onOpenSettings} onAccepted={() => onTabChange('records')} />}
         {tab === 'backgrounds' && <WorldBackgrounds key={chatId} wref={{ chatId }} worldName={chat?.title || storeTitle || ''} onOpenSettings={onOpenSettings} />}
         {tab === 'runs' && <WorldRuns key={chatId} chatId={chatId} />}

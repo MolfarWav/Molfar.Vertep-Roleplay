@@ -181,8 +181,8 @@ export async function loadWorldHere(chatId: string): Promise<WorldHere | null> {
 export type WorldRecordOp = 'add' | 'update' | 'retire' | 'restore' | 'delete'
 
 /** Edit the world book by hand; returns the records as peek does. 409 = the name is taken. */
-export async function editWorldRecord(chatId: string, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
-  return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ chatId, op, record }) })).records
+export async function editWorldRecord(target: string | WorldRef, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
+  return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ ...refBody(target), op, record }) })).records
 }
 
 /** The build model writes keys for the living records that have none (one call); changed = records given keys. */
@@ -237,9 +237,14 @@ export async function deleteWorldProfile(id: string): Promise<WorldProfile[]> {
   return (await j<{ profiles: WorldProfile[] }>(`/world/profiles?id=${encodeURIComponent(id)}`, { method: 'DELETE' })).profiles
 }
 
+/** A chat's world, or a saved (library) world: a bare string is a chat id. */
+export const refBody = (target: string | WorldRef): WorldRef => (typeof target === 'string' ? { chatId: target } : target)
+
 /** The world book's records, for the player who asked to look (fronts and events are not sent). */
-export async function peekWorld(chatId: string): Promise<WorldRecord[]> {
-  return (await j<{ records: WorldRecord[] }>(`/world/peek?chatId=${encodeURIComponent(chatId)}`)).records
+export async function peekWorld(target: string | WorldRef): Promise<WorldRecord[]> {
+  const ref = refBody(target)
+  const q = 'worldId' in ref ? `worldId=${encodeURIComponent(ref.worldId)}` : `chatId=${encodeURIComponent(ref.chatId)}`
+  return (await j<{ records: WorldRecord[] }>(`/world/peek?${q}`)).records
 }
 
 /** All chats: the play model (runs after replies) and the build model (makes worlds); empty = the fallback in `play`/`build`. */

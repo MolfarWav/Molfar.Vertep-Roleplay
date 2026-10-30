@@ -95,3 +95,37 @@ describe("buildPlaceTree", () => {
     expect(tree).toMatchObject({ roots: [], unplaced: [], places: 0, things: 0 });
   });
 });
+
+import { isRevealed, markRevealed, needsGate, revealKey } from "../src/lib/world-reveal";
+
+describe("the spoiler question", () => {
+  const store = () => {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  };
+
+  it("asks only when the world was built before the story", () => {
+    // a chat's world: no origin = the DM wrote it from the story
+    expect(needsGate({ chatId: "c1" }, { origin: null })).toBe(false);
+    expect(needsGate({ chatId: "c1" }, { origin: { kind: "cards", at: 1 } })).toBe(true);
+    expect(needsGate({ chatId: "c1" }, null)).toBeUndefined();
+    // a saved world: `from` = saved from a played chat
+    expect(needsGate({ worldId: "w1" }, { from: { chatId: "c1", title: "x" } })).toBe(false);
+    expect(needsGate({ worldId: "w1" }, { from: null })).toBe(true);
+  });
+
+  it("remembers the answer per chat and per world, and survives blocked storage", () => {
+    const s = store();
+    expect(isRevealed({ chatId: "c1" }, s)).toBe(false);
+    markRevealed({ chatId: "c1" }, s);
+    markRevealed({ chatId: "c1" }, s);
+    expect(isRevealed({ chatId: "c1" }, s)).toBe(true);
+    expect(isRevealed({ worldId: "c1" }, s)).toBe(false);
+    expect(isRevealed({ chatId: "c2" }, s)).toBe(false);
+    expect(revealKey({ worldId: "w9" })).toBe("w:w9");
+    const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+    expect(isRevealed({ chatId: "c1" }, broken)).toBe(false);
+    expect(() => markRevealed({ chatId: "c1" }, broken)).not.toThrow();
+    expect(isRevealed({ chatId: "c1" }, null)).toBe(false);
+  });
+});

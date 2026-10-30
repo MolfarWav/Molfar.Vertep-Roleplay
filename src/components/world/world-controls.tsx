@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DiceFields } from './dice-fields'
+import { FoldSection, NumControl, Segmented, SettingRow } from './world-setting-row'
 import { DiceLog } from './dice-log'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useRelativeTime, useT } from '@/hooks/use-t'
@@ -37,7 +38,6 @@ import {
   saveWorldSettings,
   setWorldOverride,
   useWorldLive,
-  type WorldCarrySource,
   type WorldError,
   type WorldLevel,
   type WorldRecord,
@@ -49,48 +49,6 @@ import type { MsgKey } from '@/lib/i18n'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'chaos']
-
-function SwitchRow({ label, hint, checked, onChange, disabled }: { label: string; hint: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="min-w-0 text-sm">
-        {label}
-        <span className="block text-xs text-muted-foreground">{hint}</span>
-      </span>
-      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
-    </div>
-  )
-}
-
-/** Where the outfit and what is in the hands come from: the Dashboard sensor (default) or the World DM's lists. */
-function CarryRow({ value, onChange }: { value: WorldCarrySource; onChange: (v: WorldCarrySource) => void }) {
-  const t = useT()
-  const options: { id: WorldCarrySource; label: string; hint: string }[] = [
-    { id: 'sensor', label: t('world.carry.sensor'), hint: t('world.carry.sensorHint') },
-    { id: 'dm', label: t('world.carry.dm'), hint: t('world.carry.dmHint') },
-  ]
-  return (
-    <div className="flex flex-col gap-1.5 text-sm" role="radiogroup" aria-label={t('world.carry.label')} data-testid="world-carry-source">
-      <span>{t('world.carry.label')}</span>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {options.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={value === o.id}
-            onClick={() => { if (value !== o.id) onChange(o.id) }}
-            className={cn('flex flex-col gap-0.5 rounded-md border p-2 text-left max-md:min-h-10', value === o.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent')}
-          >
-            <span className="font-medium">{o.label}</span>
-            <span className="text-xs text-muted-foreground">{o.hint}</span>
-          </button>
-        ))}
-      </div>
-      <span className="text-xs text-muted-foreground">{t('world.carry.next')}</span>
-    </div>
-  )
-}
 
 /** One fact of the "So far" list: the numbers (and the given words) in the text colour, the rest muted. */
 function Fact({ text, strong = [] }: { text: string; strong?: string[] }) {
@@ -205,41 +163,6 @@ export function WorldErrorCard({
   )
 }
 
-/** A number setting: the draft is kept while typing, committed on blur or Enter, clamped to its bounds. */
-function NumRow({ label, hint, value, min, max, step, onCommit }: { label: string; hint: string; value: number; min: number; max: number; step?: number; onCommit: (n: number) => void }) {
-  const [draft, setDraft] = useState(String(value))
-  useEffect(() => setDraft(String(value)), [value])
-  const commit = () => {
-    const n = Math.round(Number(draft))
-    if (!Number.isFinite(n) || draft.trim() === '') return setDraft(String(value))
-    const next = Math.min(max, Math.max(min, n))
-    if (next !== value) onCommit(next)
-    else setDraft(String(value))
-  }
-  return (
-    <label className="flex items-center justify-between gap-3 text-sm">
-      <span className="min-w-0">
-        {label}
-        <span className="block text-xs text-muted-foreground">{hint}</span>
-      </span>
-      <Input
-        type="number"
-        inputMode="numeric"
-        min={min}
-        max={max}
-        step={step ?? 1}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
-        }}
-        className="h-10 w-20 shrink-0 text-right md:h-8"
-      />
-    </label>
-  )
-}
-
 export function WorldControls({
   chatId,
   where,
@@ -261,7 +184,6 @@ export function WorldControls({
   const running = useWorldLive((s) => !!s.running[chatId])
   const [missing, setMissing] = useState(false)
   const [everyN, setEveryN] = useState('')
-  const [still, setStill] = useState('')
   const [records, setRecords] = useState<WorldRecord[] | null>(null)
   const [confirm, confirmDialog] = useConfirm()
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
@@ -309,10 +231,6 @@ export function WorldControls({
     if (view) setEveryN(String(view.settings.everyN))
   }, [view?.settings.everyN])
 
-  useEffect(() => {
-    if (view) setStill(String(view.settings.stagnation))
-  }, [view?.settings.stagnation])
-
   if (missing) {
     return <p className="text-sm text-muted-foreground">{t('world.missing')}</p>
   }
@@ -335,15 +253,6 @@ export function WorldControls({
       return
     }
     void save({ everyN: Math.min(50, Math.max(1, n)) })
-  }
-
-  const saveStill = () => {
-    const n = Math.round(Number(still))
-    if (!view || !Number.isFinite(n) || n === view.settings.stagnation) {
-      setStill(String(view.settings.stagnation))
-      return
-    }
-    void save({ stagnation: Math.min(50, Math.max(0, n)) })
   }
 
   const handleWorldTurn = async () => {
@@ -433,124 +342,139 @@ export function WorldControls({
     />
   )
 
-  const scheduleSection = (
-    <section className={cn('flex flex-col gap-3 rounded-md border border-border bg-card p-3', !on && 'opacity-60')}>
-      <label className="flex items-center justify-between gap-3 text-sm">
-        <span>{t('world.everyN')}</span>
-        <Input
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={50}
-          value={everyN}
-          disabled={!on}
-          onChange={(e) => setEveryN(e.target.value)}
-          onBlur={saveEvery}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') saveEvery()
-          }}
-          className="h-10 w-20 text-right md:h-8"
-        />
-      </label>
-      <p className="-mt-2 text-xs text-muted-foreground">
-        {on ? (view.dueIn > 0 ? t('world.dueIn', { n: view.dueIn }) : t('world.dueNow')) : t('world.offHint')}
-        {on && inForce ? ` ${t('world.profile.default', { n: inForce.defaults.everyN })}` : ''}
-      </p>
-      <Button onClick={() => void handleWorldTurn()} disabled={!on || running || reading} className="max-md:h-10">
-        <GlobeHemisphereWest className="size-4" aria-hidden="true" />
-        {running ? t('world.running') : t('world.turn')}
-      </Button>
-      {!on && <p className="-mt-1 text-xs text-muted-foreground">{t('world.turnOff')}</p>}
-
-      {on && view.behind.messages > 0 && !reading && (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-background/50 p-2.5">
-          <p className="text-xs text-muted-foreground">{t('world.behind', { n: view.behind.messages })}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="max-md:h-10"
-            disabled={reading}
-            onClick={() => void startReadAll()}
-          >
-            {t('world.readAll', { k: view.behind.runs })}
-          </Button>
-        </div>
-      )}
-
-      {reading && (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-background/50 p-2.5">
-          <p className="text-xs text-muted-foreground">
-            {t('world.readProgress', {
-              done: Math.min(readDone + 1, Math.max(readTotal, readDone + 1)),
-              total: readTotal,
-            })}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="max-md:h-10"
-            onClick={() => {
-              stopReadRef.current = true
-            }}
-          >
-            {t('world.readStop')}
-          </Button>
-        </div>
-      )}
-    </section>
-  )
-
-  const moreSection = on && (
-    <section className="flex flex-col gap-3 rounded-md border border-border bg-card p-3">
-      <h3 className="text-sm font-medium">{t('world.more')}</h3>
-      <label className="flex items-center justify-between gap-3 text-sm">
-        <span className="min-w-0">
-          {t('world.still')}
-          <span className="block text-xs text-muted-foreground">{view.sensor ? t('world.stillHint') : t('world.noSensor')}</span>
-        </span>
-        <Input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={50}
-          value={still}
-          disabled={!view.sensor}
-          onChange={(e) => setStill(e.target.value)}
-          onBlur={saveStill}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') saveStill()
-          }}
-          className="h-10 w-20 shrink-0 text-right md:h-8"
-        />
-      </label>
-      <SwitchRow
-        label={t('world.transition')}
-        hint={view.sensor ? t('world.transitionHint') : t('world.noSensor')}
-        checked={view.settings.onTransition}
-        disabled={!view.sensor}
-        onChange={(v) => void save({ onTransition: v })}
-      />
-      <SwitchRow label={t('world.place')} hint={view.sensor ? t('world.placeHint') : t('world.noSensor')} checked={view.settings.onPlace} disabled={!view.sensor} onChange={(v) => void save({ onPlace: v })} />
-      <CarryRow value={view.settings.carrySource ?? 'sensor'} onChange={(v) => void save({ carrySource: v })} />
-      <NumRow label={t('world.recordsEvery')} hint={t('world.recordsEveryHint')} value={view.settings.recordsEveryN} min={0} max={50} onCommit={(n) => void save({ recordsEveryN: n })} />
-      <NumRow label={t('world.textMax')} hint={t('world.textMaxHint')} value={view.settings.textMax} min={200} max={3000} step={100} onCommit={(n) => void save({ textMax: n })} />
-      <NumRow label={t('world.changesMax')} hint={t('world.changesMaxHint')} value={view.settings.changesMax} min={4} max={20} onCommit={(n) => void save({ changesMax: n })} />
-      {events && (
-        <SwitchRow label={t('world.insert')} hint={t('world.insertHint')} checked={view.settings.insert} onChange={(v) => void save({ insert: v })} />
-      )}
-      {events && view.dice && (
-        <DiceFields
-          mode={view.dice.mode}
-          stat={view.dice.stat}
-          chance={view.dice.chance}
-          tilt={view.dice.tilt}
-          life={view.dice.life}
-          show={view.settings.diceShow}
-          onShow={(v) => void save({ diceShow: v }).then(() => refreshDice(chatId, true))}
-          onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}), ...(p.diceLife !== undefined ? { diceLife: p.diceLife } : {}) })}
+  const settingsSection = (
+    <section className={cn('rounded-md border border-border bg-card px-3', !on && 'opacity-60')} data-testid="world-settings">
+      <FoldSection id="schedule" title={t('world.sec.schedule')} defaultOpen>
+        <SettingRow
+          label={t('world.everyN')}
+          info={on && inForce ? t('world.profile.default', { n: inForce.defaults.everyN }) : undefined}
+          status={on ? (view.dueIn > 0 ? t('world.dueIn', { n: view.dueIn }) : t('world.dueNow')) : t('world.offHint')}
         >
-          <DiceLog chatId={chatId} />
-        </DiceFields>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={50}
+            value={everyN}
+            disabled={!on}
+            aria-label={t('world.everyN')}
+            onChange={(e) => setEveryN(e.target.value)}
+            onBlur={saveEvery}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveEvery()
+            }}
+            className="h-10 w-20 shrink-0 text-right md:h-8"
+          />
+        </SettingRow>
+        <div className="flex flex-col gap-1.5 py-1">
+          <Button onClick={() => void handleWorldTurn()} disabled={!on || running || reading} className="max-md:h-10">
+            <GlobeHemisphereWest className="size-4" aria-hidden="true" />
+            {running ? t('world.running') : t('world.turn')}
+          </Button>
+          {!on && <p className="text-xs text-muted-foreground">{t('world.turnOff')}</p>}
+        </div>
+
+        {on && view.behind.messages > 0 && !reading && (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/50 p-2">
+            <p className="min-w-0 text-xs text-muted-foreground">{t('world.behind', { n: view.behind.messages })}</p>
+            <Button variant="outline" size="sm" className="max-md:h-10" disabled={reading} onClick={() => void startReadAll()}>
+              {t('world.readAll', { k: view.behind.runs })}
+            </Button>
+          </div>
+        )}
+
+        {reading && (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/50 p-2">
+            <p className="min-w-0 text-xs text-muted-foreground">
+              {t('world.readProgress', {
+                done: Math.min(readDone + 1, Math.max(readTotal, readDone + 1)),
+                total: readTotal,
+              })}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="max-md:h-10"
+              onClick={() => {
+                stopReadRef.current = true
+              }}
+            >
+              {t('world.readStop')}
+            </Button>
+          </div>
+        )}
+      </FoldSection>
+
+      {on && (
+        <>
+          <FoldSection id="triggers" title={t('world.sec.triggers')}>
+            <SettingRow label={t('world.still')} info={view.sensor ? t('world.stillHint') : t('world.noSensor')}>
+              <NumControl label={t('world.still')} value={view.settings.stagnation} min={0} max={50} disabled={!view.sensor} onCommit={(n) => void save({ stagnation: n })} />
+            </SettingRow>
+            <SettingRow label={t('world.transition')} info={view.sensor ? t('world.transitionHint') : t('world.noSensor')}>
+              <Switch checked={view.settings.onTransition} disabled={!view.sensor} onCheckedChange={(v) => void save({ onTransition: v })} aria-label={t('world.transition')} />
+            </SettingRow>
+            <SettingRow label={t('world.place')} info={view.sensor ? t('world.placeHint') : t('world.noSensor')}>
+              <Switch checked={view.settings.onPlace} disabled={!view.sensor} onCheckedChange={(v) => void save({ onPlace: v })} aria-label={t('world.place')} />
+            </SettingRow>
+          </FoldSection>
+
+          <FoldSection id="records" title={t('world.sec.records')}>
+            <SettingRow label={t('world.recordsEvery')} info={t('world.recordsEveryHint')}>
+              <NumControl label={t('world.recordsEvery')} value={view.settings.recordsEveryN} min={0} max={50} onCommit={(n) => void save({ recordsEveryN: n })} />
+            </SettingRow>
+            <SettingRow label={t('world.textMax')} info={t('world.textMaxHint')}>
+              <NumControl label={t('world.textMax')} value={view.settings.textMax} min={200} max={3000} step={100} onCommit={(n) => void save({ textMax: n })} />
+            </SettingRow>
+            <SettingRow label={t('world.changesMax')} info={t('world.changesMaxHint')}>
+              <NumControl label={t('world.changesMax')} value={view.settings.changesMax} min={4} max={20} onCommit={(n) => void save({ changesMax: n })} />
+            </SettingRow>
+          </FoldSection>
+
+          <FoldSection id="outfit" title={t('world.sec.outfit')} defaultOpen>
+            <SettingRow
+              label={t('world.carry.from')}
+              info={
+                <>
+                  <p><strong className="text-foreground">{t('world.carry.sensor')}.</strong> {t('world.carry.sensorHint')}</p>
+                  <p><strong className="text-foreground">{t('world.carry.dm')}.</strong> {t('world.carry.dmHint')}</p>
+                  <p>{t('world.carry.next')}</p>
+                </>
+              }
+            >
+              <Segmented
+                label={t('world.carry.label')}
+                value={view.settings.carrySource ?? 'sensor'}
+                options={[{ id: 'sensor', label: t('world.carry.sensor') }, { id: 'dm', label: t('world.carry.dm') }]}
+                onChange={(v) => void save({ carrySource: v })}
+              />
+            </SettingRow>
+          </FoldSection>
+
+          {events && (
+            <FoldSection id="events" title={t('world.sec.events')} defaultOpen>
+              <SettingRow label={t('world.insert')} info={t('world.insertHint')}>
+                <Switch checked={view.settings.insert} onCheckedChange={(v) => void save({ insert: v })} aria-label={t('world.insert')} />
+              </SettingRow>
+              {view.dice && (
+                <div className="pb-1">
+                  <DiceFields
+                    mode={view.dice.mode}
+                    stat={view.dice.stat}
+                    chance={view.dice.chance}
+                    tilt={view.dice.tilt}
+                    life={view.dice.life}
+                    show={view.settings.diceShow}
+                    onShow={(v) => void save({ diceShow: v }).then(() => refreshDice(chatId, true))}
+                    onChange={(p) => void save({ ...(p.dice ? { dice: p.dice } : {}), ...(p.diceStat ? { diceStat: p.diceStat } : {}), ...(p.diceChance ? { diceChance: p.diceChance } : {}), ...(p.diceTilt ? { diceTilt: p.diceTilt } : {}), ...(p.diceLife !== undefined ? { diceLife: p.diceLife } : {}) })}
+                  >
+                    <DiceLog chatId={chatId} />
+                  </DiceFields>
+                </div>
+              )}
+            </FoldSection>
+          )}
+        </>
       )}
     </section>
   )
@@ -674,8 +598,7 @@ export function WorldControls({
         {errorCard}
         <div className="flex flex-col gap-5">{levelSection}</div>
         <div className="flex flex-col gap-5">
-          {scheduleSection}
-          {moreSection}
+          {settingsSection}
           {statusSection}
           {modelSection}
         </div>

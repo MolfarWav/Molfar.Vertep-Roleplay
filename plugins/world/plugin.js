@@ -2885,10 +2885,18 @@ function stateRoute(req, host) {
 }
 
 /** "Look at the world": the records only, newest first; the DM's plans (fronts, the event) stay its own. */
+/** The records of a chat's world, or of a saved world of the library ({worldId}). */
 function peekRoute(req, host) {
+  const worldId = String((req.query && req.query.worldId) || "");
   const chatId = String((req.query && req.query.chatId) || "");
-  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const { state } = loadState(host.fs, chatId);
+  let state;
+  if (WORLD_ID.test(worldId)) {
+    state = cleanWorld(readJson(host.fs, LIBRARY_DIR + worldId + ".json", null), worldId);
+    if (!state) return ok({ error: "no such world" }, 404);
+  } else {
+    if (!CHAT_ID.test(chatId)) return ok({ error: "chatId or worldId required" }, 400);
+    state = loadState(host.fs, chatId).state;
+  }
   const records = state.entities
     .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
@@ -3237,11 +3245,23 @@ function profilesRoute(req, host) {
 function recordsRoute(req, host) {
   const fsx = host.fs;
   const b = body(req);
+  const worldId = str(b.worldId);
+  const lib = WORLD_ID.test(worldId);
   const chatId = String(b.chatId || "");
-  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const chat = readChat(fsx, chatId);
-  if (!chat) return ok({ error: "no such chat" }, 404);
-  const { state } = loadState(fsx, chatId);
+  let chat = null;
+  let state;
+  let saved = null;
+  if (lib) {
+    saved = cleanWorld(readJson(fsx, LIBRARY_DIR + worldId + ".json", null), worldId);
+    if (!saved) return ok({ error: "no such world" }, 404);
+    // the saved world's records as a state, so the same edit code runs; written back to the library file below
+    state = normalizeState({ settings: saved.settings, entities: saved.entities }, "x");
+  } else {
+    if (!CHAT_ID.test(chatId)) return ok({ error: "chatId or worldId required" }, 400);
+    chat = readChat(fsx, chatId);
+    if (!chat) return ok({ error: "no such chat" }, 404);
+    state = loadState(fsx, chatId).state;
+  }
   const r = isObj(b.record) ? b.record : {};
   const op = str(b.op);
   const now = Date.now();
@@ -3279,6 +3299,10 @@ function recordsRoute(req, host) {
       e.at = now;
       e.by = "player";
     }
+  }
+  if (lib) {
+    writeJson(fsx, LIBRARY_DIR + worldId + ".json", cleanWorld({ ...saved, entities: state.entities, at: Date.now() }, worldId));
+    return peekRoute({ query: { worldId } }, host);
   }
   writeBook(fsx, state, str(chat.meta.title));
   bindBook(fsx, chatId, chat.meta, state.bookId);

@@ -1289,3 +1289,24 @@ describe("who keeps what the characters wear and hold (#176)", () => {
     expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json.settings.carrySource).toBe("sensor");
   });
 });
+
+describe("a saved world's records (#176)", () => {
+  it("peek and records work on a library world: add, change, delete, written back to its file", () => {
+    const m = memHost(seed());
+    m.files["world/library/w-abc123.json"] = JSON.stringify({ v: 1, id: "w-abc123", name: "Carpatia", description: "", at: 1, from: null, settings: { level: "director" }, entities: [
+      { id: "n1", kind: "place", name: "Old market", aliases: [], text: "Stalls.", status: "active", uid: 0 },
+    ], fronts: [] });
+    const peek = () => route(m.host, "GET", "/world/peek", undefined, { worldId: "w-abc123" }).json.records;
+    expect(peek().map((r: any) => r.name)).toEqual(["Old market"]);
+    const add = route(m.host, "PUT", "/world/records", { worldId: "w-abc123", op: "add", record: { kind: "place", name: "Red Tower", text: "A tower.", size: "spot", inside: "Old market" } }).json.records;
+    expect(add.map((r: any) => r.name).sort()).toEqual(["Old market", "Red Tower"]);
+    route(m.host, "PUT", "/world/records", { worldId: "w-abc123", op: "update", record: { id: "n1", text: "Stalls and a well." } });
+    route(m.host, "PUT", "/world/records", { worldId: "w-abc123", op: "delete", record: { id: "n2" } });
+    expect(peek()).toMatchObject([{ name: "Old market", text: "Stalls and a well." }]);
+    expect(JSON.parse(m.files["world/library/w-abc123.json"]!)).toMatchObject({ name: "Carpatia", settings: { level: "director" } });
+    // no chat is touched: no book, no state file
+    expect(m.files["lorebooks/world-c1.json"]).toBeUndefined();
+    expect(route(m.host, "GET", "/world/peek", undefined, { worldId: "w-nope99" }).status).toBe(404);
+    expect(route(m.host, "PUT", "/world/records", { op: "add", record: { name: "x", text: "y" } }).status).toBe(400);
+  });
+});

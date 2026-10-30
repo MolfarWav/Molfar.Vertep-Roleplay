@@ -12,7 +12,7 @@ import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { mergeTags, pickerGroups, pictureOf, placeTags } from '@/lib/world-backgrounds'
-import { editWorldRecord, type WorldRecord } from '@/lib/world'
+import { editWorldRecord, type WorldRecord, type WorldRef } from '@/lib/world'
 import { MakeSet } from './world-bg-set'
 
 /** The little picture of a place row: the bound image, or a dashed empty box (with a hint when the image left the library). */
@@ -33,10 +33,11 @@ export function PlaceThumb({ record, className }: { record: WorldRecord; classNa
   )
 }
 
-export function PlaceBackgroundDialog({ open, onOpenChange, chatId, place, folderId, folderName, onSaved, onOpenBackgrounds }: {
+export function PlaceBackgroundDialog({ open, onOpenChange, wref, place, folderId, folderName, onSaved, onOpenBackgrounds }: {
   open: boolean
   onOpenChange: (o: boolean) => void
-  chatId: string
+  /** a chat's world or a saved world (a saved world can bind a picture but not generate one) */
+  wref: WorldRef
   place: WorldRecord
   /** the world's own backgrounds folder (null = none linked yet) */
   folderId: string | null
@@ -67,7 +68,7 @@ export function PlaceBackgroundDialog({ open, onOpenChange, chatId, place, folde
   const save = async (id: string): Promise<boolean> => {
     setBusy(true)
     try {
-      onSaved(await editWorldRecord(chatId, 'update', { id: place.id, background: id }))
+      onSaved(await editWorldRecord(wref, 'update', { id: place.id, background: id }))
       return true
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
@@ -108,7 +109,7 @@ export function PlaceBackgroundDialog({ open, onOpenChange, chatId, place, folde
             <Button variant="ghost" size="sm" className="self-start max-md:h-10" onClick={() => setMaking(false)}>{t('world.places.bgBack')}</Button>
             {folderId ? (
               <MakeSet
-                wref={{ chatId }}
+                wref={wref}
                 folderId={folderId}
                 only={{ name: place.name, text: place.text, aliases: place.aliases }}
                 onStored={({ bgId }) => {
@@ -131,10 +132,12 @@ export function PlaceBackgroundDialog({ open, onOpenChange, chatId, place, folde
                 <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('world.places.bgSearch')} aria-label={t('world.places.bgSearch')} className="h-10 pl-8 md:h-9" />
               </div>
-              <Button variant="outline" className="max-md:h-10" onClick={() => setMaking(true)} data-testid="place-bg-make-go">
-                <Sparkle className="size-4" aria-hidden="true" />
-                {t('world.places.bgMake')}
-              </Button>
+              {'chatId' in wref && (
+                <Button variant="outline" className="max-md:h-10" onClick={() => setMaking(true)} data-testid="place-bg-make-go">
+                  <Sparkle className="size-4" aria-hidden="true" />
+                  {t('world.places.bgMake')}
+                </Button>
+              )}
               {place.background && (
                 <Button variant="ghost" className="text-destructive hover:text-destructive max-md:h-10" disabled={busy} onClick={() => void clear()} data-testid="place-bg-remove">
                   {t('world.places.bgRemove')}

@@ -13,7 +13,8 @@ import { useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT } from '@/lib/world-records'
-import { editWorldRecord, fillWorldKeys, peekWorld, useWorldLive, type WorldKind, type WorldRecord, type WorldRecordOp } from '@/lib/world'
+import { editWorldRecord, fillWorldKeys, peekWorld, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef } from '@/lib/world'
+import { useWorldBook } from './use-world-book'
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
 
@@ -103,7 +104,7 @@ function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[
   )
 }
 
-function RecordForm({ initial, past, busy, onSave, onCancel, placeNames }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void; placeNames: string[] }) {
+function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeNames }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void; onDelete?: () => void; placeNames: string[] }) {
   const t = useT()
   const [f, setF] = useState(initial)
   const ref = useRef<HTMLFormElement>(null)
@@ -209,6 +210,11 @@ function RecordForm({ initial, past, busy, onSave, onCancel, placeNames }: { ini
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={!ok || busy} className="max-md:h-10">{t('world.rec.save')}</Button>
         <Button type="button" variant="ghost" onClick={onCancel} className="max-md:h-10">{t('home.cancel')}</Button>
+        {onDelete && (
+          <Button type="button" variant="ghost" onClick={onDelete} disabled={busy} className="ml-auto text-destructive hover:text-destructive max-md:h-10" data-testid="record-form-delete">
+            <Trash className="size-4" aria-hidden="true" />{t('world.rec.delete')}
+          </Button>
+        )}
       </div>
     </form>
   )
@@ -227,7 +233,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
 }) {
   const t = useT()
   if (editing) {
-    return <RecordForm initial={formOf(r)} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} placeNames={placeNames} />
+    return <RecordForm initial={formOf(r)} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} onDelete={() => onOp('delete')} placeNames={placeNames} />
   }
   const past = r.status === 'past'
   return (
@@ -287,45 +293,35 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
   )
 }
 
-export function WorldRecords({ chatId, initial }: { chatId: string; /** records already read (the Places tab asked the spoiler question), the one to edit first, or a new place to add */ initial?: { records: WorldRecord[]; editId?: string; add?: 'place' } }) {
+export function WorldRecords({ wref, gated, initial }: {
+  /** a chat's world or a saved world */
+  wref: WorldRef
+  /** a saved world: whether it asks the spoiler question (a chat's world reads that itself) */
+  gated?: boolean
+  /** records already read (another tab did), the one to edit first, or a new place or thing to add */
+  initial?: { records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' }
+}) {
   const t = useT()
+  const chatId = 'chatId' in wref ? wref.chatId : null
   const [confirm, confirmDialog] = useConfirm()
-  const [records, setRecords] = useState<WorldRecord[] | null>(initial?.records ?? null)
+  const book = useWorldBook(wref, { gated, initial: initial?.records })
+  const { records, setRecords } = book
   const [kind, setKind] = useState<WorldKind | 'all'>('all')
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(initial?.editId ?? null)
-  const [adding, setAdding] = useState(initial?.add === 'place')
+  const [adding, setAdding] = useState(!!initial?.add)
   const [busy, setBusy] = useState(false)
   const [filling, setFilling] = useState(false)
   const [fillMsg, setFillMsg] = useState<string | null>(null)
   const [fillErr, setFillErr] = useState<string | null>(null)
-  const lastRunAt = useWorldLive((s) => s.views[chatId]?.lastRunAt)
-
-  // the DM edits the book too: read it again after each of its runs
-  useEffect(() => {
-    if (records === null) return
-    let live = true
-    peekWorld(chatId).then((r) => { if (live) setRecords(r) }).catch(() => {})
-    return () => { live = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastRunAt])
 
   const counts = useMemo(() => countByKind(records ?? []), [records])
   const shown = useMemo(() => filterRecords(records ?? [], kind, query), [records, kind, query])
 
-  const reveal = async () => {
-    if (!(await confirm({ title: t('world.peekTitle'), description: t('world.peekWarn'), actionLabel: t('world.peekGo'), destructive: false }))) return
-    try {
-      setRecords(await peekWorld(chatId))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
-    }
-  }
-
   const run = async (op: WorldRecordOp, record: Partial<WorldRecord>): Promise<boolean> => {
     setBusy(true)
     try {
-      setRecords(await editWorldRecord(chatId, op, record))
+      setRecords(await editWorldRecord(wref, op, record))
       return true
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) toast.error(t('world.rec.clash'))
@@ -344,10 +340,11 @@ export function WorldRecords({ chatId, initial }: { chatId: string; /** records 
     setFillMsg(null)
     setFillErr(null)
     try {
+      if (!chatId) return
       const r = await fillWorldKeys(chatId)
       if (!r.ok) setFillErr(r.error ?? t('world.rec.fillFail'))
       else setFillMsg(r.changed ? t('world.rec.filled', { n: r.changed }) : t('world.rec.filledNone'))
-      setRecords(await peekWorld(chatId))
+      setRecords(await peekWorld(wref))
     } catch (e) {
       setFillErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -363,13 +360,18 @@ export function WorldRecords({ chatId, initial }: { chatId: string; /** records 
   if (records === null) {
     return (
       <div className="flex flex-col gap-3">
-        <div className="rounded-md border border-border bg-card p-3">
-          <p className="text-sm">{t('world.rec.lead')}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
-          <Button variant="outline" size="sm" className="mt-2 max-md:h-10" onClick={() => void reveal()}>
-            {t('world.rec.show')}
-          </Button>
-        </div>
+        {book.locked ? (
+          <div className="rounded-md border border-border bg-card p-3" data-testid="book-gate">
+            <p className="text-sm">{t('world.rec.lead')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
+            <Button variant="outline" size="sm" className="mt-2 max-md:h-10" onClick={() => void book.reveal()}>
+              {t('world.rec.show')}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground" role="status">…</p>
+        )}
+        {book.confirmDialog}
         {confirmDialog}
       </div>
     )
@@ -411,7 +413,7 @@ export function WorldRecords({ chatId, initial }: { chatId: string; /** records 
         })}
       </div>
 
-      {(keyless > 0 || fillMsg || fillErr) && (
+      {chatId && (keyless > 0 || fillMsg || fillErr) && (
         <div className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3" data-testid="records-fill">
           {keyless > 0 && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -429,7 +431,7 @@ export function WorldRecords({ chatId, initial }: { chatId: string; /** records 
 
       {adding && (
         <RecordForm
-          initial={formOf({ name: '', kind: kind === 'all' ? (initial?.add === 'place' ? 'place' : 'person') : kind, aliases: [], text: '' })}
+          initial={formOf({ name: '', kind: kind === 'all' ? (initial?.add ?? 'person') : kind, aliases: [], text: '' })}
           placeNames={placeNames}
           past={false}
           busy={busy}
@@ -459,6 +461,7 @@ export function WorldRecords({ chatId, initial }: { chatId: string; /** records 
           />
         ))}
       </ul>
+      {book.confirmDialog}
       {confirmDialog}
     </div>
   )
