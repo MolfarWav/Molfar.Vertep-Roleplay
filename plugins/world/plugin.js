@@ -92,7 +92,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -108,11 +108,16 @@ const LINE_EXTRA = 40;
 const RETRY_FACTOR = 3;
 const RETRY_MAX = 12000;
 const NAME_MAX = 80;
+// fronts, backgrounds and the like keep this size; a record's text follows the chat's settings.textMax (bounds below)
 const TEXT_MAX = 600;
 const PAST_TEXT_MAX = 240;
+const TEXT_BOUNDS = [200, 3000];
+const PAST_HARD = 1200;
+const CHANGES_BOUNDS = [4, 20];
+// a recipe section builds at most this many records per call
+const SECTION_MAX = 8;
 const ALIASES_MAX = 6;
 const ENTITIES_MAX = 300;
-const CHANGES_MAX = 8;
 const LOG_MAX = 30;
 const FRONTS_MAX = 8;
 const EVENT_MAX = 400;
@@ -173,9 +178,19 @@ function cleanSettings(s) {
   const level = LEVELS.includes(b.level) ? b.level : DEFAULT_SETTINGS.level;
   const n = Number(b.everyN);
   const st = Number(b.stagnation);
+  const rn = Number(b.recordsEveryN);
+  const tm = Number(b.textMax);
+  const cm = Number(b.changesMax);
   return {
     level,
     everyN: Number.isFinite(n) ? clamp(Math.round(n), 1, 50) : DEFAULT_SETTINGS.everyN,
+    // how often the records are written; 0 = with every N (the fronts and events keep every N)
+    recordsEveryN: Number.isFinite(rn) && rn >= 1 ? clamp(Math.round(rn), 1, 50) : 0,
+    // the size of a record's text and the number of changes in one run (bounds: TEXT_BOUNDS, CHANGES_BOUNDS)
+    textMax: Number.isFinite(tm) ? clamp(Math.round(tm), TEXT_BOUNDS[0], TEXT_BOUNDS[1]) : DEFAULT_SETTINGS.textMax,
+    changesMax: Number.isFinite(cm) ? clamp(Math.round(cm), CHANGES_BOUNDS[0], CHANGES_BOUNDS[1]) : DEFAULT_SETTINGS.changesMax,
+    // a run when the story leaves a place (the Dashboard's place changed since the last run)
+    onPlace: typeof b.onPlace === "boolean" ? b.onPlace : DEFAULT_SETTINGS.onPlace,
     // 0 = no stagnation trigger
     stagnation: Number.isFinite(st) ? clamp(Math.round(st), 0, 50) : DEFAULT_SETTINGS.stagnation,
     onTransition: typeof b.onTransition === "boolean" ? b.onTransition : DEFAULT_SETTINGS.onTransition,
@@ -235,7 +250,7 @@ function cleanEntity(e) {
   const id = str(e.id);
   if (!name || !/^[a-z]\d{1,6}$/.test(id)) return null;
   const past = e.status === "past";
-  const text = cut(str(e.text), past ? PAST_TEXT_MAX : TEXT_MAX);
+  const text = cut(str(e.text), past ? PAST_HARD : TEXT_BOUNDS[1]);
   return {
     id,
     kind: KINDS.includes(e.kind) ? e.kind : "fact",
@@ -277,6 +292,9 @@ export function normalizeState(raw, chatId) {
   out.event = cleanEvent(s.event);
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
+  // the message the last full run (fronts, events) read up to, and the place the last run saw
+  if (typeof s.levelKey === "string" && s.levelKey) out.levelKey = s.levelKey;
+  if (typeof s.lastPlace === "string" && s.lastPlace) out.lastPlace = cut(s.lastPlace, NAME_MAX * 2);
   if (Number.isInteger(s.clockReplies) && s.clockReplies > 0) out.clockReplies = s.clockReplies;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
@@ -426,8 +444,13 @@ export function sceneOf(fsx, chatId, msgs) {
     direction: DIRECTIONS.includes(sc.direction) ? sc.direction : null,
     before: DIRECTIONS.includes(sc.before) ? sc.before : null,
     stagnant,
+    // where the sensor puts the scene now (free text)
+    place: isObj(last.clock) ? cut(str(last.clock.place), NAME_MAX * 2) : "",
   };
 }
+
+/** A place as the DM compares it between runs: case, punctuation and spaces do not count. */
+export const placeKey = (place) => str(place).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /** The direction the DM goes by: the sensor's, else what the DM said last time. */
 const directionOf = (state, scene) => (scene && scene.direction) || state.direction || null;
@@ -441,7 +464,12 @@ export function dueReason(state, msgs, scene) {
   const dir = directionOf(state, scene);
   if (dir === "explicit") return null;
   if (state.settings.onTransition && scene && scene.direction === "transition" && state.transitionKey !== scene.key) return "transition";
-  if (dueIn(state, msgs) === 0) return "every";
+  // the story left a place: write the scene it was. Two new replies at least, so a place the sensor words
+  // differently from one reply to the next does not run the DM every time
+  if (state.settings.onPlace && scene && placeKey(scene.place) && state.lastPlace && placeKey(scene.place) !== state.lastPlace && repliesSince(msgs, state.lastKey) >= 2) return "place";
+  const due = dueParts(state, msgs);
+  if (due.full === 0) return "every";
+  if (due.records === 0) return "records";
   if (state.settings.stagnation > 0 && scene) {
     const factor = STAGNATION_FACTOR[dir || "social"];
     // the still stretch counts from the last run too, or a scene that stays still would run the DM every reply
@@ -451,10 +479,20 @@ export function dueReason(state, msgs, scene) {
   return null;
 }
 
+const repliesSince = (msgs, key) => unreadMessages(msgs, key).filter(isReply).length;
+
+/** Replies until the next full run (fronts, events) and until the next records-only run; the chronicler has only the records' cadence. */
+function dueParts(state, msgs) {
+  const s = state.settings;
+  const records = Math.max(0, (s.recordsEveryN || s.everyN) - repliesSince(msgs, state.lastKey));
+  const full = s.level === "chronicler" ? records : Math.max(0, s.everyN - repliesSince(msgs, state.levelKey || state.lastKey));
+  return { records, full };
+}
+
 /** How many replies until the next automatic run (0 = due now). */
 export function dueIn(state, msgs) {
-  const replies = unreadMessages(msgs, state.lastKey).filter(isReply).length;
-  return Math.max(0, state.settings.everyN - replies);
+  const due = dueParts(state, msgs);
+  return Math.min(due.records, due.full);
 }
 
 function memberIds(fsx, meta) {
@@ -496,14 +534,17 @@ const CHRONICLER_RULES = [
   "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
   "- Write names and text in the language and script of the story's replies. Only the JSON keys and kind values are English.",
   "- When the player writes in another language or script, add the player's spellings of a name to its aliases too (Anna and \u0410\u043d\u043d\u0430): the book matches names in both.",
-  "- At most " + CHANGES_MAX + " changes in one reply. Nothing worth recording: empty lists.",
+  "- At most {changes} changes in one reply, each text at most {text} characters. Nothing worth recording: empty lists.",
 ];
 // the reply's shape: locked, parseReply and applyReport depend on it
 const CHRONICLER_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
   '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"..."}],"update":[{"id":"n3","text":"...","aliases":["..."]}],"retire":[{"id":"n3","text":"..."}],"summary":"one short line: what changed in the world"}',
 ];
-export const CHRONICLER_SYSTEM = [...CHRONICLER_RULES, ...CHRONICLER_OUTPUT].join("\n");
+/** The limits a prompt names: the chat's own, else the defaults. */
+const limitsOf = (settings) => ({ changes: settings ? settings.changesMax : DEFAULT_SETTINGS.changesMax, text: settings ? settings.textMax : DEFAULT_SETTINGS.textMax });
+const withLimits = (text, limits) => text.replace(/\{changes\}/g, String(limits.changes)).replace(/\{text\}/g, String(limits.text));
+export const CHRONICLER_SYSTEM = withLimits([...CHRONICLER_RULES, ...CHRONICLER_OUTPUT].join("\n"), limitsOf(null));
 
 // what each level above the chronicler may do; one block, added to the chronicler's rules
 const LEVEL_RULES = {
@@ -656,11 +697,13 @@ export function profileFor(fsx, settings) {
 const blockText = (profile, key) => (profile && profile.blocks[key]) || defaultBlocks(profile ? profile.base : "chronicler")[key] || "";
 
 /** The system prompt of a run: a level name (built-in texts) or a profile (its blocks, the output locked). */
-export function systemFor(levelOrProfile) {
+export function systemFor(levelOrProfile, settings, recordsOnly) {
   const profile = isObj(levelOrProfile) ? levelOrProfile : { base: levelOrProfile, blocks: {} };
   const keeper = blockText(profile, "keeper");
-  if (!LEVEL_RULES[profile.base]) return [keeper, ...CHRONICLER_OUTPUT].join("\n");
-  return [keeper, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n");
+  const limits = limitsOf(settings);
+  // a records-only run (a place change, or the records' own cadence) leaves the fronts and the event alone
+  if (!LEVEL_RULES[profile.base] || recordsOnly) return withLimits([keeper, ...CHRONICLER_OUTPUT].join("\n"), limits);
+  return withLimits([keeper, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n"), limits);
 }
 
 function profileView(fsx, p, used) {
@@ -904,11 +947,14 @@ function findEntity(entities, change) {
 }
 
 /** At most two sentences, within the retired size. */
-export function shortText(text) {
+export function shortText(text, max) {
   const s = str(text);
   const m = /^(.+?[.!?…])\s+(.+?[.!?…])(\s|$)/s.exec(s);
-  return cut(m ? m[1] + " " + m[2] : s, PAST_TEXT_MAX);
+  return cut(m ? m[1] + " " + m[2] : s, max || PAST_TEXT_MAX);
 }
+
+/** A retired record's size follows the chat's text limit: 40% of it, at least the old default. */
+const pastMaxOf = (settings) => clamp(Math.round((settings ? settings.textMax : DEFAULT_SETTINGS.textMax) * 0.4), PAST_TEXT_MAX, PAST_HARD);
 
 /**
  * Apply the DM's report to the state (in place). Names of cards and of the user are never
@@ -920,12 +966,16 @@ export function applyReport(state, out, { cards, userName, now }) {
   const skip = [...cards, ...(userName ? [userName] : [])];
   const isSkipped = (name) => skip.some((n) => sameName(n, name));
   let changes = 0;
-  const room = () => changes < CHANGES_MAX;
+  // a draft (a world built without a chat) has no settings of its own: the defaults
+  const set = isObj(state.settings) ? state.settings : DEFAULT_SETTINGS;
+  const textMax = set.textMax;
+  const pastMax = pastMaxOf(set);
+  const room = () => changes < set.changesMax;
   for (const raw of arr(out.add)) {
     if (!room() || !isObj(raw)) continue;
     const name = cut(str(raw.name), NAME_MAX);
     if (!name || isSkipped(name)) continue;
-    const text = cut(str(raw.text), TEXT_MAX);
+    const text = cut(str(raw.text), textMax);
     const known = findEntity(state.entities, { name });
     if (known) {
       if (known.status === "past" || !text || text === known.text) continue;
@@ -943,7 +993,7 @@ export function applyReport(state, out, { cards, userName, now }) {
     if (!room() || !isObj(raw)) continue;
     const e = findEntity(state.entities, raw);
     if (!e || e.status === "past") continue;
-    const text = cut(str(raw.text), TEXT_MAX);
+    const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
     if ((!text || text === e.text) && aliases.length === e.aliases.length) continue;
     if (text) e.text = text;
@@ -956,7 +1006,7 @@ export function applyReport(state, out, { cards, userName, now }) {
     const e = findEntity(state.entities, raw);
     if (!e || e.status === "past") continue;
     e.status = "past";
-    e.text = shortText(str(raw.text) || e.text);
+    e.text = shortText(str(raw.text) || e.text, pastMax);
     e.at = at;
     changes++;
   }
@@ -996,7 +1046,7 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
   if (said) state.direction = said;
   const dir = direction || said || state.direction || null;
   for (const raw of arr(out.fronts)) {
-    if (!isObj(raw) || changes >= CHANGES_MAX) continue;
+    if (!isObj(raw) || changes >= (isObj(state.settings) ? state.settings : DEFAULT_SETTINGS).changesMax) continue;
     const op = str(raw.op);
     if (op === "add") {
       const name = cut(str(raw.name), NAME_MAX);
@@ -1449,7 +1499,7 @@ function cleanRecipe(raw, id) {
   const sections = arr(raw.sections).filter(isObj).slice(0, SECTIONS_MAX).map((s, i) => ({
     id: RECIPE_ID.test(str(s.id)) ? str(s.id) : "s" + (i + 1),
     kinds: arr(s.kinds).filter((k) => KINDS.includes(k)).length ? arr(s.kinds).filter((k) => KINDS.includes(k)) : KINDS,
-    max: clamp(Math.round(num(s.max)) || CHANGES_MAX, 1, CHANGES_MAX),
+    max: clamp(Math.round(num(s.max)) || SECTION_MAX, 1, SECTION_MAX),
     prompt: cut(str(s.prompt), 1000),
   })).filter((s) => s.prompt);
   if (!sections.length) return null;
@@ -2540,13 +2590,38 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
   };
 }
 
+/**
+ * The DM is on for every chat from its first reply (user, 2026-10-29), at the chronicler's level: a chat
+ * with no state file counts as switched on, and the first run writes the file. A switch-off writes the
+ * file with level "off", which is what keeps it off. Not for a chat whose cards are all assistants:
+ * they are no story and there is no world to keep (the player can still switch it on by hand).
+ */
+export function autoOn(fsx, meta) {
+  const ids = memberIds(fsx, meta);
+  if (!ids.length) return true;
+  return ids.some((id) => {
+    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+    const ext = isObj(card) && isObj(card.extensions) ? card.extensions : {};
+    return str(ext.molfar_card_type) !== "assistant";
+  });
+}
+
+/** Where a DM that starts now begins reading: the last few messages, not the whole story. */
+function startKeyOf(msgs, settings) {
+  const unread = msgs.slice(-Math.max(2, settings.everyN * 2));
+  const before = msgs[msgs.length - unread.length - 1];
+  return before ? keyOf(before) : null;
+}
+
 function stateRoute(req, host) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const chat = readChat(host.fs, chatId);
   if (!chat) return ok({ error: "no such chat" }, 404);
   const cfg = loadConfig(host.fs);
-  return ok(stateView(loadState(host.fs, chatId).state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta), host.fs));
+  const { state, existed } = loadState(host.fs, chatId);
+  if (!existed && autoOn(host.fs, chat.meta)) state.settings = { ...state.settings, level: "chronicler" };
+  return ok(stateView(state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta), host.fs));
 }
 
 /** "Look at the world": the records only, newest first; the DM's plans (fronts, the event) stay its own. */
@@ -2568,8 +2643,10 @@ function settingsRoute(req, host) {
   if (!chat) return ok({ error: "no such chat" }, 404);
   if (b.level !== undefined && !READY_LEVELS.includes(b.level)) return ok({ error: "unknown or unfinished level" }, 400);
   const { state, existed } = loadState(host.fs, chatId);
+  // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
+  if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = { ...state.settings, level: "chronicler" };
   const patch = {};
-  for (const k of ["level", "everyN", "stagnation", "onTransition", "insert", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -2583,11 +2660,7 @@ function settingsRoute(req, host) {
   // switched on for the first time: the DM starts reading from now, not from the first message
   // (also when a state file was saved with the DM off and it never ran: lastKey is still null)
   const fresh = !existed || (state.settings.level === "off" && state.lastKey === null && !state.lastRunAt);
-  if (fresh && next.level !== "off" && chat.msgs.length && b.fromStart !== true) {
-    const unread = chat.msgs.slice(-Math.max(2, next.everyN * 2));
-    const before = chat.msgs[chat.msgs.length - unread.length - 1];
-    state.lastKey = before ? keyOf(before) : null;
-  }
+  if (fresh && next.level !== "off" && chat.msgs.length && b.fromStart !== true) state.lastKey = startKeyOf(chat.msgs, next);
   // a level with no events drops a waiting one
   if ((next.level === "off" || next.level === "chronicler") && state.event) state.event = null;
   state.settings = next;
@@ -2664,8 +2737,14 @@ function updateRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const chat = readChat(fsx, chatId);
   if (!chat) return ok({ error: "no such chat" }, 404);
-  const { state } = loadState(fsx, chatId);
+  const { state, existed } = loadState(fsx, chatId);
   const cfg = loadConfig(fsx);
+  // the first run of a chat that never had a state file: the DM switches itself on (see autoOn)
+  if (!existed && autoOn(fsx, chat.meta)) {
+    state.settings = { ...state.settings, level: "chronicler" };
+    if (chat.msgs.length) state.lastKey = startKeyOf(chat.msgs, state.settings);
+    saveState(fsx, state);
+  }
   if (state.settings.level === "off") return ok({ ok: true, skipped: "off" });
   const auto = b.auto === true || b.auto === "true";
   const unread = unreadMessages(chat.msgs, state.lastKey);
@@ -2676,6 +2755,8 @@ function updateRoute(req, host) {
   if (directionOf(state, scene) === "explicit") return ok({ ok: true, skipped: "explicit" });
   const reason = auto ? dueReason(state, chat.msgs, scene) : "manual";
   if (!reason) return ok({ ok: true, skipped: "waiting", dueIn: dueIn(state, chat.msgs) });
+  // a scene written because the story left it, or the records' own turn: records only, the fronts and events keep their cadence
+  const recordsOnly = reason === "place" || reason === "records";
   const stash = isObj(req.stash) ? req.stash : {};
   const retry = stash.retry === true;
   const key = retry ? "world_retry" : "world";
@@ -2691,9 +2772,9 @@ function updateRoute(req, host) {
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
-      systemPrompt: systemFor(profile || level),
+      systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level, options,
+        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
@@ -2738,10 +2819,13 @@ function updateRoute(req, host) {
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const changes = applyReport(state, out, { cards, userName, now: Date.now() });
   const codeClocks = options.clocks === "code";
-  let moved = level !== "chronicler" ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;
+  let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;
   if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now());
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
+  // a full run restarts the fronts' and events' count; a records-only run leaves it
+  if (!recordsOnly) state.levelKey = state.lastKey;
+  if (scene && placeKey(scene.place)) state.lastPlace = placeKey(scene.place);
   state.lastRunAt = Date.now();
   if (str(r.model)) state.lastModel = str(r.model);
   delete state.lastError;
@@ -2860,7 +2944,7 @@ function recordsRoute(req, host) {
   const op = str(b.op);
   const now = Date.now();
   const name = cut(str(r.name), NAME_MAX);
-  const text = cut(str(r.text), TEXT_MAX);
+  const text = cut(str(r.text), state.settings.textMax);
   const clash = (exceptId) => state.entities.find((e) => e.id !== exceptId && namesOf(e).some((n) => sameName(n, name)));
   if (op === "add") {
     if (!name || !text) return ok({ error: "a record needs a name and a text" }, 400);
@@ -2875,7 +2959,7 @@ function recordsRoute(req, host) {
       if (name) e.name = name;
       if (r.text !== undefined) {
         if (!text) return ok({ error: "a record needs a text" }, 400);
-        e.text = e.status === "past" ? cut(text, PAST_TEXT_MAX) : text;
+        e.text = e.status === "past" ? cut(text, pastMaxOf(state.settings)) : text;
       }
       if (KINDS.includes(r.kind)) e.kind = r.kind;
       if (r.aliases !== undefined) e.aliases = cleanAliases(r.aliases, e.name);
@@ -2883,7 +2967,7 @@ function recordsRoute(req, host) {
       else if (r.pinned === false) delete e.pinned;
     } else if (op === "retire") {
       e.status = "past";
-      e.text = shortText(text || e.text);
+      e.text = shortText(text || e.text, pastMaxOf(state.settings));
     } else if (op === "restore") e.status = "active";
     else if (op === "delete") state.entities = state.entities.filter((x) => x !== e);
     else return ok({ error: "unknown op" }, 400);

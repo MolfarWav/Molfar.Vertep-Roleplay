@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, placeKey, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -132,7 +132,13 @@ describe("applyReport", () => {
   it("caps the changes of one run", () => {
     const st = emptyState("c1");
     const add = Array.from({ length: 20 }, (_, i) => ({ kind: "place", name: "Place " + i, text: "A place." }));
-    expect(applyReport(st, { add }, { cards: [], userName: "", now: 1 })).toBe(8);
+    expect(applyReport(st, { add }, { cards: [], userName: "", now: 1 })).toBe(12);
+    // the chat's own limits: fewer changes, shorter texts
+    const small = emptyState("c1");
+    small.settings.changesMax = 4;
+    small.settings.textMax = 200;
+    expect(applyReport(small, { add: add.map((a) => ({ ...a, text: "x".repeat(500) })) }, { cards: [], userName: "", now: 1 })).toBe(4);
+    expect(small.entities[0]!.text.length).toBe(200);
   });
 
   it("dmInput lists the cast, the record and the new story", () => {
@@ -149,11 +155,14 @@ describe("applyReport", () => {
 describe("routes", () => {
   it("off by default; settings refuse unfinished levels; switching on starts near the end", () => {
     const m = memHost(seed());
-    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json).toMatchObject({ settings: { level: "off", everyN: 5 }, records: 0 });
+    // a chat with no state file counts as switched on (chronicler), until the player switches it off
+    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json).toMatchObject({ settings: { level: "chronicler", everyN: 5 }, records: 0 });
+    expect(m.files["world/state/c1.json"]).toBeUndefined();
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "off" });
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, stagnation: 6, onTransition: true, insert: true, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -254,7 +263,7 @@ describe("the scene from the Dashboard", () => {
       "m0#0": { ...calm("social"), scene: { new: true, direction: "social" } },
       "m2#0": calm("domestic"), "m4#0": calm("domestic"), "m9#0": calm("combat"),
     }) });
-    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2 });
+    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen" });
     expect(sceneOf(memHost(seed()).host.fs, "c1", STORY)).toBe(null);
   });
 
@@ -902,5 +911,109 @@ describe("P3 stage 2: profile options", () => {
     expect(after.fronts[0].clock).toBe(1);
     expect(after.clockReplies).toBe(1);
     expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0 });
+  });
+});
+
+// ---------- on by default, the chat's limits, places and the records' cadence (#176) ----------
+describe("the DM on by default", () => {
+  it("a chat with no state file switches itself on at its first run and starts near the end", () => {
+    const many = Array.from({ length: 14 }, (_, i) => msg(i, i % 2 ? "user" : "char", "Line " + i));
+    const m = memHost(seed(many));
+    const out = route(m.host, "POST", "/world/update", { chatId: "c1" });
+    expect(out.__llmPending).toBe(true);
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(st.settings.level).toBe("chronicler");
+    // the last everyN * 2 = 10 messages are read, not the whole story
+    expect(st.lastKey).toBe("m3#0");
+    expect(m.requests[0]!.spec.messages[0].content).toContain("Line 13");
+    expect(m.requests[0]!.spec.messages[0].content).not.toContain("Line 3");
+  });
+
+  it("a switch-off sticks; a save that only touches the dice does not switch the chat off", () => {
+    const m = memHost(seed());
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", diceShow: true });
+    expect(JSON.parse(m.files["world/state/c1.json"]!).settings).toMatchObject({ level: "chronicler", diceShow: true });
+    const off = memHost(seed());
+    route(off.host, "PUT", "/world/settings", { chatId: "c1", level: "off" });
+    expect(route(off.host, "POST", "/world/update", { chatId: "c1", auto: true }).json).toEqual({ ok: true, skipped: "off" });
+  });
+
+  it("a chat whose only card is an assistant stays off until the player switches it on", () => {
+    const m = memHost({ ...seed(), "characters/odarka/card.json": JSON.stringify({ name: "Odarka", extensions: { molfar_card_type: "assistant" } }) });
+    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json.settings.level).toBe("off");
+    expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
+    expect(m.files["world/state/c1.json"]).toBeUndefined();
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler" }).json.settings.level).toBe("chronicler");
+  });
+});
+
+describe("the chat's limits in the prompt", () => {
+  it("names the changes and the text size of this chat", () => {
+    const st = emptyState("c1");
+    st.settings.changesMax = 6;
+    st.settings.textMax = 1200;
+    const text = systemFor("chronicler", st.settings);
+    expect(text).toContain("At most 6 changes in one reply, each text at most 1200 characters.");
+    expect(systemFor("chronicler")).toContain("At most 12 changes in one reply, each text at most 900 characters.");
+    expect(defaultBlocks("chronicler").keeper).toContain("{changes}");
+  });
+
+  it("bounds the settings", () => {
+    const s = normalizeState({ settings: { level: "chronicler", textMax: 5, changesMax: 99, recordsEveryN: 500 } }, "c1").settings;
+    expect([s.textMax, s.changesMax, s.recordsEveryN]).toEqual([200, 20, 50]);
+  });
+});
+
+describe("runs when the story leaves a place, and the records' own cadence", () => {
+  const scene = (place: string, stagnant = 0) => ({ key: "m4#0", direction: "social", before: null, stagnant, place });
+
+  it("dueReason: place changed since the last run, two replies at least, once", () => {
+    const st = emptyState("c1");
+    st.settings = { ...st.settings, level: "director", everyN: 10 };
+    st.lastPlace = placeKey("The Kitchen");
+    expect(dueReason(st, STORY, scene("the kitchen."))).toBe(null);
+    expect(dueReason(st, STORY, scene("The Garden"))).toBe("place");
+    st.settings.onPlace = false;
+    expect(dueReason(st, STORY, scene("The Garden"))).toBe(null);
+    st.settings.onPlace = true;
+    // one reply since the last run: not enough
+    st.lastKey = "m3#0";
+    expect(dueReason(st, STORY, scene("The Garden"))).toBe(null);
+    // the first run ever has no place to compare with
+    st.lastKey = null;
+    delete st.lastPlace;
+    expect(dueReason(st, STORY, scene("The Garden"))).toBe(null);
+  });
+
+  it("recordsEveryN: records-only runs between the full runs; the full count stays", () => {
+    const st = emptyState("c1");
+    st.settings = { ...st.settings, level: "director", everyN: 10, recordsEveryN: 2 };
+    st.lastKey = "m1#0";
+    st.levelKey = "m1#0";
+    // m2, m3, m4: 2 replies since the last run
+    expect(dueReason(st, STORY, null)).toBe("records");
+    expect(dueIn(st, STORY)).toBe(0);
+    st.lastKey = "m3#0";
+    expect(dueReason(st, STORY, null)).toBe(null);
+    expect(dueIn(st, STORY)).toBe(1);
+    // the full run is still counted from its own key
+    st.settings.everyN = 2;
+    expect(dueReason(st, STORY, null)).toBe("every");
+  });
+
+  it("a place run writes records only: no fronts or event in the prompt, the full count and the place move on", () => {
+    const m = memHost({ ...seed(), "dashboard/state/c1.json": dashState({ "m4#0": calm("social", { clock: { place: "The Garden" } }) }) });
+    m.files["world/state/c1.json"] = JSON.stringify({ ...emptyState("c1"), lastPlace: "kitchen", settings: { ...emptyState("c1").settings, level: "director", everyN: 10, textMax: 900 } });
+    const first = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    expect(first.__llmPending).toBe(true);
+    expect(m.requests[0]!.spec.systemPrompt).not.toContain("fronts");
+    expect(m.requests[0]!.spec.messages[0].content).not.toContain("Fronts");
+    m.results.world = { text: REPORT, model: "c/dm" };
+    route(m.host, "POST", "/world/update", { chatId: "c1", auto: true }, {}, first.stash);
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(st.log.at(-1).reason).toBe("place");
+    expect(st.lastPlace).toBe("the garden");
+    expect(st.levelKey).toBeUndefined();
+    expect(st.lastKey).toBe("m4#0");
   });
 });

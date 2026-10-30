@@ -412,8 +412,8 @@ player switches it on for that chat. It writes:
   `content` = "Name: text". The DM rewrites only entries whose memo starts with `world:`; any other entry in
   the book is left alone.
 - the chat meta's `worldBookId`: names that book; the engine adds it to the chat's scope before every reply.
-- `world/state/<chatId>.json`: `{ v: 1, chatId, bookId, settings: { level, everyN, stagnation, onTransition,
-  insert }, lastKey, nextId, entities: [{ id, kind, name, aliases, text, status, uid, at? }], nextFront,
+- `world/state/<chatId>.json`: `{ v: 1, chatId, bookId, settings: { level, everyN, recordsEveryN, stagnation,
+  onTransition, onPlace, insert, textMax, changesMax }, lastKey, levelKey?, lastPlace?, nextId, entities: [{ id, kind, name, aliases, text, status, uid, at? }], nextFront,
   fronts: [{ id, name, goal, clock, size, status, at? }], event, direction?, transitionKey?, log: [{ at, key,
   reason, changes, fronts, summary }], lastRunAt?, lastModel?, lastError? }`.
   - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
@@ -421,6 +421,18 @@ player switches it on for that chat. It writes:
   - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
     that many replies (0 = never, default 6; x2 at home, x0.5 on the road, paused in a fight); `onTransition` = right
     after a time skip. The last two need the Relationship dashboard. Nothing runs in an explicit scene.
+  - On by default (4.78): a chat with NO state file counts as switched on at `chronicler`; its first run writes
+    the file and starts reading at the last `everyN * 2` messages. A state file with `level: "off"` is what keeps a
+    chat off. A chat whose cards are all `extensions.molfar_card_type: "assistant"` is not switched on by itself.
+  - `recordsEveryN` (0-50; 0 = same as `everyN`): how often the records are written. Below `everyN` the extra runs
+    are records-only (no fronts, no event). `onPlace` (default true): a records-only run, reason `place`, when the
+    Dashboard's `clock.place` differs from `lastPlace` (compared without case or punctuation) and at least two
+    replies are unread. `levelKey` = the newest message a full run read (fronts and events count from it);
+    `lastPlace` = the place the last run saw.
+  - `textMax` (200-3000, default 900) is the size of a record's text (a retired one keeps 40% of it, at least 240);
+    `changesMax` (4-20, default 12) is the changes one run may make. Both are named in the DM's prompt (the
+    `{changes}` and `{text}` marks of the keeper block) and enforced by code.
+  - Run `reason`: `every`, `records`, `place`, `stagnation`, `transition`, `manual`, `start`, `deck`, `keys`.
   - `insert`: `false` keeps the DM running but sends the story model no events (also the chat's prompt board key
     `plugin:world`).
   - `lastKey` = `<messageId>#<swipe>` of the newest message the DM has read; `kind` is `person`, `place`, `group`,

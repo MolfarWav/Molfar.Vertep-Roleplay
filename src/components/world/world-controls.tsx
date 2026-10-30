@@ -174,6 +174,41 @@ export function WorldErrorCard({
   )
 }
 
+/** A number setting: the draft is kept while typing, committed on blur or Enter, clamped to its bounds. */
+function NumRow({ label, hint, value, min, max, step, onCommit }: { label: string; hint: string; value: number; min: number; max: number; step?: number; onCommit: (n: number) => void }) {
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => setDraft(String(value)), [value])
+  const commit = () => {
+    const n = Math.round(Number(draft))
+    if (!Number.isFinite(n) || draft.trim() === '') return setDraft(String(value))
+    const next = Math.min(max, Math.max(min, n))
+    if (next !== value) onCommit(next)
+    else setDraft(String(value))
+  }
+  return (
+    <label className="flex items-center justify-between gap-3 text-sm">
+      <span className="min-w-0">
+        {label}
+        <span className="block text-xs text-muted-foreground">{hint}</span>
+      </span>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        step={step ?? 1}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+        }}
+        className="h-10 w-20 shrink-0 text-right md:h-8"
+      />
+    </label>
+  )
+}
+
 export function WorldControls({
   chatId,
   where,
@@ -464,6 +499,10 @@ export function WorldControls({
         disabled={!view.sensor}
         onChange={(v) => void save({ onTransition: v })}
       />
+      <SwitchRow label={t('world.place')} hint={view.sensor ? t('world.placeHint') : t('world.noSensor')} checked={view.settings.onPlace} disabled={!view.sensor} onChange={(v) => void save({ onPlace: v })} />
+      <NumRow label={t('world.recordsEvery')} hint={t('world.recordsEveryHint')} value={view.settings.recordsEveryN} min={0} max={50} onCommit={(n) => void save({ recordsEveryN: n })} />
+      <NumRow label={t('world.textMax')} hint={t('world.textMaxHint')} value={view.settings.textMax} min={200} max={3000} step={100} onCommit={(n) => void save({ textMax: n })} />
+      <NumRow label={t('world.changesMax')} hint={t('world.changesMaxHint')} value={view.settings.changesMax} min={4} max={20} onCommit={(n) => void save({ changesMax: n })} />
       {events && (
         <SwitchRow label={t('world.insert')} hint={t('world.insertHint')} checked={view.settings.insert} onChange={(v) => void save({ insert: v })} />
       )}
