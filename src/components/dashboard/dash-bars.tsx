@@ -8,6 +8,10 @@ import { useGlide } from './dash-motion'
 
 const minus = (v: number) => signed(v).replace('-', '−')
 
+/** A negative number is red (the minus sign and the bar's side say it too: colour is never alone). */
+export const NEG_TEXT = 'text-red-600 dark:text-red-400'
+export const NEG_BAR = 'bg-red-500'
+
 function TrendArrow({ dir }: { dir: -1 | 0 | 1 }) {
   return (
     <span
@@ -20,16 +24,18 @@ function TrendArrow({ dir }: { dir: -1 | 0 | 1 }) {
   )
 }
 
-function Label({ children }: { children: string }) {
-  return <div className="w-[86px] shrink-0 truncate font-heading text-[13px] text-muted-foreground" title={children}>{children}</div>
+function Label({ children, slim }: { children: string; slim?: boolean }) {
+  return <div className={cn('shrink-0 truncate font-heading text-muted-foreground', slim ? 'w-[58px] text-[12px]' : 'w-[86px] text-[13px]')} title={children}>{children}</div>
 }
 
-export function SignedBar({ stat, value, prev, tier, compact }: {
+export function SignedBar({ stat, value, prev, tier, compact, slim }: {
   stat: DispositionStat
   value: number
   prev?: number | null
   tier?: boolean
   compact?: boolean
+  /** the narrow label and number of the Attitude card beside the radar */
+  slim?: boolean
 }) {
   const t = useT()
   const tx = useTx()
@@ -41,7 +47,7 @@ export function SignedBar({ stat, value, prev, tier, compact }: {
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2">
-        <Label>{label}</Label>
+        <Label slim={slim}>{label}</Label>
         <div
           role="meter"
           aria-valuemin={-100}
@@ -53,20 +59,15 @@ export function SignedBar({ stat, value, prev, tier, compact }: {
           {(drawn !== 0 || value !== 0) && (
             <div
               aria-hidden="true"
-              className="absolute inset-y-0 box-border motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out"
+              className={cn('absolute inset-y-0 box-border motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out', (drawn !== 0 ? drawn : value) < 0 && NEG_BAR)}
               style={(drawn !== 0 ? drawn : value) > 0
                 ? { left: '50%', width: `${half}%`, background: color }
-                : {
-                    right: '50%',
-                    width: `${half}%`,
-                    border: `1px solid ${color}`,
-                    background: `repeating-linear-gradient(135deg, ${color} 0 2px, transparent 2px 5px)`,
-                  }}
+                : { right: '50%', width: `${half}%` }}
             />
           )}
           <div className="absolute inset-y-[-2px] left-1/2 w-px bg-border" aria-hidden="true" />
         </div>
-        <div className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums">{minus(value)}</div>
+        <div className={cn('shrink-0 text-right font-mono text-[11px] tabular-nums', slim ? 'w-8' : 'w-9', value < 0 && NEG_TEXT)}>{minus(value)}</div>
         <TrendArrow dir={trend(value, prev)} />
       </div>
       {tier && (
@@ -78,11 +79,12 @@ export function SignedBar({ stat, value, prev, tier, compact }: {
   )
 }
 
-export function PulseBar({ stat, value, base, prev }: {
+export function PulseBar({ stat, value, base, prev, slim }: {
   stat: PulseStat
   value: number
   base: number
   prev?: number | null
+  slim?: boolean
 }) {
   const t = useT()
   const color = STAT_COLORS[stat]
@@ -90,7 +92,7 @@ export function PulseBar({ stat, value, base, prev }: {
   const drawn = useGlide(value, prev)
   return (
     <div className="flex items-center gap-2">
-      <Label>{label}</Label>
+      <Label slim={slim}>{label}</Label>
       <div
         role="meter"
         aria-valuemin={0}
@@ -99,25 +101,25 @@ export function PulseBar({ stat, value, base, prev }: {
         aria-label={label}
         className="relative h-2 min-w-0 flex-1 bg-foreground/10"
       >
-        <div className="absolute inset-y-0 left-0 motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out" style={{ width: `${Math.min(100, drawn)}%`, background: color }} aria-hidden="true" />
+        <div className={cn('absolute inset-y-0 left-0 motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out', value < 0 && NEG_BAR)} style={value < 0 ? { width: `${Math.min(100, Math.abs(drawn))}%` } : { width: `${Math.min(100, drawn)}%`, background: color }} aria-hidden="true" />
         <div
           className="absolute inset-y-[-2px] w-px bg-foreground/60"
           style={{ left: `${base}%` }}
           title={t('dash.pulse.base', { n: base })}
         />
       </div>
-      <div className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums">{value}</div>
+      <div className={cn('shrink-0 text-right font-mono text-[11px] tabular-nums', slim ? 'w-8' : 'w-9', value < 0 && NEG_TEXT)}>{value}</div>
       <TrendArrow dir={trend(value, prev)} />
     </div>
   )
 }
 
-export function HostilityBar({ value, className }: { value: number; className?: string }) {
+export function HostilityBar({ value, className, slim }: { value: number; className?: string; slim?: boolean }) {
   const t = useT()
   const label = t('soul.stat.hostility')
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <Label>{label}</Label>
+      <Label slim={slim}>{label}</Label>
       <div
         role="meter"
         aria-valuemin={0}
@@ -128,7 +130,7 @@ export function HostilityBar({ value, className }: { value: number; className?: 
       >
         <div className="absolute inset-y-0 left-0" style={{ width: `${Math.min(100, value)}%`, background: STAT_COLORS.hostility }} aria-hidden="true" />
       </div>
-      <div className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums">{value}</div>
+      <div className={cn('shrink-0 text-right font-mono text-[11px] tabular-nums', slim ? 'w-8' : 'w-9')}>{value}</div>
       <span className="w-3 shrink-0" aria-hidden="true" />
     </div>
   )

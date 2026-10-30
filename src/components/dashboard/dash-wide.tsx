@@ -1,32 +1,42 @@
 import { useEffect, useState } from 'react'
-import { ArrowClockwise, Flag, GearSix, Heart, LinkSimple, Pulse, Star, UsersThree, X } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowsIn, ArrowsOut, Flag, GearSix, GlobeHemisphereWest, Heart, LinkSimple, Star, UsersThree, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
-import { HostilityBar, PulseBar, SignedBar } from './dash-bars'
+import { HostilityBar, SignedBar } from './dash-bars'
 import { Notebook } from './dash-notebook'
 import { StatChart, StoryList } from './dash-history'
 import { EventList } from './dash-events'
 import { cn } from '@/lib/utils'
 import { BANDS, canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
-import { DISPOSITION, PULSE, type DispositionStat } from '@/lib/soul'
+import { DISPOSITION, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { CarriedBanner } from './dash-carried'
-import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, CharFields, CLASS_MARK, FooterLine, LiveDot, MARK, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, ChangeBadge, CLASS_MARK, FooterLine, LiveDot, MARK, Notices, SceneBlock, useTx, GOLD_TEXT } from './dash-common'
+import { HereCard, MoodCard, OutfitCard } from './dash-cards'
+import { personChanges, sceneChanges, tally } from '@/lib/dash-changes'
+import type { WorldHere } from '@/lib/world'
 import { ThreadList } from './dash-threads'
 import { useGuidePlace } from '@/components/guide/place'
 
-export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefresh, refreshing, onSettings, onClose, now, avatars, onPortrait, userName }: {
+export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, onRefresh, onReload, refreshing, onSettings, onClose, onWorld, fullscreen, onFullscreen, now, avatars, onPortrait, userName }: {
   chatId: string
   /** changes each time the strip's note chips ask for the notebook: scroll it into view */
   notebookSignal?: number
   view: DashView
+  here: WorldHere | null
   focus: string
   onFocus: (name: string) => void
   onRefresh: () => void
+  /** read the state and the World DM's records again */
+  onReload: () => void
   refreshing: boolean
   onSettings: () => void
   onClose: () => void
+  /** close the dashboard and open this chat's World section */
+  onWorld: () => void
+  fullscreen: boolean
+  onFullscreen: (on: boolean) => void
   now: number
   avatars: Record<string, string | undefined>
   /** opens the portrait dialog for a name (a click on the focused character's avatar) */
@@ -51,6 +61,9 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
   const present = view.order.filter((n) => view.present.includes(n) && view.chars[n])
   const constName = tx('dash.const', char.constellation)
   const band = view.clock?.band ?? null
+  const mine = personChanges(focus, char, here)
+  const statCount = tally(mine.filter((c) => c.kind === 'fell' || c.kind === 'rose'))
+  const scene = sceneChanges(view, here)
   const bandIdx = band ? (BANDS as readonly string[]).indexOf(band) : -1
 
   return (
@@ -63,12 +76,13 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
               type="button"
               onClick={() => onFocus(n)}
               className={cn(
-                'rounded-none border px-2.5 py-1 font-heading text-[13px] transition-colors',
+                'relative rounded-none border px-2.5 py-1 font-heading text-[13px] transition-colors max-md:min-h-10',
                 n === focus ? 'border-cta bg-cta/15 text-foreground' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
               {n}
               <span className="ml-1.5 text-[11px] opacity-70">{t(`soul.class.${view.chars[n].cls}`)}</span>
+              {n !== focus && <ChangeBadge count={tally(personChanges(n, view.chars[n], here))} className="absolute -top-1.5 -right-1.5" />}
             </button>
           ))}
         </div>
@@ -79,23 +93,30 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={refreshing} aria-label={t('dash.refresh')} title={t('dash.refresh')} className="rounded-none">
           <ArrowClockwise className={cn(refreshing && 'animate-spin')} />
         </Button>
+        <Button variant="ghost" onClick={onWorld} aria-label={t('dash.world.open')} title={t('dash.world.open')} className="rounded-none max-md:size-10" data-testid="dash-world">
+          <GlobeHemisphereWest aria-hidden="true" />
+          <span className="max-sm:sr-only">{t('dash.world')}</span>
+        </Button>
+        <Button variant="ghost" size="icon-sm" onClick={() => onFullscreen(!fullscreen)} aria-label={fullscreen ? t('dash.full.exit') : t('dash.full.enter')} aria-pressed={fullscreen} title={fullscreen ? t('dash.full.exit') : t('dash.full.enter')} className="rounded-none max-md:size-10" data-testid="dash-fullscreen">
+          {fullscreen ? <ArrowsIn /> : <ArrowsOut />}
+        </Button>
         <Button data-guide="dash.settings" variant="ghost" size="icon-sm" onClick={onSettings} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
           <GearSix />
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('dash.close')} title={t('dash.close')} className="rounded-none">
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('dash.close')} title={t('dash.close')} className="rounded-none max-md:size-10">
           <X />
         </Button>
       </div>
 
       <div className="flex flex-col gap-3 p-4">
         <CarriedBanner chatId={chatId} inherit={view.inherit} />
-        {view.clock && (
+        {(view.clock || here) && (
           <Box>
-            <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
-              <div className="min-w-0 max-w-full sm:min-w-[220px]">
-                <SceneBlock clock={view.clock} calendar={view.calendar} />
+            <div className="grid grid-cols-1 gap-x-6 gap-y-3 min-[900px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1fr)]">
+              <div className="min-w-0">
+                <SceneBlock clock={view.clock} calendar={view.calendar} weatherSize={48} />
               </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="flex min-w-0 flex-col gap-3">
                 <div className="flex flex-wrap gap-0.5">
                   {BANDS.map((b, i) => (
                     <span
@@ -118,12 +139,13 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
                   </div>
                 )}
               </div>
+              <HereCard here={here} scenePlace={view.clock?.place} chatId={chatId} onReload={onReload} count={tally(scene.filter((c) => c.tab === 'here'))} />
             </div>
           </Box>
         )}
 
         <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
-          <Box data-guide="dash.constellation" title={t('dash.tab.constellation')} tone="people" icon={Star}>
+          <Box data-guide="dash.constellation" title={t('dash.tab.constellation')} tone="people" icon={Star} count={statCount}>
             <div className="flex flex-col items-center gap-1 px-10 pt-2">
               <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={250} labels />
               <div className={cn('font-heading text-xl', GOLD_TEXT)}>{constName}</div>
@@ -135,7 +157,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
             </div>
           </Box>
 
-          <Box data-guide="dash.attitude" title={t('dash.attitude')} tone="people" icon={Heart}>
+          <Box data-guide="dash.attitude" title={t('dash.attitude')} tone="people" icon={Heart} count={statCount}>
             <div className="flex flex-col gap-2.5">
               <div>
                 <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
@@ -147,16 +169,10 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
             </div>
           </Box>
 
-          <Box title={t('dash.pulse')} tone="scene" icon={Pulse}>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                {PULSE.map((stat) => (
-                  <PulseBar key={stat} stat={stat} value={char.pulse[stat]} base={char.pulseBase[stat]} prev={char.prev?.pulse[stat]} />
-                ))}
-              </div>
-              <CharFields char={char} />
-            </div>
-          </Box>
+          <div className="flex min-w-0 flex-col gap-3">
+            <MoodCard char={char} count={tally(mine.filter((c) => c.kind === 'mood'))} />
+            <OutfitCard name={focus} char={char} here={here} chatId={chatId} onReload={onReload} count={tally(mine.filter((c) => c.kind === 'carry'))} />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
@@ -170,7 +186,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
           <Notebook id="dash-notebook" compact className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
-            <Box data-guide="dash.threads" title={t('dash.threads')} tone="plot" icon={Flag}>
+            <Box data-guide="dash.threads" title={t('dash.threads')} tone="plot" icon={Flag} count={tally(scene.filter((c) => c.tab === 'quests'))}>
               <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} limits={view.limits} proposals={view.proposals} />
             </Box>
 
@@ -194,6 +210,7 @@ export function DashWide({ chatId, notebookSignal, view, focus, onFocus, onRefre
                           <span className={cn('text-[12px]', GOLD_TEXT)}>{tx('dash.const', c.constellation)}</span>
                         </span>
                         {c.cls === 'hostile' && c.hostility !== null && <HostilityBar value={c.hostility} className="w-28 shrink-0 [&>div:first-child]:hidden" />}
+                        <ChangeBadge count={tally(personChanges(n, c, here))} />
                       </>
                     )
                     const row = 'flex w-full min-w-0 items-center gap-2.5 border border-border bg-background/40 px-2 py-1.5 text-left'

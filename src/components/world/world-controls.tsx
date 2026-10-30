@@ -37,6 +37,7 @@ import {
   saveWorldSettings,
   setWorldOverride,
   useWorldLive,
+  type WorldCarrySource,
   type WorldError,
   type WorldLevel,
   type WorldRecord,
@@ -57,6 +58,36 @@ function SwitchRow({ label, hint, checked, onChange, disabled }: { label: string
         <span className="block text-xs text-muted-foreground">{hint}</span>
       </span>
       <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
+    </div>
+  )
+}
+
+/** Where the outfit and what is in the hands come from: the Dashboard sensor (default) or the World DM's lists. */
+function CarryRow({ value, onChange }: { value: WorldCarrySource; onChange: (v: WorldCarrySource) => void }) {
+  const t = useT()
+  const options: { id: WorldCarrySource; label: string; hint: string }[] = [
+    { id: 'sensor', label: t('world.carry.sensor'), hint: t('world.carry.sensorHint') },
+    { id: 'dm', label: t('world.carry.dm'), hint: t('world.carry.dmHint') },
+  ]
+  return (
+    <div className="flex flex-col gap-1.5 text-sm" role="radiogroup" aria-label={t('world.carry.label')} data-testid="world-carry-source">
+      <span>{t('world.carry.label')}</span>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={value === o.id}
+            onClick={() => { if (value !== o.id) onChange(o.id) }}
+            className={cn('flex flex-col gap-0.5 rounded-md border p-2 text-left max-md:min-h-10', value === o.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent')}
+          >
+            <span className="font-medium">{o.label}</span>
+            <span className="text-xs text-muted-foreground">{o.hint}</span>
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-muted-foreground">{t('world.carry.next')}</span>
     </div>
   )
 }
@@ -500,6 +531,7 @@ export function WorldControls({
         onChange={(v) => void save({ onTransition: v })}
       />
       <SwitchRow label={t('world.place')} hint={view.sensor ? t('world.placeHint') : t('world.noSensor')} checked={view.settings.onPlace} disabled={!view.sensor} onChange={(v) => void save({ onPlace: v })} />
+      <CarryRow value={view.settings.carrySource ?? 'sensor'} onChange={(v) => void save({ carrySource: v })} />
       <NumRow label={t('world.recordsEvery')} hint={t('world.recordsEveryHint')} value={view.settings.recordsEveryN} min={0} max={50} onCommit={(n) => void save({ recordsEveryN: n })} />
       <NumRow label={t('world.textMax')} hint={t('world.textMaxHint')} value={view.settings.textMax} min={200} max={3000} step={100} onCommit={(n) => void save({ textMax: n })} />
       <NumRow label={t('world.changesMax')} hint={t('world.changesMaxHint')} value={view.settings.changesMax} min={4} max={20} onCommit={(n) => void save({ changesMax: n })} />

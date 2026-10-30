@@ -11,12 +11,13 @@ import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { setLooking } from '@/lib/attention'
 import { useIsDesktop } from '@/hooks/use-mobile'
-import { listWorldChats, useWorldLive, type WorldChat } from '@/lib/world'
+import { listWorldChats, useWorldLive, type WorldChat, type WorldRecord } from '@/lib/world'
 import { formatK, LevelChip, type OpenWorldSettings } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
 import { WorldBackgrounds } from '@/components/world/world-backgrounds'
 import { WorldRuns } from '@/components/world/world-runs'
 import { WorldRecords } from '@/components/world/world-records'
+import { WorldPlaces } from '@/components/world/world-places'
 import { WorldStart } from '@/components/world/world-start'
 import { NEW_WORLD, refreshSavedWorlds, useSavedWorlds, WorldDetail, WorldList } from '@/components/world/world-library'
 import { BuildingWorldPanel, NewWorldSetup } from '@/components/world/world-start'
@@ -28,8 +29,8 @@ import { WorldSettingsDialog } from '@/components/world/world-settings'
 
 const TAB_KEY = 'rp.worldTab'
 
-type Tab = 'overview' | 'records' | 'start' | 'backgrounds' | 'runs'
-const isTab = (v: string | null): v is Tab => v === 'overview' || v === 'records' || v === 'start' || v === 'backgrounds' || v === 'runs'
+type Tab = 'overview' | 'places' | 'records' | 'start' | 'backgrounds' | 'runs'
+const isTab = (v: string | null): v is Tab => v === 'overview' || v === 'places' || v === 'records' || v === 'start' || v === 'backgrounds' || v === 'runs'
 
 function readTab(): Tab {
   try {
@@ -157,6 +158,9 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
   const chat = Array.isArray(items) ? items.find((c) => c.chatId === chatId) : undefined
   // a chat with the DM off and no records is not in the list, but a sheet can send you to it
   const storeTitle = useApp((s) => s.chats.find((c) => c.id === chatId)?.title)
+  // a row of Places opens its record in Records, with the records already read
+  const [openRec, setOpenRec] = useState<{ records: WorldRecord[]; editId?: string; add?: 'place' } | undefined>(undefined)
+  const toRecords = (o: { records: WorldRecord[]; editId?: string; add?: 'place' }) => { setOpenRec(o); onTabChange('records') }
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-border p-3 md:p-5">
@@ -169,10 +173,13 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
             {t('world.openChat')}
           </Button>
         </div>
-        <Tabs value={tab} onValueChange={(v) => { if (isTab(v)) onTabChange(v) }} className="mt-3">
+        <Tabs value={tab} onValueChange={(v) => { if (isTab(v)) { setOpenRec(undefined); onTabChange(v) } }} className="mt-3">
           <TabsList className="max-md:h-10 max-md:w-full">
             <TabsTrigger value="overview" className="max-md:h-10">
               {t('world.tab.overview')}
+            </TabsTrigger>
+            <TabsTrigger value="places" className="max-md:h-10" data-testid="world-tab-places">
+              {t('world.tab.places')}
             </TabsTrigger>
             <TabsTrigger value="records" className="max-md:h-10">
               {t('world.tab.records')}
@@ -191,7 +198,8 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
         {tab === 'overview' && <WorldControls key={chatId} chatId={chatId} where="hub" wide onOpenSettings={onOpenSettings} />}
-        {tab === 'records' && <WorldRecords key={chatId} chatId={chatId} />}
+        {tab === 'places' && <WorldPlaces key={chatId} chatId={chatId} onOpenBackgrounds={() => onTabChange('backgrounds')} onOpenRecord={(r, all) => toRecords({ records: all, editId: r.id })} onAdd={(all) => toRecords({ records: all, add: 'place' })} />}
+        {tab === 'records' && <WorldRecords key={`${chatId}:${openRec?.editId ?? ''}${openRec?.add ?? ''}`} chatId={chatId} initial={openRec} />}
         {tab === 'start' && <WorldStart key={chatId} chatId={chatId} onOpenSettings={onOpenSettings} onAccepted={() => onTabChange('records')} />}
         {tab === 'backgrounds' && <WorldBackgrounds key={chatId} wref={{ chatId }} worldName={chat?.title || storeTitle || ''} onOpenSettings={onOpenSettings} />}
         {tab === 'runs' && <WorldRuns key={chatId} chatId={chatId} />}

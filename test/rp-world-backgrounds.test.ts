@@ -3,7 +3,7 @@ import type { BackgroundItem } from '../src/lib/types'
 
 // the helpers import engine.ts, which reads the frame URL at load
 ;(globalThis as { location?: unknown }).location ??= { pathname: '/app/u/roleplay/', origin: 'http://localhost' }
-const { addWords, convertCandidates, findByName, isSnake, looksUnnamed, parseTags, toSnake, uniqueName } = await import('../src/lib/world-backgrounds')
+const { addWords, convertCandidates, findByName, isSnake, looksUnnamed, mergeTags, parseTags, pickerGroups, pictureOf, placeTags, sceneBackgroundId, toSnake, uniqueName } = await import('../src/lib/world-backgrounds')
 
 const bg = (o: Partial<BackgroundItem>): BackgroundItem => ({ id: 'x', name: 'x', url: '', type: 'image', folderId: null, fitting: 'cover', ...o })
 
@@ -98,3 +98,47 @@ describe('background search', () => {
     expect(backgroundMatches(all[2]!, undefined, 'x')).toBe(false)
   })
 })
+
+// pictures bound to places (issue 176)
+const pbg = (id: string, name: string, folderId: string | null, extra: Partial<BackgroundItem> = {}): BackgroundItem => ({ id, name, url: `/v1/assets/${id}`, type: "image", folderId, fitting: "cover", ...extra });
+
+describe("place pictures", () => {
+  it("tags a picture with the place's name and aliases first, lower case, no repeats, at most 8", () => {
+    expect(placeTags("Mei's Apartment", ["Home", "home", " Mei apartment "])).toEqual(["mei's apartment", "home", "mei apartment"]);
+    expect(mergeTags(["a", "b"], ["B", "c"])).toEqual(["a", "b", "c"]);
+    const many = mergeTags(["one", "two", "three", "four", "five", "six"], ["seven", "eight", "nine", "ten"]);
+    expect(many).toHaveLength(8);
+    expect(many.at(-1)).toBe("eight");
+    expect(placeTags("", [])).toEqual([]);
+  });
+
+  it("finds the bound picture, and ignores one that was deleted from the library", () => {
+    const lib = [pbg("b1", "living", "w"), pbg("b2", "clip", "w", { type: "video" })];
+    expect(pictureOf("b1", lib)?.name).toBe("living");
+    expect(pictureOf("gone", lib)).toBeNull();
+    expect(pictureOf("b2", lib)).toBeNull();
+    expect(pictureOf("", lib)).toBeNull();
+    expect(pictureOf(undefined, lib)).toBeNull();
+  });
+
+  it("picks the scene's background id only when the library still has it", () => {
+    const lib = [pbg("b1", "living", "w")];
+    expect(sceneBackgroundId({ background: "b1" }, lib)).toBe("b1");
+    expect(sceneBackgroundId({ background: "gone" }, lib)).toBeNull();
+    expect(sceneBackgroundId({ background: null }, lib)).toBeNull();
+    expect(sceneBackgroundId(null, lib)).toBeNull();
+  });
+
+  it("offers the world's folder first, then the others, narrowed by name or tag", () => {
+    const lib = [pbg("a", "kitchen", "w", { tags: ["cosy"] }), pbg("b", "tavern", "f2"), pbg("c", "loose_hall", null), pbg("d", "kitchen_copy", "f2", { url: "/v1/assets/a" })];
+    const folders = [{ id: "w", name: "Mei apartment" }, { id: "f2", name: "Fantasy" }];
+    const all = pickerGroups(lib, folders, "w", "This world", "", "No folder");
+    expect(all.map((g) => g.name)).toEqual(["This world", "Fantasy", "No folder"]);
+    // the same file in another folder is not offered twice
+    expect(all[1]!.items.map((b) => b.id)).toEqual(["b"]);
+    expect(pickerGroups(lib, folders, "w", "This world", "cosy", "No folder").map((g) => g.name)).toEqual(["This world"]);
+    expect(pickerGroups(lib, folders, "w", "This world", "zzz", "No folder")).toEqual([]);
+    // no world folder: every folder is an "other" one
+    expect(pickerGroups(lib, folders, null, "This world", "", "No folder").map((g) => g.name)).toEqual(["Fantasy", "Mei apartment", "No folder"]);
+  });
+});

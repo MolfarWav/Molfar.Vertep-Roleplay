@@ -1,26 +1,86 @@
-import { ArrowClockwise, ArrowsOut, CaretLeft, CaretRight, Flag } from '@phosphor-icons/react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { ArrowClockwise, ArrowsOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Badge } from '@/components/ui/badge'
-import { Constellation } from './constellation'
-import { HostilityBar, SignedBar } from './dash-bars'
 import { cn } from '@/lib/utils'
-import { canEditNotes, noteCounts, sortedThreads, type DashView } from '@/lib/dashboard'
-import { DISPOSITION } from '@/lib/soul'
+import { type DashView } from '@/lib/dashboard'
 import { useT } from '@/hooks/use-t'
 import { CarriedBanner } from './dash-carried'
-import { AgeText, AvatarButton, CLASS_MARK, FooterLine, LiveDot, MARK, NameChip, Notices, SceneBlock, ToneLabel, useTx, GOLD_TEXT } from './dash-common'
-import { ThreadList } from './dash-threads'
+import { AgeText, FooterLine, LiveDot, Notices, useTx } from './dash-common'
+import { DashTabs, DashTop, HerePanel, NotesPanel, PersonPanel, QuestsPanel, type DashTabId } from './dash-tabs'
+import { clampStripWidth, isNarrowStrip, STRIP_DEFAULT, STRIP_MAX, STRIP_MIN, stripWeatherSize } from '@/lib/dash-strip-width'
+import type { WorldHere } from '@/lib/world'
 
-export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, onRefresh, refreshing, collapsed, onCollapse, now, avatars, onPortrait }: {
+const STRIP_TABS: DashTabId[] = ['person', 'here', 'quests', 'notes']
+
+/**
+ * The drag handle on the strip's left edge. Pointer drag, arrow keys (Left widens, Right narrows, Shift for
+ * bigger steps), double click for the default. `onWidth(n, final)`: final is true when the change is done.
+ */
+export function StripHandle({ width, onWidth }: { width: number; onWidth: (n: number, final: boolean) => void }) {
+  const t = useT()
+  const drag = useRef<{ x: number; w: number } | null>(null)
+  const down = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    drag.current = { x: e.clientX, w: width }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+  const move = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (d) onWidth(clampStripWidth(d.w + (d.x - e.clientX)), false)
+  }
+  const up = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d) return
+    drag.current = null
+    onWidth(clampStripWidth(d.w + (d.x - e.clientX)), true)
+  }
+  const key = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? 40 : 10
+    if (e.key === 'ArrowLeft') onWidth(clampStripWidth(width + step), true)
+    else if (e.key === 'ArrowRight') onWidth(clampStripWidth(width - step), true)
+    else if (e.key === 'Home') onWidth(STRIP_MIN, true)
+    else if (e.key === 'End') onWidth(STRIP_MAX, true)
+    else return
+    e.preventDefault()
+  }
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t('dash.strip.resize')}
+      aria-valuemin={STRIP_MIN}
+      aria-valuemax={STRIP_MAX}
+      aria-valuenow={width}
+      tabIndex={0}
+      title={t('dash.strip.resize')}
+      data-testid="dash-strip-handle"
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={up}
+      onKeyDown={key}
+      onDoubleClick={() => onWidth(STRIP_DEFAULT, true)}
+      className="group absolute inset-y-0 -left-1 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center outline-none"
+    >
+      <span className="h-10 w-0.5 bg-border group-hover:bg-cta group-focus-visible:bg-cta group-active:bg-cta" aria-hidden="true" />
+    </div>
+  )
+}
+
+export function DashStrip({ chatId, view, here, focus, onFocus, onOpen, onNotebook, onRefresh, onReload, refreshing, collapsed, onCollapse, now, avatars, onPortrait, width, onWidth }: {
   chatId: string
   view: DashView
+  here: WorldHere | null
   focus: string
   onFocus: (name: string) => void
   onOpen: () => void
   /** open the wide view on the focused character, the notebook in view */
   onNotebook: () => void
   onRefresh: () => void
+  /** read the state and the World DM's records again (after the DM was switched on) */
+  onReload: () => void
   refreshing: boolean
   collapsed: boolean
   onCollapse: () => void
@@ -29,9 +89,12 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
   /** opens the portrait dialog for a name (a click on the focused character's avatar) */
   onPortrait?: (name: string) => void
   userName: string
+  width: number
+  onWidth: (n: number, final: boolean) => void
 }) {
   const t = useT()
   const tx = useTx()
+  const [tab, setTab] = useState<DashTabId>('person')
   const char = view.chars[focus]
   if (!char) return null
   const constName = tx('dash.const', char.constellation)
@@ -58,12 +121,9 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
     )
   }
 
-  const present = view.order.filter((n) => view.present.includes(n) && view.chars[n] && !view.chars[n].compact)
-  const counts = noteCounts(char)
-  const section = 'border-b border-border px-3 py-2.5'
-
   return (
-    <aside className="flex h-full w-[272px] shrink-0 flex-col border-l border-border bg-card" aria-label={t('dash.title')}>
+    <aside className="relative flex h-full shrink-0 flex-col border-l border-border bg-card" style={{ width }} aria-label={t('dash.title')} data-testid="dash-strip">
+      <StripHandle width={width} onWidth={onWidth} />
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
         <span className="font-heading text-[15px]">{t('dash.title')}</span>
         <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
@@ -87,53 +147,37 @@ export function DashStrip({ chatId, view, focus, onFocus, onOpen, onNotebook, on
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex w-[271px] flex-col">
+        <div className="flex flex-col" style={{ width: width - 1 }}>
           {view.inherit && <CarriedBanner chatId={chatId} inherit={view.inherit} className="m-3" />}
-          {(view.clock || present.length > 0) && (
-            <div className={cn(section, 'flex flex-col gap-2.5')}>
-              <SceneBlock clock={view.clock} calendar={view.calendar} />
-              {present.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {present.map((n) => (
-                    <AvatarButton key={n} name={n} url={avatars[n]} onFocus={onFocus} focused={n === focus} onPortrait={onPortrait} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className={cn(section, 'flex flex-col gap-2')}>
-            <div className="flex min-w-0 items-center justify-between gap-2">
-              <span className="min-w-0 truncate font-heading text-base">{focus}</span>
-              <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
-            </div>
-            <div className="flex justify-center">
-              <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={128} />
-            </div>
-            <div className="text-center">
-              <div className={cn('font-heading text-base', GOLD_TEXT)}>{constName}</div>
-              <div className="text-[11.5px] text-muted-foreground">{tx('dash.constLine', char.constellation)}</div>
-            </div>
-          </div>
-
-          <div className={cn(section, 'flex flex-col gap-1.5')}>
-            {DISPOSITION.map((stat) => (
-              <SignedBar key={stat} stat={stat} value={char.stats[stat]} prev={char.prev?.stats[stat]} compact />
-            ))}
-            {char.cls === 'hostile' && char.hostility !== null && <HostilityBar value={char.hostility} />}
-          </div>
-
-          <div className={cn(section, 'flex flex-col gap-1.5')}>
-            <ToneLabel tone="plot" icon={Flag}>{t('dash.threads')}</ToneLabel>
-            <ThreadList threads={sortedThreads(view.threads)} limit={3} openOnly editable={canEditNotes(view)} limits={view.limits} proposals={view.proposals} />
-          </div>
-
-          <div className={cn(section, 'flex flex-wrap items-center gap-1.5')}>
-            <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-[10px] hover:bg-muted">{t('dash.notes.about', { n: counts.about })}</Badge>
-            <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-[10px] hover:bg-muted">{t('dash.notes.heard', { n: counts.heard })}</Badge>
-            <NameChip char={char} onClick={onNotebook} />
-          </div>
-
+          <DashTop
+            view={view}
+            here={here}
+            focus={focus}
+            onFocus={onFocus}
+            avatars={avatars}
+            onPortrait={onPortrait}
+            weatherSize={stripWeatherSize(width)}
+            onTab={setTab}
+          />
+          <DashTabs
+            tabs={STRIP_TABS}
+            value={tab}
+            onValueChange={setTab}
+            view={view}
+            here={here}
+            focus={focus}
+            render={(id) =>
+              id === 'person' ? (
+                <PersonPanel view={view} here={here} chatId={chatId} onReload={onReload} focus={focus} onFocus={onFocus} avatars={avatars} narrow={isNarrowStrip(width)} />
+              ) : id === 'here' ? (
+                <HerePanel view={view} here={here} chatId={chatId} onReload={onReload} focus={focus} onFocus={onFocus} />
+              ) : id === 'quests' ? (
+                <QuestsPanel view={view} />
+              ) : (
+                <NotesPanel view={view} focus={focus} onNotebook={onNotebook} />
+              )
+            }
+          />
           <div className="flex flex-col gap-2 px-3 py-2.5 empty:hidden">
             <Notices view={view} />
           </div>

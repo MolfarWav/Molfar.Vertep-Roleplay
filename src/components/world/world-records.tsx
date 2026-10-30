@@ -2,7 +2,7 @@
 // spoiler question as "Look at the world" (once per visit to the tab). The DM keeps editing the
 // records too; a record you write or change is marked "by you".
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowCounterClockwise, Archive, CircleNotch, MagnifyingGlass, PencilSimple, PushPin, Plus, Trash, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,38 @@ export function KindChip({ kind, className }: { kind: WorldKind; className?: str
   )
 }
 
-interface Form { name: string; kind: WorldKind; aliases: string[]; text: string }
+interface Form {
+  name: string
+  kind: WorldKind
+  aliases: string[]
+  text: string
+  /** a place: a spot of the place named in `inside`, else a whole place */
+  spot: boolean
+  inside: string
+  /** a thing: lying in `place`, held by `holder`, or neither */
+  where: 'place' | 'holder' | 'none'
+  place: string
+  holder: string
+}
+
+const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Partial<WorldRecord>): Form => ({
+  name: r.name,
+  kind: r.kind,
+  aliases: r.aliases,
+  text: r.text,
+  spot: r.size === 'spot',
+  inside: r.inside ?? '',
+  where: r.holder ? 'holder' : 'place',
+  place: r.place ?? '',
+  holder: r.holder ?? '',
+})
+
+/** The space fields to send with a save: "" clears a field the engine would otherwise keep. */
+function spaceOf(f: Form): Partial<WorldRecord> {
+  if (f.kind === 'place') return { size: f.spot ? 'spot' : '', inside: f.spot ? f.inside.trim() : '' }
+  if (f.kind === 'thing') return { holder: f.where === 'holder' ? f.holder.trim() : '', place: f.where === 'place' ? f.place.trim() : '' }
+  return {}
+}
 
 /** The keys of a record as removable chips plus an input: Enter or a comma adds one. */
 function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
@@ -72,14 +103,17 @@ function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[
   )
 }
 
-function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void }) {
+function RecordForm({ initial, past, busy, onSave, onCancel, placeNames }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void; placeNames: string[] }) {
   const t = useT()
   const [f, setF] = useState(initial)
+  const ref = useRef<HTMLFormElement>(null)
+  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest' }) }, [])
   const limit = past ? TEXT_LIMIT.past : TEXT_LIMIT.active
   const over = f.text.length > limit
   const ok = f.name.trim() !== '' && f.text.trim() !== '' && !over
   return (
     <form
+      ref={ref}
       className="flex flex-col gap-3 rounded-md border border-primary/40 bg-card p-3"
       onSubmit={(e) => { e.preventDefault(); if (ok && !busy) onSave(f) }}
       data-testid="record-form"
@@ -108,6 +142,61 @@ function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; 
           ))}
         </div>
       </div>
+      {f.kind === 'place' && (
+        <div className="flex flex-col gap-2" data-testid="record-space-place">
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.size')}>
+            <span className="font-medium">{t('world.rec.size')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {([false, true] as const).map((spot) => (
+                <button
+                  key={String(spot)}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.spot === spot}
+                  onClick={() => setF({ ...f, spot })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.spot === spot ? cn(KIND_TONE.place, 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {spot ? t('world.rec.size.spot') : t('world.rec.size.whole')}
+                </button>
+              ))}
+            </div>
+          </div>
+          {f.spot && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">{t('world.rec.inside')}</span>
+              <Input value={f.inside} maxLength={80} list="world-place-names" placeholder={t('world.rec.insidePh')} onChange={(e) => setF({ ...f, inside: e.target.value })} className="h-10 md:h-9" />
+            </label>
+          )}
+        </div>
+      )}
+      {f.kind === 'thing' && (
+        <div className="flex flex-col gap-2" data-testid="record-space-thing">
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.where')}>
+            <span className="font-medium">{t('world.rec.where')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(['place', 'holder', 'none'] as const).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.where === w}
+                  onClick={() => setF({ ...f, where: w })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.where === w ? cn(KIND_TONE.thing, 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {t(`world.rec.where.${w}` as MsgKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {f.where === 'place' && (
+            <Input value={f.place} maxLength={80} list="world-place-names" placeholder={t('world.rec.placePh')} aria-label={t('world.rec.where.place')} onChange={(e) => setF({ ...f, place: e.target.value })} className="h-10 md:h-9" />
+          )}
+          {f.where === 'holder' && (
+            <Input value={f.holder} maxLength={80} placeholder={t('world.rec.holderPh')} aria-label={t('world.rec.where.holder')} onChange={(e) => setF({ ...f, holder: e.target.value })} className="h-10 md:h-9" />
+          )}
+        </div>
+      )}
+      <datalist id="world-place-names">{placeNames.map((n) => <option key={n} value={n} />)}</datalist>
       <KeysInput value={f.aliases} onChange={(aliases) => setF({ ...f, aliases })} />
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">{t('world.rec.text')}</span>
@@ -125,7 +214,8 @@ function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; 
   )
 }
 
-function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }: {
+function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, placeNames }: {
+  placeNames: string[]
   r: WorldRecord
   editing: boolean
   busy: boolean
@@ -137,7 +227,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }:
 }) {
   const t = useT()
   if (editing) {
-    return <RecordForm initial={{ name: r.name, kind: r.kind, aliases: r.aliases, text: r.text }} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} />
+    return <RecordForm initial={formOf(r)} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} placeNames={placeNames} />
   }
   const past = r.status === 'past'
   return (
@@ -164,6 +254,11 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }:
           ))}
         </ul>
       )}
+      {(r.kind === 'place' && r.size === 'spot' && r.inside) || (r.kind === 'thing' && (r.holder || r.place)) ? (
+        <p className={cn('mt-1 text-xs text-muted-foreground', past && 'opacity-70')} data-testid="record-space">
+          {r.kind === 'place' ? t('world.rec.spotOf', { name: r.inside ?? '' }) : r.holder ? t('world.rec.heldBy', { name: r.holder }) : t('world.rec.at', { name: r.place ?? '' })}
+        </p>
+      ) : null}
       <p className={cn('mt-1.5 whitespace-pre-wrap break-words text-muted-foreground', past && 'opacity-70')}>{r.text}</p>
       {r.pinned && !past && <p className="mt-1 text-xs text-muted-foreground">{t('world.rec.pinHint')}</p>}
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -192,14 +287,14 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }:
   )
 }
 
-export function WorldRecords({ chatId }: { chatId: string }) {
+export function WorldRecords({ chatId, initial }: { chatId: string; /** records already read (the Places tab asked the spoiler question), the one to edit first, or a new place to add */ initial?: { records: WorldRecord[]; editId?: string; add?: 'place' } }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
-  const [records, setRecords] = useState<WorldRecord[] | null>(null)
+  const [records, setRecords] = useState<WorldRecord[] | null>(initial?.records ?? null)
   const [kind, setKind] = useState<WorldKind | 'all'>('all')
   const [query, setQuery] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(initial?.editId ?? null)
+  const [adding, setAdding] = useState(initial?.add === 'place')
   const [busy, setBusy] = useState(false)
   const [filling, setFilling] = useState(false)
   const [fillMsg, setFillMsg] = useState<string | null>(null)
@@ -241,6 +336,7 @@ export function WorldRecords({ chatId }: { chatId: string }) {
     }
   }
 
+  const placeNames = useMemo(() => (records ?? []).filter((r) => r.kind === 'place' && r.status === 'active').map((r) => r.name), [records])
   const keyless = useMemo(() => (records ?? []).filter((r) => r.status === 'active' && !r.pinned && r.aliases.length === 0).length, [records])
 
   const fill = async () => {
@@ -333,11 +429,12 @@ export function WorldRecords({ chatId }: { chatId: string }) {
 
       {adding && (
         <RecordForm
-          initial={{ name: '', kind: kind === 'all' ? 'person' : kind, aliases: [], text: '' }}
+          initial={formOf({ name: '', kind: kind === 'all' ? (initial?.add === 'place' ? 'place' : 'person') : kind, aliases: [], text: '' })}
+          placeNames={placeNames}
           past={false}
           busy={busy}
           onCancel={() => setAdding(false)}
-          onSave={async (f) => { if (await run('add', { name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim() })) setAdding(false) }}
+          onSave={async (f) => { if (await run('add', { name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim(), ...spaceOf(f) })) setAdding(false) }}
         />
       )}
 
@@ -350,11 +447,12 @@ export function WorldRecords({ chatId }: { chatId: string }) {
             key={r.id}
             r={r}
             editing={editingId === r.id}
+            placeNames={placeNames}
             busy={busy}
             onEdit={() => { setEditingId(r.id); setAdding(false) }}
             onCancel={() => setEditingId(null)}
             onSave={async (f) => {
-              if (await run('update', { id: r.id, name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim() })) setEditingId(null)
+              if (await run('update', { id: r.id, name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim(), ...spaceOf(f) })) setEditingId(null)
             }}
             onOp={(op) => void onOp(r, op)}
             onPin={(pinned) => void run('update', { id: r.id, pinned })}
