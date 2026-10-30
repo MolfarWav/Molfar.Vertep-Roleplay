@@ -1,7 +1,7 @@
 
 import type * as React from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, BookOpenText, Smiley } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, BookOpenText, Smiley, Folder as FolderIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ import { CharacterEditor } from '@/components/views/character-editor'
 import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
+import { folderCounts, folderTags, inFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 import { GroupEditor } from '@/components/groups/group-editor'
@@ -116,6 +117,8 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const [grid, setGrid] = useState(true)
   const [sort, setSort] = useState<SortKey>('recent')
   const [tagFilter, setTagFilter] = useState<string[]>([])
+  // the folder strip's choice: a tag name, null = All
+  const [folderChoice, setFolderChoice] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
@@ -227,12 +230,20 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
     return m
   }, [chats])
 
+  const folders = useMemo(() => folderTags(tags), [tags])
+  const folder = resolveFolder(folderChoice, folders)
+  // the chosen tag stopped being a folder (unticked, renamed, deleted): back to All, from the first page
+  useEffect(() => {
+    if (folderChoice !== null && folder === null) { setFolderChoice(null); setPage(0) }
+  }, [folderChoice, folder])
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
     let list = characters.filter((c) =>
       !!c.isGroup === (mode === 'groups') &&
       (!q || c.name.toLowerCase().includes(q) || listText(c).toLowerCase().includes(q) || c.tags.some((t) => t.includes(q))) &&
-      (tagFilter.every((t) => c.tags.includes(t))),
+      (tagFilter.every((t) => c.tags.includes(t))) &&
+      (mode === 'groups' || inFolder(c, folder)),
     )
     const chatCount = (id: string) => chatCounts.get(id) ?? 0
     switch (sort) {
@@ -246,7 +257,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       case 'random': list = [...list].sort(() => Math.random() - 0.5); break
     }
     return list
-  }, [characters, chatCounts, query, sort, tagFilter, mode])
+  }, [characters, chatCounts, query, sort, tagFilter, mode, folder])
 
   const soloCards = useMemo(() => characters.filter((c) => !c.isGroup), [characters])
   const groupCards = useMemo(() => characters.filter((c) => c.isGroup), [characters])
@@ -268,6 +279,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       .map((name) => ({ name, tag: meta.get(name) }))
   }, [soloCards, tags])
 
+  const folderCount = useMemo(() => folderCounts(soloCards, folders), [soloCards, folders])
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>()
     for (const c of soloCards) for (const tg of c.tags) m.set(tg, (m.get(tg) ?? 0) + 1)
@@ -501,6 +513,32 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" />
           {t('characters.listFilling', { n: rosterPending })}
         </p>
+      )}
+
+      {/* folder strip: the tags marked "folder" in the tag manager; a card sits in every folder it has a tag for */}
+      {mode === 'characters' && folders.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-1.5 md:px-4" role="group" aria-label={t('characters.folders.aria')} data-testid="folder-strip">
+          {([null, ...folders] as (typeof folders[number] | null)[]).map((fl) => {
+            const on = (fl?.name ?? null) === folder
+            return (
+              <button
+                key={fl?.id ?? 'all'}
+                type="button"
+                aria-pressed={on}
+                onClick={() => { setFolderChoice(fl?.name ?? null); setPage(0) }}
+                className={cn(
+                  'flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs max-md:h-10',
+                  on ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
+                )}
+                data-testid={fl ? 'folder-chip' : 'folder-all'}
+              >
+                {fl && <FolderIcon className="size-3" style={{ color: fl.color }} aria-hidden="true" />}
+                {fl ? fl.name : t('characters.folders.all')}
+                <span className="tabular-nums opacity-70">{fl ? folderCount.get(fl.name) ?? 0 : soloCards.length}</span>
+              </button>
+            )
+          })}
+        </div>
       )}
 
       {/* tag filter row (desktop): the tags in use, at most two rows; the rest is behind "All tags" */}
@@ -858,6 +896,7 @@ function TagManager({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
   const addTag = useApp((s) => s.addTag)
   const deleteTag = useApp((s) => s.deleteTag)
   const characters = useApp((s) => s.characters)
+  const tr = useT()
   const [newName, setNewName] = useState('')
 
   return (
@@ -870,9 +909,10 @@ function TagManager({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
           <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New tag name" aria-label="New tag name" className="h-8" />
           <Button size="sm" onClick={() => { if (newName.trim()) { addTag(newName.trim()); setNewName('') } }}>Add</Button>
         </div>
+        <p className="text-xs text-muted-foreground">{tr('chars.tag.folderHint')}</p>
         <ul className="flex flex-col gap-1.5">
           {[...tags].sort((a, b) => a.order - b.order).map((t) => (
-            <li key={t.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+            <li key={t.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5">
               <Input
                 value={t.name}
                 onChange={(e) => updateTag(t.id, { name: e.target.value })}
@@ -889,9 +929,9 @@ function TagManager({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
               </label>
               <span className="ml-auto text-[11px] text-muted-foreground">{characters.filter((c) => c.tags.includes(t.name)).length}</span>
               <Switch checked={t.visible} onCheckedChange={(v) => updateTag(t.id, { visible: v })} aria-label={`Toggle visibility of ${t.name}`} />
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                folder
-                <Checkbox checked={t.asFolder} onCheckedChange={(v) => updateTag(t.id, { asFolder: !!v })} aria-label={`Use ${t.name} as folder`} />
+              <label className="flex items-center gap-1 text-[11px] text-muted-foreground max-md:min-h-10">
+                {tr('chars.tag.folder')}
+                <Checkbox checked={t.asFolder} onCheckedChange={(v) => updateTag(t.id, { asFolder: !!v })} aria-label={tr('chars.tag.folderAria', { name: t.name })} />
               </label>
               <Button variant="ghost" size="sm" className="size-7 p-0" onClick={() => deleteTag(t.id)} aria-label={`Delete tag ${t.name}`}>
                 <Trash className="size-3.5" aria-hidden="true" />

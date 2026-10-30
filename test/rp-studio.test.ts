@@ -443,6 +443,39 @@ describe("rp studio engine: chats + swipes", () => {
     expect(after.studio.expressions).toEqual([{ name: "joy", url: "data:image/png;base64,bmV3" }]);
   }, 30_000);
 
+  it("sprites of two outfits keep their own images when a client saves names only; a chat keeps its sprite outfits", async () => {
+    const m = mockHost();
+    const put = (expressions: unknown[], extra: Record<string, unknown> = {}) =>
+      drive(engineUrl, { method: "PUT", path: "/characters/outfitly", body: { name: "Outfitly", studio: { expressions, ...extra } } }, m);
+    const read = () => JSON.parse(fs.readFileSync(path.join(root, "characters", "outfitly", "card.json"), "utf8")) as { studio: { expressions: { name: string; url: string | null; character?: string; outfit?: string }[]; outfit?: string } };
+    await put([
+      { name: "joy", url: "data:image/png;base64,QUJD", character: "Aria", outfit: "dress" },
+      { name: "joy", url: "data:image/png;base64,WFla", character: "Aria", outfit: "pyjamas" },
+      { name: "joy", url: "data:image/png;base64,bmV3" },
+    ], { outfit: "pyjamas" });
+    await put([
+      { name: "joy", url: null, character: "Aria", outfit: "dress" },
+      { name: "joy", url: null, character: "Aria", outfit: "pyjamas" },
+      { name: "joy", url: null },
+    ], { outfit: "pyjamas" });
+    const kept = read();
+    expect(kept.studio.expressions.map((e) => e.url)).toEqual(["data:image/png;base64,QUJD", "data:image/png;base64,WFla", "data:image/png;base64,bmV3"]);
+    expect(kept.studio.outfit).toBe("pyjamas");
+    // the card's default outfit is cleared by a save that leaves it out
+    await put([{ name: "joy", url: "data:image/png;base64,bmV3" }]);
+    expect(read().studio.outfit).toBeUndefined();
+
+    // the chat's choice per speaker rides the meta and survives a reload
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "outfitly" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).filter((f) => f.endsWith(".meta.json")).map((f) => f.replace(/.meta.json$/, "")).find((cid) => JSON.parse(fs.readFileSync(path.join(root, "chats", cid + ".meta.json"), "utf8")).characterId === "outfitly")) as string;
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { spriteOutfits: { Aria: "pyjamas", "": "coat", Bo: "  ", junk: 5 } } }, m);
+    const got = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
+    expect((got.json.meta as { spriteOutfits?: unknown }).spriteOutfits).toEqual({ Aria: "pyjamas", "": "coat" });
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { spriteOutfits: null } }, m);
+    const cleared = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
+    expect((cleared.json.meta as { spriteOutfits?: unknown }).spriteOutfits ?? null).toBeNull();
+  }, 30_000);
+
   it("numbers forks off the root title instead of stacking suffixes", async () => {
     const m = mockHost();
     await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
@@ -2172,6 +2205,42 @@ describe("rp studio: scoped regex + extended samplers + v3 cards", () => {
     expect(card.studio.expressions).toEqual([{ name: "joy", url: "data:image/png;base64,QkND" }]);
     // the assets list rides the card verbatim (spec: never destroy)
     expect(Array.isArray(card.assets)).toBe(true);
+  }, 30_000);
+
+  it("charx package: emotion assets named <character>__<outfit>__<emotion> become sprites of that character and outfit", async () => {
+    const entries: Record<string, unknown> = {
+      "card.json": JSON.stringify({
+        spec: "chara_card_v3",
+        data: {
+          name: "Narrator",
+          description: "plays several",
+          assets: [
+            { type: "emotion", name: "joy", uri: "__asset:assets/a.png", ext: "png" },
+            { type: "emotion", name: "dress__joy", uri: "__asset:assets/b.png", ext: "png" },
+            { type: "emotion", name: "Aria__dress__joy", uri: "__asset:assets/c.png", ext: "png" },
+            { type: "emotion", name: "Aria__default__joy", uri: "__asset:assets/d.png", ext: "png" },
+            { type: "emotion", name: "Narrator_angry", uri: "__asset:assets/e.png", ext: "png" },
+          ],
+        },
+      }),
+      "assets/a.png": { __b64: true, base64: "QQ==" },
+      "assets/b.png": { __b64: true, base64: "Qg==" },
+      "assets/c.png": { __b64: true, base64: "Qw==" },
+      "assets/d.png": { __b64: true, base64: "RA==" },
+      "assets/e.png": { __b64: true, base64: "RQ==" },
+    };
+    const m = mockHost();
+    (m.host as { zip: unknown }).zip = { entries: () => entries, list: () => 6 };
+    const r = await drive(stUrl, { method: "POST", path: "/import/zip", body: { zipBase64: "x" } }, m);
+    const card = JSON.parse(fs.readFileSync(path.join(root, "characters", `${(r.json.characters as string[])[0]}`, "card.json"), "utf8"));
+    const url = (b64: string) => `data:image/png;base64,${b64}`;
+    expect(card.studio.expressions).toEqual([
+      { name: "joy", url: url("QQ==") },
+      { name: "joy", url: url("Qg=="), outfit: "dress" },
+      { name: "joy", url: url("Qw=="), character: "Aria", outfit: "dress" },
+      { name: "joy", url: url("RA=="), character: "Aria" },
+      { name: "angry", url: url("RQ==") },
+    ]);
   }, 30_000);
 });
 

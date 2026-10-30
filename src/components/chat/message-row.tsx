@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RichText } from '@/components/rich-blocks'
 import { DialogueVoices, Markdown, VoiceLeadOnly } from '@/components/markdown'
 import { cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
-import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
+import { pickSprite } from '@/lib/sprite-pick'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
 import { SceneMarkDialog } from '@/components/chat/scene-mark-dialog'
@@ -512,14 +512,18 @@ export const MessageRow = memo(function MessageRow({
   // classifier + synonym resolution against the card's sprite set). Memoized:
   // every rule is a regex over the whole message, and a streaming tick
   // re-renders every mounted row.
+  // A Narrator card with sprites per voice shows the voice that speaks last; the chat's outfit choice applies.
   const sprites = !isUser && speaker && 'expressions' in speaker ? speaker.expressions : undefined
   const spriteDefault = !isUser && speaker && 'defaultExpression' in speaker ? speaker.defaultExpression : undefined
+  const spriteOutfit = !isUser && speaker && 'outfit' in speaker ? speaker.outfit : undefined
+  const spriteVoiceNames = !isUser && speaker && 'voices' in speaker ? speaker.voices : undefined
+  const spriteVoices = useMemo(() => cardVoices({ voices: spriteVoiceNames }), [spriteVoiceNames])
   const spriteAvatar = useMemo(
     () =>
       settings.showExpressionSprites && sprites?.length
-        ? (resolveExpressionSprite(detectExpressionLabels(content), sprites, spriteDefault)?.url ?? null)
+        ? (pickSprite(content, { expressions: sprites, defaultExpression: spriteDefault, outfit: spriteOutfit }, spriteVoices, chat.spriteOutfits)?.sprite.url ?? null)
         : null,
-    [settings.showExpressionSprites, sprites, spriteDefault, content],
+    [settings.showExpressionSprites, sprites, spriteDefault, spriteOutfit, spriteVoices, chat.spriteOutfits, content],
   )
   const shownAvatar = spriteAvatar || avatar
   // Without provider-reported usage (stopped generations keep their partial

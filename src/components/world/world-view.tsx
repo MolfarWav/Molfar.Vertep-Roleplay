@@ -12,7 +12,7 @@ import { useApp } from '@/lib/store'
 import { setLooking } from '@/lib/attention'
 import { useIsDesktop } from '@/hooks/use-mobile'
 import { listWorldChats, useWorldLive, type WorldChat } from '@/lib/world'
-import { formatK, LevelChip } from '@/components/world/world-common'
+import { formatK, LevelChip, type OpenWorldSettings } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
 import { WorldBackgrounds } from '@/components/world/world-backgrounds'
 import { WorldRuns } from '@/components/world/world-runs'
@@ -149,7 +149,7 @@ type ChatDetailProps = {
   items: WorldChat[] | null | 'missing'
   tab: Tab
   onTabChange: (tab: Tab) => void
-  onOpenSettings: () => void
+  onOpenSettings: OpenWorldSettings
 }
 
 function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDetailProps) {
@@ -207,6 +207,12 @@ export function WorldView() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsFocus, setSettingsFocus] = useState<'build' | null>(null)
+  /** 'build': from the links next to a world build, the dialog scrolls to the Build model row */
+  const openSettings: OpenWorldSettings = (focus) => {
+    setSettingsFocus(focus === 'build' ? 'build' : null)
+    setSettingsOpen(true)
+  }
   const [tab, setTab] = useState<Tab>(readTab)
   const [top, setTop] = useState<Top>('chats')
   const [profileId, setProfileId] = useState<string | null>(null)
@@ -334,7 +340,7 @@ export function WorldView() {
         masterWidth="w-72"
         master={
           <aside aria-label={t('world.list.aria')} className="flex h-full min-h-0 flex-col">
-            <PaneHeader top={top} onTop={changeTop} onOpenSettings={() => setSettingsOpen(true)} />
+            <PaneHeader top={top} onTop={changeTop} onOpenSettings={() => openSettings()} />
             {top === 'chats' ? (
               <ChatList items={items} listError={listError} selectedId={selectedId} onSelect={(id) => void guard(() => selectChat(id))} />
             ) : top === 'worlds' ? (
@@ -353,12 +359,12 @@ export function WorldView() {
                   world={world}
                   onNewChat={(w) => setNewChatFor({ source: { worldId: w.id }, charId: libraryCharacter(w.from?.chatId) })}
                   onGone={() => { setWorldId(null); setDetailOpen(false) }}
-                  onOpenSettings={() => setSettingsOpen(true)}
+                  onOpenSettings={openSettings}
                 />
               </div>
             ) : worldId === NEW_WORLD ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <NewWorldSetup onBegun={(id) => setWorldId(id)} onOpenSettings={() => setSettingsOpen(true)} />
+                <NewWorldSetup onBegun={(id) => setWorldId(id)} onOpenSettings={openSettings} />
               </div>
             ) : buildingWorld ? (
               <div className="min-h-0 flex-1 overflow-y-auto">
@@ -366,7 +372,7 @@ export function WorldView() {
                   key={buildingWorld.id}
                   worldId={buildingWorld.id}
                   onGone={() => { setWorldId(null); setDetailOpen(false) }}
-                  onOpenSettings={() => setSettingsOpen(true)}
+                  onOpenSettings={openSettings}
                 />
               </div>
             ) : (
@@ -385,7 +391,7 @@ export function WorldView() {
               <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">{t('world.prof.pick')}</div>
             )
           ) : selectedId ? (
-            <ChatDetail chatId={selectedId} items={items} tab={tab} onTabChange={handleTabChange} onOpenSettings={() => setSettingsOpen(true)} />
+            <ChatDetail chatId={selectedId} items={items} tab={tab} onTabChange={handleTabChange} onOpenSettings={openSettings} />
           ) : (
             <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
               {items === null ? '…' : t('world.list.pick')}
@@ -395,7 +401,7 @@ export function WorldView() {
       />
       {confirmDialog}
       {newChatFor && <NewWorldChatDialog open onOpenChange={(o) => { if (!o) setNewChatFor(null) }} source={newChatFor.source} defaultCharId={newChatFor.charId} />}
-      <WorldSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} chatId={selectedId} chatTitle={current?.title || storeTitle || ''} />
+      <WorldSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} focus={settingsFocus} chatId={top === 'chats' ? selectedId : null} chatTitle={current?.title || storeTitle || ''} />
     </SectionPage>
   )
 }

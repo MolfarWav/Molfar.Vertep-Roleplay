@@ -111,12 +111,12 @@ const stemsOf = (label: string): string[] => {
 /** Resolve matched labels against the sprites that exist: for each label,
  *  exact/synonym stem match (either direction) → then the next label; when
  *  nothing matches → default → neutral → first sprite. */
-export function resolveExpressionSprite(
+export function resolveExpressionSprite<T extends { name: string; url: string | null }>(
   labels: string[] | null,
-  sprites: { name: string; url: string | null }[],
+  sprites: readonly T[],
   defaultExpression?: string,
-): { name: string; url: string } | null {
-  const have = sprites.filter((s): s is { name: string; url: string } => Boolean(s.url))
+): (T & { url: string }) | null {
+  const have = sprites.filter((s): s is T & { url: string } => Boolean(s.url))
   if (!have.length) return null
   const byName = (n: string) => have.find((s) => norm(s.name) === norm(n))
   for (const label of labels ?? []) {
@@ -155,4 +155,177 @@ export function expressionNameFromFile(filename: string): string {
     if (hit) return hit
   }
   return (parts[parts.length - 1] ?? stem).toLowerCase()
+}
+
+// ── Outfits and characters (a sprite set per character and per outfit) ─────────────────────────────
+
+/** A sprite as the card keeps it (`studio.expressions`). `character` names one of the card's `voices`
+ *  (absent: the card itself, or sprites shared by everyone); `outfit` names a set of clothes (absent: "default").
+ *  The identity of a sprite is (character, outfit, name), all compared without case. */
+export interface SpriteLike { name: string; url: string | null; character?: string; outfit?: string }
+
+export const DEFAULT_OUTFIT = 'default'
+
+const low = (s: string | undefined) => (s ?? '').trim().toLowerCase()
+
+/** The outfit a sprite is in: its own, else "default". */
+export const outfitName = (s: { outfit?: string }): string => s.outfit?.trim() || DEFAULT_OUTFIT
+
+/** Two sprites with the same key are the same slot: the later one replaces the earlier. */
+export const spriteKey = (s: { name: string; character?: string; outfit?: string }): string =>
+  `${low(s.character)}\u0001${low(outfitName(s))}\u0001${low(s.name)}`
+
+/** Does the card have sprites that tell characters or outfits apart? An old card does not. */
+export const hasSpriteSets = (sprites: readonly SpriteLike[]): boolean =>
+  sprites.some((s) => !!s.character?.trim() || (!!s.outfit?.trim() && low(s.outfit) !== DEFAULT_OUTFIT))
+
+/** The sprites a character can show: its own, else the shared ones (no `character`). `character` '' = the card itself. */
+export function spritePool<T extends SpriteLike>(sprites: readonly T[], character = ''): T[] {
+  const withImage = sprites.filter((s) => s.url)
+  const key = low(character)
+  if (!key) return withImage.filter((s) => !low(s.character))
+  const own = withImage.filter((s) => low(s.character) === key)
+  return own.length ? own : withImage.filter((s) => !low(s.character))
+}
+
+/** The outfits of a set of sprites, in the order they first appear. */
+export function outfitsIn(sprites: readonly SpriteLike[]): string[] {
+  const seen = new Map<string, string>()
+  for (const s of sprites) if (!seen.has(low(outfitName(s)))) seen.set(low(outfitName(s)), outfitName(s))
+  return [...seen.values()]
+}
+
+/** The outfit to show from a list: the wanted one, else "default", else the first. */
+export function pickOutfit(outfits: readonly string[], wanted?: string): string | null {
+  return outfits.find((o) => !!wanted && low(o) === low(wanted)) ?? outfits.find((o) => low(o) === DEFAULT_OUTFIT) ?? outfits[0] ?? null
+}
+
+/**
+ * The sprite for a speaker: the character's pool, inside it the wanted outfit (else "default", else any), and
+ * inside that outfit the emotion (the plain resolver: matched labels, then default, neutral, first). The outfit
+ * wins over the emotion: a girl in pyjamas stays in pyjamas when the pyjama set lacks "love".
+ * `outfit` is a parameter, never read from anywhere: the chat's choice today, the Dashboard's record later.
+ */
+export function resolveSprite<T extends SpriteLike>(
+  labels: string[] | null,
+  sprites: readonly T[],
+  opts: { character?: string; outfit?: string; defaultExpression?: string } = {},
+): (T & { url: string }) | null {
+  const pool = spritePool(sprites, opts.character)
+  if (!pool.length) return null
+  const chosen = pickOutfit(outfitsIn(pool), opts.outfit)
+  const set = pool.filter((s) => low(outfitName(s)) === low(chosen ?? ''))
+  return resolveExpressionSprite(labels, set, opts.defaultExpression)
+}
+
+// ── Reading a sprite file's name ──
+
+/** Words in a file name that say nothing about the emotion, the character or the outfit. */
+const NOISE = new Set(['sprite', 'sprites', 'expression', 'expressions', 'emotion', 'emotions', 'face', 'faces', 'img', 'image', 'portrait', 'char', 'character'])
+/** The informal words (happy, angry…) that name an emotion as well as the labels do. */
+const SYNONYMS = new Set(RULES.flatMap(([, , syn]) => syn.split(/\s+/).map(norm)).filter((w) => w.length >= 3))
+
+/** Someone a sprite can belong to: `label` is how a file name says them, `key` what the sprite stores ('' = the card itself). */
+export interface SpriteOwner { label: string; key: string }
+
+export interface ParsedSpriteFile {
+  /** the emotion slot ("joy"); the file's last word when no emotion is recognized */
+  emotion: string
+  /** the owner's key from `owners` ('' = the card itself or nobody) */
+  character: string
+  /** the outfit, '' = default */
+  outfit: string
+  /** "joy2", "joy (1)", "joy_2": a duplicate marker, not an outfit */
+  copy: number | null
+  /** was an emotion word recognized? */
+  known: boolean
+}
+
+const tokensOf = (s: string) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+
+/**
+ * What a sprite file's name says: "Aria_joy_dress.png" → Aria / dress / joy, "joy_pyjamas" → default character,
+ * pyjamas, joy; plain "joy.png" → joy. Words are split on anything that is not a letter or digit. The emotion is the
+ * LAST recognized emotion word (as `expressionNameFromFile` does); a word that is one of `owners` (a voice of the card,
+ * or the card's own name) is the character; the words left over are the outfit. A trailing number is a duplicate marker.
+ */
+export function parseSpriteFile(filename: string, owners: readonly SpriteOwner[] = []): ParsedSpriteFile {
+  const base = filename.replace(/^.*[\\/]/, '')
+  let stem = base.replace(/\.[a-z0-9]{2,5}$/i, '')
+  let copy: number | null = null
+  const paren = /\s*\((\d+)\)$/.exec(stem)
+  if (paren) { copy = Number(paren[1]); stem = stem.slice(0, paren.index) }
+  let tokens = tokensOf(stem)
+  const last = tokens[tokens.length - 1]
+  if (last && /^\d+$/.test(last)) {
+    if (copy === null) copy = Number(last)
+    tokens = tokens.slice(0, -1)
+  } else if (last) {
+    const m = /^(.*\D)(\d+)$/u.exec(last)
+    if (m) {
+      if (copy === null) copy = Number(m[2])
+      tokens = [...tokens.slice(0, -1), m[1]!]
+    }
+  }
+  tokens = tokens.filter((t) => !/^\d+$/.test(t)).map((t) => t.toLowerCase())
+
+  // the character: the longest owner label found as a run of words, if a word is left for the emotion
+  let character = ''
+  const labels = owners
+    .flatMap((o) => {
+      const all = tokensOf(o.label.toLowerCase())
+      return [{ words: all, key: o.key }, ...(all.length > 1 ? [{ words: all.slice(0, 1), key: o.key }] : [])]
+    })
+    .filter((o) => o.words.length)
+    .sort((a, b) => b.words.length - a.words.length)
+  for (const o of labels) {
+    const at = tokens.findIndex((_, i) => o.words.every((w, j) => tokens[i + j] === w))
+    if (at < 0 || tokens.length - o.words.length < 1) continue
+    character = o.key
+    tokens = [...tokens.slice(0, at), ...tokens.slice(at + o.words.length)]
+    break
+  }
+
+  const rest = tokens.filter((t) => !NOISE.has(t))
+  let at = -1
+  let emotion = ''
+  for (let i = rest.length - 1; i >= 0 && at < 0; i--) {
+    const n = norm(rest[i]!)
+    const hit = STANDARD_EXPRESSIONS.find((k) => norm(k) === n)
+    if (hit) { at = i; emotion = hit } else if (SYNONYMS.has(n)) { at = i; emotion = rest[i]! }
+  }
+  for (let i = rest.length - 1; i >= 0 && at < 0; i--) {
+    const n = norm(rest[i]!)
+    if (n.length < 3) continue
+    const hit = STANDARD_EXPRESSIONS.find((k) => norm(k).startsWith(n) || n.startsWith(norm(k)))
+    if (hit) { at = i; emotion = hit }
+  }
+  const known = at >= 0
+  if (!known && rest.length) { at = rest.length - 1; emotion = rest[at]! }
+  if (!emotion) emotion = (stem.trim().replace(/\s+/g, '_') || 'sprite').toLowerCase()
+  const outfit = rest.filter((_, i) => i !== at).join(' ')
+  return { emotion, character, outfit: outfit === DEFAULT_OUTFIT ? '' : outfit, copy, known }
+}
+
+// ── The sprite's name inside a CHARX package ──
+
+const flat = (s: string) => s.trim().replace(/_{2,}/g, '_')
+
+/** The name an emotion asset gets in a CHARX: the emotion alone for the plain case, `<outfit>__<emotion>` in an
+ *  outfit, `<character>__<outfit>__<emotion>` for a character's sprite. Other tools see a harmless name. */
+export function emotionAssetName(s: { name: string; character?: string; outfit?: string }): string {
+  const character = flat(s.character ?? '')
+  const outfit = low(outfitName(s)) === DEFAULT_OUTFIT ? '' : flat(s.outfit ?? '')
+  const name = flat(s.name)
+  if (character) return `${character}__${outfit || DEFAULT_OUTFIT}__${name}`
+  return outfit ? `${outfit}__${name}` : name
+}
+
+/** The inverse of `emotionAssetName`: a name with `__` in it carries an outfit (two parts) or a character and an outfit (three). */
+export function parseEmotionAssetName(asset: string): { name: string; character?: string; outfit?: string } {
+  const parts = asset.split('__')
+  if (parts.length < 2 || parts.some((p) => !p.trim())) return { name: asset }
+  const outfitOf = (o: string) => (low(o) === DEFAULT_OUTFIT ? {} : { outfit: o.trim() })
+  if (parts.length === 2) return { name: parts[1]!.trim(), ...outfitOf(parts[0]!) }
+  return { name: parts.slice(2).join('__').trim(), character: parts[0]!.trim(), ...outfitOf(parts[1]!) }
 }

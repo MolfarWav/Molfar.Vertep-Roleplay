@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Plus, Trash, Lightning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { InfoTip } from '@/components/ui/info-tip'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -57,7 +56,6 @@ export function QuickRepliesView() {
             <section key={set.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
               <div className="flex items-center gap-2">
                 <Input value={set.name} onChange={(e) => updateQRSet(set.id, { name: e.target.value })} className="h-8 w-48 text-sm font-medium" aria-label="Set name" />
-                <Badge variant="outline" className="text-[10px]">{set.scope}</Badge>
                 <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                   <Switch checked={set.enabled} onCheckedChange={(v) => updateQRSet(set.id, { enabled: v })} aria-label={`Enable ${set.name}`} />
                   Show in composer

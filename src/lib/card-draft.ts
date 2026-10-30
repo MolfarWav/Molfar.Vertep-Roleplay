@@ -37,7 +37,7 @@ export const FIELD_PANEL: Partial<Record<keyof Character, string>> = {
   systemPromptOverride: 'advanced', postHistoryInstructions: 'advanced', depthPrompt: 'advanced', scenario: 'advanced', scenarioVariants: 'advanced',
   personality: 'advanced', personalityVariants: 'advanced', creatorNotes: 'advanced', creator: 'advanced', version: 'advanced',
   css: 'colors', colors: 'colors',
-  expressions: 'sprites', defaultExpression: 'sprites',
+  expressions: 'sprites', defaultExpression: 'sprites', outfit: 'sprites',
   gallery: 'gallery',
   voiceProvider: 'voice', voiceId: 'voice',
 }
@@ -71,7 +71,7 @@ export const FIELD_LABEL: Partial<Record<keyof Character, string>> = {
   systemPromptOverride: 'System prompt override', postHistoryInstructions: 'Post-history instructions', depthPrompt: 'Depth prompt',
   scenario: 'Scenario', scenarioVariants: 'Scenario variants', personality: 'Personality', personalityVariants: 'Personality variants',
   creatorNotes: 'Creator notes', creator: 'Creator', version: 'Version', css: 'Character CSS', colors: 'Colors',
-  expressions: 'Sprites', defaultExpression: 'Default sprite', gallery: 'Gallery', voiceProvider: 'Voice provider', voiceId: 'Voice',
+  expressions: 'Sprites', defaultExpression: 'Default sprite', outfit: 'Sprite outfit', gallery: 'Gallery', voiceProvider: 'Voice provider', voiceId: 'Voice',
   cardExtras: 'Profile and card extras', favorite: 'Favorite', versions: 'Version history',
   embeddedLorebookId: 'Embedded lorebook', linkedLorebookIds: 'Linked lorebooks',
 }

@@ -35,6 +35,7 @@ import { CardKindMenu } from '@/components/dashboard/card-kind'
 import { CharacterBooks } from '@/components/character/character-books'
 import { ProfileTab } from '@/components/character/profile-tab'
 import { VoicesEditor } from '@/components/character/voices-editor'
+import { SpritesPanel } from '@/components/character/sprites-panel'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
@@ -43,9 +44,8 @@ import { useCardDraft } from '@/components/character/use-card-draft'
 import { useCardTasks } from '@/components/character/use-card-tasks'
 import { DraftDialogs } from '@/components/character/draft-dialogs'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
-import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset, SPRITE_MAX_PX, SPRITE_QUALITY } from '@/lib/engine'
+import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
-import { STANDARD_EXPRESSIONS, expressionNameFromFile } from '@/lib/expressions'
 import { ImageViewer } from '@/components/ui/image-viewer'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
 import { buildCardPng, downloadCardPng } from '@/lib/png-card'
@@ -152,7 +152,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const [compareVersion, setCompareVersion] = useState<Character['versions'][number] | null>(null)
   const [lightboxId, setLightboxId] = useState<string | null>(null)
   const [zoom, setZoom] = useState<{ src: string; title: string } | null>(null)
-  const [newExpression, setNewExpression] = useState('')
   const [confirm, confirmDialog] = useConfirm()
   const [voiceOptions, setVoiceOptions] = useState<{ value: string; label: string }[]>(
     ENGINE_VOICES.map((v) => ({ value: v, label: v })))
@@ -180,7 +179,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const [markSections, setMarkSections] = useState(markProfileSections)
   const hasProfile = !!profileOf(character)
   const avatarInput = useRef<HTMLInputElement>(null)
-  const spriteInput = useRef<HTMLInputElement>(null)
   const galleryInput = useRef<HTMLInputElement>(null)
 
   const exportPng = async () => {
@@ -217,47 +215,6 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     try {
       up({ avatar: await fileToDataUrl(file, 512) })
       toast.success('Avatar updated')
-    } catch (e) { toast.error(String((e as Error).message ?? e)) }
-  }
-
-  /** A sprite goes to the asset store at full quality with its transparency, and the card keeps the URL (#167). */
-  const storeSprite = (file: File) => storeImageAsset(file, SPRITE_MAX_PX, file.name, { alpha: true, quality: SPRITE_QUALITY })
-  /** Sprites an older version kept as data URLs inside the card move to the store in the same save. */
-  const moveOldSprites = (list: typeof c.expressions) => Promise.all(list.map(async (e) => {
-    if (!e.url?.startsWith('data:')) return e
-    try { return { ...e, url: await storeImageAsset(e.url, SPRITE_MAX_PX, e.name) } } catch { return e }
-  }))
-
-  /** Sprites: a whole pack at once. Each file goes to the expression its
-   *  FILENAME names ("joy.png" → joy), creating the slot when the character
-   *  doesn't have it yet, so a downloaded pack drops in without hand-typing
-   *  a slot per emotion first. */
-  const assignSprites = async (files: FileList | null) => {
-    if (!files?.length) return
-    const expressions = [...c.expressions]
-    let n = 0
-    let failed = ''
-    for (const file of Array.from(files)) {
-      let url: string
-      try { url = await storeSprite(file) } catch (e) {
-        if ((e as Error).message !== 'not an image') failed = `${file.name}: ${(e as Error).message}`
-        continue
-      }
-      const name = expressionNameFromFile(file.name)
-      const at = expressions.findIndex((e) => e.name.toLowerCase() === name)
-      if (at >= 0) expressions[at] = { ...expressions[at]!, url }
-      else expressions.push({ name, url })
-      n++
-    }
-    if (n) { up({ expressions: await moveOldSprites(expressions) }); toast.success(`Assigned ${n} sprite${n > 1 ? 's' : ''}`) }
-    if (failed) toast.error(`Not added: ${failed}`)
-  }
-
-  const setSprite = async (name: string, file: File | undefined) => {
-    if (!file) return
-    try {
-      const url = await storeSprite(file)
-      up({ expressions: await moveOldSprites(c.expressions.map((e) => e.name === name ? { ...e, url } : e)) })
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 
@@ -754,77 +711,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             </TabsContent>
 
             <TabsContent value="sprites" className="flex flex-col gap-3">
-              <p className="text-xs text-muted-foreground">
-                Sprites shown in chat as the speaker&apos;s mood changes, picked from the latest message. Add a whole pack at once: each file lands on the expression its name spells (joy.png, anger.png, neutral.png).
-              </p>
-              <div className="flex items-end gap-2">
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs" htmlFor="new-expression">Add expression</Label>
-                  <Input
-                    id="new-expression"
-                    list="standard-expressions"
-                    value={newExpression}
-                    onChange={(e) => setNewExpression(e.target.value.replace(/[^a-zA-Z0-9-_ ]/g, ''))}
-                    placeholder="joy"
-                    className="h-8 w-36 text-xs"
-                    aria-label="New expression name"
-                  />
-                  <datalist id="standard-expressions">
-                    {STANDARD_EXPRESSIONS.map((e) => <option key={e} value={e} />)}
-                  </datalist>
-                </div>
-                <Button
-                  variant="outline" size="sm" className="h-8 text-xs"
-                  disabled={!newExpression.trim()}
-                  onClick={() => {
-                    const name = newExpression.trim()
-                    if (!name || c.expressions.some((e) => e.name === name)) return
-                    up({ expressions: [...c.expressions, { name, url: null }] })
-                    setNewExpression('')
-                  }}
-                >
-                  <Plus className="size-3.5" aria-hidden="true" /> Add
-                </Button>
-                <input ref={spriteInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { void assignSprites(e.target.files); e.target.value = '' }} />
-                <Button variant="outline" size="sm" className="ml-auto h-8 text-xs" onClick={() => spriteInput.current?.click()}>Add sprite pack</Button>
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {c.expressions.map((e) => (
-                  <div key={e.name} className="flex flex-col items-center gap-1 rounded-md border border-border p-2">
-                    {e.url ? (
-                      <button type="button" onClick={() => setZoom({ src: e.url!, title: `${c.name}: ${e.name}` })} className="cursor-zoom-in rounded" aria-label={`Open the ${e.name} sprite at full size`}>
-                        <img src={e.url} alt={`${e.name} expression`} className="size-16 rounded object-cover" />
-                      </button>
-                    ) : (
-                      <div className="flex size-16 items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">empty</div>
-                    )}
-                    <span className="flex w-full items-center gap-1 text-[11px]">
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 truncate text-left hover:text-primary"
-                        title="Set as default expression"
-                        onClick={() => up({ defaultExpression: e.name })}
-                      >
-                        {e.name}
-                      </button>
-                      {c.defaultExpression === e.name && <Badge variant="secondary" className="text-[9px]">def</Badge>}
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label={`Delete ${e.name} sprite`}
-                      onClick={() => up({
-                        expressions: c.expressions.filter((x) => x.name !== e.name),
-                        ...(c.defaultExpression === e.name ? { defaultExpression: c.expressions.find((x) => x.name !== e.name)?.name ?? undefined } : {}),
-                      })}
-                    ><X className="size-3" aria-hidden="true" /></button>
-                    </span>
-                    <label className="cursor-pointer text-[10px] text-primary hover:underline">
-                      set
-                      <input type="file" accept="image/*" className="hidden" onChange={(ev) => { void setSprite(e.name, ev.target.files?.[0]); ev.target.value = '' }} />
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <SpritesPanel c={c} up={up} cRef={cRef} />
             </TabsContent>
 
             <TabsContent value="gallery" className="flex flex-col gap-3">

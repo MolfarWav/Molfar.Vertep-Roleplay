@@ -2,8 +2,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, ArrowsOutLineVertical } from '@phosphor-icons/react'
 import { useApp } from '@/lib/store'
-import { detectExpressionLabels, resolveExpressionSprite } from '@/lib/expressions'
-import type { Chat } from '@/lib/types'
+import { cardVoices } from '@/lib/dialogue-voices'
+import { DEFAULT_OUTFIT } from '@/lib/expressions'
+import { pickSprite } from '@/lib/sprite-pick'
+import { useT } from '@/hooks/use-t'
+import type { Character, Chat } from '@/lib/types'
 import { onImageError } from '@/lib/utils'
 
 const POS_KEY = 'expr-panel-pos'
@@ -21,6 +24,7 @@ const writeJson = (key: string, value: unknown) => {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage unavailable */ }
 }
 const maxHeight = () => Math.round(window.innerHeight * 0.9)
+const NO_SPRITES: Character['expressions'] = []
 
 /**
  * Floating expression sprite — reads the latest character message, detects
@@ -31,7 +35,9 @@ const maxHeight = () => Math.round(window.innerHeight * 0.9)
  * no sprites or Settings turns sprites off.
  */
 export function ExpressionPanel({ chat }: { chat: Chat }) {
+  const t = useT()
   const characters = useApp((s) => s.characters)
+  const setSpriteOutfit = useApp((s) => s.setSpriteOutfit)
   const show = useApp((s) => s.settings.showExpressionSprites !== false)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(() => readJson(POS_KEY, null))
   // null = the default (42% of the window)
@@ -59,13 +65,16 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     [chat.messages],
   )
   const speaker = characters.find((c) => c.id === (lastAsst?.characterId ?? chat.characterId))
-  const sprites = speaker?.expressions ?? []
+  const sprites = speaker?.expressions ?? NO_SPRITES
 
   const text = lastAsst?.swipes[lastAsst.activeSwipe]?.content ?? ''
-  const sprite = useMemo(
-    () => resolveExpressionSprite(detectExpressionLabels(text), sprites, speaker?.defaultExpression),
-    [text, sprites, speaker?.defaultExpression],
+  // a Narrator card plays several characters: the voice that speaks last in the message owns the sprite
+  const voices = useMemo(() => cardVoices({ voices: speaker?.voices }), [speaker?.voices])
+  const picked = useMemo(
+    () => pickSprite(text, { expressions: sprites, defaultExpression: speaker?.defaultExpression, outfit: speaker?.outfit }, voices, chat.spriteOutfits),
+    [text, sprites, speaker?.defaultExpression, speaker?.outfit, voices, chat.spriteOutfits],
   )
+  const sprite = picked?.sprite ?? null
 
   useEffect(() => {
     // keep the whole box on screen: its own size, not a fixed guess
@@ -119,7 +128,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     movedRef.current = false
   }
   const setFolded = (v: boolean) => { setMinimized(v); writeJson(MIN_KEY, v) }
-  const label = `${speaker.name}: ${sprite.name}`
+  const who = picked?.character || speaker.name
+  const label = `${who}: ${sprite.name}`
 
   if (minimized) {
     return (
@@ -161,6 +171,20 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
         style={{ height: h, maxHeight: '90dvh' }}
         className="w-auto rounded-lg border border-border/40 bg-card/60 shadow-lg [opacity:0] transition-opacity duration-200"
       />
+      {/* the outfit: only when the speaker has more than one; the choice is kept for this chat */}
+      {picked && picked.outfits.length > 1 && (
+        <select
+          value={picked.outfit}
+          onPointerDown={(e) => e.stopPropagation()}
+          onChange={(e) => setSpriteOutfit(chat.id, picked.character, e.target.value)}
+          aria-label={t('sprites.outfitSwitchAria', { name: who })}
+          title={t('sprites.outfitSwitchAria', { name: who })}
+          data-testid="outfit-switch"
+          className="absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm"
+        >
+          {picked.outfits.map((o) => <option key={o} value={o}>{o.toLowerCase() === DEFAULT_OUTFIT ? t('sprites.outfitDefault') : o}</option>)}
+        </select>
+      )}
       {/* controls: always visible on touch screens, on hover elsewhere */}
       <button
         type="button"

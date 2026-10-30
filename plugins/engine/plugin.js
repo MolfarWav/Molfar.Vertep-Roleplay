@@ -2100,7 +2100,7 @@ function wiFormat(fmt, c) {
 const APP_STUDIO_KEYS = [
   "avatar", "altAvatars", "depthPrompt", "favorite", "folderId", "createdAt", "lastChatAt", "embeddedLorebookId",
   "linkedLorebookIds", "colors", "stats", "descVariants", "personalityVariants", "scenarioVariants", "versions",
-  "voiceProvider", "voiceId", "gallery", "expressions", "defaultExpression", "characterRegexIds", "css",
+  "voiceProvider", "voiceId", "gallery", "expressions", "defaultExpression", "outfit", "characterRegexIds", "css",
 ];
 // ---------- character summaries (the start-up list) ----------
 /** Studio keys a summary keeps: small, and read by lists, filters and the chat list. The rest
@@ -2455,6 +2455,18 @@ function chatVoices(g, members, groupId) {
  *  group's default for that chat only; a missing key follows the group. */
 const TURN_MODES = ["natural", "list", "manual"];
 const TURN_GEN_MODES = ["narrator", "swap", "append"];
+/** A chat's sprite outfits: { speaker (a voice's name, "" = the card itself): outfit }, short strings only; null when empty. */
+function cleanSpriteOutfits(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out = {};
+  for (const [k, o] of Object.entries(v)) {
+    if (typeof o !== "string" || !o.trim() || k.length > 120) continue;
+    out[k] = o.trim().slice(0, 120);
+    if (Object.keys(out).length >= 50) break;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function cleanTurns(t) {
   if (!t || typeof t !== "object" || Array.isArray(t)) return null;
   const out = {};
@@ -3897,12 +3909,14 @@ function keepStoredSpriteImages(prev, card) {
   const before = prev && prev.studio && Array.isArray(prev.studio.expressions) ? prev.studio.expressions : null;
   const after = card && card.studio && Array.isArray(card.studio.expressions) ? card.studio.expressions : null;
   if (!before || !after) return;
+  // a sprite is (character, outfit, name): the same emotion in two outfits are two sprites
+  const idOf = (e) => [e.character, e.outfit, e.name].map((x) => (typeof x === "string" ? x : "")).join("");
   const stored = new Map();
-  for (const e of before) if (e && typeof e.name === "string" && e.url) stored.set(e.name, e.url);
+  for (const e of before) if (e && typeof e.name === "string" && e.url) stored.set(idOf(e), e.url);
   if (!stored.size) return;
   card.studio = {
     ...card.studio,
-    expressions: after.map((e) => (e && typeof e.name === "string" && !e.url && stored.has(e.name) ? { ...e, url: stored.get(e.name) } : e)),
+    expressions: after.map((e) => (e && typeof e.name === "string" && !e.url && stored.has(idOf(e)) ? { ...e, url: stored.get(idOf(e)) } : e)),
   };
 }
 
@@ -4475,6 +4489,17 @@ export function handleRoute(req, host) {
           .map((f) => readJson(kind + "/" + f, null)).filter(Boolean);
       } catch {}
       return ok({ items });
+    }
+    // many scripts in one call (a preset import carries hundreds, and every route call recompiles this file)
+    if (kind === "regex" && id === "batch" && req.method === "POST") {
+      const items = Array.isArray(body().items) ? body().items.slice(0, 1000) : [];
+      let written = 0;
+      for (const it of items) {
+        if (!it || typeof it !== "object" || typeof it.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(it.id)) continue;
+        writeJson("regex/" + it.id + ".json", it);
+        written++;
+      }
+      return ok({ ok: true, written });
     }
     if (!id) return err(400, kind + " id required");
     if (req.method === "GET") {
@@ -5341,7 +5366,9 @@ const toolX = (r) => ({
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
         "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "autoBackground", "temporary",
-        "fieldVariantSelection", "parentChatId", "parentMessageId"];
+        "fieldVariantSelection", "parentChatId", "parentMessageId", "spriteOutfits"];
+      // spriteOutfits: the outfit each speaker's sprite wears in this chat, { voiceName | "": outfit }; null or {} clears it
+      if ("spriteOutfits" in b) b.spriteOutfits = cleanSpriteOutfits(b.spriteOutfits);
       // turns: the chat's own turn settings, replaced whole; null or {} = follow the group
       const turns = "turns" in b ? cleanTurns(b.turns) : undefined;
       const turnsSame = turns === undefined || same(turns, meta.turns);

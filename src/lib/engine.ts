@@ -100,6 +100,7 @@ export interface EngineChatMeta {
   promptCut?: { count: number; upTo: string | null } | null
   fieldVariantSelection?: Chat['fieldVariantSelection']
   turns?: ChatTurns
+  spriteOutfits?: Record<string, string>
   parentChatId?: string | null
   parentMessageId?: string | null
   createdAt: number
@@ -751,9 +752,13 @@ export function cardToCharacter(card: EngineCard, id: string, lastChatAt = 0): C
     expressions: records(studio.expressions, (e) => {
       const name = text(e.name)
       const url = text(e.url)
-      return name ? { ...e, name, url: url ? storedMediaUrl(url) : null } : null
+      const character = text(e.character).trim()
+      const outfit = text(e.outfit).trim()
+      const { character: _c, outfit: _o, ...rest } = e
+      return name ? { ...rest, name, url: url ? storedMediaUrl(url) : null, ...(character ? { character } : {}), ...(outfit ? { outfit } : {}) } : null
     }),
     defaultExpression: text(studio.defaultExpression) || 'neutral',
+    ...(text(studio.outfit) ? { outfit: text(studio.outfit) } : {}),
     characterRegexIds: texts(studio.characterRegexIds),
     css: text(studio.css),
     // the card file's size and change time as the engine saw them (absent on an engine without fs.stat)
@@ -799,6 +804,7 @@ export function characterToCard(c: Character): EngineCard {
       personalityVariants: c.personalityVariants, scenarioVariants: c.scenarioVariants,
       versions: c.versions, voiceProvider: c.voiceProvider, voiceId: c.voiceId,
       gallery: c.gallery, expressions: c.expressions, defaultExpression: c.defaultExpression,
+      ...(c.outfit ? { outfit: c.outfit } : {}),
       characterRegexIds: c.characterRegexIds, css: c.css,
     },
   }
@@ -1020,6 +1026,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     folderId: meta.folderId ?? null,
     ...(meta.pinned === true ? { pinned: true } : {}),
     ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
+    ...(meta.spriteOutfits && Object.keys(meta.spriteOutfits).length ? { spriteOutfits: meta.spriteOutfits } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
     ...(meta.autoBackground && typeof meta.autoBackground === 'object' ? { autoBackground: meta.autoBackground } : {}),
@@ -1048,6 +1055,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('autoBackground' in p) out.autoBackground = p.autoBackground ?? null
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection
   if ('turns' in p) out.turns = p.turns && Object.keys(p.turns).length ? p.turns : null
+  if ('spriteOutfits' in p) out.spriteOutfits = p.spriteOutfits && Object.keys(p.spriteOutfits).length ? p.spriteOutfits : null
   return out
 }
 

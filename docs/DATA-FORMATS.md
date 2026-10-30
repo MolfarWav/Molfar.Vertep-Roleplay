@@ -59,7 +59,7 @@ An imported card may have no `studio` yet; json_set creates it when you set a ke
 | `stats` | Tracked bars: `[{ id, name, initial, max, color }]`. |
 | `colors` | `{ name, dialogue, bubble }` CSS colors for this character's messages. |
 | `voices` | `[{ name, color }]`: whom a Narrator-type card (`molfar_card_type` `narrator`) speaks as. In a chat each voice's quoted speech takes its `color` (empty = the app's palette by position). The speaker is the name that leads a paragraph before a colon (`**Aria:** "..."`), else the first name in the line outside quotes; a line naming nobody keeps the previous speaker. Dialogue after a dash (`— text`, with the author's words between two dashes) is tinted like quoted speech, and a name is also found in the other script (`Ember` = `Эмбер`). Absent or empty: one dialogue colour as before. Display only: it never reaches the prompt. Code: `src/lib/dialogue-voices.ts` (`cardVoices`, `leadVoiceIn`). |
-| `expressions`, `defaultExpression` | Sprite images per emotion: `[{ name, url }]` (`url` is `/v1/assets/<id>` (the engine's asset store: sprites added or imported since Roleplay 4.74.0, up to 1024 px, WebP with transparency) or a data URL (older sprites, at most 256-768 px; they move to the asset store the next time the card's sprites are edited, and an import into an engine without the store still falls back to data URLs of a shrunk size)), and the one shown by default. |
+| `expressions`, `defaultExpression`, `outfit` | Sprite images per emotion: `[{ name, url, character?, outfit? }]`. `character` is the name of one of the card's `voices` (a Narrator card that plays several people; absent: the card itself, or sprites shared by everyone) and `outfit` a set of clothes (absent: `default`); a sprite is identified by (`character`, `outfit`, `name`), all compared without case, so `joy` can exist once per character and outfit. A card without these fields works as before. `studio.outfit` is the outfit worn by default (absent: `default`); a chat's own choice is `spriteOutfits` in its meta (`chats/<id>.meta.json`: `{ "<voice name>": "<outfit>" }`, key `""` for the card itself), and it wins. Which sprite shows: the speaker's own sprites (a voice that has none uses the shared ones), inside them the wanted outfit (else `default`, else the first), and inside that outfit the emotion; the outfit wins over the emotion. In a Narrator card's message the speaker is the voice whose `Name:` line comes last. In a CHARX the sprites are `emotion` assets named `<emotion>` (plain), `<outfit>__<emotion>` or `<character>__<outfit>__<emotion>` (double underscore; the importer splits the name back, since `card.json` of a CHARX does not hold `studio.expressions`). `url` is (`url` is `/v1/assets/<id>` (the engine's asset store: sprites added or imported since Roleplay 4.74.0, up to 1024 px, WebP with transparency) or a data URL (older sprites, at most 256-768 px; they move to the asset store the next time the card's sprites are edited, and an import into an engine without the store still falls back to data URLs of a shrunk size)), and the one shown by default. |
 | `gallery` | `[{ id, url, type: "image" \| "video", caption }]`. `url` is `/v1/assets/<id>` (the engine's asset store; images added since Roleplay 4.43.0 and generated pictures) or a data URL (older items; they move to the asset store on the next gallery add). |
 | `voiceProvider`, `voiceId` | Text-to-speech voice. |
 | `characterRegexIds` | Regex scripts that apply only to this character. |
@@ -191,6 +191,21 @@ the last messages (`rankFacts`, `rankChapters`). Besides a rare word counting by
 row that the last messages also have in a row add half of their weights again, and a word that many of the chat's newest 200
 messages use weighs `1 / (1 + 3 * share)` of what it would (only once the chat has 20 messages). Config key `recallScoring`:
 `"phrases"` (default) or `"words"` for the old rule; it has no setting in the app and is kept when the settings page saves.
+
+**Causes between facts (#178).** A fact in `litopys/chats/<chatId>.json` may carry `because: "<id of an earlier fact of the same
+chat>"`: at most one, written by the chapter worker on a new fact (an `add`, or the `update` of a `change` that replaces a fact; the
+worker prompt asks for it only when the scene has Known facts to point at, and the parser reads `because`, `cause`, `caused_by`, an id
+as `f3`, `F3` or `3`, and ignores anything else, an unknown id included; the chapter is never refused for it). The link is kept
+when the cause is later retired, replaced (`superseded`) or merged away, and the Library says so; a Consolidate merge gives the merged
+fact the first cause its parts had (never one of the parts, never one that points back at a part) and repoints the facts that named
+a part to the merged fact; deleting a fact clears the links that named it; a rebuild or a branch drops a link to a fact left behind.
+Recall: after the insert is filled the usual way, each picked fact whose cause is active, known to those present and not already
+in the prompt gets the cause right after it, if the budget still has room; it never replaces a fact that ranked on its own, and it
+follows one step only. `fact.because` is not used by the full record (everything is there anyway). The sidecar
+`litopys/insert/<chatId>.json` records what it did: `causes { pulled, missed, together }` for the last reply (a cause added; an
+active cause that did not fit; cause and effect both there already) and `causeStats { replies, pulled, missed, together }` over the
+chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causes` (`true`, default):
+`false` stops asking the worker for causes, ignores `because` in its replies and stops recall from using it; no setting in the app.
 
 **Scenes set apart by hand.** `litopys/chats/<chatId>.json`, key `marks`: `[{ "id": "s1", "from": "<message id>", "to": "<message id>", "at": <ms> }]`.
 A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`
@@ -532,10 +547,34 @@ builds the prompt. Names are case-insensitive.
   read `{{user}}`, `{{char}}`, preset variables, then chat variables; comparisons ignore case and a
   choice matches by its value or its label.
 
-Regex scripts are `data/regex/<id>.json` (copy `data/regex/_example.json`): `findRegex`,
-`replaceString`, `placement` (`user_input`, `ai_output`, `prompt`, `display`), `scope` (`global`,
-`character`, `chat`, `preset`) with `scopeTargetId`, `minDepth` / `maxDepth`. A script with
-placement `display` hides or restyles text on screen only; `prompt` changes what the model gets.
+Regex scripts are `data/regex/<id>.json`, one script per file (copy `data/regex/_example.json`; a file whose
+name starts with `_` is a template the app list skips). Fields, as the engine reads them:
+
+| Field | Meaning |
+|---|---|
+| `id`, `scriptName` | Id (= file name) and the name shown in the app. |
+| `findRegex` | The pattern, without `/` delimiters; a pattern longer than 500 characters or one that does not compile does nothing. |
+| `flags` | JavaScript regex flags; `g` when missing. |
+| `replaceString` | The replacement: `$1`, `$<name>` (captured groups), `{{match}}` (the whole match), macros. Groups and `{{match}}` are cleaned of the `trimStrings`. Empty = delete the match. |
+| `placement` | WHERE it applies, a list of the texts the script sees (the app shows them as switches): `user_input` (the player's messages), `ai_output` (the characters' replies), `slash` (slash-command output), `wi` (lorebook entry text), `reasoning` (the model's thinking). Other names are ignored. |
+| `markdownOnly` | `true`: changes only what is shown on screen; the saved text and the prompt stay as they are. Default `false`. |
+| `promptOnly` | `true`: changes only what the model reads; the saved text and the screen stay as they are. Default `false`. |
+| `scope`, `scopeTargetId` | `global` (everywhere, `scopeTargetId` null), `character` (that card, or a group that has it as a member), `chat` (that chat id) or `preset` (that preset id; the default preset when a chat has none). A non-global script without a `scopeTargetId` never applies. Global scripts run first, then preset, then character and chat. |
+| `minDepth`, `maxDepth` | Only for the prompt: the window of history messages the script touches, counted from the newest one (0 = the last message); `null` = no limit. |
+| `trimStrings` | Strings removed from every captured group and from `{{match}}` before they go into the replacement. |
+| `runOnEdit` | `true`: also rewrites a saved message when the player edits it. Default `false`. |
+| `macroMode` | Whether macros in the pattern are expanded first: `none` (default, the pattern is used as written), `raw` (macros expanded as they are) or `escaped` (their values are regex-escaped). |
+| `disabled` | `true` turns the script off. |
+| `order` | Run order inside the same scope (smaller first), then by name. |
+
+When it runs follows from `markdownOnly` and `promptOnly`:
+- neither: the text is rewritten as the message is saved, so the chat file holds the new text and the screen and the prompt both show it;
+- `markdownOnly`: only the screen changes (hide a block, restyle text);
+- `promptOnly`: only the prompt changes (drop something from what the model reads);
+- both: the screen and the prompt change, the saved text does not.
+
+Old files (before the two flags) listed `display` and `prompt` among the `placement` values; the app still reads them as the
+flags that did the same (`prompt` also turns on `wi`) and writes the new form when it saves. Write the new form.
 
 ## Dashboard state: `data/dashboard/state/<chatId>.json`
 

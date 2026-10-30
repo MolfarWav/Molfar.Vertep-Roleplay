@@ -44,6 +44,33 @@ describe("buildCharx", () => {
     expect(JSON.stringify(card)).not.toContain("secret draft");
   });
 
+  it("a sprite of a character or an outfit carries both in its asset name; the plain case keeps the emotion alone", async () => {
+    const c = cardToCharacter({
+      spec: "chara_card_v2", name: "Narrator", description: "d",
+      studio: {
+        outfit: "pyjamas",
+        expressions: [
+          { name: "joy", url: png(1) },
+          { name: "joy", url: png(2), outfit: "dress" },
+          { name: "joy", url: png(3), character: "Aria", outfit: "dress" },
+          { name: "joy", url: png(4), character: "Aria" },
+        ],
+      },
+    } as never);
+    expect(c.expressions[2]).toMatchObject({ character: "Aria", outfit: "dress" });
+    const files = unzipSync(await buildCharx(c, [], async (url) => readImage(url)));
+    const card = JSON.parse(new TextDecoder().decode(files["card.json"]));
+    expect(card.data.assets.filter((a: { type: string }) => a.type === "emotion").map((a: { name: string; uri: string }) => [a.name, a.uri])).toEqual([
+      ["joy", "embeded://assets/emotion/images/joy.png"],
+      ["dress__joy", "embeded://assets/emotion/images/dress__joy.png"],
+      ["Aria__dress__joy", "embeded://assets/emotion/images/Aria__dress__joy.png"],
+      ["Aria__default__joy", "embeded://assets/emotion/images/Aria__default__joy.png"],
+    ]);
+    // the card's default outfit stays in card.json; the sprite list does not
+    expect(card.data.studio.outfit).toBe("pyjamas");
+    expect(card.data.studio.expressions).toBeUndefined();
+  });
+
   it("the JSON export is the V2 card", () => {
     const c = cardToCharacter({ spec: "chara_card_v2", name: "A", description: "d" } as never);
     expect(JSON.parse(cardJson(c, [])).spec).toBe("chara_card_v2");

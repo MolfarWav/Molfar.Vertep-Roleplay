@@ -300,6 +300,8 @@ interface AppState {
   updateGroup: (groupId: ID, patch: Partial<GroupConfig>) => void
   /** change this group chat's own turn settings (merged in); null = follow the group again */
   setChatTurns: (chatId: ID, patch: ChatTurns | null) => void
+  /** Change the outfit of one speaker's sprite in this chat (null: back to the card's); saved in the chat meta. */
+  setSpriteOutfit: (chatId: ID, character: string, outfit: string | null) => void
   /** move a member earlier or later in this chat's order */
   moveChatMember: (chatId: ID, memberId: ID, dir: -1 | 1) => void
   triggerMember: (chatId: ID, memberId: ID) => void
@@ -1896,6 +1898,17 @@ export const useApp = create<AppState>()(
         set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...c, turns, groupSettings: chatGroupSettings(g, turns) } : c)) }))
         writeThrough('this chat\'s turns', j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ turns: turns ?? null }) }))
       },
+      setSpriteOutfit: (chatId, character, outfit) => {
+        const chat = get().chats.find((c) => c.id === chatId)
+        if (!chat) return
+        const next = { ...(chat.spriteOutfits ?? {}) }
+        if (outfit) next[character] = outfit
+        else delete next[character]
+        const spriteOutfits = Object.keys(next).length ? next : undefined
+        bumpMutate()
+        set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...c, spriteOutfits } : c)) }))
+        writeThrough('the sprite outfit', j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ spriteOutfits: spriteOutfits ?? null }) }))
+      },
       moveChatMember: (chatId, memberId, dir) => {
         const order = [...(get().chats.find((c) => c.id === chatId)?.groupSettings?.order ?? [])]
         const idx = order.indexOf(memberId)
@@ -1958,10 +1971,11 @@ export const useApp = create<AppState>()(
         bumpMutate()
         set((s) => ({ presets: [...s.presets, preset] }))
         const scripts: RegexScript[] = []
-        for (const rx of imported.regex) {
-          const script: RegexScript = { ...rx, id: uid('rx'), scope: 'preset', scopeTargetId: preset.id, order: scripts.length }
-          await j(`/regex/${encodeURIComponent(script.id)}`, { method: 'PUT', body: JSON.stringify({ ...regexToEngine(script), id: script.id }) })
-          scripts.push(script)
+        for (const rx of imported.regex) scripts.push({ ...rx, id: uid('rx'), scope: 'preset', scopeTargetId: preset.id, order: scripts.length })
+        // a preset can carry hundreds of scripts and every engine call costs seconds: send them in batches
+        for (let i = 0; i < scripts.length; i += REGEX_BATCH) {
+          const items = scripts.slice(i, i + REGEX_BATCH).map((script) => ({ ...regexToEngine(script), id: script.id }))
+          await j('/regex/batch', { method: 'POST', body: JSON.stringify({ items }) })
         }
         if (scripts.length) set((s) => ({ regexScripts: [...s.regexScripts, ...scripts] }))
         return { preset, scripts: scripts.length, report }
@@ -2716,6 +2730,8 @@ async function runGeneration(
 }
 
 /** The engine's limit on one app request body (1.0.7: 8 MB; 1 MB before). */
+/** Regex scripts sent to the engine per call when a preset is imported. */
+const REGEX_BATCH = 100
 const APP_BODY_CAP = 8 * 1024 * 1024
 
 const LANDED = Symbol('landed')
