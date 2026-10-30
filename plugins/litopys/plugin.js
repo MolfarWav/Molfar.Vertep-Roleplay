@@ -190,6 +190,13 @@ export const DEFAULT_CONFIG = {
   // is earned (starts to act in the chat) once it was seen in this many chapters
   habits: true,
   habitsEarnAfter: 2,
+  // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
+  // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
+  recollections: true,
+  // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
+  // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
+  // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
+  recallScoring: "phrases",
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -272,6 +279,20 @@ export const HABITS_RULE = [
   "- When a Known habit showed again, give {reinforce: its id, evidence} and no new habit.",
 ].join("\n");
 export const HABITS_SHAPE = ',"habits":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
+
+/** Added to the chapter prompt when the scene has two or more named characters besides the player (#99). */
+export const RECOLLECTIONS_RULE = [
+  "Recollections:",
+  "- For each character listed under Characters, write what THEY remember of this scene: 1-2 short sentences, first person, past tense, in their own voice.",
+  "- Only what that character saw, heard, did or was told in this scene, and how it left them feeling. Nothing they were not present for, nothing another character thought in private.",
+  "- Different characters remember the same event differently: keep each one's own view. Never invent; use only the messages. Skip a character who has nothing of their own to remember.",
+].join("\n");
+export const RECOLLECTIONS_SHAPE = ',"views":[{"who":"a name from Characters","text":"I ..."}]';
+/** At most this many recollections to a chapter, each this long (the worker may ramble). */
+const VIEWS_MAX = 8;
+const VIEW_CHARS = 300;
+/** The words a scene's speaker list leaves out: the voice of the story, not a character. */
+const NOT_A_CAST = new Set(["narrator", "system", "user", "you", "assistant", "game master", "gm", "dm"]);
 
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 const PAST_DEFAULT_PROMPTS = {
@@ -406,6 +427,8 @@ export function loadConfig(fsx) {
   cfg.arcWords = clamp(intOf(cfg.arcWords, 150), 40, 400);
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
+  cfg.recollections = cfg.recollections !== false;
+  cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   return cfg;
 }
 
@@ -456,6 +479,7 @@ export function patchConfig(fsx, body) {
   if (b.arcWords !== undefined) next.arcWords = clamp(intOf(b.arcWords, 150), 40, 400);
   if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
+  if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -871,6 +895,27 @@ export function sceneNames(scene, line, dash, meta) {
   return [...names];
 }
 
+/**
+ * The named characters of a scene besides the player (#99): who could have a recollection of it. The player's own
+ * name and the voice of the story (a narrator, a group in narrator mode: `notCast`) are left out. Fewer than two
+ * means there is no one to tell a different story from, so the worker is not asked.
+ */
+export function sceneCast(scene, line, dash, meta, notCast = []) {
+  const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase())]);
+  const userNames = new Set();
+  if (meta && str(meta.userName)) userNames.add(str(meta.userName).toLowerCase());
+  for (let i = scene.fromIdx; i <= scene.toIdx; i++) if (line[i] && line[i].role === "user" && str(line[i].name)) userNames.add(str(line[i].name).toLowerCase());
+  const seen = new Set();
+  const out = [];
+  for (const n of sceneNames(scene, line, dash, meta)) {
+    const key = str(n).toLowerCase();
+    if (!key || skip.has(key) || userNames.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(str(n));
+  }
+  return out;
+}
+
 /** item 6: returns the request object for host.llm.request. */
 /** M4d: words in a text (letters and digits between spaces), for the chapter size check. */
 export function wordCount(text) {
@@ -978,6 +1023,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     const text = cut(opts.view ? opts.view(String(m.text), m.role) : m.text, 1500);
     if (text) msgLines.push("[" + name + "] " + text);
   }
+  // #99: who could remember this scene on their own, when there are two or more
+  const cast = cfg.recollections !== false ? sceneCast(scene, line, dash, meta, opts.notCast) : [];
+  const viewsOn = cast.length >= 2;
+  if (viewsOn) parts.push("Characters\n" + cast.map((n) => "- " + n).join("\n"));
   parts.push("Scene messages\n" + msgLines.join("\n"));
 
   const habitsOn = cfg.habits !== false;
@@ -989,7 +1038,8 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     if (known.length) parts.splice(parts.length - 1, 0, "Known habits\n" + known.join("\n"));
   }
   const userText = parts.join("\n\n");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + "\n\nOutput shape\n" + (habitsOn ? WORKER_SHAPE.replace(/\}$/, HABITS_SHAPE + "}") : WORKER_SHAPE);
+  const shape = WORKER_SHAPE.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
@@ -1168,13 +1218,114 @@ export function bestMemberVector(members, vectors, scanVec) {
   }
   return best;
 }
+// ---------- recall scoring: names, phrases, words the chat uses all the time (#99 piece 3) ----------
+/** A name found in the text counts this much more than a plain word of the same rarity. */
+const NAME_WEIGHT = 1.6;
+/** Two content words in a row that the scan also has in a row add this share of their own weights again. */
+const PHRASE_SHARE = 0.5;
+/** A word that every message of the chat uses weighs 1 / (1 + FREQ_K) of what it would. */
+const FREQ_K = 3;
+/** Fewest messages for the chat's own word counts to mean anything, and how many of the newest are read. */
+const FREQ_MIN_MSGS = 20;
+const FREQ_WINDOW = 200;
+
+/**
+ * How many of the chat's newest messages use a word (by stem): `share(stem)` in 0..1, or null when the chat is too
+ * short to say. Words like "door" or "said" that every scene has tell nothing about which fact matters now.
+ */
+export function chatWordShare(line) {
+  const msgs = arr(line).filter((m) => isObj(m) && str(m.text)).slice(-FREQ_WINDOW);
+  if (msgs.length < FREQ_MIN_MSGS) return null;
+  const count = new Map();
+  for (const m of msgs) {
+    for (const w of new Set(wordTokensM3b(str(m.text)).map(wordStemM3b))) count.set(w, (count.get(w) || 0) + 1);
+  }
+  return (stem) => (count.get(stem) || 0) / msgs.length;
+}
+
+/** The stems of the names in a text: a capitalised word that does not open a sentence, and the given names (a fact's subject, who knows it). */
+function nameStems(text, given) {
+  const out = new Set();
+  const add = (w) => {
+    const t = wordTokensM3b(w)[0];
+    if (t) out.add(wordStemM3b(t));
+  };
+  const src = String(text);
+  for (const m of src.matchAll(/\p{L}[\p{L}'’]*/gu)) {
+    const w = m[0];
+    if (w.length < 3 || w === w.toLowerCase() || w === w.toUpperCase()) continue;
+    const before = src.slice(0, m.index).replace(/[\s"'“”«(\[*_]+$/u, "");
+    if (!before || /[.!?…:;\n]$/u.test(before)) continue;
+    add(w);
+  }
+  for (const g of arr(given)) if (str(g) && str(g).toLowerCase() !== "world" && str(g).toLowerCase() !== "all") add(str(g));
+  return out;
+}
+
+/**
+ * A scorer for a pool of items: `(item) => lexical score against the scan`. With no `opts` it is the old rule (a word of
+ * the item that the scan has adds 10 * ln(1 + N / df), df counted inside the pool). With `opts` ({ share }): a name
+ * weighs NAME_WEIGHT times more, a word the chat uses in many messages weighs less (share), and two content words
+ * in a row that the scan has in a row add PHRASE_SHARE of their weights again.
+ */
+function lexicalScorer(list, textOf, givenOf, scanText, opts) {
+  const df = new Map();
+  const toks = new Map();
+  for (const it of list) {
+    const all = wordTokensM3b(textOf(it));
+    toks.set(it, all);
+    for (const w of new Set(all.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
+  }
+  const n = Math.max(1, list.length);
+  const scan = wordTokensM3b(scanText || "");
+  const inScan = scanMatcherM3b(scan);
+  const share = opts && typeof opts.share === "function" ? opts.share : null;
+  const scanPairs = new Set();
+  if (opts) for (let i = 0; i + 1 < scan.length; i++) scanPairs.add(wordStemM3b(scan[i]) + " " + wordStemM3b(scan[i + 1]));
+  return (it) => {
+    if (!scan.length) return 0;
+    const all = toks.get(it);
+    const names = opts ? nameStems(textOf(it), givenOf ? givenOf(it) : []) : null;
+    const weight = (k) => {
+      const stem = wordStemM3b(k);
+      let w = 10 * Math.log(1 + n / (df.get(stem) || 1));
+      if (opts) {
+        if (names.has(stem)) w *= NAME_WEIGHT;
+        if (share) w /= 1 + FREQ_K * share(stem);
+      }
+      return w;
+    };
+    let score = 0;
+    for (const k of new Set(all)) if (inScan(k)) score += weight(k);
+    if (opts && scanPairs.size) {
+      const seen = new Set();
+      for (let i = 0; i + 1 < all.length; i++) {
+        const pair = wordStemM3b(all[i]) + " " + wordStemM3b(all[i + 1]);
+        if (seen.has(pair) || !scanPairs.has(pair)) continue;
+        seen.add(pair);
+        score += PHRASE_SHARE * (weight(all[i]) + weight(all[i + 1]));
+      }
+    }
+    return score;
+  };
+}
+
 /**
  * Rank facts for group d: relevant facts, newest first on ties. `recency(f)` (optional, #50)
- * multiplies a fact's relevance; `sem` (optional, wave 2) adds the vector bonus to it. Nothing here
+ * multiplies a fact's relevance; `sem` (optional, wave 2) adds the vector bonus to it; `opts` (optional, #99) is the
+ * recall scoring with names, phrases and the chat's own word counts ({ share }, see lexicalScorer). Nothing here
  * changes anything on disk.
  */
-export function rankFacts(facts, scanText, recency, sem) {
+export function rankFacts(facts, scanText, recency, sem, opts) {
   const list = arr(facts).filter(isObj);
+  if (opts) {
+    const lex = lexicalScorer(list, (f) => str(f.text), (f) => [f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : [])], scanText, opts);
+    const extra = semanticBonuses(list, sem);
+    return list
+      .map((f) => ({ f, score: (weightBonus(f) + lex(f) + (extra.get(f) || 0)) * (recency ? recency(f) : 1) }))
+      .sort((a, b) => b.score - a.score || (b.f.updatedAt || 0) - (a.f.updatedAt || 0))
+      .map((x) => x.f);
+  }
   const df = new Map();
   const keysMap = new Map();
   for (const f of list) {
@@ -1192,8 +1343,16 @@ export function rankFacts(facts, scanText, recency, sem) {
     .map((x) => x.f);
 }
 /** Rank chapters before the cut: score on label + text (and, wave 2, the vector bonus); the bridge chapter stays first when it qualifies. */
-export function rankChapters(chapters, scanText, sem) {
+export function rankChapters(chapters, scanText, sem, opts) {
   const list = arr(chapters).filter(isObj);
+  if (opts) {
+    const lex = lexicalScorer(list, (ch) => str(ch.label) + " " + str(ch.text), null, scanText, opts);
+    const extra = semanticBonuses(list, sem);
+    return list
+      .map((ch) => ({ ch, score: lex(ch) + (extra.get(ch) || 0) }))
+      .sort((a, b) => b.score - a.score || (b.ch.at || 0) - (a.ch.at || 0))
+      .map((x) => x.ch);
+  }
   const df = new Map();
   const keysMap = new Map();
   for (const ch of list) {
@@ -1292,8 +1451,10 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const factSem = useVec && { vec: scanVec, of: (f) => vectorOf(vectors, f.id, str(f.text)) };
   const chapterVec = (ch) => (arcs.includes(ch) ? bestMemberVector(arr(ch.chapterIds).map((id) => allBefore.find((c) => c.id === id)), vectors, scanVec) : vectorOf(vectors, ch.id, str(ch.text)));
   const chapterSem = useVec && { vec: scanVec, of: chapterVec };
-  const d = rankFacts(rest, scanText, recency, factSem);
-  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText, chapterSem).slice(0, CHAPTERS_MAX);
+  // #99: names, phrases and the chat's own word counts weigh in, unless the hand-edited key asks for the old rule
+  const recall = cfg && cfg.recallScoring === "words" ? null : { share: chatWordShare(line) };
+  const d = rankFacts(rest, scanText, recency, factSem, recall);
+  const e = rankChapters([...beforeCut.filter((ch) => ch !== bridge), ...arcs], scanText, chapterSem, recall).slice(0, CHAPTERS_MAX);
 
   // Two blocks, for the provider's prompt cache: the bridge chapter changes only when a chapter
   // closes (the history above it changes then too), so it rides above the history; facts and the
@@ -1502,7 +1663,18 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits) return null;
+    // what the characters remember of the scenes that left the prompt (#99): from the chat's own record, so it follows the Litopys switch too
+    let recall = null;
+    if (st && line.length && cfg.recollections !== false && !offForChat(fsx, chatId, "plugin:recollections")) {
+      try {
+        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName });
+      } catch (e) {
+        try {
+          host.log("litopys recollections: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1521,6 +1693,7 @@ export function llmRequest(ctx, host) {
           ...(personaMem ? { personaMemory: { personaId: personaMem.ownerId, tokens: personaMem.tokens, sources: personaMem.sources, dupes: personaMem.dupes } } : {}),
           ...(worldMem ? { worldMemory: { worldId: worldMem.ownerId, tokens: worldMem.tokens, sources: worldMem.sources, dupes: worldMem.dupes } } : {}),
           ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
+          ...(recall ? { recollections: { tokens: recall.tokens, scenes: recall.scenes, who: recall.who } } : {}),
         }),
       );
     } catch {}
@@ -1546,6 +1719,10 @@ export function llmRequest(ctx, host) {
     if (habits) {
       messages = withInsert(messages, habits.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: String(habits.text).trim() });
+    }
+    if (recall) {
+      messages = withInsert(messages, recall.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: String(recall.text).trim() });
     }
     if (insert && insert.head) {
       messages = withInsert(messages, insert.head);
@@ -1638,7 +1815,7 @@ function workerShape(v) {
     text = str(v.text);
   }
   if (!text) return null;
-  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), habits: habitList(v) };
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), habits: habitList(v), views: viewList(v) };
 }
 
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
@@ -1744,6 +1921,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   };
   if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
+  // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a cast of two or more
+  const views = ctx.cast && ctx.cast.length >= 2 ? cleanViews(parsed.views, ctx.cast) : [];
+  if (views.length) newChapter.views = views;
   if (model) newChapter.model = model;
   const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
   if (at >= 0) st.chapters[at] = newChapter;
@@ -1946,6 +2126,34 @@ export function emptyChat(chatId) {
 
 /** The worker's habit reports; a model that still answers with the old name "skills" is understood too. */
 const habitList = (v) => (Array.isArray(v.habits) ? v.habits : Array.isArray(v.skills) ? v.skills : []).slice(0, 6);
+
+/** The worker's recollections wherever the model put them: a list of {who, text}, or a map from a name to the text. */
+function viewList(v) {
+  const raw = [v.views, v.recollections, v.memories, isObj(v.chapter) ? v.chapter.views : undefined].find((x) => Array.isArray(x) || isObj(x));
+  const list = Array.isArray(raw) ? raw : isObj(raw) ? Object.entries(raw).map(([who, text]) => ({ who, text })) : [];
+  return list.filter(isObj).slice(0, 2 * VIEWS_MAX);
+}
+
+/**
+ * The recollections of one chapter as kept: only a name of the scene's cast (spelled as the scene spells it), one per
+ * character, text trimmed. `cast` empty = unknown, then any name stays.
+ */
+export function cleanViews(list, cast) {
+  const byLower = new Map(arr(cast).map((n) => [str(n).toLowerCase(), str(n)]));
+  const done = new Set();
+  const out = [];
+  for (const x of arr(list)) {
+    if (!isObj(x)) continue;
+    const key = str(x.who || x.name || x.character).toLowerCase();
+    const who = byLower.size ? byLower.get(key) : str(x.who || x.name || x.character);
+    const text = cut(str(x.text || x.memory || x.view), VIEW_CHARS);
+    if (!who || !text || done.has(who.toLowerCase())) continue;
+    done.add(who.toLowerCase());
+    out.push({ who, text });
+    if (out.length >= VIEWS_MAX) break;
+  }
+  return out;
+}
 
 export function loadChatFile(fsx, chatId) {
   const st = readJson(fsx, CHAT_DIR + chatId + ".json", null);
@@ -2792,7 +3000,7 @@ export function onTick(_ctx, host) {
             gen.inFlight = { key: shortKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
             if (!saveChatFile(fsx, st)) return;
             beat(fsx, chatId, now);
-            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords, view: storyView(fsx, meta) }));
+            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords, view: storyView(fsx, meta), notCast: narratorNames(fsx, meta) }));
             return;
           }
           // applied to the record as it is on disk; a save that lost a race is redone once
@@ -2826,6 +3034,7 @@ export function onTick(_ctx, host) {
                 earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
                 cardRules: cfg.habits !== false ? cardHabitRules(fsx, meta) : [],
+                cast: cfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)) : [],
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
@@ -2858,7 +3067,7 @@ export function onTick(_ctx, host) {
         gen.inFlight = { key: sendKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
         if (!saveChatFile(fsx, st)) return;
         beat(fsx, chatId, now);
-        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), view: storyView(fsx, meta) });
+        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta) });
         if (host.llm && typeof host.llm.request === "function") host.llm.request(sendKey, req);
         return;
       } catch (e) {
@@ -4170,8 +4379,21 @@ export function chapterRoute(fsx, body) {
         next.text = cut(str(b.text), 1500);
         if (!next.text) return bad("text is empty");
       }
+      // #99: what each character remembers of the scene, written by the worker or by the user; an empty list takes them away
+      if (b.views !== undefined) {
+        if (!Array.isArray(b.views)) return bad("views must be a list of { who, text }");
+        const views = cleanViews(b.views, null);
+        if (views.length) next.views = views;
+        else next.views = undefined;
+      }
       if (!Object.keys(next).length) return bad("nothing to change");
       Object.assign(ch, next);
+      if (ch.views === undefined) delete ch.views;
+      // only the recollections changed: the chapter stays the worker's, so a changed scene still rewrites it
+      if (b.label === undefined && b.text === undefined) {
+        addActivity(st, "user", "chapter.edit", "Edited what the characters remember in the chapter " + quote(ch.label || ch.id), [ch.id], now, { label: ch.label || "", views: true });
+        return;
+      }
       ch.edited = true;
       ch.editedAt = now;
       // the user wrote it for the messages as they are now
@@ -4462,6 +4684,7 @@ export function chatView(fsx, chatId) {
       stale: ch.stale === true,
       edited: ch.edited === true,
       ...(ch.marked === true ? { marked: true } : {}),
+      ...(Array.isArray(ch.views) && ch.views.length ? { views: ch.views } : {}),
     });
   }
   return {
@@ -5135,6 +5358,75 @@ function cardOfReply(fsx, meta, speakerName) {
   return null;
 }
 
+/** The names that voice the story rather than play a character: a group in narrator mode speaks as the group. */
+function narratorNames(fsx, meta) {
+  const out = ["Narrator"];
+  const gid = str(meta && meta.groupId);
+  if (gid && SAFE_ID.test(gid)) {
+    const g = readJson(fsx, "groups/" + gid + ".json", null);
+    if (isObj(g) && g.generationMode === "narrator" && str(g.name)) out.push(str(g.name));
+  }
+  return out;
+}
+
+/**
+ * Whose recollections this reply carries (#99): a group in narrator mode and a narrator card voice several
+ * characters, so the reply carries all of theirs; otherwise only the speaking card's own. Names are lower case.
+ */
+function recollectors(fsx, meta, speakerName) {
+  const gid = str(meta && meta.groupId);
+  const g = gid && SAFE_ID.test(gid) ? readJson(fsx, "groups/" + gid + ".json", null) : null;
+  if (isObj(g) && g.generationMode === "narrator") {
+    const names = new Set();
+    for (const id of arr(g.memberIds).map(str)) for (const n of cardNamesOf(cardOf(fsx, id))) names.add(n);
+    return { names, many: true, name: "" };
+  }
+  const hit = cardOfReply(fsx, meta, speakerName);
+  if (hit) {
+    const names = cardNamesOf(hit.card);
+    return { names, many: names.size > 1, name: str(hit.card.name) };
+  }
+  return { names: new Set(), many: false, name: "" };
+}
+
+/** The room of the "what the character remembers" block, in tokens. */
+const RECOLLECT_TOKENS = 300;
+
+/**
+ * The block "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
+ * for a narrator, for everyone it voices) of the scenes that have left the prompt, newest first, whole scenes, within
+ * RECOLLECT_TOKENS. The same text between replies until a chapter closes or the speaker changes, so it can sit above
+ * the history. null when the chat has none for this reply.
+ */
+export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
+  if (!st || !line.length) return null;
+  const { names, many, name } = recollectors(fsx, meta, speakerName);
+  if (!names.size) return null;
+  const rows = [];
+  for (const ch of chaptersBeforeCut(st, line, cut)) {
+    const mine = arr(ch.views).filter((x) => isObj(x) && str(x.text) && names.has(str(x.who).toLowerCase()));
+    if (mine.length) rows.push({ ch, mine });
+  }
+  if (!rows.length) return null;
+  const head = many
+    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it. Each knows only their own part, so never let one use what only another remembers.]"
+    : "[What " + (name || "this character") + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it, and they know nothing of those scenes beyond it.]";
+  const lineOf = (ch, v) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + (many ? str(v.who) + ": " : "") + str(v.text);
+  const picked = [];
+  const render = () => [head, ...rows.filter((r) => picked.includes(r)).flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n");
+  // newest scene first into the room; a scene goes in whole or not at all
+  for (const r of rows.slice().reverse()) {
+    picked.push(r);
+    if (estimateTokens(render()) > RECOLLECT_TOKENS) {
+      picked.pop();
+      break;
+    }
+  }
+  if (!picked.length) return null;
+  const text = render();
+  return { text, tokens: estimateTokens(text), scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
+}
+
 /** The habits block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
 export function cardHabitsFor({ fsx, chatId, meta, speakerName, chosen }) {
   const hit = cardOfReply(fsx, meta, speakerName);
@@ -5577,6 +5869,11 @@ function carriesRoute(fsx, query) {
       text: res ? res.text : "",
     };
   };
+  // what the characters remember of the scenes that left the prompt (#99), as the reply of `speaker` would carry it
+  let recall = null;
+  try {
+    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName }) : null;
+  } catch {}
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
   const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
   const wset = isObj(wr) && isObj(wr.settings) ? wr.settings : {};
@@ -5601,6 +5898,7 @@ function carriesRoute(fsx, query) {
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
       personaMemory: sharedMemory("persona"),
       worldMemory: sharedMemory("world"),
+      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: recall.text } : null,
     },
   };
 }

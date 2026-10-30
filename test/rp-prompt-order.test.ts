@@ -30,6 +30,12 @@ describe("requestOrder: the board's request list follows the request, not the sw
       "section:main", "plugin:cardmemory", "plugin:personamemory", "plugin:worldmemory", "history",
     ]);
   });
+  it("puts the recollections after the habits, just above the history", () => {
+    const board = ["plugin:cardhabits", "plugin:recollections", "plugin:worldmemory", "history", "section:main"].map(row);
+    expect(requestOrder(board, parts, spans).map((r) => r.item.key)).toEqual([
+      "section:main", "plugin:worldmemory", "plugin:cardhabits", "plugin:recollections", "history",
+    ]);
+  });
   it("keeps the board order with no spans, and puts rows with no place last", () => {
     const board = ["b", "a"].map(row);
     expect(requestOrder(board, parts, undefined)).toEqual(board);

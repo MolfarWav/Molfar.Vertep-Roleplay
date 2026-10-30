@@ -50,6 +50,9 @@ export interface LitChatItem {
   worker: LitWorker | null
 }
 
+/** What one character remembers of a scene (#99): written by the chapter worker, or by hand. */
+export interface LitView { who: string; text: string }
+
 export interface LitChapter {
   id: string
   /** message ids of its range (M4d: "Open the messages") */
@@ -69,6 +72,8 @@ export interface LitChapter {
   edited: boolean
   /** the reader set this scene apart by hand (Save as a scene) */
   marked?: boolean
+  /** #99: what each character of the scene remembers (at most 8); missing when the worker wrote none */
+  views?: LitView[]
 }
 
 /** M4d: neighbouring older chapters merged into one summary. The insert takes a fresh arc in place of its chapters. */
@@ -318,6 +323,8 @@ export interface LitConfig {
   /** #106: look for habits in scenes (default on), and in how many different scenes a habit becomes a habit (1 to 5, default 2); missing from an older plugin */
   habits?: boolean
   habitsEarnAfter?: number
+  /** #99: the chapter worker also writes what each character remembers of a scene (default on); missing from an older plugin */
+  recollections?: boolean
   /** which prompts differ from the default (4.34; absent on an older plugin) */
   custom?: string[]
 }
@@ -351,7 +358,7 @@ export const retireLitFact = (chatId: string, id: string) => post<LitChat>('/lit
 export const restoreLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'restore', id })
 export const deleteLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'delete', id })
 
-export const editLitChapter = (chatId: string, id: string, fields: { label?: string; text?: string }) => post<LitChat>('/litopys/chapters', { chatId, op: 'edit', id, ...fields })
+export const editLitChapter = (chatId: string, id: string, fields: { label?: string; text?: string; views?: LitView[] }) => post<LitChat>('/litopys/chapters', { chatId, op: 'edit', id, ...fields })
 export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('/litopys/chapters', { chatId, op: 'rewrite', id })
 /** keepGone: the worker never writes a chapter for these messages again; they still leave the prompt. */
 /** Set messages apart as a scene of their own (message ids), or take that mark off. */
