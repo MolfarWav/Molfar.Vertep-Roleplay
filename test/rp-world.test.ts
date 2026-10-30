@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -162,7 +162,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -263,7 +263,7 @@ describe("the scene from the Dashboard", () => {
       "m0#0": { ...calm("social"), scene: { new: true, direction: "social" } },
       "m2#0": calm("domestic"), "m4#0": calm("domestic"), "m9#0": calm("combat"),
     }) });
-    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen", present: ["Odarka"] });
+    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen", present: ["Odarka"], chars: {} });
     expect(sceneOf(memHost(seed()).host.fs, "c1", STORY)).toBe(null);
   });
 
@@ -1023,6 +1023,7 @@ describe("places, things and carry", () => {
   const place = (name: string, extra: Record<string, unknown> = {}) => ({ kind: "place", name, aliases: [], text: "A place.", ...extra });
   const base = () => {
     const st = emptyState("c1");
+    st.settings.carrySource = "dm";
     applyReport(st, { add: [
       place("Mei's apartment", { aliases: ["Mei's place", "apartment"], text: "Third floor, a window on the courtyard. She lives alone." }),
       place("Living room", { size: "spot", inside: "Mei's apartment", text: "A sofa and a shelf." }),
@@ -1127,7 +1128,7 @@ describe("step 2 on the routes and the hook", () => {
   const seeded = (place = "Living room") => {
     const m = memHost({ ...seed(), ...dash(place) });
     const st = emptyState("c1");
-    st.settings = { ...st.settings, level: "chronicler" };
+    st.settings = { ...st.settings, level: "chronicler", carrySource: "dm" };
     applyReport(st, { add: [
       { kind: "place", name: "Living room", aliases: ["living room"], text: "A sofa and a shelf." },
       { kind: "thing", name: "Ceramic vase", text: "Bought at the market.", place: "Living room" },
@@ -1203,5 +1204,88 @@ describe("step 2 on the routes and the hook", () => {
     expect(peek.find((r: any) => r.name === "Ceramic vase")).toMatchObject({ holder: "Odarka" });
     const added = route(m.host, "PUT", "/world/records", { chatId: "c1", op: "add", record: { kind: "place", name: "Kitchen", text: "Small.", size: "spot", inside: "Living room" } }).json.records;
     expect(added.find((r: any) => r.name === "Kitchen")).toMatchObject({ size: "spot", inside: "Living room" });
+  });
+});
+
+describe("a place bound to a background (#176)", () => {
+  it("only the player binds it; a spot without one takes its place's; the planner gets the place's other names", () => {
+    const m = memHost({ ...seed(), "dashboard/state/c1.json": dashState({ "m4#0": calm("social", { clock: { place: "Living room" }, present: ["Odarka"] }) }) });
+    const st = emptyState("c1");
+    st.settings = { ...st.settings, level: "chronicler" };
+    applyReport(st, { add: [
+      { kind: "place", name: "Mei's apartment", aliases: ["apartment"], text: "Third floor.", background: "bg-1" },
+      { kind: "place", name: "Living room", size: "spot", inside: "Mei's apartment", text: "A sofa.", background: "bg-2" },
+    ] }, { cards: [], userName: "", now: 1 });
+    // the DM's own reply never sets it
+    expect(st.entities.every((e) => e.background === undefined)).toBe(true);
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    const put = (record: Record<string, unknown>) => route(m.host, "PUT", "/world/records", { chatId: "c1", op: "update", record }).json.records;
+    expect(put({ id: "n2", background: "bg-room" }).find((r: any) => r.name === "Living room").background).toBe("bg-room");
+    expect(route(m.host, "GET", "/world/here", undefined, { chatId: "c1" }).json.background).toBe("bg-room");
+    // the spot loses its own: the place's one stays
+    put({ id: "n1", background: "bg-home" });
+    put({ id: "n2", background: "" });
+    expect(route(m.host, "GET", "/world/here", undefined, { chatId: "c1" }).json.background).toBe("bg-home");
+    // an id that cannot be an id is dropped
+    expect(put({ id: "n2", background: "../x" }).find((r: any) => r.name === "Living room").background).toBeUndefined();
+    const input = backgroundsInput({ places: route(m.host, "GET", "/world/backgrounds", undefined, { chatId: "c1" }).json.places, variants: 1, direction: "", lang: "" });
+    expect(input).toContain("Mei's apartment (also called: apartment)");
+    expect(input).toContain("Living room [inside Mei's apartment]");
+  });
+});
+
+describe("who keeps what the characters wear and hold (#176)", () => {
+  const snap = { "m4#0": calm("social", { clock: { place: "Living room" }, present: ["Odarka"], chars: { Odarka: { outfit: "grey coat, black jeans and white sneakers.", holding: "coffee cup" } } } as any) };
+  const mem = () => {
+    const m = memHost({ ...seed(), "dashboard/state/c1.json": dashState(snap) });
+    const st = emptyState("c1");
+    st.settings = { ...st.settings, level: "chronicler" };
+    applyReport(st, { add: [{ kind: "place", name: "Living room", text: "A sofa." }, { kind: "thing", name: "Spare key", text: "Opens the door.", holder: "Odarka" }] }, { cards: [], userName: "", now: 1 });
+    st.carry = { Odarka: { wearing: ["old DM list"], carried: [{ what: "bag" }], nearby: [], at: 1 } };
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    return m;
+  };
+
+  it("splitItems and sensorCarry read the sensor's free text, in three languages", () => {
+    expect(splitItems("grey coat, black jeans and white sneakers.")).toEqual(["grey coat", "black jeans", "white sneakers"]);
+    expect(splitItems("сіра куртка та джинси; кеди")).toEqual(["сіра куртка", "джинси", "кеди"]);
+    expect(splitItems("серое пальто и шарф")).toEqual(["серое пальто", "шарф"]);
+    expect(sensorCarry({ chars: { Odarka: { outfit: "coat", holding: "cup" }, Nobody: { outfit: "", holding: "" } } })).toEqual({ Odarka: { wearing: ["coat"], carried: [], nearby: [], hands: "cup", at: 0 } });
+  });
+
+  it("by default the sensor keeps it: /world/here and the note use its lines, the DM's old list is ignored", () => {
+    const m = mem();
+    const out = route(m.host, "GET", "/world/here", undefined, { chatId: "c1" }).json;
+    expect(out.carrySource).toBe("sensor");
+    expect(out.carry.Odarka).toMatchObject({ wearing: ["grey coat", "black jeans", "white sneakers"], hands: "coffee cup" });
+    expect(out.sensor.Odarka.hands).toBe("coffee cup");
+    const hook = llmRequest({ key: "reply", request: { sessionId: "c1", messages: [{ role: "user", content: "Go." }] }, turn: { op: "send" } }, m.host) as any;
+    const text = hook.messages[0].content as string;
+    expect(text).toContain("Odarka wears grey coat, black jeans, white sneakers; holds coffee cup; has Spare key.");
+    expect(text).not.toContain("old DM list");
+  });
+
+  it("the DM is not asked for carry when the sensor keeps it, and its carry in a reply is ignored", () => {
+    const sensorText = systemFor("chronicler", { ...emptyState("c1").settings, carrySource: "sensor" });
+    expect(sensorText).not.toContain("- carry:");
+    expect(sensorText).not.toContain('"carry"');
+    expect(sensorText).toContain("Do not record what the characters wear or hold in their hands");
+    const dmText = systemFor("director", { ...emptyState("c1").settings, carrySource: "dm" });
+    expect(dmText).toContain("- carry:");
+    expect(dmText).toContain('"carry":[...]');
+    const m = mem();
+    const first = route(m.host, "POST", "/world/update", { chatId: "c1" });
+    expect(m.requests[0]!.spec.messages[0].content).not.toContain("What the characters wear and carry now");
+    m.results.world = { text: JSON.stringify({ add: [], carry: [{ who: "Odarka", wearing: ["red cloak"] }], summary: "x" }), model: "c/dm" };
+    route(m.host, "POST", "/world/update", { chatId: "c1" }, {}, first.stash);
+    expect(JSON.parse(m.files["world/state/c1.json"]!).carry.Odarka.wearing).toEqual(["old DM list"]);
+  });
+
+  it("the switch is a setting of the chat", () => {
+    const m = mem();
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", carrySource: "dm" });
+    expect(route(m.host, "GET", "/world/here", undefined, { chatId: "c1" }).json.carry.Odarka.wearing).toEqual(["old DM list"]);
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", carrySource: "weird" });
+    expect(route(m.host, "GET", "/world/state", undefined, { chatId: "c1" }).json.settings.carrySource).toBe("sensor");
   });
 });

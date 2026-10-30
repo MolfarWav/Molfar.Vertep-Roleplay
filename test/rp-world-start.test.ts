@@ -447,7 +447,7 @@ describe("world backgrounds", () => {
       { id: "n1", kind: "place", name: "Червона Вежа", aliases: [], text: "A tower up the pass.", status: "active" },
       { id: "n2", kind: "person", name: "Maksym", aliases: [], text: "The toll keeper.", status: "active" },
     ] }));
-    expect(world("GET", "/world/backgrounds", undefined, { chatId: id }).places).toEqual([{ name: "Червона Вежа", text: "A tower up the pass." }]);
+    expect(world("GET", "/world/backgrounds", undefined, { chatId: id }).places).toEqual([{ name: "Червона Вежа", text: "A tower up the pass.", aliases: [] }]);
     const body = { chatId: id, places: [{ name: "Червона Вежа", text: "A tower." }, "Корчма"], direction: "ink and watercolour", variants: 1, lang: "Ukrainian" };
     expect(world("POST", "/world/backgrounds", body).__llmPending).toBe(true);
     const sent = requests[0]!.spec.messages[0].content as string;

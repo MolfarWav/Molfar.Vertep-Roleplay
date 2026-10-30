@@ -436,6 +436,15 @@ player switches it on for that chat. It writes:
     `inside` (the name of the bigger place it belongs to); a `thing` may carry `holder` (a person's name) or `place`
     (a place's name), never both. Names, not ids: code matches them to records by name or alias, without case or
     punctuation. A place also has `visits` (counted by code when the Dashboard's place changes). All optional.
+  - `carrySource` (`sensor` default, or `dm`): who keeps what the characters wear and hold. `sensor`: the Dashboard
+    sensor's own `outfit` (split into items at commas, `;`, "and", "і", "та", "и") and `holding` for each character in
+    the scene; the DM is not asked for `carry` and its `carry` is ignored. `dm`: the DM's `carry` lists as below.
+    Places and things (records) are always the DM's. `GET /world/here` gives `carrySource`, `carry` (from the chosen
+    source; sensor entries have `hands`, the text of `holding`) and `sensor` (always the sensor's lines, to compare).
+  - A place may also carry `background`: the id of a picture in the app's Backgrounds library. Only the player (the
+    Places tab) or the app after a generated set sets it; the DM's replies cannot. With "Change the background by
+    scene" on, a scene in that place shows the picture (a spot without one takes its place's);
+    `GET /world/here` gives it as `background`. The set planner is given each place's other names and its parent.
   - `carry`: `{ "<character>": { wearing: [..], carried: [{ what, where? }], nearby: [..], at } }` for the user's
     character and the cards' characters only; lists are cut to 12 items (nearby 8, 60 characters each). The DM sends
     `carry: [{ who, wearing?, carried?, nearby? }]`; a list that is sent replaces the old one, one left out stays.

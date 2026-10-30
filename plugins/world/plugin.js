@@ -94,7 +94,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -198,6 +198,9 @@ function cleanSettings(s) {
     // the size of a record's text and the number of changes in one run (bounds: TEXT_BOUNDS, CHANGES_BOUNDS)
     textMax: Number.isFinite(tm) ? clamp(Math.round(tm), TEXT_BOUNDS[0], TEXT_BOUNDS[1]) : DEFAULT_SETTINGS.textMax,
     changesMax: Number.isFinite(cm) ? clamp(Math.round(cm), CHANGES_BOUNDS[0], CHANGES_BOUNDS[1]) : DEFAULT_SETTINGS.changesMax,
+    // who keeps what the characters wear and hold (user, 2026-10-30): the Dashboard's sensor (default: one field of its
+    // own report, no extra tokens) or the DM (lists: wearing, carried, nearby). Places and things are always the DM's.
+    carrySource: b.carrySource === "dm" ? "dm" : "sensor",
     // a run when the story leaves a place (the Dashboard's place changed since the last run)
     onPlace: typeof b.onPlace === "boolean" ? b.onPlace : DEFAULT_SETTINGS.onPlace,
     // 0 = no stagnation trigger
@@ -262,6 +265,8 @@ function spaceFields(kind, raw) {
   if (kind === "place") {
     if (raw.size === "spot") out.size = "spot";
     if (str(raw.inside)) out.inside = cut(str(raw.inside), NAME_MAX);
+    // the id of a picture in the app's Backgrounds library: the scene in this place shows it (a spot without one takes its place's)
+    if (FOLDER_ID.test(str(raw.background))) out.background = str(raw.background);
   } else if (kind === "thing") {
     if (str(raw.holder)) out.holder = cut(str(raw.holder), NAME_MAX);
     else if (str(raw.place)) out.place = cut(str(raw.place), NAME_MAX);
@@ -271,11 +276,11 @@ function spaceFields(kind, raw) {
 
 /** The DM's update of a record's space fields (in place): a key that is sent changes it, "" clears it. True when something changed. */
 function applySpace(e, raw) {
-  const keys = e.kind === "place" ? ["size", "inside"] : e.kind === "thing" ? ["holder", "place"] : [];
+  const keys = e.kind === "place" ? ["size", "inside", "background"] : e.kind === "thing" ? ["holder", "place"] : [];
   let changed = false;
   for (const k of keys) {
     if (raw[k] === undefined) continue;
-    const v = k === "size" ? (raw.size === "spot" ? "spot" : "") : cut(str(raw[k]), NAME_MAX);
+    const v = k === "size" ? (raw.size === "spot" ? "spot" : "") : k === "background" ? (FOLDER_ID.test(str(raw.background)) ? str(raw.background) : "") : cut(str(raw[k]), NAME_MAX);
     if ((e[k] || "") === v) continue;
     if (v) e[k] = v;
     else delete e[k];
@@ -532,6 +537,8 @@ export function sceneOf(fsx, chatId, msgs) {
     // where the sensor puts the scene now (free text), and who is in it
     place: isObj(last.clock) ? cut(str(last.clock.place), NAME_MAX * 2) : "",
     present: arr(last.present).map(str).filter(Boolean).slice(0, 12),
+    // the sensor's own lines per character (free text), for the outfit when the sensor keeps it
+    chars: Object.fromEntries(Object.entries(isObj(last.chars) ? last.chars : {}).filter(([, c]) => isObj(c) && (str(c.outfit) || str(c.holding))).slice(0, 12).map(([n, c]) => [cut(n, NAME_MAX), { outfit: cut(str(c.outfit), 300), holding: cut(str(c.holding), 200) }])),
   };
 }
 
@@ -635,6 +642,10 @@ const CHRONICLER_OUTPUT = [
   '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"..."}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"..."}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
   "size, inside, holder and place are only for places and things; leave out what does not apply.",
 ];
+const CARRY_JSON = '"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],';
+const CARRY_SHAPE = '"carry":[...],';
+/** The prompt for a chat whose sensor keeps clothes and what is in the hands: the carry rule and key go, the DM is told to leave them out. */
+const withoutCarry = (text) => text.split("\n").filter((l) => !l.startsWith("- carry:")).join("\n").split(CARRY_JSON).join("").split(CARRY_SHAPE).join("").replace("Places, things and what characters carry:", "Places and things:") + "";
 /** The limits a prompt names: the chat's own, else the defaults. */
 const limitsOf = (settings) => ({ changes: settings ? settings.changesMax : DEFAULT_SETTINGS.changesMax, text: settings ? settings.textMax : DEFAULT_SETTINGS.textMax });
 const withLimits = (text, limits) => text.replace(/\{changes\}/g, String(limits.changes)).replace(/\{text\}/g, String(limits.text));
@@ -795,9 +806,11 @@ export function systemFor(levelOrProfile, settings, recordsOnly) {
   const profile = isObj(levelOrProfile) ? levelOrProfile : { base: levelOrProfile, blocks: {} };
   const keeper = blockText(profile, "keeper");
   const limits = limitsOf(settings);
+  const sensorKeeps = !!settings && settings.carrySource !== "dm";
+  const fin = (text) => withLimits(sensorKeeps ? withoutCarry(text) + "\n- Do not record what the characters wear or hold in their hands: the scene tracker keeps that." : text, limits);
   // a records-only run (a place change, or the records' own cadence) leaves the fronts and the event alone
-  if (!LEVEL_RULES[profile.base] || recordsOnly) return withLimits([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT].join("\n"), limits);
-  return withLimits([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n"), limits);
+  if (!LEVEL_RULES[profile.base] || recordsOnly) return fin([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT].join("\n"));
+  return fin([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n"));
 }
 
 function profileView(fsx, p, used) {
@@ -865,7 +878,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + str(place) + "."] : []),
-    "What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w, c)).join("\n") : ": nothing recorded yet."),
+    ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
@@ -1087,7 +1100,7 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
     }
     if (!text || state.entities.length >= ENTITIES_MAX) continue;
     const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
-    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, raw) };
+    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...raw, background: undefined }) };
     state.entities.push(fresh);
     if (touched) touched.add(fresh.id);
     changes++;
@@ -1098,7 +1111,7 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
     if (!e || e.status === "past") continue;
     const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
-    const moved = applySpace(e, raw);
+    const moved = applySpace(e, { ...raw, background: undefined });
     if ((!text || text === e.text) && aliases.length === e.aliases.length && !moved) continue;
     if (text) e.text = text;
     e.aliases = aliases;
@@ -1250,6 +1263,22 @@ export function findPlace(entities, text) {
   return best;
 }
 
+/** "grey coat, black jeans and white sneakers" -> three items; at most WEARING_MAX, 60 characters each. */
+export function splitItems(text) {
+  return cleanItems(str(text).split(/\s*[,;]\s*|\s+(?:and|і|та|и)\s+/i).map((x) => x.replace(/[.]+$/, "")), WEARING_MAX);
+}
+
+/** What the sensor says each character wears and holds, in the shape of state.carry (carried and nearby stay empty). */
+export function sensorCarry(scene) {
+  const out = {};
+  for (const [who, c] of Object.entries(scene && isObj(scene.chars) ? scene.chars : {})) {
+    const wearing = splitItems(c.outfit);
+    const hands = cut(str(c.holding), ITEM_MAX * 2);
+    if (wearing.length || hands) out[who] = { wearing, carried: [], nearby: [], hands, at: 0 };
+  }
+  return out;
+}
+
 /**
  * What is here: the record of the scene's place and its parent, the things placed here (in the place, its
  * parent or one of its spots), the things held by people in the scene, the things asleep elsewhere, and what
@@ -1283,9 +1312,10 @@ export function hereOf(state, scene, extra) {
     }
   }
   const carry = {};
-  for (const [who, c] of Object.entries(state.carry || {})) if (inScene(who)) carry[who] = c;
+  const source = state.settings.carrySource === "dm" ? state.carry || {} : sensorCarry(scene);
+  for (const [who, c] of Object.entries(source)) if (inScene(who)) carry[who] = c;
   const spots = place ? entities.filter((e) => e.kind === "place" && e.status === "active" && e.size === "spot" && e.inside && refersTo(place, e.inside)) : [];
-  return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, present };
+  return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
 }
 
 const firstSentence = (s) => {
@@ -1307,6 +1337,7 @@ export function hereInsert(h) {
     const c = h.carry[name];
     const bits = [];
     if (c && c.wearing.length) bits.push("wears " + c.wearing.slice(0, 8).join(", "));
+    if (c && c.hands) bits.push("holds " + c.hands);
     const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
     if (has.length) bits.push("has " + has.slice(0, 8).join(", "));
     if (c && c.nearby.length) bits.push("near them " + c.nearby.slice(0, 4).join(", "));
@@ -2603,7 +2634,7 @@ export function backgroundsInput({ places, direction, variants, lang }) {
   return [
     "Style direction for the whole set: " + (direction || "painterly, atmospheric, cinematic light") + ".",
     "Variants per place: " + variants + ".",
-    "Places\n" + places.map((p) => "- " + p.name + (p.text ? ": " + cutMiddle(p.text, 400) : "")).join("\n"),
+    "Places\n" + places.map((p) => "- " + p.name + (arr(p.aliases).length ? " (also called: " + arr(p.aliases).slice(0, 4).join(", ") + ")" : "") + (str(p.inside) ? " [inside " + str(p.inside) + "]" : "") + (p.text ? ": " + cutMiddle(p.text, 400) : "")).join("\n"),
     ...(lang ? ["The place names are in " + lang + "; the file names, tags and prompts are always English."] : []),
   ].join("\n\n");
 }
@@ -2687,7 +2718,7 @@ function findPlacesRoute(req, host) {
 
 function worldPlaces(fsx, b) {
   const w = WORLD_ID.test(str(b.worldId)) ? cleanWorld(readJson(fsx, LIBRARY_DIR + str(b.worldId) + ".json", null), str(b.worldId)) : CHAT_ID.test(str(b.chatId)) ? loadState(fsx, str(b.chatId)).state : null;
-  return w ? w.entities.filter((e) => e.status === "active" && e.kind === "place").map((e) => ({ name: e.name, text: e.text })) : [];
+  return w ? w.entities.filter((e) => e.status === "active" && e.kind === "place").map((e) => ({ name: e.name, text: e.text, aliases: e.aliases, ...(e.inside ? { inside: e.inside } : {}), ...(e.background ? { background: e.background } : {}) })) : [];
 }
 
 /**
@@ -2859,7 +2890,7 @@ function peekRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const { state } = loadState(host.fs, chatId);
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -2874,11 +2905,13 @@ function hereRoute(req, host) {
   const on = existed ? state.settings.level !== "off" : autoOn(host.fs, chat.meta);
   const userName = userNameOf(host.fs, chat.meta);
   const h = hereOf(state, sceneOf(host.fs, chatId, chat.msgs), userName ? [userName] : []);
-  const rec = (e) => ({ id: e.id, name: e.name, kind: e.kind, text: e.text, aliases: e.aliases, ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}) });
+  const rec = (e) => ({ id: e.id, name: e.name, kind: e.kind, text: e.text, aliases: e.aliases, ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) });
   const heldRows = Object.entries(h.held).flatMap(([who, list]) => list.map((t) => ({ ...rec(t), who })));
   return ok({
     on,
     scenePlace: h.scenePlace,
+    // the picture bound to the scene's place (a spot without one takes its place's), for "Change the background by scene"
+    background: (h.place && h.place.background) || (h.parent && h.parent.background) || null,
     place: h.place ? rec(h.place) : null,
     parent: h.parent ? rec(h.parent) : null,
     spots: h.spots.map(rec),
@@ -2886,6 +2919,9 @@ function hereRoute(req, host) {
     held: heldRows,
     asleep: h.asleep.map(rec),
     carry: h.carry,
+    // who keeps the outfit (the sensor or the DM), and the sensor's own lines, to compare
+    carrySource: h.carrySource,
+    sensor: h.sensor,
     present: h.present,
     changed: state.lastChange || { at: 0, ids: [], carry: [] },
   });
@@ -2902,7 +2938,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = { ...state.settings, level: "chronicler" };
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -3030,7 +3066,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, carry: state.carry,
+        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
@@ -3074,7 +3110,7 @@ function updateRoute(req, host) {
   const out = parseReply(r.text);
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const touched = new Set();
-  const carried = applyCarry(state, out.carry, { cards, userName, now: Date.now() });
+  const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now() }) : [];
   const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched }) + carried.length;
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
