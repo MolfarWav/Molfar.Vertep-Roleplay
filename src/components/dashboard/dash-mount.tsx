@@ -5,7 +5,7 @@
 // the first load is running: chats without the plugin do not shift.
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
+import { ArrowClockwise, CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -20,6 +20,7 @@ import { DashEmpty } from './dash-empty'
 import { DashPhoneBar, DashPhoneSheet } from './dash-phone'
 import { DashSettings } from './dash-settings'
 import { DashStrip } from './dash-strip'
+import { clampStripWidth, readFullscreen, readStripWidth, writeFullscreen, writeStripWidth } from '@/lib/dash-strip-width'
 import { DashWide } from './dash-wide'
 import { useDashboard } from './use-dashboard'
 
@@ -153,6 +154,14 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const [wideOpen, setWideOpen] = useState(false)
   const [settings, setSettings] = useState(false)
   const [notebookSignal, setNotebookSignal] = useState(0)
+  const [width, setWidth] = useState(readStripWidth)
+  const [full, setFull] = useState(readFullscreen)
+  const changeWidth = (n: number, final: boolean) => {
+    const w = clampStripWidth(n)
+    setWidth(w)
+    if (final) writeStripWidth(w)
+  }
+  const changeFull = (on: boolean) => { setFull(on); writeFullscreen(on) }
   const guard = useSettingsGuard()
   // an empty dashboard has no sheet: asking for it unfolds the strip
   useDashOpenRequest(true, () => { setSettings(false); if (dash?.status === 'empty') { setExpanded(true); writeExpanded(true) } else setWideOpen(true) })
@@ -170,7 +179,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
       )
     }
     return (
-      <aside className="hidden h-full w-[272px] shrink-0 flex-col border-l border-border bg-card lg:flex" aria-label={t('dash.title')}>
+      <aside className="hidden h-full shrink-0 flex-col border-l border-border bg-card lg:flex" style={{ width }} aria-label={t('dash.title')}>
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
           <span className="font-heading text-[15px]">{t('dash.title')}</span>
           <Button variant="ghost" size="icon-xs" onClick={() => setSettings(true)} aria-label={t('dash.set.title')} title={t('dash.set.title')} className="ml-auto rounded-none">
@@ -201,11 +210,13 @@ export function DashStripMount({ chatId }: { chatId: string }) {
       <DashStrip
         chatId={chatId}
         view={view}
+        here={dash.here}
         focus={dash.focus}
         onFocus={dash.setFocus}
         onOpen={() => setWideOpen(true)}
         onNotebook={() => { setSettings(false); setNotebookSignal(Date.now()); setWideOpen(true) }}
         onRefresh={() => { void dash.refresh() }}
+        onReload={() => { void dash.reload() }}
         refreshing={dash.refreshing}
         collapsed={!expanded}
         onCollapse={toggle}
@@ -213,6 +224,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         avatars={avatars}
         onPortrait={portrait.open}
         userName={userName}
+        width={width}
+        onWidth={changeWidth}
       />
       {/* inside the sheet while it is open, so its focus trap does not hold the dialog */}
       {!wideOpen && portrait.dialog}
@@ -220,6 +233,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         open={wideOpen}
         onOpenChange={(o) => {
           if (o) { setWideOpen(true); return }
+          // Esc in full screen goes back to the dialog first; the close button still closes
+          if (full && !settings) { changeFull(false); return }
           void (async () => {
             if (settings && !(await guard.canLeave())) return
             setWideOpen(false)
@@ -230,7 +245,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="gap-0 p-0 data-[side=right]:w-[min(1180px,calc(100vw-48px))] data-[side=right]:sm:max-w-none"
+          className={cn('gap-0 p-0 data-[side=right]:sm:max-w-none', full ? 'data-[side=right]:w-screen' : 'data-[side=right]:w-[min(1180px,calc(100vw-48px))]')}
+          data-fullscreen={full ? 'true' : undefined}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>{t('dash.title')}</SheetTitle>
@@ -252,8 +268,13 @@ export function DashStripMount({ chatId }: { chatId: string }) {
               onFocus={dash.setFocus}
               onRefresh={() => { void dash.refresh() }}
               refreshing={dash.refreshing}
+              here={dash.here}
+              onReload={() => { void dash.reload() }}
               onSettings={() => setSettings(true)}
               onClose={() => setWideOpen(false)}
+              onWorld={() => { setWideOpen(false); useApp.getState().focusWorldChat(chatId) }}
+              fullscreen={full}
+              onFullscreen={changeFull}
               now={dash.now}
               avatars={avatars}
               onPortrait={portrait.open}
@@ -335,7 +356,10 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
             <>
               <SheetHeader className="shrink-0 flex-row items-center gap-2 px-4 pt-4 pr-12 pb-2">
                 <SheetTitle className="min-w-0 flex-1 font-heading">{t('dash.title')}</SheetTitle>
-                <Button data-guide="dash.settings" variant="ghost" size="icon-sm" onClick={() => setSettings(true)} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="rounded-none">
+                <Button variant="ghost" size="icon-sm" onClick={() => { void dash.refresh() }} disabled={dash.refreshing} aria-label={t('dash.refresh')} title={t('dash.refresh')} className="size-10 rounded-none">
+                  <ArrowClockwise className={cn(dash.refreshing && 'animate-spin')} />
+                </Button>
+                <Button data-guide="dash.settings" variant="ghost" size="icon-sm" onClick={() => setSettings(true)} aria-label={t('dash.set.open')} title={t('dash.set.open')} className="size-10 rounded-none">
                   <GearSix />
                 </Button>
               </SheetHeader>
@@ -343,10 +367,10 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
                 <DashPhoneSheet
                   chatId={chatId}
                   view={view}
+                  here={dash.here}
                   focus={dash.focus}
                   onFocus={dash.setFocus}
-                  onRefresh={() => { void dash.refresh() }}
-                  refreshing={dash.refreshing}
+                  onReload={() => { void dash.reload() }}
                   now={dash.now}
                   avatars={avatars}
                   onPortrait={portrait.open}

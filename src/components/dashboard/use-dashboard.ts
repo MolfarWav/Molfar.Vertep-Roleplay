@@ -9,6 +9,7 @@ import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { onDashReload } from '@/lib/dash-live'
 import type { DashResponse, DashView } from '@/lib/dashboard'
+import { loadWorldHere, useWorldLive, type WorldHere } from '@/lib/world'
 import { plainDashError } from './dash-common'
 
 export type DashStatus = 'absent' | 'loading' | 'empty' | 'ready'
@@ -27,6 +28,8 @@ export interface UseDashboard {
   reload: () => Promise<void>
   /** change the user's notes or threads (POST /dashboard/notes) and redraw from the answer */
   act: (body: { op: string } & Record<string, unknown>) => Promise<boolean>
+  /** the World DM's view of where the scene is and what people wear and carry; null without the World plugin */
+  here: WorldHere | null
   /** the story's date: set it ("YYYY-MM-DD"), back to automatic (null) or hide/show it (POST /dashboard/calendar) */
   setCalendar: (body: { date?: string | null; off?: boolean }) => Promise<boolean>
   refreshing: boolean
@@ -39,6 +42,7 @@ export function useDashboard(chatId: string): UseDashboard {
   const [failed, setFailed] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [picked, setPicked] = useState('')
+  const [hereState, setHereState] = useState<{ chatId: string; here: WorldHere | null } | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const chatRef = useRef(chatId)
   chatRef.current = chatId
@@ -59,20 +63,38 @@ export function useDashboard(chatId: string): UseDashboard {
     }
   }, [chatId])
 
+  // the World DM's place and carry: a failure leaves what was shown (an app without the plugin answers null)
+  const loadHere = useCallback(async () => {
+    const id = chatId
+    if (!id) return
+    try {
+      const here = await loadWorldHere(id)
+      if (chatRef.current === id) setHereState({ chatId: id, here })
+    } catch {
+      // keep the last good read
+    }
+  }, [chatId])
+  const lastRunAt = useWorldLive((s) => s.views[chatId]?.lastRunAt ?? null)
+
   // load on mount and when the chat changes; a reply for an older chat id is dropped in `load`
   useEffect(() => {
     setPicked('')
     void load()
-  }, [load])
+    void loadHere()
+  }, [load, loadHere])
+  // a DM run changed the records: read them again
+  useEffect(() => {
+    if (lastRunAt) void loadHere()
+  }, [lastRunAt, loadHere])
 
   // poll while the tab is visible
   useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === 'visible') void load() }, POLL_MS)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') { void load(); void loadHere() } }, POLL_MS)
     return () => clearInterval(id)
-  }, [load])
+  }, [load, loadHere])
 
   // an automatic update (after a reply, an edit, a swipe) reads what it wrote before it ends
-  useEffect(() => onDashReload(chatId, load), [chatId, load])
+  useEffect(() => onDashReload(chatId, () => { void loadHere(); return load() }), [chatId, load, loadHere])
 
   // the age text
   useEffect(() => {
@@ -130,5 +152,8 @@ export function useDashboard(chatId: string): UseDashboard {
   const first = view ? view.order.find((n) => view.chars[n] && !view.chars[n].compact) ?? view.order[0] ?? '' : ''
   const focus = view && picked && view.chars[picked] ? picked : first
 
-  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload: load, act, setCalendar, refreshing, now }
+  const reload = useCallback(async () => { await Promise.all([load(), loadHere()]) }, [load, loadHere])
+  const here = hereState && hereState.chatId === chatId ? hereState.here : null
+
+  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload, here, act, setCalendar, refreshing, now }
 }

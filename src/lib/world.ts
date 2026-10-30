@@ -9,6 +9,9 @@ export function libraryBooks<T extends Record<string, unknown>>(items: T[]): T[]
   return items.filter((b) => !(typeof b.ownerChatId === 'string' && b.ownerChatId))
 }
 
+/** Where a character's outfit and what is in the hands come from: the Dashboard sensor (default, cheapest) or the World DM's own lists. */
+export type WorldCarrySource = 'sensor' | 'dm'
+
 export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'chaos'
 
 /** Where a model in force comes from: the World's own setting, the Dashboard sensor's, Litopys's, the chat's, the app's default. */
@@ -42,7 +45,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; everyN: number; stagnation: number; onTransition: boolean; insert: boolean; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; diceShow: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; diceShow: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number } | null
   ready: WorldLevel[]
@@ -122,13 +125,64 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
 
 export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
 /** by: 'player' = written or changed by hand in the Records tab */
-export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean }
+export interface WorldRecord {
+  id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean
+  /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */
+  size?: 'spot' | ''
+  inside?: string
+  /** a thing: held by a person or lying in a place, never both (names) */
+  holder?: string
+  place?: string
+  /** a place: how many times the story came to it */
+  visits?: number
+  /** a place: the id of a picture in the Backgrounds library, shown when the story is here ('' clears it when saving) */
+  background?: string
+}
+
+/** What a character wears and carries now (kept by the DM). */
+export interface WorldCarry { wearing: string[]; carried: { what: string; where?: string }[]; nearby: string[]; /** the sensor's `holding` text (a carry that comes from the sensor) */ hands?: string; at: number }
+
+/** GET /world/here: the Dashboard's "Here" and "Outfit and things". Records are the same shape as peek's, text and ids included. */
+export interface WorldHere {
+  /** false while the chat's DM is off */
+  on: boolean
+  /** the place as the Dashboard sensor wrote it (free text) */
+  scenePlace: string
+  place: WorldRecord | null
+  parent: WorldRecord | null
+  spots: WorldRecord[]
+  /** things lying in this place, its parent or its spots */
+  things: WorldRecord[]
+  /** things held by a person in the scene (`who` = the holder) */
+  held: (WorldRecord & { who: string })[]
+  /** things elsewhere: in other places or held by people who are not in the scene */
+  asleep: WorldRecord[]
+  /** by character name, from the chat's carry source */
+  carry: Record<string, WorldCarry>
+  carrySource: WorldCarrySource
+  /** what the Dashboard sensor says each character wears and holds, whatever the source (to compare with the DM's lists) */
+  sensor: Record<string, WorldCarry>
+  present: string[]
+  /** what the last DM run changed: record ids and the characters whose carry moved */
+  changed: { at: number; ids: string[]; carry: string[] }
+  /** the picture bound to the scene's place (a spot without one takes its place's), or null */
+  background: string | null
+}
+
+export async function loadWorldHere(chatId: string): Promise<WorldHere | null> {
+  try {
+    return await j<WorldHere>(`/world/here?chatId=${encodeURIComponent(chatId)}`)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
 
 export type WorldRecordOp = 'add' | 'update' | 'retire' | 'restore' | 'delete'
 
 /** Edit the world book by hand; returns the records as peek does. 409 = the name is taken. */
-export async function editWorldRecord(chatId: string, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
-  return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ chatId, op, record }) })).records
+export async function editWorldRecord(target: string | WorldRef, op: WorldRecordOp, record: Partial<WorldRecord>): Promise<WorldRecord[]> {
+  return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ ...refBody(target), op, record }) })).records
 }
 
 /** The build model writes keys for the living records that have none (one call); changed = records given keys. */
@@ -183,9 +237,14 @@ export async function deleteWorldProfile(id: string): Promise<WorldProfile[]> {
   return (await j<{ profiles: WorldProfile[] }>(`/world/profiles?id=${encodeURIComponent(id)}`, { method: 'DELETE' })).profiles
 }
 
+/** A chat's world, or a saved (library) world: a bare string is a chat id. */
+export const refBody = (target: string | WorldRef): WorldRef => (typeof target === 'string' ? { chatId: target } : target)
+
 /** The world book's records, for the player who asked to look (fronts and events are not sent). */
-export async function peekWorld(chatId: string): Promise<WorldRecord[]> {
-  return (await j<{ records: WorldRecord[] }>(`/world/peek?chatId=${encodeURIComponent(chatId)}`)).records
+export async function peekWorld(target: string | WorldRef): Promise<WorldRecord[]> {
+  const ref = refBody(target)
+  const q = 'worldId' in ref ? `worldId=${encodeURIComponent(ref.worldId)}` : `chatId=${encodeURIComponent(ref.chatId)}`
+  return (await j<{ records: WorldRecord[] }>(`/world/peek?${q}`)).records
 }
 
 /** All chats: the play model (runs after replies) and the build model (makes worlds); empty = the fallback in `play`/`build`. */
@@ -475,7 +534,7 @@ export async function loadWorldScenario(chatId: string): Promise<{ scenario: Wor
 
 // ---------- backgrounds: a set per world, named images, picked by scene ----------
 export type WorldRef = { chatId: string } | { worldId: string }
-export interface WorldPlace { name: string; text: string }
+export interface WorldPlace { name: string; text: string; aliases?: string[]; inside?: string; background?: string }
 /** One planned image: the place it shows, its English file name (the background's name), tags and the image prompt */
 export interface PlannedBackground { place: string; file: string; tags: string[]; prompt: string }
 

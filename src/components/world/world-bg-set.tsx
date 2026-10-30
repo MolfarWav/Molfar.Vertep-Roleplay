@@ -13,7 +13,9 @@ import {
   STYLE_CHIPS,
   PLACE_CHIPS,
   addWords,
+  mergeTags,
   parseTags,
+  placeTags,
   toSnake,
   uniqueName,
 } from '@/lib/world-backgrounds';
@@ -35,7 +37,7 @@ import { WorldErrorCard } from './world-controls';
 import { ImageModelDialog } from './world-image-model';
 
 type PlaceEntry =
-  | { id: string; kind: 'record' | 'book' | 'found'; name: string; text: string; book?: string; ticked: boolean }
+  | { id: string; kind: 'record' | 'book' | 'found'; name: string; text: string; book?: string; aliases?: string[]; ticked: boolean }
   | { id: string; kind: 'chip' | 'custom'; value: string; ticked: boolean };
 
 type ReviewItem = {
@@ -60,10 +62,16 @@ function entryLabel(e: PlaceEntry): string {
 export function MakeSet({
   wref,
   folderId,
+  only,
+  onStored,
 }: {
   wref: WorldRef;
   folderId: string;
   onOpenSettings?: () => void;
+  /** a set for one place only (the Places tab): the places list is not shown, the fold is open */
+  only?: { name: string; text: string; aliases: string[] };
+  /** a picture of the set was drawn and stored in the library: its id and url */
+  onStored?: (stored: { place: string; bgId: string; url: string }) => void;
 }) {
   const t = useT();
   const lang = resolveLanguage(useApp((s) => s.settings.language));
@@ -72,7 +80,7 @@ export function MakeSet({
   const addBackground = useApp((s) => s.addBackground);
   const updateBackground = useApp((s) => s.updateBackground);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!only);
   const [imgDialog, setImgDialog] = useState(false);
   const [booksAll, setBooksAll] = useState(false);
   const [finding, setFinding] = useState(false);
@@ -100,6 +108,12 @@ export function MakeSet({
   // Load places on mount / wref change.
   useEffect(() => {
     let active = true;
+    if (only) {
+      setEntries([{ id: 'only', kind: 'record', name: only.name, text: only.text, aliases: only.aliases, ticked: true }]);
+      return () => {
+        active = false;
+      };
+    }
     loadWorldBackgrounds(wref)
       .then((res) => {
         if (!active) return;
@@ -108,6 +122,7 @@ export function MakeSet({
           kind: 'record',
           name: p.name,
           text: p.text ?? '',
+          aliases: p.aliases,
           ticked: true,
         }));
         // the places arrive late: keep what the player already added
@@ -205,7 +220,7 @@ export function MakeSet({
     () =>
       entries
         .filter((e) => e.ticked)
-        .map((e) => (isNamed(e) ? { name: e.name, text: e.text } : e.value)),
+        .map((e) => (isNamed(e) ? { name: e.name, text: e.text, ...(e.kind === 'record' && e.aliases?.length ? { aliases: e.aliases } : {}) } : e.value)),
     [entries],
   );
 
@@ -354,7 +369,10 @@ export function MakeSet({
         const blob = await backgroundBlob(img.url);
         const stored = await storeBackground(blob, item.file);
         const id = addBackground(item.file, stored.url);
-        updateBackground(id, { folderId, tags: parseTags(item.tagsText) });
+        const own = entries.find((e): e is NamedEntry => isNamed(e) && e.kind === 'record' && e.name.trim().toLowerCase() === item.place.trim().toLowerCase());
+        // the place's name and aliases are tags too: the Dashboard's tag match finds the picture by them
+        updateBackground(id, { folderId, tags: own ? mergeTags(placeTags(own.name, own.aliases), parseTags(item.tagsText)) : parseTags(item.tagsText) });
+        onStored?.({ place: item.place, bgId: id, url: stored.url });
         setReview((prev) =>
           prev.map((it) =>
             it.key === item.key ? { ...it, status: 'done', url: stored.url, error: undefined } : it,
@@ -382,7 +400,7 @@ export function MakeSet({
     } else {
       setStage('review');
     }
-  }, [review, imageGen, configModel, folderId, addBackground, updateBackground, t]);
+  }, [review, entries, onStored, imageGen, configModel, folderId, addBackground, updateBackground, t]);
 
   const handleRetry = useCallback(() => {
     flushSync(() => {
@@ -424,7 +442,7 @@ export function MakeSet({
 
   return (
     <section className="space-y-4">
-      <button
+      {!only && <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
@@ -436,7 +454,7 @@ export function MakeSet({
           <span className="text-sm text-muted-foreground">{t('world.bg.setHint')}</span>
         </span>
         <CaretDown className={`size-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-      </button>
+      </button>}
 
       {open && (
         <div className="space-y-6">
@@ -467,7 +485,7 @@ export function MakeSet({
                 </div>
               </div>
 
-              <div className="space-y-2">
+              {!only && <div className="space-y-2">
                 <label className="text-sm font-medium">{t('world.bg.places')}</label>
                 {recordEntries.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t('world.bg.placesNone')}</p>
@@ -539,7 +557,7 @@ export function MakeSet({
                     {t('world.bg.addPlaceGo')}
                   </Button>
                 </form>
-              </div>
+              </div>}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t('world.bg.variants')}</label>

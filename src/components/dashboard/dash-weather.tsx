@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import type { MsgKey } from '@/lib/i18n'
 
 export type WeatherKind = 'storm' | 'snow' | 'rain' | 'fog' | 'wind' | 'partly' | 'cloud' | 'clear'
 
@@ -49,28 +50,36 @@ const LOOK: Record<WeatherKind, string> = {
   clear: 'text-amber-700 dark:text-amber-300',
 }
 
-const CLOUD = 'M6.5 17.5a4 4 0 0 1-.4-7.98 5.5 5.5 0 0 1 10.5-1.02A4.5 4.5 0 0 1 17 17.5H6.5z'
+/** The colour classes of a kind's icon and name: clear at night is indigo, the rest by kind. */
+export const weatherTextClass = (kind: WeatherKind, night?: boolean): string =>
+  night && kind === 'clear' ? 'text-indigo-700 dark:text-indigo-300' : LOOK[kind]
+
+/** The dictionary key of a kind's name ("Clear", "Partly cloudy", ...); clear at night is "Clear night". */
+export const weatherNameKey = (kind: WeatherKind, night?: boolean): MsgKey =>
+  night && kind === 'clear' ? 'dash.wx.clearNight' : (`dash.wx.${kind}` as MsgKey)
+
+const CLOUD ='M6.5 17.5a4 4 0 0 1-.4-7.98 5.5 5.5 0 0 1 10.5-1.02A4.5 4.5 0 0 1 17 17.5H6.5z'
 
 /**
  * A small line icon for the weather that moves a little: rays turn, clouds drift, rain and snow fall, fog slides,
  * lightning flashes. The motion is CSS in globals.css (.wx-*) and stops with reduced motion; the icon is
  * decoration, the text beside it says the weather.
  */
-export function WeatherIcon({ kind, night, className }: { kind: WeatherKind; night?: boolean; className?: string }) {
+export function WeatherIcon({ kind, night, className, size = 22 }: { kind: WeatherKind; night?: boolean; className?: string; size?: number }) {
   const rays = [0, 45, 90, 135, 180, 225, 270, 315]
   const drop = (x: number, i: number) => <line key={x} className="wx-drop" style={{ animationDelay: `${i * 0.35}s` }} x1={x} y1="17" x2={x - 0.6} y2="19.5" />
   return (
     <svg
       viewBox="0 0 24 24"
-      width="22"
-      height="22"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={cn('shrink-0 overflow-visible', night && kind === 'clear' ? 'text-indigo-700 dark:text-indigo-300' : LOOK[kind], className)}
+      className={cn('shrink-0 overflow-visible', weatherTextClass(kind, night), className)}
       data-weather={kind}
     >
       {kind === 'clear' && night && <path className="wx-glow" d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z" />}

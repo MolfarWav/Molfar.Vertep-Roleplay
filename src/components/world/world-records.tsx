@@ -2,7 +2,7 @@
 // spoiler question as "Look at the world" (once per visit to the tab). The DM keeps editing the
 // records too; a record you write or change is marked "by you".
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowCounterClockwise, Archive, CircleNotch, MagnifyingGlass, PencilSimple, PushPin, Plus, Trash, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,8 @@ import { useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT } from '@/lib/world-records'
-import { editWorldRecord, fillWorldKeys, peekWorld, useWorldLive, type WorldKind, type WorldRecord, type WorldRecordOp } from '@/lib/world'
+import { editWorldRecord, fillWorldKeys, peekWorld, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef } from '@/lib/world'
+import { useWorldBook } from './use-world-book'
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
 
@@ -26,7 +27,38 @@ export function KindChip({ kind, className }: { kind: WorldKind; className?: str
   )
 }
 
-interface Form { name: string; kind: WorldKind; aliases: string[]; text: string }
+interface Form {
+  name: string
+  kind: WorldKind
+  aliases: string[]
+  text: string
+  /** a place: a spot of the place named in `inside`, else a whole place */
+  spot: boolean
+  inside: string
+  /** a thing: lying in `place`, held by `holder`, or neither */
+  where: 'place' | 'holder' | 'none'
+  place: string
+  holder: string
+}
+
+const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Partial<WorldRecord>): Form => ({
+  name: r.name,
+  kind: r.kind,
+  aliases: r.aliases,
+  text: r.text,
+  spot: r.size === 'spot',
+  inside: r.inside ?? '',
+  where: r.holder ? 'holder' : 'place',
+  place: r.place ?? '',
+  holder: r.holder ?? '',
+})
+
+/** The space fields to send with a save: "" clears a field the engine would otherwise keep. */
+function spaceOf(f: Form): Partial<WorldRecord> {
+  if (f.kind === 'place') return { size: f.spot ? 'spot' : '', inside: f.spot ? f.inside.trim() : '' }
+  if (f.kind === 'thing') return { holder: f.where === 'holder' ? f.holder.trim() : '', place: f.where === 'place' ? f.place.trim() : '' }
+  return {}
+}
 
 /** The keys of a record as removable chips plus an input: Enter or a comma adds one. */
 function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
@@ -72,14 +104,17 @@ function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[
   )
 }
 
-function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void }) {
+function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeNames }: { initial: Form; past: boolean; busy: boolean; onSave: (f: Form) => void; onCancel: () => void; onDelete?: () => void; placeNames: string[] }) {
   const t = useT()
   const [f, setF] = useState(initial)
+  const ref = useRef<HTMLFormElement>(null)
+  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest' }) }, [])
   const limit = past ? TEXT_LIMIT.past : TEXT_LIMIT.active
   const over = f.text.length > limit
   const ok = f.name.trim() !== '' && f.text.trim() !== '' && !over
   return (
     <form
+      ref={ref}
       className="flex flex-col gap-3 rounded-md border border-primary/40 bg-card p-3"
       onSubmit={(e) => { e.preventDefault(); if (ok && !busy) onSave(f) }}
       data-testid="record-form"
@@ -108,6 +143,61 @@ function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; 
           ))}
         </div>
       </div>
+      {f.kind === 'place' && (
+        <div className="flex flex-col gap-2" data-testid="record-space-place">
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.size')}>
+            <span className="font-medium">{t('world.rec.size')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {([false, true] as const).map((spot) => (
+                <button
+                  key={String(spot)}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.spot === spot}
+                  onClick={() => setF({ ...f, spot })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.spot === spot ? cn(KIND_TONE.place, 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {spot ? t('world.rec.size.spot') : t('world.rec.size.whole')}
+                </button>
+              ))}
+            </div>
+          </div>
+          {f.spot && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">{t('world.rec.inside')}</span>
+              <Input value={f.inside} maxLength={80} list="world-place-names" placeholder={t('world.rec.insidePh')} onChange={(e) => setF({ ...f, inside: e.target.value })} className="h-10 md:h-9" />
+            </label>
+          )}
+        </div>
+      )}
+      {f.kind === 'thing' && (
+        <div className="flex flex-col gap-2" data-testid="record-space-thing">
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.where')}>
+            <span className="font-medium">{t('world.rec.where')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(['place', 'holder', 'none'] as const).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.where === w}
+                  onClick={() => setF({ ...f, where: w })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.where === w ? cn(KIND_TONE.thing, 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {t(`world.rec.where.${w}` as MsgKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {f.where === 'place' && (
+            <Input value={f.place} maxLength={80} list="world-place-names" placeholder={t('world.rec.placePh')} aria-label={t('world.rec.where.place')} onChange={(e) => setF({ ...f, place: e.target.value })} className="h-10 md:h-9" />
+          )}
+          {f.where === 'holder' && (
+            <Input value={f.holder} maxLength={80} placeholder={t('world.rec.holderPh')} aria-label={t('world.rec.where.holder')} onChange={(e) => setF({ ...f, holder: e.target.value })} className="h-10 md:h-9" />
+          )}
+        </div>
+      )}
+      <datalist id="world-place-names">{placeNames.map((n) => <option key={n} value={n} />)}</datalist>
       <KeysInput value={f.aliases} onChange={(aliases) => setF({ ...f, aliases })} />
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">{t('world.rec.text')}</span>
@@ -120,12 +210,18 @@ function RecordForm({ initial, past, busy, onSave, onCancel }: { initial: Form; 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={!ok || busy} className="max-md:h-10">{t('world.rec.save')}</Button>
         <Button type="button" variant="ghost" onClick={onCancel} className="max-md:h-10">{t('home.cancel')}</Button>
+        {onDelete && (
+          <Button type="button" variant="ghost" onClick={onDelete} disabled={busy} className="ml-auto text-destructive hover:text-destructive max-md:h-10" data-testid="record-form-delete">
+            <Trash className="size-4" aria-hidden="true" />{t('world.rec.delete')}
+          </Button>
+        )}
       </div>
     </form>
   )
 }
 
-function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }: {
+function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, placeNames }: {
+  placeNames: string[]
   r: WorldRecord
   editing: boolean
   busy: boolean
@@ -137,7 +233,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }:
 }) {
   const t = useT()
   if (editing) {
-    return <RecordForm initial={{ name: r.name, kind: r.kind, aliases: r.aliases, text: r.text }} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} />
+    return <RecordForm initial={formOf(r)} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} onDelete={() => onOp('delete')} placeNames={placeNames} />
   }
   const past = r.status === 'past'
   return (
@@ -164,6 +260,11 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }:
           ))}
         </ul>
       )}
+      {(r.kind === 'place' && r.size === 'spot' && r.inside) || (r.kind === 'thing' && (r.holder || r.place)) ? (
+        <p className={cn('mt-1 text-xs text-muted-foreground', past && 'opacity-70')} data-testid="record-space">
+          {r.kind === 'place' ? t('world.rec.spotOf', { name: r.inside ?? '' }) : r.holder ? t('world.rec.heldBy', { name: r.holder }) : t('world.rec.at', { name: r.place ?? '' })}
+        </p>
+      ) : null}
       <p className={cn('mt-1.5 whitespace-pre-wrap break-words text-muted-foreground', past && 'opacity-70')}>{r.text}</p>
       {r.pinned && !past && <p className="mt-1 text-xs text-muted-foreground">{t('world.rec.pinHint')}</p>}
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -192,45 +293,35 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin }:
   )
 }
 
-export function WorldRecords({ chatId }: { chatId: string }) {
+export function WorldRecords({ wref, gated, initial }: {
+  /** a chat's world or a saved world */
+  wref: WorldRef
+  /** a saved world: whether it asks the spoiler question (a chat's world reads that itself) */
+  gated?: boolean
+  /** records already read (another tab did), the one to edit first, or a new place or thing to add */
+  initial?: { records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' }
+}) {
   const t = useT()
+  const chatId = 'chatId' in wref ? wref.chatId : null
   const [confirm, confirmDialog] = useConfirm()
-  const [records, setRecords] = useState<WorldRecord[] | null>(null)
+  const book = useWorldBook(wref, { gated, initial: initial?.records })
+  const { records, setRecords } = book
   const [kind, setKind] = useState<WorldKind | 'all'>('all')
   const [query, setQuery] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(initial?.editId ?? null)
+  const [adding, setAdding] = useState(!!initial?.add)
   const [busy, setBusy] = useState(false)
   const [filling, setFilling] = useState(false)
   const [fillMsg, setFillMsg] = useState<string | null>(null)
   const [fillErr, setFillErr] = useState<string | null>(null)
-  const lastRunAt = useWorldLive((s) => s.views[chatId]?.lastRunAt)
-
-  // the DM edits the book too: read it again after each of its runs
-  useEffect(() => {
-    if (records === null) return
-    let live = true
-    peekWorld(chatId).then((r) => { if (live) setRecords(r) }).catch(() => {})
-    return () => { live = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastRunAt])
 
   const counts = useMemo(() => countByKind(records ?? []), [records])
   const shown = useMemo(() => filterRecords(records ?? [], kind, query), [records, kind, query])
 
-  const reveal = async () => {
-    if (!(await confirm({ title: t('world.peekTitle'), description: t('world.peekWarn'), actionLabel: t('world.peekGo'), destructive: false }))) return
-    try {
-      setRecords(await peekWorld(chatId))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
-    }
-  }
-
   const run = async (op: WorldRecordOp, record: Partial<WorldRecord>): Promise<boolean> => {
     setBusy(true)
     try {
-      setRecords(await editWorldRecord(chatId, op, record))
+      setRecords(await editWorldRecord(wref, op, record))
       return true
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) toast.error(t('world.rec.clash'))
@@ -241,6 +332,7 @@ export function WorldRecords({ chatId }: { chatId: string }) {
     }
   }
 
+  const placeNames = useMemo(() => (records ?? []).filter((r) => r.kind === 'place' && r.status === 'active').map((r) => r.name), [records])
   const keyless = useMemo(() => (records ?? []).filter((r) => r.status === 'active' && !r.pinned && r.aliases.length === 0).length, [records])
 
   const fill = async () => {
@@ -248,10 +340,11 @@ export function WorldRecords({ chatId }: { chatId: string }) {
     setFillMsg(null)
     setFillErr(null)
     try {
+      if (!chatId) return
       const r = await fillWorldKeys(chatId)
       if (!r.ok) setFillErr(r.error ?? t('world.rec.fillFail'))
       else setFillMsg(r.changed ? t('world.rec.filled', { n: r.changed }) : t('world.rec.filledNone'))
-      setRecords(await peekWorld(chatId))
+      setRecords(await peekWorld(wref))
     } catch (e) {
       setFillErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -267,13 +360,18 @@ export function WorldRecords({ chatId }: { chatId: string }) {
   if (records === null) {
     return (
       <div className="flex flex-col gap-3">
-        <div className="rounded-md border border-border bg-card p-3">
-          <p className="text-sm">{t('world.rec.lead')}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
-          <Button variant="outline" size="sm" className="mt-2 max-md:h-10" onClick={() => void reveal()}>
-            {t('world.rec.show')}
-          </Button>
-        </div>
+        {book.locked ? (
+          <div className="rounded-md border border-border bg-card p-3" data-testid="book-gate">
+            <p className="text-sm">{t('world.rec.lead')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
+            <Button variant="outline" size="sm" className="mt-2 max-md:h-10" onClick={() => void book.reveal()}>
+              {t('world.rec.show')}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground" role="status">…</p>
+        )}
+        {book.confirmDialog}
         {confirmDialog}
       </div>
     )
@@ -315,7 +413,7 @@ export function WorldRecords({ chatId }: { chatId: string }) {
         })}
       </div>
 
-      {(keyless > 0 || fillMsg || fillErr) && (
+      {chatId && (keyless > 0 || fillMsg || fillErr) && (
         <div className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3" data-testid="records-fill">
           {keyless > 0 && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -333,11 +431,12 @@ export function WorldRecords({ chatId }: { chatId: string }) {
 
       {adding && (
         <RecordForm
-          initial={{ name: '', kind: kind === 'all' ? 'person' : kind, aliases: [], text: '' }}
+          initial={formOf({ name: '', kind: kind === 'all' ? (initial?.add ?? 'person') : kind, aliases: [], text: '' })}
+          placeNames={placeNames}
           past={false}
           busy={busy}
           onCancel={() => setAdding(false)}
-          onSave={async (f) => { if (await run('add', { name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim() })) setAdding(false) }}
+          onSave={async (f) => { if (await run('add', { name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim(), ...spaceOf(f) })) setAdding(false) }}
         />
       )}
 
@@ -350,17 +449,19 @@ export function WorldRecords({ chatId }: { chatId: string }) {
             key={r.id}
             r={r}
             editing={editingId === r.id}
+            placeNames={placeNames}
             busy={busy}
             onEdit={() => { setEditingId(r.id); setAdding(false) }}
             onCancel={() => setEditingId(null)}
             onSave={async (f) => {
-              if (await run('update', { id: r.id, name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim() })) setEditingId(null)
+              if (await run('update', { id: r.id, name: f.name.trim(), kind: f.kind, aliases: f.aliases, text: f.text.trim(), ...spaceOf(f) })) setEditingId(null)
             }}
             onOp={(op) => void onOp(r, op)}
             onPin={(pinned) => void run('update', { id: r.id, pinned })}
           />
         ))}
       </ul>
+      {book.confirmDialog}
       {confirmDialog}
     </div>
   )

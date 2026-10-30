@@ -4788,7 +4788,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       pronouns: soul && soul.pronouns ? soul.pronouns : null,
       rated: !!soul,
       pulseBase: pulseBases(soul),
-      prev: isObj(p) ? { stats: p.stats, pulse: p.pulse, hostility: p.hostility ?? null, constellation: p.constellation ?? null } : null,
+      prev: isObj(p) ? { stats: p.stats, pulse: p.pulse, hostility: p.hostility ?? null, constellation: p.constellation ?? null, outfit: p.outfit ?? null, holding: p.holding ?? null } : null,
       notebook: arr(book.live[name]).map(noteItem),
       retired: arr(book.retired[name]).map(noteItem),
       said: arr(saidLive[name]).map(saidItem),

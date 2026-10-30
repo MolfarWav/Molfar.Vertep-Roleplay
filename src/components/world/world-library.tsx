@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WorldTabsList } from './world-tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
@@ -34,6 +36,9 @@ import {
 import { MemorySection } from '@/components/character/memory-section'
 import { LevelChip } from './world-common'
 import { WorldBackgrounds } from './world-backgrounds'
+import { WorldPlaces } from './world-places'
+import { WorldRecords } from './world-records'
+import type { WorldRecord } from '@/lib/world'
 
 interface SavedWorldsState {
   list: SavedWorld[] | null | 'missing'
@@ -208,6 +213,12 @@ export function WorldDetail({
   const [name, setName] = useState(world.name)
   const [description, setDescription] = useState(world.description)
   const [busy, setBusy] = useState(false)
+  const [tab, setTab] = useState<'details' | 'book' | 'places'>('details')
+  // a row of Places opens its record in the World book, with the records already read
+  const [openRec, setOpenRec] = useState<{ records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' } | undefined>(undefined)
+  const toBook = (o: { records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' }) => { setOpenRec(o); setTab('book') }
+  // a world saved from a played chat opens at once; a built one asks the spoiler question
+  const gated = !world.from
 
   useEffect(() => {
     setName(world.name)
@@ -289,6 +300,32 @@ export function WorldDetail({
         </p>
       )}
 
+      <Tabs value={tab} onValueChange={(v) => { setOpenRec(undefined); setTab(v as 'details' | 'book' | 'places') }}>
+        <WorldTabsList
+          perRow={3}
+          tabs={[
+            { value: 'details', label: t('world.lib.tab.details'), tone: 'scene', testid: 'world-lib-tab-details' },
+            { value: 'book', label: t('world.tab.records'), tone: 'memory', testid: 'world-lib-tab-book' },
+            { value: 'places', label: t('world.tab.places'), tone: 'place', testid: 'world-lib-tab-places' },
+          ]}
+        />
+      </Tabs>
+
+      {tab === 'book' && <WorldRecords key={`${world.id}:${openRec?.editId ?? ''}${openRec?.add ?? ''}`} wref={{ worldId: world.id }} gated={gated} initial={openRec} />}
+      {tab === 'places' && (
+        <WorldPlaces
+          key={world.id}
+          wref={{ worldId: world.id }}
+          gated={gated}
+          folderId={world.backgroundFolderId}
+          onOpenBackgrounds={() => setTab('details')}
+          onOpenRecord={(r, all) => toBook({ records: all, editId: r.id })}
+          onAdd={(kind, all) => toBook({ records: all, add: kind })}
+        />
+      )}
+
+      {tab === 'details' && (
+        <>
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium">{t('world.lib.name')}</span>
         <Input
@@ -334,6 +371,8 @@ export function WorldDetail({
       </section>
 
       <MemorySection key={world.id} owner={{ kind: 'world', id: world.id, name: world.name }} />
+        </>
+      )}
 
       {confirmDialog}
     </div>

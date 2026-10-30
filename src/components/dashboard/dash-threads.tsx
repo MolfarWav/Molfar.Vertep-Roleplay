@@ -38,6 +38,13 @@ function KindSelect({ value, onChange, label }: { value: QuestKind; onChange: (k
   )
 }
 
+/** One look per quest kind: main pink with a star, side sky, everyday muted. Colour never alone: the badge says the word. */
+const QUEST_LOOK: Record<QuestKind, { dot: string; badge: string; title: string }> = {
+  main: { dot: 'bg-pink-500 dark:bg-pink-400', badge: 'border-pink-500/50 bg-pink-500/10 text-pink-700 dark:text-pink-300', title: 'text-pink-700 dark:text-pink-300' },
+  side: { dot: 'bg-sky-500 dark:bg-sky-400', badge: 'border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300', title: 'text-sky-700 dark:text-sky-300' },
+  everyday: { dot: 'bg-muted-foreground/60', badge: 'border-border text-muted-foreground', title: 'text-muted-foreground' },
+}
+
 function ThreadRow({ th, editable, openOnly, step }: { th: Thread; editable: boolean; openOnly?: boolean; step?: boolean }) {
   const t = useT()
   const act = useNotesAct()
@@ -54,7 +61,7 @@ function ThreadRow({ th, editable, openOnly, step }: { th: Thread; editable: boo
   const cancel = () => { setText(th.text); setKind(questKindOf(th)); setEditing(false) }
   return (
     <li className={cn(rise, 'flex gap-1.5 text-xs leading-snug', !open && 'text-muted-foreground')}>
-      <span aria-hidden="true" className={cn('mt-[5px] size-1.5 shrink-0 bg-cta', step ? 'rounded-full' : 'rotate-45')} />
+      <span aria-hidden="true" className={cn('mt-[5px] size-1.5 shrink-0', open ? QUEST_LOOK[step ? 'main' : questKindOf(th)].dot : 'bg-muted-foreground/40', step ? 'rounded-full' : 'rotate-45')} />
       {editing ? (
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
           <Input value={text} onChange={(e) => setText(e.target.value)} maxLength={THREAD_MAX} aria-label={t('dash.note.edit')} className={cn(FIELD, 'h-7 text-xs max-md:h-10')} />
@@ -68,8 +75,13 @@ function ThreadRow({ th, editable, openOnly, step }: { th: Thread; editable: boo
         <span className="min-w-0 flex-1">
           <span className={cn('break-words', !open && 'line-through')}>{th.text}</span>
           {th.by === 'user' && <span className="ml-1.5 border border-border px-1 text-[10px] uppercase tracking-wide">{t('dash.thread.yours')}</span>}
-          {/* a flat list (the strip) has no group titles: say which are main or everyday */}
-          {openOnly && !step && questKindOf(th) !== 'side' && <span className="ml-1.5 border border-border px-1 text-[10px] uppercase tracking-wide">{t(`dash.quest.kind.${questKindOf(th)}`)}</span>}
+          {/* a flat list (the strip) has no group titles: say which are main, side or everyday */}
+          {openOnly && !step && (
+            <span className={cn('ml-1.5 inline-flex items-center gap-0.5 border px-1 text-[10px] uppercase tracking-wide', QUEST_LOOK[questKindOf(th)].badge)}>
+              {questKindOf(th) === 'main' && <Star className="size-2.5" weight="fill" aria-hidden="true" />}
+              {t(`dash.quest.kind.${questKindOf(th)}`)}
+            </span>
+          )}
           {!openOnly && (
             <span className="ml-2 whitespace-nowrap text-[11px]">
               {open ? t('dash.thread.since', { n: th.since }) : t('dash.thread.resolved')}
@@ -192,7 +204,7 @@ function Suggestions({ proposals, threads, limits }: { proposals: QuestProposal[
 function GroupTitle({ kind, n, max }: { kind: QuestKind; n: number; max?: number }) {
   const t = useT()
   return (
-    <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+    <div className={cn('flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide', QUEST_LOOK[kind].title)}>
       {kind === 'main' && <Star className="size-3" weight="fill" aria-hidden="true" />}
       <span>{t(`dash.quest.kind.${kind}`)}</span>
       <span aria-label={max === undefined ? undefined : t('dash.quest.of', { n, max })}>{max === undefined ? n : `${n}/${max}`}</span>

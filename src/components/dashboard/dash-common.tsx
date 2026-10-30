@@ -11,7 +11,8 @@ import { useLang } from '@/components/dashboard/use-lang'
 import { useT } from '@/hooks/use-t'
 import { useDashLive, type DashLast } from '@/lib/dash-live'
 import { DICTIONARIES, type MsgKey } from '@/lib/i18n'
-import { WeatherIcon, weatherKind } from '@/components/dashboard/dash-weather'
+import { WeatherTile } from '@/components/dashboard/dash-wx-tile'
+import type { ChangeCount } from '@/lib/dash-changes'
 
 /**
  * Translate a key built from data (a band, a constellation id, a family...). An id the
@@ -69,43 +70,45 @@ export function BandMark({ band, className }: { band: string | null | undefined;
   return look ? <span key={band} className={cn('dash-pop shrink-0', className)} aria-hidden="true">{look.icon}</span> : null
 }
 
-/** Time (or band word) large, then date · band · day · minutes, place, weather. */
-export function SceneBlock({ clock, calendar }: { clock: Clock | null; calendar?: DashView['calendar'] }) {
+/**
+ * Time (or band word) large with the date line under it, the weather tile to the right, then the place on the
+ * full width. `weatherSize`: the tile's icon (52 px; 40 px in a narrow strip; 48 px in the wide header).
+ */
+export function SceneBlock({ clock, calendar, weatherSize = 52 }: { clock: Clock | null; calendar?: DashView['calendar']; weatherSize?: number }) {
   const t = useT()
   const tx = useTx()
   const lang = useLang()
   if (!clock) return null
   const band = clock.band ? tx('dash.band', clock.band) : null
   const date = clock.date ? formatStoryDate(clock.date, lang) : null
-  const weather = weatherKind(clock.weather)
+  const hasWeather = !!clock.weather?.trim()
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      {clock.time ? (
-        <div className="font-heading text-3xl leading-none tabular-nums" title={clock.approx ? t('dash.time.approx') : undefined}>
-          {clock.approx && <span aria-hidden="true" className="mr-1 align-[0.1em] text-xl text-muted-foreground">≈</span>}
-          {clock.time}
-          {clock.approx && <span className="sr-only">{t('dash.time.approx')}</span>}
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className={cn('grid min-w-0 items-center gap-x-3 gap-y-1', hasWeather ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-1')}>
+        <div className={cn('flex min-w-0 flex-col gap-1', hasWeather && 'max-w-[150px]')}>
+          {clock.time ? (
+            <div className="font-heading text-3xl leading-none tabular-nums" title={clock.approx ? t('dash.time.approx') : undefined}>
+              {clock.approx && <span aria-hidden="true" className="mr-1 align-[0.1em] text-xl text-muted-foreground">≈</span>}
+              {clock.time}
+              {clock.approx && <span className="sr-only">{t('dash.time.approx')}</span>}
+            </div>
+          ) : band ? (
+            <div className={cn('flex min-w-0 items-center gap-2 font-heading text-3xl leading-none break-words', bandTextClass(clock.band))}>
+              <BandMark band={clock.band} />
+              {band}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
+            {date && <span className="text-foreground" data-testid="dash-date">{date}</span>}
+            {clock.time && band && <span className={cn('flex items-center gap-1', bandTextClass(clock.band))}><BandMark band={clock.band} />{band}</span>}
+            <span>{t('dash.day', { n: clock.day })}</span>
+            {clock.minutes > 0 && <span>{t('dash.minutes', { n: clock.minutes })}</span>}
+            <DateEdit clock={clock} calendar={calendar ?? null} />
+          </div>
         </div>
-      ) : band ? (
-        <div className={cn('flex min-w-0 items-center gap-2 font-heading text-3xl leading-none break-words', bandTextClass(clock.band))}>
-          <BandMark band={clock.band} />
-          {band}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
-        {date && <span className="text-foreground" data-testid="dash-date">{date}</span>}
-        {clock.time && band && <span className={cn('flex items-center gap-1', bandTextClass(clock.band))}><BandMark band={clock.band} />{band}</span>}
-        <span>{t('dash.day', { n: clock.day })}</span>
-        {clock.minutes > 0 && <span>{t('dash.minutes', { n: clock.minutes })}</span>}
-        <DateEdit clock={clock} calendar={calendar ?? null} />
+        {hasWeather && <WeatherTile text={clock.weather} night={clock.band === 'night'} size={weatherSize} />}
       </div>
       {clock.place && <div className="min-w-0 text-sm break-words">{clock.place}</div>}
-      {clock.weather && (
-        <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-          {weather && <WeatherIcon kind={weather} night={clock.band === 'night'} />}
-          <span className="min-w-0 break-words">{clock.weather}</span>
-        </div>
-      )}
     </div>
   )
 }
@@ -199,14 +202,19 @@ export function AvatarImg({ name, url, className }: { name: string; url?: string
   )
 }
 
-/** A click focuses the character; with onPortrait, a click on the focused one opens its portrait dialog. */
-export function AvatarButton({ name, url, onFocus, focused, onPortrait, className }: {
+/**
+ * A click focuses the character; with onPortrait, a click on the focused one opens its portrait dialog.
+ * `big` is the 40 px switcher square; `count` puts the change counter on its corner.
+ */
+export function AvatarButton({ name, url, onFocus, focused, onPortrait, className, big, count }: {
   name: string
   url?: string
   onFocus: (name: string) => void
   focused?: boolean
   onPortrait?: (name: string) => void
   className?: string
+  big?: boolean
+  count?: ChangeCount | null
 }) {
   const t = useT()
   const portrait = focused && onPortrait
@@ -216,14 +224,16 @@ export function AvatarButton({ name, url, onFocus, focused, onPortrait, classNam
       type="button"
       onClick={() => (portrait ? onPortrait(name) : onFocus(name))}
       aria-label={label}
+      aria-pressed={focused}
       title={label}
       className={cn(
         'group relative shrink-0 rounded-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-        focused ? 'ring-1 ring-cta' : 'opacity-80 hover:opacity-100',
+        focused ? (big ? 'ring-2 ring-cta ring-offset-1 ring-offset-card' : 'ring-1 ring-cta') : 'opacity-80 hover:opacity-100',
         className,
       )}
     >
-      <AvatarImg name={name} url={url} />
+      <AvatarImg name={name} url={url} className={big ? 'size-10 [&_[data-slot=avatar-fallback]]:text-sm' : undefined} />
+      {count && <ChangeBadge count={count} className="absolute -top-1.5 -right-1.5 z-10" />}
       {portrait && (
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true">
           <PencilSimple className="size-3.5" />
@@ -333,30 +343,74 @@ export function Label({ children, className }: { children: ReactNode; className?
  * theme's own surface (a translucent fill and border) and its text is the 700/300 step, so every theme keeps
  * its own ground; the title and its icon always name the block, colour never carries it alone.
  */
-export type Tone = 'scene' | 'people' | 'memory' | 'plot'
+export type Tone = 'scene' | 'people' | 'memory' | 'plot' | 'place' | 'thing'
 export const TONE: Record<Tone, { bar: string; text: string }> = {
   scene: { bar: 'border-sky-500/35 bg-sky-500/12', text: 'text-sky-700 dark:text-sky-300' },
   people: { bar: 'border-violet-500/35 bg-violet-500/12', text: 'text-violet-700 dark:text-violet-300' },
   memory: { bar: 'border-emerald-500/35 bg-emerald-500/12', text: 'text-emerald-700 dark:text-emerald-300' },
   plot: { bar: 'border-pink-500/35 bg-pink-500/12', text: 'text-pink-700 dark:text-pink-300' },
+  // the World section's colours for places and things (KIND_TONE there): teal and amber
+  place: { bar: 'border-teal-500/40 bg-teal-500/10', text: 'text-teal-700 dark:text-teal-300' },
+  thing: { bar: 'border-amber-500/40 bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300' },
+}
+
+/** A tab's square and underline in its tone: Person violet, Here teal, Quests pink, Notes emerald, History sky. */
+export const TONE_TAB: Record<Tone, { square: string; line: string }> = {
+  scene: { square: 'bg-sky-500', line: 'after:bg-sky-500' },
+  people: { square: 'bg-violet-500', line: 'after:bg-violet-500' },
+  memory: { square: 'bg-emerald-500', line: 'after:bg-emerald-500' },
+  plot: { square: 'bg-pink-500', line: 'after:bg-pink-500' },
+  place: { square: 'bg-teal-500', line: 'after:bg-teal-500' },
+  thing: { square: 'bg-amber-500', line: 'after:bg-amber-500' },
+}
+
+/**
+ * A small circle with a number: how many things changed since the player's last reply. Red when any of them
+ * is negative (a stat fell). The number is for the eye; the phrase is for screen readers and the tooltip.
+ */
+export function ChangeBadge({ count, className }: { count: ChangeCount | null | undefined; className?: string }) {
+  const t = useT()
+  if (!count || count.n <= 0) return null
+  const phrase = t('dash.changes.n', { n: count.n })
+  return (
+    <span
+      className={cn(
+        'inline-flex h-[17px] min-w-[17px] shrink-0 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold tabular-nums',
+        count.negative ? 'bg-red-600 text-white dark:bg-red-400 dark:text-red-950' : 'bg-cta text-cta-foreground',
+        className,
+      )}
+      title={phrase}
+      data-testid="dash-change-badge"
+      data-negative={count.negative ? 'true' : undefined}
+    >
+      <span aria-hidden="true">{count.n}</span>
+      <span className="sr-only">{phrase}</span>
+    </span>
+  )
 }
 
 /** A block's title on a tinted bar with its icon; `className` places it (a box bleeds it to its edges). */
-export function TitleBar({ tone, icon: Glyph, children, className }: { tone: Tone; icon?: Icon; children: ReactNode; className?: string }) {
+export function TitleBar({ tone, icon: Glyph, children, className, right, count }: { tone: Tone; icon?: Icon; children: ReactNode; className?: string; right?: ReactNode; count?: ChangeCount | null }) {
   const look = TONE[tone]
   return (
     <div className={cn('flex min-w-0 items-center gap-2 border-b px-3 py-1.5', look.bar, className)}>
       {Glyph ? <Glyph className={cn('size-4 shrink-0', look.text)} aria-hidden="true" /> : null}
       <Label className={cn('min-w-0 font-semibold break-words', look.text)}>{children}</Label>
+      {right || count ? (
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {right}
+          <ChangeBadge count={count} />
+        </span>
+      ) : null}
     </div>
   )
 }
 
 /** A titled box of the wide view and the phone sheet; with a `tone` the title sits on a tinted bar. */
-export function Box({ title, tone, icon, children, className, id, 'data-guide': guide }: { title?: ReactNode; tone?: Tone; icon?: Icon; children: ReactNode; className?: string; id?: string; 'data-guide'?: string }) {
+export function Box({ title, tone, icon, children, className, id, right, count, 'data-guide': guide }: { title?: ReactNode; tone?: Tone; icon?: Icon; children: ReactNode; className?: string; id?: string; right?: ReactNode; count?: ChangeCount | null; 'data-guide'?: string }) {
   return (
     <section id={id} data-guide={guide} tabIndex={id ? -1 : undefined} className={cn('min-w-0 border border-border bg-card p-3 outline-none', className)}>
-      {title && tone ? <TitleBar tone={tone} icon={icon} className="-mx-3 -mt-3 mb-3">{title}</TitleBar> : title ? <Label className="mb-2">{title}</Label> : null}
+      {title && tone ? <TitleBar tone={tone} icon={icon} className="-mx-3 -mt-3 mb-3" right={right} count={count}>{title}</TitleBar> : title ? <Label className="mb-2">{title}</Label> : null}
       {children}
     </section>
   )
@@ -411,7 +465,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Mood, condition, outfit, holding, goal, leads: a row with no value is not rendered. */
-export function CharFields({ char }: { char: DashChar }) {
+export function CharFields({ char, skip }: { char: DashChar; /** leave out the rows another card shows (outfit and holding) */ skip?: ('outfit' | 'holding')[] }) {
   const t = useT()
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -422,8 +476,8 @@ export function CharFields({ char }: { char: DashChar }) {
         </Field>
       )}
       {char.condition && <Field label={t('dash.condition')}>{char.condition}</Field>}
-      {char.outfit && <Field label={t('dash.outfit')}>{char.outfit}</Field>}
-      {char.holding && <Field label={t('dash.holding')}>{char.holding}</Field>}
+      {char.outfit && !skip?.includes('outfit') && <Field label={t('dash.outfit')}>{char.outfit}</Field>}
+      {char.holding && !skip?.includes('holding') && <Field label={t('dash.holding')}>{char.holding}</Field>}
       {char.goal && <Field label={t('dash.goal')}>{char.goal}</Field>}
       {char.leads && <Field label={t('dash.leads')}>{char.leads === 'user' ? t('dash.leads.user') : char.leads}</Field>}
     </div>

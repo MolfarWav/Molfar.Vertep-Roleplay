@@ -62,6 +62,34 @@ export function parseTags(text: string): string[] {
   return out.slice(0, 8)
 }
 
+/** The most tags a picture keeps. */
+export const MAX_TAGS = 8
+
+/** `first` then `rest`: lower case, no repeats, at most 8. */
+export function mergeTags(first: string[], rest: string[] = []): string[] {
+  const out: string[] = []
+  for (const raw of [...first, ...rest]) {
+    const t = raw.trim().toLowerCase().slice(0, 40)
+    if (t && !out.includes(t)) out.push(t)
+  }
+  return out.slice(0, MAX_TAGS)
+}
+
+/** A place's name and aliases as tags, so the Dashboard's tag match finds a picture made or bound for it. */
+export const placeTags = (name: string, aliases: string[] = []): string[] => mergeTags([name], aliases)
+
+/** The library image a place record's `background` names: null when none is set or the picture is gone (deleted). */
+export function pictureOf(id: string | null | undefined, backgrounds: BackgroundItem[]): BackgroundItem | null {
+  if (!id) return null
+  const b = backgrounds.find((x) => x.id === id)
+  return b && b.type === 'image' ? b : null
+}
+
+/** The picture bound to the scene's place (`GET /world/here` `background`), when it is still in the library. */
+export function sceneBackgroundId(here: { background?: string | null } | null, backgrounds: BackgroundItem[]): string | null {
+  return pictureOf(here?.background, backgrounds)?.id ?? null
+}
+
 /** Names that are not snake_case look unnamed ("IMG_2031", "Screenshot 12"): the vision pass offers them first. */
 export const looksUnnamed = (name: string) => !isSnake(name)
 
@@ -73,8 +101,9 @@ export function findByName(backgrounds: BackgroundItem[], folderId: ID, name: st
 
 /**
  * The Dashboard sensor named an image of the chat's folder: make it the chat's background. Called after
- * each Dashboard update; nothing else changes the background by itself. The newest snapshot with a
- * `background` that is in the folder wins; no pick or an unknown name changes nothing.
+ * each Dashboard update; nothing else changes the background by itself. A picture bound to the scene's place
+ * (World > Places) wins and needs no folder; else the newest snapshot with a `background` that is in the
+ * folder; no pick or an unknown name changes nothing. A bound picture that left the library is ignored.
  */
 export async function applySceneBackground(
   chatId: ID,
@@ -82,7 +111,17 @@ export async function applySceneBackground(
 ): Promise<void> {
   const chat = s.chats.find((c) => c.id === chatId)
   const auto = chat?.autoBackground
-  if (!chat || !auto?.on || !auto.folderId) return
+  if (!chat || !auto?.on) return
+  try {
+    const id = sceneBackgroundId(await j<{ background?: string | null }>(`/world/here?chatId=${encodeURIComponent(chatId)}`), s.backgrounds)
+    if (id) {
+      if (chat.backgroundId !== id) s.updateChat(chatId, { backgroundId: id })
+      return
+    }
+  } catch {
+    // no World DM or no answer: the sensor's pick below
+  }
+  if (!auto.folderId) return
   let name = ''
   try {
     const r = await j<{ state: { snapshots?: Record<string, { background?: unknown }> } | null; current: string | null }>(`/dashboard/state?chatId=${encodeURIComponent(chatId)}`)
@@ -190,4 +229,25 @@ export function backgroundMatches(b: BackgroundItem, folderName: string | undefi
 export function searchBackgrounds(backgrounds: BackgroundItem[], folders: { id: ID; name: string }[], query: string): BackgroundItem[] {
   const nameOf = new Map(folders.map((f) => [f.id, f.name]))
   return backgrounds.filter((b) => backgroundMatches(b, b.folderId ? nameOf.get(b.folderId) : undefined, query))
+}
+
+/**
+ * The picker's groups for binding a picture to a place: the world's own folder first, then the other folders
+ * (named ones by name, pictures in no folder last), every group narrowed by a search over name, tags and folder.
+ * A file that is in the world's folder is not offered a second time from another one.
+ */
+export function pickerGroups(
+  backgrounds: BackgroundItem[],
+  folders: { id: ID; name: string; scope?: string }[],
+  ownFolderId: ID | null,
+  ownName: string,
+  query: string,
+  noFolderName: string,
+): ExistingGroup[] {
+  const own: ExistingGroup[] = []
+  if (ownFolderId) {
+    const items = backgrounds.filter((b) => b.type === 'image' && b.folderId === ownFolderId && backgroundMatches(b, ownName, query))
+    if (items.length) own.push({ folderId: ownFolderId, name: ownName, items })
+  }
+  return [...own, ...existingGroups(backgrounds, folders, ownFolderId ?? '', query, noFolderName)]
 }

@@ -116,7 +116,7 @@ export interface DashChar {
   rated: boolean
   pulseBase: Pulse
   /** the same character in the snapshot before, for change arrows */
-  prev: { stats: Stats; pulse: Pulse; hostility: number | null; constellation: string | null } | null
+  prev: { stats: Stats; pulse: Pulse; hostility: number | null; constellation: string | null; /** the snapshot before's outfit and holding, when the plugin sends them */ outfit?: string | null; holding?: string | null } | null
   notebook: Note[]
   /** notes the user removed (restorable); absent on an older plugin, which also means notes cannot be edited */
   retired?: Note[]

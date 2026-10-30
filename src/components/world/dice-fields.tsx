@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import { SettingRow } from './world-setting-row'
 import { WORLD_DICE_STAT_CHOICES, WORLD_DICE_TILTS, type WorldDiceMode, type WorldDiceStat, type WorldDiceTilt } from '@/lib/world'
 
 export function NumField({ label, value, min, max, onCommit }: { label: string; value: number; min: number; max: number; onCommit: (n: number) => void }) {
@@ -39,15 +40,7 @@ const MODES = ['off', 'flavour', 'strict'] as const satisfies readonly WorldDice
 const SELECT = 'h-9 rounded-md border border-border bg-background px-2 text-sm max-md:h-11'
 
 function Row({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
-  return (
-    <label className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-      <span className="min-w-0">
-        {label}
-        <span className="block text-xs text-muted-foreground">{hint}</span>
-      </span>
-      {children}
-    </label>
-  )
+  return <SettingRow label={label} info={hint} className="px-3">{children}</SettingRow>
 }
 
 /** The dice as one card: icon and title, a three-way switch with the explanation of the chosen position, then the settings in their own group. `children` (the roll log) closes the card. */
