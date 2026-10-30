@@ -232,7 +232,7 @@ export function PersonasView() {
               )}
               <InfoTip label="About dialogue colour">The colour of this persona&apos;s quoted speech in the chat. A message takes the colour of the persona it was sent under, so changing it repaints that persona&apos;s earlier messages too.</InfoTip>
             </div>
-            <PersonaDescription key={p.id} p={p} update={(patch) => updatePersona(p.id, patch)} onAsk={() => setAskOpen(true)} confirm={confirm} />
+            <PersonaDescription key={`description-${p.id}`} p={p} update={(patch) => updatePersona(p.id, patch)} onAsk={() => setAskOpen(true)} confirm={confirm} />
 
             <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
               <h2 className="text-xs font-semibold uppercase text-muted-foreground">Bindings</h2>
@@ -292,7 +292,7 @@ export function PersonasView() {
               ))}
             </div>
 
-            <MemorySection key={p.id} owner={{ kind: 'persona', id: p.id, name: p.name }} framed />
+            <MemorySection key={`memory-${p.id}`} owner={{ kind: 'persona', id: p.id, name: p.name }} framed />
           </div>
         </ScrollArea>
       ) : (
