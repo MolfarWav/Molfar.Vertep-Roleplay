@@ -197,6 +197,9 @@ export const DEFAULT_CONFIG = {
   // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
   recallScoring: "phrases",
+  // #178: a new fact may name the earlier fact that caused it (fact.because); when the insert picks an effect and
+  // the budget has room, its cause (if active) rides right after it. No setting in the app: a hand-edited key to turn it off.
+  causes: true,
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -288,6 +291,13 @@ export const RECOLLECTIONS_RULE = [
   "- Different characters remember the same event differently: keep each one's own view. Never invent; use only the messages. Skip a character who has nothing of their own to remember.",
 ].join("\n");
 export const RECOLLECTIONS_SHAPE = ',"views":[{"who":"a name from Characters","text":"I ..."}]';
+/** Added to the chapter prompt while causes are on and the scene has Known facts to point at (#178). */
+export const CAUSE_RULE = [
+  "Causes (optional, usually none):",
+  '- When a new fact happened BECAUSE of a Known fact, add "because": that fact\'s id (one id, like "f3"). Only a cause the messages show; leave it out otherwise.',
+].join("\n");
+export const CAUSE_SHAPE = ',"because":"f3"?';
+
 /** At most this many recollections to a chapter, each this long (the worker may ramble). */
 const VIEWS_MAX = 8;
 const VIEW_CHARS = 300;
@@ -429,6 +439,7 @@ export function loadConfig(fsx) {
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
+  cfg.causes = cfg.causes !== false;
   return cfg;
 }
 
@@ -1038,8 +1049,11 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     if (known.length) parts.splice(parts.length - 1, 0, "Known habits\n" + known.join("\n"));
   }
   const userText = parts.join("\n\n");
-  const shape = WORKER_SHAPE.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + "\n\nOutput shape\n" + shape;
+  // #178: only when there is a known fact to point at
+  const causesOn = cfg.causes !== false && factLines.length > 0;
+  const base = causesOn ? WORKER_SHAPE.replace('"weight":"everyday|important|key"}', '"weight":"everyday|important|key"' + CAUSE_SHAPE + "}") : WORKER_SHAPE;
+  const shape = base.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
@@ -1514,7 +1528,49 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   fill(chapters, e, 0, budget);
   fill(facts, d, next, budget);
   if (!facts.length && !chapters.length) return null;
-  return result(facts, chapters, renderHead(), renderTail(), false);
+  // #178: an effect that was picked brings its cause, right after it, when the cause is active, not already in the
+  // prompt and still fits. This runs after everything else is placed, so it only ever uses what was left over:
+  // it can never push out a fact that ranked on its own. One step only (a cause's own cause is not followed).
+  const causes = { pulled: 0, missed: 0, together: 0 };
+  if (!cfg || cfg.causes !== false) {
+    const byId = new Map(active.map((f) => [f.id, f]));
+    for (const effect of facts.slice()) {
+      const cause = effect.because ? byId.get(effect.because) : null;
+      if (!cause || cause === effect || stillSeen(cause)) continue;
+      if (facts.includes(cause)) {
+        causes.together++;
+        continue;
+      }
+      facts.splice(facts.indexOf(effect) + 1, 0, cause);
+      if (estimateTokens(render()) <= budget) causes.pulled++;
+      else {
+        facts.splice(facts.indexOf(cause), 1);
+        causes.missed++;
+      }
+    }
+  }
+  return { ...result(facts, chapters, renderHead(), renderTail(), false), causes };
+}
+
+/**
+ * #178, the measurement: what causes did in this reply (`causes`: pulled in after their effect, missed because they did
+ * not fit, already there beside it) and the running total over the replies of the chat (`causeStats`), for the
+ * insert file. Nothing when the chat has no link in its insert (and none counted before), so a chat without
+ * causes gets no new keys.
+ */
+export function causeRecord(prev, insert) {
+  const c = insert && isObj(insert.causes) ? insert.causes : null;
+  const before = isObj(prev) && isObj(prev.causeStats) ? prev.causeStats : null;
+  const now = c && (c.pulled || c.missed || c.together) ? c : null;
+  if (!now && !before) return {};
+  const n = (v) => Math.max(0, Number(v) || 0);
+  const total = {
+    replies: n(before && before.replies) + (now ? 1 : 0),
+    pulled: n(before && before.pulled) + (now ? now.pulled : 0),
+    missed: n(before && before.missed) + (now ? now.missed : 0),
+    together: n(before && before.together) + (now ? now.together : 0),
+  };
+  return { causes: now ? { pulled: now.pulled, missed: now.missed, together: now.together } : { pulled: 0, missed: 0, together: 0 }, causeStats: total };
 }
 
 /** Most facts the insert file keeps a use record for: the most recently used win. */
@@ -1688,6 +1744,7 @@ export function llmRequest(ctx, host) {
           arcs: insert ? insert.arcs : 0,
           cut: insert ? insert.cut : 0,
           ...(insert && insert.full ? { full: true } : {}),
+          ...causeRecord(prevInsert, insert),
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
           ...(personaMem ? { personaMemory: { personaId: personaMem.ownerId, tokens: personaMem.tokens, sources: personaMem.sources, dupes: personaMem.dupes } } : {}),
@@ -1900,6 +1957,21 @@ function factOp(op) {
   return raw || (op.id === undefined || op.id === null || op.id === "" ? "add" : "");
 }
 
+/**
+ * #178: the id of the earlier fact a new fact says it came from, or "". Wherever the model put it ("because", "cause",
+ * "caused_by"), as "f3", "F3", 3 or "f3: the river thawed"; only one id, and only a fact of this record that is not the
+ * new fact itself. Anything else is ignored: a wrong or missing cause never fails the chapter.
+ */
+export function causeOf(st, op) {
+  if (!isObj(op)) return "";
+  const raw = [op.because, op.cause, op.causedBy, op.caused_by, op.dueTo].find((x) => x !== undefined && x !== null && x !== "" && (typeof x === "string" || typeof x === "number"));
+  if (raw === undefined) return "";
+  const m = /^\s*f?(\d{1,9})\b/i.exec(String(raw));
+  if (!m) return "";
+  const id = "f" + Number(m[1]);
+  return arr(st && st.facts).some((f) => isObj(f) && f.id === id) ? id : "";
+}
+
 /** item 8: mutate st including st.worker; returns the chapter object made. */
 export function applyWorkerResult(st, work, parsed, ctx) {
   const { scene, replaces } = work;
@@ -1961,6 +2033,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         continue;
       }
       if (factAdds.length >= 8) break;
+      const because = ctx.causes === false ? "" : causeOf(st, op);
       const fact = {
         id: "f" + ++st.counters.fact,
         text,
@@ -1970,6 +2043,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         weight,
         pinned: false,
         status: "active",
+        ...(because ? { because } : {}),
         src: { from: scene.from, to: scene.to, chapter: chapterId },
         origin: "chapter",
         at: now,
@@ -1993,6 +2067,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         // Apply at once: supersede
         target.status = "superseded";
         target.updatedAt = now;
+        const because = ctx.causes === false ? "" : causeOf(st, op);
         const newFact = {
           id: "f" + ++st.counters.fact,
           text,
@@ -2001,6 +2076,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
           weight: target.weight,
           pinned: target.pinned,
           type: "change",
+          // the old version's own cause is no cause of the new one
+          ...(because && because !== target.id ? { because } : {}),
           supersedes: target.id,
           status: "active",
           src: { from: scene.from, to: scene.to, chapter: chapterId },
@@ -2356,6 +2433,7 @@ export function forkFrom(fsx, parentSt, parentLine, parentMessageId, chatId, chi
     }
   }
 
+  dropLostCauses(child.facts);
   // a superseded fact whose successor stayed behind in the parent is current here
   for (const f of child.facts) {
     if (f.status !== "superseded") continue;
@@ -2775,6 +2853,12 @@ export function moveNotes(fsx, chatId, st, dash, line, userName, now) {
   return n;
 }
 
+/** #178: a link to a fact that is not in this list (a rebuild or a branch left it behind), or to the fact itself, goes. */
+function dropLostCauses(facts) {
+  const ids = new Set(facts.map((f) => f.id));
+  for (const f of facts) if (f.because !== undefined && (f.because === f.id || !ids.has(f.because))) delete f.because;
+}
+
 /** The new generation replaces the record: its chapters and facts, plus user and dashboard facts added meanwhile. */
 export function finishRebuild(st, now) {
   const g = st.rebuild;
@@ -2798,6 +2882,7 @@ export function finishRebuild(st, now) {
     facts.push(copy);
   }
   st.chapters = arr(g.chapters);
+  dropLostCauses(facts);
   st.facts = facts;
   st.proposals = arr(g.proposals);
   st.counters = { ...st.counters, chapter: g.counters.chapter, fact: Math.max(g.counters.fact, st.counters.fact), proposal: Math.max(g.counters.proposal, st.counters.proposal) };
@@ -3030,6 +3115,7 @@ export function onTick(_ctx, host) {
                 reply: reply.text,
                 sources: sourceSentences(fsx, meta),
                 habits: cfg.habits !== false,
+                causes: cfg.causes !== false,
                 habitsStore: cur,
                 earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
@@ -4350,6 +4436,8 @@ export function factRoute(fsx, body) {
     }
     if (op === "delete") {
       st.facts = st.facts.filter((f) => f !== fact);
+      // #178: what named it as its cause has no cause now
+      for (const f of st.facts) if (f.because === fact.id) delete f.because;
       expireProposals(st, fact.id, now);
       addActivity(st, "user", "fact.delete", "Deleted: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
@@ -4538,6 +4626,13 @@ export function proposalRoute(fsx, body) {
         at: now,
         updatedAt: now,
       };
+      // #178: the survivor keeps the first cause of its parts that is not one of the parts themselves, and every
+      // fact that named a part as its cause now names the survivor
+      const partIds = new Set(targets.map((f) => f.id));
+      const backsToPart = (id) => partIds.has(str((st.facts.find((x) => x.id === id) || {}).because));
+      const cause = targets.map((f) => str(f.because)).find((id) => id && !partIds.has(id) && !backsToPart(id));
+      if (cause) merged.because = cause;
+      for (const f of st.facts) if (!partIds.has(f.id) && partIds.has(str(f.because))) f.because = merged.id;
       for (const f of targets) {
         f.status = "retired";
         f.pinned = false;
@@ -5890,6 +5985,9 @@ function carriesRoute(fsx, query) {
         tokens: isObj(last) ? Number(last.tokens) || 0 : 0,
         facts: isObj(last) ? Number(last.facts) || 0 : 0,
         chapters: isObj(last) ? Number(last.chapters) || 0 : 0,
+        // #178: causes pulled in after their effect (this reply, and over all replies of the chat)
+        causes: isObj(last) && isObj(last.causes) ? { pulled: Number(last.causes.pulled) || 0, missed: Number(last.causes.missed) || 0, together: Number(last.causes.together) || 0 } : null,
+        causeStats: isObj(last) && isObj(last.causeStats) ? { replies: Number(last.causeStats.replies) || 0, pulled: Number(last.causeStats.pulled) || 0, missed: Number(last.causeStats.missed) || 0, together: Number(last.causeStats.together) || 0 } : null,
       },
       backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
       opening: greetingOpening(fsx, chatId, line, titleOf),

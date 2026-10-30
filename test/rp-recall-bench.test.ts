@@ -129,3 +129,70 @@ describe("recall scoring parts", () => {
     expect(a.factIds.join()).not.toBe(b.factIds.join());
   });
 });
+
+/**
+ * Cause links (issue #178): the probe is a message about an effect ("the chapel"), whose cause ("the river thawed") shares
+ * no word with it. Each probe runs over every budget from 200 to 480 tokens, once without links and once with, and
+ * counts the budgets where the effect is in the insert: how often its cause is in too, and whether any fact the plain
+ * insert held was pushed out (it must never be).
+ */
+describe("cause links bench", () => {
+  const topics = "harbour orchard bell forge mill ferry tower cellar garden market chapel bridge".split(" ");
+  const pool = (links: Record<string, string>, causeTexts: Record<string, string>) => {
+    const facts = Array.from({ length: 24 }, (_, i) => ({
+      ...fact(i + 1, causeTexts["f" + (i + 1)] ?? `The ${topics[i % topics.length]} number ${i + 1} stands unchanged near the old crossing ${i + 1}.`),
+      ...(links["f" + (i + 1)] ? { because: links["f" + (i + 1)] } : {}),
+    }));
+    return { ...L.emptyChat("t"), facts };
+  };
+  const line = L.activeLine(chatLine(40) as any);
+  const insert = (st: any, budget: number, scan: string, causes: boolean) =>
+    L.buildInsert({ st, line, dash: null, meta: { userName: "Jude" }, cfg: { ...L.DEFAULT_CONFIG, budget, causes }, scanText: scan, speakerName: "Aria", used: {} });
+
+  const probes = [
+    { name: "one effect, a short cause", scan: "Tell me about the chapel number 5.", effects: ["f5"], links: { f5: "f1" }, text: { f1: "The river thawed early." } },
+    { name: "one effect, a long cause", scan: "Tell me about the bridge number 12.", effects: ["f12"], links: { f12: "f2" }, text: { f2: "The orchard burned down in the dry summer because a lantern fell in the barn at midnight." } },
+    { name: "two effects, one cause", scan: "Tell me about the chapel number 5 and the bridge number 12.", effects: ["f5", "f12"], links: { f5: "f3", f12: "f3" }, text: { f3: "The river thawed early." } },
+    { name: "the cause is also an effect (one step only)", scan: "Tell me about the market number 10.", effects: ["f10"], links: { f10: "f4", f4: "f6" }, text: { f4: "The mill wheel broke.", f6: "The river thawed early." } },
+  ];
+
+  const rows = probes.map((p) => {
+    const st = pool(p.links, p.text);
+    const causeOf = (e: string) => (p.links as Record<string, string>)[e];
+    let cells = 0;
+    let withBefore = 0;
+    let withAfter = 0;
+    let displaced = 0;
+    for (let b = 200; b <= 480; b++) {
+      const base = insert(st, b, p.scan, false);
+      const now = insert(st, b, p.scan, true);
+      if (!p.effects.every((e) => base.factIds.includes(e))) continue;
+      cells++;
+      if (p.effects.every((e) => base.factIds.includes(causeOf(e)))) withBefore++;
+      if (p.effects.every((e) => now.factIds.includes(causeOf(e)))) withAfter++;
+      displaced += base.factIds.filter((id: string) => !now.factIds.includes(id)).length;
+      expect(now.tokens).toBeLessThanOrEqual(b);
+    }
+    return { p, cells, withBefore, withAfter, displaced };
+  });
+
+  it("prints how often the cause comes with its effect, before and after", () => {
+    const lines = rows.map((r) => `${r.p.name.padEnd(44)} budgets with the effect ${String(r.cells).padStart(3)}  cause with it ${String(r.withBefore).padStart(3)} -> ${String(r.withAfter).padStart(3)}  facts pushed out ${r.displaced}`);
+    console.log("cause links bench (budgets 200-480)\n" + lines.join("\n"));
+    for (const r of rows) {
+      expect(r.cells).toBeGreaterThan(0);
+      expect(r.displaced).toBe(0);
+      expect(r.withAfter).toBeGreaterThanOrEqual(r.withBefore);
+    }
+    expect(rows.reduce((t, r) => t + r.withAfter, 0)).toBeGreaterThan(rows.reduce((t, r) => t + r.withBefore, 0));
+  });
+
+  it("the effect itself stays where it ranks (same facts before it, same order)", () => {
+    const st = pool(probes[0].links, probes[0].text);
+    for (let b = 200; b <= 480; b += 7) {
+      const base = insert(st, b, probes[0].scan, false).factIds;
+      const now = insert(st, b, probes[0].scan, true).factIds.filter((id: string) => id !== "f1" || base.includes("f1"));
+      expect(now).toEqual(base);
+    }
+  });
+});

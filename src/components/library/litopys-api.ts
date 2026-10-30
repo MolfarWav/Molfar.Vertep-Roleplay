@@ -146,6 +146,8 @@ export interface LitFact {
   pinProposed?: boolean
   status: LitFactStatus
   supersedes?: string
+  /** The one earlier fact this one came from (#178); stays readable when that fact is retired or replaced. */
+  because?: string
   /** chapter | user | dashboard | migrated | merge */
   origin?: string
   /** The user changed it: the worker only proposes changes to it. */

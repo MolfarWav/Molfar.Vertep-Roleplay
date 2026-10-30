@@ -1,5 +1,7 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ComponentType } from 'react'
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType } from 'react'
 import {
+  ArrowElbowDownRight,
+  LinkSimple,
   Plus,
   MagnifyingGlass,
   PushPin,
@@ -449,7 +451,7 @@ function namesOf(facts: LitFact[]) {
  * The fact actions shared by the Ledger and the Overview: one busy row at a time, one editor,
  * the pin flow and the delete confirmation. Render `dialogs` once where the hook is used.
  */
-export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
+export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void, links = false) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const pinFlow = usePinFlow(chat, onChat)
@@ -457,6 +459,23 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const names = useMemo(() => namesOf(chat.facts), [chat.facts])
   const factById = useMemo(() => new Map(chat.facts.map((f) => [f.id, f])), [chat.facts])
+  // #178: what each fact brought about, and the one place that can open a fact by its id (links = the Facts tab)
+  const effectsOf = useMemo(() => {
+    const out = new Map<string, LitFact[]>()
+    for (const f of chat.facts) {
+      if (!f.because || f.because === f.id) continue
+      out.set(f.because, [...(out.get(f.because) ?? []), f])
+    }
+    return out
+  }, [chat.facts])
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null)
+  const [flashId, setFlashId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!flashId) return
+    const id = setTimeout(() => setFlashId(null), 2200)
+    return () => clearTimeout(id)
+  }, [flashId])
+  const openFact = links ? (id: string) => setFocus({ id, n: Date.now() }) : undefined
   const [msgRange, setMsgRange] = useState<MessagesRange | null>(null)
 
   const run = async (id: string, fn: () => Promise<LitChat>) => {
@@ -515,7 +534,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void) {
       <MessagesDialog chatId={chat.chatId} range={msgRange} onClose={() => setMsgRange(null)} />
     </>
   )
-  return { names, factById, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs, openMessages: setMsgRange }
+  return { names, factById, effectsOf, openFact, focus, setFocus, flashId, setFlashId, busyId, editingId, setEditingId, actionsFor, handleEdit, run, dialogs, openMessages: setMsgRange }
 }
 
 export type FactControls = ReturnType<typeof useFactControls>
@@ -526,6 +545,7 @@ export type FactControls = ReturnType<typeof useFactControls>
  */
 export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitFact; ctl: FactControls; compact?: boolean; slot?: string }) {
   const t = useT()
+  const [showEffects, setShowEffects] = useState(false)
   if (ctl.editingId === slot + fact.id) {
     return <FactEditor fact={fact} names={ctl.names} busy={ctl.busyId === fact.id} onSave={(patch) => ctl.handleEdit(fact, patch)} onCancel={() => ctl.setEditingId(null)} />
   }
@@ -535,11 +555,43 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
     const f = ctl.factById.get(id)
     return f ? (f.text.length > 60 ? f.text.slice(0, 59) + '…' : f.text) : id
   }
+  // #178: the fact this one came from (a merged-away cause reads as the fact it was merged into), and what came from this one
+  let cause = fact.because && fact.because !== fact.id ? ctl.factById.get(fact.because) : undefined
+  for (let hop = 0; cause?.mergedInto && hop < 5; hop++) cause = ctl.factById.get(cause.mergedInto) ?? cause
+  if (cause?.id === fact.id) cause = undefined
+  const effects = ctl.effectsOf.get(fact.id) ?? []
+  const open = ctl.openFact
+  const snippet = (f: LitFact, n = 110) => (f.text.length > n ? f.text.slice(0, n - 1) + '…' : f.text)
+  const gone = (f: LitFact) => (f.status === 'retired' ? t('lit.causeRetired') : f.status === 'superseded' ? t('lit.causeReplaced') : '')
+  // on a phone the link is a block with the vertical room of a tap target, pulled back so the row does not grow by all of it
+  const linkBtn = 'break-words text-left underline-offset-2 hover:underline focus-visible:underline max-md:-my-2 max-md:block max-md:py-2.5 md:inline'
   return (
-    <div data-testid="fact-row" className={cn('group rounded-md border border-border bg-card', compact ? 'px-2.5 py-1.5' : 'px-3 py-2')}>
+    <div
+      data-testid="fact-row"
+      data-fact-id={slot === '' ? fact.id : undefined}
+      className={cn('group rounded-md border border-border bg-card transition-shadow', compact ? 'px-2.5 py-1.5' : 'px-3 py-2', slot === '' && ctl.flashId === fact.id && 'ring-2 ring-primary')}
+    >
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <p className={cn('break-words', compact ? 'text-sm leading-snug' : 'text-sm')}>{fact.text}</p>
+          {cause && (
+            <p className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground" data-testid="fact-because">
+              <ArrowElbowDownRight className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 break-words">
+                {open ? (
+                  <button type="button" className={linkBtn} title={t('lit.becauseShow')} onClick={() => open(cause!.id)}>
+                    {t('lit.because', { text: snippet(cause) })}
+                    {gone(cause) && <span className="italic" data-testid="fact-cause-gone"> · {gone(cause)}</span>}
+                  </button>
+                ) : (
+                  <>
+                    {t('lit.because', { text: snippet(cause) })}
+                    {gone(cause) && <span className="italic" data-testid="fact-cause-gone"> · {gone(cause)}</span>}
+                  </>
+                )}
+              </span>
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-1.5">
             {!compact && (
               <Badge variant="outline" className={cn('text-[10px]', fact.subject === 'world' ? TYPE_TONE.world : TONE.subject)}>
@@ -571,7 +623,37 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
             {fact.status !== 'active' && <Badge variant="outline" className={cn('text-[10px]', TONE.gone)}>{t(statusKey(fact.status))}</Badge>}
             {fact.mergedInto && <Badge variant="outline" className={cn('text-[10px]', TONE.merged)}>{t('lit.mergedInto', { id: textOf(fact.mergedInto) })}</Badge>}
             {fact.supersedes && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.supersedes', { id: textOf(fact.supersedes) })}</Badge>}
+            {effects.length > 0 && (
+              <button
+                type="button"
+                data-testid="fact-effects"
+                aria-expanded={showEffects}
+                aria-label={t('lit.effectsToggle')}
+                title={t('lit.effectsToggle')}
+                onClick={() => setShowEffects((v) => !v)}
+                className="inline-flex items-center gap-1 rounded-full border border-border px-2 text-[10px] leading-5 text-muted-foreground hover:bg-accent/50 max-md:min-h-7"
+              >
+                <LinkSimple className="size-3" aria-hidden="true" />
+                {t('lit.effects', { n: effects.length })}
+              </button>
+            )}
           </div>
+          {showEffects && effects.length > 0 && (
+            <ul className="flex min-w-0 flex-col gap-0.5 border-l border-border pl-2 text-xs text-muted-foreground" data-testid="fact-effects-list">
+              {effects.map((e) => (
+                <li key={e.id} className="flex min-w-0 flex-wrap items-start gap-x-1.5">
+                  {open ? (
+                    <button type="button" className={linkBtn} onClick={() => open(e.id)}>
+                      {snippet(e)}
+                    </button>
+                  ) : (
+                    <span className="min-w-0 break-words">{snippet(e)}</span>
+                  )}
+                  {e.status !== 'active' && <span className="shrink-0 italic">· {t(statusKey(e.status))}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {/* compact rows have no room to spare: the hover buttons would keep ~110px free all the time, the menu has everything */}
@@ -617,7 +699,7 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
 
 export function FactsTab({ chat, onChat }: TabProps) {
   const t = useT()
-  const ctl = useFactControls(chat, onChat)
+  const ctl = useFactControls(chat, onChat, true)
   const [adding, setAdding] = useState(false)
 
   const [query, setQuery] = useState('')
@@ -696,6 +778,34 @@ export function FactsTab({ chat, onChat }: TabProps) {
         return b.updatedAt - a.updatedAt
       })
   }, [chat.facts, query, typeFilter, weightFilter, whoFilter, stateFilter])
+
+  // #178: a click on "because: …" or on an effect opens that fact: the row scrolls into view and flashes; a filter
+  // that hides it is lifted first (once)
+  const { focus, setFocus, setFlashId } = ctl
+  const missed = useRef<number | null>(null)
+  useEffect(() => {
+    if (!focus) return
+    if (inMessages) {
+      setInMessages(false)
+      return
+    }
+    if (!visible.some((f) => f.id === focus.id)) {
+      if (missed.current === focus.n || !chat.facts.some((f) => f.id === focus.id)) {
+        setFocus(null)
+        return
+      }
+      missed.current = focus.n
+      setQuery('')
+      setTypeFilter('all')
+      setWeightFilter('all')
+      setWhoFilter('all')
+      setStateFilter('all')
+      return
+    }
+    setFocus(null)
+    setFlashId(focus.id)
+    requestAnimationFrame(() => document.querySelector(`[data-fact-id="${focus.id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+  }, [focus, visible, inMessages, chat.facts, setFocus, setFlashId])
 
   const handleAdd = async (fields: LitFactFields) => {
     if (await ctl.run('add', () => addLitFact(chat.chatId, { ...fields, text: fields.text ?? '' }))) setAdding(false)
