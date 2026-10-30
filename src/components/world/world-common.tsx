@@ -62,6 +62,9 @@ export function useWorldErrorText(): (e: Pick<WorldError, 'code' | 'message' | '
 /** Errors that the fix for lives in API connections (the model's own parameters). */
 export const NEEDS_CONNECTIONS: WorldErrorCode[] = ['thinking-block', 'reasoning-off']
 
+/** Opens World settings; 'build' scrolls to the Build model row (the links under the Build button and on a build error). */
+export type OpenWorldSettings = (focus?: 'build') => void
+
 export const FROM_KEY: Record<WorldModelFrom, MsgKey> = {
   world: 'world.from.world',
   sensor: 'world.from.sensor',

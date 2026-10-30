@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check } from '@phosphor-icons/react'
 import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useT } from '@/hooks/use-t'
+import { cn } from '@/lib/utils'
 import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import { FROM_KEY, formatSeconds } from '@/components/world/world-common'
 import { WorldErrorCard } from '@/components/world/world-controls'
@@ -29,9 +30,12 @@ export function WorldSettingsDialog({
   onOpenChange,
   chatId,
   chatTitle,
+  focus = null,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
+  /** 'build': scroll to the Build model row and mark it for a moment */
+  focus?: 'build' | null
   chatId: string | null
   chatTitle: string
 }) {
@@ -40,6 +44,8 @@ export function WorldSettingsDialog({
   const [overriding, setOverriding] = useState(false)
   const [testResult, setTestResult] = useState<WorldTest | null>(null)
   const [testing, setTesting] = useState(false)
+  const [flash, setFlash] = useState(false)
+  const buildRef = useRef<HTMLDivElement>(null)
   const live = useWorldLive((s) => (chatId ? s.views[chatId] : undefined))
   const lastLimit = live?.lastRun?.limit
 
@@ -63,6 +69,31 @@ export function WorldSettingsDialog({
       live = false
     }
   }, [open, chatId])
+
+  // "Pick another model" next to a world build lands on the Build model row
+  const ready = config !== null
+  useEffect(() => {
+    if (!open || focus !== 'build' || !ready) return
+    const go = window.setTimeout(() => {
+      buildRef.current?.scrollIntoView({ block: 'center' })
+      buildRef.current?.focus({ preventScroll: true })
+      setFlash(true)
+    }, 150)
+    const stop = window.setTimeout(() => setFlash(false), 3000)
+    return () => {
+      window.clearTimeout(go)
+      window.clearTimeout(stop)
+      setFlash(false)
+    }
+  }, [open, focus, ready])
+
+  const handleBuildPick = async (ref: string) => {
+    try {
+      setConfig(await saveWorldConfig({ buildModel: ref }, chatId ?? undefined))
+    } catch (e) {
+      toast.error(errText(e))
+    }
+  }
 
   const handleOverrideCheck = async (checked: boolean) => {
     if (!config) return
@@ -213,6 +244,26 @@ export function WorldSettingsDialog({
                     )}
                   </div>
                 )}
+              </div>
+
+              <div
+                ref={buildRef}
+                tabIndex={-1}
+                className={cn('-m-2 flex flex-col gap-2 rounded-md p-2 outline-none transition-colors', flash && 'bg-primary/10 ring-1 ring-primary/50')}
+                data-testid="world-settings-build"
+              >
+                <h4 className="text-sm font-medium">{t('world.settings.build')}</h4>
+                <p className="break-all font-mono text-sm" data-testid="world-settings-build-model">{config.build.model || t('world.chatModel')}</p>
+                <p className="text-xs text-muted-foreground" data-testid="world-settings-build-from">{t(FROM_KEY[config.build.from])}</p>
+                <p className="text-xs text-muted-foreground">{t('world.settings.buildHint')}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <SoulModelPicker label={t('dash.set.chooseModel')} onPick={(ref) => void handleBuildPick(ref)} />
+                  {config.buildModel && (
+                    <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => void handleBuildPick('')} data-testid="world-settings-build-clear">
+                      {t('world.settings.buildDefault')}
+                    </Button>
+                  )}
+                </div>
               </div>
             </section>
 

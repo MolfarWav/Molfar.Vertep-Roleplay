@@ -21,10 +21,10 @@ import { acceptCount, draftTotal, dropOf, groupByKind, LANG_ENGLISH, noneRemoved
 import { useWorldProfiles } from '@/lib/world-profiles'
 import {
   beginNewWorld, beginWorldStart, buildNewWorld, buildWorldDraft, finishNewWorld, finishWorldDraft, listWorldRecipes, loadWorld, loadWorldConfig,
-  newWorldDeck, peekNewWorld, useWorldLive,
+  newWorldDeck, peekNewWorld, useWorldLive, WORLD_CONFIG_EVENT,
   type WorldConfig, type WorldDraft, type WorldLevel, type WorldRecipe, type WorldView,
 } from '@/lib/world'
-import { FROM_KEY, LevelChip } from './world-common'
+import { FROM_KEY, LevelChip, type OpenWorldSettings } from './world-common'
 import { refreshSavedWorlds, useSavedWorlds } from './world-library'
 import { WorldProfilePicker } from './world-profile-picker'
 import { WorldErrorCard } from './world-controls'
@@ -134,7 +134,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
   blocked?: boolean
   /** throws on failure; the form shows the message */
   onBegin: (o: BeginOpts) => Promise<void>
-  onOpenSettings: () => void
+  onOpenSettings: OpenWorldSettings
 }) {
   const t = useT()
   const appLang = resolveLanguage(useApp((s) => s.settings.language))
@@ -158,8 +158,11 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
 
   useEffect(() => {
     let live = true
-    loadWorldConfig(configChatId).then((c) => { if (live) setConfig(c) }).catch(() => {})
-    return () => { live = false }
+    const read = () => { loadWorldConfig(configChatId).then((c) => { if (live) setConfig(c) }).catch(() => {}) }
+    read()
+    // a pick in World settings: read again for this chat (the saved config is worked out for the settings' own chat)
+    window.addEventListener(WORLD_CONFIG_EVENT, read)
+    return () => { live = false; window.removeEventListener(WORLD_CONFIG_EVENT, read) }
   }, [configChatId])
 
   // an interview's defaults
@@ -329,7 +332,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
             {t('world.start.model', { model: config.build.model || t('world.chatModel'), from: t(FROM_KEY[config.build.from]) })}{' '}
             {usesCards ? t('world.start.calls', { n: calls }) : t('world.start.callsExact', { n: calls })}
             {' '}
-            <button type="button" className="underline underline-offset-2" onClick={onOpenSettings}>{t('world.err.pickModel')}</button>
+            <button type="button" className="underline underline-offset-2" onClick={() => onOpenSettings('build')} data-testid="start-pick-build-model">{t('world.err.pickModel')}</button>
           </p>
         )}
         {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
@@ -342,7 +345,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
 }
 
 /** The chat's Start form: its own cards, its profile. */
-function ChatSetup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view: WorldView; onBegun: () => void; onOpenSettings: () => void }) {
+function ChatSetup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; view: WorldView; onBegun: () => void; onOpenSettings: OpenWorldSettings }) {
   const cards = useChatCards(chatId)
   const profiles = useWorldProfiles((s) => s.list)
   const profileDeck = !!profiles?.find((p) => p.id === view.profile)?.options.deck
@@ -372,7 +375,7 @@ const ALL_LEVELS: WorldLevel[] = ['off', 'chronicler', 'living', 'director', 'an
 const buildNow = new Map<string, WorldDraft>()
 
 /** "New world" in the Worlds tab (user, 2026-10-19): a world built from any cards or an interview, with no chat. */
-export function NewWorldSetup({ onBegun, onOpenSettings }: { onBegun: (worldId: string) => void; onOpenSettings: () => void }) {
+export function NewWorldSetup({ onBegun, onOpenSettings }: { onBegun: (worldId: string) => void; onOpenSettings: OpenWorldSettings }) {
   const t = useT()
   const characters = useApp((s) => s.characters)
   const cards = useMemo(
@@ -427,7 +430,7 @@ export function NewWorldSetup({ onBegun, onOpenSettings }: { onBegun: (worldId: 
 }
 
 /** A world being built without a chat: its build calls, then its draft to accept into the library or discard. */
-export function BuildingWorldPanel({ worldId, onGone, onOpenSettings }: { worldId: string; onGone: () => void; onOpenSettings: () => void }) {
+export function BuildingWorldPanel({ worldId, onGone, onOpenSettings }: { worldId: string; onGone: () => void; onOpenSettings: OpenWorldSettings }) {
   const t = useT()
   const row = useSavedWorlds((s) => s.building.find((w) => w.id === worldId))
   const [draft, setDraft] = useState<WorldDraft | null | undefined>(() => buildNow.get(worldId))
@@ -551,7 +554,7 @@ function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted
   onBuild: () => void
   onStop: () => void
   onAccepted: () => void
-  onOpenSettings: () => void
+  onOpenSettings: OpenWorldSettings
 }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
@@ -612,7 +615,7 @@ function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted
       )}
 
       {!progress && draft.error && (
-        <WorldErrorCard error={draft.error} again={false} busy={busy} onRetry={onBuild} onPickModel={onOpenSettings} />
+        <WorldErrorCard error={draft.error} again={false} busy={busy} onRetry={onBuild} onPickModel={() => onOpenSettings('build')} />
       )}
 
       {!progress && unfinished && !draft.error && (
@@ -702,7 +705,7 @@ function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted
 
 // ---------- the tab ----------
 
-export function WorldStart({ chatId, onOpenSettings, onAccepted }: { chatId: string; onOpenSettings: () => void; onAccepted: () => void }) {
+export function WorldStart({ chatId, onOpenSettings, onAccepted }: { chatId: string; onOpenSettings: OpenWorldSettings; onAccepted: () => void }) {
   const t = useT()
   const view = useWorldLive((s) => s.views[chatId])
   const [live, setLive] = useState<WorldDraft | null>(null)
