@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.77.0'
+export const APP_VERSION = '4.78.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -254,6 +254,29 @@ const HAND_TIPS: Tip[] = [
     body: {
       en: 'In World, a chat\u2019s Start tab drafts records and fronts from its cards or a short interview; you remove what you do not want and accept the rest. Save a world to the Worlds tab and start new chats in it: the DM drafts the chat\u2019s scenario and first message, and you edit them before it begins.',
       uk: 'У «Світі» вкладка «Старт» чату складає чернетку записів і фронтів із його карток або короткого інтерв’ю; ви прибираєте зайве й приймаєте решту. Збережіть світ на вкладці «Світи» й починайте в ньому нові чати: майстер пише сценарій і перше повідомлення чату, а ви правите їх до початку.',
+    },
+  },
+  // ── What's new: the world builds from the story, the wider Dashboard (#176)
+  {
+    id: 'new.world-here',
+    since: '4.78.0',
+    open: { view: 'home' },
+    keywords: { en: 'world dm places things outfit book backgrounds on by default', uk: 'світ майстер місця речі одяг книга тла за замовчуванням' },
+    title: { en: 'The world builds itself from the story', uk: 'Світ будується з історії' },
+    body: {
+      en: 'The World DM is now on in every chat at the Chronicler level: as the story goes it writes places, their rooms, things and who holds them (switch it off in World → Overview). Places has its own tab, the World book lists everything and lets you add or delete entries, and a place can get a background that the scene shows. Clothes and what is in the hands come from the Dashboard sensor; change that in the same sheet.',
+      uk: 'Майстер світу тепер увімкнений у кожному чаті на рівні «Chronicler»: по ходу історії він записує місця, їхні кімнати, речі та хто їх тримає (вимкнути можна у World → Overview). Місця мають свою вкладку, «Книга світу» показує все й дозволяє додавати та видаляти записи, а місцю можна призначити фон, який покаже сцена. Одяг і те, що в руках, бере сенсор Дашборду; змінити це можна в тому ж аркуші.',
+    },
+  },
+  {
+    id: 'new.dash-tabs',
+    since: '4.78.0',
+    open: { view: 'chat', panel: 'dashboard' },
+    keywords: { en: 'dashboard tabs weather width quests counters here outfit', uk: 'дашборд вкладки погода ширина квести лічильники тут одяг' },
+    title: { en: 'A wider Dashboard with tabs', uk: 'Ширший Дашборд із вкладками' },
+    body: {
+      en: 'The side Dashboard is wider (drag its left edge) and has tabs: Person, Here, Quests, Notes. The weather moves next to the clock, a number in a circle shows how many things changed since your last reply (red when something fell), and the open Dashboard has a World button and a full-screen switch.',
+      uk: 'Бічний Дашборд ширший (тягніть його ліву межу) і має вкладки: Person, Here, Quests, Notes. Погода тепер поруч із годинником, число в кружку показує, скільки змін сталося після вашої останньої відповіді (червоний, якщо щось впало), а відкритий Дашборд має кнопку World і перемикач на весь екран.',
     },
   },
   {
