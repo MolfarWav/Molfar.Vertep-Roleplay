@@ -3,6 +3,7 @@ import { CaretRight, GearSix, GlobeHemisphereWest } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WorldTabsList } from './world-tabs'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { PaneTitle, SectionPage } from '@/components/shell/section-page'
 import { useRelativeTime, useT } from '@/hooks/use-t'
@@ -174,26 +175,16 @@ function ChatDetail({ chatId, items, tab, onTabChange, onOpenSettings }: ChatDet
           </Button>
         </div>
         <Tabs value={tab} onValueChange={(v) => { if (isTab(v)) { setOpenRec(undefined); onTabChange(v) } }} className="mt-3">
-          <TabsList className="max-md:h-10 max-md:w-full">
-            <TabsTrigger value="overview" className="max-md:h-10">
-              {t('world.tab.overview')}
-            </TabsTrigger>
-            <TabsTrigger value="places" className="max-md:h-10" data-testid="world-tab-places">
-              {t('world.tab.places')}
-            </TabsTrigger>
-            <TabsTrigger value="records" className="max-md:h-10">
-              {t('world.tab.records')}
-            </TabsTrigger>
-            <TabsTrigger value="start" className="max-md:h-10" data-testid="world-tab-start">
-              {t('world.tab.start')}
-            </TabsTrigger>
-            <TabsTrigger value="backgrounds" className="max-md:h-10" data-testid="world-tab-backgrounds">
-              {t('world.tab.backgrounds')}
-            </TabsTrigger>
-            <TabsTrigger value="runs" className="max-md:h-10">
-              {t('world.tab.runs')}
-            </TabsTrigger>
-          </TabsList>
+          <WorldTabsList
+            tabs={[
+              { value: 'overview', label: t('world.tab.overview'), tone: 'scene' },
+              { value: 'places', label: t('world.tab.places'), tone: 'place', testid: 'world-tab-places' },
+              { value: 'records', label: t('world.tab.records'), tone: 'memory' },
+              { value: 'start', label: t('world.tab.start'), tone: 'people', testid: 'world-tab-start' },
+              { value: 'backgrounds', label: t('world.tab.backgrounds'), tone: 'plot', testid: 'world-tab-backgrounds' },
+              { value: 'runs', label: t('world.tab.runs'), tone: 'grey' },
+            ]}
+          />
         </Tabs>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">

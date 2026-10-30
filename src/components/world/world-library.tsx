@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WorldTabsList } from './world-tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
@@ -300,11 +301,14 @@ export function WorldDetail({
       )}
 
       <Tabs value={tab} onValueChange={(v) => { setOpenRec(undefined); setTab(v as 'details' | 'book' | 'places') }}>
-        <TabsList className="max-md:h-10 max-md:w-full">
-          <TabsTrigger value="details" className="max-md:h-10" data-testid="world-lib-tab-details">{t('world.lib.tab.details')}</TabsTrigger>
-          <TabsTrigger value="book" className="max-md:h-10" data-testid="world-lib-tab-book">{t('world.tab.records')}</TabsTrigger>
-          <TabsTrigger value="places" className="max-md:h-10" data-testid="world-lib-tab-places">{t('world.tab.places')}</TabsTrigger>
-        </TabsList>
+        <WorldTabsList
+          perRow={3}
+          tabs={[
+            { value: 'details', label: t('world.lib.tab.details'), tone: 'scene', testid: 'world-lib-tab-details' },
+            { value: 'book', label: t('world.tab.records'), tone: 'memory', testid: 'world-lib-tab-book' },
+            { value: 'places', label: t('world.tab.places'), tone: 'place', testid: 'world-lib-tab-places' },
+          ]}
+        />
       </Tabs>
 
       {tab === 'book' && <WorldRecords key={`${world.id}:${openRec?.editId ?? ''}${openRec?.add ?? ''}`} wref={{ worldId: world.id }} gated={gated} initial={openRec} />}
