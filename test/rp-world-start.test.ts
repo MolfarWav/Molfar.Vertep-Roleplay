@@ -531,7 +531,9 @@ describe("world start: inventing from the cards (#95)", () => {
     expect(BUILD_SYSTEM).not.toContain("INVENT");
   });
   it("the keeper of a running story skips carried things unless the story makes them matter", () => {
-    expect(CHRONICLER_SYSTEM).toContain("a backpack, a bottle, a phone");
+    // what a character wears and carries goes to carry; a thing is a record only when the story makes it matter
+    expect(CHRONICLER_SYSTEM).toContain("goes to carry, not to the records");
+    expect(CHRONICLER_SYSTEM).toContain("A bag, a phone or a key ring stays out");
     expect(CHRONICLER_SYSTEM).toContain("a clue, a weapon, a gift, a promise");
   });
   it("a recipe file takes its mode; anything but invent is learn", () => {

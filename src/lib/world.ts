@@ -122,7 +122,51 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
 
 export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
 /** by: 'player' = written or changed by hand in the Records tab */
-export interface WorldRecord { id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean }
+export interface WorldRecord {
+  id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean
+  /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */
+  size?: 'spot'
+  inside?: string
+  /** a thing: held by a person or lying in a place, never both (names) */
+  holder?: string
+  place?: string
+  /** a place: how many times the story came to it */
+  visits?: number
+}
+
+/** What a character wears and carries now (kept by the DM). */
+export interface WorldCarry { wearing: string[]; carried: { what: string; where?: string }[]; nearby: string[]; at: number }
+
+/** GET /world/here: the Dashboard's "Here" and "Outfit and things". Records are the same shape as peek's, text and ids included. */
+export interface WorldHere {
+  /** false while the chat's DM is off */
+  on: boolean
+  /** the place as the Dashboard sensor wrote it (free text) */
+  scenePlace: string
+  place: WorldRecord | null
+  parent: WorldRecord | null
+  spots: WorldRecord[]
+  /** things lying in this place, its parent or its spots */
+  things: WorldRecord[]
+  /** things held by a person in the scene (`who` = the holder) */
+  held: (WorldRecord & { who: string })[]
+  /** things elsewhere: in other places or held by people who are not in the scene */
+  asleep: WorldRecord[]
+  /** by character name */
+  carry: Record<string, WorldCarry>
+  present: string[]
+  /** what the last DM run changed: record ids and the characters whose carry moved */
+  changed: { at: number; ids: string[]; carry: string[] }
+}
+
+export async function loadWorldHere(chatId: string): Promise<WorldHere | null> {
+  try {
+    return await j<WorldHere>(`/world/here?chatId=${encodeURIComponent(chatId)}`)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
 
 export type WorldRecordOp = 'add' | 'update' | 'retire' | 'restore' | 'delete'
 

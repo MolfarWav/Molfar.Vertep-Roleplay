@@ -432,6 +432,20 @@ player switches it on for that chat. It writes:
   - `textMax` (200-3000, default 900) is the size of a record's text (a retired one keeps 40% of it, at least 240);
     `changesMax` (4-20, default 12) is the changes one run may make. Both are named in the DM's prompt (the
     `{changes}` and `{text}` marks of the keeper block) and enforced by code.
+  - Places, things and carry (4.78, #176). Records of kind `place` may carry `size: "spot"` (a room or corner) and
+    `inside` (the name of the bigger place it belongs to); a `thing` may carry `holder` (a person's name) or `place`
+    (a place's name), never both. Names, not ids: code matches them to records by name or alias, without case or
+    punctuation. A place also has `visits` (counted by code when the Dashboard's place changes). All optional.
+  - `carry`: `{ "<character>": { wearing: [..], carried: [{ what, where? }], nearby: [..], at } }` for the user's
+    character and the cards' characters only; lists are cut to 12 items (nearby 8, 60 characters each). The DM sends
+    `carry: [{ who, wearing?, carried?, nearby? }]`; a list that is sent replaces the old one, one left out stays.
+  - `lastChange`: `{ at, ids, carry }`, the record ids and characters the last run changed (the Dashboard's counters).
+  - The world book entry of a spot or a placed thing says where: `Ceramic vase (held by Mei): text`.
+  - Hook part "World · here" (a prompt part, board key `plugin:world`, never in an explicit scene): the record of the
+    scene's place (a spot is cut short, with its parent's first sentence), the things placed there, and what the
+    people in the scene wear and carry, at most 900 characters, no model call. No place match and no carry: nothing.
+  - `GET /world/here?chatId=` returns `{ on, scenePlace, place, parent, spots, things, held, asleep, carry, present,
+    changed }` for the Dashboard.
   - Run `reason`: `every`, `records`, `place`, `stagnation`, `transition`, `manual`, `start`, `deck`, `keys`.
   - `insert`: `false` keeps the DM running but sends the story model no events (also the chat's prompt board key
     `plugin:world`).

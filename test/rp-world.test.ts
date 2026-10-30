@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, placeKey, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -263,7 +263,7 @@ describe("the scene from the Dashboard", () => {
       "m0#0": { ...calm("social"), scene: { new: true, direction: "social" } },
       "m2#0": calm("domestic"), "m4#0": calm("domestic"), "m9#0": calm("combat"),
     }) });
-    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen" });
+    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen", present: ["Odarka"] });
     expect(sceneOf(memHost(seed()).host.fs, "c1", STORY)).toBe(null);
   });
 
@@ -1015,5 +1015,193 @@ describe("runs when the story leaves a place, and the records' own cadence", () 
     expect(st.lastPlace).toBe("the garden");
     expect(st.levelKey).toBeUndefined();
     expect(st.lastKey).toBe("m4#0");
+  });
+});
+
+// ---------- places, things and what characters wear and carry (#176, step 2) ----------
+describe("places, things and carry", () => {
+  const place = (name: string, extra: Record<string, unknown> = {}) => ({ kind: "place", name, aliases: [], text: "A place.", ...extra });
+  const base = () => {
+    const st = emptyState("c1");
+    applyReport(st, { add: [
+      place("Mei's apartment", { aliases: ["Mei's place", "apartment"], text: "Third floor, a window on the courtyard. She lives alone." }),
+      place("Living room", { size: "spot", inside: "Mei's apartment", text: "A sofa and a shelf." }),
+      place("Café Lumen"),
+      { kind: "thing", name: "Ceramic vase", aliases: ["vase"], text: "Bought at the market.", place: "Living room" },
+      { kind: "thing", name: "Loyalty card", text: "Stamps.", place: "Café Lumen" },
+      { kind: "thing", name: "Spare key", text: "Opens the apartment.", holder: "Ren" },
+    ] }, { cards: [], userName: "", now: 1 });
+    return st;
+  };
+
+  it("a place may be a spot inside another; a thing has a holder or a place, never both", () => {
+    const st = base();
+    expect(st.entities.map((e) => [e.name, e.size ?? null, e.inside ?? null, e.holder ?? null, e.place ?? null])).toEqual([
+      ["Mei's apartment", null, null, null, null], ["Living room", "spot", "Mei's apartment", null, null], ["Café Lumen", null, null, null, null],
+      ["Ceramic vase", null, null, null, "Living room"], ["Loyalty card", null, null, null, "Café Lumen"], ["Spare key", null, null, "Ren", null],
+    ]);
+    // the vase goes into Mei's bag: the new holder drops the place; later it is put on the cafe table: "" clears the holder
+    applyReport(st, { update: [{ id: "n4", holder: "Mei Saito" }] }, { cards: [], userName: "", now: 2 });
+    expect(st.entities[3]).toMatchObject({ holder: "Mei Saito" });
+    expect(st.entities[3]!.place).toBeUndefined();
+    applyReport(st, { update: [{ id: "n4", holder: "", place: "Café Lumen" }] }, { cards: [], userName: "", now: 3 });
+    expect(st.entities[3]).toMatchObject({ place: "Café Lumen" });
+    expect(st.entities[3]!.holder).toBeUndefined();
+    // a person or a fact has no place; size only counts for places
+    applyReport(st, { add: [{ kind: "person", name: "Ren the courier", text: "x", place: "Café Lumen", size: "spot" }] }, { cards: [], userName: "", now: 4 });
+    expect(st.entities.at(-1)!.place).toBeUndefined();
+    const again = normalizeState(JSON.parse(JSON.stringify(st)), "c1");
+    expect(again.entities[1]).toMatchObject({ size: "spot", inside: "Mei's apartment" });
+  });
+
+  it("carry: only the user and the cards, a sent list replaces the old, a list left out stays", () => {
+    const st = emptyState("c1");
+    const ctx = { cards: ["Mei Saito"], userName: "Taras", now: 5 };
+    expect(applyCarry(st, [
+      { who: "mei saito", wearing: ["grey coat", "Grey coat", "black jeans"], carried: [{ what: "leather bag", where: "left shoulder" }, "phone"], nearby: ["umbrella"] },
+      { who: "Ren", wearing: ["scarf"] },
+      { who: "Taras", wearing: ["jacket"] },
+    ], ctx)).toEqual(["Mei Saito", "Taras"]);
+    expect(st.carry["Mei Saito"]).toEqual({ wearing: ["grey coat", "black jeans"], carried: [{ what: "leather bag", where: "left shoulder" }, { what: "phone" }], nearby: ["umbrella"], at: 5 });
+    expect(st.carry.Ren).toBeUndefined();
+    expect(applyCarry(st, [{ who: "Mei Saito", wearing: ["grey coat", "black jeans"] }], ctx)).toEqual([]);
+    expect(applyCarry(st, [{ who: "Mei Saito", wearing: ["red raincoat"] }], ctx)).toEqual(["Mei Saito"]);
+    expect(st.carry["Mei Saito"]!.carried.length).toBe(2);
+    // a person with nothing left is dropped
+    applyCarry(st, [{ who: "Taras", wearing: [], carried: [], nearby: [] }], ctx);
+    expect(st.carry.Taras).toBeUndefined();
+    // the state file keeps it, cut to the bounds
+    const long = normalizeState({ carry: { A: { wearing: Array.from({ length: 30 }, (_, i) => "item " + i), carried: [], nearby: [] } } }, "c1");
+    expect(long.carry.A!.wearing.length).toBe(12);
+  });
+
+  it("findPlace and hereOf: the scene's place, its parent, the things here and asleep, what people carry", () => {
+    const st = base();
+    st.carry = { "Mei Saito": { wearing: ["grey coat"], carried: [{ what: "leather bag", where: "left shoulder" }], nearby: ["umbrella"], at: 1 } };
+    expect(findPlace(st.entities, "the living room.")!.name).toBe("Living room");
+    expect(findPlace(st.entities, "Mei's apartment, living room")!.name).toBe("Living room");
+    expect(findPlace(st.entities, "Mei's place")!.name).toBe("Mei's apartment");
+    expect(findPlace(st.entities, "a highway")).toBe(null);
+    const h = hereOf(st, { place: "Living room", present: ["Mei Saito"] }, []);
+    expect([h.place!.name, h.parent!.name]).toEqual(["Living room", "Mei's apartment"]);
+    expect(h.things.map((t) => t.name)).toEqual(["Ceramic vase"]);
+    // the key is held by Ren, who is not in the scene: asleep, like the card in the cafe
+    expect(h.asleep.map((t) => t.name).sort()).toEqual(["Loyalty card", "Spare key"]);
+    expect(Object.keys(h.carry)).toEqual(["Mei Saito"]);
+    // in the cafe the vase is not here
+    const cafe = hereOf(st, { place: "Café Lumen", present: ["Mei Saito"] }, []);
+    expect(cafe.things.map((t) => t.name)).toEqual(["Loyalty card"]);
+    expect(cafe.asleep.map((t) => t.name)).toContain("Ceramic vase");
+    // Ren arrives: the key wakes up with him
+    expect(hereOf(st, { place: "Café Lumen", present: ["Mei Saito", "Ren"] }, []).held.Ren!.map((t) => t.name)).toEqual(["Spare key"]);
+  });
+
+  it("hereInsert: short, names place, things and clothes; nothing when nothing is known", () => {
+    const st = base();
+    st.carry = { "Mei Saito": { wearing: ["grey coat", "black jeans"], carried: [{ what: "leather bag", where: "left shoulder" }], nearby: [], at: 1 } };
+    const text = hereInsert(hereOf(st, { place: "Living room", present: ["Mei Saito", "Ren"] }, []))!;
+    expect(text).toContain("Place: Living room, in Mei's apartment.");
+    expect(text).toContain("Third floor, a window on the courtyard.");
+    expect(text).toContain("Things here: Ceramic vase.");
+    expect(text).toContain("Mei Saito wears grey coat, black jeans; has leather bag (left shoulder).");
+    expect(text).toContain("Ren has Spare key.");
+    expect(text.length).toBeLessThanOrEqual(900);
+    expect(hereInsert(hereOf(emptyState("c1"), { place: "A highway", present: [] }, []))).toBe(null);
+  });
+
+  it("the prompt names the place, the carry and the new rules; the keeper no longer skips what is worn", () => {
+    const st = base();
+    st.carry = { "Mei Saito": { wearing: ["grey coat"], carried: [], nearby: [], at: 1 } };
+    const text = dmInput({ cards: ["Mei Saito"], userName: "Taras", entities: st.entities, msgs: STORY.slice(3), place: "Living room", carry: st.carry });
+    expect(text).toContain("Where the scene is now (from the scene tracker): Living room.");
+    expect(text).toContain("n2 · place · Living room [spot of Mei's apartment]");
+    expect(text).toContain("n6 · thing · Spare key [held by Ren]");
+    expect(text).toContain("Mei Saito: wearing grey coat; carried -; nearby -");
+    expect(systemFor("chronicler")).toContain("carry: for the user's character");
+    expect(systemFor("director")).toContain('"carry":[{"who"');
+  });
+});
+
+describe("step 2 on the routes and the hook", () => {
+  const dash = (place: string) => ({ "dashboard/state/c1.json": dashState({ "m4#0": calm("social", { clock: { place }, present: ["Odarka"] }) }) });
+  const seeded = (place = "Living room") => {
+    const m = memHost({ ...seed(), ...dash(place) });
+    const st = emptyState("c1");
+    st.settings = { ...st.settings, level: "chronicler" };
+    applyReport(st, { add: [
+      { kind: "place", name: "Living room", aliases: ["living room"], text: "A sofa and a shelf." },
+      { kind: "thing", name: "Ceramic vase", text: "Bought at the market.", place: "Living room" },
+    ] }, { cards: [], userName: "", now: 1 });
+    st.carry = { Odarka: { wearing: ["grey coat"], carried: [], nearby: [], at: 1 } };
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    return m;
+  };
+  const req = () => ({ key: "reply", request: { sessionId: "c1", messages: [{ role: "system", content: "sys" }, { role: "user", content: "We go in." }] }, turn: { op: "send" } });
+
+  it("the hook adds 'World · here' at the chronicler level too, and stays quiet when nothing matches or the board mutes it", () => {
+    const out = llmRequest(req(), seeded().host) as { messages: { content: string }[]; promptSources: any };
+    expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "World · here" });
+    expect(out.messages[1]!.content).toContain("Things here: Ceramic vase.");
+    expect(out.messages[1]!.content).toContain("Odarka wears grey coat.");
+    // a place with no record and nobody carrying anything: nothing
+    const quiet = memHost({ ...seed(), ...dash("A highway") });
+    quiet.files["world/state/c1.json"] = JSON.stringify({ ...emptyState("c1"), settings: { ...emptyState("c1").settings, level: "chronicler" } });
+    expect(llmRequest(req(), quiet.host)).toBe(null);
+    const muted = seeded();
+    muted.files["chats/c1.meta.json"] = JSON.stringify({ id: "c1", characterId: "odarka", promptBoard: { v: 1, off: ["plugin:world"] } });
+    expect(llmRequest(req(), muted.host)).toBe(null);
+    // the DM off, or an explicit scene: nothing
+    const off = seeded();
+    off.files["world/state/c1.json"] = JSON.stringify({ ...JSON.parse(off.files["world/state/c1.json"]!), settings: { level: "off" } });
+    expect(llmRequest(req(), off.host)).toBe(null);
+  });
+
+  it("GET /world/here: the place, the things, who holds what, the carry and what the last run changed", () => {
+    const m = seeded();
+    const out = route(m.host, "GET", "/world/here", undefined, { chatId: "c1" }).json;
+    expect(out).toMatchObject({ on: true, scenePlace: "Living room", present: ["Odarka", "Taras"] });
+    expect(out.place.name).toBe("Living room");
+    expect(out.things.map((t: any) => t.name)).toEqual(["Ceramic vase"]);
+    expect(out.carry.Odarka.wearing).toEqual(["grey coat"]);
+    expect(out.changed).toEqual({ at: 0, ids: [], carry: [] });
+  });
+
+  it("a run applies places, things and carry, counts the visit, remembers what changed, and the peek shows the fields", () => {
+    const m = seeded("Café Lumen");
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    st.lastPlace = "living room";
+    st.settings.level = "chronicler";
+    m.files["world/state/c1.json"] = JSON.stringify(st);
+    const first = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    expect(first.__llmPending).toBe(true);
+    expect(m.requests[0]!.spec.messages[0].content).toContain("Where the scene is now (from the scene tracker): Café Lumen.");
+    m.results.world = { text: JSON.stringify({
+      add: [{ kind: "place", name: "Café Lumen", aliases: ["the cafe"], text: "A small cafe with blue chairs." }],
+      update: [{ id: "n2", holder: "Odarka" }],
+      carry: [{ who: "Odarka", wearing: ["grey coat"], carried: [{ what: "vase in paper", where: "arms" }] }],
+      summary: "The vase left the shelf.",
+    }), model: "c/dm" };
+    const done = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true }, {}, first.stash).json;
+    expect(done).toMatchObject({ ok: true, changes: 3 });
+    const after = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(after.entities.find((e: any) => e.name === "Ceramic vase")).toMatchObject({ holder: "Odarka" });
+    expect(after.entities.find((e: any) => e.name === "Ceramic vase").place).toBeUndefined();
+    expect(after.entities.find((e: any) => e.name === "Café Lumen").visits).toBe(1);
+    expect(after.carry.Odarka.carried).toEqual([{ what: "vase in paper", where: "arms" }]);
+    expect(after.lastChange).toMatchObject({ ids: ["n3", "n2"], carry: ["Odarka"] });
+    const peek = route(m.host, "GET", "/world/peek", undefined, { chatId: "c1" }).json.records;
+    expect(peek.find((r: any) => r.name === "Ceramic vase")).toMatchObject({ holder: "Odarka" });
+    expect(peek.find((r: any) => r.name === "Café Lumen")).toMatchObject({ visits: 1 });
+    // the book says where the vase is
+    const book = JSON.parse(m.files["lorebooks/world-c1.json"]!);
+    expect(book.entries.find((e: any) => e.title === "Ceramic vase").content).toBe("Ceramic vase (held by Odarka): Bought at the market.");
+  });
+
+  it("the player edits a record's place and holder by hand", () => {
+    const m = seeded();
+    const peek = route(m.host, "PUT", "/world/records", { chatId: "c1", op: "update", record: { id: "n2", holder: "Odarka" } }).json.records;
+    expect(peek.find((r: any) => r.name === "Ceramic vase")).toMatchObject({ holder: "Odarka" });
+    const added = route(m.host, "PUT", "/world/records", { chatId: "c1", op: "add", record: { kind: "place", name: "Kitchen", text: "Small.", size: "spot", inside: "Living room" } }).json.records;
+    expect(added.find((r: any) => r.name === "Kitchen")).toMatchObject({ size: "spot", inside: "Living room" });
   });
 });
