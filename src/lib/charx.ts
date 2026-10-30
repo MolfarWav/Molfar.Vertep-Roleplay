@@ -1,11 +1,12 @@
 import { zipSync } from 'fflate'
 import { characterToExportCard } from './engine'
+import { emotionAssetName } from './expressions'
 import type { Character, Lorebook } from './types'
 
 /** CHARX export: a zip with `card.json` (character card V3) and the pictures
  *  as files under `assets/`, the package RisuAI writes and this app's own
  *  importer reads (src/lib/card-import.ts `charxExtras`). The portrait is the
- *  `icon` named `main`, each expression an `emotion`, gallery images `other`.
+ *  `icon` named `main`, each expression an `emotion` (named `joy`, `<outfit>__joy` or `<character>__<outfit>__joy`), gallery images `other`.
  *  URIs use RisuAI's own spelling, `embeded://`. */
 
 export interface CharxAsset { type: 'icon' | 'emotion' | 'other'; name: string; uri: string; ext: string }
@@ -61,7 +62,9 @@ export async function buildCharx(c: Character, books: Lorebook[], read: ImageRea
   }
   await add('icon', 'assets/icon/images', 'main', c.avatar, new Set())
   const emotions = new Set<string>()
-  for (const e of c.expressions) await add('emotion', 'assets/emotion/images', e.name, e.url ?? '', emotions)
+  // a sprite of a character or outfit carries both in the asset's name (`<character>__<outfit>__<emotion>`), since
+  // card.json does not hold `studio.expressions`; the importer splits the name back
+  for (const e of c.expressions) await add('emotion', 'assets/emotion/images', emotionAssetName(e), e.url ?? '', emotions)
   const others = new Set<string>()
   for (const g of c.gallery) if (g.type === 'image') await add('other', 'assets/other/images', g.caption || g.id, g.url ?? '', others)
 

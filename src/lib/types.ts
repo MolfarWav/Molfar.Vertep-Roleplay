@@ -125,8 +125,12 @@ export interface Character {
    *  written back on save so round-trips never destroy card data. */
   cardExtras?: Record<string, unknown>
   gallery: { id: ID; url: string; type: 'image' | 'video'; caption: string }[]
-  expressions: { name: string; url: string | null }[]
+  /** Sprites. `character` is the name of one of the card's `voices` (absent: the card itself, or sprites shared by all);
+   *  `outfit` a set of clothes (absent: "default"). A sprite is identified by (character, outfit, name), without case. */
+  expressions: { name: string; url: string | null; character?: string; outfit?: string }[]
   defaultExpression: string
+  /** The outfit shown by default (`studio.outfit`); a chat's own choice (`Chat.spriteOutfits`) wins. Absent: "default". */
+  outfit?: string
   characterRegexIds: ID[]
   /** Per-character CSS, applied only while one of this character's chats is open. */
   css: string
@@ -273,6 +277,8 @@ export interface Chat {
   hasUser?: boolean
   /** this chat's own turn settings; absent = the group's */
   turns?: ChatTurns
+  /** the outfit each speaker's sprite wears in this chat (chat meta `spriteOutfits`): key = a voice's name, '' = the card itself */
+  spriteOutfits?: Record<string, string>
   /** how this group chat plays: the group's defaults with `turns` on top (derived, never saved) */
   groupSettings?: {
     activation: 'natural' | 'list' | 'manual'

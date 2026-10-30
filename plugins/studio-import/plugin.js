@@ -326,6 +326,16 @@ function expressionName(name, cardName) {
   return name;
 }
 
+/** The name of an emotion asset as this app exports it (src/lib/expressions.ts `emotionAssetName`): `<outfit>__<emotion>` or
+ *  `<character>__<outfit>__<emotion>`. Returns null for any other name (RisuAI's, a plain emotion). */
+function spriteAssetName(asset) {
+  const parts = String(asset).split("__");
+  if (parts.length < 2 || parts.some((p) => !p.trim())) return null;
+  const outfitOf = (o) => (o.trim().toLowerCase() === "default" ? {} : { outfit: o.trim() });
+  if (parts.length === 2) return { name: parts[1].trim(), ...outfitOf(parts[0]) };
+  return { name: parts.slice(2).join("__").trim(), character: parts[0].trim(), ...outfitOf(parts[1]) };
+}
+
 /** A picture the browser already put in the engine's asset store (a sprite): the card keeps the URL, not the bytes. */
 const ASSET_URL = /^\/v1\/assets\/[a-f0-9]{64}$/i;
 
@@ -354,12 +364,14 @@ function resolveCardAssets(card, assetDict, sourceAvatar) {
       if (url.length < MAX_AVATAR) out.avatar = url;
     } else if ((a.type === "emotion" || a.type === "x-risu-asset") && typeof a.name === "string" && a.name) {
       // RisuAI keeps its emotion images as "x-risu-asset" entries
-      const name = expressionName(a.name, card.name);
-      if (seen.has(name.toLowerCase())) continue;
+      const own = spriteAssetName(a.name);
+      const name = own ? own.name : expressionName(a.name, card.name);
+      const seenKey = own ? [own.character || "", own.outfit || "", name].join("").toLowerCase() : "" + name.toLowerCase();
+      if (seen.has(seenKey)) continue;
       if (url.length >= MAX_EMOTION || spent + url.length > EXPRESSIONS_BUDGET) { out.skipped++; continue; }
-      seen.add(name.toLowerCase());
+      seen.add(seenKey);
       spent += url.length;
-      out.expressions.push({ name, url });
+      out.expressions.push({ name, url, ...(own && own.character ? { character: own.character } : {}), ...(own && own.outfit ? { outfit: own.outfit } : {}) });
     }
   }
   return out;
