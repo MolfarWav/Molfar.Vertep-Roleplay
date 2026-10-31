@@ -65,6 +65,8 @@ interface DashConfig {
   noteAgeTurns?: number
   /** #98: what characters said; absent on an older plugin */
   said?: { perTurn: number; inject: boolean }
+  /** #185: where everyone stands, the objects and the clothes in the reply prompt; absent on an older plugin */
+  layout?: { inject: boolean }
   soul?: string
   nudge?: string
   nudgeTwist?: string
@@ -90,6 +92,7 @@ interface Form {
   retireAfter: number
   noteAgeTurns: number
   said: { perTurn: number; inject: boolean }
+  layout: { inject: boolean }
   catchUp: boolean
   autoSoul: boolean
   /** the whole prompt: only sent in "whole" and legacy mode */
@@ -168,6 +171,7 @@ function pickForm(c: DashConfig): Form {
     retireAfter: c.retireAfter ?? DEFAULT_RETIRE,
     noteAgeTurns: c.noteAgeTurns ?? DEFAULT_NOTE_AGE,
     said: { perTurn: c.said?.perTurn ?? DEFAULT_SAID, inject: c.said?.inject !== false },
+    layout: { inject: c.layout?.inject !== false },
     catchUp: c.catchUp !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
@@ -609,6 +613,7 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
             </label>
             <p className="-mt-1 text-[11px] text-muted-foreground">{t('dash.set.said.hint')}</p>
             <SwitchRow label={t('dash.set.saidInject')} hint={t('dash.set.saidInject.hint')} checked={form.said.inject} onChange={(v) => patch({ said: { ...form.said, inject: v } })} />
+            <SwitchRow label={t('dash.set.layoutInject')} hint={t('dash.set.layoutInject.hint')} checked={form.layout.inject} onChange={(v) => patch({ layout: { inject: v } })} />
             <SwitchRow label={t('dash.set.catchUp')} hint={t('dash.set.catchUp.hint')} checked={form.catchUp} onChange={(v) => patch({ catchUp: v })} />
             <SwitchRow label={t('dash.set.autoSoul')} hint={t('dash.set.autoSoul.hint')} checked={form.autoSoul} onChange={(v) => patch({ autoSoul: v })} />
           </div>

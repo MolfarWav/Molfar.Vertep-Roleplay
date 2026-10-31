@@ -1618,25 +1618,105 @@ describe("prompt insert", () => {
     expect(text).toContain("not text to retell");
   });
 
-  it("11a. clothes (#185): the sensor sees them, a plainer rewording keeps the old detail, and they stay in the insert while unreported", () => {
-    const mock = withState(reply({ present: ["Aria"], chars: { Aria: { outfit: "pink soft knit cardigan over a white tee, grey jeans" } } }));
-    expect(insertOf(ask(mock, "c1"))).toContain("Wearing: pink soft knit cardigan over a white tee, grey jeans.");
-    // the next sensor call is shown what she wears, and the rule that tells it to keep the details
-    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?")]);
-    mock.push(reply({ present: ["Aria"], chars: { Aria: { outfit: "a cardigan, jeans" } } }));
+  /** The chat grows by n turns after the first three messages. */
+  const grown = (n: number): Msg[] => {
+    const m: Msg[] = [...three()];
+    for (let i = 0; i < n; i++) m.push(A("a" + i, "Reply."), U("u" + i, "Go on."));
+    return m;
+  };
+  const step = (mock: ReturnType<typeof mockHost>, n: number, out: Record<string, unknown>) => {
+    writeChat("c1", grown(n));
+    mock.push(reply(out));
     expect(update(mock, "c1").json.ok).toBe(true);
-    const asked = mock.requests[mock.requests.length - 1]!.req.messages[0].content as string;
-    expect(asked).toContain("Wearing: pink soft knit cardigan over a white tee, grey jeans.");
-    expect(mock.requests[mock.requests.length - 1]!.req.systemPrompt).toContain("Never shorten it to a plainer word");
-    // "a cardigan, jeans" said less of what was there: the earlier words stay
-    const text = insertOf(ask(mock, "c1"));
-    expect(text).toContain("Wearing: pink soft knit cardigan, grey jeans.");
-    expect(text).not.toContain("Wearing: a cardigan");
-    // a turn that does not mention clothes keeps them in the insert, marked as carried
-    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?"), A("m6", "Yes."), U("m7", "So?")]);
-    mock.push(reply({ present: ["Aria"], chars: { Aria: { mood: "calm" } } }));
-    expect(update(mock, "c1").json.ok).toBe(true);
-    expect(insertOf(ask(mock, "c1"))).toContain("Still wearing: pink soft knit cardigan, grey jeans.");
+    return insertOf(ask(mock, "c1"));
+  };
+
+  it("11a. clothes, places and objects (#185): the sensor reports changes and code keeps the lists", () => {
+    const mock = withState(
+      reply({
+        present: ["Aria"],
+        place: "the study",
+        userAt: "at the table",
+        objects: { add: [{ item: "leather armchair", where: "by the window" }] },
+        chars: { Aria: { at: "by the fireplace", outfit: { add: ["pink soft knit cardigan", "white tee", "grey jeans"] } } },
+      }),
+    );
+    let text = insertOf(ask(mock, "c1"));
+    expect(text).toContain("Wearing: pink soft knit cardigan, white tee, grey jeans.");
+    expect(text).toContain("Aria: by the fireplace.");
+    expect(text).toContain("You: at the table.");
+    expect(text).toContain("Objects: leather armchair (by the window).");
+    expect(text).toContain("keep to it unless the story moves things");
+    expect(text).not.toContain("not described yet");
+
+    // the next sensor call is shown the lists, and told to report changes only
+    text = step(mock, 1, { present: ["Aria"], chars: { Aria: { outfit: { add: ["cardigan", "a leather belt"] } } } });
+    const req = mock.requests[mock.requests.length - 1]!.req;
+    expect(req.messages[0].content).toContain("Wearing: pink soft knit cardigan, white tee, grey jeans.");
+    expect(req.messages[0].content).toContain("At: by the fireplace.");
+    expect(req.messages[0].content).toContain("Objects here: leather armchair (by the window).");
+    expect(req.messages[0].content).toContain("You: at the table.");
+    expect(req.systemPrompt).toContain("Report only changes");
+    // "cardigan" says less than what is listed: the listed wording stands, the belt is new
+    expect(text).toContain("Wearing: pink soft knit cardigan, white tee, grey jeans, a leather belt.");
+
+    // she takes the cardigan off and drops it on the sofa
+    text = step(mock, 2, { present: ["Aria"], chars: { Aria: { at: "on the sofa", outfit: { remove: ["cardigan"] } } }, objects: { add: [{ item: "cardigan", where: "on the sofa" }] } });
+    expect(text).toContain("Wearing: white tee, grey jeans, a leather belt.");
+    expect(text).not.toContain("Wearing: pink");
+    expect(text).toContain("Aria: on the sofa.");
+    expect(text).toContain("Objects: leather armchair (by the window); pink soft knit cardigan (on the sofa).");
+
+    // "dropped five kilos": nothing of that is worn, so nothing changes
+    text = step(mock, 3, { present: ["Aria"], chars: { Aria: { outfit: { remove: ["kilos"] } } } });
+    expect(text).toContain("Still wearing: white tee, grey jeans, a leather belt.");
+    expect(text).toContain("pink soft knit cardigan (on the sofa)");
+
+    // she picks it up again: it leaves the objects and keeps the wording it lay there with
+    text = step(mock, 4, { present: ["Aria"], chars: { Aria: { holding: { add: ["cardigan"] } } } });
+    expect(text).toContain("Holding: pink soft knit cardigan.");
+    expect(text).not.toContain("(on the sofa)");
+
+    // the story moves to another place: where everyone stood and what lay there is not carried along
+    text = step(mock, 5, { present: ["Aria"], place: "the garden", chars: { Aria: { mood: "calm" } } });
+    expect(text).not.toContain("Objects:");
+    expect(text).not.toContain("Aria: on the sofa");
+    expect(text).not.toContain("You: at the table");
+    expect(text).toContain("Still wearing: white tee, grey jeans, a leather belt.");
+  });
+
+  it("11d. a character with no clothes on record is asked to be described once; it stops when clothes are known or the switch is off", () => {
+    const mock = withState(reply({ present: ["Aria"], chars: { Aria: { mood: "calm" } } }));
+    let text = insertOf(ask(mock, "c1"));
+    expect(text).toContain("Aria's clothing is not described yet: describe it briefly and naturally in this reply.");
+    // the switch (Settings > Dashboard) turns the whole block off
+    expect(P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "", targetId: "", userText: "" }, { injection: {}, layout: { inject: false } }).text).not.toContain("not described yet");
+    // the story model described her; the sensor reports it
+    text = step(mock, 1, { present: ["Aria"], chars: { Aria: { outfit: { add: ["a grey cloak"] } } } });
+    expect(text).not.toContain("not described yet");
+    // undressing completely leaves the list empty, and she is not asked again
+    text = step(mock, 2, { present: ["Aria"], chars: { Aria: { outfit: { remove: ["cloak"] } } } });
+    expect(text).not.toContain("not described yet");
+    expect(text).not.toContain("wearing");
+    expect(text).toContain("Objects: a grey cloak (set down by Aria).");
+  });
+
+  it("11e. applyStackDelta and applyObjects", () => {
+    const r = P.applyStackDelta("pink soft knit cardigan, grey jeans", { add: ["a cardigan", "boots, brown", "red dress"], remove: ["jeans", "kilos"] });
+    expect(r.text).toBe("pink soft knit cardigan, boots brown, red dress");
+    expect(r.removed).toEqual(["grey jeans"]);
+    expect(r.added).toEqual(["boots brown", "red dress"]);
+    // more detail for a thing already listed replaces the shorter wording
+    expect(P.applyStackDelta("a cardigan", { add: ["pink soft knit cardigan"] }).text).toBe("pink soft knit cardigan");
+    // an empty or word-less change does nothing
+    expect(P.applyStackDelta("grey jeans", { add: ["", "a"], remove: [] })).toMatchObject({ text: "grey jeans", changed: false });
+    const objs = P.applyObjects([{ item: "oak desk", where: "by the window" }], { objects: { add: [{ item: "a candle", where: "on the desk" }], remove: ["desk"] } }, [{ item: "grey cloak", who: "Aria" }], [], false);
+    expect(objs).toEqual([
+      { item: "a candle", where: "on the desk" },
+      { item: "grey cloak", where: "set down by Aria" },
+    ]);
+    expect(P.applyObjects(objs, {}, [], ["cloak"], false).map((o: any) => o.item)).toEqual(["a candle"]);
+    expect(P.applyObjects(objs, {}, [], [], true)).toEqual([]);
   });
 
   it("11c. keepOutfit: fuller wording stays per item; new, dropped and changed items go through", () => {
