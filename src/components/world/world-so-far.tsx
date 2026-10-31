@@ -29,26 +29,26 @@ export function SoFarTiles({ records, retired, fronts, runs }: {
     { id: 'runs', tone: 'sky', icon: GlobeHemisphereWest, label: t('world.tile.runs'), value: runs },
   ]
   return (
-    <div
-      data-testid="world-facts"
-      className={cn('grid gap-2', tiles.length === 4 ? 'grid-cols-2 min-[360px]:grid-cols-4' : 'grid-cols-3')}
-    >
-      {tiles.map((tile) => {
-        const Icon = tile.icon
-        return (
-          <div
-            key={tile.id}
-            data-testid={`tile-${tile.id}`}
-            className={cn('flex min-w-0 flex-col gap-1 rounded-xl border px-3 py-2', TONES[tile.tone].fill, TONES[tile.tone].ink)}
-          >
-            <span className="flex min-w-0 items-center gap-1.5 text-caption font-medium">
-              <Icon className="size-4 shrink-0" aria-hidden="true" />
-              <span className="truncate">{tile.label}</span>
-            </span>
-            <span className="text-heading font-semibold tabular-nums">{tile.value}</span>
-          </div>
-        )
-      })}
+    // a container query, not a viewport one: the same tiles sit in a 350 px hub column and a 416 px sheet
+    <div className="@container">
+      <div data-testid="world-facts" className={cn('grid gap-2', tiles.length === 4 ? 'grid-cols-2 @sm:grid-cols-4' : 'grid-cols-3')}>
+        {tiles.map((tile) => {
+          const Icon = tile.icon
+          return (
+            <div
+              key={tile.id}
+              data-testid={`tile-${tile.id}`}
+              className={cn('flex min-w-0 flex-col gap-1 rounded-xl border px-2.5 py-2', TONES[tile.tone].fill, TONES[tile.tone].ink)}
+            >
+              <span className="flex min-w-0 items-center gap-1.5 text-caption font-medium">
+                <Icon className="size-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">{tile.label}</span>
+              </span>
+              <span className="text-heading font-semibold tabular-nums">{tile.value}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

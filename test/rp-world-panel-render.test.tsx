@@ -25,7 +25,7 @@ describe("SoFarTiles", () => {
     expect(html).toContain(">3<");
     expect(html).toContain(">18<");
     expect(html).toContain("tabular-nums");
-    expect(html).toContain("grid-cols-2 min-[360px]:grid-cols-4");
+    expect(html).toContain("grid-cols-2 @sm:grid-cols-4");
   });
 
   it("without fronts (no events at this level) there are three tiles and no fronts tile", () => {
