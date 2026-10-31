@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lorebooks — L1 List and book</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="lore.css"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lorebooks — L1</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="lore.css"></head><body>
 <script src="../world-dm/shared.js"></script><script src="lore.js"></script>
 <script>
 const q = new URLSearchParams(location.search)
@@ -6,6 +6,6 @@ const tab = q.get('tab') || 'entries'
 const content = tab === 'rules' ? rulesTab() : tab === 'used' ? usedTab() : entriesTab()
 const cur = tab === 'rules' ? 1 : tab === 'used' ? 2 : 0
 const phoneList = q.get('view') === 'list'
-const drawer = q.get('entry') === '0' || tab !== 'entries' ? '' : drawerHtml()
-pageBase('L1 · List and book', 'The list stays on the left, the book on the right with three tabs; an entry opens in a side panel instead of unfolding in the list', `<div class="lp ${phoneList ? 'show-list' : 'show-detail'}">${masterHtml()}<main class="detail">${phoneList ? '' : `<button class="backl show-m" type="button">${icon('back')}Lorebooks</button>`}${bookHead(TABS, cur)}<div class="dbody">${content}</div></main>${drawer}</div>`)
+const drawer = q.get('entry') === '0' || tab !== 'entries' ? '' : drawerHtml(q.get('more') === '1')
+pageBase('Lorebooks · L1', 'List on the left (wider, with the app’s kind icons), the book on the right: Entries | Rules | Used by; an entry opens in a side panel', `<div class="lp ${phoneList ? 'show-list' : 'show-detail'}">${masterHtml()}<main class="detail">${phoneList ? '' : `<button class="backl show-m" type="button">${icon('back')}Lorebooks</button>`}${bookHead(TABS, cur)}<div class="dbody">${content}</div></main>${phoneList ? "" : drawer}</div>`)
 </script></body></html>

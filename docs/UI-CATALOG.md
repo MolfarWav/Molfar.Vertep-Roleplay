@@ -474,3 +474,25 @@ Mocks `docs/ui-mocks/lorebooks/`: both variants share the same book page and the
   Best at a glance with many books; one more step to switch between books.
 Recommendation: L1, since people switch between books while writing; take L2's cards for the empty state and for the picker when a card links a book.
 Open for the owner: the new words, and whether the "Used by" tab should also show a "Link to a card" action (today linking is done from the card).
+
+### 9.1 Lorebooks: L1 picked, with the owner's notes (2026-10-31)
+
+L1 (list and book, entry editor in a side panel) is picked; the owner liked the right-hand panel ("more room, better reading"). Corrections made in the mocks:
+
+- **The list is wider** (380 px instead of 300): book names are long ("Apartment Portal — Lorebook B (explicit, NSFW always-on)" in the owner's data), so a
+  name takes up to two lines.
+- **The app's own kind icons stay**, with their colours (`KIND_ICON`): own book = user-circle amber, shared = users sky, not linked = link-break grey,
+  global = globe emerald. The filter chips carry the same icons. Names still carry the words ("Own book of Mira"), so colour is never alone.
+- **The Rules tab replaces the old "Settings" block, with all its settings** (the first mock only had placeholders there). Regrouped into four cards:
+  *What it reads* (scan depth, include names, whole words, word forms, case sensitive; a fold "If too few entries fire" holds min activations and its max depth),
+  *How much fits* (context %, budget cap, overflow alert), *Order and chains* (insertion strategy as a 3-way switch with its explanation, group scoring,
+  recursive scan, max recursion that is dimmed with the reason while recursion is off), *Wrapper text* (format template, "Use default").
+- **"More options" of an entry is regrouped by purpose, with nothing dropped.** Always visible: title, content, "When it appears", keys (with the regex switch).
+  Five sibling folds with a summary each (no fold inside a fold): *Where it goes* (position, role, depth, order, ignore budget), *Only when...* (secondary keys and
+  logic, chance, only these speakers with "exclude them instead", only these tags, only these kinds of reply), *How long it stays* (sticky, cooldown, delay),
+  *Groups and chains* (group name, weight, group scoring, prioritize in group, not triggered by other entries, does not trigger others, waits for recursion level),
+  *How its keys match* (case sensitive, whole words, word forms, scan depth, also scan the card's description, personality, scenario, persona, automation id).
+  "Triggers/Filters/Chance/Timed/Recursion/Matching/Also scan" of the old file map onto these five; the old open/closed state of "More options"
+  (`readMore`/`writeMore`) goes, each fold remembers its own state.
+- Mocks: `docs/ui-mocks/lorebooks/l1.html` with `?entry=0` (no panel), none (panel), `?more=1` (all folds open), `?tab=rules`. L2 (shelf) is dropped; its cards may
+  return for the empty state.

@@ -17,7 +17,7 @@
 .fc[aria-pressed='true']:hover { background: var(--ts); }
 .fc.warn { border-color: color-mix(in oklab, var(--amber) 55%, transparent); color: var(--amber-ink); }
 /* master */
-.master { width: 300px; flex: none; border-right: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.master { width: 380px; flex: none; border-right: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-height: 0; }
 .mh { padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--border); }
 .mh h2 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); display: flex; align-items: center; gap: 8px; }
 .cnt { min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--muted); font: 600 var(--fs-caption)/22px var(--font-sans); text-align: center; }
@@ -29,7 +29,7 @@
 .bk .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--ts); color: var(--ti); border: 1px solid var(--tb); flex: none; }
 .bk .ic svg.i { width: 18px; height: 18px; }
 .bk .tx { min-width: 0; display: flex; flex-direction: column; flex: 1; }
-.bk .tx b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk .tx b { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 20px; }
 .bk .tx span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* detail */
 .detail { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
@@ -112,9 +112,19 @@
   .ent .tok { display: none; }
   .page2 { padding: 12px; }
   .fc, .backl { min-height: 40px; }
+  .drawer .ft { flex-wrap: wrap; }
+  .drawer .ft .cap { flex-basis: 100%; }
+  .drawer .ft .btn { flex: 1; padding: 0 8px; }
   .tabs2 button { height: 44px; }
   .grid3 { grid-template-columns: 1fr; }
 }
 
 .show-m { display: none !important; }
 @media (max-width: 767px) { .show-m { display: inline-flex !important; } }
+
+.kd { display: grid; place-items: center; width: 28px; height: 28px; flex: none; color: var(--ti); }
+.kd svg.i { width: 22px; height: 22px; }
+.rulesgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.rulesgrid .tcard { overflow: hidden; }
+@media (max-width: 1100px) { .rulesgrid { grid-template-columns: 1fr; } }
+.drawer .dbd > * { flex: none; }
