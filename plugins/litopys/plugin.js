@@ -912,7 +912,8 @@ export function sceneNames(scene, line, dash, meta) {
  * means there is no one to tell a different story from, so the worker is not asked.
  */
 export function sceneCast(scene, line, dash, meta, notCast = []) {
-  const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase())]);
+  // a name the Dashboard's user removed from the cast is no one to remember the scene either
+  const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase()), ...arr(dash && dash.removed).map((n) => str(n).toLowerCase())]);
   const userNames = new Set();
   if (meta && str(meta.userName)) userNames.add(str(meta.userName).toLowerCase());
   for (let i = scene.fromIdx; i <= scene.toIdx; i++) if (line[i] && line[i].role === "user" && str(line[i].name)) userNames.add(str(line[i].name).toLowerCase());
@@ -5453,13 +5454,26 @@ function cardOfReply(fsx, meta, speakerName) {
   return null;
 }
 
-/** The names that voice the story rather than play a character: a group in narrator mode speaks as the group. */
+/**
+ * The names that are no character of their own to remember a scene: those that voice the story (a group in narrator
+ * mode speaks as the group), and another spelling of a card's own character (the Soul keyed "Sina" for the card
+ * "Sina Rose": the Dashboard may list both, the scene has one person).
+ */
 function narratorNames(fsx, meta) {
   const out = ["Narrator"];
   const gid = str(meta && meta.groupId);
-  if (gid && SAFE_ID.test(gid)) {
-    const g = readJson(fsx, "groups/" + gid + ".json", null);
-    if (isObj(g) && g.generationMode === "narrator" && str(g.name)) out.push(str(g.name));
+  const g = gid && SAFE_ID.test(gid) ? readJson(fsx, "groups/" + gid + ".json", null) : null;
+  if (isObj(g) && g.generationMode === "narrator" && str(g.name)) out.push(str(g.name));
+  const ids = [str(meta && meta.characterId), ...(isObj(g) ? arr(g.memberIds).map(str) : [])].filter(Boolean);
+  for (const id of ids) {
+    const card = cardOf(fsx, id);
+    const own = isObj(card) ? str(card.name).toLowerCase() : "";
+    const souls = isObj(card) && isObj(card.extensions) && isObj(card.extensions.molfar_soul) ? card.extensions.molfar_soul.characters : null;
+    if (!own || !isObj(souls)) continue;
+    for (const [key, soul] of Object.entries(souls)) {
+      const forms = [key, ...(isObj(soul) ? arr(soul.aliases) : [])].map(str).filter(Boolean);
+      if (forms.some((f) => f.toLowerCase() === own)) out.push(...forms.filter((f) => f.toLowerCase() !== own));
+    }
   }
   return out;
 }

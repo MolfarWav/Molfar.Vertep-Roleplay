@@ -1483,6 +1483,7 @@ function emptyState(chatId) {
     said: {},
     counters: { note: 0, thread: 0, said: 0, proposal: 0 },
     proposals: [],
+    removed: [],
     lastError: null,
     usage: { calls: 0, inTokens: 0, outTokens: 0, lastMs: 0 },
   };
@@ -1498,6 +1499,7 @@ function normalizeState(raw, chatId) {
   if (!isObj(st.lastError)) st.lastError = null;
   if (!isObj(st.keptOut)) st.keptOut = null;
   if (!Array.isArray(st.proposals)) st.proposals = [];
+  st.removed = arr(st.removed).filter((n) => typeof n === "string" && n);
   return st;
 }
 
@@ -2747,22 +2749,56 @@ export function calendarView(state) {
 /** A clock with its date, for views and prompts. */
 export const clockWithDate = (clock, cal) => (isObj(clock) ? { ...clock, date: dateOf(cal, clock.day) } : clock);
 
-/** The story name a sensor spelling stands for (case-insensitive), else as given. */
-function canonName(name, known) {
+/**
+ * The story name a sensor spelling stands for (case-insensitive), else the name of the same soul the story already
+ * uses (a card name or a name in the last snapshot: "Sina Rose" for "Sina"), else as given. A soul key nobody used
+ * is not a story name: the story's own spelling of an alias stays (a soul key Medli, a story that writes it in Cyrillic).
+ */
+function canonName(name, known, ctx) {
   const s = str(name);
   if (!s || known.includes(s)) return s;
-  return known.find((k) => k.toLowerCase() === s.toLowerCase()) || s;
+  const same = known.find((k) => k.toLowerCase() === s.toLowerCase());
+  if (same) return same;
+  const soul = ctx && ctx.souls ? soulOf(ctx.souls, s) : undefined;
+  return (soul && known.find((k) => arr(ctx.used).includes(k) && soulOf(ctx.souls, k) === soul)) || s;
+}
+
+/** The names the user removed from this chat's cast: the sensor does not bring them back. */
+const removedOf = (state) => arr(state.removed).filter((n) => typeof n === "string");
+const isRemoved = (state, n) => removedOf(state).some((r) => r.toLowerCase() === String(n).toLowerCase());
+
+/** Names that stand for the same soul as an earlier name in the list, a card's own name first: one character, so the later ones go. */
+function twinNames(souls, cards, names) {
+  if (!isObj(souls)) return [];
+  const ordered = [...names.filter((n) => cards.includes(n)), ...names.filter((n) => !cards.includes(n))];
+  const seen = new Set();
+  const twins = [];
+  for (const n of ordered) {
+    const soul = soulOf(souls, n);
+    if (!soul) continue;
+    if (seen.has(soul)) twins.push(n);
+    else seen.add(soul);
+  }
+  return twins;
+}
+
+/** The snapshot without the named characters (chars and present). */
+function withoutNames(snap, drop) {
+  if (!drop.length || !isObj(snap) || !isObj(snap.chars)) return snap;
+  const chars = {};
+  for (const [n, c] of Object.entries(snap.chars)) if (!drop.includes(n)) chars[n] = c;
+  return { ...snap, chars, present: arr(snap.present).filter((n) => !drop.includes(n)) };
 }
 
 /** "user" for any of the user's names (one, or every one the chat had), else the character's known name. */
 const userAll = (ctx) => (arr(ctx.userNames).length ? ctx.userNames : [ctx.userName]);
 
-function sideOf(v, userName, known) {
+function sideOf(v, userName, known, ctx) {
   const s = str(v);
   if (!s) return null;
   const mine = (Array.isArray(userName) ? userName : [userName]).map((n) => String(n).toLowerCase());
   if (isUser(s) || mine.includes(s.toLowerCase())) return "user";
-  return canonName(s, known);
+  return canonName(s, known, ctx);
 }
 
 function readEvents(list, ctx, known, unknownIds) {
@@ -2793,8 +2829,8 @@ function readEvents(list, ctx, known, unknownIds) {
       id: use.id,
       family: use.family,
       weight,
-      from: sideOf(e.from, userAll(ctx), known),
-      to: sideOf(e.to, userAll(ctx), known),
+      from: sideOf(e.from, userAll(ctx), known, ctx),
+      to: sideOf(e.to, userAll(ctx), known, ctx),
       quote,
       math: [],
     });
@@ -2851,8 +2887,8 @@ function mentionsName(ctx, text, name) {
 
 function scenePresent(ctx, out, known) {
   const B = ctx.base && ctx.base.snap;
-  const said = unique(arr(out.present).map((n) => sideOf(n, userAll(ctx), known)).filter((n) => n && n !== "user"));
-  const struck = arr(out.struck).map((n) => sideOf(n, userAll(ctx), known));
+  const said = unique(arr(out.present).map((n) => sideOf(n, userAll(ctx), known, ctx)).filter((n) => n && n !== "user"));
+  const struck = arr(out.struck).map((n) => sideOf(n, userAll(ctx), known, ctx));
   // an explicit [] means the user is alone (a narrator card is no person in
   // the scene); only a report without the key falls back
   const start = Array.isArray(out.present) ? said : B ? arr(B.present) : ctx.characters;
@@ -2869,10 +2905,13 @@ function scenePresent(ctx, out, known) {
     const text = ctx.newMsgs.filter((m) => m.role !== "user").map((m) => String(m.text)).join("\n");
     for (const [key, soul] of Object.entries(ctx.souls)) {
       if (!isObj(soul) || list.includes(key) || struck.includes(key) || sideOf(key, userAll(ctx), []) !== key) continue;
+      // a soul keyed by the first name is the card's character already in the scene under its full name
+      if (list.some((n) => soulOf(ctx.souls, n) === soul)) continue;
       if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(key);
     }
   }
-  return unique(list);
+  // only characters this turn knows (a twin spelling or a removed name is not in `known`)
+  return unique(list).filter((n) => known.includes(n));
 }
 
 /** Present characters first named in this turn's events, then the old order. */
@@ -3018,8 +3057,8 @@ function applyNotebook(ctx, out, present, turn, K) {
   // the same text for three or more characters is a summary, not a fact
   const holders = {};
   for (const l of arr(out.learned)) {
-    if (!isObj(l) || sideOf(l.who, userAll(ctx), present) === "user") continue;
-    const who = canonName(l.who, present);
+    if (!isObj(l) || sideOf(l.who, userAll(ctx), present, ctx) === "user") continue;
+    const who = canonName(l.who, present, ctx);
     if (present.includes(who)) listIn(holders, sameText(l.text)).push(who);
   }
   const generic = Object.keys(holders).filter((t) => unique(holders[t]).length >= 3);
@@ -3031,11 +3070,11 @@ function applyNotebook(ctx, out, present, turn, K) {
   for (const l of arr(out.learned)) {
     if (used >= 4) break;
     if (!isObj(l)) continue;
-    if (sideOf(l.who, userAll(ctx), present) === "user") {
+    if (sideOf(l.who, userAll(ctx), present, ctx) === "user") {
       if (str(l.text)) keptOut.user++;
       continue;
     }
-    const who = canonName(l.who, present);
+    const who = canonName(l.who, present, ctx);
     const text = cut(str(l.text), 300);
     if (!text) continue;
     if (!present.includes(who)) {
@@ -3045,7 +3084,7 @@ function applyNotebook(ctx, out, present, turn, K) {
     if (generic.includes(sameText(l.text))) continue;
     const how = ["saw", "heard", "guess"].includes(l.how) ? l.how : "guess";
     // "heard" with no teller: the user told them
-    const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, userAll(ctx), present) : "user";
+    const teller = str(l.from) && str(l.from).toLowerCase() !== "null" ? sideOf(l.from, userAll(ctx), present, ctx) : "user";
     const from = how === "heard" ? teller : null;
     // near the same words as a note already there: nothing new to keep
     if (says(who, text)) continue;
@@ -3055,8 +3094,8 @@ function applyNotebook(ctx, out, present, turn, K) {
   }
   for (const t of arr(out.told)) {
     if (!isObj(t)) continue;
-    const from = canonName(t.from, present);
-    const to = canonName(t.to, present);
+    const from = canonName(t.from, present, ctx);
+    const to = canonName(t.to, present, ctx);
     const note = arr(live[from]).find((n) => n.id === str(t.note));
     if (note && present.includes(to) && to !== from && !says(to, note.text)) add(to, { text: note.text, how: "heard", from, believes: true, weight: weightOf(note.weight) });
   }
@@ -3086,11 +3125,11 @@ function applySaid(ctx, out, present, turn, K) {
     if (Number.isFinite(Number(s.strength)) && Number(s.strength) < 2) continue;
     const text = cut(str(s.text), 300);
     if (!text) continue;
-    if (sideOf(s.who, userAll(ctx), present) === "user") {
+    if (sideOf(s.who, userAll(ctx), present, ctx) === "user") {
       kept.user++;
       continue;
     }
-    const who = canonName(s.who, present);
+    const who = canonName(s.who, present, ctx);
     if (!present.includes(who)) {
       kept.absent++;
       continue;
@@ -3116,8 +3155,8 @@ function applyNames(ctx, out, present, turn, K) {
   const live = activeNames(ctx.state, ctx.line.map((l) => l.key));
   for (const n of arr(out.names)) {
     if (!isObj(n)) continue;
-    if (sideOf(n.who, userAll(ctx), present) === "user") continue;
-    const who = canonName(n.who, present);
+    if (sideOf(n.who, userAll(ctx), present, ctx) === "user") continue;
+    const who = canonName(n.who, present, ctx);
     if (!present.includes(who)) continue;
     const before = arr(live[who]).slice(-1)[0];
     const knows = n.heardUserName === true || !!(before && before.knowsUserName);
@@ -3231,18 +3270,23 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const B = ctx.base && ctx.base.snap;
   const turn = (B ? B.turn || 0 : 0) + 1;
   // a name the user had earlier in the chat may sit in an older snapshot: not a character
-  const known0 = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]).filter((n) => sideOf(n, userAll(ctx), []) !== "user");
-  const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user")]);
+  // the names the story already uses: the card's own and those the last snapshot kept
+  ctx.used = unique([...ctx.characters, ...Object.keys((B && B.chars) || {})]);
+  const withTwins = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n));
+  // one soul under two names (an old state kept "Sina" beside the card's "Sina Rose"): the second goes
+  const twins = twinNames(ctx.souls, ctx.characters, withTwins);
+  const known0 = withTwins.filter((n) => !twins.includes(n));
+  const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0, ctx)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n))]);
   const present = scenePresent(ctx, out, known);
   const events = readEvents(out.events, ctx, known, unknownIds);
 
   const sensorChars = {};
-  if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[canonName(n, known)] = v;
+  if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[canonName(n, known, ctx)] = v;
   const blind = {};
-  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known) !== "user") blind[canonName(n, known)] = v;
+  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known, ctx) !== "user") blind[canonName(n, known, ctx)] = v;
 
   const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && known.includes(n));
-  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user"), ...present, ...targets]);
+  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && known.includes(n)), ...present, ...targets]);
   const chars = {};
   for (const name of names) {
     if (!present.includes(name) && !targets.includes(name) && B && B.chars[name]) {
@@ -4103,7 +4147,8 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const at = snapshotFor(state, line, turn);
   if (!at || !isObj(at.snap.chars)) return null;
   const { names: cards, souls } = chatCharacters(fsx, chat.meta);
-  const snap = at.snap;
+  // what the user removed and a second name of one soul never reach the prompt
+  const snap = withoutNames(at.snap, [...removedOf(state), ...twinNames(souls, cards, Object.keys(at.snap.chars))]);
   const overlay = loadOverlay(fsx, chatId);
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
@@ -4776,10 +4821,13 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   const saidGone = removedSaid(state, keys, overlay);
   const saidItem = ({ id, text, kind, hidden, turn, source, edited }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat", ...(edited ? { edited: true } : {}) });
   const chat = readChat(fsx, chatId);
-  const souls = chat ? chatCharacters(fsx, chat.meta).souls : {};
+  const cast = chat ? chatCharacters(fsx, chat.meta) : { names: [], souls: {} };
+  const souls = cast.souls;
+  // the user's removals and a second name of one soul stay off the Dashboard, whatever an older snapshot kept
+  const shown = withoutNames(snap, [...removedOf(state), ...twinNames(souls, cast.names, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
   const chars = {};
-  for (const [name, c] of Object.entries(isObj(snap.chars) ? snap.chars : {})) {
+  for (const [name, c] of Object.entries(isObj(shown.chars) ? shown.chars : {})) {
     if (!isObj(c)) continue;
     const p = prevSnap && isObj(prevSnap.chars) ? prevSnap.chars[name] : null;
     const soul = soulOf(souls, name);
@@ -4798,7 +4846,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
     };
   }
-  const present = arr(snap.present).filter((n) => chars[n]);
+  const present = arr(shown.present).filter((n) => chars[n]);
   const order = [...present.filter((n) => !chars[n].compact), ...present.filter((n) => chars[n].compact), ...Object.keys(chars).filter((n) => !present.includes(n))];
   let insert = null;
   try {
@@ -5112,6 +5160,18 @@ function notesRoute(req, fsx) {
     if (op === "retire") e.retired = true;
     else delete e.retired;
     putEdit(noteId, e);
+  } else if (op === "remove-character") {
+    // a name the sensor made up or doubled: out of every snapshot, and the sensor does not bring it back
+    const name = str(b.name);
+    if (!existed || !name) return bad("name required");
+    const snaps = Object.values(state.snapshots).filter(isObj);
+    if (!snaps.some((sn) => isObj(sn.chars) && ownKey(sn.chars, name))) return bad("no such character in the scene state", 404);
+    if (!isRemoved(state, name)) state.removed = [...removedOf(state), name].slice(-50);
+    for (const sn of snaps) {
+      if (isObj(sn.chars)) delete sn.chars[name];
+      sn.present = arr(sn.present).filter((n) => n !== name);
+    }
+    fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
   } else if (op === "thread-add") {
     const text = cut(str(b.text), 300);
     if (!text) return bad("text required");

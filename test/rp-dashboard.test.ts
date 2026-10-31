@@ -4952,3 +4952,86 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(JSON.parse(fs.readFileSync(path.join(root, "_debug/dashboard.json"), "utf8")).raw).toContain("p11");
   });
 });
+
+// ---------- one soul under two names, and removing a character ----------
+describe("one character, two names", () => {
+  const sinaCard = () => {
+    fs.mkdirSync(path.join(root, "characters/sina"), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters/sina/card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Sina Rose", extensions: { molfar_soul: { v: 1, characters: { Sina: { class: "romantic", pronouns: "she", aliases: ["Sina Rose"] } } } } }));
+  };
+  const story = (): Msg[] => [U("m1", "Hello."), { id: "m2", role: "char", name: "Sina Rose", text: "Sina walked in. Sina smiled, and Sina locked the door.", swipe: 0 }, U("m3", "Why?")];
+  const soloReply = reply({ present: ["Sina Rose"], chars: { "Sina Rose": { mood: "playful" } } });
+
+  it("a soul keyed by the first name does not join the scene beside the full name of the card", () => {
+    sinaCard();
+    writeChat("c1", story(), { characterId: "sina" });
+    const mock = mockHost([soloReply]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const snap = readStateFile("c1").snapshots["m3#0"];
+    expect(snap.present).toEqual(["Sina Rose"]);
+    expect(Object.keys(snap.chars)).toEqual(["Sina Rose"]);
+  });
+
+  it("the sensor writing the first name is the same character", () => {
+    sinaCard();
+    writeChat("c1", story(), { characterId: "sina" });
+    const mock = mockHost([reply({ present: ["Sina Rose", "Sina"], chars: { Sina: { mood: "playful" } } })]);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const snap = readStateFile("c1").snapshots["m3#0"];
+    expect(snap.present).toEqual(["Sina Rose"]);
+    expect(snap.chars["Sina Rose"].mood).toBe("playful");
+  });
+
+  it("a state that already holds both names shows one and the next turn drops the other", () => {
+    sinaCard();
+    writeChat("c1", story(), { characterId: "sina" });
+    const mock = mockHost([soloReply]);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    const snap = st.snapshots["m3#0"];
+    snap.chars.Sina = { ...snap.chars["Sina Rose"] };
+    snap.present = ["Sina Rose", "Sina"];
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
+    expect(Object.keys(drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view.chars)).toEqual(["Sina Rose"]);
+    writeChat("c1", [...story(), { id: "m4", role: "char", name: "Sina Rose", text: "Sina laughed.", swipe: 0 }, U("m5", "Ok")], { characterId: "sina" });
+    mock.push(soloReply);
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const next = readStateFile("c1").snapshots["m5#0"];
+    expect(next.present).toEqual(["Sina Rose"]);
+    expect(Object.keys(next.chars)).toEqual(["Sina Rose"]);
+  });
+});
+
+describe("removing a character from the Dashboard", () => {
+  const both = reply({ present: ["Aria", "Bram"], chars: { Aria: { mood: "calm" }, Bram: { mood: "tense" } } });
+  const msgs = (): Msg[] => [...three(), A("m4", "Bram walks in."), U("m5", "Hi Bram.")];
+  const notes = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "g", ...body } });
+
+  it("takes the name out of every snapshot and the sensor does not bring it back", () => {
+    writeChat("g", msgs(), { characterId: undefined, groupId: "g1" });
+    const mock = mockHost([both]);
+    expect(update(mock, "g").json.ok).toBe(true);
+    expect(Object.keys(readStateFile("g").snapshots["m5#0"].chars).sort()).toEqual(["Aria", "Bram"]);
+    const out = notes(mock, { op: "remove-character", name: "Bram" });
+    expect(out.json.ok).toBe(true);
+    expect(Object.keys(out.json.view.chars)).toEqual(["Aria"]);
+    const st = readStateFile("g");
+    expect(st.removed).toEqual(["Bram"]);
+    expect(Object.keys(st.snapshots["m5#0"].chars)).toEqual(["Aria"]);
+    expect(st.snapshots["m5#0"].present).toEqual(["Aria"]);
+    writeChat("g", [...msgs(), A("m6", "Hello again."), U("m7", "Bye")], { characterId: undefined, groupId: "g1" });
+    mock.push(both);
+    expect(update(mock, "g").json.ok).toBe(true);
+    const next = readStateFile("g").snapshots["m7#0"];
+    expect(next.present).toEqual(["Aria"]);
+    expect(Object.keys(next.chars)).toEqual(["Aria"]);
+  });
+
+  it("refuses a name the state does not have, or none", () => {
+    writeChat("g", msgs(), { characterId: undefined, groupId: "g1" });
+    const mock = mockHost([both]);
+    update(mock, "g");
+    expect(notes(mock, { op: "remove-character", name: "Nobody" }).status).toBe(404);
+    expect(notes(mock, { op: "remove-character", name: "" }).status).toBe(400);
+  });
+});

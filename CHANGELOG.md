@@ -4,6 +4,11 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.78.1 (2026-10-31)
+
+- Fix: one character listed twice on the Dashboard and in the Litopys. When the card's Soul is keyed by the first name ("Sina") and the card is called "Sina Rose", the plugin that adds a rated character the story names again and again saw no "Sina" in the scene and added a second person, who then also got her own "What they remember" in the chapter. A Soul whose character is already in the scene under another of its names is not added, a name the sensor writes for the same Soul (or its alias) resolves to the name the story already uses, and a Dashboard state that already holds both shows one (the next reply drops the other from the saved state and from the prompt insert). The Litopys no longer writes a recollection for the second spelling.
+- The Dashboard: a button on the character card takes a character off the Dashboard, for a name the sensor made up or doubled (asks first; not offered for the only character in the chat). The name leaves every saved state of the chat and the sensor does not bring it back; `removed` in `dashboard/state/<chatId>.json` keeps the list. The character's notes stay in the file.
+
 ## 4.78.0 (2026-10-30)
 
 - The world builds from the story (#176). The World DM is on by default for every chat at the Chronicler level; records know places (with spots inside them), things (held or lying somewhere) and, optionally from the DM, what characters wear and carry; the writing model gets a short "World · here" note. The Dashboard gets a wider strip with tabs, a weather tile, change counters and the new cards; World gets Places and a World book, a saved world shows its own records and places, a place can be bound to a background, and the settings are a list with info popovers. Details below.

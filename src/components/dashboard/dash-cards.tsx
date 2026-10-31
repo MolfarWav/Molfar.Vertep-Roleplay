@@ -4,15 +4,17 @@
 
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, type Icon } from '@phosphor-icons/react'
+import { Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, UserMinus, type Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
 import { HostilityBar, PulseBar, SignedBar } from './dash-bars'
 import { AvatarImg, Box, ChangeBadge, CLASS_MARK, GOLD_TEXT, MARK, useTx } from './dash-common'
+import { useDashMaybe } from './dash-context'
+import { useConfirm } from '@/components/ui/confirm'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
-import { DISPOSITION, PULSE, type DashChar, type DashView } from '@/lib/dashboard'
+import { canEditNotes, DISPOSITION, PULSE, type DashChar, type DashView } from '@/lib/dashboard'
 import { outfitEmpty, outfitOf, sensorDifference, thingCount } from '@/lib/dash-outfit'
 import { personChanges, tally, type ChangeCount } from '@/lib/dash-changes'
 import { saveWorldSettings, type WorldHere } from '@/lib/world'
@@ -57,14 +59,33 @@ const sameWord = (a: string | null | undefined, b: string | null | undefined) =>
 export function AttitudeCard({ name, char, narrow, count }: { name: string; char: DashChar; narrow?: boolean; count?: ChangeCount | null }) {
   const t = useT()
   const tx = useTx()
+  const dash = useDashMaybe()
+  const [confirm, confirmDialog] = useConfirm()
+  // the sensor can list one person twice or invent a name: the user takes the extra one off. Never the last one.
+  const removable = !!dash && canEditNotes(dash.view) && Object.keys(dash.view?.chars ?? {}).length > 1
+  const remove = async () => {
+    if (!dash) return
+    if (!(await confirm({ title: t('dash.remove.title', { name }), description: t('dash.remove.body'), actionLabel: t('dash.remove.do') }))) return
+    await dash.act({ op: 'remove-character', name })
+  }
   return (
     <Box
       title={<span className="font-heading text-[14px] tracking-normal normal-case">{name}</span>}
       tone="people"
       icon={Heart}
       count={count}
-      right={<Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>}
+      right={
+        <span className="flex items-center gap-1">
+          <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
+          {removable && (
+            <Button variant="ghost" size="icon-xs" onClick={remove} aria-label={t('dash.remove.title', { name })} title={t('dash.remove.title', { name })} className="rounded-none">
+              <UserMinus aria-hidden="true" />
+            </Button>
+          )}
+        </span>
+      }
     >
+      {confirmDialog}
       <div className="flex min-w-0 flex-col gap-2">
         <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5">
           <div className="overflow-hidden">
