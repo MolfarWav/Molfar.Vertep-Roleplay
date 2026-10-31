@@ -431,3 +431,8 @@ Three corrections to 8.1:
 
 **Confirmed (owner, 2026-10-31): the Memory tab of the Roleplay settings is removed** (the pointer to Litopys stays in the Library).
 Still waiting for the owner's confirmation: moving the Roleplay settings page into the shell Settings (8.2), which changes the 2026-10-11 line of `ux-review`.
+
+**Confirmed (owner, 2026-10-31): the Roleplay settings page moves into the shell Settings (Apps > Roleplay);** the rail has no Settings item.
+The `ux-review` line of 2026-10-11 is rewritten accordingly (engine repo): whole-app settings are reachable from the shell's Settings,
+per-chat and per-card settings stay in their own panels. Build tasks: engine (an app-contributed settings entry or a deep link to the app's settings view)
+and Roleplay (drop `settings` from `sections.ts`, keep the page's route, open it from Home's Customize and the command palette).
