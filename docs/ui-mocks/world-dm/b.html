@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>World DM — B. Tabs</title><link rel="stylesheet" href="shared.css"></head><body>
+<script src="shared.js"></script>
+<script>
+const everyNoStatus = S.everyN().replace(/<p class="cap row-st">.*?<\/p>/, '')
+const tab = (id, tone, label, badge, on) => `<button class="t-${tone}" role="tab" data-pane="${id}" aria-selected="${on}"><i></i><span>${label}</span>${badge ? `<span class="badge" title="${badge} changed from the profile’s defaults">${badge}</span>` : ''}</button>`
+const pane = (id, on, body) => `<div class="pane rows" data-pane="${id}" data-on="${on}" role="tabpanel">${body}</div>`
+mount({
+  label: 'B · Tabs',
+  blurb: 'World turn always in view; three tabs by task, one task at a time',
+  settingsHTML: `<section class="card">
+    <div class="runstrip"><button class="btn pri" type="button">${icon('globe')}World turn</button><p class="cap">Next run in 2 replies, or now with World turn.</p></div>
+    <div class="ptabs" role="tablist">${tab('sched', 'sky', 'Schedule', 1, true)}${tab('rec', 'emerald', 'Records', 0, false)}${tab('ev', 'violet', 'Events and dice', 2, false)}</div>
+    ${pane('sched', true, everyNoStatus + `<p class="cap note" style="background:var(--muted)">Also runs when…</p>` + S.still() + S.skip() + S.place())}
+    ${pane('rec', false, S.recEvery() + S.textMax() + S.changesMax() + S.outfit())}
+    ${pane('ev', false, S.insert() + S.diceMode() + S.diceStat() + S.diceTilt() + S.diceChance() + S.diceShow() + S.diceLife() + S.rolls('flat'))}
+  </section>`
+})
+</script></body></html>
