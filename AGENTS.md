@@ -131,6 +131,12 @@ holds "Model for this card's tasks" (`useCardTasks` takes a persona owner: the c
 Fill empty / Structure it as `taskModel`) and the profile form with folded sections (`ProfileForm fold`). `Persona.gallery` is the generated portraits;
 "Generate image" (`persona-image-dialog.tsx`) builds the prompt from the Appearance fields (`portraitPrompt`) and draws through the Image generation
 connection of Extensions (`settings.imageGen`, POST /v1/images); with none enabled it says so.
+"New persona" opens `persona-new-dialog.tsx`: Write it myself (a blank page, as before), Short interview (`persona-new-interview.tsx`:
+an idea and an optional picture go to POST /profile/persona-ideas, three drafts and two questions come back, Create makes the persona from
+`composeBrief`, runs Structure it and, for Full portrait / Deep dive, Fill empty with `merge` so the sketch and the details are ONE proposal
+on the persona's page; `lib/persona-new.ts` and `lib/persona-new-api.ts`) and From a file (text, Markdown or JSON up to 200 KB; persona-shaped
+JSON goes through the import, anything else becomes the description, cut at 12000 characters, and the page opens on Profile and starts
+Structure it by `pendingStructure`). The questionnaire is the no-model path.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
 to it on every change. Messages are a FLAT list with swipes.
 

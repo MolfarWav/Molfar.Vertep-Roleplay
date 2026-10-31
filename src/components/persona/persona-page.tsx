@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CaretLeft, MagicWand } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import { applyAnswers, personaAdditions, type PersonaAnswers } from '@/lib/profi
 import { personaTokens, profileFill } from '@/lib/persona-list'
 import { addGallery, isSection, type PersonaSection } from '@/lib/persona-page'
 import { useApp } from '@/lib/store'
+import { waitForPersona } from '@/lib/persona-new-api'
 import type { Persona } from '@/lib/types'
 
 const TAB_KEY = 'rp.personas.tab'
@@ -66,6 +67,17 @@ export function PersonaPage({ p, inUse, confirm, onBack, onUse, onDuplicate, onD
 
   const tasks = useCardTasks({ personaId: p.id, saved: p.cardTasks, write: (own) => updatePersona(p.id, { cardTasks: own }) })
   const profile = usePersonaProfile(p, update, confirm, tasks)
+
+  // a persona made from a file: open on Profile and start Structure it at once (the proposal waits there to be reviewed)
+  const startedRef = useRef(false)
+  const runStructure = profile.draft.runStructure
+  useEffect(() => {
+    if (startedRef.current || useApp.getState().pendingStructure !== p.id) return
+    startedRef.current = true
+    useApp.setState({ pendingStructure: null })
+    setSectionState('profile'); rememberTab('profile'); setPhoneSection('profile')
+    void waitForPersona(p.id).then(() => runStructure())
+  }, [p.id, runStructure])
 
   const registry = useMemo(() => allTags.filter((x) => x.scope === 'persona'), [allTags])
   const mine = useMemo(() => chats.filter((c) => c.personaId === p.id), [chats, p.id])

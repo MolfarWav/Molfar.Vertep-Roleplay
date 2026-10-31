@@ -163,6 +163,8 @@ interface AppState {
   /** the opening dialog (scenario and first message) is open on this chat; fresh = the chat is not opened yet */
   worldOpening: { chatId: ID; fresh: boolean } | null
   focusPersonaId: ID | null
+  /** Set when a persona is made from a file: its page opens on the Profile tab and starts Structure it, then clears this. Never saved. */
+  pendingStructure: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
   /** set by Home's Branches button: the chat view opens that chat's branch tree and clears it */
@@ -663,6 +665,7 @@ export const useApp = create<AppState>()(
       focusBackgroundFolderId: null,
       worldOpening: null,
       focusPersonaId: null,
+      pendingStructure: null,
       focusLorebookId: null,
       branchTreeFor: null,
       openBranchTree: (chatId) => {

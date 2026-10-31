@@ -23,6 +23,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { PersonaPage } from '@/components/persona/persona-page'
+import { PersonaNewDialog } from '@/components/persona/persona-new-dialog'
 import { PersonaGrid, PersonaRows, type PersonaItem } from '@/components/persona/persona-list'
 import { PersonaPreviewPanel, PersonaPreviewSheet } from '@/components/persona/persona-preview'
 import { ActiveFilters, AllTagsPanel, FolderList, FolderStrip, NameDialog, SelectBar, TagFilterRow, type SelectActions } from '@/components/persona/persona-filters'
@@ -195,11 +196,26 @@ export function PersonasView() {
     return true
   }
 
-  const newPersona = () => {
+  // "New persona" asks how to start; a blank page is the first choice
+  const [newOpen, setNewOpen] = useState(false)
+  const newPersona = () => setNewOpen(true)
+  const startTag = folder && folder !== NO_FOLDER ? folder : null
+  const blankPersona = () => {
     // inside a folder, the new persona starts in it
-    const id = addPersona(folder && folder !== NO_FOLDER ? { tags: [folder] } : undefined)
+    const id = addPersona(startTag ? { tags: [startTag] } : undefined)
     setSelectedId(id)
     setDetailOpen(true)
+  }
+  /** Persona records (a backup, a file): each one is added, its tags kept clean. Returns how many. */
+  const addRecords = (records: Record<string, unknown>[]): number => {
+    let added = 0
+    for (const item of records) {
+      if (typeof item.name !== 'string') continue
+      const tags = cleanTags(item.tags)
+      setSelectedId(addPersona({ ...item, tags: tags?.length ? tags : undefined } as never))
+      added++
+    }
+    return added
   }
   const switchPersona = (id: string, name: string) => { switchTo(id); toast.success(t('personas.using', { name })) }
   const downloadBackup = () => { downloadTextFile('personas-backup.json', JSON.stringify(personas, null, 2), 'application/json'); toast.success('Backup downloaded') }
@@ -213,13 +229,7 @@ export function PersonasView() {
       try {
         const json: unknown = JSON.parse(await file.text())
         if (Array.isArray(json)) {
-          for (const item of json) {
-            if (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string') {
-              // tags come from a file: keep a clean list, or none
-              const tags = cleanTags((item as { tags?: unknown }).tags)
-              setSelectedId(addPersona({ ...(item as object), tags: tags?.length ? tags : undefined } as never)); added++
-            }
-          }
+          added += addRecords(json.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object'))
         } else if (json && typeof json === 'object') {
           for (const [name, description] of Object.entries(json as Record<string, unknown>)) {
             setSelectedId(addPersona({ name, description: String(description ?? '') })); added++
@@ -436,6 +446,14 @@ export function PersonasView() {
           </DialogContent>
         </Dialog>
       )}
+      <PersonaNewDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        startTag={startTag}
+        onBlank={blankPersona}
+        onCreated={(id) => { setSelectedId(id); setDetailOpen(true) }}
+        onImportRecords={addRecords}
+      />
       <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} tags={ptags} scope="persona" usage={(name) => tagCounts.get(name) ?? 0} />
       <NameDialog
         open={naming === 'folder' || naming === 'folder-move'}
