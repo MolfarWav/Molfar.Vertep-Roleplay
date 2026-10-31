@@ -436,3 +436,41 @@ Still waiting for the owner's confirmation: moving the Roleplay settings page in
 The `ux-review` line of 2026-10-11 is rewritten accordingly (engine repo): whole-app settings are reachable from the shell's Settings,
 per-chat and per-card settings stay in their own panels. Build tasks: engine (an app-contributed settings entry or a deep link to the app's settings view)
 and Roleplay (drop `settings` from `sections.ts`, keep the page's route, open it from Home's Customize and the command palette).
+
+## 9. Lorebooks (owner, 2026-10-31: "the tab needs redoing too")
+
+Code: `views/lorebooks-view.tsx` (653 lines: list `LorebooksView`, `BookEditor` from line 336, `EntryRowHead` 579), `lore/entry-editor.tsx` (431),
+`lore/book-settings.tsx` (146), `lore/keyword-test.tsx`, `lore/why-rows.tsx`. 51 literals at 11 px or below in these files (25 in the view).
+
+What is there now:
+- **List** (300 px): title, three icon buttons (import, new, more), a "Create with Molfar" outline button, a search field, a filter select (all, global,
+  own, shared, unlinked), rows with a kind icon, name, a globe for global and "N entries · used by".
+- **Book header**: name field, a Global switch with an info button, a "N tok total" badge in 10 px, and then **seven more controls** in
+  one wrapped row: Test triggers, Settings (opens the rules above the entries), Used by (popover), export, duplicate, delete.
+- **Entries toolbar**: search, sort select, Open all, an "i" for the badge legend, Entry (the one add button); **seven filter chips**
+  (All, On, Off, Constant, Keyed, Vector, No keys); a **bulk bar of nine buttons** in 11 px.
+- **Entry row**: checkbox, title, tokens, keys as 10 px badges, position badge, chance badge, timing icons; opening it unfolds the editor inside the list.
+- **Entry editor** (`entry-editor.tsx`): title, status, keys, secondary keys and logic, content, position, depth, role, order, chance, sticky,
+  cooldown, delay, group fields, characters, filters: about 30 fields in one open row, in a list that is itself long.
+- **Book rules** (`book-settings.tsx`): scanning (scan depth, include names, case, whole words, word forms, recursion, max recursion, min activations and
+  its depth), budget (percent, cap, overflow alert), order (strategy), groups, format template: about 16 settings, shown as one block when "Settings" is pressed.
+Findings against the bar: a wall of small controls above the actual content (the entries); words are the engine's ("Constant", "Keyed", "Vector",
+"Trigger %", "Order") rather than the player's; the warning "needs keys" is a 10 px red word; editing an entry inside the list moves everything below it;
+rules, entries and "used by" are three different places.
+
+Proposed vocabulary (copy change in all locales): Constant becomes "Always on", Keyed "When mentioned", Vector "By meaning"; "Trigger %" becomes "Chance";
+tokens are shown as "tokens", not "tok".
+
+Mocks `docs/ui-mocks/lorebooks/`: both variants share the same book page and the same new entry editor.
+- **Book page** (shared): a header with the name, three chips (entries, tokens, who uses it), the Global switch, "Test triggers" and one "more" menu (export,
+  duplicate, delete); tabs **Entries | Rules | Used by (n)**; Rules are folds with a summary line each (Scanning, Recursion, Budget, Order and groups).
+  Entries: search, sort, select-several, the one primary "Add entry", seven filter chips with counts (the odd one, "No keys", in the warning colour),
+  rows with a switch, a status chip, key chips and a plain warning ("Needs keys, will never fire"), bulk actions appear only after selecting.
+- **Entry editor** (shared): a side panel instead of unfolding in the list. Top: title, an on switch. Then Title, Content (with a token count), "When it
+  appears" (three choices), Keys as chips you type, folds "Where it goes" (position, role, depth, order) and "More conditions" (chance, sticky, cooldown,
+  delay, secondary keys, group), each with a summary. Footer: Copy to a book, Delete. It saves as you type (as today); on a phone it is a full page.
+- **L1 list and book**: the list stays left (with filter chips instead of a select), the book at right. Least relearning.
+- **L2 shelf and book page**: books as cards (tinted top, counts, who uses them as small avatars, a Global chip), a click opens the book full width.
+  Best at a glance with many books; one more step to switch between books.
+Recommendation: L1, since people switch between books while writing; take L2's cards for the empty state and for the picker when a card links a book.
+Open for the owner: the new words, and whether the "Used by" tab should also show a "Link to a card" action (today linking is done from the card).

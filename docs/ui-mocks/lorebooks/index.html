@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lorebooks — two variants</title>
+<style>
+body{margin:0;background:#101010;color:#e6e6e6;font:14px/20px system-ui,sans-serif}
+header{padding:16px 24px;border-bottom:1px solid #333;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0}header a{color:#ddd;background:#262626;border:1px solid #444;border-radius:6px;padding:4px 10px;text-decoration:none}header a.on{background:#e6e6e6;color:#111}
+.v{padding:24px;border-bottom:1px solid #333}.v h2{margin:0 0 4px;font-size:16px}.v p{margin:0 0 12px;color:#aaa;max-width:80ch}
+.frames{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.f{border:1px solid #444;border-radius:8px;overflow:hidden;background:#000}.f small{display:block;padding:4px 8px;color:#aaa;font-size:12px}
+.f iframe{border:0;display:block;background:#fff}
+.d{width:640px;height:640px}.d iframe{width:1280px;height:1280px;transform:scale(.5);transform-origin:0 0}
+.m iframe{width:390px;height:844px}
+</style></head><body>
+<header><h1>Lorebooks — two variants (mocks, real tokens)</h1><span id="th"></span></header>
+<div id="list"></div>
+<script>
+const theme=new URLSearchParams(location.search).get('theme')||'dark'
+th.innerHTML=['dark','light'].map(t=>`<a class="${t===theme?'on':''}" href="?theme=${t}">${t}</a>`).join(' ')
+const V=[['l1','L1 · List and book','The list stays on the left (with filter chips), the book on the right: a header with three chips, a tab row (Entries, Rules, Used by), entries as rows with a switch, a status chip and key chips; an entry opens in a side panel (open by default here, ?entry=0 closes it). Closest to today, least relearning.'],['l2','L2 · Shelf and book page','Books as cards with a tinted top, counts and who uses them; a click opens the book on its own full-width page with the same tabs and the same side panel. Better at a glance with many books, one more step to switch between books.']]
+list.innerHTML=V.map(([k,t,d])=>`<section class="v"><h2>${t}</h2><p>${d}</p><div class="frames"><div class="f d"><small>1280 px (open full: <a style="color:#9cf" href="${k}.html?theme=${theme}">${k}.html</a>)</small><iframe src="${k}.html?theme=${theme}&bare=1" style="height:1280px"></iframe></div><div class="f m"><small>390 px</small><iframe src="${k}.html?theme=${theme}&bare=1"></iframe></div></div></section>`).join('')
+</script></body></html>
