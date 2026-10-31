@@ -1,0 +1,42 @@
+/* Dashboard settings > Sensor mocks. Uses ../world-dm/shared.css (tokens, rows, folds, buttons). */
+.dwrap { max-width: 1180px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+.dhead { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+.dhead h2 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
+.dbody { display: flex; flex: 1; min-height: 0; }
+.dnav { width: 208px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 12px; border-right: 1px solid var(--border); }
+.dnav button { position: relative; min-height: 44px; padding: 0 12px; text-align: left; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); font-weight: 500; }
+.dnav button:hover { background: var(--accent); color: var(--foreground); }
+.dnav button[aria-current='page'] { background: var(--accent); color: var(--foreground); font-weight: 600; }
+.dnav button[aria-current='page']::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--cta); }
+.dmain { flex: 1; min-width: 0; padding: 20px; display: flex; flex-direction: column; gap: 24px; max-width: 800px; }
+.savebar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 20px; border-top: 1px solid var(--border); background: var(--card); }
+.savebar .sp { flex: 1; }
+.tchips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+.tchip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--input); background: transparent; color: var(--muted-foreground); font-weight: 500; }
+.tchip:hover { background: var(--accent); color: var(--foreground); }
+.tchip[aria-pressed='true'] { background: var(--ts); border-color: var(--tb); color: var(--ti); font-weight: 600; }
+.tchip svg { display: none; width: 14px; height: 14px; }
+.tchip[aria-pressed='true'] svg { display: block; }
+.modebox { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.mrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; min-height: 48px; }
+.mrow .mono { flex: 1; min-width: 0; word-break: normal; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 16px; }
+.ntile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--background); min-width: 0; }
+.ntile .num { width: 100%; margin-top: 6px; text-align: left; }
+.sumcard { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.subh { padding: 12px 16px 0; font-weight: 600; }
+@media (max-width: 767px) {
+  .seg.full.wrapseg { display: grid; grid-template-columns: 1fr 1fr; }
+  .wrapseg button:nth-child(2) { grid-column: 1 / -1; order: 3; white-space: normal; }
+  .dhead { padding: 8px 12px; }
+  .dbody { flex-direction: column; }
+  .dnav { width: auto; flex-direction: row; overflow-x: auto; padding: 8px; border-right: 0; border-bottom: 1px solid var(--border); gap: 4px; }
+  .dnav button { white-space: nowrap; }
+  .dnav button[aria-current='page']::before { left: 12px; right: 12px; top: auto; bottom: 0; width: auto; height: 3px; }
+  .dmain { padding: 12px; }
+  .savebar { padding: 8px 12px; }
+  .savebar .btn { flex: 1; }
+  .grid2 { grid-template-columns: 1fr; padding: 12px; }
+  .tchip { min-height: 40px; }
+  .tchips { padding: 12px; }
+}

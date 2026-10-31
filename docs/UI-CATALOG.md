@@ -214,3 +214,23 @@ squint test, `ux-review` walk-through.
 4. Tests: component tests for the three shared pieces, the existing `test/` world tests updated, no-nesting check.
 5. `browser-check` in dark, light and 390 px (and the 448 px sheet), `ux-review` walk-through against section 3, CHANGELOG note.
 6. Not in phase 2: other screens (dashboard Settings, chat, home and lists, card and persona editors follow, in that order).
+
+## 5. Next screen: Dashboard settings, Sensor tab (owner flagged it, 2026-10-31)
+
+Code: `dashboard/dash-settings.tsx` `SensorSection` (line 493). What the screenshot shows is real: after Mode (3 choices) and
+Sensor model, **one `Box` holds 14 controls in a row** (prompt insert + tokens, sensor reply limit + warning, six quest numbers,
+check every N, notes age, said per turn, remind, catch up, rate automatically), then 7 event-group switches, usage counters
+as monospace text, and "Advanced" (prompts). Labels such as "Ask to close a quest after N old-quest checks (0 = never)" are
+sentences; four rows carry a second hint line.
+
+Local copies of shared pieces in this file: `SwitchRow` (452), `Fieldset` (482), `NumRow` (140), `SaveBar` (471), and five
+inline `<label>… <Input>` rows; Advanced is fold look 7 and 8 from 1.2. Look: `rounded-none`, `border-cta` square nav buttons
+in the heading font, `uppercase tracking-wide` 11 px labels; 27 literals at 11 px or below in the file. It reads like a different
+product than the World DM panel.
+
+Three variants (mocks `docs/ui-mocks/dash-sensor/`): A task cards (same pattern as the picked World DM variant: How it works /
+What the model is reminded of / Quests; event groups become toggle chips; prompts folded), B real Folds with summaries, C a
+"Current setup" summary card plus a tile grid for the numbers (short labels, so the copy changes in every locale).
+Left nav: vertical list with an active bar on desktop, scrolling tabs on a phone. Save stays in a sticky bar and becomes the
+primary button (2.4). The three other tabs (Event vocabulary, What the model sees, Tune with Molfar) are not designed yet.
+Recommendation: A, for one pattern across both screens; C if the owner wants the densest overview.

@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dashboard Sensor — B. Folds</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="dash.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="dash.js"></script>
+<script>
+const f = (id, title, summary, tone, body, open = false) => fold({ id, title, summary, tone, open, body: `<div class="rows">${body}</div>` })
+mountDash({ label: 'B · Folds with summaries', blurb: 'One column of real Folds: each says what is set when closed; the first is open', html:
+  D.use() +
+  f('how', 'How it works', 'Sensor · chat’s model · catch up on · reply limit 1200', 'sky', D.mode() + D.model() + D.catchUp() + D.autoSoul() + D.sensorTokens(), true) +
+  f('ins', 'What the model is reminded of', 'insert on, 80 tokens · said: on, 1 per turn · notes 30 turns', 'violet', D.insert() + D.insTokens() + D.saidInject() + D.said() + D.noteAge()) +
+  f('grp', 'Event groups', '7 of 7 on', 'teal', `<div class="tchips">${D.groups()}</div>`) +
+  f('q', 'Quests', '2 main · 4 side · 4 steps · everyday end after 8 turns', 'pink', D.maxMain() + D.maxThreads() + D.maxSteps() + D.everyday() + D.retire() + D.check()) +
+  D.prompts()
+})
+</script></body></html>
