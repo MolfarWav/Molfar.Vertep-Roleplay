@@ -1,6 +1,7 @@
 // Home v2: a library-style start page. Blocks the owner asked for: continue, a random character, create a world (random library
 // background), favourites, what waits for me, quests and threads, news from the repo. Needs ../world-dm/shared.js.
 Object.assign(P, {
+  bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/>',
   play: '<path d="M7 5v14l12-7z"/>', branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-6 3-12 6"/>',
   shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', tray: '<path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5"/>',
   flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', news: '<path d="M4 5h13v14H6a2 2 0 01-2-2zM17 9h3v8a2 2 0 01-2 2M8 9h5M8 13h5"/>', star: '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>',
@@ -54,6 +55,9 @@ const B = {
     <button class="li t-pink"><span class="dotc" style="background:var(--destructive)"></span><span class="tx"><b>World DM · Winter court</b><span class="cap" style="color:var(--destructive)">The last run failed</span></span>${icon('chevR')}</button></section>`,
   quests: (cls = '') => `<section class="bt ${cls}" aria-label="Quests and plot threads">${tools()}<div class="th t-pink">${icon('flag')}<h3>Quests and threads</h3><span class="n">7</span><button class="more" type="button">All →</button></div>
     ${[['Find who burned the harbour', 'Harbour of Ash · main quest', '2/4'], ['Reach the border before dawn', 'Night train · main quest', '1/3'], ['Return the ledger', 'Harbour of Ash · side thread', '—']].map(([a, b, c]) => `<button class="li t-pink"><span class="dotc"></span><span class="tx"><b>${a}</b><span class="cap">${b}</span></span><span class="prog">${c}</span></button>`).join('')}</section>`,
+  help: (cls = '') => `<section class="bt t-teal ${cls}" aria-label="A tip">${tools()}<div class="th t-teal">${icon('bulb')}<h3>Did you know?</h3><button class="more" type="button">All help →</button></div>
+    <div class="news"><b style="font-size:var(--fs-heading)">Profile (card tab)</b><p class="cap" style="color:var(--foreground)">The Profile tab splits a card into fields (identity, appearance, goals and more). Every save writes them back into Description and Personality.</p><p class="cap">Open a card, then the Profile tab.</p>
+    <div class="btns" style="margin:4px 0 0"><button class="btn tonal" type="button">${icon('play')}Show me</button><button class="btn ghost" type="button">${icon('shuffle')}Next tip</button></div></div></section>`,
   news: (cls = '') => `<section class="bt ${cls}" aria-label="What's new">${tools()}<div class="th t-violet">${icon('news')}<h3>What’s new</h3><button class="more" type="button">All releases ${icon('ext')}</button></div>
     <div class="news"><div class="ver"><b>Roleplay 4.79.0</b><span class="cap">Oct 30</span></div><ul><li>The Personas page was reworked</li><li>A cut-short reply now says why</li><li>New chats start from a chooser</li></ul><p class="cap">Molfar Vertep 1.8.1 · from the project’s release notes</p></div></section>`,
 }

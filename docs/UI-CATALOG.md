@@ -361,3 +361,11 @@ Decisions to fix when building: (1) adult cards follow the Marketplace's own mat
 is a visible switch in Customize ("Suggestions from the Marketplace", default on) and the block is not shown offline or on error,
 no spinner of shame; (3) the source follows the Marketplace's last-used source when it supports a top order, else Chub; (4) the block says
 where it came from (source chip and "top this week") so nobody mistakes it for the library. Mocks: both Home variants carry the new tile.
+
+**Home: N1 bento picked (owner, 2026-10-31); N2 dropped.** The bottom row is What's new (wide) and a help tile.
+**Help tile ("Did you know?")**: a random tip or help article from the guide registry that already exists (`lib/guide-tips.ts` `TIPS`, hand
+tips plus `help-articles.json`: title, short text, "where to find it", both English and Ukrainian). Shows the title, the short text and
+the "where" line; "Show me" starts the existing guide step for it (the tip's `target` / `open`), "Next tip" takes another, "All help"
+opens the help list (`setGuideHelpOpen`). Prefers tips for features the user has not met (the guide already tracks seen tips) and the
+tips of the newest release ("since"), otherwise any. No new content to write. Final block order (desktop): Continue + library pick;
+Marketplace pick + Create a world + Waiting; Quests + Favourites; What's new + Did you know. All blocks hide-able in Customize.

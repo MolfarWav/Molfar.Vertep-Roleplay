@@ -82,5 +82,5 @@
   .tools button { width: 40px; height: 40px; }
 }
 
-.bt.wide .news ul { columns: 3; column-gap: 24px; }
+.bt.wide .news ul { columns: 2; column-gap: 24px; }
 @media (max-width: 767px) { .bt.wide .news ul { columns: 1; } }

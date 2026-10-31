@@ -15,6 +15,6 @@ header h1{font-size:18px;margin:0}header a{color:#ddd;background:#262626;border:
 <script>
 const theme=new URLSearchParams(location.search).get('theme')||'dark'
 th.innerHTML=['dark','light'].map(t=>`<a class="${t===theme?'on':''}" href="?theme=${t}">${t}</a>`).join(' ')
-const V=[['n1','N1 · Bento','Tiles of different sizes, each with art or a tinted header; the continue banner and a random character on top, create a world with a random library background, waiting, quests, favourites and news below. Customize (gear) turns on moving, resizing and hiding tiles.'],['n2','N2 · Magazine','A wide main column (continue, random character and create a world side by side, favourites) and a narrow side column of live lists (waiting, quests, news). Calmer to read, fixed order, fewer ways to rearrange.']]
+const V=[['n1','Home · Bento (picked)','Tiles of different sizes, each with art or a tinted header. Customize turns on moving, resizing and hiding.']]
 list.innerHTML=V.map(([k,t,d])=>`<section class="v"><h2>${t}</h2><p>${d}</p><div class="frames"><div class="f d"><small>1280 px (open full: <a style="color:#9cf" href="${k}.html?theme=${theme}">${k}.html</a>)</small><iframe src="${k}.html?theme=${theme}&bare=1" style="height:1280px"></iframe></div><div class="f m"><small>390 px</small><iframe src="${k}.html?theme=${theme}&bare=1"></iframe></div></div></section>`).join('')
 </script></body></html>
