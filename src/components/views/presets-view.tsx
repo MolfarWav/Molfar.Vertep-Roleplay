@@ -194,6 +194,7 @@ export function PresetsView() {
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    {p.isDefault && <Star weight="fill" className="size-3.5 shrink-0 text-amber-500" role="img" aria-label={t('pc.default')} />}
                     {p.readOnly && <Lock className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
                   </span>
                   <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">

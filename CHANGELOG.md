@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.79.0 (2026-10-31)
+
+- Personas, a new look (#186). The overview shows cards with a portrait, a one-line summary, tags, chats, tokens and how much of the profile is filled; a preview panel on the right (rows and a bottom sheet on a phone); search; four sorts (Recent, Name, Most used, Tokens); tags like Characters, and folders made from persona tags marked "folder" (a card can be dragged onto a folder). Select mode moves several personas to a folder, tags, exports or deletes them. The "N chats" link opens Chats showing only that persona's chats. The drawer is 70 px wider.
+- A persona's page: a banner with the portrait, name, pronouns, one-line title and tags edited in place, then tabs (Core, Profile n/9, Bindings, Lorebooks, Memory, Colours, Gallery). Profile has "Model for this card's tasks" like a character, Fill empty, Structure it, Edit answers, and sections that fold with a fill ring. "Generate image" builds a portrait prompt from the Appearance fields (edit it before sending), puts the result in the Gallery, and "Use as portrait" sets it. On a phone the page is a list of sections, each opening on its own page.
+- New persona is a chooser: write it yourself, a short interview, or from a file. The interview asks for a few words (and optionally a picture), a model proposes three drafts, you pick one, answer two questions and choose how detailed it is (Quick sketch, Full portrait, Deep dive); the persona is then written through Structure it and Fill empty so you review one proposal. A text, Markdown or JSON file becomes the description of a new persona and Structure it sorts it into the profile fields; a file of personas is still imported as before. `POST /profile/persona-ideas` is the new route; `/profile/fill` takes `merge: true` for a persona.
+- The preset list marks the default preset with a star, and the Dashboard's "Leads" line is readable (an icon, a label and the value).
+- A persona file may carry `tags`, `gallery` and `cardTasks` (docs/DATA-FORMATS.md). Persona tags are kept in the shared tag list with `scope: "persona"`, so they never appear among character tags.
+
 ## 4.78.1 (2026-10-31)
 
 - Fix: one character listed twice on the Dashboard and in the Litopys. When the card's Soul is keyed by the first name ("Sina") and the card is called "Sina Rose", the plugin that adds a rated character the story names again and again saw no "Sina" in the scene and added a second person, who then also got her own "What they remember" in the chapter. A Soul whose character is already in the scene under another of its names is not added, a name the sensor writes for the same Soul (or its alias) resolves to the name the story already uses, and a Dashboard state that already holds both shows one (the next reply drops the other from the saved state and from the prompt insert). The Litopys no longer writes a recollection for the second spelling.

@@ -115,6 +115,28 @@ Imports (cards, presets, lorebooks, personas, regex, chats, backups, links) repo
 whole files (cards: files plus batches of 25), a file that cannot be split shows its steps, a link download moves with the bytes
 it has read, and Cancel stops between units. The card is a portal on the body (an open drawer makes #app inert), above the tab
 bar on a phone. A new import path calls `forEachImport` or `beginImport` instead of keeping its own spinner.
+The Personas section (components/views/personas-view.tsx owns the state) opens on an overview, not a list beside a page:
+a header (search, sort, Select, Import, Backup, New persona), a folder strip, a tag row and a grid of cards with a 360 px
+preview panel on desktop; rows, a bottom bar (Select, Folders, Tags, New) and a bottom sheet on a phone (`components/persona/`:
+`persona-list.tsx` cards and rows, `persona-filters.tsx` folders, tags and the select bar, `persona-preview.tsx` panel and sheet;
+the pure parts, sort, filter, the one-line summary and the profile fill count, are `lib/persona-list.ts`). A persona's `tags`
+are names; their colours, order and "folder" flag live in the same `tags` list as the characters' tags, told apart by
+`Tag.scope === 'persona'` (Characters ignores scoped tags). A folder is a persona tag with `asFolder`, a persona sits in every
+folder it has a tag for. The shared tag manager is `components/tags/tag-manager.tsx`. "N chats" on the preview sets
+`chatsPersonaFilter` (not saved) and opens Chats, which shows a removable "Persona: name" chip. "Open" shows the persona's page.
+The persona's page (`persona-page.tsx`, keyed by persona id) is a hero (`persona-hero.tsx`: portrait, inline name, pronouns, title, tag editor,
+Generate image, Use) over seven tabs (`persona-tabs.tsx`; sections and their tones in `lib/persona-page.ts`: Core, Profile n/9, Bindings, Lorebooks,
+Memory, Colours, Gallery; the open tab is kept in sessionStorage). On a phone the same bodies are pages behind a list of sections. The Profile tab
+holds "Model for this card's tasks" (`useCardTasks` takes a persona owner: the choice is `Persona.cardTasks`, written at once, and goes with
+Fill empty / Structure it as `taskModel`) and the profile form with folded sections (`ProfileForm fold`). `Persona.gallery` is the generated portraits;
+"Generate image" (`persona-image-dialog.tsx`) builds the prompt from the Appearance fields (`portraitPrompt`) and draws through the Image generation
+connection of Extensions (`settings.imageGen`, POST /v1/images); with none enabled it says so.
+"New persona" opens `persona-new-dialog.tsx`: Write it myself (a blank page, as before), Short interview (`persona-new-interview.tsx`:
+an idea and an optional picture go to POST /profile/persona-ideas, three drafts and two questions come back, Create makes the persona from
+`composeBrief`, runs Structure it and, for Full portrait / Deep dive, Fill empty with `merge` so the sketch and the details are ONE proposal
+on the persona's page; `lib/persona-new.ts` and `lib/persona-new-api.ts`) and From a file (text, Markdown or JSON up to 200 KB; persona-shaped
+JSON goes through the import, anything else becomes the description, cut at 12000 characters, and the page opens on Profile and starts
+Structure it by `pendingStructure`). The questionnaire is the no-model path.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
 to it on every change. Messages are a FLAT list with swipes.
 

@@ -1,15 +1,15 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { CaretRight, ListChecks } from '@phosphor-icons/react'
+import { ListChecks } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { InfoTip } from '@/components/ui/info-tip'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { useConfirm } from '@/components/ui/confirm'
 type ConfirmOptions = Parameters<ReturnType<typeof useConfirm>[0]>[0]
+import { useT } from '@/hooks/use-t'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import type { Persona } from '@/lib/types'
 import {
@@ -23,17 +23,14 @@ import {
 } from '@/lib/profile'
 import { ProfileForm } from '@/components/profile/profile-form'
 import { ReadPictureDialog } from '@/components/profile/read-picture-dialog'
+import { CardModelPanel } from '@/components/character/card-model-panel'
+import type { CardTasksState } from '@/components/character/use-card-tasks'
 import { FillControls, ProfileDraftPanel, StructureButton, useFillEmpty, useProfileDraft, useVisionModel } from '@/components/character/structure-draft'
 
-/** The persona's Description with "Five questions", "Structure it" and the
- *  collapsible Profile form that writes it. Keyed by persona id by the caller,
- *  so the one-time "Replace your edits?" answer never carries over. */
-export function PersonaDescription({ p, update, onAsk, confirm }: {
-  p: Persona
-  update: (patch: Partial<Persona>) => void
-  onAsk: () => void
-  confirm: (opts: ConfirmOptions) => Promise<boolean>
-}) {
+/** The persona's profile logic, held by the page so the Core and Profile tabs share one draft:
+ *  "Structure it", "Fill empty" and the questionnaire all write through `write`/`save`, and an edit
+ *  made by hand inside the lines the profile wrote is asked about once ("Replace your edits?"). */
+export function usePersonaProfile(p: Persona, update: (patch: Partial<Persona>) => void, confirm: (opts: ConfirmOptions) => Promise<boolean>, tasks: CardTasksState) {
   const profile = personaProfile(p)
   const draft = useProfileDraft({ personaId: p.id }, (d) => {
     if (d.kind === 'fill') {
@@ -43,7 +40,7 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
       update(acceptPersonaDraft(p, d))
       toast.success('Persona profile filled.')
     }
-  })
+  }, (kind) => tasks.requestFor(kind, p.description))
   const vision = useVisionModel()
   const fill = useFillEmpty(draft, profile, p.avatar, vision)
   const [readOpen, setReadOpen] = useState(false)
@@ -72,68 +69,69 @@ export function PersonaDescription({ p, update, onAsk, confirm }: {
       if (yes) { approved.current = true; write(next) }
     })
   }
+  return { profile, draft, vision, fill, readOpen, setReadOpen, reading, setReading, save }
+}
+export type PersonaProfileState = ReturnType<typeof usePersonaProfile>
 
+/** Core tab: the Description (the one text sent to the model), with its token count. */
+export function PersonaDescriptionField({ p, update }: { p: Persona; update: (patch: Partial<Persona>) => void }) {
+  const t = useT()
   return (
-    <>
-      {/* a long description pushed the profile off screen: it folds, and starts folded once a profile writes it */}
-      <Collapsible defaultOpen={!p.profile} className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <CollapsibleTrigger className="group flex items-center gap-2 text-left text-xs font-medium">
-            <CaretRight className="size-3.5 transition-transform group-data-[panel-open]:rotate-90" aria-hidden="true" />
-            <Label className="pointer-events-none text-xs">Description</Label>
-            <Badge variant="outline" className="text-[10px]">{formatTokens(estimateTokens(p.description))} tok</Badge>
-          </CollapsibleTrigger>
-          <div className="ml-auto flex flex-wrap gap-1.5">
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onAsk}>
-              <ListChecks className="size-3.5" aria-hidden="true" />{p.profile ? 'Edit answers' : 'Five questions'}
-            </Button>
-            <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} onClick={() => void draft.runStructure()} />
-          </div>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Label className="text-sm font-semibold" htmlFor="persona-description">{t('personas.page.description')}</Label>
+        <Badge variant="outline" className="text-[10px]">{formatTokens(estimateTokens(p.description))} tok</Badge>
+      </div>
+      <Textarea id="persona-description" value={p.description} rows={10} onChange={(e) => update({ description: e.target.value })} aria-label="Description" className="text-sm" />
+      <p className="text-xs text-muted-foreground">{t(p.profile ? 'personas.page.descriptionProfiled' : 'personas.page.descriptionHint')}</p>
+    </div>
+  )
+}
+
+/** Profile tab: the model for the card's tasks, Free write, Fill empty, Structure it, Edit answers and the folded form. */
+export function PersonaProfilePanel({ p, state, tasks, onAsk }: { p: Persona; state: PersonaProfileState; tasks: CardTasksState; onAsk: () => void }) {
+  const t = useT()
+  const { profile, draft, vision, fill, readOpen, setReadOpen, reading, setReading, save } = state
+  return (
+    <div className="flex flex-col gap-3" data-testid="persona-profile-panel">
+      <CardModelPanel tasks={tasks} c={{ description: p.description }} />
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex min-h-10 items-center gap-2 text-xs text-muted-foreground">
+          <Switch checked={!!profile.free} onCheckedChange={(v) => save({ ...profile, free: v })} aria-label="Free write" />
+          {t('personas.page.freeWrite')}
+        </label>
+        <InfoTip label="About the profile">Fill in the fields and the description is written from them, so you do not have to compose it yourself. Turn on Free write to edit the description by hand instead.</InfoTip>
+        <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+          <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
+          <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} progress={draft.progress} onClick={() => void draft.runStructure()} />
+          <Button variant="outline" size="sm" className="h-8 max-md:h-11" onClick={onAsk}>
+            <ListChecks className="size-3.5" aria-hidden="true" />{p.profile ? t('personas.page.editAnswers') : t('personas.page.fiveQuestions')}
+          </Button>
         </div>
-        <CollapsibleContent>
-          <Textarea value={p.description} rows={5} onChange={(e) => update({ description: e.target.value })} aria-label="Description" className="text-sm" />
-        </CollapsibleContent>
-      </Collapsible>
+      </div>
+      {profile.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the description.</p>}
       {draft.draft && (
         <ProfileDraftPanel draft={draft.draft} before={{ description: p.description, personality: '' }} mode="persona" onAccept={draft.accept} onDiscard={draft.drop} />
       )}
-
-      <Collapsible defaultOpen={!!p.profile} className="flex flex-col gap-3 rounded-lg border border-border p-3">
-        <div className="flex items-center gap-1">
-          <CollapsibleTrigger className="group flex items-center gap-2 text-left text-xs font-semibold uppercase text-muted-foreground">
-            <CaretRight className="size-3.5 transition-transform group-data-[panel-open]:rotate-90" aria-hidden="true" />
-            Profile
-            <span className="font-normal normal-case">fields that write the description</span>
-          </CollapsibleTrigger>
-          <InfoTip label="About the profile">Fill in the fields and the description above is written from them, so you do not have to compose it yourself. Turn on Free write to edit the description by hand instead.</InfoTip>
-        </div>
-        <CollapsibleContent className="flex flex-col gap-3">
-          <label className="flex items-center gap-2 text-xs">
-            <Switch checked={!!profile.free} onCheckedChange={(v) => save({ ...profile, free: v })} aria-label="Free write" />
-            Free write: edit the description by hand; the profile stops writing it
-          </label>
-          {profile.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the description.</p>}
-          <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
-          <ProfileForm
-            p={profile}
-            save={save}
-            mode="persona"
-            fill={{ busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } }}
-          />
-          <ReadPictureDialog
-            open={readOpen}
-            onOpenChange={setReadOpen}
-            profile={profile}
-            avatar={p.avatar}
-            vision={vision}
-            busy={reading}
-            onRead={(fields, image, model, replace) => {
-              setReading(true)
-              void draft.runFill(fields, image, model, replace).finally(() => setReading(false))
-            }}
-          />
-        </CollapsibleContent>
-      </Collapsible>
-    </>
+      <ProfileForm
+        p={profile}
+        save={save}
+        mode="persona"
+        fold
+        fill={{ busy: fill.busy || !!draft.busy, run: fill.run, readPicture: { busy: reading, open: () => setReadOpen(true) } }}
+      />
+      <ReadPictureDialog
+        open={readOpen}
+        onOpenChange={setReadOpen}
+        profile={profile}
+        avatar={p.avatar}
+        vision={vision}
+        busy={reading}
+        onRead={(fields, image, model, replace) => {
+          setReading(true)
+          void draft.runFill(fields, image, model, replace).finally(() => setReading(false))
+        }}
+      />
+    </div>
   )
 }

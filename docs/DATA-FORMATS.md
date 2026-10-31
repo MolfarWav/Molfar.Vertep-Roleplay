@@ -860,3 +860,13 @@ Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
 `W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
+
+### The persona file: `personas/<id>.json`
+Pass-through JSON: `id, name, avatar, title, description, pronouns, lorebookIds, binding, boundCharacterIds, autoLock, createdAt, profile, dialogueColor` as before, and since Roleplay 4.79.0:
+
+| Field | Meaning |
+|---|---|
+| `tags` | Names of the persona's tags (strings). A tag marked `asFolder` in the shared tag list (`library.json`, entries with `scope: "persona"`) is also a folder: the persona is in every folder it has a tag for. |
+| `gallery` | `string[]` of stored media urls: portraits generated for the persona. `avatar` is the one in use. |
+| `cardTasks` | `{ model?, maxInput?, maxOutput? }`: the model for this persona's Structure it and Fill empty, same shape as a character's card tasks. |
+| `folderId` | Not used. |

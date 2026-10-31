@@ -1,6 +1,5 @@
 
-import type * as React from 'react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, BookOpenText, Smiley, Folder as FolderIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -9,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Switch } from '@/components/ui/switch'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -38,6 +36,8 @@ import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { folderCounts, folderTags, inFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
+import { TagManager } from '@/components/tags/tag-manager'
+import { TagRow } from '@/components/tags/tag-row'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 import { GroupEditor } from '@/components/groups/group-editor'
 
@@ -57,42 +57,6 @@ const hasBookIn = (c: Character, bookIds: Set<string>) => (!!c.embeddedLorebookI
 /** The card has sprites: a summary carries their count, a whole card the list. */
 const hasSprites = (c: Character) => (c.stub ? (c.spriteCount ?? 0) > 0 : c.expressions.some((e) => !!e.url))
 
-/** The tag chips in at most two rows: a hidden copy measures how many fit, the rest is behind "All tags". */
-function TagRow<T>({ chips, counts, render }: {
-  chips: { name: string; tag: T }[]
-  counts: Map<string, number>
-  render: (name: string, tag: T) => React.ReactNode
-}) {
-  const box = useRef<HTMLDivElement>(null)
-  const twin = useRef<HTMLDivElement>(null)
-  const [fit, setFit] = useState(chips.length)
-  useLayoutEffect(() => {
-    const measure = () => {
-      const kids = Array.from(twin.current?.children ?? []) as HTMLElement[]
-      if (!kids.length) { setFit(0); return }
-      const tops = [...new Set(kids.map((k) => k.offsetTop))].sort((a, b) => a - b)
-      const limit = tops[1] ?? Infinity
-      setFit(kids.filter((k) => k.offsetTop <= limit).length)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    if (box.current) ro.observe(box.current)
-    return () => ro.disconnect()
-  }, [chips])
-  return (
-    <div ref={box} className="relative min-w-0 flex-1" data-testid="tag-row">
-      <div className="flex flex-wrap items-center gap-1.5 py-0.5">
-        {chips.slice(0, fit).map(({ name, tag }) => render(name, tag))}
-      </div>
-      <div ref={twin} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 py-0.5">
-        {chips.map(({ name }) => (
-          <span key={name} className="shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px]">{name} <span>{counts.get(name) ?? 0}</span></span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /** The Characters section, or the Groups section: the same
  *  page over one kind of card each, so a group is found in the menu rather
  *  than behind a switch inside Characters. */
@@ -111,7 +75,9 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const convertCharacterToPersona = useApp((s) => s.convertCharacterToPersona)
   const loadCharacter = useApp((s) => s.loadCharacter)
   const rosterPending = useApp((s) => s.rosterPending)
-  const tags = useApp((s) => s.tags)
+  const allTags = useApp((s) => s.tags)
+  // the Personas section keeps its own tags in the same list (they carry a scope)
+  const tags = useMemo(() => allTags.filter((t) => !t.scope), [allTags])
 
   const [query, setQuery] = useState('')
   const [grid, setGrid] = useState(true)
@@ -720,7 +686,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
         </DialogContent>
       </Dialog>
 
-      <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} />
+      <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} tags={tags} usage={(name) => characters.filter((c) => c.tags.includes(name)).length} />
       {/* every tag, searchable and sortable: a sheet on a phone, a dialog on desktop */}
       {isMobile ? (
         <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
@@ -887,59 +853,5 @@ function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
         )
       })}
     </div>
-  )
-}
-
-function TagManager({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const tags = useApp((s) => s.tags)
-  const updateTag = useApp((s) => s.updateTag)
-  const addTag = useApp((s) => s.addTag)
-  const deleteTag = useApp((s) => s.deleteTag)
-  const characters = useApp((s) => s.characters)
-  const tr = useT()
-  const [newName, setNewName] = useState('')
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80dvh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Tag manager</DialogTitle>
-        </DialogHeader>
-        <div className="flex gap-2">
-          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New tag name" aria-label="New tag name" className="h-8" />
-          <Button size="sm" onClick={() => { if (newName.trim()) { addTag(newName.trim()); setNewName('') } }}>Add</Button>
-        </div>
-        <p className="text-xs text-muted-foreground">{tr('chars.tag.folderHint')}</p>
-        <ul className="flex flex-col gap-1.5">
-          {[...tags].sort((a, b) => a.order - b.order).map((t) => (
-            <li key={t.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5">
-              <Input
-                value={t.name}
-                onChange={(e) => updateTag(t.id, { name: e.target.value })}
-                className="h-7 w-32 text-xs"
-                aria-label={`Rename tag ${t.name}`}
-              />
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                bg
-                <input type="color" value={t.color} onChange={(e) => updateTag(t.id, { color: e.target.value })} aria-label={`${t.name} background color`} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" />
-              </label>
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                text
-                <input type="color" value={t.textColor} onChange={(e) => updateTag(t.id, { textColor: e.target.value })} aria-label={`${t.name} text color`} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" />
-              </label>
-              <span className="ml-auto text-[11px] text-muted-foreground">{characters.filter((c) => c.tags.includes(t.name)).length}</span>
-              <Switch checked={t.visible} onCheckedChange={(v) => updateTag(t.id, { visible: v })} aria-label={`Toggle visibility of ${t.name}`} />
-              <label className="flex items-center gap-1 text-[11px] text-muted-foreground max-md:min-h-10">
-                {tr('chars.tag.folder')}
-                <Checkbox checked={t.asFolder} onCheckedChange={(v) => updateTag(t.id, { asFolder: !!v })} aria-label={tr('chars.tag.folderAria', { name: t.name })} />
-              </label>
-              <Button variant="ghost" size="sm" className="size-7 p-0" onClick={() => deleteTag(t.id)} aria-label={`Delete tag ${t.name}`}>
-                <Trash className="size-3.5" aria-hidden="true" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </DialogContent>
-    </Dialog>
   )
 }

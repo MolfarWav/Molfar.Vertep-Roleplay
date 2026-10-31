@@ -76,3 +76,13 @@ export function shortTokens(n: number): string {
   if (n >= 1000) return `${+(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`
   return String(n)
 }
+
+/** A task setting with a change applied: an empty, zero or undefined value takes the key away. */
+export function mergeTasks(cur: CardTasks, patch: Partial<CardTasks>): CardTasks {
+  const next: CardTasks = { ...cur, ...patch }
+  for (const k of Object.keys(next) as (keyof CardTasks)[]) if (next[k] === undefined || next[k] === '' || next[k] === 0) delete next[k]
+  return next
+}
+
+export const sameTasks = (a: CardTasks, b: CardTasks): boolean =>
+  (a.model ?? '') === (b.model ?? '') && (a.maxInput ?? 0) === (b.maxInput ?? 0) && (a.maxOutput ?? 0) === (b.maxOutput ?? 0)

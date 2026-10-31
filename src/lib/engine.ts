@@ -1311,6 +1311,9 @@ export function enginePersonaToUI(p: { id?: string } & Record<string, unknown>, 
     createdAt: (p.createdAt as number) ?? 0,
     ...(p.profile && typeof p.profile === 'object' && !Array.isArray(p.profile) ? { profile: p.profile as Record<string, unknown> } : {}),
     ...(typeof p.dialogueColor === 'string' && p.dialogueColor ? { dialogueColor: p.dialogueColor } : {}),
+    ...(Array.isArray(p.gallery) ? { gallery: p.gallery.filter((x): x is string => typeof x === 'string' && x !== '').map((x) => storedMediaUrl(x)) } : {}),
+    ...(p.cardTasks && typeof p.cardTasks === 'object' && !Array.isArray(p.cardTasks) ? { cardTasks: p.cardTasks as NonNullable<Persona['cardTasks']> } : {}),
+    ...(Array.isArray(p.tags) ? { tags: p.tags.filter((x): x is string => typeof x === 'string' && x.trim() !== '') } : {}),
   }
 }
 

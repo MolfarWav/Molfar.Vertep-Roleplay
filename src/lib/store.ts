@@ -152,6 +152,8 @@ interface AppState {
   focusWorldChatId: ID | null
   /** Set by openChatsFor: the Chats list narrows to this card once, then the view clears it. */
   chatsCharacterFilter: ID | null
+  /** Set by openChatsForPersona: the Chats list shows only this persona's chats until its chip is removed or Chats is left. Never saved. */
+  chatsPersonaFilter: ID | null
   /** the World section opens its Profiles tab on this profile (a level id or an own id) */
   focusWorldProfileId: string | null
   /** the World section opens its Worlds tab on this saved world */
@@ -161,6 +163,8 @@ interface AppState {
   /** the opening dialog (scenario and first message) is open on this chat; fresh = the chat is not opened yet */
   worldOpening: { chatId: ID; fresh: boolean } | null
   focusPersonaId: ID | null
+  /** Set when a persona is made from a file: its page opens on the Profile tab and starts Structure it, then clears this. Never saved. */
+  pendingStructure: ID | null
   /** set by "Open" on a card's book: the Lorebooks view selects that book and clears it */
   focusLorebookId: ID | null
   /** set by Home's Branches button: the chat view opens that chat's branch tree and clears it */
@@ -231,6 +235,7 @@ interface AppState {
   focusWorldChat: (chatId: ID) => void
   /** The Chats list, narrowed to one card's chats (from the card editor's chat count). */
   openChatsFor: (characterId: ID) => void
+  openChatsForPersona: (personaId: ID) => void
   focusWorldProfile: (profileId: string) => void
   focusWorldWorld: (worldId: string) => void
   focusBackgroundFolder: (folderId: ID) => void
@@ -371,7 +376,7 @@ interface AppState {
   addFolder: (name: string, scope: Folder['scope']) => ID
   deleteFolder: (id: ID) => void
   updateTag: (id: ID, patch: Partial<Tag>) => void
-  addTag: (name: string) => void
+  addTag: (name: string, scope?: 'persona') => void
   deleteTag: (id: ID) => void
   resetAll: () => void
 }
@@ -654,11 +659,13 @@ export const useApp = create<AppState>()(
       ledgerTabRequest: null,
       focusWorldChatId: null,
       chatsCharacterFilter: null,
+      chatsPersonaFilter: null,
       focusWorldProfileId: null,
       focusWorldWorldId: null,
       focusBackgroundFolderId: null,
       worldOpening: null,
       focusPersonaId: null,
+      pendingStructure: null,
       focusLorebookId: null,
       branchTreeFor: null,
       openBranchTree: (chatId) => {
@@ -1266,6 +1273,7 @@ export const useApp = create<AppState>()(
         else set({ view: 'litopys', focusLibraryChatId: chatId })
       },
       openChatsFor: (characterId) => set({ view: 'chats', drawer: null, chatsCharacterFilter: characterId }),
+      openChatsForPersona: (personaId) => set({ view: 'chats', drawer: null, chatsPersonaFilter: personaId }),
       focusWorldChat: (chatId) => {
         if (opensAsDrawer(get().view)) set({ focusWorldChatId: chatId, drawer: 'world' })
         else set({ view: 'world', focusWorldChatId: chatId })
@@ -2257,7 +2265,7 @@ export const useApp = create<AppState>()(
         const newId = uid('pers')
         bumpMutate()
         if (p) {
-          const copy = { ...p, id: newId, name: `${p.name} (copy)`, isDefault: false, createdAt: Date.now() }
+          const copy = { ...p, id: newId, name: `${p.name} (copy)`, isDefault: false, createdAt: Date.now(), ...(p.tags ? { tags: [...p.tags] } : {}) }
           set((s) => ({ personas: [...s.personas, copy] }))
           writeThrough('the new persona', j(`/personas/${encodeURIComponent(newId)}`, { method: 'PUT', body: JSON.stringify({ ...copy, id: newId }) }))
         }
@@ -2487,7 +2495,7 @@ export const useApp = create<AppState>()(
         characters: s.characters.map((c) => (c.folderId === id ? { ...c, folderId: null } : c)),
       })) },
       updateTag: (id, patch) => { bumpMutate(); set((s) => ({ tags: s.tags.map((t) => (t.id === id ? { ...t, ...patch } : t)) })) },
-      addTag: (name) => { bumpMutate(); set((s) => ({ tags: [...s.tags, { id: uid('tag'), name, color: '#7fb8d9', textColor: '#111318', visible: true, asFolder: false, order: s.tags.length }] })) },
+      addTag: (name, scope) => { bumpMutate(); set((s) => ({ tags: [...s.tags, { id: uid('tag'), name, color: '#7fb8d9', textColor: '#111318', visible: true, asFolder: false, order: s.tags.length, ...(scope ? { scope } : {}) }] })) },
       deleteTag: (id) => { bumpMutate(); set((s) => ({ tags: s.tags.filter((t) => t.id !== id) })) },
       resetAll: () => {
         // LOCAL data only — server data lives in the engine and is managed

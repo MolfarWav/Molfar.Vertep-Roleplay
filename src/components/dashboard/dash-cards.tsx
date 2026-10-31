@@ -4,7 +4,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, UserMinus, type Icon } from '@phosphor-icons/react'
+import { Compass, Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, UserMinus, type Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
@@ -138,8 +138,10 @@ export function MoodBody({ char, pulse }: { char: DashChar; pulse?: boolean }) {
         </div>
       )}
       {char.leads && (
-        <div className="text-[12px] text-muted-foreground">
-          <span className="text-[11px] tracking-wide uppercase">{t('dash.leads')}</span> {char.leads === 'user' ? t('dash.leads.user') : char.leads}
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12.5px] leading-snug">
+          <Compass className="size-3.5 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
+          <span className="text-muted-foreground">{t('dash.leads')}:</span>
+          <span className="min-w-0 font-medium break-words text-foreground">{char.leads === 'user' ? t('dash.leads.user') : char.leads}</span>
         </div>
       )}
       {!has && !pulse && <p className="text-[12px] text-muted-foreground">{t('dash.mood.none')}</p>}
