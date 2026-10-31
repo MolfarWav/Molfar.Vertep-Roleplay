@@ -7,7 +7,6 @@ import { useT } from '@/hooks/use-t'
 import { fitReport, shortTokens } from '@/lib/card-tasks'
 import { estimateTokens } from '@/lib/tokens'
 import { shortModel } from '@/lib/utils'
-import type { Character } from '@/lib/types'
 import type { CardTasksState } from '@/components/character/use-card-tasks'
 
 /** A whole number from a field, or undefined when it is empty (= automatic). */
@@ -21,11 +20,11 @@ const wholeNumber = (v: string): number | undefined => {
  * this card, with the limits that model really has and whether the card fits in one call. It sits at the top
  * of the Profile tab; what it sets is written by the editor's Save changes.
  */
-export function CardModelPanel({ tasks, c }: { tasks: CardTasksState; c: Pick<Character, 'description' | 'personality'> }) {
+export function CardModelPanel({ tasks, c }: { tasks: CardTasksState; c: { description: string; personality?: string } }) {
   const t = useT()
   const { edit, resolved, info, limits } = tasks
   const lim = limits('structure')
-  const cardTokens = estimateTokens(`${c.description}\n${c.personality}`)
+  const cardTokens = estimateTokens(`${c.description}\n${c.personality ?? ''}`)
   const fit = fitReport(cardTokens, lim)
   const name = resolved.model ? shortModel(resolved.model) : t('ct.none')
   const price = info?.pricing ? t('ct.price', { input: info.pricing.input, output: info.pricing.output }) : ''

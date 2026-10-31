@@ -1,51 +1,78 @@
 
 import { forEachImport } from '@/lib/import-progress'
 import { t as tNow } from '@/lib/i18n'
-import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash, Copy, UploadSimple, DownloadSimple, SealCheck, ChartBar, CheckCircle, CaretRight } from '@phosphor-icons/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, UploadSimple, DownloadSimple, CheckSquare, Check, SortAscending, MagnifyingGlass, DotsThree, Folder as FolderIcon, Tag as TagIcon, UserCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { InfoTip } from '@/components/ui/info-tip'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Pager, clampPage } from '@/components/ui/pager'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useConfirm } from '@/components/ui/confirm'
-import { MasterDetail } from '@/components/shell/master-detail'
 import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { downloadTextFile } from '@/lib/export'
-import { fileToDataUrl } from '@/lib/engine'
-import { DEFAULT_AVATAR, cn } from '@/lib/utils'
-import { PersonaQuestionnaire } from '@/components/persona/persona-questionnaire'
-import { PersonaDescription } from '@/components/persona/persona-profile'
-import { MemorySection } from '@/components/character/memory-section'
-import { applyAnswers, personaAdditions, type PersonaAnswers } from '@/lib/profile'
+import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { useBackClose } from '@/hooks/use-back-close'
+import { useT } from '@/hooks/use-t'
+import { PersonaPage } from '@/components/persona/persona-page'
+import { PersonaGrid, PersonaRows, type PersonaItem } from '@/components/persona/persona-list'
+import { PersonaPreviewPanel, PersonaPreviewSheet } from '@/components/persona/persona-preview'
+import { ActiveFilters, AllTagsPanel, FolderList, FolderStrip, NameDialog, SelectBar, TagFilterRow, type SelectActions } from '@/components/persona/persona-filters'
+import { TagManager } from '@/components/tags/tag-manager'
+import { folderCounts, folderTags, resolveFolder } from '@/lib/character-folders'
+import {
+  NO_FOLDER, PERSONA_SORTS, cleanTags, filterPersonas, folderNamesOf, moveToFolder, noFolderCount, personaLine, personaTagChips,
+  personaTagCounts, personaTokens, profileFill, sortPersonas, tagsOf, withTag, type PersonaSort,
+} from '@/lib/persona-list'
+
+const SORT_KEY = 'rp.personas.sort'
+const FOLDER_KEY = 'rp.personas.folder'
+const readSort = (): PersonaSort => {
+  try {
+    const v = localStorage.getItem(SORT_KEY)
+    return PERSONA_SORTS.find((s) => s === v) ?? 'recent'
+  } catch { return 'recent' }
+}
+const readFolder = (): string | null => {
+  try { return localStorage.getItem(FOLDER_KEY) } catch { return null }
+}
+const remember = (key: string, value: string | null) => {
+  try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value) } catch { /* storage blocked */ }
+}
+
+// years of use → thousands of personas; the list pages through them
+const PERSONA_PAGE = 100
 
 export function PersonasView() {
+  const t = useT()
+  const isMobile = useIsMobile()
   const personas = useApp((s) => s.personas)
   const characters = useApp((s) => s.characters)
   const chats = useApp((s) => s.chats)
-  const lorebooks = useApp((s) => s.lorebooks)
+  const allTags = useApp((s) => s.tags)
   const updatePersona = useApp((s) => s.updatePersona)
-  const usePersona = useApp((s) => s.usePersona)
+  const switchTo = useApp((s) => s.usePersona)
   const addPersona = useApp((s) => s.addPersona)
   const duplicatePersona = useApp((s) => s.duplicatePersona)
   const deletePersona = useApp((s) => s.deletePersona)
+  const addTag = useApp((s) => s.addTag)
+  const updateTag = useApp((s) => s.updateTag)
+  const openChatsForPersona = useApp((s) => s.openChatsForPersona)
   const __focus = useApp.getState().focusPersonaId
   useEffect(() => { if (__focus) useApp.setState({ focusPersonaId: null }) }, [])
-  const [selectedId, setSelectedId] = useState(__focus ?? personas[0]?.id ?? null)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [statsOpen, setStatsOpen] = useState(false)
-  const [askOpen, setAskOpen] = useState(false)
+  // a persona opened from elsewhere (a chat's persona link) goes straight to its page
+  const [selectedId, setSelectedId] = useState<string | null>(__focus ?? null)
+  const [detailOpen, setDetailOpen] = useState(!!__focus)
   const [confirm, confirmDialog] = useConfirm()
   const importInput = useRef<HTMLInputElement>(null)
-  const avatarInput = useRef<HTMLInputElement>(null)
   const p = personas.find((x) => x.id === selectedId) ?? personas[0]
   // the persona being spoken as right now: the open chat's own, else the
   // selection new chats start with
@@ -54,6 +81,128 @@ export function PersonasView() {
   const activeId = personas.some((x) => x.id === chatPersonaId)
     ? chatPersonaId
     : (personas.find((x) => x.isDefault)?.id ?? null)
+
+  // ── the overview: filters, sort, select mode ──
+  const [query, setQuery] = useState('')
+  const [sort, setSortState] = useState<PersonaSort>(readSort)
+  const [folderChoice, setFolderChoice] = useState<string | null>(readFolder)
+  const [tagFilter, setTagFilter] = useState<string[]>([])
+  const [selectMode, setSelectMode] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(0)
+  const [tagManagerOpen, setTagManagerOpen] = useState(false)
+  const [allTagsOpen, setAllTagsOpen] = useState(false)
+  const [foldersOpen, setFoldersOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  // which dialog makes a name: a folder (and whether the ticked personas move into it) or a tag for them
+  const [naming, setNaming] = useState<'folder' | 'folder-move' | 'tag' | null>(null)
+
+  const setSort = (s: PersonaSort) => { setSortState(s); remember(SORT_KEY, s); setPage(0) }
+  const pickFolder = (f: string | null) => { setFolderChoice(f); remember(FOLDER_KEY, f); setPage(0) }
+
+  // the Personas section's own tags: the same list as the characters' tags, told apart by `scope`
+  const ptags = useMemo(() => allTags.filter((x) => x.scope === 'persona'), [allTags])
+  const folders = useMemo(() => folderTags(ptags), [ptags])
+  const tagMeta = useMemo(() => new Map(ptags.map((x) => [x.name, x])), [ptags])
+  // a folder that stopped being one (unticked, renamed, deleted) is All again
+  const folder = folderChoice === NO_FOLDER ? (folders.length ? NO_FOLDER : null) : resolveFolder(folderChoice, folders)
+  useEffect(() => {
+    if (folderChoice !== null && folder === null) { setFolderChoice(null); remember(FOLDER_KEY, null) }
+  }, [folderChoice, folder])
+
+  const chatCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const ch of chats) if (ch.personaId) m.set(ch.personaId, (m.get(ch.personaId) ?? 0) + 1)
+    return m
+  }, [chats])
+  const tokenMap = useMemo(() => new Map(personas.map((x) => [x.id, personaTokens(x)])), [personas])
+  const folderNames = useMemo(() => folders.map((f) => f.name), [folders])
+  const folderCount = useMemo(() => folderCounts(personas.map((x) => ({ tags: tagsOf(x) })), folders), [personas, folders])
+  const noFolder = useMemo(() => noFolderCount(personas, folders), [personas, folders])
+  const tagCounts = useMemo(() => personaTagCounts(personas), [personas])
+  const tagChips = useMemo(() => personaTagChips(personas, ptags), [personas, ptags])
+
+  const filtered = useMemo(
+    () => sortPersonas(filterPersonas(personas, { query, tags: tagFilter, folder, folderNames }), sort, chatCounts, tokenMap),
+    [personas, query, tagFilter, folder, folderNames, sort, chatCounts, tokenMap],
+  )
+  const pageNo = clampPage(page, filtered.length, PERSONA_PAGE)
+  const items: PersonaItem[] = useMemo(() => filtered.slice(pageNo * PERSONA_PAGE, (pageNo + 1) * PERSONA_PAGE).map((x) => ({
+    p: x, line: personaLine(x), chats: chatCounts.get(x.id) ?? 0, tokens: tokenMap.get(x.id) ?? 0,
+    fill: profileFill(x).label, tags: tagsOf(x), folders: folderNamesOf(x, folders),
+  })), [filtered, pageNo, chatCounts, tokenMap, folders])
+  const previewItem = items.find((i) => i.p.id === selectedId) ?? items.find((i) => i.p.id === activeId) ?? items[0] ?? null
+
+  const clearFilters = () => { setQuery(''); setTagFilter([]); pickFolder(null) }
+  const toggleTag = (name: string) => { setTagFilter((f) => (f.includes(name) ? f.filter((x) => x !== name) : [...f, name])); setPage(0) }
+  const leaveSelect = () => { setSelectMode(false); setPicked(new Set()) }
+  const tick = (id: string, on: boolean) => setPicked((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n })
+  const tap = (id: string) => {
+    if (selectMode) { tick(id, !picked.has(id)); return }
+    setSelectedId(id)
+    if (isMobile) setSheetOpen(true)
+  }
+  const open = (id: string) => { setSelectedId(id); setSheetOpen(false); setDetailOpen(true) }
+
+  const withPersonas = (ids: string[]) => ids.map((id) => personas.find((x) => x.id === id)).filter((x): x is NonNullable<typeof x> => !!x)
+
+  /** A folder is a persona tag marked "folder"; an existing tag of that name just becomes one. */
+  const makeFolder = (name: string): string => {
+    const have = useApp.getState().tags.find((x) => x.scope === 'persona' && x.name === name)
+    if (have) { if (!have.asFolder) updateTag(have.id, { asFolder: true }); return name }
+    addTag(name, 'persona')
+    const made = useApp.getState().tags.find((x) => x.scope === 'persona' && x.name === name)
+    if (made) updateTag(made.id, { asFolder: true })
+    return name
+  }
+  const moveTo = (ids: string[], target: string | null) => {
+    for (const x of withPersonas(ids)) {
+      const next = moveToFolder(x, target, folders)
+      if (next.join('\n') !== tagsOf(x).join('\n')) updatePersona(x.id, { tags: next })
+    }
+    toast.success(target ? t('personas.moved', { name: target }) : t('personas.movedNone'))
+  }
+  const addToFolder = (ids: string[], target: string) => {
+    for (const x of withPersonas(ids)) {
+      const next = withTag(x, target, true)
+      if (next) updatePersona(x.id, { tags: next })
+    }
+    toast.success(t('personas.moved', { name: target }))
+  }
+  const tagThem = (ids: string[], name: string) => {
+    for (const x of withPersonas(ids)) {
+      const next = withTag(x, name, true)
+      if (next) updatePersona(x.id, { tags: next })
+    }
+    toast.success(t('personas.tagged', { name }))
+  }
+  const exportThem = (ids: string[]) => {
+    const list = withPersonas(ids)
+    downloadTextFile(`personas-${list.length}.json`, JSON.stringify(list, null, 2), 'application/json')
+    toast.success(t('personas.exported', { n: list.length }))
+  }
+  const removeThem = async (ids: string[]) => {
+    const list = withPersonas(ids)
+    if (!list.length) return false
+    const yes = await confirm({
+      title: list.length === 1 ? t('personas.deleteOne', { name: list[0]?.name ?? '' }) : t('personas.deleteN', { n: list.length }),
+      description: t('personas.deleteDesc'),
+    })
+    if (!yes) return false
+    for (const x of list) deletePersona(x.id)
+    if (selectedId && ids.includes(selectedId)) setSelectedId(personas.find((x) => !ids.includes(x.id))?.id ?? null)
+    toast.success(t('personas.deleted'))
+    return true
+  }
+
+  const newPersona = () => {
+    // inside a folder, the new persona starts in it
+    const id = addPersona(folder && folder !== NO_FOLDER ? { tags: [folder] } : undefined)
+    setSelectedId(id)
+    setDetailOpen(true)
+  }
+  const switchPersona = (id: string, name: string) => { switchTo(id); toast.success(t('personas.using', { name })) }
+  const downloadBackup = () => { downloadTextFile('personas-backup.json', JSON.stringify(personas, null, 2), 'application/json'); toast.success('Backup downloaded') }
 
   /** Import: our backup shape (array of personas) or the common
    *  { name: description } personas object. */
@@ -66,7 +215,9 @@ export function PersonasView() {
         if (Array.isArray(json)) {
           for (const item of json) {
             if (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string') {
-              setSelectedId(addPersona(item as never)); added++
+              // tags come from a file: keep a clean list, or none
+              const tags = cleanTags((item as { tags?: unknown }).tags)
+              setSelectedId(addPersona({ ...(item as object), tags: tags?.length ? tags : undefined } as never)); added++
             }
           }
         } else if (json && typeof json === 'object') {
@@ -77,274 +228,264 @@ export function PersonasView() {
         return true
       } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? 'invalid JSON'}`); return false }
     })
-    if (added) { toast.success(`Imported ${added} persona${added > 1 ? 's' : ''}`); setDetailOpen(true) }
+    if (added) toast.success(`Imported ${added} persona${added > 1 ? 's' : ''}`)
   }
 
-  const uploadAvatar = async (file: File | undefined) => {
-    if (!file || !p) return
-    try {
-      updatePersona(p.id, { avatar: await fileToDataUrl(file, 512) })
-      toast.success('Avatar updated')
-    } catch (e) { toast.error(String((e as Error).message ?? e)) }
+  // ── pieces of the overview ──
+  // tags the Add tag menu offers: every non-folder tag, in use or only in the manager
+  const tagNames = useMemo(() => {
+    const folderSet = new Set(folderNames)
+    const names = tagChips.map((c) => c.name).filter((n) => !folderSet.has(n))
+    for (const x of ptags) if (!x.asFolder && x.name.trim() && !names.includes(x.name)) names.push(x.name)
+    return names
+  }, [tagChips, ptags, folderNames])
+
+  const selectActions: SelectActions = {
+    count: picked.size,
+    allTicked: filtered.length > 0 && picked.size === filtered.length,
+    folders,
+    tagNames,
+    onToggleAll: () => setPicked(picked.size === filtered.length ? new Set() : new Set(filtered.map((x) => x.id))),
+    onMove: (f) => { moveTo([...picked], f); leaveSelect() },
+    onNewFolder: () => setNaming('folder-move'),
+    onTag: (name) => { tagThem([...picked], name); leaveSelect() },
+    onNewTag: () => setNaming('tag'),
+    onExport: () => { exportThem([...picked]); leaveSelect() },
+    onDelete: () => { void removeThem([...picked]).then((done) => { if (done) leaveSelect() }) },
+    onCancel: leaveSelect,
   }
 
-  const select = (id: string) => {
-    setSelectedId(id)
-    setDetailOpen(true)
+  const previewActions = (it: PersonaItem) => ({
+    inUse: it.p.id === activeId,
+    goesWith: it.p.boundCharacterIds.map((id) => characters.find((c) => c.id === id)?.name).filter((n): n is string => !!n),
+    tagMeta,
+    onOpen: () => open(it.p.id),
+    onUse: () => switchPersona(it.p.id, it.p.name),
+    onDuplicate: () => { const id = duplicatePersona(it.p.id); setSelectedId(id); setSheetOpen(false); toast.success('Persona duplicated') },
+    onDelete: () => { setSheetOpen(false); void removeThem([it.p.id]) },
+    onChats: () => { setSheetOpen(false); openChatsForPersona(it.p.id) },
+  })
+
+  const sortLabel = (s: PersonaSort) => t(`personas.sort.${s}` as Parameters<typeof t>[0])
+  const sortSelect = (
+    <Select value={sort} onValueChange={(v) => setSort(v as PersonaSort)}>
+      <SelectTrigger className="h-8 w-auto shrink-0" aria-label={t('personas.sort')} data-testid="persona-sort">
+        <SelectValue>{sortLabel(sort)}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {PERSONA_SORTS.map((s) => <SelectItem key={s} value={s}>{sortLabel(s)}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
+
+  const importInputEl = <input ref={importInput} type="file" accept="application/json" multiple className="hidden" onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }} />
+
+  const search = (
+    <div className="relative min-w-0 flex-1 md:min-w-36 md:max-w-72">
+      <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={t('personas.search')} className="h-10 pl-8 text-sm md:h-8" aria-label={t('personas.search')} />
+    </div>
+  )
+
+  const header = isMobile ? (
+    <header className="flex items-center gap-2 px-3 py-2">
+      <PaneTitle section="personas" count={personas.length} />
+      {search}
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="outline" className="size-11 shrink-0 p-0" aria-label={t('personas.more')}><DotsThree className="size-5" aria-hidden="true" /></Button>} />
+        <DropdownMenuContent align="end">
+          {PERSONA_SORTS.map((s) => (
+            <DropdownMenuItem key={s} onClick={() => setSort(s)}>
+              <Check className={cn('size-4', sort !== s && 'opacity-0')} aria-hidden="true" />{sortLabel(s)}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => importInput.current?.click()}><UploadSimple className="size-4" aria-hidden="true" />{t('personas.import')}</DropdownMenuItem>
+          <DropdownMenuItem onClick={downloadBackup}><DownloadSimple className="size-4" aria-hidden="true" />{t('personas.backup')}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </header>
+  ) : (
+    <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+      <PaneTitle section="personas" count={personas.length} />
+      {search}
+      <div className="flex items-center gap-1.5 text-muted-foreground"><SortAscending className="size-4" aria-hidden="true" />{sortSelect}</div>
+      <Button variant={selectMode ? 'secondary' : 'outline'} size="sm" className="h-8" aria-pressed={selectMode} onClick={() => (selectMode ? leaveSelect() : setSelectMode(true))} data-testid="persona-select-toggle">
+        <CheckSquare className="size-4" weight={selectMode ? 'fill' : 'regular'} aria-hidden="true" />{t('personas.selectMode')}
+      </Button>
+      <div className="ml-auto flex items-center gap-1.5">
+        <Button variant="outline" size="sm" className="h-8" onClick={() => importInput.current?.click()}><UploadSimple className="size-4" aria-hidden="true" />{t('personas.import')}</Button>
+        <Button variant="outline" size="sm" className="h-8" onClick={downloadBackup}><DownloadSimple className="size-4" aria-hidden="true" />{t('personas.backup')}</Button>
+        <Button className="h-8" onClick={newPersona} data-testid="new-persona"><Plus className="size-4" aria-hidden="true" />{t('personas.new')}</Button>
+      </div>
+    </header>
+  )
+
+  const empty = personas.length === 0 ? (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon"><UserCircle aria-hidden="true" /></EmptyMedia>
+        <EmptyTitle>{t('personas.emptyTitle')}</EmptyTitle>
+        <EmptyDescription>{t('personas.emptyHint')}</EmptyDescription>
+      </EmptyHeader>
+      <Button className="h-11 md:h-8" onClick={newPersona}><Plus className="size-4" aria-hidden="true" />{t('personas.new')}</Button>
+    </Empty>
+  ) : (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon"><MagnifyingGlass aria-hidden="true" /></EmptyMedia>
+        <EmptyTitle>{t('personas.noMatchTitle')}</EmptyTitle>
+        <EmptyDescription>{t('personas.noMatchHint')}</EmptyDescription>
+      </EmptyHeader>
+      <Button variant="outline" className="h-11 md:h-8" onClick={clearFilters}>{t('personas.clearFilters')}</Button>
+    </Empty>
+  )
+
+  const listProps = {
+    items, activeId, previewId: previewItem?.p.id ?? null, selectMode, picked, tagMeta,
+    onTap: tap, onOpen: open, onTick: tick,
   }
 
-    // years of use → thousands of personas; the sidebar pages through them
-  const PERSONA_PAGE = 100
-  const [personaPage, setPersonaPage] = useState(0)
-  const pagedPersonas = personas.slice(clampPage(personaPage, personas.length, PERSONA_PAGE) * PERSONA_PAGE, (clampPage(personaPage, personas.length, PERSONA_PAGE) + 1) * PERSONA_PAGE)
+  const allTagsPanel = (
+    <AllTagsPanel
+      chips={tagChips} counts={tagCounts} active={tagFilter} onToggle={toggleTag}
+      onClear={() => { setTagFilter([]); setPage(0) }}
+      onManage={() => { setAllTagsOpen(false); setTagManagerOpen(true) }}
+      onDone={() => setAllTagsOpen(false)}
+    />
+  )
+
+  const overview = (
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      {importInputEl}
+      {header}
+      {!isMobile && folders.length > 0 && (
+        <FolderStrip
+          folders={folders} folder={folder} counts={folderCount} total={personas.length} noFolder={noFolder}
+          onPick={pickFolder} onAdd={() => setNaming('folder')} onDropIds={addToFolder}
+        />
+      )}
+      {!isMobile && personas.length > 0 && (
+        <TagFilterRow
+          chips={tagChips} counts={tagCounts} active={tagFilter} onToggle={toggleTag}
+          onAll={() => setAllTagsOpen(true)} onManage={() => setTagManagerOpen(true)}
+          onAddFolder={folders.length === 0 ? () => setNaming('folder') : undefined}
+        />
+      )}
+      {isMobile && (folder !== null || tagFilter.length > 0) && (
+        <div className="px-3 pb-2">
+          <ActiveFilters folder={folder} folders={folders} tags={tagFilter} onFolder={pickFolder} onTag={toggleTag} onClear={() => { setTagFilter([]); pickFolder(null) }} />
+        </div>
+      )}
+      {!isMobile && selectMode && <SelectBar a={selectActions} />}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {filtered.length === 0 ? empty : (
+            <ScrollArea className="min-h-0 flex-1">
+              {isMobile ? <PersonaRows {...listProps} /> : <PersonaGrid {...listProps} />}
+              <Pager total={filtered.length} page={pageNo} pageSize={PERSONA_PAGE} onPage={setPage} />
+            </ScrollArea>
+          )}
+        </div>
+        {!isMobile && previewItem && <PersonaPreviewPanel item={previewItem} a={previewActions(previewItem)} />}
+      </div>
+      {isMobile && (selectMode ? <SelectBar a={selectActions} compact /> : (
+        <nav className="flex shrink-0 items-stretch border-t border-border bg-card px-1" aria-label={t('personas.tools')} data-testid="persona-bottom-bar">
+          <Button variant="ghost" className="h-12 min-w-0 flex-1 flex-col gap-0.5 px-1 text-[11px]" onClick={() => setSelectMode(true)} data-testid="persona-select-toggle">
+            <CheckSquare className="size-4" aria-hidden="true" />{t('personas.selectMode')}
+          </Button>
+          <Button variant="ghost" className="relative h-12 min-w-0 flex-1 flex-col gap-0.5 px-1 text-[11px]" onClick={() => setFoldersOpen(true)}>
+            <FolderIcon className="size-4" aria-hidden="true" />{t('personas.folders.label')}
+          </Button>
+          <Button variant="ghost" className="relative h-12 min-w-0 flex-1 flex-col gap-0.5 px-1 text-[11px]" onClick={() => setAllTagsOpen(true)}>
+            <TagIcon className="size-4" aria-hidden="true" />{t('personas.tags.label')}
+            {tagFilter.length > 0 && <Badge className="absolute right-3 top-0.5 h-4 min-w-4 px-1 text-[10px]">{tagFilter.length}</Badge>}
+          </Button>
+          <Button className="m-1.5 h-11 min-w-0 flex-[1.3] gap-1 px-2" onClick={newPersona} data-testid="new-persona">
+            <Plus className="size-4" aria-hidden="true" />{t('personas.newShort')}
+          </Button>
+        </nav>
+      ))}
+      {isMobile && previewItem && <PersonaPreviewSheet item={previewItem} a={previewActions(previewItem)} open={sheetOpen} onOpenChange={setSheetOpen} />}
+
+      {/* every tag, searchable and sortable: a sheet on a phone, a dialog on desktop */}
+      {isMobile ? (
+        <>
+          <Sheet open={allTagsOpen} onOpenChange={setAllTagsOpen}>
+            <SheetContent side="bottom" className="max-h-[80dvh]">
+              <SheetHeader><SheetTitle>{t('characters.tagsTitle')}</SheetTitle></SheetHeader>
+              {allTagsPanel}
+            </SheetContent>
+          </Sheet>
+          <Sheet open={foldersOpen} onOpenChange={setFoldersOpen}>
+            <SheetContent side="bottom" className="max-h-[80dvh]">
+              <SheetHeader><SheetTitle>{t('personas.folders.label')}</SheetTitle></SheetHeader>
+              <FolderList
+                folders={folders} folder={folder} counts={folderCount} total={personas.length} noFolder={noFolder}
+                onPick={(f) => { pickFolder(f); setFoldersOpen(false) }}
+                onAdd={() => { setFoldersOpen(false); setNaming('folder') }}
+              />
+            </SheetContent>
+          </Sheet>
+        </>
+      ) : (
+        <Dialog open={allTagsOpen} onOpenChange={setAllTagsOpen}>
+          <DialogContent className="max-h-[80dvh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader><DialogTitle>{t('characters.tagsTitle')}</DialogTitle></DialogHeader>
+            {allTagsPanel}
+          </DialogContent>
+        </Dialog>
+      )}
+      <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} tags={ptags} scope="persona" usage={(name) => tagCounts.get(name) ?? 0} />
+      <NameDialog
+        open={naming === 'folder' || naming === 'folder-move'}
+        onOpenChange={(o) => { if (!o) setNaming(null) }}
+        title={t('personas.folderTitle')} label={t('personas.folderName')} confirm={t('personas.folderCreate')}
+        onSubmit={(name) => {
+          const f = makeFolder(name)
+          if (naming === 'folder-move') { moveTo([...picked], f); leaveSelect() }
+          pickFolder(f)
+          toast.success(t('personas.folderCreated', { name: f }))
+        }}
+      />
+      <NameDialog
+        open={naming === 'tag'}
+        onOpenChange={(o) => { if (!o) setNaming(null) }}
+        title={t('personas.tagTitle')} label={t('personas.tagName')} confirm={t('personas.tagCreate')}
+        onSubmit={(name) => {
+          if (!useApp.getState().tags.some((x) => x.scope === 'persona' && x.name === name)) addTag(name, 'persona')
+          tagThem([...picked], name)
+          leaveSelect()
+        }}
+      />
+    </div>
+  )
+
+  const back = () => setDetailOpen(false)
+  useBackClose(detailOpen && !!p, back)
 
   return (
     <SectionPage section="personas" count={personas.length} hideOnPhone={detailOpen && !!p}>
-    <MasterDetail
-      detailOpen={detailOpen && !!p}
-      onBack={() => setDetailOpen(false)}
-      detailTitle={p?.name}
-      masterWidth="w-60"
-      master={
-        <aside className="flex h-full min-h-0 flex-col">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <PaneTitle section="personas" count={personas.length} />
-          <Button variant="ghost" size="sm" className="ml-auto size-7 p-0" onClick={() => setSelectedId(addPersona())} aria-label="New persona">
-            <Plus className="size-4" aria-hidden="true" />
-          </Button>
-        </div>
-        <ScrollArea className="min-h-0 flex-1">
-          <ul className="flex flex-col p-1.5">
-            {pagedPersonas.map((x) => (
-              <li key={x.id} className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => select(x.id)}
-                  className={cn('relative flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm max-md:min-h-12 max-md:pr-7', x.id === p?.id ? 'bg-accent' : 'hover:bg-accent/50')}
-                >
-                  <Avatar className="size-7 rounded-md">
-                    <AvatarImage src={x.avatar || DEFAULT_AVATAR} alt="" />
-                    <AvatarFallback>{x.name.slice(0, 2)}</AvatarFallback>
-                  </Avatar>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1 truncate font-medium">
-                      {x.name}
-                      {x.id === activeId && <Badge variant="secondary" className="shrink-0 px-1.5 text-[10px] font-normal">In use</Badge>}
-                    </span>
-                    <span className="block truncate text-[11px] text-muted-foreground">{x.title}</span>
-                  </span>
-                  <CaretRight className="absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:hidden" aria-hidden="true" />
-                </button>
-                {x.id !== activeId && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 shrink-0 p-0 text-muted-foreground"
-                    onClick={() => { usePersona(x.id); toast.success(`Using ${x.name}`) }}
-                    aria-label={`Use ${x.name}`}
-                  >
-                    <CheckCircle className="size-4" aria-hidden="true" />
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-          <Pager total={personas.length} page={clampPage(personaPage, personas.length, PERSONA_PAGE)} pageSize={PERSONA_PAGE} onPage={setPersonaPage} />
-        </ScrollArea>
-        <div className="flex gap-1 border-t border-border p-1.5">
-          <input ref={importInput} type="file" accept="application/json" multiple className="hidden" onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }} />
-          <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => importInput.current?.click()}><UploadSimple className="size-3.5" aria-hidden="true" />Import</Button>
-          <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => { downloadTextFile('personas-backup.json', JSON.stringify(personas, null, 2), 'application/json'); toast.success('Backup downloaded') }}><DownloadSimple className="size-3.5" aria-hidden="true" />Backup</Button>
-        </div>
-        </aside>
-      }
-      detail={
+      {detailOpen && p ? (
         <>
-      {p ? (
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="size-16 rounded-lg">
-                <AvatarImage src={p.avatar || DEFAULT_AVATAR} alt={p.name} />
-                <AvatarFallback>{p.name.slice(0, 2)}</AvatarFallback>
-              </Avatar>
-                <div className="flex flex-col gap-1">
-                <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={(e) => { void uploadAvatar(e.target.files?.[0]); e.target.value = '' }} />
-                <div className="flex gap-1.5">
-                  <Button variant="outline" size="sm" className="text-xs" onClick={() => avatarInput.current?.click()}>Upload</Button>
-                </div>
-                {p.id === activeId ? (
-                  <Badge variant="secondary" className="h-7 w-fit gap-1 px-2 text-xs font-normal" data-testid="persona-in-use">
-                    <SealCheck className="size-3.5" aria-hidden="true" />In use
-                  </Badge>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => { usePersona(p.id); toast.success(`Using ${p.name}`) }}
-                  >
-                    Use this persona
-                  </Button>
-                )}
-              </div>
-              <div className="ml-auto flex gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)} aria-label="Usage stats"><ChartBar className="size-4" aria-hidden="true" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => { setSelectedId(duplicatePersona(p.id)); toast.success('Persona duplicated') }} aria-label="Duplicate"><Copy className="size-4" aria-hidden="true" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => void confirm({
-                  title: `Delete ${p.name}?`,
-                  description: 'Their avatar and description go with them, chats keep their messages.',
-                }).then((yes) => {
-                  if (!yes) return
-                  deletePersona(p.id); setSelectedId(personas.find((x) => x.id !== p.id)?.id ?? ""); toast.success('Deleted')
-                })} aria-label="Delete persona">
-                  <Trash className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Name</Label>
-                <Input value={p.name} onChange={(e) => updatePersona(p.id, { name: e.target.value })} aria-label="Persona name" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Pronouns</Label>
-                <Input value={p.pronouns} onChange={(e) => updatePersona(p.id, { pronouns: e.target.value })} aria-label="Pronouns" />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Title</Label>
-              <Input value={p.title} onChange={(e) => updatePersona(p.id, { title: e.target.value })} aria-label="Title" />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Label className="w-36 text-xs">Dialogue colour</Label>
-              <input
-                type="color"
-                value={p.dialogueColor || '#888888'}
-                onChange={(e) => updatePersona(p.id, { dialogueColor: e.target.value })}
-                aria-label="Dialogue colour"
-                className="size-8 cursor-pointer rounded border-0 bg-transparent p-0"
-              />
-              <span className="text-xs text-muted-foreground">{p.dialogueColor || 'the theme\'s quote colour'}</span>
-              {p.dialogueColor && (
-                <Button variant="ghost" size="sm" onClick={() => updatePersona(p.id, { dialogueColor: '' })}>Reset</Button>
-              )}
-              <InfoTip label="About dialogue colour">The colour of this persona&apos;s quoted speech in the chat. A message takes the colour of the persona it was sent under, so changing it repaints that persona&apos;s earlier messages too.</InfoTip>
-            </div>
-            <PersonaDescription key={`description-${p.id}`} p={p} update={(patch) => updatePersona(p.id, patch)} onAsk={() => setAskOpen(true)} confirm={confirm} />
-
-            <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-              <h2 className="text-xs font-semibold uppercase text-muted-foreground">Bindings</h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex w-28 items-center gap-1">
-                  <Label className="text-xs">Binding mode</Label>
-                  <InfoTip label="About binding mode">
-                    <p><strong>Default</strong>: nothing is bound; you pick the persona by hand.</p>
-                    <p><strong>Lock to character</strong>: a new chat with a character you tick below starts with this persona.</p>
-                    <p>Lock to chat is saved but does not change which persona a new chat starts with.</p>
-                  </InfoTip>
-                </div>
-                <Select value={p.binding} onValueChange={(v) => updatePersona(p.id, { binding: v as never })}>
-                  <SelectTrigger className="w-48" aria-label="Binding mode"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default</SelectItem>
-                    <SelectItem value="character">Lock to character</SelectItem>
-                    <SelectItem value="chat">Lock to chat</SelectItem>
-                  </SelectContent>
-                </Select>
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch checked={p.autoLock} onCheckedChange={(v) => updatePersona(p.id, { autoLock: v })} aria-label="Auto-lock" />
-                  Auto-lock
-                </label>
-                <InfoTip label="About auto-lock">When two personas are bound to the same character, the auto-locked one is chosen for new chats with it.</InfoTip>
-              </div>
-              {p.binding === 'character' && (
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Bound characters</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {characters.filter((c) => !c.isGroup).map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => updatePersona(p.id, { boundCharacterIds: p.boundCharacterIds.includes(c.id) ? p.boundCharacterIds.filter((x) => x !== c.id) : [...p.boundCharacterIds, c.id] })}
-                        className={cn('rounded-full border px-2 py-0.5 text-xs', p.boundCharacterIds.includes(c.id) ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground')}
-                      >
-                        {c.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-              <h2 className="text-xs font-semibold uppercase text-muted-foreground">Bound lorebooks</h2>
-              {lorebooks.map((b) => (
-                <label key={b.id} className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={p.lorebookIds.includes(b.id)}
-                    onCheckedChange={(v) => updatePersona(p.id, { lorebookIds: v ? [...p.lorebookIds, b.id] : p.lorebookIds.filter((x) => x !== b.id) })}
-                    aria-label={`Bind ${b.name}`}
-                  />
-                  {b.name}
-                </label>
-              ))}
-            </div>
-
-            <MemorySection key={`memory-${p.id}`} owner={{ kind: 'persona', id: p.id, name: p.name }} framed />
-          </div>
-        </ScrollArea>
-      ) : (
-        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No persona selected</div>
-      )}
-
-      {p && (
-        <PersonaQuestionnaire
-          persona={p}
-          open={askOpen}
-          onOpenChange={setAskOpen}
-          onSave={(a: PersonaAnswers) => {
-            const write = () => { updatePersona(p.id, applyAnswers(p, a)); setAskOpen(false); toast.success('Persona written') }
-            // an edit inside the lines the answers wrote would be replaced: ask first
-            if (personaAdditions(p) !== null) return write()
-            void confirm({
-              title: 'Replace your edits?',
-              description: 'You changed the description by hand where the answers wrote it. Saving rewrites those lines from the answers.',
-              actionLabel: 'Rewrite',
-            }).then((yes) => { if (yes) write() })
-          }}
-        />
-      )}
-      <Dialog open={statsOpen} onOpenChange={setStatsOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Usage: {p?.name}</DialogTitle></DialogHeader>
-          {p && (() => {
-            const using = chats.filter((ch) => ch.personaId === p.id)
-            const msgs = using.flatMap((ch) => ch.messages.filter((m) => m.role === 'user'))
-            const words = msgs.reduce((n, m) => n + (m.swipes[m.activeSwipe]?.content.trim().split(/\s+/).filter(Boolean).length ?? 0), 0)
-            const pairs = new Map<string, number>()
-            for (const ch of using) {
-              const cid = ch.characterId
-              if (cid) pairs.set(cid, (pairs.get(cid) ?? 0) + 1)
-            }
-            const top = [...pairs.entries()].sort((a, b) => b[1] - a[1])[0]
-            const topChar = characters.find((c) => c.id === top?.[0])
-            return (
-              <ul className="flex flex-col gap-1 text-sm">
-                <li className="flex justify-between"><span className="text-muted-foreground">Chats using this persona</span><span>{using.length}</span></li>
-                <li className="flex justify-between"><span className="text-muted-foreground">Messages sent</span><span>{msgs.length}</span></li>
-                <li className="flex justify-between"><span className="text-muted-foreground">Words written</span><span>{words.toLocaleString()}</span></li>
-                <li className="flex justify-between"><span className="text-muted-foreground">Most-paired character</span><span>{topChar?.name ?? '—'}</span></li>
-              </ul>
-            )
-          })()}
-        </DialogContent>
-      </Dialog>
-        {confirmDialog}
+          <PersonaPage
+            key={p.id}
+            p={p}
+            inUse={p.id === activeId}
+            confirm={confirm}
+            onBack={back}
+            onUse={() => switchPersona(p.id, p.name)}
+            onDuplicate={() => { setSelectedId(duplicatePersona(p.id)); toast.success('Persona duplicated') }}
+            onDelete={() => { void removeThem([p.id]).then((done) => { if (done) back() }) }}
+          />
+          {confirmDialog}
         </>
-      }
-    />
+      ) : (
+        <>
+          {overview}
+          {confirmDialog}
+        </>
+      )}
     </SectionPage>
   )
 }

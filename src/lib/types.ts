@@ -158,6 +158,8 @@ export interface Tag {
   visible: boolean
   asFolder: boolean
   order: number
+  /** 'persona' = a tag of the Personas section; absent = a character tag. The two lists never mix. */
+  scope?: 'persona'
 }
 
 export interface Folder {
@@ -311,6 +313,12 @@ export interface Persona {
   profile?: Record<string, unknown>
   /** Colour of this persona's dialogue in the chat (a hex colour); absent = the theme's quote colour. */
   dialogueColor?: string
+  /** Tag names from the Personas section's own tags (`Tag.scope === 'persona'`); a tag marked `asFolder` is also a folder. */
+  tags?: string[]
+  /** Generated portraits (stored media urls, newest last); one of them can be the avatar. */
+  gallery?: string[]
+  /** The model this persona's Fill empty / Structure it run on (same shape as a card's `card-tasks.json`). */
+  cardTasks?: import('./card-tasks').CardTasks
 }
 
 // ── Presets / prompt manager ──

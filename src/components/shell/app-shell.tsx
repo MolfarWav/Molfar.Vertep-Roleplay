@@ -242,7 +242,8 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
                 // full screen: everything right of the rail
                 // the rest: 980px holds the character editor's whole tab row (720 cut it off)
                 full ? (wide ? 'data-[side=left]:w-[calc(100vw-206px)]' : 'data-[side=left]:w-[calc(100vw-48px)]')
-                : drawer === 'litopys' || drawer === 'canvas' || drawer === 'world' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : (wide ? 'data-[side=left]:w-[min(980px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(980px,calc(100vw-48px-16px))]'),
+                : drawer === 'litopys' || drawer === 'canvas' || drawer === 'world' ? (wide ? 'data-[side=left]:w-[min(1200px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1200px,calc(100vw-48px-16px))]') : drawer === 'personas' ? (wide ? 'data-[side=left]:w-[min(1050px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(1050px,calc(100vw-48px-16px))]')
+                : (wide ? 'data-[side=left]:w-[min(980px,calc(100vw-206px-16px))]' : 'data-[side=left]:w-[min(980px,calc(100vw-48px-16px))]'),
                 'data-[side=left]:border-r-2 data-[side=left]:border-primary data-[side=left]:sm:max-w-none',
                 wide ? 'data-[side=left]:left-[206px]' : 'data-[side=left]:left-12',
               )

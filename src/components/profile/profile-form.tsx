@@ -1,6 +1,7 @@
 import { useId, useState, type ComponentType, type ReactNode } from 'react'
 import {
   Brain,
+  CaretDown,
   Check,
   CircleNotch,
   Fire,
@@ -63,17 +64,17 @@ const MAX_ITEMS = 12
 const MAX_ITEM_LEN = 120
 
 const ACCENTS = {
-  sky: { border: 'border-l-sky-500', chip: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' },
-  pink: { border: 'border-l-pink-500', chip: 'bg-pink-500/15 text-pink-600 dark:text-pink-400' },
-  violet: { border: 'border-l-violet-500', chip: 'bg-violet-500/15 text-violet-600 dark:text-violet-400' },
-  amber: { border: 'border-l-amber-500', chip: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
-  emerald: { border: 'border-l-emerald-500', chip: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
-  orange: { border: 'border-l-orange-500', chip: 'bg-orange-500/15 text-orange-600 dark:text-orange-400' },
-  teal: { border: 'border-l-teal-500', chip: 'bg-teal-500/15 text-teal-600 dark:text-teal-400' },
-  red: { border: 'border-l-red-500', chip: 'bg-red-500/15 text-red-600 dark:text-red-400' },
-  rose: { border: 'border-l-rose-500', chip: 'bg-rose-500/15 text-rose-600 dark:text-rose-400' },
-  fuchsia: { border: 'border-l-fuchsia-500', chip: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400' },
-  slate: { border: 'border-l-slate-500', chip: 'bg-slate-500/15 text-slate-600 dark:text-slate-400' },
+  sky: { border: 'border-l-sky-500', chip: 'bg-sky-500/15 text-sky-600 dark:text-sky-400', ring: 'border-sky-500 text-sky-600 dark:text-sky-400' },
+  pink: { border: 'border-l-pink-500', chip: 'bg-pink-500/15 text-pink-600 dark:text-pink-400', ring: 'border-pink-500 text-pink-600 dark:text-pink-400' },
+  violet: { border: 'border-l-violet-500', chip: 'bg-violet-500/15 text-violet-600 dark:text-violet-400', ring: 'border-violet-500 text-violet-600 dark:text-violet-400' },
+  amber: { border: 'border-l-amber-500', chip: 'bg-amber-500/15 text-amber-600 dark:text-amber-400', ring: 'border-amber-500 text-amber-600 dark:text-amber-400' },
+  emerald: { border: 'border-l-emerald-500', chip: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400', ring: 'border-emerald-500 text-emerald-600 dark:text-emerald-400' },
+  orange: { border: 'border-l-orange-500', chip: 'bg-orange-500/15 text-orange-600 dark:text-orange-400', ring: 'border-orange-500 text-orange-600 dark:text-orange-400' },
+  teal: { border: 'border-l-teal-500', chip: 'bg-teal-500/15 text-teal-600 dark:text-teal-400', ring: 'border-teal-500 text-teal-600 dark:text-teal-400' },
+  red: { border: 'border-l-red-500', chip: 'bg-red-500/15 text-red-600 dark:text-red-400', ring: 'border-red-500 text-red-600 dark:text-red-400' },
+  rose: { border: 'border-l-rose-500', chip: 'bg-rose-500/15 text-rose-600 dark:text-rose-400', ring: 'border-rose-500 text-rose-600 dark:text-rose-400' },
+  fuchsia: { border: 'border-l-fuchsia-500', chip: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400', ring: 'border-fuchsia-500 text-fuchsia-600 dark:text-fuchsia-400' },
+  slate: { border: 'border-l-slate-500', chip: 'bg-slate-500/15 text-slate-600 dark:text-slate-400', ring: 'border-slate-500 text-slate-600 dark:text-slate-400' },
 } as const
 
 type IconType = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' }>
@@ -167,6 +168,24 @@ function counts(p: Profile, id: FormId, mode: Mode): [number, number] | null {
 }
 
 const fillable = (id: FormId): id is SectionKey => id in SECTION_FIELDS
+
+/** The first few field names of a section, for the folded row ("face, eyes, hair, body"). */
+function blurb(id: FormId): string {
+  const rows: readonly (readonly [string, string])[] | undefined =
+    id === 'identity' ? IDENTITY_ROWS
+    : id === 'appearance' ? ROWS.appearance
+    : id === 'personality' ? ROWS.lists
+    : id === 'behaviors' ? ROWS.behaviors
+    : id === 'goals' ? ROWS.goals
+    : id === 'background' ? ROWS.background?.filter(([k]) => !CIRCLE_KEYS.has(k))
+    : id === 'circles' ? CIRCLES
+    : id === 'sexuality' ? ROWS.sexuality
+    : undefined
+  if (rows) return rows.slice(0, 4).map(([, label]) => label.toLowerCase()).join(', ')
+  const extra = id === 'trauma' ? EXTRA_LABELS.trauma : undefined
+  if (extra) return Object.values(extra).slice(0, 4).map((l) => l.toLowerCase()).join(', ')
+  return id === 'relationships' ? 'people in their life' : ''
+}
 
 // ── field helpers (module level) ────────────────────────────────────────────
 
@@ -383,11 +402,53 @@ function SectionFields({ id, p, save, mode }: { id: FormId; p: Profile; save: Sa
   }
 }
 
-function SectionCard({ s, p, save, mode, fill, anchor, on, count }: {
+function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
   s: SectionMeta; p: Profile; save: Save; mode: Mode; fill?: FillControl; anchor: string; on: boolean; count: [number, number] | null
+  /** the persona page folds each section into a row with a fill ring; the card editor shows them open */
+  fold?: { open: boolean; toggle: () => void }
 }) {
   const accent = ACCENTS[s.accent]
   const canFill = !!fill && on && fillable(s.id) && Object.keys(emptyFields(p, s.id)).length > 0
+  if (fold) {
+    const bodyId = `${anchor}-body`
+    const some = !!count && count[0] > 0
+    return (
+      <section id={anchor} aria-label={s.title} className={cn('flex scroll-mt-14 flex-col rounded-xl border border-l-4 border-border bg-card @2xl:scroll-mt-2', fold.open && 'gap-3 pb-3', accent.border)} data-testid={`profile-section-${s.id}`}>
+        <div className="flex min-h-14 items-center gap-2 pr-3">
+          <button type="button" aria-expanded={fold.open} aria-controls={bodyId} onClick={fold.toggle} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-l-lg pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            <span className={cn('flex size-9 shrink-0 items-center justify-center rounded-full border-[3px] text-[10px] font-semibold tabular-nums', some ? accent.ring : 'border-border text-muted-foreground')}>
+              {count ? `${count[0]}/${count[1]}` : '–'}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col @lg:flex-row @lg:items-baseline @lg:gap-3">
+              <span className={cn('text-sm font-bold', !on && 'text-muted-foreground')}>{s.title}</span>
+              <span className="truncate text-xs text-muted-foreground">{blurb(s.id)}</span>
+            </span>
+            <CaretDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', fold.open && 'rotate-180')} aria-hidden="true" />
+          </button>
+          {canFill && (
+            <Button variant="outline" size="sm" className="h-9 text-xs max-md:h-11" disabled={fill.busy} onClick={() => fill.run(s.id as SectionKey)} title="A model proposes values for this section's empty fields; you review before anything changes">
+              <MagicWand className="size-3.5" aria-hidden="true" /><span className="max-md:sr-only">Fill empty</span>
+            </Button>
+          )}
+          {s.switchable && (
+            <Switch checked={on} onCheckedChange={(v) => save({ ...p, sections: { ...p.sections, [s.id]: v } })} aria-label={`${s.title} section`} />
+          )}
+        </div>
+        {fold.open && (
+          <div id={bodyId} className="flex flex-col gap-3 px-3">
+            {s.id === 'appearance' && on && fill?.readPicture && (
+              <Button variant="ghost" size="sm" className="h-8 w-fit text-xs" disabled={fill.busy || fill.readPicture.busy} onClick={fill.readPicture.open}>
+                {fill.readPicture.busy ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <ImageIcon className="size-3.5" aria-hidden="true" />}
+                {fill.readPicture.busy ? 'Reading…' : 'Read from picture'}
+              </Button>
+            )}
+            {s.hint && <p className="text-xs text-muted-foreground">{s.hint}</p>}
+            {on ? <SectionFields id={s.id} p={p} save={save} mode={mode} /> : <p className="text-xs text-muted-foreground">Off: kept, but nothing from it goes into the text.</p>}
+          </div>
+        )}
+      </section>
+    )
+  }
   return (
     <section id={anchor} aria-label={s.title} className={cn('flex scroll-mt-14 flex-col gap-3 rounded-lg border border-l-4 border-border p-3 @2xl:scroll-mt-2', accent.border)}>
       <div className="flex flex-wrap items-center gap-2">
@@ -430,8 +491,10 @@ function scrollToSection(anchor: string) {
   document.getElementById(anchor)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
 }
 
-export function ProfileForm({ p, save, mode, fill }: { p: Profile; save: Save; mode: Mode; fill?: FillControl }) {
+export function ProfileForm({ p, save, mode, fill, fold }: { p: Profile; save: Save; mode: Mode; fill?: FillControl; /** fold each section into a row (Identity open at first) */ fold?: boolean }) {
   const uid = useId()
+  const [opened, setOpened] = useState<ReadonlySet<FormId>>(() => new Set<FormId>(['identity']))
+  const toggle = (id: FormId) => setOpened((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const anchor = (id: FormId) => `${uid}-section-${id}`
   const meta = SECTIONS.map((s) => {
     const count = counts(p, s.id, mode)
@@ -441,13 +504,15 @@ export function ProfileForm({ p, save, mode, fill }: { p: Profile; save: Save; m
     // container queries: the form sits in panes of very different widths (the
     // character editor, the narrow persona pane), so it follows its own width
     <div className="@container min-w-0">
-    <div className="flex min-w-0 flex-col gap-3 @2xl:grid @2xl:grid-cols-[170px_minmax(0,1fr)] @2xl:items-start @2xl:gap-4">
+    <div className={cn("flex min-w-0 flex-col gap-3", !fold && "@2xl:grid @2xl:grid-cols-[170px_minmax(0,1fr)] @2xl:items-start @2xl:gap-4")}>
+      {!fold && (
+      <>
       <nav aria-label="Profile sections" className="hidden @2xl:sticky @2xl:top-2 @2xl:flex @2xl:flex-col @2xl:gap-0.5">
         {meta.map(({ s, on, done }) => (
           <button
             key={s.id}
             type="button"
-            onClick={() => scrollToSection(anchor(s.id))}
+            onClick={() => { if (fold) setOpened((cur) => new Set(cur).add(s.id)); requestAnimationFrame(() => scrollToSection(anchor(s.id))) }}
             className={cn('flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent', !on && 'opacity-50')}
           >
             <span className={cn('flex size-5 shrink-0 items-center justify-center rounded', ACCENTS[s.accent].chip)}>
@@ -463,7 +528,7 @@ export function ProfileForm({ p, save, mode, fill }: { p: Profile; save: Save; m
           <button
             key={s.id}
             type="button"
-            onClick={() => scrollToSection(anchor(s.id))}
+            onClick={() => { if (fold) setOpened((cur) => new Set(cur).add(s.id)); requestAnimationFrame(() => scrollToSection(anchor(s.id))) }}
             className={cn('flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs', !on && 'opacity-50')}
           >
             <s.Icon className={cn('size-3.5 rounded-sm', ACCENTS[s.accent].chip, 'bg-transparent')} aria-hidden="true" />
@@ -472,9 +537,11 @@ export function ProfileForm({ p, save, mode, fill }: { p: Profile; save: Save; m
           </button>
         ))}
       </nav>
+      </>
+      )}
       <div className="flex min-w-0 flex-col gap-3">
         {meta.map(({ s, on, count }) => (
-          <SectionCard key={s.id} s={s} p={p} save={save} mode={mode} fill={fill} anchor={anchor(s.id)} on={on} count={count} />
+          <SectionCard key={s.id} s={s} p={p} save={save} mode={mode} fill={fill} anchor={anchor(s.id)} on={on} count={count} fold={fold ? { open: opened.has(s.id), toggle: () => toggle(s.id) } : undefined} />
         ))}
       </div>
     </div>

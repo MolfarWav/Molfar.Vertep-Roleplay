@@ -74,6 +74,10 @@ export function ChatsView() {
     setActiveFolderId(null)
     useApp.setState({ chatsCharacterFilter: null })
   }, [wantsCharacter])
+  // "N chats" on a persona lands here with only that persona's chats, until its chip is removed or Chats is left
+  const personaOnly = useApp((s) => s.chatsPersonaFilter)
+  const personas = useApp((s) => s.personas)
+  useEffect(() => () => { useApp.setState({ chatsPersonaFilter: null }) }, [])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selecting, setSelecting] = useState(false)
@@ -111,6 +115,7 @@ export function ChatsView() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const list = filterChats([...chats], characters, filter)
+      .filter((c) => !personaOnly || c.personaId === personaOnly)
       .filter((c) => !activeFolderId || c.folderId === activeFolderId)
       .filter((c) => kind === 'all' || (kind === 'group') === !!byId.get(c.characterId)?.isGroup)
       .filter((c) => {
@@ -119,7 +124,7 @@ export function ChatsView() {
         return c.title.toLowerCase().includes(q) || !!owner?.name.toLowerCase().includes(q) || (c.preview ?? '').toLowerCase().includes(q)
       })
     return sortChats(list, sort, (c) => (c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0), (c) => byId.get(c.characterId)?.name ?? '')
-  }, [chats, characters, query, activeFolderId, filter, kind, sort, byId])
+  }, [chats, characters, query, activeFolderId, filter, kind, sort, byId, personaOnly])
   const sections = useMemo(() => groupChats(filtered, sort), [filtered, sort])
 
   // desktop: the panel always shows a chat, the top one until another is picked
@@ -275,6 +280,18 @@ export function ChatsView() {
               <Plus className="size-3" aria-hidden="true" /> {t('chats.newFolder')}
             </button>
           </div>
+          {personaOnly && (
+            <button
+              type="button"
+              onClick={() => useApp.setState({ chatsPersonaFilter: null })}
+              className="flex h-8 w-fit max-w-full items-center gap-1 rounded-full bg-accent px-2.5 text-xs text-accent-foreground max-sm:h-10"
+              aria-label={t('chats.personaChipRemove')}
+              data-testid="chats-persona-chip"
+            >
+              <span className="truncate">{t('chats.personaChip', { name: personas.find((p) => p.id === personaOnly)?.name ?? '?' })}</span>
+              <X className="size-3 shrink-0" aria-hidden="true" />
+            </button>
+          )}
           <ChatFilters value={filter} onChange={setFilter} />
         </div>
 
