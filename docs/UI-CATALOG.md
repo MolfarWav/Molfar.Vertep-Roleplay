@@ -246,36 +246,26 @@ What C needs when it is built:
 - New: the "Current setup" summary card (chips derived from the form: mode, model, insert on/off and tokens, enabled groups count, quest caps; usage chips replace the monospace counters), toggle chips for event groups (`aria-pressed`, check icon so it is not colour alone), a `NumTile` (label, hint, number input) next to `SettingRow` in `ui/`.
 - Unchanged logic: `Form`/`patch`, clamps on blur, `SaveBar` (sticky, becomes the primary button), the Advanced prompts (a closed `Fold` with a summary), the other three tabs.
 
-## 6. Next screen: the chat (owner asked for it, 2026-10-31)
+## 6. The chat: kept as it is, four small changes (owner, 2026-10-31)
 
-Scope of the redesign: the chrome around the message log (header, context switch, message actions, composer, quick moves). The log
-itself (prose, looks, per-character CSS, backgrounds) is the user's own styling and stays as it is; so does the dashboard strip
-(`DashStripMount`, 272 px from 1024 px up), shown in the mocks only as context.
+The owner's decision: the chat is not redesigned. My first three mocks (X1 to X3) were drawn from the code, did not match the real
+chat (Note / Lore / Record / World buttons, token count, context chip, dashboard strip with tabs) and are dropped. What stays on
+the table is what the owner marked on a screenshot of the real chat; mocks `docs/ui-mocks/chat-small/index.html` show each before and after.
 
-What is there now (`chat/chat-view.tsx`, `chat/composer.tsx`, `chat/message-row.tsx`):
+1. **Character name in the header** (`chat-view.tsx:729`, now `text-sm font-medium`, second line `text-[11px]`, avatar 32 px):
+   heading font at 20 px (the phone header already uses `font-heading`), second line 12 px, avatar 40 px.
+2. **Colour for the right-hand header buttons** (info ring, find, More): tinted tones (info sky, find teal) with the icon in the
+   tone's ink; More stays an outlined labelled button. A calmer fallback: no tint, only 40 px. The owner said "maybe", so this is
+   the one to confirm.
+3. **Bigger side portrait, text does not move.** Today `.look-stage` (`globals.css:411`): `--ls-av-w: 68px`, `--ls-av-h: 88px`
+   times `--avatar-scale`, grid `68px 1fr` with a 20 px gap. Proposed on wide screens: 168 x 216 px, right-aligned in the same
+   68 px grid cell so it grows into the empty margin to its left and the text column stays at the same x. The size follows the
+   free margin (a container query on the log: `clamp(0, (log width - chat max) / 2 - 16, 100px)` extra), so it falls back to 68 px
+   on a narrow window or with the dashboard strip open, and a phone is unchanged. Keeps `--avatar-scale` as a multiplier and the
+   click that opens the full portrait. Open point: the arch border radius and the ring scale with the width.
+4. **"Since your last reply" stands out** (the dashboard strip's change list, `dashboard/dash-tabs.tsx`): the 11 px muted
+   uppercase caption becomes a tinted sky bar with a 14 px semibold title and a count circle (the dashboard's change markers; red
+   when a change is negative); the chips below are unchanged.
 
-- **Desktop header** (`chat-view.tsx:729`, 48 px): back, avatar, name and a second line (chat title, "chat 1 of 3" as a text link),
-  the chat tools, `ChatQuickSwitch`, `ChatDetailsButton`, the World button, find, a kebab: about nine controls in one 48 px row;
-  the second line is `text-[11px]`. **Phone header** (`:802`): back, avatar, name, ring, World, labelled Menu.
-- **Context** (preset, persona, model, agents) is behind one icon button that opens a panel with tabs: the current values are
-  visible only inside it (a blind step, ux-review depth rule).
-- **Quick moves** (`composer.tsx:694`): four buttons, each in its own tint (primary green, group violet, teal, amber), all with the
-  same size and weight, so none is the main one (the owner's weight-ladder remark); plus bigger editor, translate and a story
-  nudge. **"Another"** repeats Regenerate, which exists under every reply (`message-row.tsx:988`) and in the "+" menu.
-- **Send** is an icon-only 36 px button (`size-9`), the same size as the helper icons around it.
-- **Message actions** (edit, copy, regenerate, more) fade in on hover; touch and "expand message actions" pin them.
-- Text: 124 literals at 11 px or below in `chat/`, 21 of them in the three files above.
-
-Three variants (mocks `docs/ui-mocks/chat/`, 1280 and 390, dark and light):
-
-- **X1 clean header, weighted moves**: one context chip in the header shows preset, persona and model and opens the switcher
-  (phone: it is in the Menu); the moves follow the ladder (Send primary 44 px with its word, Continue tonal, Write for me
-  outline, Polish ghost, Translate and expand icons); "Another" removed. Least change, lowest risk.
-- **X2 context strip**: four tappable tinted cards under the header (Preset, Persona, Model, Agents "2 on"), each opens its own
-  list directly; moves in a row above the input. Most visible, costs 64 px of height.
-- **X3 immersive**: chat background shows through, a slim glass header, a floating composer, context behind one labelled
-  "Context" button that opens a sheet. Prettiest, but the context is one step away.
-Phone: Send becomes an icon-only 48 px button (the word stays on desktop), actions under the reply are 40 px targets and always
-visible on the newest reply.
-Recommendation: X1 as the base (it keeps what works and fixes the weight and the blind step); take X2's cards only if the owner
-wants the context always on screen.
+Not touched: the header tool buttons, token count, context chip, Open dashboard, the log, the composer. The weight ladder (2.4) still
+applies to buttons the owner touches later. Backgrounds already show in the chat (a user setting), so nothing to add there.

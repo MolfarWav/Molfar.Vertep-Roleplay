@@ -1,0 +1,77 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Chat — small changes</title>
+<link rel="stylesheet" href="../world-dm/shared.css">
+<style>
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 40px; }
+h1 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
+.lead { color: var(--muted-foreground); max-width: 80ch; margin-top: 4px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.pair.one { grid-template-columns: 1fr; }
+.fr { border: 1px solid var(--border); border-radius: 11px; overflow: hidden; background: var(--background); }
+.fr > .tag { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--muted); border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--fs-caption); }
+.fr > .tag.new { color: var(--emerald-ink); }
+.fr .pad { padding: 16px; }
+.sec3 h2 { font-size: var(--fs-heading); line-height: var(--lh-heading); font-weight: 600; margin-bottom: 4px; }
+.sec3 .why { color: var(--muted-foreground); margin-bottom: 12px; max-width: 90ch; }
+/* header pieces */
+.hd { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 12px; background: var(--card); border-bottom: 1px solid var(--border); }
+.hav { width: 32px; height: 32px; border-radius: 8px; flex: none; background: linear-gradient(160deg, oklch(70% .15 20), oklch(35% .12 300)); }
+.hd .nm14 { font-size: 14px; line-height: 16px; font-weight: 500; color: var(--violet-ink); }
+.hd .sub11 { font-size: 11px; line-height: 14px; color: var(--muted-foreground); }
+.hd.new .hav { width: 40px; height: 40px; border-radius: 10px; }
+.hd.new .nm18 { font: 400 20px/24px var(--font-heading); color: var(--violet-ink); }
+.hd.new .sub12 { font-size: var(--fs-caption); line-height: 16px; color: var(--muted-foreground); }
+.hd .sp { flex: 1; }
+.ib { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--muted-foreground); }
+.ib.out { border-color: var(--input); color: var(--foreground); }
+.ib svg.i { width: 18px; height: 18px; }
+.ib.tn { border-radius: 10px; border-color: var(--tb); background: var(--ts); color: var(--ti); }
+.ib.tn:hover { filter: brightness(1.12); }
+.mores { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--input); border-radius: 8px; background: transparent; font-weight: 500; }
+/* message row */
+.log { position: relative; padding: 24px 24px 24px 0; }
+.rowc { margin-left: 190px; display: grid; grid-template-columns: 68px 1fr; column-gap: 20px; position: relative; }
+.guide { position: absolute; top: 0; bottom: 0; left: calc(190px + 68px + 20px - 10px); border-left: 1px dashed var(--destructive); opacity: .8; }
+.guide::after { content: 'text starts here'; position: absolute; left: 6px; top: -2px; font-size: var(--fs-caption); color: var(--destructive); white-space: nowrap; }
+.arch { width: 68px; height: 88px; border-radius: 34px 34px 2px 2px; background: radial-gradient(circle at 50% 30%, oklch(78% .08 40) 0 14%, transparent 15%), linear-gradient(170deg, oklch(55% .17 20), oklch(28% .09 300)); border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--border); }
+.arch.big { width: 168px; height: 216px; border-radius: 84px 84px 4px 4px; justify-self: end; margin-left: -100px; }
+.mh { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.mh b { font-family: var(--font-heading); font-weight: 400; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+.mt { font-size: 15px; line-height: 27px; max-width: 62ch; }
+.mt em { color: var(--muted-foreground); }
+/* dashboard bit */
+.dash { width: 340px; max-width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 0; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.since-old { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+.since-new { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px; border-radius: 10px; background: var(--ts); border: 1px solid var(--tb); color: var(--ti); font-weight: 600; }
+.since-new .n { margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--sky); color: white; font-size: var(--fs-caption); line-height: 22px; text-align: center; font-weight: 700; }
+.chg { display: block; padding: 4px 8px; border: 1px solid var(--tb); background: var(--ts); color: var(--ti); font-size: 12px; }
+.note { padding: 8px 12px; color: var(--muted-foreground); font-size: var(--fs-caption); }
+@media (max-width: 900px) { .pair { grid-template-columns: 1fr; } }
+</style></head><body>
+<div class="bar"><b>Chat · small changes</b><span>the chat stays as it is; these are the four notes from your screenshot</span><span class="sp"></span><a id="d" href="?theme=dark">dark</a><a id="l" href="?theme=light">light</a><a href="../index.html">all mocks</a></div>
+<div class="wrap">
+<div><h1>Chat: four small changes</h1><p class="lead">Your notes on the real chat: bigger character name, colour for the right-hand header buttons, a bigger side portrait that does not move the text, and a clearer “Since your last reply”. Everything else in the chat stays.</p></div>
+
+<section class="sec3"><h2>1. Character name in the header</h2><p class="why">Now 14 px / 500 with an 11 px second line and a 32 px avatar. Proposed: the app’s heading font at 20 px (the phone header already uses it), a 12 px second line (the floor), a 40 px avatar.</p>
+<div class="pair"><div class="fr"><div class="tag">Now</div><div class="hd"><span class="hav"></span><div><div class="nm14">Sina Rose</div><div class="sub11">Sina Rose · chat 1 of 1</div></div></div></div>
+<div class="fr"><div class="tag new">Proposed</div><div class="hd new"><span class="hav"></span><div><div class="nm18">Sina Rose</div><div class="sub12">Sina Rose · chat 1 of 1</div></div></div></div></div></section>
+
+<section class="sec3"><h2>2. Colour for the right-hand header buttons</h2><p class="why">Your arrows point at the info ring, search and More. The tinted ones reuse the app’s tones (info sky, search teal) with the icon in the tone’s ink, so colour is never alone (the icon says what it is). More stays an outlined, labelled button: it is the door to everything else. If you want it calmer, drop the tint and only enlarge them to 40 px.</p>
+<div class="pair"><div class="fr"><div class="tag">Now</div><div class="hd"><span class="sp"></span><button class="ib" aria-label="Chat details"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg></button><button class="ib" aria-label="Find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button><button class="mores">··· More</button></div></div>
+<div class="fr"><div class="tag new">Proposed</div><div class="hd"><span class="sp"></span><button class="ib tn t-sky" aria-label="Chat details"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg></button><button class="ib tn t-teal" aria-label="Find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button><button class="mores">··· More</button></div></div></div></section>
+
+<section class="sec3"><h2>3. A bigger side portrait, the text does not move</h2><p class="why">Now the portrait is 68 × 88 px (times your avatar-size setting) and the empty margin to its left is unused. Proposed on wide screens: 168 × 216 px, right-aligned to the same column, growing to the left into the margin; the dashed line is where the text starts, in both. It shrinks back to 68 px when the margin is too narrow (below about 1200 px or with the dashboard strip open on a small window), and on a phone nothing changes. Clicking it still opens the full portrait.</p>
+<div class="pair one">
+<div class="fr"><div class="tag">Now</div><div class="log"><span class="guide"></span><div class="rowc"><div><div class="arch"></div></div><div><div class="mh"><b>Sina Rose</b><span class="cap">02:29</span></div><p class="mt"><em>Her bare toes curl against the cold concrete.</em> “Ты не обязан был ждать,” — говорит она, не поднимая глаз. Холод от пола уже забрался выше щиколоток, заставляя икры мелко подрагивать.</p></div></div></div></div>
+<div class="fr"><div class="tag new">Proposed (1280 px and wider)</div><div class="log"><span class="guide"></span><div class="rowc"><div style="display:grid"><div class="arch big"></div></div><div><div class="mh"><b>Sina Rose</b><span class="cap">02:29</span></div><p class="mt"><em>Her bare toes curl against the cold concrete.</em> “Ты не обязан был ждать,” — говорит она, не поднимая глаз. Холод от пола уже забрался выше щиколоток, заставляя икры мелко подрагивать.</p></div></div></div></div></div></section>
+
+<section class="sec3"><h2>4. “Since your last reply” stands out</h2><p class="why">Now an 11 px uppercase muted caption with the changes under it. Proposed: a tinted bar with the sky tone, a 14 px semibold title and a count in a circle (the number of changes, as in the dashboard’s change markers); the change chips below stay as they are.</p>
+<div class="pair"><div class="fr"><div class="tag">Now</div><div class="pad"><div class="dash"><div class="since-old">Since your last reply</div><span class="chg t-sky">• Mood: surprised, curious, softening to indignant, amused, curious</span><span class="chg t-amber" style="width:fit-content">• Outfit or things changed</span><span class="chg t-violet">• Sina Rose: Trust, Comfort, Affection rose</span></div></div></div>
+<div class="fr"><div class="tag new">Proposed</div><div class="pad"><div class="dash"><div class="since-new t-sky"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Since your last reply<span class="n">3</span></div><span class="chg t-sky">• Mood: surprised, curious, softening to indignant, amused, curious</span><span class="chg t-amber" style="width:fit-content">• Outfit or things changed</span><span class="chg t-violet">• Sina Rose: Trust, Comfort, Affection rose</span></div></div></div></div></section>
+
+<section class="sec3"><h2>Not changed</h2><p class="why">Header tool buttons (Note, Lore, Record, World), token count, context chip, Open dashboard, the log, the composer, the dashboard tabs. The mocks X1 to X3 I made before were redrawn from the code and do not match your real chat; drop them.</p></section>
+</div>
+<script>
+const t = new URLSearchParams(location.search).get('theme') || 'dark'
+document.documentElement.classList.toggle('dark', t === 'dark')
+document.getElementById(t === 'dark' ? 'd' : 'l').classList.add('on')
+</script></body></html>
