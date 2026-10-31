@@ -1,3 +1,4 @@
+const OFF = new URLSearchParams(location.search).has('off')
 // Shared pieces of the World DM mocks: the page frame (tabs row, DM switch + profile, "So far", model) is the
 // same in every variant, so only the settings block differs. Strings are the app's real English strings.
 
@@ -64,7 +65,7 @@ const SCENE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 220" pr
 function profileBlock() {
   return `
   <section class="stack" id="profile">
-    <div class="dm-row"><span><b style="font-weight:600">DM in this chat</b><span class="cap" style="display:block">The DM keeps this story’s world book after replies.</span></span>${sw(true, 'DM in this chat')}</div>
+    <div class="dm-row"><span><b style="font-weight:600">DM in this chat</b><span class="cap" style="display:block">${OFF ? 'Off: no events and no dice. Places and things the story names are still recorded, and the book is still shown to the reply model.' : 'The DM keeps this story’s world book after replies.'}</span></span>${sw(!OFF, 'DM in this chat')}</div>
     <div class="stack" style="gap:6px"><span class="field-l">Profile</span>
       <div class="profile t-teal">${icon('compass')}<span>Living world</span><span class="cap">· Own</span>${icon('caret')}</div>
       <p class="cap">Factions and threats move off screen. News may reach the characters as a rumour; nothing is forced.</p>

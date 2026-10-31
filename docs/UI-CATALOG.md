@@ -501,3 +501,17 @@ Phone layout of the book page (fixed after the owner's screenshot, 2026-10-31): 
 then one row with "Test triggers" (stretches) and the "more" button; tabs scroll; the toolbar is search on its own row, then Order, select-several and the one primary "Add entry" (stretches);
 the filter chips are **one scrolling row**, not four wrapped rows; an entry's title may take two lines; the list view is the book list with the same icons, the book opens on its own screen with "← Lorebooks".
 Lesson for the build: any toolbar of more than three controls gets rows on a phone, and chip rows scroll sideways instead of wrapping.
+
+## 10. After the DM branch merged (`outfit-drift-185`, main at 09ed111, 2026-10-31)
+
+Checked against the merged code: the files of the World panel (`world-controls.tsx`, `world-setting-row.tsx`, `dice-fields.tsx`) did not change, so the designs stand.
+What the merge changes in them:
+
+- **The DM "off" is no longer "nothing happens".** With the DM off the book still fills itself from the story (the sweep: a small records-only call about the
+  places and things the scene tracker named). The DM switch line and the Off level hint were reworded ("Off: no events and no dice. Places and things the story names
+  are still recorded, and the book is still shown to the reply model."). Consequence for the panel: in the off state only *When it runs* and *What it adds to the story* are dimmed
+  (each with a note saying why); *What it writes* (records, limits) stays live. Mock: `world-dm/c.html?off=1`.
+- **Sensor tab gets one more switch**, `dash.set.layoutInject` "Remind the model where everyone stands and what they wear" (`dash-settings.tsx`, new in `Form.layout`):
+  it joins the card *What the model is reminded of*, next to "Remind the model what characters said". Added to the Sensor mocks.
+- The merge adds no new screens; the world plugin (sweep, places, objects) and the relations plugin changed on the engine side only.
+The design branch was rebased onto this main before any code was written.

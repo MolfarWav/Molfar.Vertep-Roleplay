@@ -238,3 +238,5 @@ select.sel { appearance: none; height: 32px; min-width: 128px; padding: 0 30px 0
   #profile { order: 1; } #settings { order: 2; } #status { order: 3; } #model { order: 4; }
 }
 @media (max-width: 380px) { .seg button { padding: 0 8px; } }
+
+.dimmed .rows > *:not(.note) { opacity: .5; pointer-events: none; }

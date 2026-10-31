@@ -10,6 +10,7 @@ const D = {
   insTokens: () => row({ label: 'Tokens per character', ctl: num(80, 'Tokens per character') }),
   saidInject: () => row({ label: 'Remind the model what characters said', hint: 'Adds a short part to the prompt with what the speaking character promised, threatened or confessed. It can also be switched off per chat on the Prompt board.', ctl: sw(true, 'Remind') }),
   said: () => row({ label: 'What characters said: at most this many per turn (1 to 4)', hint: 'Vows, threats, confessions and lies the Dashboard keeps from one reply. They have their own list, apart from the notebook.', ctl: num(1, 'Said per turn') }),
+  layout: () => row({ label: 'Remind the model where everyone stands and what they wear', hint: 'Adds a short part to the prompt: where each character and you are in the place, the objects lying around, clothes of those not shown in full, and a request to describe the clothing of a character who has none yet.', ctl: sw(true, 'Layout inject') }), // layoutInject, #185
   noteAge: () => row({ label: 'Notes leave the insert after N turns (5 to 500)', ctl: num(30, 'Notes leave') }),
   maxMain: () => row({ label: 'Main quests at most', ctl: num(2, 'Main quests') }),
   maxThreads: () => row({ label: 'Side quests at most', ctl: num(4, 'Side quests') }),
