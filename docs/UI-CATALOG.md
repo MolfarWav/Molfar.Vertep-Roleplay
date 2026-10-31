@@ -369,3 +369,20 @@ the "where" line; "Show me" starts the existing guide step for it (the tip's `ta
 opens the help list (`setGuideHelpOpen`). Prefers tips for features the user has not met (the guide already tracks seen tips) and the
 tips of the newest release ("since"), otherwise any. No new content to write. Final block order (desktop): Continue + library pick;
 Marketplace pick + Create a world + Waiting; Quests + Favourites; What's new + Did you know. All blocks hide-able in Customize.
+
+## 8. Decisions log (owner, 2026-10-31)
+
+| Screen | Decision |
+|---|---|
+| World DM panel | Variant C, task cards (build waits for the parallel DM branch) |
+| Dashboard settings, Sensor | Variant C, current-setup summary plus tile grid (shorter labels in all locales) |
+| Chat | Kept; four small changes accepted: name size, tinted header icons, bigger side portrait (text does not move), "Since your last reply" bar |
+| Home | Library-style bento (7.5): continue, library pick, Marketplace pick, create a world, waiting, quests, favourites, What's new, Did you know; Customize; no achievements for now, no My apps |
+| Characters list | Header spread over rows, folders block always visible (assign via "Move to folder"), markers as **chips with a word** (Lore emerald, Sprites violet) |
+| Side panel | **Option 1**, a tone per item and a filled pill for the current one, same in closed and open states, 44 px items, bordered toggle, names on hover when closed; no group captions |
+| Phone bar | **Kept as the full-width bar** (tone on the current item); the floating pill is not taken |
+| Buttons everywhere | Weight ladder (2.4); the important button stands out |
+| Cards, persona editors | Not touched now (personas were just reworked) |
+| Next | Lorebooks tab |
+
+Not decided or not started: the Lorebooks tab; phase 2 (tokens, shared pieces, building) waits for the DM branch.
