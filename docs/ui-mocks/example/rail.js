@@ -1,4 +1,5 @@
-// The chosen side panel (option 1) with Settings moved into the Setup group. Needs ../world-dm/shared.js.
+// The side panel as it is today (groups, Kurale labels, ornament dividers, primary bar and gradient on the current item) with one change
+// of look: every item has its own colour, and Settings is no longer in the rail (it lives in the shell's Settings). Needs ../world-dm/shared.js.
 Object.assign(P, {
   home: '<path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>', chat: '<path d="M4 5h16v11H9l-5 4z"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5"/><circle cx="17" cy="9" r="2.8"/><path d="M13 20c0-3 2.5-4.5 5-4.5s4 1.5 4 4.5"/>',
@@ -12,33 +13,53 @@ Object.assign(P, {
   book: '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3V4zM5 17a3 3 0 013-3h11"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
   sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   chevL: '<path d="M15 6l-6 6 6 6"/>', chevR: '<path d="M9 6l6 6-6 6"/>', menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  split: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>', full: '<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>', plug: '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+  refresh: '<path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/>', dl: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>', server: '<rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
 })
-// label, icon, tone, group (0 play, 1 cast, 2 world, 3 setup)
+// label, icon, hue (oklch hue; each item its own), group. Hues: 237 sky, 16 rose, 293 violet, 205 cyan, 70 amber, 322 fuchsia,
+// 162 emerald, 47 orange, 277 indigo, 130 lime-green, 260 blue, 95 yellow, 250 slate-ish (low chroma set below).
 const NAV = [
-  ['Home', 'home', 'sky', 0], ['Chats', 'chat', 'sky', 0],
-  ['Characters', 'user', 'violet', 1], ['Groups', 'users', 'violet', 1], ['Marketplace', 'store', 'amber', 1], ['Personas', 'persona', 'violet', 1],
-  ['Lorebooks', 'book', 'emerald', 2], ['Library', 'scroll', 'emerald', 2], ['Canvas', 'graph', 'pink', 2], ['World', 'globe', 'teal', 2],
-  ['Presets', 'sliders', 'slate', 3], ['Shortcuts', 'bolt', 'amber', 3], ['Tools', 'puzzle', 'slate', 3], ['Settings', 'gear', 'slate', 3],
+  ['Home', 'home', 237, 0], ['Chats', 'chat', 16, 0],
+  ['Characters', 'user', 293, 1], ['Groups', 'users', 205, 1], ['Marketplace', 'store', 70, 1], ['Personas', 'persona', 322, 1],
+  ['Lorebooks', 'book', 162, 1], ['Library', 'scroll', 47, 1], ['Canvas', 'graph', 277, 1], ['World', 'globe', 130, 1],
+  ['Presets', 'sliders', 260, 2],
+  ['Shortcuts', 'bolt', 95, 3], ['Tools', 'puzzle', 0, 3],
 ]
+const ORN = new URL('divider-mute.svg', document.currentScript.src).href
 function railHtml(current) {
-  const item = ([l, ic, tone]) => `<button class="it cl t-${tone}" ${l === current ? 'aria-current="page"' : ''} data-tip="${l}" aria-label="${l}">${icon(ic)}<span class="lb">${l}</span></button>`
-  let out = '<nav class="rail x" id="rail" aria-label="Primary sections"><div class="rtop"><span class="brand">Roleplay</span><button class="tg" id="tg" aria-label="Hide labels" title="Hide labels">' + icon('chevL') + '</button></div>'
+  const item = ([l, ic, h]) => `<button class="it t-h" style="--hue:${h};${h === 0 ? '--tl:var(--slate);--ti:var(--muted-foreground)' : ''}" ${l === current ? 'aria-current="page"' : ''} data-tip="${l}" aria-label="${l}">${icon(ic)}<span class="lb">${l}</span></button>`
+  let out = '<nav class="rail x" id="rail" aria-label="Primary sections"><div class="tgrow"><button class="tg" id="tg" aria-label="Hide labels" title="Hide labels">' + icon('chevL') + '</button></div>'
   let last = -1
-  NAV.forEach((n) => { if (n[3] !== last) { if (last >= 0) out += '<div class="rl"></div>'; last = n[3] } out += item(n) })
-  out += '<span class="sp"></span><div class="rl"></div>'
-  out += `<button class="it cl t-sky" data-tip="Inbox" aria-label="Inbox, 5 waiting">${icon('tray')}<span class="lb">Inbox</span><span class="bdg">5</span></button>`
+  NAV.forEach((n) => { if (n[3] !== last) { if (last >= 0) out += `<img class="orn" src="${ORN}" alt="" aria-hidden="true"><div class="rl"></div>`; last = n[3] } out += item(n) })
+  out += `<span class="sp"></span><img class="orn" src="${ORN}" alt="" aria-hidden="true"><div class="rl"></div>`
+  out += `<button class="it t-h" style="--hue:237" data-tip="Inbox" aria-label="Inbox, 5 waiting">${icon('tray')}<span class="lb">Inbox</span><span class="bdg">5</span></button>`
   out += `<button class="it" data-tip="Help" aria-label="Help">${icon('help')}<span class="lb">Help</span></button></nav>`
   return out
 }
-const tabbarHtml = (cur) => '<nav class="tabbar" aria-label="Sections">' + ['home|Home', 'chat|Chats', 'user|Characters'].map((s, k) => { const [i, l] = s.split('|'); return `<button class="t-${['sky', 'sky', 'violet'][k]}" ${k === cur ? 'aria-current="page"' : ''} aria-label="${l}">${icon(i)}</button>` }).join('') + `<button aria-label="Menu, 5 waiting">${icon('menu')}<span class="bdg">5</span></button></nav>`
-function mountShell({ label, blurb, current, tab, content }) {
+const tabbarHtml = (cur) => '<nav class="tabbar" aria-label="Sections">' + ['home|Home|237', 'chat|Chats|16', 'user|Characters|293'].map((s, k) => { const [i, l, h] = s.split('|'); return `<button class="t-h" style="--hue:${h}" ${k === cur ? 'aria-current="page"' : ''} aria-label="${l}">${icon(i)}</button>` }).join('') + `<button aria-label="Menu, 5 waiting">${icon('menu')}<span class="bdg">5</span></button></nav>`
+// the app's own palette in the owner's theme: primary red, second accent cyan (a ?accent=green switches to the default)
+function applyPalette(q, theme) {
+  if (q.get('accent') === 'green') return
+  const s = document.createElement('style')
+  s.textContent = theme === 'dark'
+    ? ':root.dark { --primary: oklch(62% .22 22); --primary-foreground: white; --cta: oklch(82% .14 210); --cta-foreground: oklch(20% .04 220); --ring: oklch(82% .14 210); }'
+    : ':root { --primary: oklch(56% .22 25); --primary-foreground: white; --cta: oklch(66% .13 215); --cta-foreground: white; --ring: oklch(66% .13 215); }'
+  document.head.appendChild(s)
+}
+function topbar(on) {
+  const b = (ic, t, cls = '') => `<button class="${cls}">${icon(ic)}${t}</button>`
+  return `<div class="topbar"><span style="font-family:var(--font-heading);font-size:18px;color:var(--foreground);margin-right:8px">VERTEP</span><span class="sp"></span>${b('split', 'Split')}${b('full', 'Fullscreen')}${b('plug', 'Plugins')}${b('refresh', 'Rebuild')}${b('dl', '')}<button class="${on ? 'on' : ''}" aria-label="Settings" title="Settings">${icon('gear')}</button><button class="user">${icon('user')}molfarwav2</button></div>`
+}
+function mountShell({ label, blurb, current, tab, content, settingsOpen = false }) {
   const q = new URLSearchParams(location.search)
   const theme = q.get('theme') || 'dark'
   document.documentElement.classList.toggle('dark', theme === 'dark')
   if (q.has('bare')) document.documentElement.classList.add('bare')
+  applyPalette(q, theme)
   const link = (t) => `<a class="${t === theme ? 'on' : ''}" href="?theme=${t}${q.has('bare') ? '&bare=1' : ''}">${t}</a>`
   document.body.innerHTML = `<div class="bar"><b>${label}</b><span>${blurb}</span><span class="sp"></span>${link('dark')}${link('light')}<a href="../index.html">all mocks</a></div>
-  <div class="shell">${railHtml(current)}<div class="main">${content}</div></div>${tabbarHtml(tab)}`
+  <div class="stage">${topbar(settingsOpen)}<div class="shell" style="height:calc(100vh - 36px - 36px)">${railHtml(current)}<div class="main">${content}</div></div>${tabbarHtml(tab)}</div>`
   wire()
   document.getElementById('tg').addEventListener('click', () => {
     const r = document.getElementById('rail'); const open = r.classList.contains('x')

@@ -397,3 +397,23 @@ Note for the build: there are two settings in the product. The gear in the rail 
 Behavior, ..., Data); the gear at the top right of the shell opens **Molfar Vertep's settings** (General, Backup, Connections and
 models, ...). The rail item's name and tooltip say "Settings" in both; label the rail one "Roleplay settings" in its tooltip and page
 title, and keep "Open it" links between the two (the Data page already has one).
+
+### 8.2 Side panel and Settings, corrected (owner, 2026-10-31)
+
+Three corrections to 8.1:
+
+1. **One colour per item, all different.** Characters, Groups and Personas were the same violet and Lorebooks and Library the same emerald, so the
+   colour told nothing. Now every item has its own hue (Home sky, Chats rose, Characters violet, Groups cyan, Marketplace amber, Personas fuchsia,
+   Lorebooks emerald, Library orange, Canvas indigo, World lime-green, Presets blue, Shortcuts yellow, Tools grey); the icon is tinted, the label stays neutral.
+   Shapes still differ per icon, so colour is never the only cue.
+2. **The open panel keeps its own look** (the owner's reminder: it is not the rounded-pill look of my first mock). Kept as it is: 206 px, square
+   rows with a 3 px left bar, Kurale 17 px labels, the ornament dividers between groups, the gradient from the primary colour on the current item,
+   groups as in `sections.ts`. The closed rail (48 px) is the same rows without labels. Changes are only the icon colours, a bordered 36 px
+   toggle in the same place in both states and names on hover when closed.
+3. **Settings leaves the rail for the general Settings of the shell** (the gear at the top right). The shell Settings gets an **Apps** section at the
+   top of its list with **Roleplay**; it opens Roleplay's own settings page (Appearance, Chat Behavior, ..., Data, Guide) inside the dialog.
+   This overrides, for the app-level page only, the 2026-10-11 rule in `ux-review` ("app settings live in the apps, not in the shell's Settings"):
+   settings of one chat or one card stay in that chat's or card's own panel. Needs an engine change (a settings entry that an app contributes,
+   or a link that opens the app on its settings view) and a Roleplay change (the rail drops `settings`; the page keeps its route and also opens from Home's
+   Customize and a command-palette entry). Examples: `docs/ui-mocks/example/home.html` (panel open and closable) and `example/shell-settings.html`.
+   Decision to confirm before building: rewrite the 2026-10-11 line of the skill to say "app-level settings are reachable from the shell's Settings, per-chat and per-card settings from their own panels".

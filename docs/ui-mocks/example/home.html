@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Example — Home with the new side panel</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="../home2/home2.css"><link rel="stylesheet" href="shell.css"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Example — Home with the side panel</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="../home2/home2.css"><link rel="stylesheet" href="shell.css"></head><body>
 <script src="../world-dm/shared.js"></script><script src="../home2/home2.js"></script><script src="rail.js"></script>
 <script>
 const content = `<div class="hpage">${header(false)}<main class="hbody"><div class="bento">
@@ -11,5 +11,5 @@ const content = `<div class="hpage">${header(false)}<main class="hbody"><div cla
   <div class="c8">${B.favs()}</div>
   <div class="c8">${B.news('wide')}</div>
   <div class="c4">${B.help()}</div></div></main></div>`
-mountShell({ label: 'Example · Home', blurb: 'the new side panel (click the arrow to close or open it), Settings now in the Setup group', current: 'Home', tab: 0, content })
+mountShell({ label: 'Example · Home', blurb: 'the side panel in its current style with a colour per item (click the arrow to close or open it); no Settings in the rail', current: 'Home', tab: 0, content })
 </script></body></html>

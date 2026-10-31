@@ -1,0 +1,16 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Example — shell Settings with Roleplay inside</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="../home2/home2.css"><link rel="stylesheet" href="shell.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="../home2/home2.js"></script><script src="rail.js"></script>
+<script>
+const general = [['General', 'sliders'], ['Backup', 'dl'], ['Storage', 'server'], ['Sync', 'refresh'], ['Connections and models', 'plug'], ['Speech', 'chat'], ['Images', 'scroll'], ['Molfar', 'sparkle'], ['Memory', 'book'], ['MCP servers', 'puzzle'], ['Developer', 'bolt'], ['Server', 'server'], ['Users', 'user']]
+const sub = ['Appearance', 'Chat Behavior', 'Streaming', 'Memory', 'Themes', 'Prose Colors', 'Custom CSS', 'Card tasks', 'Import', 'Data', 'Guide']
+const dlg = `<div class="scrim" style="top:72px"><div class="dlg" role="dialog" aria-label="Settings">
+  <nav class="dnv"><div class="cap" style="padding-top:4px">Apps</div><button aria-current="page">${icon('user')}Roleplay</button><div class="rl2"></div><div class="cap">Molfar Vertep</div>${general.map(([n, i]) => `<button>${icon(i)}${n}</button>`).join('')}</nav>
+  <div class="dct"><h3 class="t">Roleplay</h3><p class="cap">Settings of the whole app. What belongs to one chat or one card stays in that chat’s or card’s own panel.</p>
+  <div class="subnav">${sub.map((n) => `<button ${n === 'Data' ? 'aria-current="page"' : ''}>${n}</button>`).join('')}</div>
+  <h3 class="sh t-slate"><i></i>Data</h3>
+  <div class="card rows"><div class="action"><button class="btn" type="button" style="height:44px">Export Roleplay data (zip)</button></div><div class="action"><button class="btn" type="button" style="height:44px">Restore Roleplay data (zip)</button></div><div class="action"><button class="btn" type="button" style="height:44px;color:var(--destructive);border-color:color-mix(in oklab, var(--destructive) 50%, transparent)">Reset look and local settings</button></div></div>
+  <p class="cap">These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use. The whole profile (every app, Molfar, connections) is saved in Settings › Backup.</p></div></div></div>`
+const content = `<div class="hpage">${header(false)}<main class="hbody"><div class="bento"><div class="c8">${B.cont('c8')}</div><div class="c4">${B.waits()}</div></div></main></div>${dlg}`
+mountShell({ label: 'Example · Settings in the shell', blurb: 'the shell Settings (gear, top right) gets an Apps section; Roleplay’s own settings open inside it; the rail has no Settings item', current: 'Home', tab: 0, content, settingsOpen: true })
+document.getElementById('tg').click()
+</script></body></html>
