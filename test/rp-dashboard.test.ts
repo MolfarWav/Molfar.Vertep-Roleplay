@@ -1618,6 +1618,41 @@ describe("prompt insert", () => {
     expect(text).toContain("not text to retell");
   });
 
+  it("11a. clothes (#185): the sensor sees them, a plainer rewording keeps the old detail, and they stay in the insert while unreported", () => {
+    const mock = withState(reply({ present: ["Aria"], chars: { Aria: { outfit: "pink soft knit cardigan over a white tee, grey jeans" } } }));
+    expect(insertOf(ask(mock, "c1"))).toContain("Wearing: pink soft knit cardigan over a white tee, grey jeans.");
+    // the next sensor call is shown what she wears, and the rule that tells it to keep the details
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?")]);
+    mock.push(reply({ present: ["Aria"], chars: { Aria: { outfit: "a cardigan, jeans" } } }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    const asked = mock.requests[mock.requests.length - 1]!.req.messages[0].content as string;
+    expect(asked).toContain("Wearing: pink soft knit cardigan over a white tee, grey jeans.");
+    expect(mock.requests[mock.requests.length - 1]!.req.systemPrompt).toContain("Never shorten it to a plainer word");
+    // "a cardigan, jeans" said less of what was there: the earlier words stay
+    const text = insertOf(ask(mock, "c1"));
+    expect(text).toContain("Wearing: pink soft knit cardigan, grey jeans.");
+    expect(text).not.toContain("Wearing: a cardigan");
+    // a turn that does not mention clothes keeps them in the insert, marked as carried
+    writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Well?"), A("m6", "Yes."), U("m7", "So?")]);
+    mock.push(reply({ present: ["Aria"], chars: { Aria: { mood: "calm" } } }));
+    expect(update(mock, "c1").json.ok).toBe(true);
+    expect(insertOf(ask(mock, "c1"))).toContain("Still wearing: pink soft knit cardigan, grey jeans.");
+  });
+
+  it("11c. keepOutfit: fuller wording stays per item; new, dropped and changed items go through", () => {
+    const old = "pink soft knit cardigan over a white tee, grey jeans";
+    expect(P.keepOutfit(old, "a cardigan")).toBe("pink soft knit cardigan");
+    expect(P.keepOutfit(old, "cardigan, tee, jeans")).toBe("pink soft knit cardigan, a white tee, grey jeans");
+    // she took the cardigan off: what is left is reported, and the cardigan is gone
+    expect(P.keepOutfit(old, "a white tee, grey jeans")).toBe("a white tee, grey jeans");
+    // a new garment is added, a changed garment replaces the old one
+    expect(P.keepOutfit(old, "cardigan, a leather jacket")).toBe("pink soft knit cardigan, a leather jacket");
+    expect(P.keepOutfit(old, "a red dress")).toBe("a red dress");
+    // nothing to compare
+    expect(P.keepOutfit(null, "a grey cloak")).toBe("a grey cloak");
+    expect(P.keepOutfit("a grey cloak", "")).toBe("a grey cloak");
+  });
+
   it("11b. open threads ride along without ids; a goal only when seen this turn", () => {
     const mock = withState(reply({ present: ["Aria"], chars: { Aria: { goal: "find the ferry" } }, threads: { open: [{ id: null, text: "Who sank the ferry?" }] } }));
     let text = insertOf(ask(mock, "c1"));
@@ -3300,7 +3335,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(14);
+    expect(past.length).toBe(15);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limits given in the input");
     expect(text).not.toContain("three open threads");
@@ -4808,9 +4843,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-6)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-7)!;
     expect(ninth).not.toContain("Direction:");
-    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-5)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-6)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -4840,7 +4875,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-9)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-10)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -4894,10 +4929,10 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(text).toContain("the full list of the other characters, never the user's character itself");
     expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-4)!;
+    const before = past.at(-5)!;
     expect(before).not.toContain("never the user's character itself");
     expect(before).toContain("(who, what)");
-    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-5));
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-6));
   });
 
   it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {

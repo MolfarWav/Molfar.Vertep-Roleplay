@@ -554,6 +554,10 @@ const QUEST_RULES = [
 // the wording before quests: one limit, no kinds
 const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.";
 
+// What the sensor does with clothes (#185): it sees the "Wearing:" line of the Previous state and may only add to it or change it on the story's word.
+const OUTFIT_RULE =
+  "- outfit: the Previous state lists what each character wears. Report outfit only when the new messages first describe it or change it (dressing, undressing, a torn or soaked garment); otherwise leave it out. When you report it, keep every detail the Previous state already has (colours, fabrics, cut, accessories) and add the new ones. Change a detail only when the new text changes it. Never shorten it to a plainer word and never change a colour on a guess. When clothes come off, say what is left (for example \"bare-chested, trousers\").";
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -581,6 +585,7 @@ export const DEFAULT_PROMPTS = {
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
+    OUTFIT_RULE,
     "",
     "Direction:",
     "- direction: what kind of scene this is now, one of domestic (a private, familiar place with one or two people), social (three or more people in a public or institutional place: an academy, a court, a tavern), intrigue (secret deals, politics, bargaining), investigation (a search, a mystery, an inquiry), travel (on the road, or on hostile or unknown ground), combat (violence under way), explicit (a sexual scene), transition (a time skip or a journey told in a line: \"three days later\").",
@@ -632,8 +637,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The fifteenth sensor prompt (before the outfit rule: clothes were rewritten from whatever the new text mentioned, #185).
+const SENSOR_PROMPT_15 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE + "\n", "");
 // The fourteenth sensor prompt (before threads became quests with kinds and steps, #117).
-const SENSOR_PROMPT_14 = DEFAULT_PROMPTS.sensor.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
+const SENSOR_PROMPT_14 = SENSOR_PROMPT_15.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
 // The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
 const SENSOR_PROMPT_13 = SENSOR_PROMPT_14.replace(SAID_RULE, SAID_RULE_13);
 // The twelfth sensor prompt (before the `said` list of what a character said, #98).
@@ -693,7 +700,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 const OUTPUT_SHAPE = [
@@ -2360,6 +2367,7 @@ function previousStateText(ctx) {
     let line = name + " toward " + ctx.userName + ": " + (fresh ? "no history yet" : DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).join("; ")) + ".";
     if (c.mood) line += " Mood: " + c.mood + ".";
     if (c.holding) line += " Holding: " + c.holding + ".";
+    if (c.outfit) line += " Wearing: " + c.outfit + ".";
     lines.push(line);
   }
   const open = arr(ctx.threads).filter((t) => t.status === "open");
@@ -2922,6 +2930,35 @@ function orderPresent(present, events, B) {
   return [...named, ...rest, ...present.filter((n) => !named.includes(n) && !rest.includes(n))];
 }
 
+const OUTFIT_FILLER = new Set(["a", "an", "the", "some", "her", "his", "their", "my", "your", "its", "of", "in", "on"]);
+const outfitWords = (s) => wordTokens(s).filter((w) => !OUTFIT_FILLER.has(w));
+const OUTFIT_SPLIT = /\s*(?:[,;]|\band\b|\bwith\b|\bover\b|\bunder\b|\bplus\b)\s*/i;
+/**
+ * The outfit to keep (#185). A report that names a garment with fewer words than before ("a cardigan"
+ * for "pink soft knit cardigan") says less, not something else, so the earlier wording stays for that
+ * item. A new item, a dropped item and a changed item go through: clothes still change on the story's word.
+ */
+export function keepOutfit(old, next) {
+  const o = str(old);
+  const n = str(next);
+  if (!o || !n) return n || o;
+  const oldItems = o.split(OUTFIT_SPLIT).map((s) => s.trim()).filter(Boolean);
+  const kept = n
+    .split(OUTFIT_SPLIT)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const words = outfitWords(item);
+      if (!words.length) return item;
+      const fuller = oldItems.find((oi) => {
+        const ow = outfitWords(oi);
+        return ow.length > words.length && words.every((w) => ow.some((x) => sameWord(w, x)));
+      });
+      return fuller || item;
+    });
+  return unique(kept).join(", ");
+}
+
 /** Numbers and text of one character for this turn. */
 function charEntry(ctx, name, events, sensorChar, blind, B) {
   const soul = soulOf(ctx.souls, name);
@@ -2934,6 +2971,7 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   const turn = applyTurn({ name, prev, soul, cls, events, vocab: ctx.vocab });
   const entry = { cls, stats: turn.stats, pulse: turn.pulse, hostility: turn.hostility, seed: old ? old.seed : startChar(soul, cls).stats };
   for (const f of TEXT_FIELDS) entry[f] = (isObj(sensorChar) && str(sensorChar[f]) ? cut(str(sensorChar[f]), 300) : old ? old[f] : null) ?? null;
+  if (isObj(sensorChar) && str(sensorChar.outfit) && old && old.outfit) entry.outfit = cut(keepOutfit(old.outfit, sensorChar.outfit), 300);
   // what the sensor saw THIS turn; carried values are stale for the prompt insert
   entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
   // how they reach the user's character from elsewhere (#16); carried like the place, but only
@@ -4061,7 +4099,8 @@ function characterBlock(ctx, name, withNotes, limit) {
   // body, clothes and hands only when seen this turn: a stale detail gets retold forever
   const body = [
     c.condition && isFresh("condition") && "Body: " + c.condition + ".",
-    c.outfit && isFresh("outfit") && "Wearing: " + c.outfit + ".",
+    // clothes stay in the insert after the turn they were seen: the story model drifted (colour, fabric) when they dropped out (#185)
+    c.outfit && (isFresh("outfit") ? "Wearing: " : "Still wearing: ") + c.outfit + ".",
     c.holding && isFresh("holding") && "Holding: " + c.holding + ".",
     // a goal carried from an old turn kept a character repeating it ("close ranks!")
     c.goal && isFresh("goal") && "Wants: " + c.goal + ".",
