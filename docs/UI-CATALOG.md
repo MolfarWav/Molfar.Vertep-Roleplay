@@ -417,3 +417,14 @@ Three corrections to 8.1:
    or a link that opens the app on its settings view) and a Roleplay change (the rail drops `settings`; the page keeps its route and also opens from Home's
    Customize and a command-palette entry). Examples: `docs/ui-mocks/example/home.html` (panel open and closable) and `example/shell-settings.html`.
    Decision to confirm before building: rewrite the 2026-10-11 line of the skill to say "app-level settings are reachable from the shell's Settings, per-chat and per-card settings from their own panels".
+
+### 8.3 Side panel, two more changes; one in Roleplay settings (owner, 2026-10-31)
+
+- **Agents under World**: a rail item with its own icon and colour that opens Canvas on its Agents board (Canvas already has the boards
+  `links | prompt | agents | sets`, remembered per user, `canvas-view.tsx:130`); it is a link to a Canvas view, not a new section, so
+  `sections.ts` gets an entry that navigates to `canvas` with `board: 'agents'` and is current while that board is open.
+- **Groups of the rail**: Home and Chats | Characters, Groups, Marketplace, Personas (the people block) | Lorebooks, Library, Canvas,
+  World, Agents (the technical block) | Presets | Shortcuts, Tools. `sections.ts` group 1 splits in two; the ornament divider sits between them.
+- **Memory tab in Roleplay settings** (owner's mark on a screenshot): it holds only a pointer, "Story record (Litopys): Litopys settings are in
+  the Library now, next to the record they shape. [Open in the Library]". An empty tab is a blind step; remove the tab (and the key
+  `settings.memory`) and keep the pointer where people look for it, in the Library. Done in the example (`example/shell-settings.html` has no Memory tab).

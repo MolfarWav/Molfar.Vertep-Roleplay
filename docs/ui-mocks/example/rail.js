@@ -16,15 +16,16 @@ Object.assign(P, {
   split: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>', full: '<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>', plug: '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
   refresh: '<path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/>', dl: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>', server: '<rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  robot: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9 17h6"/>',
 })
 // label, icon, hue (oklch hue; each item its own), group. Hues: 237 sky, 16 rose, 293 violet, 205 cyan, 70 amber, 322 fuchsia,
 // 162 emerald, 47 orange, 277 indigo, 130 lime-green, 260 blue, 95 yellow, 250 slate-ish (low chroma set below).
 const NAV = [
   ['Home', 'home', 237, 0], ['Chats', 'chat', 16, 0],
   ['Characters', 'user', 293, 1], ['Groups', 'users', 205, 1], ['Marketplace', 'store', 70, 1], ['Personas', 'persona', 322, 1],
-  ['Lorebooks', 'book', 162, 1], ['Library', 'scroll', 47, 1], ['Canvas', 'graph', 277, 1], ['World', 'globe', 130, 1],
-  ['Presets', 'sliders', 260, 2],
-  ['Shortcuts', 'bolt', 95, 3], ['Tools', 'puzzle', 0, 3],
+  ['Lorebooks', 'book', 162, 2], ['Library', 'scroll', 47, 2], ['Canvas', 'graph', 277, 2], ['World', 'globe', 130, 2], ['Agents', 'robot', 350, 2],
+  ['Presets', 'sliders', 260, 3],
+  ['Shortcuts', 'bolt', 95, 4], ['Tools', 'puzzle', 0, 4],
 ]
 const ORN = new URL('divider-mute.svg', document.currentScript.src).href
 function railHtml(current) {
