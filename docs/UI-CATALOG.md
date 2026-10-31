@@ -322,3 +322,30 @@ Looked at its home in the built-in browser. Taken: portrait-first cards with fea
 fade; shelves with titles; a filled rounded pill for the current item in the rail with labels always readable; a floating rounded phone bar;
 a cast strip of small avatars on the featured story (group chats). Not taken: currencies, ads, store badges, contests and rankings, the
 coverflow carousel (nice, but it hides most characters behind the centre one and does not fit a personal library). 
+
+### 7.5 Home, second round (owner, 2026-10-31): H1 to H3 rejected, a library-style start page
+
+The first three Home variants were rejected ("none of them"; the owner would rebuild it differently and add other blocks). Answers:
+Home is first of all a **library**, with some mixing: a random character, the last chat, a "Create a world" block that opens World and
+has its own background taken at random from the library, and more in that spirit. **Not wanted: My apps. Not now: achievements.**
+Blocks to add: news from our repo (releases come fast, not everyone follows Discord), what waits for me, quests and plot threads,
+favourite characters. Character: a calm showcase plus customizable, but no big empty areas; backgrounds pulled from somewhere
+(the user's library) or our own set.
+
+Mocks `docs/ui-mocks/home2/` (the first set is deleted): N1 bento (tiles of different sizes, Customize turns on move, resize and
+hide, a tray of hidden blocks and a reset), N2 magazine (a wide main column: continue, random character and create a world side by
+side, favourites; a narrow side column of live lists: waiting, quests, news). Ask Molfar is a slim bar in the page header. One
+primary button on the page (Continue); Start a chat is tonal; Open World is a white button on the art.
+
+What each block needs (nothing is built yet):
+- Continue: the existing hero data (`home-hero.tsx`).
+- Random character: a random card with a chat or not, "Another" re-rolls; a button that starts a chat.
+- Create a world: opens World; the background is a random picture from the user's backgrounds (World > Backgrounds, chat backgrounds)
+  and, when there are none, from a small set we ship; the shuffle button on it picks another.
+- Favourites: the starred cards (already in the list screen), click starts or continues a chat.
+- Waiting for you: the inbox (`useInboxBadge`, the section "needs you" counts), red when something failed.
+- Quests and threads: open quests and plot threads over all chats from the dashboard data (`dash-threads`), a click opens that chat.
+- What's new: the latest release notes of the project (online fetch with an offline fallback to the bundled CHANGELOG), a link to all releases.
+- Customize: per-user list of block ids, order and size in the app's settings; default is the full set; "Reset to default".
+
+Next on the list after Home (owner): the **Lorebooks** tab needs redoing too.

@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Home — N1 Bento</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="home2.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="home2.js"></script>
+<script>
+mountHome2({ label: 'N1 · Bento', blurb: 'Tiles of different sizes, each with its own art; Customize turns on moving, resizing and hiding (open ?edit=1 to see it)', html:
+  `<div class="bento">
+    <div class="c8" style="display:flex">${B.cont('c8').replace('class="bt art c8"', 'class="bt art" style="flex:1"')}</div>
+    <div class="c4" style="display:flex">${B.rand('').replace('class="bt "', 'class="bt" style="flex:1"')}</div>
+    <div class="c4" style="display:flex">${B.world('').replace('min-height:200px', 'min-height:240px;flex:1')}</div>
+    <div class="c4">${B.waits()}</div>
+    <div class="c4">${B.quests()}</div>
+    <div class="c8">${B.favs()}</div>
+    <div class="c4">${B.news()}</div>
+  </div>`
+})
+</script></body></html>
