@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Chat — X1 Clean header</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="chat.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="chat.js"></script>
+<script>
+const header = `<header class="chead">${ib('back', 'Back to chats')}${avatar('M', 'violet')}<div class="who"><div class="nm">Mira</div><div class="cap sub">Harbour of Ash · <b>chat 1 of 3</b></div></div>
+  <button class="ctx hide-m" type="button" aria-label="Switch preset, persona, model, agents">${icon('sliders')}<span class="t">Chronicler <i>·</i> Captain Ren <i>·</i> DeepSeek V3</span>${icon('caret')}</button>
+  <span class="ring" style="--p:41" title="Context 41% full"><span>41</span></span>
+  ${ib('globe', 'World DM', '', '<i class="dot"></i>')}${ib('search', 'Find in chat', 'hide-m')}${ib('dots', 'Chat tools', 'out hide-m')}
+  <button class="btn show-m" type="button" style="height:40px">${icon('menu')}Menu</button></header>`
+const composer = `<div class="composer"><div class="cin"><div class="box">${area()}
+  <div class="tb">${ib('plus', 'Message options')}<button class="btn ghost" type="button">${icon('spark')}<span class="hide-m">Polish</span></button>${ib('translate', 'Translate')}${ib('expand', 'Bigger editor', 'hide-m')}<span class="sp"></span>
+  <button class="btn hide-m" type="button">${icon('pen')}Write for me</button><button class="btn tonal" type="button">${icon('next')}Continue</button>${sendBtn()}</div></div></div></div>`
+mountChat({ label: 'X1 · Clean header, weighted moves', blurb: 'One context chip says what is active; composer moves follow the button ladder; Another is gone (Regenerate is under the reply)', header, composer })
+</script></body></html>

@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Chat — X3 Immersive</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="chat.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="chat.js"></script>
+<script>
+const header = `<header class="chead">${ib('back', 'Back to chats')}${avatar('M', 'violet')}<div class="who"><div class="nm">Mira</div><div class="cap sub">Harbour of Ash · chat 1 of 3</div></div>
+  <span class="ring" style="--p:41" title="Context 41% full"><span>41</span></span>${ib('globe', 'World DM', '', '<i class="dot"></i>')}${ib('dots', 'Chat tools', '')}</header>`
+const composer = `<div class="composer"><div class="cin"><div class="box">${area()}
+  <div class="tb">${ib('plus', 'Message options')}<button class="btn" type="button" data-sheet>${icon('sliders')}<span class="hide-m">Chronicler · DeepSeek V3</span><span class="show-m">Context</span></button>${ib('spark', 'Polish')}<span class="sp"></span>
+  <button class="btn tonal" type="button">${icon('next')}<span class="hide-m">Continue</span></button>${sendBtn(true)}</div></div></div></div>`
+const sheet = `<div class="sheet" role="dialog" aria-label="Chat context"><div class="sh t-sky" style="margin-bottom:4px"><i></i>What this chat runs on</div>
+  <div class="rows card">${[['Preset', 'Chronicler'], ['Persona', 'Captain Ren'], ['Model', 'DeepSeek V3'], ['Agents', '2 on']].map(([a, b]) => `<div class="row"><span class="lab"><span>${a}</span></span><span style="display:flex;align-items:center;gap:8px;color:var(--muted-foreground)">${b}${icon('chevR')}</span></div>`).join('')}</div></div>`
+mountChat({ label: 'X3 · Immersive', blurb: 'Background shows through, slim header, floating composer, context in a sheet behind one labelled button (one more step to see it)', header, composer, cls: 'glass', bg: true, extra: sheet })
+</script></body></html>
