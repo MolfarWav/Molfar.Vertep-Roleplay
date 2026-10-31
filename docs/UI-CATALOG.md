@@ -496,3 +496,8 @@ L1 (list and book, entry editor in a side panel) is picked; the owner liked the 
   (`readMore`/`writeMore`) goes, each fold remembers its own state.
 - Mocks: `docs/ui-mocks/lorebooks/l1.html` with `?entry=0` (no panel), none (panel), `?more=1` (all folds open), `?tab=rules`. L2 (shelf) is dropped; its cards may
   return for the empty state.
+
+Phone layout of the book page (fixed after the owner's screenshot, 2026-10-31): the header is the title (22 px), a row of chips (Global, kind) and a row (entries, tokens),
+then one row with "Test triggers" (stretches) and the "more" button; tabs scroll; the toolbar is search on its own row, then Order, select-several and the one primary "Add entry" (stretches);
+the filter chips are **one scrolling row**, not four wrapped rows; an entry's title may take two lines; the list view is the book list with the same icons, the book opens on its own screen with "← Lorebooks".
+Lesson for the build: any toolbar of more than three controls gets rows on a phone, and chip rows scroll sideways instead of wrapping.
