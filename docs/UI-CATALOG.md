@@ -160,9 +160,12 @@ All in `src/components/ui/` (new files `fold.tsx`, `setting-row.tsx`, `section.t
 Like "Buy" in a shop: a button that commits or starts something (Save, Create, New chat, Send, Open chat, World turn) is filled
 in `primary`/`cta` and is the loudest thing in its block, also over a picture (label contrast, a scrim behind it when needed).
 Look at, Edit, Cancel and navigation are outline or ghost. Few filled buttons: one per decision, two side by side only when
-they are different jobs. `Button` gets this as the default reading of `variant="default"` (filled) vs `outline`/`ghost`; the
-audit of existing screens happens when each screen is redone. In the mocks: World turn, Open chat (on the hero), Save world and
-New chat in this world are filled; Look at the world, Edit profile, World settings are outline.
+they are different jobs. **Weight is a ladder** (owner, same day: four equal green buttons have no main one). `Button` variants, strongest first:
+`default` (solid cta, `size="lg"` 44 px, one per screen), `onImage` (white, dark text, for banners), `tonal` (soft cta fill,
+cta border, cta ink, semibold), `outline`, `ghost` (muted text and icon). Two buttons of one weight side by side must be of
+equal importance. In the mocks: World turn = default lg; Open chat = onImage; New chat in this world = tonal; Save world =
+outline; Look at the world = ghost; Edit profile and World settings = outline. Which job gets which step is the owner's call
+per screen. The audit of existing screens happens when each screen is redone.
 
 ### 2.5 Colour and picture on the hub
 

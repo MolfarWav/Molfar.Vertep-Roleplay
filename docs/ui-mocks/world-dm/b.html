@@ -8,7 +8,7 @@ mount({
   label: 'B · Tabs',
   blurb: 'World turn always in view; three tabs by task, one task at a time',
   settingsHTML: `<section class="card">
-    <div class="runstrip"><button class="btn pri" type="button">${icon('globe')}World turn</button><p class="cap">Next run in 2 replies, or now with World turn.</p></div>
+    <div class="runstrip"><button class="btn pri lg" type="button">${icon('globe')}World turn</button><p class="cap">Next run in 2 replies, or now with World turn.</p></div>
     <div class="ptabs" role="tablist">${tab('sched', 'sky', 'Schedule', 1, true)}${tab('rec', 'emerald', 'Records', 0, false)}${tab('ev', 'violet', 'Events and dice', 2, false)}</div>
     ${pane('sched', true, everyNoStatus + `<p class="cap note" style="background:var(--muted)">Also runs when…</p>` + S.still() + S.skip() + S.place())}
     ${pane('rec', false, S.recEvery() + S.textMax() + S.changesMax() + S.outfit())}

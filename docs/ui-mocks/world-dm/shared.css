@@ -14,6 +14,7 @@
   --cta: var(--primary); --cta-foreground: var(--primary-foreground);
   --secondary: #f1f1f2; --muted: #f1f1f2; --muted-foreground: #6b6b6b; --accent: #ebebec;
   --destructive: #d92d20;
+  --cta-ink: color-mix(in oklab, var(--primary) 62%, black);
   --border: rgb(0 0 0 / 11%); --input: rgb(0 0 0 / 12%); --ring: #2eaf5a;
   --radius: 0.5rem;
   /* tone hues (Tailwind palette, as the app uses them): line = 500, ink = 700 on light / 300 on dark */
@@ -36,6 +37,7 @@
   --primary: #54d17d; --primary-foreground: #0d1f14;
   --secondary: #202020; --muted: #1f1f1f; --muted-foreground: #9d9d9d; --accent: #242424;
   --destructive: #e5484d;
+  --cta-ink: var(--primary);
   --border: #2b2b2b; --input: #2b2b2b; --ring: #54d17d;
   --sky-ink: oklch(82.8% 0.111 230.3); --violet-ink: oklch(81.1% 0.111 293.6); --emerald-ink: oklch(84.5% 0.143 165);
   --pink-ink: oklch(82.3% 0.12 346); --teal-ink: oklch(85.5% 0.138 181.1); --amber-ink: oklch(87.9% 0.169 91.6);
@@ -76,7 +78,7 @@ svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor;
 .hero .who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; font-weight: 500; text-shadow: 0 1px 6px rgb(0 0 0 / .6); }
 .hero .av { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ts); border: 1px solid var(--tl); font-size: var(--fs-caption); font-weight: 600; color: white; backdrop-filter: blur(4px); }
 .hero .chip.dark { background: rgb(0 0 0 / .45); border-color: rgb(255 255 255 / .35); color: white; text-shadow: none; }
-.hero .btn.pri { box-shadow: 0 2px 10px rgb(0 0 0 / .35); flex: none; }
+.hero .btn.onimg { flex: none; }
 .hub-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .hub-top h2 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
 .hub-top p { color: var(--muted-foreground); }
@@ -95,6 +97,14 @@ svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor;
 .btn.sm { height: 32px; padding: 0 12px; }
 .btn.pri { background: var(--cta); color: var(--cta-foreground); border-color: transparent; }
 .btn.pri:hover { filter: brightness(1.06); background: var(--cta); }
+/* weight steps: primary (solid, one per screen) > on-image (white) > tonal (soft fill + border) > outline > ghost */
+.btn.pri.lg { height: 44px; font-weight: 600; box-shadow: 0 2px 8px color-mix(in oklab, var(--cta) 35%, transparent); }
+.btn.tonal { background: color-mix(in oklab, var(--cta) 16%, transparent); border-color: color-mix(in oklab, var(--cta) 55%, transparent); color: var(--cta-ink); font-weight: 600; }
+.btn.tonal:hover { background: color-mix(in oklab, var(--cta) 26%, transparent); }
+.btn.ghost { border-color: transparent; color: var(--muted-foreground); }
+.btn.ghost:hover { color: var(--foreground); background: var(--accent); }
+.btn.onimg { background: white; color: black; border-color: transparent; font-weight: 600; box-shadow: 0 2px 10px rgb(0 0 0 / .4); }
+.btn.onimg:hover { background: rgb(255 255 255 / .9); }
 .btn:focus-visible, .fold > button:focus-visible, .seg button:focus-visible, .tabs button:focus-visible, .info:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
 .chip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 999px; font-size: var(--fs-caption); line-height: 16px; font-weight: 500; border: 1px solid var(--tb); background: var(--ts); color: var(--ti); white-space: nowrap; }
 .chip.n { border-color: var(--border); background: var(--muted); color: var(--muted-foreground); }

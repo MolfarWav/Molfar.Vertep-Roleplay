@@ -10,6 +10,9 @@ const P = {
   dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01"/>',
   spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
   pen: '<path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/>',
+  save: '<path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
 }
 const icon = (n, c = '') => `<svg class="i ${c}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`
@@ -37,7 +40,7 @@ const fold = ({ id, title, summary, open = false, tone = '', body, cls = '' }) =
 // The settings' content, defined once so the variants only choose how it is grouped.
 const S = {
   everyN: () => row({ label: 'Run after every N replies', hint: 'Profile default: 3.', status: 'Next run in 2 replies, or now with World turn.', ctl: num(3, 'Run after every N replies') }),
-  turnBtn: () => `<div class="action"><button class="btn pri" type="button">${icon('globe')}World turn</button></div>`,
+  turnBtn: () => `<div class="action"><button class="btn pri lg" type="button">${icon('globe')}World turn</button></div>`,
   still: () => row({ label: 'When the scene stands still for N replies', hint: 'Same place, same people. Slower at home, faster on the road, paused in a fight. 0 = never.', ctl: num(8, 'Scene stands still') }),
   skip: () => row({ label: 'On a time skip', hint: 'A good moment for the world to move: the DM runs right after it.', ctl: sw(true, 'On a time skip') }),
   place: () => row({ label: 'Write the scene when the story changes place', hint: 'A short run when the Dashboard sees the characters move somewhere else, so the place they left is on record. Records only.', ctl: sw(true, 'Place') }),
@@ -82,7 +85,7 @@ function statusBlock() {
     <div class="chips">${chip('Scene now: intrigue', 'sky')}${chip('An event waits for the next reply', 'amber')}</div>
     <p class="cap">Last run 14 minutes ago · 4.6k in · 1.2k out · $0.002 · 4.1 s</p>
     <div class="quote"><p>The harbour guild closed ranks after the fire. Mira learned the ledger was altered; the watch captain now watches her back.</p><button class="link" type="button">Show all</button></div>
-    <div class="btns"><button class="btn sm" type="button">Look at the world</button><button class="btn sm pri" type="button">Save world</button><button class="btn sm pri" type="button">New chat in this world</button></div>
+    <div class="btns"><button class="btn sm tonal" type="button">${icon('plus')}New chat in this world</button><button class="btn sm" type="button">${icon('save')}Save world</button><button class="btn sm ghost" type="button">${icon('eye')}Look at the world</button></div>
     <p class="cap">The world book is hidden from the Lorebooks library. The prompt Inspector shows what reaches the model.</p>
   </section>`
 }
@@ -116,7 +119,7 @@ function mount({ label, blurb, settingsHTML }) {
           <h2>Harbour of Ash</h2>
           <div class="who"><span class="av t-violet">M</span><span class="av t-pink">D</span><span>Mira, Dan</span><span class="chip dark">Living world</span></div>
         </div>
-        <button class="btn pri" type="button">Open chat</button>
+        <button class="btn onimg" type="button">Open chat</button>
       </div>
       ${tabsRow()}
     </header>
