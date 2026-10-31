@@ -234,3 +234,14 @@ What the model is reminded of / Quests; event groups become toggle chips; prompt
 Left nav: vertical list with an active bar on desktop, scrolling tabs on a phone. Save stays in a sticky bar and becomes the
 primary button (2.4). The three other tabs (Event vocabulary, What the model sees, Tune with Molfar) are not designed yet.
 Recommendation: A, for one pattern across both screens; C if the owner wants the densest overview.
+
+**Picked: C (owner, 2026-10-31).** Build waits, like the World DM panel (the DM branch is in flight; Dashboard follows it in the screen order).
+What C needs when it is built:
+
+- Shorter labels, all locales Roleplay ships (key → new English; the old sentence moves into the (i) or the hint under the tile):
+  `dash.set.maxSteps` → "Steps per main quest"; `dash.set.everydayTurns` → "Everyday quests end after (turns)" + hint "0 = never";
+  `dash.set.retireAfter` → "Ask to close after (old-quest checks)" + "0 = never"; `dash.set.threadCheck` → "Check old quests every (turns)" + "0 = never";
+  `dash.set.noteAge` → "Notes stay in the insert (turns)" + "5 to 500"; `dash.set.said` → "Said per turn, at most" + "1 to 4" (the long sentence stays as the hint of "Remind the model what characters said");
+  `dash.set.sensorTokens` → "Sensor reply limit (tokens)" + "raise only if replies get cut off" (the long warning goes to its (i)).
+- New: the "Current setup" summary card (chips derived from the form: mode, model, insert on/off and tokens, enabled groups count, quest caps; usage chips replace the monospace counters), toggle chips for event groups (`aria-pressed`, check icon so it is not colour alone), a `NumTile` (label, hint, number input) next to `SettingRow` in `ui/`.
+- Unchanged logic: `Form`/`patch`, clamps on blur, `SaveBar` (sticky, becomes the primary button), the Advanced prompts (a closed `Fold` with a summary), the other three tabs.
