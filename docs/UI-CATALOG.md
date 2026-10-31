@@ -386,3 +386,14 @@ Marketplace pick + Create a world + Waiting; Quests + Favourites; What's new + D
 | Next | Lorebooks tab |
 
 Not decided or not started: the Lorebooks tab; phase 2 (tokens, shared pieces, building) waits for the DM branch.
+
+### 8.1 Side panel: Settings moves (owner, 2026-10-31)
+
+The rail's Settings (the gear, which opens the Roleplay settings page) leaves the bottom corner, where it floated far from everything,
+and joins the **Setup group** with Presets, Shortcuts and Tools (`sections.ts`: `settings` changes from `group: 'end'` to the
+setup group; the bottom keeps Inbox and Help, both "needs you" items). Example screens with the final panel, closeable by its arrow:
+`docs/ui-mocks/example/home.html` and `example/settings.html` (panel closed, Settings is the current item).
+Note for the build: there are two settings in the product. The gear in the rail opens **Roleplay settings** (Appearance, Chat
+Behavior, ..., Data); the gear at the top right of the shell opens **Molfar Vertep's settings** (General, Backup, Connections and
+models, ...). The rail item's name and tooltip say "Settings" in both; label the rail one "Roleplay settings" in its tooltip and page
+title, and keep "Open it" links between the two (the Data page already has one).

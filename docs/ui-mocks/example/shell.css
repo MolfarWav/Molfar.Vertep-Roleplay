@@ -1,0 +1,52 @@
+/* Full-screen examples with the chosen side panel (option 1). Uses ../world-dm/shared.css and ../home2/home2.css. */
+.shell { display: flex; height: calc(100vh - 36px); min-height: 560px; }
+.bare .shell { height: 100vh; }
+.rail { display: flex; flex-direction: column; flex: none; padding: 8px 0; border-right: 1px solid var(--border); background: var(--card); overflow-y: auto; overflow-x: hidden; transition: width .15s; }
+.rail.c { width: 56px; } .rail.x { width: 232px; }
+.rtop { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; margin-bottom: 4px; }
+.rail.c .rtop { justify-content: center; }
+.brand { font: 400 20px/24px var(--font-heading); flex: 1; padding-left: 8px; }
+.rail.c .brand { display: none; }
+.tg { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--input); border-radius: 10px; background: transparent; color: var(--foreground); flex: none; }
+.tg:hover { background: var(--accent); }
+.tg svg.i { width: 18px; height: 18px; }
+.it { position: relative; display: flex; align-items: center; gap: 12px; height: 44px; margin: 1px 8px; padding: 0 10px; border: 0; border-radius: 12px; background: none; color: var(--muted-foreground); text-align: left; font-family: var(--font-heading); font-size: var(--fs-heading); flex: none; }
+.rail.c .it { width: 40px; margin: 1px auto; padding: 0; justify-content: center; }
+.it svg.i { width: 22px; height: 22px; flex: none; }
+.it:hover { background: var(--accent); color: var(--foreground); }
+.it:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+.it .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail.c .it .lb { display: none; }
+.it.cl svg.i { color: var(--ti); }
+.it[aria-current='page'] { background: var(--ts); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--tb); }
+.it[aria-current='page']::before { content: ''; position: absolute; left: -9px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--tl); }
+.rail.c .it:hover::after { content: attr(data-tip); position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index: 20; padding: 4px 10px; border-radius: 8px; background: var(--foreground); color: var(--background); font: 500 var(--fs-caption)/16px var(--font-sans); white-space: nowrap; pointer-events: none; }
+.bdg { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--sky); color: white; font: 700 var(--fs-caption)/20px var(--font-sans); text-align: center; }
+.rail.c .bdg { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; font-size: 11px; border: 2px solid var(--card); box-sizing: content-box; }
+.rl { height: 1px; margin: 8px 16px; background: var(--border); flex: none; }
+.sp { flex: 1; }
+.main { flex: 1; min-width: 0; overflow-y: auto; }
+.tabbar { display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 56px; z-index: 30; border-top: 1px solid var(--border); background: var(--card); }
+.tabbar button { flex: 1; display: grid; place-items: center; border: 0; background: none; color: var(--muted-foreground); position: relative; }
+.tabbar button[aria-current='page'] { color: var(--ti); box-shadow: inset 0 -3px 0 var(--tl); }
+.tabbar svg.i { width: 22px; height: 22px; }
+.tabbar .bdg { position: absolute; top: 6px; right: calc(50% - 22px); min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; padding: 0 4px; }
+@media (max-width: 767px) {
+  .rail { display: none; }
+  .tabbar { display: flex; }
+  .shell { height: auto; }
+  .main { padding-bottom: 64px; overflow: visible; }
+}
+/* settings page */
+.sp-head { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 3; }
+.sp-head h2 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
+.sp-head .srch { flex: 1; max-width: 360px; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid var(--input); border-radius: 10px; color: var(--muted-foreground); }
+.sp-body { display: flex; min-height: 0; }
+.sp-nav { width: 220px; flex: none; padding: 12px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--border); }
+.sp-nav button { position: relative; min-height: 44px; padding: 0 12px; text-align: left; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); font-weight: 500; }
+.sp-nav button:hover { background: var(--accent); color: var(--foreground); }
+.sp-nav button[aria-current='page'] { background: var(--accent); color: var(--foreground); font-weight: 600; }
+.sp-nav button[aria-current='page']::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--cta); }
+.sp-main { flex: 1; min-width: 0; padding: 20px; max-width: 760px; display: flex; flex-direction: column; gap: 16px; }
+.sp-main .row { padding: 8px 16px; }
+@media (max-width: 767px) { .sp-body { flex-direction: column; } .sp-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; } .sp-nav button { white-space: nowrap; } .sp-main { padding: 12px; } .sp-head { padding: 8px 12px; } .sp-head .srch { display: none; } }
