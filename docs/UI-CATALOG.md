@@ -272,3 +272,53 @@ applies to buttons the owner touches later. Backgrounds already show in the chat
 
 **Accepted (owner, 2026-10-31): all four as proposed** (header icons in the tinted version). Build waits with the others; this one is
 small and independent of the DM branch, so it can ship first when building starts.
+
+## 7. Home, the characters list and the side panel (owner, 2026-10-31)
+
+Scope from the owner: redo Home; in the cards only a few changes to the general list; personas are not touched (just reworked);
+the side panel gets a closed and an open design. Mocks: `docs/ui-mocks/home/`, `characters-list/`, `rail/`.
+
+### 7.1 Home (`views/home-view.tsx`, `home/*.tsx`)
+
+Now: header (model chip, "New chat" outline button that actually opens the Characters list, a blind step), the hero (continue the
+last chat, art on the right 44 %), then a grid of three equal blocks (Create, Ask Molfar, Achievements: three rings, three tiles, two
+badges), then up to 8 recent-chat rows (persona chip in red, 18 px title), then My apps. Findings: three "primary" buttons compete
+(Continue, New character, Ask Molfar's Open), the blocks have equal weight, achievements take a full column, the home components use
+their own look (`rounded` 4 px, `rounded-[3px]`, Kurale buttons at 13 to 17 px, a red diamond marker), 5 one-off text sizes of
+12.5 to 32 px; the recent list repeats the Chats section and carries select-and-delete.
+
+Variants: H1 continue first (one primary, recent chats as a card row with portraits, Create and Ask Molfar side by side,
+achievements as a line of chips), H2 tone cards (emerald create, violet Molfar, amber achievements, teal apps, recent chats as a
+list), H3 shelves (recent chats, your characters with New character as the first tile, apps; Ask Molfar as a bottom bar,
+achievements as a link). Recommendation: H1 for the order and calm, with H2's tinted Create and Ask cards if more colour is wanted.
+Common to all: header "New chat" goes (Continue and the shelf tiles cover it); weight ladder: Continue primary, New character
+tonal, Import outline, With Molfar ghost; persona chip uses the violet tone, not red.
+
+### 7.2 Characters list (`views/characters-view.tsx`, the owner's four marks)
+
+1. Header spread out: row 1 title and count with New character (the one primary), row 2 search and sort, row 3 folders, row 4
+   "All tags", grid/list switch and a "More" menu (select, import, manage tags and folders). Desktop: one row plus the folders.
+2. Folders block always visible: the existing strip (`characters-view.tsx:484`, the tags marked "folder", `lib/character-folders.ts`)
+   only renders when such tags exist, so it is invisible to most users. Proposal: always render All, Favourites, the folders with counts,
+   "No folder" and a dashed "New folder" chip; "Move to folder" in the card menu and the batch bar; "New folder..." creates the tag
+   with `asFolder` set. No new storage.
+3. Marker colour: lorebook (`BookOpenText`, line 586) emerald and sprites (`Smiley`, line 587) violet, as chips with icon and word
+   ("Lore", "Sprites"); option B from isekaizero.ai: corner badges on the art with the name and counts over a fade.
+Cards and the card editor are not touched otherwise.
+
+### 7.3 Side panel (`shell/app-shell.tsx:286` `IconRail`)
+
+Now: closed 48 px with 17 identical grey icons, 36 px caret, current item a red-tinted strip with a bar; open 206 px with Kurale 17 px labels
+and an ornament picture between groups; the two states look unrelated. Option 1 keeps one tone per item (the app's tones) with a rounded
+filled pill for the current one in both states; option 2 adds four named groups (Play, Cast, World, Setup; needs `sections.ts` group 1
+split in two) with captions when open and a coloured short rule when closed, icons calm and only the current item coloured. Both: 44 px
+items, 12 px radius, focus ring, a bordered 36 px toggle in the same spot in both states, names on hover and focus when closed, the
+inbox badge as a number circle (red on failures). Phone bar: a floating rounded bar with the current item as a named pill (idea from
+isekaizero.ai); targets stay 48 px.
+
+### 7.4 What was taken from isekaizero.ai (ideas only, nothing copied)
+
+Looked at its home in the built-in browser. Taken: portrait-first cards with feature badges in the corner of the art and the title over a
+fade; shelves with titles; a filled rounded pill for the current item in the rail with labels always readable; a floating rounded phone bar;
+a cast strip of small avatars on the featured story (group chats). Not taken: currencies, ads, store badges, contests and rankings, the
+coverflow carousel (nice, but it hides most characters behind the centre one and does not fit a personal library). 

@@ -1,0 +1,126 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Side panel — closed and open</title>
+<link rel="stylesheet" href="../world-dm/shared.css">
+<style>
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 32px; }
+h1 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
+.lead, .why { color: var(--muted-foreground); max-width: 90ch; }
+h2 { font-size: var(--fs-heading); line-height: var(--lh-heading); font-weight: 600; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; padding: 0; min-height: 0; }
+.fr { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--background); display: flex; flex-direction: column; }
+.fr > .tag { padding: 6px 12px; background: var(--muted); border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--fs-caption); }
+.fr > .tag.new { color: var(--emerald-ink); }
+.stage { display: flex; height: 760px; }
+.page { width: 240px; padding: 20px; color: var(--muted-foreground); }
+.page h3 { font: 400 28px/32px var(--font-heading); color: var(--foreground); margin-bottom: 12px; }
+.page i { display: block; height: 10px; border-radius: 5px; background: var(--muted); margin-bottom: 10px; }
+/* the rail */
+.rail { display: flex; flex-direction: column; flex: none; padding: 8px 0; border-right: 1px solid var(--border); background: var(--card); overflow: hidden; }
+.rail.c { width: 56px; } .rail.x { width: 232px; }
+.rtop { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; margin-bottom: 4px; }
+.rail.c .rtop { justify-content: center; }
+.brand { font: 400 20px/24px var(--font-heading); flex: 1; padding-left: 8px; }
+.tg { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--input); border-radius: 10px; background: transparent; color: var(--foreground); flex: none; }
+.tg:hover { background: var(--accent); }
+.tg svg.i { width: 18px; height: 18px; }
+.it { position: relative; display: flex; align-items: center; gap: 12px; height: 44px; margin: 1px 8px; padding: 0 10px; border: 0; border-radius: 12px; background: none; color: var(--muted-foreground); text-align: left; font-family: var(--font-heading); font-size: var(--fs-heading); }
+.rail.c .it { width: 40px; margin: 1px auto; padding: 0; justify-content: center; }
+.it svg.i { width: 22px; height: 22px; flex: none; }
+.it:hover { background: var(--accent); color: var(--foreground); }
+.it:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+.it .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail.c .it .lb { display: none; }
+.it.cl svg.i { color: var(--ti); }
+.it[aria-current='page'] { background: var(--ts); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--tb); }
+.it[aria-current='page'] svg.i { color: var(--ti); }
+.it[aria-current='page'].r2::before, .it[aria-current='page'].cl::before { content: ''; position: absolute; left: -9px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--tl); }
+.rail.c .it:hover::after { content: attr(data-tip); position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index: 9; padding: 4px 10px; border-radius: 8px; background: var(--foreground); color: var(--background); font: 500 var(--fs-caption)/16px var(--font-sans); white-space: nowrap; }
+.bdg { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--sky); color: white; font: 700 var(--fs-caption)/20px var(--font-sans); text-align: center; }
+.rail.c .bdg { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; font-size: 11px; border: 2px solid var(--card); box-sizing: content-box; }
+.rl { height: 1px; margin: 8px 16px; background: var(--border); flex: none; }
+.rail.c .rl { margin: 8px 16px; }
+.rcap { display: flex; align-items: center; gap: 8px; height: 28px; margin: 8px 18px 0; color: var(--muted-foreground); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .02em; }
+.rcap i { width: 8px; height: 8px; border-radius: 2px; background: var(--tl); }
+.rail.c .rcap { display: none; }
+.rail.c .rl2 { height: 2px; margin: 10px 14px; border-radius: 1px; background: var(--tl); opacity: .8; }
+.rail.x .rl2 { display: none; }
+.sp { flex: 1; }
+/* mobile bar */
+.ph { width: 390px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--background); position: relative; height: 220px; }
+.ph .tag { padding: 6px 12px; background: var(--muted); border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--fs-caption); }
+.ph .tag.new { color: var(--emerald-ink); }
+.tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; display: flex; border-top: 1px solid var(--border); background: var(--card); }
+.tabbar button { flex: 1; display: grid; place-items: center; border: 0; background: none; color: var(--muted-foreground); position: relative; }
+.tabbar button[aria-current='page'] { color: var(--ti); box-shadow: inset 0 -3px 0 var(--tl); }
+.tabbar svg.i { width: 22px; height: 22px; }
+.pill { position: absolute; left: 16px; right: 16px; bottom: 12px; height: 60px; display: flex; gap: 4px; padding: 6px; border-radius: 999px; border: 1px solid var(--border); background: color-mix(in oklab, var(--card) 88%, transparent); backdrop-filter: blur(10px); box-shadow: 0 6px 24px rgb(0 0 0 / .35); }
+.pill button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 999px; background: none; color: var(--muted-foreground); font-weight: 600; position: relative; min-width: 48px; }
+.pill button[aria-current='page'] { background: var(--ts); color: var(--ti); box-shadow: inset 0 0 0 1px var(--tb); }
+.pill svg.i { width: 22px; height: 22px; }
+.pill .bdg { position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; padding: 0 4px; }
+</style></head><body>
+<div class="bar"><b>Side panel · closed and open</b><span>two options, each in both states, plus the phone bar</span><span class="sp"></span><a id="d" href="?theme=dark">dark</a><a id="l" href="?theme=light">light</a><a href="../index.html">all mocks</a></div>
+<div class="wrap" id="root"></div>
+<script src="../world-dm/shared.js"></script>
+<script>
+Object.assign(P, {
+  home: '<path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>', chat: '<path d="M4 5h16v11H9l-5 4z"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5"/><circle cx="17" cy="9" r="2.8"/><path d="M13 20c0-3 2.5-4.5 5-4.5s4 1.5 4 4.5"/>',
+  store: '<path d="M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9c0 2 3 2 4 0 1 2 3 2 4 0 1 2 3 2 4 0 1 2 4 2 4 0"/>',
+  persona: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 18c1-3 3.2-4 5.5-4s4.5 1 5.5 4"/>',
+  scroll: '<path d="M8 4h10v13a3 3 0 01-3 3H6a3 3 0 003-3V4zM8 4a2 2 0 00-2 2v2h2"/>',
+  graph: '<circle cx="6" cy="6" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6l8 1.5M7 8l4 8M17 10l-4 6"/>',
+  bolt: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>', puzzle: '<path d="M10 4h4v3a2 2 0 104 0h2v6h-3a2 2 0 100 4h3v3H4v-5h3a2 2 0 100-4H4V4z"/>',
+  tray: '<path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5"/>', help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 115 0c0 2-2.5 2-2.5 4M12 17h.01"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  book: '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3V4zM5 17a3 3 0 013-3h11"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  chevL: '<path d="M15 6l-6 6 6 6"/>', chevR: '<path d="M9 6l6 6-6 6"/>', menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+})
+// [label, icon, tone, group, group caption]
+const NAV = [
+  ['Home', 'home', 'sky', 0], ['Chats', 'chat', 'sky', 0],
+  ['Characters', 'user', 'violet', 1], ['Groups', 'users', 'violet', 1], ['Personas', 'persona', 'violet', 1], ['Marketplace', 'store', 'amber', 1],
+  ['Lorebooks', 'book', 'emerald', 2], ['Library', 'scroll', 'emerald', 2], ['Canvas', 'graph', 'pink', 2], ['World', 'globe', 'teal', 2],
+  ['Presets', 'sliders', 'slate', 3], ['Shortcuts', 'bolt', 'amber', 3], ['Tools', 'puzzle', 'slate', 3],
+]
+const CAP = ['Play', 'Cast', 'World', 'Setup']
+const GT = ['sky', 'violet', 'emerald', 'slate']
+function rail(open, kind) {
+  const it = (l, ic, tone, cur, extra = '') => `<button class="it ${kind === 'r1' ? 'cl' : 'r2'} t-${tone}" ${cur ? 'aria-current="page"' : ''} data-tip="${l}" aria-label="${l}">${icon(ic)}<span class="lb">${l}</span>${extra}</button>`
+  let out = `<nav class="rail ${open ? 'x' : 'c'}" aria-label="Primary sections"><div class="rtop">${open ? '<span class="brand">Roleplay</span>' : ''}<button class="tg" aria-label="${open ? 'Hide labels' : 'Show labels'}" title="${open ? 'Hide labels' : 'Show labels'}">${icon(open ? 'chevL' : 'chevR')}</button></div>`
+  let last = -1
+  NAV.forEach(([l, ic, tone, g]) => {
+    if (g !== last) {
+      if (kind === 'r2') out += open ? `<div class="rcap t-${GT[g]}"><i></i>${CAP[g]}</div>` : (g > 0 ? `<div class="rl2 t-${GT[g]}"></div>` : '')
+      else if (g > 0) out += '<div class="rl"></div>'
+      last = g
+    }
+    const gt = kind === 'r2' ? GT[g] : tone
+    out += it(l, ic, gt, l === 'Characters')
+  })
+  out += `<span class="sp"></span><div class="rl"></div>`
+  out += `<button class="it t-sky" data-tip="Inbox" aria-label="Inbox, 5 waiting">${icon('tray')}<span class="lb">Inbox</span><span class="bdg">5</span></button>`
+  out += `<button class="it" data-tip="Help" aria-label="Help">${icon('help')}<span class="lb">Help</span></button>`
+  out += `<button class="it" data-tip="Settings" aria-label="Settings">${icon('gear')}<span class="lb">Settings</span></button></nav>`
+  return out
+}
+const page = (w) => `<div class="page"><h3>Characters</h3><i style="width:90%"></i><i style="width:70%"></i><i style="width:80%"></i><i style="width:50%"></i></div>`
+const stage = (open, kind) => `<div class="stage">${rail(open, kind)}${page()}</div>`
+const frame = (tag, n, body) => `<div class="fr"><div class="tag ${n ? 'new' : ''}">${tag}</div>${body}</div>`
+const old = `<div class="fr"><div class="tag">Now (collapsed, from your screenshot)</div><div class="stage"><nav class="rail c" style="width:48px"><div class="rtop" style="height:36px"><button class="tg" style="border:0;width:32px;height:32px">${icon('chevR')}</button></div>${['home', 'chat'].map((i, k) => `<button class="it" style="height:40px;border-radius:0;margin:0;width:48px;${k === 0 ? 'background:linear-gradient(to right,color-mix(in oklab,var(--primary) 25%,transparent),transparent);border-left:3px solid var(--primary)' : ''}">${icon(i)}</button>`).join('')}<div class="rl" style="margin:8px 12px"></div>${['user', 'users', 'store', 'persona', 'book', 'scroll', 'graph', 'globe'].map((i) => `<button class="it" style="height:40px;border-radius:0;margin:0;width:48px">${icon(i)}</button>`).join('')}<div class="rl" style="margin:8px 12px"></div><button class="it" style="height:40px;border-radius:0;margin:0;width:48px">${icon('sliders')}</button><div class="rl" style="margin:8px 12px"></div>${['bolt', 'puzzle'].map((i) => `<button class="it" style="height:40px;border-radius:0;margin:0;width:48px">${icon(i)}</button>`).join('')}<span class="sp"></span>${['tray', 'help', 'gear'].map((i) => `<button class="it" style="height:40px;border-radius:0;margin:0;width:48px">${icon(i)}</button>`).join('')}</nav>${page()}</div></div>`
+const bar = (cur) => ['home', 'chat', 'user'].map((i, k) => `<button ${k === cur ? 'aria-current="page"' : ''} class="t-violet" aria-label="${['Home', 'Chats', 'Characters'][k]}">${icon(i)}</button>`).join('') + `<button aria-label="Menu, 5 waiting">${icon('menu')}<span class="bdg" style="position:absolute;top:6px;right:calc(50% - 22px)">5</span></button>`
+const pill = (cur) => ['Home|home', 'Chats|chat', 'Characters|user'].map((s, k) => { const [l, i] = s.split('|'); return `<button class="t-violet" ${k === cur ? 'aria-current="page"' : ''} aria-label="${l}">${icon(i)}${k === cur ? `<span>${l}</span>` : ''}</button>` }).join('') + `<button aria-label="Menu, 5 waiting">${icon('menu')}<span class="bdg">5</span></button>`
+document.getElementById('root').innerHTML = `
+<div><h1>Side panel: closed and open</h1><p class="lead">The panel keeps what it is (the sections, their order, the inbox, help and settings at the bottom). What changes: the open and closed states look related, every item has one clear look for rest, hover, focus and current, the toggle is a real button, and the groups are told apart.</p></div>
+<section><h2>What is wrong now</h2><p class="why">Closed (48 px): 17 identical grey icons, a 36 px caret as the only way to open it, the current section is a red-tinted strip with a bar. Open (206 px): Kurale 17 px labels with an ornamental divider picture between groups, which says nothing about what the groups are. The two states look like different widgets.</p></section>
+<section><h2>Option 1: a colour per item</h2><p class="why">Each section keeps one tone (the colours the app already uses: home and chats sky, characters, groups and personas violet, marketplace and shortcuts amber, lorebooks and library emerald, canvas pink, world teal, setup slate). The current section is a rounded filled pill with a thin bar. Same in both states; the closed rail shows a name on hover and on keyboard focus.</p>
+<div class="row">${old}${frame('Closed', 1, stage(false, 'r1'))}${frame('Open', 1, stage(true, 'r1'))}</div></section>
+<section><h2>Option 2: grouped, with captions</h2><p class="why">Four named groups (Play, Cast, World, Setup) with a small caption when open and a coloured short rule when closed; icons stay calm and only the current item takes its group’s colour. Needs the big group of eight split in two (Cast: characters, groups, personas, marketplace; World: lorebooks, library, canvas, world) in <code>sections.ts</code>; the order inside stays.</p>
+<div class="row">${frame('Closed', 1, stage(false, 'r2'))}${frame('Open', 1, stage(true, 'r2'))}</div></section>
+<section><h2>The phone bar</h2><p class="why">Now a full-width bar with Home, Chats, Characters and Menu (5 waiting). Idea from isekaizero.ai: a floating rounded bar, the current item as a pill with its name, the rest as icons; it leaves room around it and reads as one control. It keeps the 48 px targets and the badge on Menu.</p>
+<div class="row"><div class="ph"><div class="tag">Now</div><nav class="tabbar" aria-label="Sections">${bar(2)}</nav></div><div class="ph"><div class="tag new">Proposed</div><nav class="pill" aria-label="Sections">${pill(2)}</nav></div></div></section>
+<section><h2>Behaviour (both options)</h2><p class="why">The toggle is a 36 px bordered button in the same place in both states, named “Hide labels” / “Show labels” (as now), state remembered. Items are 44 px high (40 today), 12 px radius, a visible focus ring. A badge is a number in a circle, red when something failed, as the inbox already does. The window below 1200 px keeps the closed rail, as now.</p></section>`
+const t = new URLSearchParams(location.search).get('theme') || 'dark'
+document.documentElement.classList.toggle('dark', t === 'dark')
+document.getElementById(t === 'dark' ? 'd' : 'l').classList.add('on')
+</script></body></html>

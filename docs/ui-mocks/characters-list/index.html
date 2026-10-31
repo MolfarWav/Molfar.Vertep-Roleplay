@@ -1,0 +1,121 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Characters list — small changes</title>
+<link rel="stylesheet" href="../world-dm/shared.css">
+<style>
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 40px; }
+h1 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
+.lead, .why { color: var(--muted-foreground); max-width: 90ch; }
+.sec3 h2 { font-size: var(--fs-heading); line-height: var(--lh-heading); font-weight: 600; margin-bottom: 4px; }
+.why { margin-bottom: 12px; }
+.row2 { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.ph { width: 390px; max-width: 100%; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--background); }
+.ph > .tag { padding: 6px 12px; background: var(--muted); border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--fs-caption); }
+.ph > .tag.new { color: var(--emerald-ink); }
+.dk { width: 100%; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--background); }
+.dk > .tag { padding: 6px 12px; background: var(--muted); border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--fs-caption); color: var(--emerald-ink); }
+.hdr { padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--border); background: var(--card); }
+.hdr h3 { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); display: flex; align-items: center; gap: 8px; }
+.cnt { min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--muted); font: 600 var(--fs-caption)/22px var(--font-sans); text-align: center; }
+.l1 { display: flex; align-items: center; gap: 8px; }
+.l1 .sp { flex: 1; }
+.srch { flex: 1; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid var(--input); border-radius: 8px; color: var(--muted-foreground); min-width: 0; }
+.srch svg { width: 16px; height: 16px; }
+.ib { display: inline-grid; place-items: center; width: 40px; height: 40px; flex: none; border: 1px solid var(--input); border-radius: 8px; background: transparent; color: var(--foreground); }
+.ib.g { border-color: transparent; color: var(--muted-foreground); }
+.ib svg.i { width: 18px; height: 18px; }
+.btn { height: 40px; }
+.fstrip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0; }
+.fc { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--input); background: transparent; color: var(--muted-foreground); font-weight: 500; white-space: nowrap; flex: none; }
+.fc[aria-pressed='true'] { background: var(--ts); border-color: var(--tb); color: var(--ti); font-weight: 600; }
+.fc .n { font-variant-numeric: tabular-nums; opacity: .8; }
+.fc.add { border-style: dashed; }
+.tools { display: flex; align-items: center; gap: 8px; }
+.tools .sp { flex: 1; }
+.seg2 { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 10px; background: var(--muted); }
+.seg2 button { width: 40px; height: 36px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted-foreground); }
+.seg2 button[aria-pressed='true'] { background: var(--background); color: var(--foreground); border-color: color-mix(in oklab, var(--foreground) 22%, transparent); }
+.seg2 svg.i { width: 18px; height: 18px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
+.dk .grid { grid-template-columns: repeat(5, 1fr); padding: 16px; }
+.cardx { border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; display: flex; flex-direction: column; }
+.cardx .art { aspect-ratio: 3 / 3.4; display: grid; place-items: center; font-size: 36px; color: white; font-weight: 600; background: linear-gradient(165deg, oklch(62% .16 var(--h)), oklch(28% .09 calc(var(--h) + 60))); }
+.cardx .in { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cardx b { font-family: var(--font-heading); font-weight: 400; font-size: var(--fs-heading); line-height: 22px; }
+.stat { display: flex; flex-wrap: wrap; gap: 4px 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat .c { color: var(--sky-ink); } .stat .t { color: var(--amber-ink); }
+.mk { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk .old { color: var(--muted-foreground); }
+.mk svg.i { width: 16px; height: 16px; }
+.mkc { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px 0 6px; border-radius: 999px; font-size: var(--fs-caption); font-weight: 600; border: 1px solid var(--tb); background: var(--ts); color: var(--ti); }
+.mkc svg.i { width: 14px; height: 14px; }
+.tg { display: flex; flex-wrap: wrap; gap: 4px; }
+.tg span { height: 22px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--secondary); font-size: var(--fs-caption); line-height: 20px; }
+.menu { width: 260px; border: 1px solid var(--border); border-radius: 12px; background: var(--popover); box-shadow: 0 8px 24px rgb(0 0 0 / .3); padding: 6px; }
+.menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: none; text-align: left; }
+.menu button:hover { background: var(--accent); }
+.menu .sep { height: 1px; background: var(--border); margin: 4px 0; }
+.menu .sub { padding: 2px 0 2px 28px; }
+.menu .danger { color: var(--destructive); }
+.menu svg.i { width: 16px; height: 16px; color: var(--muted-foreground); }
+.menu .chk { margin-left: auto; color: var(--emerald-ink); }
+.cardy { position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); width: 200px; flex: none; }
+.cardy .art { aspect-ratio: 3 / 4; display: grid; place-items: center; font-size: 40px; color: white; font-weight: 600; background: linear-gradient(165deg, oklch(62% .16 var(--h)), oklch(28% .09 calc(var(--h) + 60))); position: relative; }
+.cardy .art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgb(0 0 0 / .8), transparent 55%); }
+.cardy .badges { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 4px; }
+.cardy .bd { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--tb); background: color-mix(in oklab, var(--tl) 55%, black); color: white; backdrop-filter: blur(4px); }
+.cardy .bd svg.i { width: 16px; height: 16px; }
+.cardy .ov { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 10px 12px; color: white; display: flex; flex-direction: column; gap: 2px; }
+.cardy .ov b { font-family: var(--font-heading); font-weight: 400; font-size: var(--fs-heading); line-height: 22px; text-shadow: 0 1px 6px rgb(0 0 0 / .6); }
+.cardy .ov .stat span { color: white; }
+.cardy .ov .stat { gap: 2px 10px; font-weight: 500; font-size: var(--fs-caption); }
+@media (max-width: 900px) { .dk .grid { grid-template-columns: repeat(2, 1fr); } }
+</style></head><body>
+<div class="bar"><b>Characters list · small changes</b><span>the cards stay; the header is spread out, folders are always there, markers get colour</span><span class="sp"></span><a id="d" href="?theme=dark">dark</a><a id="l" href="?theme=light">light</a><a href="../index.html">all mocks</a></div>
+<div class="wrap" id="root"></div>
+<script src="../world-dm/shared.js"></script>
+<script>
+Object.assign(P, {
+  sort: '<path d="M4 6h10M4 12h7M4 18h4M17 5v14M14 16l3 3 3-3"/>', grid: '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+  list: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>', check: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>',
+  down: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>', filter: '<path d="M4 5h16l-6 8v6l-4-2v-4z"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>', folder: '<path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
+  book: '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3V4zM5 17a3 3 0 013-3h11"/>', smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14c1 2 2.5 3 4 3s3-1 4-3M9 9.5h.01M15 9.5h.01"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/>', dots: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', plus: '<path d="M12 5v14M5 12h14"/>', copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/>', trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>', tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1"/>',
+})
+const card = (n, h, kind, tags, chats, tok, book, spr, old) => `<div class="cardx"><div class="art" style="--h:${h}">${n[0]}</div><div class="in"><b>${n}</b><span class="chip ${kind === 'Group' ? 't-violet' : 't-sky'}" style="align-self:flex-start">${kind}</span>
+  ${tags ? `<div class="tg">${tags.map((t) => `<span>${t}</span>`).join('')}</div>` : ''}
+  <div class="stat"><span class="c">${icon('chat')}</span></div></div></div>`
+const stats = (chats, tok) => `<div class="stat"><span class="c">${chats} chat${chats === 1 ? '' : 's'}</span><span class="t">${tok} tokens</span></div>`
+const markersOld = (book, spr) => `<div class="mk">${book ? `<span class="old">${icon('book')}</span>` : ''}${spr ? `<span class="old">${icon('smile')}</span>` : ''}</div>`
+const markersNew = (book, spr) => `<div class="mk">${book ? `<span class="mkc t-emerald" title="Has a lorebook">${icon('book')}Lore</span>` : ''}${spr ? `<span class="mkc t-violet" title="Has sprites">${icon('smile')}Sprites</span>` : ''}</div>`
+const C = [['Sina Rose', 20, 'Single', null, 1, '2187', 0, 0], ['Ayako Kurosawa', 350, 'Single', ['Female', 'OC', 'Human'], 1, '~4263', 1, 1], ['Yuki', 200, 'Single', ['Female'], 3, '1520', 1, 0], ['Queen Isolde', 280, 'Single', ['Royal'], 2, '3011', 0, 1], ['Mira', 300, 'Single', ['Harbour'], 4, '1874', 1, 1], ['Eli', 150, 'Single', null, 0, '980', 0, 0]]
+const grid = (n, newMarkers) => `<div class="grid">${C.slice(0, n).map(([nm, h, k, tg, ch, tk, bk, sp]) => `<div class="cardx"><div class="art" style="--h:${h}">${nm[0]}</div><div class="in"><b>${nm}</b><span class="chip t-sky" style="align-self:flex-start">${k}</span>${tg ? `<div class="tg">${tg.map((t) => `<span>${t}</span>`).join('')}</div>` : ''}${stats(ch, tk)}${newMarkers ? markersNew(bk, sp) : markersOld(bk, sp)}</div></div>`).join('')}</div>`
+const folders = (on = 0) => ['All|30', 'Favourites|4|star', 'Sci-fi|8|folder', 'Modern|12|folder', 'Fantasy|6|folder', 'No folder|9'].map((s, i) => { const [n, c, ic] = s.split('|'); return `<button class="fc t-${['sky', 'amber', 'violet', 'teal', 'emerald', 'sky'][i]}" aria-pressed="${i === on}" type="button">${ic ? icon(ic) : ''}${n} <span class="n">${c}</span></button>` }).join('') + `<button class="fc add" type="button">${icon('plus')}New folder</button>`
+const oldHdr = `<div class="hdr"><h3>Characters <span class="cnt">30</span></h3><div class="l1"><div class="srch">${icon('search')}Search characters…</div><button class="btn pri" type="button">${icon('plus')}New character</button></div>
+  <div class="tools"><button class="ib g" aria-label="Sort">${icon('sort')}</button><button class="ib g" aria-label="List">${icon('list')}</button><button class="ib g" aria-label="Select">${icon('check')}</button><button class="ib g" aria-label="Import">${icon('down')}</button><button class="btn" type="button">${icon('filter')}All tags</button></div></div>
+  <div class="hdr" style="padding:8px 12px;flex-direction:row;gap:8px;color:var(--muted-foreground)">${icon('star')}<span class="pt" style="--h:0;width:32px;height:32px;border-radius:8px;background:var(--muted)"></span></div>`
+const newHdr = `<div class="hdr"><div class="l1"><h3>Characters <span class="cnt">30</span></h3><span class="sp"></span><button class="btn pri" type="button">${icon('plus')}New character</button></div>
+  <div class="l1"><div class="srch">${icon('search')}Search characters…</div><button class="ib" aria-label="Sort">${icon('sort')}</button></div>
+  <div class="fstrip" role="group" aria-label="Folders">${folders()}</div>
+  <div class="tools"><button class="btn" type="button">${icon('filter')}All tags</button><span class="sp"></span><div class="seg2"><button aria-pressed="true" aria-label="Grid">${icon('grid')}</button><button aria-pressed="false" aria-label="List">${icon('list')}</button></div><button class="ib" aria-label="More: select, import, manage tags and folders">${icon('dots')}</button></div></div>`
+const dkHdr = `<div class="hdr" style="flex-direction:column;gap:10px"><div class="l1"><h3>Characters <span class="cnt">30</span></h3><div class="srch" style="max-width:360px;margin-left:16px">${icon('search')}Search characters…</div><span class="sp"></span><button class="btn" type="button">${icon('filter')}All tags</button><button class="ib" aria-label="Sort">${icon('sort')}</button><div class="seg2"><button aria-pressed="true" aria-label="Grid">${icon('grid')}</button><button aria-pressed="false" aria-label="List">${icon('list')}</button></div><button class="ib" aria-label="More">${icon('dots')}</button><button class="btn pri" type="button">${icon('plus')}New character</button></div><div class="fstrip" role="group" aria-label="Folders">${folders()}</div></div>`
+const menu = `<div class="menu" role="menu" aria-label="Card menu">
+  <button>${icon('chat')}Start a chat</button><button>${icon('copy')}Duplicate</button>
+  <button>${icon('folder')}Move to folder<span class="chk">${icon('chevR')}</span></button>
+  <div class="sub"><button>Sci-fi<span class="chk">${icon('check')}</span></button><button>Modern</button><button>Fantasy</button><button>${icon('plus')}New folder…</button></div>
+  <div class="sep"></div><button>${icon('down')}Export</button><button class="danger">${icon('trash')}Delete</button></div>`
+document.getElementById('root').innerHTML = `
+<div><h1>Characters list: three small changes</h1><p class="lead">The card editor stays as it is. Only the list: its header is spread over clear rows, a folders block is always visible, and the “has lorebook / has sprites” markers get colour like the chat and token counts already have.</p></div>
+<section class="sec3"><h2>1. Header spread out, folders always there</h2><p class="why">Now: title, search, New character, then five icon buttons in one row, and the folders strip only appears after tags have been marked “folder” in the tag manager, so most people never see it. Proposed (phone): row 1 title and the one primary (New character); row 2 search and sort; row 3 the folders as chips (All, Favourites, your folders with counts, “No folder”, and a dashed “New folder” so the feature is visible from the first day); row 4 the “All tags” filter, a grid/list switch and one “More” menu (select, import, manage tags and folders). Select and import move out of the toolbar because they are rare; sort stays one tap away. Desktop: one row, folders under it.</p>
+<div class="row2"><div class="ph"><div class="tag">Now</div>${oldHdr}${grid(2, false).replace('grid-template-columns', 'x')}</div><div class="ph"><div class="tag new">Proposed</div>${newHdr}${grid(2, true)}</div></div>
+<div class="dk" style="margin-top:24px"><div class="tag">Proposed, desktop</div>${dkHdr}${grid(5, true)}</div></section>
+<section class="sec3"><h2>2. Colour for the markers</h2><p class="why">Chats are already sky and tokens amber. The lorebook marker becomes an emerald chip with the book icon and the word “Lore”, the sprites marker a violet chip with the smiley and “Sprites”: icon, word and colour together, so it holds up without colour. Both show only when the card has them.</p></section>
+<section class="sec3"><h2>2b. Idea taken from isekaizero.ai: badges on the art</h2><p class="why">That site puts small coloured feature badges in the corner of the portrait and the title over a fade at the bottom, so the picture leads and the text stays short. Adapted here: Lore (emerald) and Sprites (violet) become corner badges on the art, with the name and the chat and token counts over the fade; the tag chips stay in the list view. Option B to the chips above; the owner picks. The chips keep the words (better without colour), the badges keep the art clean (better looking).</p>
+<div class="row2">${[['Ayako Kurosawa', 350, 1, 1, '1 chat', '~4263 tokens'], ['Mira', 300, 1, 1, '4 chats', '1874 tokens'], ['Queen Isolde', 280, 0, 1, '2 chats', '3011 tokens'], ['Sina Rose', 20, 0, 0, '1 chat', '2187 tokens']].map(([n, h, b, sp, c, t]) => `<div class="cardy"><div class="art" style="--h:${h}">${n[0]}</div><div class="badges">${b ? `<span class="bd t-emerald" title="Has a lorebook">${icon('book')}</span>` : ''}${sp ? `<span class="bd t-violet" title="Has sprites">${icon('smile')}</span>` : ''}</div><div class="ov"><b>${n}</b><div class="stat"><span>${c}</span><span>${t}</span></div></div></div>`).join('')}</div></section>
+<section class="sec3"><h2>3. Putting cards into folders</h2><p class="why">A folder is the existing “folder” tag (a card can be in several), so nothing new is stored. New actions to assign: “Move to folder” in each card’s menu (below) and in the batch bar when cards are selected; “New folder…” in the same list creates the tag and marks it as a folder in one step. The “Favourites” chip is the starred cards that are already shown above the list.</p>${menu}</section>`
+</script>
+<script>
+const t = new URLSearchParams(location.search).get('theme') || 'dark'
+document.documentElement.classList.toggle('dark', t === 'dark')
+document.getElementById(t === 'dark' ? 'd' : 'l').classList.add('on')
+document.addEventListener('click', (e) => { const f = e.target.closest('.fc:not(.add)'); if (f) { f.parentElement.querySelectorAll('.fc').forEach((x) => x.setAttribute('aria-pressed', x === f)) } })
+</script></body></html>
