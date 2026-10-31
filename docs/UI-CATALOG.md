@@ -428,3 +428,6 @@ Three corrections to 8.1:
 - **Memory tab in Roleplay settings** (owner's mark on a screenshot): it holds only a pointer, "Story record (Litopys): Litopys settings are in
   the Library now, next to the record they shape. [Open in the Library]". An empty tab is a blind step; remove the tab (and the key
   `settings.memory`) and keep the pointer where people look for it, in the Library. Done in the example (`example/shell-settings.html` has no Memory tab).
+
+**Confirmed (owner, 2026-10-31): the Memory tab of the Roleplay settings is removed** (the pointer to Litopys stays in the Library).
+Still waiting for the owner's confirmation: moving the Roleplay settings page into the shell Settings (8.2), which changes the 2026-10-11 line of `ux-review`.
