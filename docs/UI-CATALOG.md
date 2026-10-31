@@ -349,3 +349,15 @@ What each block needs (nothing is built yet):
 - Customize: per-user list of block ids, order and size in the app's settings; default is the full set; "Reset to default".
 
 Next on the list after Home (owner): the **Lorebooks** tab needs redoing too.
+
+**Marketplace pick on Home (owner, 2026-10-31): a random card from the Marketplace tops next to the random card from the library, new each time.**
+Feasible with what exists, no new service: the Marketplace search already runs through the engine plugin (`marketplace-view.tsx:527`, body
+`{ source, sort, trending, page, first }`, normalized `MarketplaceItem` with `name`, `creator`, `tagline`, `topics`, `downloads`, `tokens`,
+`nsfw`, `avatar`, `hasLore`, `pageUrl`). Home would call the same route once with `source: 'chub'`, `trending: true`
+(or `sort: 'downloads'`), `first: 24`, the safe maturity filter, keep the 24 for about an hour (memory plus localStorage) and pick one at
+random per Home visit; "Another" takes the next from the same 24, so a visit costs no request. The avatar goes through the same proxy the
+Marketplace uses (`marketplace-view.tsx:360`). Click: "Preview" opens that listing in the Marketplace (the existing preview with Import).
+Decisions to fix when building: (1) adult cards follow the Marketplace's own maturity setting, default hidden; (2) the automatic request
+is a visible switch in Customize ("Suggestions from the Marketplace", default on) and the block is not shown offline or on error,
+no spinner of shame; (3) the source follows the Marketplace's last-used source when it supports a top order, else Chub; (4) the block says
+where it came from (source chip and "top this week") so nobody mistakes it for the library. Mocks: both Home variants carry the new tile.
