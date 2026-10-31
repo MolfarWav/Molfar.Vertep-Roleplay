@@ -1683,6 +1683,9 @@ describe("prompt insert", () => {
     expect(text).not.toContain("Aria: on the sofa");
     expect(text).not.toContain("You: at the table");
     expect(text).toContain("Still wearing: white tee, grey jeans, a leather belt.");
+    // what lay in the place left behind stays on the snapshot for the World DM's sweep
+    const newest = Object.values(readStateFile("c1").snapshots as Record<string, any>).sort((a, b) => b.at - a.at)[0];
+    expect(newest.layout.left).toEqual({ place: "the study", objects: [{ item: "leather armchair", where: "by the window" }] });
   });
 
   it("11d. a character with no clothes on record is asked to be described once; it stops when clothes are known or the switch is off", () => {

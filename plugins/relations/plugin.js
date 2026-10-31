@@ -3479,6 +3479,9 @@ function applySensor(ctx, out, op, model, unknownIds) {
     objects: applyObjects(prevLayout.objects, out, ctx.layoutMoves.down, ctx.layoutMoves.up, ctx.placeMoved),
     userAt: str(out.userAt) ? cut(str(out.userAt), 120) : ctx.placeMoved ? null : prevLayout.userAt ?? null,
   };
+  // what lay in the place the story just left: the World DM's sweep offers it for the book, so the place keeps it (kept until the next move)
+  if (ctx.placeMoved && arr(prevLayout.objects).length) layout.left = { place: cut(str(B.clock.place), 120), objects: prevLayout.objects.slice(-OBJECTS_MAX) };
+  else if (isObj(prevLayout.left)) layout.left = prevLayout.left;
   const snapshot = {
     turn,
     at: Math.max(Date.now(), 1 + Math.max(0, ...Object.values(state.snapshots).map((x) => x.at || 0))),
