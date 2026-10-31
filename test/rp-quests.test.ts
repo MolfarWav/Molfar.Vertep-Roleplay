@@ -339,10 +339,10 @@ describe("what the sensor and the story model read", () => {
 
   it("the previous default sensor prompt still counts as the default", () => {
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-1)!;
+    const before = past.at(-2)!;
     expect(before).toContain("up to the open thread limit given in the input");
     expect(before).not.toContain("Give each new thread a kind");
-    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", P.DEFAULT_PROMPTS.sensor.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(P.DEFAULT_PROMPTS.sensor);
+    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", P.DEFAULT_PROMPTS.sensor.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-1));
   });
 
   it("proposals ride the state file, not the snapshot, and a rebuilt state starts without them", () => {

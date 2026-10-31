@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -263,7 +263,7 @@ describe("the scene from the Dashboard", () => {
       "m0#0": { ...calm("social"), scene: { new: true, direction: "social" } },
       "m2#0": calm("domestic"), "m4#0": calm("domestic"), "m9#0": calm("combat"),
     }) });
-    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen", present: ["Odarka"], chars: {} });
+    expect(sceneOf(m.host.fs, "c1", STORY)).toEqual({ key: "m4#0", direction: "domestic", before: null, stagnant: 2, place: "Kitchen", present: ["Odarka"], chars: {}, places: ["Kitchen"], objects: [], left: null });
     expect(sceneOf(memHost(seed()).host.fs, "c1", STORY)).toBe(null);
   });
 
@@ -1151,10 +1151,81 @@ describe("step 2 on the routes and the hook", () => {
     const muted = seeded();
     muted.files["chats/c1.meta.json"] = JSON.stringify({ id: "c1", characterId: "odarka", promptBoard: { v: 1, off: ["plugin:world"] } });
     expect(llmRequest(req(), muted.host)).toBe(null);
-    // the DM off, or an explicit scene: nothing
+    // the DM off still shows the world here (the book fills whatever the level, #185); only events and dice need a level
     const off = seeded();
     off.files["world/state/c1.json"] = JSON.stringify({ ...JSON.parse(off.files["world/state/c1.json"]!), settings: { level: "off" } });
-    expect(llmRequest(req(), off.host)).toBe(null);
+    const offOut = llmRequest(req(), off.host) as any;
+    expect(offOut.promptSources.parts.map((x: any) => x.label)).toEqual(["World · here"]);
+  });
+
+  it("sweep (#185): code offers the DM places and things the scene tracker met that the book lacks; asked once, also with the DM off", () => {
+    const state = emptyState("c1");
+    state.settings = { ...state.settings, level: "chronicler", everyN: 50 };
+    state.lastKey = null;
+    state.entities = [{ id: "n1", kind: "place", name: "School", aliases: [], text: "", status: "active" } as any];
+    const scene = {
+      key: "m4#0",
+      direction: "social",
+      before: null,
+      stagnant: 2,
+      place: "school corridor",
+      present: ["Sina"],
+      chars: {},
+      places: ["school corridor", "the locked changing room", "School"],
+      objects: [{ item: "pink soft knit cardigan", where: "on the bench" }],
+      left: { place: "the locked changing room", objects: [{ item: "gym bag", where: "by the door" }] },
+    };
+    const c = sweepCandidates(state, scene as any);
+    // "School" is in the book; the corridor and the changing room are not; two words of a name count as the same name
+    expect(c.places).toEqual(["school corridor", "the locked changing room"]);
+    expect(c.things).toEqual([
+      { name: "pink soft knit cardigan", where: "on the bench", place: "school corridor" },
+      { name: "gym bag", where: "by the door", place: "the locked changing room" },
+    ]);
+    const msgs = [msg(1, "user", "Hi"), msg(2, "char", "Hello"), msg(3, "user", "Go"), msg(4, "char", "Here.")];
+    expect(dueReason(state, msgs as any, scene as any)).toBe("sweep");
+    // nothing to offer: nothing is due
+    expect(dueReason(state, msgs as any, { ...scene, places: [], objects: [], left: null } as any)).toBe(null);
+    // the DM off: the sweep is still due, nothing else
+    const off = { ...state, settings: { ...state.settings, level: "off" } };
+    expect(dueReason(off as any, msgs as any, scene as any)).toBe("sweep");
+    expect(dueReason(off as any, msgs as any, { ...scene, places: [], objects: [], left: null } as any)).toBe(null);
+    // the DM reads the candidates, and what was offered is not offered again
+    const input = dmInput({ cards: [], userName: "You", entities: state.entities, msgs: [], level: "chronicler", sweep: c } as any);
+    expect(input).toContain("Named in the story by the scene tracker, with no record yet");
+    expect(input).toContain("Places: school corridor; the locked changing room.");
+    expect(input).toContain("Things: pink soft knit cardigan (on the bench, in school corridor); gym bag (by the door, in the locked changing room).");
+    const asked = { ...state, sweepAsked: ["school corridor", "the locked changing room", "pink soft knit cardigan", "gym bag"] };
+    expect(sweepCandidates(asked as any, scene as any)).toEqual({ places: [], things: [] });
+    expect(normalizeState({ ...asked }, "c1").sweepAsked).toEqual(asked.sweepAsked);
+  });
+
+  it("a sweep with the DM off: a records-only run lists the names, the book fills, and nothing is asked twice (#185)", () => {
+    const m = memHost({
+      ...seed(),
+      "world/config.json": JSON.stringify({ model: "c/dm" }),
+      "dashboard/state/c1.json": dashState({
+        "m2#0": { ...calm("domestic"), clock: { place: "the toll hut" } },
+        "m4#0": { ...calm("domestic"), clock: { place: "the Red Tower gate" } },
+      }),
+    });
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "off" });
+    const first = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    expect(first.__llmPending).toBe(true);
+    const asked = m.requests[0]!.spec.messages[0].content as string;
+    expect(asked).toContain("Places: the Red Tower gate; the toll hut.");
+    // off reads as the chronicler: no fronts, no event in the run
+    expect(m.requests[0]!.spec.systemPrompt).toContain("world keeper");
+    expect(asked).not.toContain("Fronts");
+    m.results.world = { text: JSON.stringify({ add: [{ kind: "place", name: "Toll hut", aliases: ["the toll hut"], text: "A hut by the pass." }], summary: "They reach the hut." }), model: "c/dm" };
+    const done = route(m.host, "POST", "/world/update", { chatId: "c1", auto: true }, {}, first.stash).json;
+    expect(done).toMatchObject({ ok: true, changes: 1 });
+    const st = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(st.settings.level).toBe("off");
+    expect(st.entities.map((e: any) => e.name)).toEqual(["Toll hut"]);
+    // both names were offered, so neither is asked again, though only one became a record
+    expect(st.sweepAsked).toEqual(["the Red Tower gate", "the toll hut"]);
+    expect(route(m.host, "POST", "/world/update", { chatId: "c1", auto: true }).json).toEqual({ ok: true, skipped: "nothing new" });
   });
 
   it("GET /world/here: the place, the things, who holds what, the carry and what the last run changed", () => {

@@ -62,7 +62,9 @@
  *                                      (except in an explicit scene)
  *
  * Hook: llmRequest adds the pending event, the dice and "World · here" (the scene's place, the things in it, what the
- * people in the scene wear and carry; no model call, also at the chronicler level) to the last user message of a reply request.
+ * people in the scene wear and carry; no model call, also at the chronicler level and with the DM off) to the last user message of a reply request.
+ * The sweep (#185): code lists the places and things the scene tracker met that the book has no record of (sweepCandidates) and a records-only run
+ * offers them to the DM model; it runs whatever the level, also with the DM off, and each name is offered once (state.sweepAsked).
  *
  * Files (fs root = the app's data/):
  *  world/state/<chatId>.json   the chat's world state (shape: normalizeState)
@@ -385,6 +387,7 @@ export function normalizeState(raw, chatId) {
   // the message the last full run (fronts, events) read up to, and the place the last run saw
   if (typeof s.levelKey === "string" && s.levelKey) out.levelKey = s.levelKey;
   if (typeof s.lastPlace === "string" && s.lastPlace) out.lastPlace = cut(s.lastPlace, NAME_MAX * 2);
+  if (arr(s.sweepAsked).length) out.sweepAsked = arr(s.sweepAsked).map(str).filter(Boolean).slice(-SWEEP_ASKED_MAX);
   if (Number.isInteger(s.clockReplies) && s.clockReplies > 0) out.clockReplies = s.clockReplies;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
@@ -514,6 +517,8 @@ export function behindOf(unread) {
  * key, stagnant } (stagnant = turns since the place, the cast or the scene last changed), or
  * null when the Dashboard has no snapshot for this chat.
  */
+const layoutThings = (list) => arr(list).filter((o) => isObj(o) && str(o.item)).slice(-12).map((o) => ({ item: cut(str(o.item), NAME_MAX), where: cut(str(o.where), NAME_MAX) }));
+
 export function sceneOf(fsx, chatId, msgs) {
   const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
   const snaps = isObj(dash) && isObj(dash.snapshots) ? dash.snapshots : null;
@@ -537,6 +542,10 @@ export function sceneOf(fsx, chatId, msgs) {
     // where the sensor puts the scene now (free text), and who is in it
     place: isObj(last.clock) ? cut(str(last.clock.place), NAME_MAX * 2) : "",
     present: arr(last.present).map(str).filter(Boolean).slice(0, 12),
+    // every place the sensor named along the line (newest first), the things lying around now and the ones left in the place the story just left (#185)
+    places: placesAlong(snaps, line),
+    objects: layoutThings(isObj(last.layout) ? last.layout.objects : []),
+    left: isObj(last.layout) && isObj(last.layout.left) ? { place: cut(str(last.layout.left.place), NAME_MAX * 2), objects: layoutThings(last.layout.left.objects) } : null,
     // the sensor's own lines per character (free text), for the outfit when the sensor keeps it
     chars: Object.fromEntries(Object.entries(isObj(last.chars) ? last.chars : {}).filter(([, c]) => isObj(c) && (str(c.outfit) || str(c.holding))).slice(0, 12).map(([n, c]) => [cut(n, NAME_MAX), { outfit: cut(str(c.outfit), 300), holding: cut(str(c.holding), 200) }])),
   };
@@ -544,6 +553,77 @@ export function sceneOf(fsx, chatId, msgs) {
 
 /** A place as the DM compares it between runs: case, punctuation and spaces do not count. */
 export const placeKey = (place) => str(place).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+// ---------- the sweep (#185): code reads what the scene tracker met, the DM decides what is worth a record ----------
+const SWEEP_STOP = new Set(["the", "a", "an", "of", "in", "on", "at", "to", "and", "s"]);
+const nameWords = (v) => placeKey(v).split(" ").filter((w) => w && !SWEEP_STOP.has(w));
+/** One name says the other: every word of the shorter is in the longer ("changing room" in "the locked changing room"). */
+export const looseSame = (a, b) => {
+  const x = nameWords(a);
+  const y = nameWords(b);
+  if (!x.length || !y.length) return false;
+  const [sh, lg] = x.length <= y.length ? [x, y] : [y, x];
+  return sh.every((w) => lg.includes(w));
+};
+/** known says everything name does (all of name's words are in it): "corridor" is covered by "school corridor", "school corridor" is not covered by "School". */
+const covered = (known, name) => {
+  const w = nameWords(name);
+  const k = nameWords(known);
+  return w.length > 0 && w.every((x) => k.includes(x));
+};
+function placesAlong(snaps, line) {
+  const out = [];
+  for (let i = line.length - 1; i >= 0 && out.length < 12; i--) {
+    const sn = snaps[line[i]];
+    const name = isObj(sn) && isObj(sn.clock) ? cut(str(sn.clock.place), NAME_MAX * 2) : "";
+    if (name && !out.some((o) => looseSame(o, name))) out.push(name);
+  }
+  return out;
+}
+const SWEEP_PLACES = 6;
+const SWEEP_THINGS = 8;
+const SWEEP_ASKED_MAX = 100;
+/**
+ * Places and things the scene tracker named that the book has no record of and that no earlier sweep offered.
+ * Pure: the scene is what sceneOf read, the book is state.entities.
+ */
+export function sweepCandidates(state, scene) {
+  const out = { places: [], things: [] };
+  if (!scene) return out;
+  const asked = arr(state.sweepAsked);
+  const seen = (kind, name) => state.entities.some((e) => e.kind === kind && namesOf(e).some((n) => covered(n, name))) || asked.some((k) => covered(k, name));
+  for (const name of arr(scene.places)) {
+    if (out.places.length >= SWEEP_PLACES) break;
+    if (!seen("place", name) && !out.places.some((o) => looseSame(o, name))) out.places.push(name);
+  }
+  const lying = [
+    ...arr(scene.objects).map((o) => ({ name: o.item, where: o.where, place: scene.place })),
+    ...arr(scene.left && scene.left.objects).map((o) => ({ name: o.item, where: o.where, place: scene.left.place })),
+  ];
+  for (const t of lying) {
+    if (out.things.length >= SWEEP_THINGS) break;
+    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ name: t.name, where: str(t.where), place: str(t.place) });
+  }
+  return out;
+}
+/** A sweep is due: there is something to offer the DM and at least one reply came since its last run. */
+export function sweepDue(state, msgs, scene) {
+  if (!scene) return false;
+  const c = sweepCandidates(state, scene);
+  return (c.places.length > 0 || c.things.length > 0) && repliesSince(msgs, state.lastKey) >= 1;
+}
+/** What was offered is not offered again, whether the DM recorded it or not. */
+function markSwept(state, c) {
+  const names = [...c.places, ...c.things.map((t) => t.name)].map((n) => cut(n, NAME_MAX * 2));
+  state.sweepAsked = [...arr(state.sweepAsked), ...names.filter((n) => !arr(state.sweepAsked).some((k) => covered(k, n)))].slice(-SWEEP_ASKED_MAX);
+}
+/** The block of a DM run that lists what the sweep found. */
+function sweepInput(c) {
+  const rows = [];
+  if (c.places.length) rows.push("Places: " + c.places.join("; ") + ".");
+  if (c.things.length) rows.push("Things: " + c.things.map((t) => t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
+  return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it) and each thing that matters or lies somewhere it can be found again. Leave out what is only passing. Name them as the story does.";
+}
 
 /** The direction the DM goes by: the sensor's, else what the DM said last time. */
 const directionOf = (state, scene) => (scene && scene.direction) || state.direction || null;
@@ -556,6 +636,8 @@ const directionOf = (state, scene) => (scene && scene.direction) || state.direct
 export function dueReason(state, msgs, scene) {
   const dir = directionOf(state, scene);
   if (dir === "explicit") return null;
+  // the book keeps itself whatever the DM's level: with the DM off only the sweep runs
+  if (state.settings.level === "off") return sweepDue(state, msgs, scene) ? "sweep" : null;
   if (state.settings.onTransition && scene && scene.direction === "transition" && state.transitionKey !== scene.key) return "transition";
   // the story left a place: write the scene it was. Two new replies at least, so a place the sensor words
   // differently from one reply to the next does not run the DM every time
@@ -563,6 +645,7 @@ export function dueReason(state, msgs, scene) {
   const due = dueParts(state, msgs);
   if (due.full === 0) return "every";
   if (due.records === 0) return "records";
+  if (sweepDue(state, msgs, scene)) return "sweep";
   if (state.settings.stagnation > 0 && scene) {
     const factor = STAGNATION_FACTOR[dir || "social"];
     // the still stretch counts from the last run too, or a scene that stays still would run the DM every reply
@@ -864,7 +947,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, carry }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, carry, sweep }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -879,6 +962,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w, c)).join("\n") : ": nothing recorded yet.")]),
+    ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
@@ -1567,12 +1651,11 @@ export function llmRequest(ctx, host) {
     const { state, existed } = loadState(fsx, chatId);
     if (!existed) return null;
     const lv = state.settings.level;
-    if (lv === "off") return null;
     const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
     const off = isObj(meta) && isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
     if (off.includes("plugin:world")) return null;
     // events and dice need a level above the chronicler and the switch "insert"; the world here does not
-    const events = state.settings.insert && lv !== "chronicler";
+    const events = state.settings.insert && lv !== "chronicler" && lv !== "off";
     const profile = events ? profileFor(fsx, state.settings) : null;
     const eventDue = events && !!state.event && state.event.sent === 0;
     const dice = profile ? diceOf(profile, state.settings) : null;
@@ -3045,18 +3128,22 @@ function updateRoute(req, host) {
     if (chat.msgs.length) state.lastKey = startKeyOf(chat.msgs, state.settings);
     saveState(fsx, state);
   }
-  if (state.settings.level === "off") return ok({ ok: true, skipped: "off" });
   const auto = b.auto === true || b.auto === "true";
+  // the DM off: the book still fills, but only by the sweep after a reply, and not in a chat that never had a world (an assistant)
+  if (state.settings.level === "off" && (!auto || (!existed && !autoOn(fsx, chat.meta)))) return ok({ ok: true, skipped: "off" });
+  if (state.settings.level === "off" && state.lastKey === null && chat.msgs.length) state.lastKey = startKeyOf(chat.msgs, state.settings);
   const unread = unreadMessages(chat.msgs, state.lastKey);
   if (!unread.some((m) => str(m.text))) return ok({ ok: true, skipped: "nothing new" });
   const scene = sceneOf(fsx, chatId, chat.msgs);
-  const level = state.settings.level;
+  // off reads as the chronicler here: it records, it does not move fronts or send events
+  const level = state.settings.level === "off" ? "chronicler" : state.settings.level;
   // an explicit scene freezes the DM, a World turn and chaos included; it waits until the scene ends
   if (directionOf(state, scene) === "explicit") return ok({ ok: true, skipped: "explicit" });
   const reason = auto ? dueReason(state, chat.msgs, scene) : "manual";
-  if (!reason) return ok({ ok: true, skipped: "waiting", dueIn: dueIn(state, chat.msgs) });
+  if (!reason) return state.settings.level === "off" ? ok({ ok: true, skipped: "off" }) : ok({ ok: true, skipped: "waiting", dueIn: dueIn(state, chat.msgs) });
   // a scene written because the story left it, or the records' own turn: records only, the fronts and events keep their cadence
-  const recordsOnly = reason === "place" || reason === "records";
+  const recordsOnly = reason === "place" || reason === "records" || reason === "sweep" || state.settings.level === "off";
+  const sweep = sweepCandidates(state, scene);
   const stash = isObj(req.stash) ? req.stash : {};
   const retry = stash.retry === true;
   const key = retry ? "world_retry" : "world";
@@ -3074,7 +3161,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
@@ -3126,6 +3213,7 @@ function updateRoute(req, host) {
   if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now());
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
+  markSwept(state, sweep);
   // a full run restarts the fronts' and events' count; a records-only run leaves it
   if (!recordsOnly) state.levelKey = state.lastKey;
   if (scene && placeKey(scene.place)) {
