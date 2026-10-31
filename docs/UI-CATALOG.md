@@ -269,3 +269,6 @@ the table is what the owner marked on a screenshot of the real chat; mocks `docs
 
 Not touched: the header tool buttons, token count, context chip, Open dashboard, the log, the composer. The weight ladder (2.4) still
 applies to buttons the owner touches later. Backgrounds already show in the chat (a user setting), so nothing to add there.
+
+**Accepted (owner, 2026-10-31): all four as proposed** (header icons in the tinted version). Build waits with the others; this one is
+small and independent of the DM branch, so it can ship first when building starts.
