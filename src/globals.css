@@ -9,6 +9,17 @@
   --font-heading: 'Kurale', Georgia, 'Times New Roman', serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
   --text-base: 0.8125rem;
+  /* Type scale (docs/UI-CATALOG.md 2.1): five named steps, floor 12 px. text-xs / text-sm stay as they are. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-heading: 1rem;
+  --text-heading--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-display: 1.75rem;
+  --text-display--line-height: 2rem;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
