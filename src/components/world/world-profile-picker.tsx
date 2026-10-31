@@ -50,22 +50,22 @@ export function WorldProfilePicker({
   return (
     <section className="flex flex-col gap-3">
       {!bare && <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 text-sm font-medium">
+        <span className="min-w-0 text-body font-semibold">
           {t('world.dmHere')}
-          <span className="block text-xs font-normal text-muted-foreground">{on ? t('world.dmHere.on') : t('world.dmHere.off')}</span>
+          <span className="block text-caption font-normal text-muted-foreground">{on ? t('world.dmHere.on') : t('world.dmHere.off')}</span>
         </span>
         <Switch checked={on} onCheckedChange={onToggle} aria-label={t('world.dmHere')} />
       </div>}
 
       <div className={cn('flex flex-col gap-1.5', !on && 'opacity-60')}>
-        <label id="world-profile-label" className="text-sm font-medium">{t('world.profile')}</label>
+        <label id="world-profile-label" className="text-body font-semibold">{t('world.profile')}</label>
         <Select
           value={on && picked ? picked.id : ''}
           items={items}
           disabled={!on || !list}
           onValueChange={(v) => { if (v && v !== profileId) onPick(v) }}
         >
-          <SelectTrigger aria-labelledby="world-profile-label" className="h-10 w-full md:h-9" data-testid="world-profile-select">
+          <SelectTrigger aria-labelledby="world-profile-label" className="h-10 w-full text-body md:h-9" data-testid="world-profile-select">
             <SelectValue placeholder={on ? t('world.profile.pick') : t('world.profile.off')}>
               {(v: string) => {
                 const p = options.find((x) => x.id === v)
@@ -92,15 +92,15 @@ export function WorldProfilePicker({
                       {nameOf(p)}
                       {!p.builtIn && <OwnMark />}
                     </span>
-                    <span className="text-xs font-normal text-muted-foreground">{hintOf(p)}</span>
+                    <span className="text-caption font-normal text-muted-foreground">{hintOf(p)}</span>
                   </span>
                 </SelectItem>
               )
             })}
           </SelectContent>
         </Select>
-        {on && picked && <p className="text-xs text-muted-foreground">{hintOf(picked)}</p>}
-        {!on && <p className="text-xs text-muted-foreground">{t('world.profile.offHint')}</p>}
+        {on && picked && <p className="text-caption text-muted-foreground">{hintOf(picked)}</p>}
+        {!on && <p className="text-caption text-muted-foreground">{t('world.profile.offHint')}</p>}
         {!bare && (
           <Button
             variant="outline"
@@ -121,7 +121,7 @@ export function WorldProfilePicker({
 export function OwnMark({ className }: { className?: string }) {
   const t = useT()
   return (
-    <span className={cn('shrink-0 rounded-full border border-border bg-muted px-1.5 text-[10px] font-medium leading-4 text-muted-foreground', className)}>
+    <span className={cn('shrink-0 rounded-full border border-border bg-muted px-1.5 text-caption font-medium leading-4 text-muted-foreground', className)}>
       {t('world.profile.own')}
     </span>
   )

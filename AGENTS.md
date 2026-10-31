@@ -66,7 +66,7 @@ is what links, the store and older builds pass), and `src/lib/editor-tabs.ts`
 buttons, not Base UI tabs, because a group holds more than one panel.
 The World section (components/world/, `world` in the rail) is the hub of the World DM plugin: chats
 with a DM on the left (top switch Chats | Profiles), one chat's Overview (the same controls as the chat's
-World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit profile button; the settings are a list of `SettingRow`s in folds with an (i) popover for the long hint, `world-setting-row.tsx`), World book (the
+World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit profile button; the settings are a list of `SettingRow`s in folds with an (i) popover for the long hint, `ui/setting-row.tsx`), World book (the
 world book's records, editable by hand; `world-records.tsx`) and Runs (history,
 tokens, errors) on the right, and World settings (the play model for all chats, a model test). The Profiles
 tab (`world-profiles.tsx`, data in `lib/world-profiles.ts`) edits the five built-in levels and the player's

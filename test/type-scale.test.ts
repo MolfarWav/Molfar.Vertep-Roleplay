@@ -8,7 +8,7 @@ import { join } from 'node:path'
 
 // a ratchet: the count may only go down; lower BASELINE when you remove literals; use the type
 // tokens text-caption / text-body / text-heading / text-title / text-display instead (docs/UI-CATALOG.md 2.1)
-const BASELINE = 799
+const BASELINE = 798
 
 const ROOT = join(import.meta.dir, '..')
 const SRC = join(ROOT, 'src')
