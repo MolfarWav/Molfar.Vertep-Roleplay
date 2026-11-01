@@ -176,3 +176,66 @@ describe("omniscience: the who-knows-what brief for a narrator (#184 P1d)", () =
     expect(none).toBeNull();
   });
 });
+
+describe("omniscience: chapters follow who witnessed them (#184 P2)", () => {
+  const msgs: Msg[] = Array.from({ length: 80 }, (_, i) => (i % 5 === 0 ? U("m" + i, "Jude says line " + i) : C("m" + i, i % 2 ? "Aria" : "Bram", "answer " + i)));
+  const line = L.activeLine(msgs);
+  const chapter = (id: string, a: number, cast?: string[]) => ({ id, from: "m" + a, to: "m" + (a + 5), count: 6, sig: L.chapterSig(line.slice(a, a + 6)), label: "Scene " + id, text: "Text of chapter " + id + ".", kind: "scene", at: a, ...(cast ? { cast } : {}) });
+  const record = (extra: Record<string, unknown> = {}) => {
+    const st = L.emptyChat("hall");
+    st.migrated = true;
+    st.chapters = [chapter("c1", 0, ["Bram"]), chapter("c2", 6, ["Aria", "Bram"]), chapter("c3", 12), chapter("c4", 18, ["Cael"])];
+    st.counters.chapter = 4;
+    Object.assign(st, extra);
+    return st;
+  };
+  const head = (st: any, voices?: Set<string>) => {
+    const r = L.buildInsert({ st, line, dash: null, meta: { userName: "Jude" }, cfg: { ...L.DEFAULT_CONFIG, budget: 4000 }, scanText: "go", speakerName: "Aria", used: {}, voices });
+    return r ? r.head + "\n" + r.tail : "";
+  };
+
+  it("leaves out a chapter the speaker did not witness; one without a cast is visible to all", () => {
+    const aria = head(record(), new Set(["aria"]));
+    expect(aria).not.toContain("Text of chapter c1.");
+    expect(aria).toContain("Text of chapter c2.");
+    expect(aria).toContain("Text of chapter c3.");
+    expect(aria).not.toContain("Text of chapter c4.");
+    const bram = head(record(), new Set(["bram"]));
+    expect(bram).toContain("Text of chapter c1.");
+    expect(bram).toContain("Text of chapter c2.");
+    expect(bram).not.toContain("Text of chapter c4.");
+  });
+
+  it("a reply that voices several gets every chapter", () => {
+    const all = head(record());
+    for (const id of ["c1", "c2", "c3", "c4"]) expect(all).toContain("Text of chapter " + id + ".");
+  });
+
+  it("an arc that holds a chapter the speaker did not see is left out, its witnessed chapters ride alone", () => {
+    const st = record();
+    st.arcs = [{ id: "a1", chapterIds: ["c1", "c2"], from: "m0", to: "m11", label: "Arc A", text: "Text of arc a1.", sig: L.arcSig([st.chapters[0], st.chapters[1]]), at: 1 }];
+    st.counters.arc = 1;
+    expect(head(st)).toContain("Text of arc a1.");
+    const aria = head(st, new Set(["aria"]));
+    expect(aria).not.toContain("Text of arc a1.");
+    expect(aria).toContain("Text of chapter c2.");
+    expect(aria).not.toContain("Text of chapter c1.");
+    const bram = head(st, new Set(["bram"]));
+    expect(bram).toContain("Text of arc a1.");
+  });
+
+  it("the worker keeps the scene's people as the chapter's cast", () => {
+    const ln = L.activeLine([U("m1", "Jude knocks."), C("m2", "Aria", "Aria opens."), C("m3", "Bram", "Bram looks up."), U("m4", "Jude sits.")]);
+    const st = L.emptyChat("hall");
+    const scene = { from: ln[0].id, to: ln[3].id, fromIdx: 0, toIdx: 3, count: 4, kind: "scene", label: "" };
+    const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" } }));
+    L.applyWorkerResult(st, { scene, replaces: null }, parsed, { now: 1, line: ln, witnesses: ["Aria", "Bram"] });
+    expect(st.chapters[0].cast).toEqual(["Aria", "Bram"]);
+    const none = L.emptyChat("hall");
+    L.applyWorkerResult(none, { scene, replaces: null }, parsed, { now: 1, line: ln });
+    expect(none.chapters[0].cast).toBeUndefined();
+    expect(L.witnessed({ cast: ["Cael"] }, new Set(["aria"]))).toBe(false);
+    expect(L.witnessed({ cast: ["Cael"] }, null)).toBe(true);
+    expect(L.witnessed({}, new Set(["aria"]))).toBe(true);
+  });
+});

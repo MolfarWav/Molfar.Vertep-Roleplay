@@ -1420,6 +1420,19 @@ function presentNames({ line, dash, meta, speakerName }) {
   return { present, userName };
 }
 
+/** At most this many names are kept as the cast of a chapter. */
+const CAST_MAX = 12;
+
+/**
+ * Did this speaker witness the chapter (#184 P2)? A chapter with no cast (written before the cast was kept, or a scene
+ * with nobody named) is visible to all. `voices` null means a reply that voices several: everything is visible.
+ */
+export function witnessed(ch, voices) {
+  if (!(voices instanceof Set) || !voices.size) return true;
+  const cast = arr(ch && ch.cast).map((n) => str(n).toLowerCase()).filter(Boolean);
+  return !cast.length || cast.some((n) => voices.has(n));
+}
+
 /** The room of the "who knows what" brief, in tokens. */
 const CAST_TOKENS = 250;
 
@@ -1474,7 +1487,9 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
   const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
-  const allBefore = chaptersBeforeCut(st, line, cut);
+  // a chapter the speaking character did not witness stays out, and so does an arc that holds one (its witnessed
+  // chapters then ride by themselves)
+  const allBefore = chaptersBeforeCut(st, line, cut).filter((ch) => witnessed(ch, voices));
   if (!active.length && !allBefore.length) return null;
   // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
   const beforeIds = new Set(allBefore.map((ch) => ch.id));
@@ -2059,6 +2074,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a cast of two or more
   const views = ctx.cast && ctx.cast.length >= 2 ? cleanViews(parsed.views, ctx.cast) : [];
   if (views.length) newChapter.views = views;
+  // #184 P2: who witnessed the scene, so a character's reply can leave out a chapter that character did not see
+  const cast = arr(ctx.witnesses).map(str).filter(Boolean).slice(0, CAST_MAX);
+  if (cast.length) newChapter.cast = cast;
   if (model) newChapter.model = model;
   const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
   if (at >= 0) st.chapters[at] = newChapter;
@@ -4238,7 +4256,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, knowers: voices instanceof Set && voices.size ? voices : here, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, knowers: voices instanceof Set && voices.size ? voices : here, voices, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
@@ -4261,7 +4279,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, knowers, cap, usedFacts, nearerTitle, continues }) {
+function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
@@ -4275,7 +4293,7 @@ function backstoryPart({ fsx, from, here, knowers, cap, usedFacts, nearerTitle, 
   const ranges = new Map();
   const chapters = arr(pst.chapters)
     .map((ch) => ({ ch, r: rangeOf(ch, pline) }))
-    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text))
+    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text) && witnessed(ch, voices))
     .sort((x, y) => x.r.fromIdx - y.r.fromIdx);
   for (const { ch, r } of chapters) ranges.set(ch.id, r);
   const last = chapters.length ? chapters[chapters.length - 1].ch : null;
@@ -4847,6 +4865,7 @@ export function chatView(fsx, chatId) {
       edited: ch.edited === true,
       ...(ch.marked === true ? { marked: true } : {}),
       ...(Array.isArray(ch.views) && ch.views.length ? { views: ch.views } : {}),
+      ...(Array.isArray(ch.cast) && ch.cast.length ? { cast: ch.cast } : {}),
     });
   }
   return {

@@ -185,6 +185,8 @@ recollections of the scenes that have left the prompt, newest first within 300 t
 own, or everyone's it voices (a group in narrator mode, a narrator card). The block is "Litopys · recollections", muted by the
 Prompt board key `plugin:recollections`, and listed as `recollections { scenes, who, tokens, text }` in `GET /litopys/carries`.
 
+**Who witnessed a scene (#184).** A chapter may carry `cast`: `["<name as the scene spells it>", ...]`, at most 12, the named characters of the scene besides the player (the same list the recollections use, kept even when there are fewer than two). The chapter worker writes it; a chapter without it (older, hand-made, or a scene with nobody named) is visible to every reply. A reply spoken by one character leaves out a chapter whose cast does not include that character (and an arc that holds such a chapter; its witnessed chapters ride alone), in the story insert and in the backstory of a continued chat. A reply that voices several characters (a narrator, a group in narrator mode) gets every chapter. Facts have their own `knownBy`: a fact whose `knownBy` is missing or unusable is written with the scene's cast instead of `"all"`. `GET /litopys/chat?chatId=` lists `cast` on each chapter.
+
 **Recall scoring (#99).** Which facts and chapters go into the Litopys insert when they do not all fit is ranked by the words of
 the last messages (`rankFacts`, `rankChapters`). Besides a rare word counting by how few facts have it, a name found in the text
 (a capitalised word that does not open a sentence, a fact's `subject` or who knows it) weighs 1.6 times more, two content words in a
