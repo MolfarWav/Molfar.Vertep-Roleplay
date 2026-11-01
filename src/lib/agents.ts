@@ -226,9 +226,9 @@ export async function installAgentFile(file: unknown): Promise<InstallReply> {
   return j<InstallReply>('/agents/install', { method: 'PUT', body: JSON.stringify({ file }) })
 }
 
-/** The user confirmed the permissions list. */
-export async function grantAgent(id: string): Promise<void> {
-  await j('/agents/grant', { method: 'POST', body: JSON.stringify({ id, tokens: true }) })
+/** The user confirmed the permissions list: all of them, or the ones they switched on (the agent waits for the rest). */
+export async function grantAgent(id: string, tokens: string[] | true = true): Promise<void> {
+  await j('/agents/grant', { method: 'POST', body: JSON.stringify({ id, tokens }) })
 }
 
 export async function removeAgent(id: string): Promise<void> {

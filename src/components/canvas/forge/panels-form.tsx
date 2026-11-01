@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
-import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
+import { cn } from '@/lib/utils'
+import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, moveTo, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
 import { Field, NativeSelect } from './card-form'
 import { PanelPreview } from './panel-preview'
+import { SortableList, type SortBind } from './sortable'
 
 type Obj = Record<string, any>
 type State = Record<string, { type: string; item?: Record<string, string> }>
@@ -32,36 +34,41 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
           ))}
         </div>
       )}
-      {panels.map((p, i) => {
-        const widgets: Obj[] = Array.isArray(p.widgets) ? p.widgets : []
-        const setWidget = (j: number, w: Obj) => setPanel(i, { widgets: widgets.map((x, k) => (k === j ? w : x)) })
-        return (
-          <div key={String(p.id ?? i)} className="flex flex-col gap-2 rounded-md border border-border p-2" data-testid={`forge-panel-${p.id}`}>
-            <div className="flex gap-1.5">
-              <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => setPanel(i, { title: e.target.value })} />
-              <div className="w-40 shrink-0">
-                <NativeSelect value={String(p.place ?? 'float')} label={t('fg.panel.place')} onChange={(place) => setPanel(i, { place })}>
-                  {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}
-                </NativeSelect>
+      <SortableList items={panels} keyOf={(p, i) => String(p.id ?? i)} onReorder={(from, to) => onChange(moveTo(panels, from, to))}>
+        {(p, i, sort) => {
+          const widgets: Obj[] = Array.isArray(p.widgets) ? p.widgets : []
+          const setWidget = (j: number, w: Obj) => setPanel(i, { widgets: widgets.map((x, k) => (k === j ? w : x)) })
+          return (
+            <div ref={sort.ref} style={sort.style} className={cn('flex flex-col gap-2 rounded-md border border-border p-2', sort.className)} data-testid={`forge-panel-${p.id}`}>
+              <div className="flex gap-1.5">
+                <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => setPanel(i, { title: e.target.value })} />
+                <div className="w-40 shrink-0">
+                  <NativeSelect value={String(p.place ?? 'float')} label={t('fg.panel.place')} onChange={(place) => setPanel(i, { place })}>
+                    {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}
+                  </NativeSelect>
+                </div>
+                {sort.handle}
+                <Mover at={i} count={panels.length} onMove={(by) => onChange(moveItem(panels, i, by))} />
+                <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={() => onChange(panels.filter((_, k) => k !== i))}>
+                  <Trash className="size-4" aria-hidden="true" />
+                </Button>
               </div>
-              <Mover at={i} count={panels.length} onMove={(by) => onChange(moveItem(panels, i, by))} />
-              <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={() => onChange(panels.filter((_, k) => k !== i))}>
-                <Trash className="size-4" aria-hidden="true" />
-              </Button>
+              <SortableList items={widgets} keyOf={(_, j) => String(j)} onReorder={(from, to) => setPanel(i, { widgets: moveTo(widgets, from, to) })}>
+                {(w, j, ws) => (
+                  <WidgetRow w={w} state={state} onChange={(next) => setWidget(j, next)} onRemove={() => setPanel(i, { widgets: widgets.filter((_, k) => k !== j) })} at={j} count={widgets.length} onMove={(by) => setPanel(i, { widgets: moveItem(widgets, j, by) })} sort={ws} />
+                )}
+              </SortableList>
+              {widgets.length < MAX_WIDGETS && (
+                <NativeSelect value="" label={t('fg.widget.add')} onChange={(kind) => kind && setPanel(i, { widgets: [...widgets, newWidget(kind, state)] })}>
+                  <option value="">{t('fg.widget.add')}</option>
+                  {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
+                </NativeSelect>
+              )}
+              <PanelPreview panel={p} state={state} full={full} />
             </div>
-            {widgets.map((w, j) => (
-              <WidgetRow key={j} w={w} state={state} onChange={(next) => setWidget(j, next)} onRemove={() => setPanel(i, { widgets: widgets.filter((_, k) => k !== j) })} at={j} count={widgets.length} onMove={(by) => setPanel(i, { widgets: moveItem(widgets, j, by) })} />
-            ))}
-            {widgets.length < MAX_WIDGETS && (
-              <NativeSelect value="" label={t('fg.widget.add')} onChange={(kind) => kind && setPanel(i, { widgets: [...widgets, newWidget(kind, state)] })}>
-                <option value="">{t('fg.widget.add')}</option>
-                {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
-              </NativeSelect>
-            )}
-            <PanelPreview panel={p} state={state} full={full} />
-          </div>
-        )
-      })}
+          )
+        }}
+      </SortableList>
       {panels.length < MAX_PANELS && (
         <Button variant="outline" size="sm" className="self-start max-md:h-10" onClick={() => onChange([...panels, newPanel(panels, state, t('fg.panel.new'))])} data-testid="forge-panel-add">
           <Plus className="size-3.5" aria-hidden="true" />{t('fg.panels.add')}
@@ -71,7 +78,7 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
   )
 }
 
-function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj; state: State; onChange: (w: Obj) => void; onRemove: () => void; at: number; count: number; onMove: (by: -1 | 1) => void }) {
+function WidgetRow({ w, state, onChange, onRemove, at, count, onMove, sort }: { w: Obj; state: State; onChange: (w: Obj) => void; onRemove: () => void; at: number; count: number; onMove: (by: -1 | 1) => void; sort: SortBind }) {
   const t = useT()
   const kind = String(w.w)
   const known = (WIDGET_KINDS as readonly string[]).includes(kind)
@@ -81,13 +88,14 @@ function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj
   const items: { label: string; send: string }[] = Array.isArray(w.items) ? w.items : []
   const setItem = (k: number, patch: Partial<{ label: string; send: string }>) => onChange({ ...w, items: items.map((x, n) => (n === k ? { ...x, ...patch } : x)) })
   return (
-    <div className="flex flex-col gap-1.5 rounded-md bg-muted/40 p-2">
+    <div ref={sort.ref} style={sort.style} className={cn('flex flex-col gap-1.5 rounded-md bg-muted/40 p-2', sort.className)}>
       <div className="flex gap-1.5">
         {known ? (
           <NativeSelect value={kind} label={t('fg.widget.kind')} onChange={(k) => onChange(setWidgetKind(w, k, state))}>
             {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
           </NativeSelect>
         ) : <span className="flex-1 self-center text-xs text-muted-foreground">{t('fg.widget.other', { kind })}</span>}
+        {sort.handle}
         <Mover at={at} count={count} onMove={onMove} />
         <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.widget.remove')} onClick={onRemove}>
           <Trash className="size-4" aria-hidden="true" />
@@ -97,18 +105,21 @@ function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj
         <HtmlForm w={w} state={state} onChange={onChange} />
       ) : kind === 'actions' ? (
         <div className="flex flex-col gap-1.5">
-          {items.map((it, k) => (
-            <div key={k} className="flex flex-col gap-1 rounded-md border border-border bg-background p-1.5">
-              <div className="flex gap-1.5">
-                <Input value={it.label ?? ''} placeholder={t('fg.widget.btnLabel')} aria-label={t('fg.widget.btnLabel')} className="max-md:h-10" onChange={(e) => setItem(k, { label: e.target.value })} />
-                <Mover at={k} count={items.length} onMove={(by) => onChange({ ...w, items: moveItem(items, k, by) })} />
-                <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.widget.btnRemove')} disabled={items.length < 2} onClick={() => onChange({ ...w, items: items.filter((_, n) => n !== k) })}>
-                  <Trash className="size-4" aria-hidden="true" />
-                </Button>
+          <SortableList items={items} keyOf={(_, k) => String(k)} onReorder={(from, to) => onChange({ ...w, items: moveTo(items, from, to) })}>
+            {(it, k, bs) => (
+              <div ref={bs.ref} style={bs.style} className={cn('flex flex-col gap-1 rounded-md border border-border bg-background p-1.5', bs.className)}>
+                <div className="flex gap-1.5">
+                  <Input value={it.label ?? ''} placeholder={t('fg.widget.btnLabel')} aria-label={t('fg.widget.btnLabel')} className="max-md:h-10" onChange={(e) => setItem(k, { label: e.target.value })} />
+                  {bs.handle}
+                  <Mover at={k} count={items.length} onMove={(by) => onChange({ ...w, items: moveItem(items, k, by) })} />
+                  <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.widget.btnRemove')} disabled={items.length < 2} onClick={() => onChange({ ...w, items: items.filter((_, n) => n !== k) })}>
+                    <Trash className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+                <Textarea value={it.send ?? ''} rows={2} placeholder={t('fg.widget.btnSend')} aria-label={t('fg.widget.btnSend')} onChange={(e) => setItem(k, { send: e.target.value })} />
               </div>
-              <Textarea value={it.send ?? ''} rows={2} placeholder={t('fg.widget.btnSend')} aria-label={t('fg.widget.btnSend')} onChange={(e) => setItem(k, { send: e.target.value })} />
-            </div>
-          ))}
+            )}
+          </SortableList>
           {items.length < MAX_ACTIONS && (
             <Button variant="outline" size="sm" className="self-start max-md:h-10" onClick={() => onChange({ ...w, items: [...items, { label: '', send: '' }] })}>
               <Plus className="size-3.5" aria-hidden="true" />{t('fg.widget.btnAdd')}

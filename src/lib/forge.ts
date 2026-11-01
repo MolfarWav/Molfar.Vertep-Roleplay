@@ -248,6 +248,23 @@ export function moveItem<T>(list: T[], i: number, by: -1 | 1): T[] {
   return next
 }
 
+/** The list with the item at `from` moved to place `to` (its place in the result); the same list when nothing moves. */
+export function moveTo<T>(list: T[], from: number, to: number): T[] {
+  if (from < 0 || from >= list.length || to < 0 || to >= list.length || from === to) return list
+  const next = [...list]
+  const [it] = next.splice(from, 1)
+  next.splice(to, 0, it!)
+  return next
+}
+
+/**
+ * Where a dragged row would land: `mids` are the vertical middles of all rows measured when the drag began, `from` is the
+ * dragged row and `y` the pointer. The dragged row goes after every other row whose middle is above the pointer.
+ */
+export function dropIndex(mids: number[], from: number, y: number): number {
+  return mids.filter((m, i) => i !== from && m < y).length
+}
+
 /** The widgets a form can make. */
 export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions', 'html'] as const
 /** How tall an `html` widget is when the file does not say, and the limits the checker keeps. */

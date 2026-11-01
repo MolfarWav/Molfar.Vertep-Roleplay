@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
+import { RoleModels } from '@/components/chat/agent-role-models'
 import { useT } from '@/hooks/use-t'
 import { saveAgentOwn, type AgentInfo, type AgentOwn } from '@/lib/agents'
 
@@ -69,17 +69,7 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
           </div>
         )}
         {roles.length > 0 && <p className="text-muted-foreground">{t('ag.own.roleHelp')}</p>}
-        {roles.map((role) => (
-          <div key={role} className="flex flex-col gap-1">
-            <p className="font-medium">{role}</p>
-            {agent.models?.[role]?.hint && <p className="text-muted-foreground">{agent.models[role].hint}</p>}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="min-w-0 break-all font-mono text-[11px]">{own.models[role] || t('ag.own.default')}</span>
-              <SoulModelPicker disabled={busy} label={t('ag.own.pick')} onPick={(ref) => void setModel(role, ref)} />
-              {own.models[role] && <Button size="sm" variant="ghost" className="max-md:h-10" disabled={busy} onClick={() => void setModel(role, '')}>{t('ag.own.useDefault')}</Button>}
-            </div>
-          </div>
-        ))}
+        <RoleModels agent={agent} busy={busy} onSet={(role, ref) => void setModel(role, ref)} />
         {agent.maxCalls > 0 && (
           <div className="flex flex-col gap-1">
             <p className="font-medium">{t('ag.own.calls')}<span className="ml-1.5 font-normal text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</span></p>

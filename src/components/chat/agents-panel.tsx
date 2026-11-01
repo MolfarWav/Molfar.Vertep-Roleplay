@@ -10,13 +10,14 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useConfirm } from '@/components/ui/confirm'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import {
-  deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, grantAgent, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
+  deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
   loadAgentUsage, loadChatAgents, loadDefaultAgentSet, removeAgent, runAgents, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
   type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type AgentUsage, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
 import { noteAgentIds, notesMode, QUIET_PLACE } from '@/lib/agent-notes'
 import { usageFor } from '@/lib/agent-sets'
 import { InfoTip } from '@/components/ui/info-tip'
+import { AgentAllow } from '@/components/chat/agent-allow'
 import { Switch } from '@/components/ui/switch'
 import type { MsgKey } from '@/lib/i18n'
 import { installMessage } from '@/lib/agent-install'
@@ -121,8 +122,6 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
           <InfoTip label={t('ag.notes.infoLabel')}>{t('ag.notes.info')}</InfoTip>
           <Switch
             id={`notes-all-${chatId}`}
-            size="sm"
-            className="max-md:after:-inset-y-3.5"
             checked={mode !== 'quiet'}
             onCheckedChange={(on) => void edit({ op: 'showAll', place: on ? null : QUIET_PLACE, agents: noteIds })}
             data-testid="agents-notes-all"
@@ -320,6 +319,7 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
   const [confirm, confirmDialog] = useConfirm()
   const ref = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
+  const [allowOpen, setAllowOpen] = useState(false)
   useEffect(() => { if (focus) ref.current?.scrollIntoView({ block: 'nearest' }) }, [focus])
   const waiting = agent.missing.length > 0
   const capped = !!agent.own && agent.own.maxCalls > 0 && agent.maxCalls > agent.own.maxCalls
@@ -328,44 +328,24 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
   const added = supported.filter((n) => !agent.granted.includes(n))
   const update = waiting && agent.granted.length > 0 && added.length > 0
 
-  const allow = async () => {
-    setBusy(true)
-    try {
-      await grantAgent(agent.id)
-      await onChanged()
-      toast.success(t('ag.allowedToast', { name: agent.name }))
-    } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
-  }
   const remove = async () => {
     if (!(await confirm({ title: t('ag.removeTitle', { name: agent.name }), description: t('ag.removeBody'), actionLabel: t('ag.removeAgent') }))) return
     setBusy(true)
     try { await removeAgent(agent.id); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
   }
-  const needRow = (n: string, isNew: boolean) => (
-    <li key={n} className="flex items-start gap-1.5">
-      <Check className={cn('mt-0.5 size-3 shrink-0', agent.granted.includes(n) ? 'text-emerald-500' : 'text-transparent')} aria-hidden="true" />
-      <span className="min-w-0 flex-1">{describeNeed(n, t)}</span>
-      {isNew && <span className="shrink-0 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid="agent-need-new">{t('ag.update.new')}</span>}
-    </li>
-  )
-  const callsRow = agent.maxCalls > 0 && <li className="pl-[18px] text-[11px] text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</li>
-  const needsList = (
-    <ul className="flex flex-col gap-1 text-xs">
-      {supported.map((n) => needRow(n, false))}
-      {callsRow}
-    </ul>
-  )
+  // the permissions are read and granted in the Allow dialog (one by one, with the models); the card keeps one line and one button
+  const canReview = supported.length > 0 && !agent.errors.length
 
   return (
     <div ref={ref} className={cn('flex flex-col gap-2 rounded-lg border px-3 py-2.5', waiting ? 'border-amber-500/50 bg-amber-500/5' : 'border-border')} data-testid={`agent-card-${agent.id}`}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{agent.name}{agent.version && <span className="ml-1.5 font-normal text-muted-foreground">{agent.version}</span>}</p>
-          {agent.author && <p className="truncate text-[11px] text-muted-foreground">{t('ag.by', { name: agent.author })}</p>}
+          {agent.author && <p className="truncate text-xs text-muted-foreground">{t('ag.by', { name: agent.author })}</p>}
         </div>
         {!waiting && !agent.unsupported.length && !agent.errors.length && (capped
-          ? <span className="shrink-0 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid="agent-capped">{t('ag.own.badge')}</span>
-          : <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>)}
+          ? <span className="shrink-0 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300" data-testid="agent-capped">{t('ag.own.badge')}</span>
+          : <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>)}
       </div>
       {agent.description && <p className="text-xs leading-relaxed text-muted-foreground">{agent.description}</p>}
       {agent.errors.length > 0 && (
@@ -375,27 +355,10 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           {agent.errors.length > 1 && <p className="text-xs text-muted-foreground">{t('ag.errors.more', { n: agent.errors.length - 1 })}</p>}
         </div>
       )}
-      {update ? (
-        <div className="flex flex-col gap-1.5" data-testid="agent-update">
-          <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">{t('ag.update.lead', { name: agent.name, n: added.length })}</p>
-          <ul className="flex flex-col gap-1 text-xs">{added.map((n) => needRow(n, true))}</ul>
-          <details className="text-xs">
-            <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.update.same', { n: supported.length - added.length })}</summary>
-            <ul className="mt-1.5 flex flex-col gap-1">{supported.filter((n) => !added.includes(n)).map((n) => needRow(n, false))}{callsRow}</ul>
-          </details>
-        </div>
-      ) : waiting ? (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] font-medium">{t('ag.review.lead', { name: agent.name })}</p>
-          {needsList}
-        </div>
-      ) : (
-        supported.length > 0 && (
-          <details className="text-xs">
-            <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.permissions', { n: supported.length })}</summary>
-            <div className="mt-1.5">{needsList}</div>
-          </details>
-        )
+      {canReview && (
+        <p className={cn('text-xs', waiting ? 'font-medium' : 'text-muted-foreground')} data-testid={update ? 'agent-update' : 'agent-perm-line'}>
+          {update ? t('ag.allow.summaryUpdate', { n: added.length }) : waiting ? t('ag.allow.summary', { n: supported.length }) : t('ag.allow.allowedLine', { n: supported.length })}
+        </p>
       )}
       {agent.unsupported.length > 0 && (
         <div className="flex flex-col gap-1 text-xs text-amber-600 dark:text-amber-400">
@@ -405,13 +368,14 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
       )}
       {!waiting && <AgentOwnLimits agent={agent} onChanged={onChanged} />}
       <div className="flex flex-wrap items-center gap-2">
-        {waiting && supported.some((n) => !agent.granted.includes(n)) && (
-          <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void allow()}>{update ? t('ag.update.allow') : t('ag.review.allow')}</Button>
-        )}
+        {canReview && (waiting
+          ? <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => setAllowOpen(true)} data-testid="agent-review">{update ? t('ag.update.allow') : t('ag.allow.open')}</Button>
+          : <Button size="sm" variant="outline" className="max-md:h-10" disabled={busy} onClick={() => setAllowOpen(true)} data-testid="agent-review">{t('ag.allow.manage')}</Button>)}
         <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground max-md:h-10" disabled={busy} onClick={() => void remove()}>
           <Trash className="size-3.5" aria-hidden="true" /> {t('ag.removeAgent')}
         </Button>
       </div>
+      {canReview && <AgentAllow agent={agent} open={allowOpen} onOpenChange={setAllowOpen} onChanged={onChanged} />}
       {confirmDialog}
     </div>
   )
