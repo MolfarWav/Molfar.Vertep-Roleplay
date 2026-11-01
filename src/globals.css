@@ -526,14 +526,14 @@ h1 {
   text-underline-offset: 3px;
 }
 .look-stage .ls-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted-foreground);
   white-space: nowrap;
 }
 .look-stage .ls-meta {
   margin-left: auto;
   padding-left: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted-foreground);
   white-space: nowrap;
   opacity: 0;
@@ -570,7 +570,7 @@ h1 {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--card);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted-foreground);
   transition: color 0.15s;
 }

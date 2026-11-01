@@ -17,7 +17,7 @@ const NOTE_MAX = 300
 function KindChip({ kind }: { kind: SaidNote['kind'] }) {
   const tx = useTx()
   return (
-    <span className={cn('inline-flex shrink-0 items-center border px-1 py-px font-sans text-[10px] uppercase tracking-wide', MARK[SAID_MARK[kind] ?? 'neutral'])}>
+    <span className={cn('inline-flex shrink-0 items-center border px-1 py-px font-sans text-caption uppercase tracking-wide', MARK[SAID_MARK[kind] ?? 'neutral'])}>
       {tx('dash.said.kind', kind)}
     </span>
   )
@@ -56,7 +56,7 @@ function SaidRow({ item, revealed, editable }: { item: SaidNote; revealed: boole
         ) : (
           <div className="text-sm leading-snug break-words italic">“{item.text}”</div>
         )}
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10.5px] text-muted-foreground">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-caption text-muted-foreground">
           {!covered && <KindChip kind={item.kind} />}
           {item.edited && <span>{t('dash.note.edited')}</span>}
           <span>{t('dash.story.turn', { n: item.turn })}</span>
@@ -93,13 +93,13 @@ export function SaidBlock({ name, char }: { name: string; char: DashChar }) {
     <div className="mt-3" data-guide="dash.said" data-testid="dash-said">
       <TitleBar tone="memory" icon={Quotes} className="-mx-3 mb-2 border-t">{t('dash.said', { name })}</TitleBar>
       <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">{t('dash.said.hint', { name })}</p>
+        <p className="min-w-0 flex-1 text-caption text-muted-foreground">{t('dash.said.hint', { name })}</p>
         {hiddenCount > 0 && (
           <button
             type="button"
             onClick={() => setReveal((v) => !v)}
             aria-pressed={reveal}
-            className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground max-md:min-h-10"
+            className="ml-auto flex items-center gap-1 text-caption text-muted-foreground hover:text-foreground max-md:min-h-10"
           >
             {reveal ? <Eye className="size-3.5" aria-hidden="true" /> : <EyeSlash className="size-3.5" aria-hidden="true" />}
             {reveal ? t('dash.said.hide', { n: hiddenCount }) : t('dash.said.show', { n: hiddenCount })}

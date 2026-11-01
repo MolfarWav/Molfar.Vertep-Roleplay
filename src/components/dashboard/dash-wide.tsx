@@ -16,6 +16,7 @@ import { AgeText, AvatarButton, AvatarImg, BandMark, bandTextClass, Box, ChangeB
 import { HereCard, MoodCard, OutfitCard } from './dash-cards'
 import { personChanges, sceneChanges, tally } from '@/lib/dash-changes'
 import type { WorldHere } from '@/lib/world'
+import { withKeys } from '@/lib/unique-keys'
 import { ThreadList } from './dash-threads'
 import { useGuidePlace } from '@/components/guide/place'
 
@@ -81,12 +82,12 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
               )}
             >
               {n}
-              <span className="ml-1.5 text-[11px] opacity-70">{t(`soul.class.${view.chars[n].cls}`)}</span>
+              <span className="ml-1.5 text-caption opacity-70">{t(`soul.class.${view.chars[n].cls}`)}</span>
               {n !== focus && <ChangeBadge count={tally(personChanges(n, view.chars[n], here))} className="absolute -top-1.5 -right-1.5" />}
             </button>
           ))}
         </div>
-        <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-caption text-muted-foreground">
           <LiveDot at={view.at} now={now} />
           <AgeText at={view.at} now={now} />
         </span>
@@ -150,9 +151,9 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
               <Constellation stats={char.stats} prevStats={char.prev?.stats} id={char.constellation} prevId={char.prevConstellation} size={250} labels />
               <div className={cn('font-heading text-xl', GOLD_TEXT)}>{constName}</div>
               <div className="text-center text-xs text-muted-foreground">{tx('dash.constLine', char.constellation)}</div>
-              <div className="text-center text-[11px] text-muted-foreground/80">{t('dash.const.legend')}</div>
+              <div className="text-center text-caption text-muted-foreground/80">{t('dash.const.legend')}</div>
               {char.prevConstellation && char.prevConstellation !== char.constellation && (
-                <div className="text-[11px] text-muted-foreground">{t('dash.trace', { name: tx('dash.const', char.prevConstellation) })}</div>
+                <div className="text-caption text-muted-foreground">{t('dash.trace', { name: tx('dash.const', char.prevConstellation) })}</div>
               )}
             </div>
           </Box>
@@ -160,7 +161,7 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
           <Box data-guide="dash.attitude" title={t('dash.attitude')} tone="people" icon={Heart} count={statCount}>
             <div className="flex flex-col gap-2.5">
               <div>
-                <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
+                <Badge variant="outline" className={cn('rounded-none text-caption', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
               </div>
               {DISPOSITION.map((stat) => (
                 <SignedBar key={stat} stat={stat} value={char.stats[stat]} prev={char.prev?.stats[stat]} tier />
@@ -203,9 +204,9 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                             <span className="truncate font-heading text-[13px]">{n}</span>
-                            <span className="text-[11px] text-muted-foreground">{t(`soul.class.${c.cls}`)}</span>
-                            {!view.present.includes(n) && <span className="text-[11px] text-muted-foreground">{t('dash.absent')}</span>}
-                            {!c.rated && <span className="text-[11px] text-muted-foreground">{t('dash.unrated')}</span>}
+                            <span className="text-caption text-muted-foreground">{t(`soul.class.${c.cls}`)}</span>
+                            {!view.present.includes(n) && <span className="text-caption text-muted-foreground">{t('dash.absent')}</span>}
+                            {!c.rated && <span className="text-caption text-muted-foreground">{t('dash.unrated')}</span>}
                           </span>
                           <span className={cn('text-[12px]', GOLD_TEXT)}>{tx('dash.const', c.constellation)}</span>
                         </span>
@@ -231,8 +232,8 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
             {view.edges.length > 0 && (
               <Box title={t('dash.edges')} tone="people" icon={LinkSimple}>
                 <ul className="flex flex-col gap-1 text-xs">
-                  {view.edges.map((e) => (
-                    <li key={`${e.from}>${e.to}`} className="min-w-0 break-words">
+                  {withKeys(view.edges, (e) => `${e.from}>${e.to}>${e.role}`).map(({ item: e, key }) => (
+                    <li key={key} className="min-w-0 break-words">
                       {e.from} → {e.to} <span className="text-muted-foreground">· {e.role} · {e.warmth}</span>
                     </li>
                   ))}
@@ -242,7 +243,7 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
           </div>
         </div>
 
-        <div className="flex flex-col gap-1 border-t border-border pt-2 text-[11px] text-muted-foreground">
+        <div className="flex flex-col gap-1 border-t border-border pt-2 text-caption text-muted-foreground">
           <div className="flex flex-wrap gap-x-2">
             {view.fast ? <span>{t('dash.footer.fast')}</span> : <span className="font-mono break-all">{view.sensorModel}</span>}
             <span>·</span>

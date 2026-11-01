@@ -16,15 +16,15 @@ function ContextRing({ pct, known }: { pct: number; known: boolean }) {
   const tone = pct >= 90 ? 'text-destructive' : pct >= 75 ? 'text-amber-500' : 'text-cta'
   // the number in the middle keeps a nearly empty ring from reading as a spinner
   return (
-    <span className="relative flex size-7 items-center justify-center" aria-hidden="true">
-      <svg viewBox="0 0 28 28" className="absolute inset-0 size-7! -rotate-90">
+    <span className="relative flex size-8 items-center justify-center" aria-hidden="true">
+      <svg viewBox="0 0 28 28" className="absolute inset-0 size-8! -rotate-90">
         <circle cx="14" cy="14" r={r} fill="none" strokeWidth="2.5" stroke="currentColor" className="text-muted-foreground/35" />
         {known && (
           <circle cx="14" cy="14" r={r} fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"
             strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} className={tone} />
         )}
       </svg>
-      <span className="font-mono text-[9px] leading-none font-semibold tabular-nums text-foreground">
+      <span className="font-mono text-caption leading-none font-semibold tracking-tighter tabular-nums text-foreground">
         {known ? Math.round(pct) : 'i'}
       </span>
     </span>

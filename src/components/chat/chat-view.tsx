@@ -29,6 +29,7 @@ import { speakText, voiceFor } from '@/lib/tts'
 import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
 import { ChatsView } from '@/components/views/chats-view'
 import { sectionsFor } from '@/components/shell/sections'
+import { RAIL_HUES } from '@/components/shell/rail-hues'
 import { useT } from '@/hooks/use-t'
 import { cleanPreview } from '@/lib/preview'
 import type { ID } from '@/lib/types'
@@ -869,16 +870,16 @@ export function ChatView() {
               <div data-guide="menu.manage" className="flex flex-col">{chatManage.map(sheetRow)}</div>
             </div>
             <div className="mt-auto border-t border-border p-2">
-              <p className="px-1 pt-1 pb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">Go to</p>
+              <p className="px-1 pt-1 pb-1.5 text-caption uppercase tracking-wider text-muted-foreground">Go to</p>
               <div className="grid grid-cols-3 gap-1">
                 {PHONE_MENU_SECTIONS.map((item) => (
                   <button
                     key={item.key}
                     type="button"
                     onClick={() => { setMenuOpen(false); setView(item.key) }}
-                    className="flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="flex h-14 flex-col items-center justify-center gap-1 rounded-md text-caption text-muted-foreground hover:bg-accent hover:text-foreground"
                   >
-                    <item.icon className="size-4.5" aria-hidden="true" />
+                    <item.icon className={cn('size-4.5', RAIL_HUES[item.hue])} aria-hidden="true" />
                     {t(item.labelKey)}
                   </button>
                 ))}
@@ -886,9 +887,9 @@ export function ChatView() {
                 <button
                   type="button"
                   onClick={() => { setMenuOpen(false); useApp.getState().setGuideHelpOpen(true) }}
-                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-md text-caption text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
-                  <Question className="size-4.5" aria-hidden="true" />
+                  <Question className={cn('size-4.5', RAIL_HUES.zinc)} aria-hidden="true" />
                   {t('guide.help')}
                 </button>
               </div>
@@ -981,7 +982,7 @@ export function ChatView() {
                 {showDay && (
                   <div className="my-3 flex items-center gap-3" aria-hidden="true">
                     <div className="h-px flex-1 bg-border" />
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="text-caption font-medium uppercase tracking-wider text-muted-foreground">
                       {formatDay(msg.timestamp)}
                     </span>
                     <div className="h-px flex-1 bg-border" />
@@ -991,7 +992,7 @@ export function ChatView() {
                 {cutoffIndex >= 0 && i === cutoffIndex + 1 && i > 0 && (
                   <div className="my-3 flex items-center gap-3">
                     <div className="h-px flex-1 bg-destructive/40" />
-                    <span className="rounded-full border border-destructive/40 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
+                    <span className="rounded-full border border-destructive/40 px-2.5 py-0.5 text-caption font-medium uppercase tracking-wider text-destructive">
                       Out of context, messages above are forgotten
                     </span>
                     <div className="h-px flex-1 bg-destructive/40" />
@@ -1000,7 +1001,7 @@ export function ChatView() {
                 {i === summaryCutIndex + 1 && i > 0 && (
                   <div className="my-3 flex items-center gap-3">
                     <div className="h-px flex-1 bg-border" />
-                    <span className="rounded-full border border-border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="rounded-full border border-border px-2.5 py-0.5 text-caption font-medium uppercase tracking-wider text-muted-foreground">
                       {t('lit.olderInRecord')}
                     </span>
                     <div className="h-px flex-1 bg-border" />

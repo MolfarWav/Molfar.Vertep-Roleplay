@@ -98,7 +98,7 @@ export function SceneBlock({ clock, calendar, weatherSize = 52 }: { clock: Clock
               {band}
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-caption text-muted-foreground">
             {date && <span className="text-foreground" data-testid="dash-date">{date}</span>}
             {clock.time && band && <span className={cn('flex items-center gap-1', bandTextClass(clock.band))}><BandMark band={clock.band} />{band}</span>}
             <span>{t('dash.day', { n: clock.day })}</span>
@@ -197,7 +197,7 @@ export function AvatarImg({ name, url, className }: { name: string; url?: string
   return (
     <Avatar className={cn('size-7 rounded-none after:rounded-none', className)}>
       {url ? <AvatarImage src={url} alt={name} className="rounded-none" /> : null}
-      <AvatarFallback className="rounded-none text-[10px]">{initials(name)}</AvatarFallback>
+      <AvatarFallback className="rounded-none text-caption">{initials(name)}</AvatarFallback>
     </Avatar>
   )
 }
@@ -251,9 +251,9 @@ export function NameChip({ char, onClick }: { char: DashChar; onClick?: () => vo
       {char.name?.calls ? ` · ${t('dash.name.calls', { calls: char.name.calls })}` : ''}
     </>
   )
-  if (!onClick) return <span className="min-w-0 text-[11px] text-muted-foreground break-words">{text}</span>
+  if (!onClick) return <span className="min-w-0 text-caption text-muted-foreground break-words">{text}</span>
   return (
-    <button type="button" onClick={onClick} title={t('dash.notes.open')} className="min-w-0 rounded-none text-left text-[11px] text-muted-foreground break-words underline-offset-2 hover:text-foreground hover:underline">
+    <button type="button" onClick={onClick} title={t('dash.notes.open')} className="min-w-0 rounded-none text-left text-caption text-muted-foreground break-words underline-offset-2 hover:text-foreground hover:underline">
       {text}
     </button>
   )
@@ -278,7 +278,7 @@ export function DashError({ message, className }: { message: string; className?:
           {t('dash.err.details')}
         </button>
       )}
-      {open && <code className="mt-1 block break-words font-mono text-[10.5px] opacity-80">{message}</code>}
+      {open && <code className="mt-1 block break-words font-mono text-caption opacity-80">{message}</code>}
     </span>
   )
 }
@@ -288,7 +288,7 @@ export function Notices({ view, className }: { view: DashView; className?: strin
   const kept = view.keptOut
   if (!view.stale && !view.partial && !view.lastError && !kept) return null
   return (
-    <div className={cn('flex flex-col gap-1 text-[11px] text-muted-foreground', className)}>
+    <div className={cn('flex flex-col gap-1 text-caption text-muted-foreground', className)}>
       {view.stale && <span>{t('dash.stale')}</span>}
       {view.partial && <span>{t('dash.partial')}</span>}
       {view.lastError && <DashError message={view.lastError.message} />}
@@ -322,7 +322,7 @@ export function FooterLine({ view, chatId, className }: { view: DashView; chatId
         : view.fast ? t('dash.footer.fast')
           : t('dash.footer.sensor', { s: (view.usage.lastMs / 1000).toFixed(1) })
   return (
-    <div className={cn('flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground', className)}>
+    <div className={cn('flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground', className)}>
       <span className={cn('flex items-center gap-1.5', text)} aria-live="polite">
         <span className={cn('inline-block size-2 shrink-0 rounded-full', dot)} aria-hidden="true" />
         {label}
@@ -334,7 +334,7 @@ export function FooterLine({ view, chatId, className }: { view: DashView; chatId
 }
 
 export function Label({ children, className }: { children: ReactNode; className?: string }) {
-  return <h3 className={cn('text-[11px] uppercase tracking-wide text-muted-foreground', className)}>{children}</h3>
+  return <h3 className={cn('text-caption uppercase tracking-wide text-muted-foreground', className)}>{children}</h3>
 }
 
 /**
@@ -375,7 +375,7 @@ export function ChangeBadge({ count, className }: { count: ChangeCount | null | 
   return (
     <span
       className={cn(
-        'inline-flex h-[17px] min-w-[17px] shrink-0 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold tabular-nums',
+        'inline-flex h-[17px] min-w-[17px] shrink-0 items-center justify-center rounded-full px-1 text-caption leading-none font-semibold tabular-nums',
         count.negative ? 'bg-red-600 text-white dark:bg-red-400 dark:text-red-950' : 'bg-cta text-cta-foreground',
         className,
       )}
@@ -458,7 +458,7 @@ export const CLASS_MARK: Record<string, Mark> = { romantic: 'body', ally: 'good'
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0 text-sm">
-      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>{' '}
+      <span className="text-caption uppercase tracking-wide text-muted-foreground">{label}</span>{' '}
       <span className="break-words">{children}</span>
     </div>
   )
@@ -472,7 +472,7 @@ export function CharFields({ char, skip }: { char: DashChar; /** leave out the r
       {char.mood && (
         <Field label={t('dash.mood')}>
           {char.mood}
-          {char.moodWas && <span className="ml-1 text-[11px] text-muted-foreground">({t('dash.moodWas', { mood: char.moodWas })})</span>}
+          {char.moodWas && <span className="ml-1 text-caption text-muted-foreground">({t('dash.moodWas', { mood: char.moodWas })})</span>}
         </Field>
       )}
       {char.condition && <Field label={t('dash.condition')}>{char.condition}</Field>}

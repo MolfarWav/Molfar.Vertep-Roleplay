@@ -41,7 +41,7 @@ export function SoulModelPicker({ disabled, onPick, label, open: openProp, onOpe
                   <ModelMark model={m.ref} className="size-3.5 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-mono text-xs">{m.id}</span>
-                    <span className="block truncate text-[10px] text-muted-foreground">{m.provider}</span>
+                    <span className="block truncate text-caption text-muted-foreground">{m.provider}</span>
                   </span>
                 </CommandItem>
               ))}

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
+import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { refreshWorldProfiles, useWorldProfiles } from '@/lib/world-profiles'
 import type { WorldLevel, WorldProfile } from '@/lib/world'
@@ -60,22 +61,34 @@ export function WorldProfilePicker({
       <div className={cn('flex flex-col gap-1.5', !on && 'opacity-60')}>
         <label id="world-profile-label" className="text-body font-semibold">{t('world.profile')}</label>
         <Select
-          value={on && picked ? picked.id : ''}
+          value={on && profileId ? profileId : ''}
           items={items}
           disabled={!on || !list}
           onValueChange={(v) => { if (v && v !== profileId) onPick(v) }}
         >
           <SelectTrigger aria-labelledby="world-profile-label" className="h-10 w-full text-body md:h-9" data-testid="world-profile-select">
-            <SelectValue placeholder={on ? t('world.profile.pick') : t('world.profile.off')}>
+            {/* a function child always wins over the placeholder in base-ui, so the empty and the not-yet-loaded states
+                are drawn here: the trigger never renders blank */}
+            <SelectValue>
               {(v: string) => {
+                if (!v) {
+                  const Off = LEVEL_ICON.off
+                  return (
+                    <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                      {!on && <Off className="size-4 shrink-0" aria-hidden="true" />}
+                      <span className="truncate">{on ? t('world.profile.pick') : t('world.profile.off')}</span>
+                    </span>
+                  )
+                }
                 const p = options.find((x) => x.id === v)
-                if (!p) return null
-                const Icon = LEVEL_ICON[p.base]
+                // the list may not be loaded yet (or lack the level): a built-in id still has its own name and icon
+                const base: WorldLevel | null = p ? p.base : v in LEVEL_ICON ? (v as WorldLevel) : null
+                const Icon = base ? LEVEL_ICON[base] : null
                 return (
                   <span className="flex min-w-0 items-center gap-2">
-                    <Icon className={cn('size-4 shrink-0', LEVEL_TONE[p.base].icon)} aria-hidden="true" />
-                    <span className="truncate">{nameOf(p)}</span>
-                    {!p.builtIn && <OwnMark />}
+                    {Icon && base && <Icon className={cn('size-4 shrink-0', LEVEL_TONE[base].icon)} aria-hidden="true" />}
+                    <span className="truncate">{p ? nameOf(p) : base ? t(`world.level.${v}` as MsgKey) : v}</span>
+                    {p && !p.builtIn && <OwnMark />}
                   </span>
                 )
               }}

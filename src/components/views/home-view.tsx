@@ -71,8 +71,8 @@ export function HomeView() {
         {shortModel(model ?? '') || t('home.noModel')}
       </button>
       {/* the Roleplay settings page has no rail item (docs/UI-CATALOG.md 8.2): this is its door until the shell's Settings lists it */}
-      <Button variant="ghost" className="gap-1.5 max-md:h-10" data-guide="home.settings" onClick={() => navigate('settings')}>
-        <Gear aria-hidden="true" /> {t('nav.settings')}
+      <Button variant="ghost" className="gap-1.5 max-md:h-10 max-md:w-10 max-md:px-0" data-guide="home.settings" aria-label={t('nav.settings')} title={t('nav.settings')} onClick={() => navigate('settings')}>
+        <Gear aria-hidden="true" /> <span className="max-md:sr-only">{t('nav.settings')}</span>
       </Button>
       <WithMolfarButton />
       {!editing && (
@@ -100,7 +100,7 @@ export function HomeView() {
   }
 
   return (
-    <SectionPage section="home" actions={actions}>
+    <SectionPage section="home" actions={actions} flowActions>
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-6 px-4 py-4 md:px-8 md:py-6">
           {editing && (

@@ -290,8 +290,12 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
     // @container: the detail pane spans from a phone page to a narrow drawer to a full page; the grids below must
     // follow the PANE's width, not the viewport, or fixed-width label+input rows crush into each other
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col @container">
+      {/* Beside a wide enough pane the book column and the entry panel share a row (the book keeps >= 360 px, the panel
+          takes the rest, 320-440 px); in a narrower pane the panel covers the page as a sheet instead of squeezing it.
+          Before, the panel was an overlay and the list was padded 456 px off it: at 1280 px the pane left ~140 px. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col @[680px]:flex-row">
       {/* the header, the tabs and the entries scroll together: a toolbar pinned at the top eats the phone screen */}
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 min-w-0 flex-1 @[680px]:min-w-[360px]">
         <BookHeader book={book} characters={characters} onUpdate={onUpdate} onDelete={onDelete} onDuplicate={onDuplicate} onTest={onTest} />
         <Tabs value={tab} onValueChange={(v) => setTab(v as BookTab)} className="gap-0">
           <div className="px-4 pt-3">
@@ -302,8 +306,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             </TabsList>
           </div>
 
-          {/* beside the panel the list keeps its width: the rows are padded off the panel's 440 px on a desktop */}
-          <TabsContent value="entries" className={cn('flex flex-col gap-3 px-4 py-3', panelOpen && 'md:pr-[456px]')}>
+          <TabsContent value="entries" className="flex flex-col gap-3 px-4 py-3">
             <EntryToolbar
               query={query}
               onQuery={(q) => { setQuery(q); setEntryPage(0) }}
@@ -378,6 +381,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           onClose={() => setActiveId(null)}
         />
       )}
+      </div>
 
       <Dialog open={!!copyEntries} onOpenChange={(o) => { if (!o) setCopyEntries(null) }}>
         <DialogContent className="max-h-[70dvh] overflow-y-auto sm:max-w-sm">

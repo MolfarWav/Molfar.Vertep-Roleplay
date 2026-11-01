@@ -34,9 +34,10 @@ export function EntryToolbar({ query, onQuery, sort, onSort, selecting, onToggle
   const sortLabels: Record<string, string> = Object.fromEntries(SORTS.map((k) => [k, t(`lore.sort.${k}` as const)]))
   const filterLabel = (f: EntryFilter): string => t(`lore.filter.${f}` as const)
   return (
-    <div className="flex flex-col gap-2">
+    // @container: the toolbar follows the width of its own column, which is narrow when the entry panel sits beside it
+    <div className="flex flex-col gap-2 @container">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative basis-full md:max-w-xs md:flex-1">
+        <div className="relative basis-full @[560px]:max-w-xs @[560px]:flex-1 @[560px]:basis-auto">
           <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input value={query} onChange={(e) => onQuery(e.target.value)} placeholder={t('lore.entries.search')} className="h-8 pl-8 text-caption max-md:h-10" aria-label={t('lore.entries.search')} />
         </div>

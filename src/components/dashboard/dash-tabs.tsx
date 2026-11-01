@@ -263,8 +263,8 @@ export function NotesPanel({ view, focus, onNotebook }: { view: DashView; focus:
     <div className="p-2">
       <Box title={t('dash.tab.notebook')} tone="memory" icon={NotebookIcon}>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-[10px] hover:bg-muted">{t('dash.notes.about', { n: counts.about })}</Badge>
-          <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-[10px] hover:bg-muted">{t('dash.notes.heard', { n: counts.heard })}</Badge>
+          <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-caption hover:bg-muted">{t('dash.notes.about', { n: counts.about })}</Badge>
+          <Badge render={<button type="button" onClick={onNotebook} title={t('dash.notes.open')} />} variant="outline" className="cursor-pointer rounded-none text-caption hover:bg-muted">{t('dash.notes.heard', { n: counts.heard })}</Badge>
           <NameChip char={char} onClick={onNotebook} />
         </div>
       </Box>

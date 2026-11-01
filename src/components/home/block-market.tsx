@@ -39,11 +39,13 @@ export function MarketView({ card, onOpen, onAnother }: MarketViewProps) {
           <Chip>{MARKET_SOURCE}</Chip>
           {card.downloads > 0 && <Chip>{t('home.downloads', { n: shortCount(card.downloads) })}</Chip>}
         </div>
-        <div className="mt-auto flex flex-wrap gap-2 pt-2">
-          <Button variant="tonal" className="max-md:h-10" onClick={onOpen}>
+        {/* Button is nowrap and never shrinks: a long label ("Open in Marketplace", longer in other languages) ran past the card's edge and was
+            clipped. The buttons may now wrap their label inside the card, and keep a touch-sized minimum height */}
+        <div className="mt-auto flex min-w-0 flex-wrap gap-2 pt-2">
+          <Button variant="tonal" className="h-auto min-h-8 max-w-full whitespace-normal px-3 py-1.5 text-left max-md:min-h-10" onClick={onOpen}>
             <Storefront aria-hidden="true" /> {t('home.openMarket')}
           </Button>
-          <Button variant="ghost" className="max-md:h-10" onClick={onAnother}>
+          <Button variant="ghost" className="h-auto min-h-8 max-w-full whitespace-normal px-3 py-1.5 text-left max-md:min-h-10" onClick={onAnother}>
             <ArrowsClockwise aria-hidden="true" /> {t('home.another')}
           </Button>
         </div>

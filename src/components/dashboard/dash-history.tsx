@@ -5,6 +5,7 @@ import type { DispositionStat } from '@/lib/soul'
 import { STAT_COLORS } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
+import { withKeys } from '@/lib/unique-keys'
 import { Box, useTx } from './dash-common'
 
 export function StoryList({ char, className, compact }: { char: DashChar; className?: string; compact?: boolean }) {
@@ -25,8 +26,8 @@ export function StoryList({ char, className, compact }: { char: DashChar; classN
         <div className="text-sm text-muted-foreground">{t('dash.story.none')}</div>
       ) : (
         <ul className="flex flex-col">
-          {lines.map((line) => (
-            <li key={`${line.turn}|${line.kind}|${line.kind === 'tier' ? line.stat : ''}|${line.kind === 'seed' ? JSON.stringify(line.to) : `${line.from}|${line.to}`}`} className="flex min-w-0 items-baseline gap-2 border-b border-dashed border-border py-1.5 text-sm first:pt-0 last:border-b-0 last:pb-0">
+          {withKeys(lines, (line) => `${line.turn}|${line.kind}|${line.kind === 'tier' ? line.stat : ''}|${line.kind === 'seed' ? JSON.stringify(line.to) : `${line.from}|${line.to}`}`).map(({ item: line, key }) => (
+            <li key={key} className="flex min-w-0 items-baseline gap-2 border-b border-dashed border-border py-1.5 text-sm first:pt-0 last:border-b-0 last:pb-0">
               <span className="min-w-0 flex-1 break-words">
                 {line.kind === 'tier'
                   ? t('dash.story.tier', {
@@ -40,7 +41,7 @@ export function StoryList({ char, className, compact }: { char: DashChar; classN
                       ? t(line.from ? 'dash.story.calls' : 'dash.story.callsStart', { to: line.to })
                       : t('dash.story.constellation', { from: tx('dash.const', line.from), to: tx('dash.const', line.to) })}
               </span>
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{t('dash.story.turn', { n: line.turn })}</span>
+              <span className="shrink-0 font-mono text-caption text-muted-foreground">{t('dash.story.turn', { n: line.turn })}</span>
             </li>
           ))}
         </ul>
@@ -112,11 +113,11 @@ export function StatChart({ char, stat, onStat, className }: {
               />
             ))}
           </div>
-          <span className="absolute bottom-0 -translate-x-1/2 font-mono text-[10px] text-muted-foreground" style={{ left: `${pts[0].x}%` }}>
+          <span className="absolute bottom-0 -translate-x-1/2 font-mono text-caption text-muted-foreground" style={{ left: `${pts[0].x}%` }}>
             {pts[0].turn}
           </span>
           {n > 1 && (
-            <span className="absolute bottom-0 -translate-x-1/2 font-mono text-[10px] text-muted-foreground" style={{ left: `${pts[n - 1].x}%` }}>
+            <span className="absolute bottom-0 -translate-x-1/2 font-mono text-caption text-muted-foreground" style={{ left: `${pts[n - 1].x}%` }}>
               {pts[n - 1].turn}
             </span>
           )}

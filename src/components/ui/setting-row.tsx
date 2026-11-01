@@ -93,7 +93,11 @@ export function NumTile({ label, hint, info, value, min, max, step, disabled, on
         ) : null}
       </span>
       {hint ? <span className="text-caption text-muted-foreground">{hint}</span> : null}
-      <NumControl label={label} value={value} min={min} max={max} step={step} disabled={disabled} onCommit={onCommit} className="mt-1.5 w-full text-left" />
+      {/* the input hangs from the tile's bottom edge: tiles in one grid row stretch to the tallest, so inputs line up
+          whether or not a tile has a hint or an (i) */}
+      <div className="mt-auto pt-1.5">
+        <NumControl label={label} value={value} min={min} max={max} step={step} disabled={disabled} onCommit={onCommit} className="w-full text-left" />
+      </div>
     </div>
   )
 }

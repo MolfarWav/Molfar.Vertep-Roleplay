@@ -32,7 +32,7 @@ function TagChip({ tag }: { tag: NoteTag }) {
     everyday: 'border-border text-muted-foreground',
   }[tag]
   return (
-    <span className={cn('inline-flex items-center gap-1 border px-1 py-px font-sans text-[10px] uppercase tracking-wide', look)}>
+    <span className={cn('inline-flex items-center gap-1 border px-1 py-px font-sans text-caption uppercase tracking-wide', look)}>
       {tag === 'pinned' && <PushPin className="size-2.5" weight="fill" aria-hidden="true" />}
       {tx('dash.tag', tag)}
     </span>
@@ -80,7 +80,7 @@ function NoteRow({ note, you, editable }: { note: Note; you: string; editable: b
         ) : (
           <div className="text-sm leading-snug break-words">{note.text}</div>
         )}
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10.5px] text-muted-foreground">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-caption text-muted-foreground">
           {note.tag && <TagChip tag={note.tag} />}
           <span className={cn(!mine && HOW_TEXT[note.how])}>{source}</span>
           {note.believes === false && <span>{t('dash.how.doubts')}</span>}
@@ -135,7 +135,7 @@ function AddNote({ name }: { name: string }) {
     <div className="mt-2 flex flex-col gap-1.5 border border-border p-2">
       <Textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={NOTE_MAX} rows={3} placeholder={t('dash.note.placeholder', { name })} aria-label={t('dash.note.add')} className={cn(FIELD, 'min-h-0 text-sm')} />
       <div className="flex flex-wrap gap-2">
-        <label className="flex min-w-[120px] flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+        <label className="flex min-w-[120px] flex-1 flex-col gap-1 text-caption text-muted-foreground">
           {t('dash.note.how')}
           <Select value={how} onValueChange={(v) => v && setHow(v as How)}>
             <SelectTrigger className={cn(FIELD, 'w-full')}><SelectValue /></SelectTrigger>
@@ -144,7 +144,7 @@ function AddNote({ name }: { name: string }) {
             </SelectContent>
           </Select>
         </label>
-        <label className="flex min-w-[120px] flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+        <label className="flex min-w-[120px] flex-1 flex-col gap-1 text-caption text-muted-foreground">
           {t('dash.note.tag')}
           <Select value={tag} onValueChange={(v) => v && setTag(v as NoteTag | 'none')}>
             <SelectTrigger className={cn(FIELD, 'w-full')}><SelectValue /></SelectTrigger>
@@ -236,8 +236,8 @@ export function Notebook({ name, char, userName, className, id, compact }: {
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-1.5 opacity-50">
-        <span className="border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">{t('dash.later.rumor')}</span>
-        <span className="border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">{t('dash.later.leak')}</span>
+        <span className="border border-border px-1.5 py-0.5 text-caption text-muted-foreground">{t('dash.later.rumor')}</span>
+        <span className="border border-border px-1.5 py-0.5 text-caption text-muted-foreground">{t('dash.later.leak')}</span>
       </div>
     </Box>
   )
