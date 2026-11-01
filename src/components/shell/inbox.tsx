@@ -100,7 +100,8 @@ const KIND_STYLE = {
   },
 } as const
 
-function InboxItem({ row, phone, selecting, selected, onToggle }: { row: InboxRow; phone?: boolean; selecting?: boolean; selected?: boolean; onToggle?: () => void }) {
+/** One inbox row: kind, name and what is waiting; the same row the drawer lists and Home's Waiting block repeats. */
+export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: InboxRow; phone?: boolean; selecting?: boolean; selected?: boolean; onToggle?: () => void }) {
   const t = useT()
   const when = useRelativeTime()
   const lang = resolveLanguage(useApp((s) => s.settings.language))

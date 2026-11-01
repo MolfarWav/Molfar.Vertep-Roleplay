@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
 const { EditBar, HiddenTray, CustomizePanel } = await import("../src/components/home/home-edit");
-const { WaitingView } = await import("../src/components/home/block-waiting");
+const { WaitingView, kindsOf } = await import("../src/components/home/block-waiting");
+const { queueMarketOpen, peekMarketOpen, clearMarketOpen } = await import("../src/lib/home-market");
 const { TipView } = await import("../src/components/home/block-help");
 const { NewsView } = await import("../src/components/home/block-news");
 const { QuestsView } = await import("../src/components/home/block-quests");
@@ -214,5 +215,66 @@ describe("the helpers the blocks use", () => {
     ] as unknown as Parameters<typeof latestChatOf>[0];
     expect(latestChatOf(chats, "c1")?.id).toBe("b");
     expect(latestChatOf(chats, "nope")).toBeNull();
+  });
+});
+
+describe("WaitingView detail", () => {
+  it("shows the kinds as chips, the listed rows and how many more wait", () => {
+    const html = renderToStaticMarkup(
+      <WaitingView total={6} failures={2} onOpen={noop} kinds={{ failed: 2, litopys: 3, soul: 1 }} rows={<li>first row</li>} more={2} />,
+    );
+    expect(html).toContain("first row");
+    expect((html.match(/rounded-full border/g) ?? []).length).toBe(3);
+    expect(html).toMatch(/2 more waiting|Ще 2 чекають/);
+  });
+
+  it("an empty inbox has no chips and no list", () => {
+    const html = renderToStaticMarkup(<WaitingView total={0} failures={0} onOpen={noop} kinds={{ failed: 0, litopys: 0, soul: 0 }} />);
+    expect(html).not.toContain("<ul");
+    expect(html).not.toContain("rounded-full border");
+  });
+
+  it("counts an approval row by its proposals and the others by row", () => {
+    const rows = [
+      { kind: "failed", key: "a", item: {}, name: "x", reason: "r" },
+      { kind: "litopys", key: "b", chatId: "c", name: "y", count: 3 },
+      { kind: "soul", key: "c", characterId: "d", name: "z", count: 4, at: 1 },
+    ] as never;
+    expect(kindsOf(rows)).toEqual({ failed: 1, litopys: 3, soul: 1 });
+  });
+});
+
+describe("LibraryView fill", () => {
+  const base = { name: "Campus", tagline: "", portrait: null, chats: 1, lorebooks: 1, action: "Continue", onAction: noop, onAnother: noop };
+
+  it("shows the fallback text, the played line and coloured chips for a card with no description", () => {
+    const html = renderToStaticMarkup(<LibraryView {...base} fallback={<p>last words</p>} messages={3} lastAt={Date.now() - 7200_000} tags={["school", "slice", "romance", "extra"]} />);
+    expect(html).toContain("last words");
+    expect(html).toMatch(/3 (msgs|повід\.)/);
+    // chats, lorebooks and three tags (the fourth is cut), each its own tone
+    expect((html.match(/rounded-full border/g) ?? []).length).toBe(5);
+    expect(html).toContain("sky");
+    expect(html).toContain("amber");
+    expect(html).toContain("violet");
+    expect(html).not.toContain("extra");
+  });
+
+  it("a card with a tagline shows it, not the fallback", () => {
+    const html = renderToStaticMarkup(<LibraryView {...base} tagline="A quiet campus." fallback={<p>last words</p>} />);
+    expect(html).toContain("A quiet campus.");
+    expect(html).not.toContain("last words");
+  });
+});
+
+describe("Marketplace hand-off", () => {
+  it("keeps the queued card until it is cleared", () => {
+    const card = { id: "u/x", name: "X", creator: "", tagline: "", avatar: null, downloads: 0, tokens: 0 };
+    clearMarketOpen();
+    expect(peekMarketOpen()).toBeNull();
+    queueMarketOpen(card);
+    expect(peekMarketOpen()).toEqual(card);
+    expect(peekMarketOpen()).toEqual(card);
+    clearMarketOpen();
+    expect(peekMarketOpen()).toBeNull();
   });
 });

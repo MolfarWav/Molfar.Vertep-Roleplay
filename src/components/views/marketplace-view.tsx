@@ -21,6 +21,7 @@ import { SectionPage, PaneTitle } from '@/components/shell/section-page'
 import { cn } from '@/lib/utils'
 import { ProxyImage } from '@/components/marketplace/proxy-image'
 import { j, downscaleRemoteImage } from '@/lib/engine'
+import { clearMarketOpen, peekMarketOpen } from '@/lib/home-market'
 import { importCardFiles, importCardFromLink, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 import {
   TRANSLATE_LANGUAGES, TRANSLATE_CONCURRENCY, runLimited, planPreview, buildPreview, loadTranslateTo, saveTranslateTo,
@@ -407,7 +408,14 @@ export function MarketplaceView() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [detail, setDetail] = useState<MarketplaceItem | null>(null)
+  // Home's suggestion opens its card's page straight away (a listing is a Chub one, whatever source was last browsed)
+  const [detail, setDetail] = useState<MarketplaceItem | null>(() => {
+    const c = peekMarketOpen()
+    return c
+      ? { id: c.id, name: c.name, creator: c.creator, tagline: c.tagline, description: c.tagline, topics: [], downloads: c.downloads, favorites: 0, tokens: c.tokens, rating: 0, ratingCount: 0, chats: 0, messages: 0, nsfw: false, avatar: c.avatar, maxRes: null, createdAt: null, source: 'chub' }
+      : null
+  })
+  useEffect(() => clearMarketOpen(), [])
   const [detailData, setDetailData] = useState<MarketplaceDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
