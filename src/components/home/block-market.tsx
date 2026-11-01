@@ -8,6 +8,7 @@ import { Chip } from '@/components/ui/section'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { shortCount, type MarketCard } from '@/lib/home-pick'
+import { queueMarketOpen } from '@/lib/home-market'
 import { ProxyImage } from '@/components/marketplace/proxy-image'
 import { BlockCard, BlockHead } from '@/components/home/home-frame'
 
@@ -59,7 +60,15 @@ export function MarketBlock({ card, another }: { card: MarketCard; another: () =
   return (
     <BlockCard>
       <BlockHead tone="amber" icon={Storefront} title={t('home.market')} aside={<Chip tone="amber">{t('home.marketTop')}</Chip>} />
-      <MarketView card={card} onOpen={() => navigate('marketplace')} onAnother={another} />
+      <MarketView
+        card={card}
+        onOpen={() => {
+          // the card's own page opens on arrival, not just the list
+          queueMarketOpen(card)
+          navigate('marketplace')
+        }}
+        onAnother={another}
+      />
     </BlockCard>
   )
 }

@@ -1,20 +1,22 @@
 // From your library: one character card, drawn once per visit. "Another" draws again. The button starts a chat, or
 // continues the card's latest one.
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ArrowsClockwise, ChatCircle, UserCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/section'
 import { useApp } from '@/lib/store'
-import { useT } from '@/hooks/use-t'
+import { useRelativeTime, useT } from '@/hooks/use-t'
+import { ChatQuote } from '@/components/chat/chat-preview-text'
 import { DEFAULT_AVATAR } from '@/lib/utils'
 import type { Chat, Character } from '@/lib/types'
 import { BlockCard, BlockHead, EmptyLine } from '@/components/home/home-frame'
 import { useVisitPick } from '@/components/home/use-visit-pick'
 
 /** The character's first sentence, for a one-line tagline. */
-export function taglineOf(c: Pick<Character, 'description' | 'creatorNotes'>): string {
-  const text = (c.description || c.creatorNotes || '').replace(/\s+/g, ' ').trim()
+export function taglineOf(c: Pick<Character, 'description' | 'creatorNotes'> & { blurb?: string }): string {
+  // the start-up list holds a summary: its `description` is empty and the first 300 characters are in `blurb`
+  const text = (c.description || c.blurb || c.creatorNotes || '').replace(/\s+/g, ' ').trim()
   const cut = text.search(/[.!?](\s|$)/)
   return cut > 0 && cut < 160 ? text.slice(0, cut + 1) : text.slice(0, 160)
 }
@@ -32,15 +34,23 @@ export interface LibraryViewProps {
   portrait: string | null
   chats: number
   lorebooks: number
+  /** the card's own tags, the first few are shown */
+  tags?: string[]
+  /** messages in the card's latest chat and when it was last played; both omitted for a card with no chat */
+  messages?: number
+  lastAt?: number | null
+  /** shown in place of the tagline when the card has none (the chat's last words), so the block is never a blank space */
+  fallback?: ReactNode
   /** "Start chat", or "Continue" when the card has a chat */
   action: string
   onAction: () => void
   onAnother: () => void
 }
 
-/** The card itself: portrait, name, tagline, two counts, the tonal button and Another. */
-export function LibraryView({ name, tagline, portrait, chats, lorebooks, action, onAction, onAnother }: LibraryViewProps) {
+/** The card itself: portrait, name, tagline (or the chat's last words), what it holds in coloured chips, the tonal button and Another. */
+export function LibraryView({ name, tagline, portrait, chats, lorebooks, tags = [], messages = 0, lastAt = null, fallback, action, onAction, onAnother }: LibraryViewProps) {
   const t = useT()
+  const when = useRelativeTime()
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 sm:flex-row">
       <img
@@ -51,10 +61,18 @@ export function LibraryView({ name, tagline, portrait, chats, lorebooks, action,
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <h4 className="font-heading text-title leading-tight">{name}</h4>
-        {tagline && <p className="line-clamp-3 text-body text-muted-foreground">{tagline}</p>}
+        {tagline ? <p className="line-clamp-3 text-body text-muted-foreground">{tagline}</p> : fallback}
+        {lastAt ? (
+          <p className="text-caption text-muted-foreground">
+            {messages} {t('home.msgs')} · {when(lastAt)}
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-1.5">
-          <Chip>{t('home.chatsN', { n: chats })}</Chip>
-          {lorebooks > 0 && <Chip>{t('home.lorebooksN', { n: lorebooks })}</Chip>}
+          <Chip tone="sky">{t('home.chatsN', { n: chats })}</Chip>
+          {lorebooks > 0 && <Chip tone="amber">{t('home.lorebooksN', { n: lorebooks })}</Chip>}
+          {tags.slice(0, 3).map((tag) => (
+            <Chip key={tag} tone="violet">{tag}</Chip>
+          ))}
         </div>
         <div className="mt-auto flex flex-wrap gap-2 pt-2">
           <Button variant="tonal" className="max-md:h-10" onClick={onAction}>
@@ -99,6 +117,10 @@ function LibraryOf({ card, onAnother }: { card: Character; onAnother: () => void
       portrait={card.avatar}
       chats={count}
       lorebooks={books}
+      tags={card.tags ?? []}
+      messages={latest ? (latest.messages.length > 0 ? latest.messages.length : latest.messageCount ?? 0) : 0}
+      lastAt={latest?.updatedAt ?? null}
+      fallback={latest ? <ChatQuote chat={latest} max={140} className="line-clamp-3 font-heading text-body leading-snug text-foreground/85" /> : card.firstMessage ? <p className="line-clamp-3 text-body text-muted-foreground">{taglineOf({ description: card.firstMessage, creatorNotes: '' })}</p> : null}
       action={latest ? t('home.continue') : t('home.startChat')}
       onAction={() => (latest ? openChat(latest.id) : void startChatAndOpen(card.id))}
       onAnother={onAnother}

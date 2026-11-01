@@ -84,3 +84,19 @@ export function useMarketSuggest(enabled: boolean): { card: MarketCard | null; a
   const i = pickAt(seed, items.length, step)
   return { card: i >= 0 ? items[i] ?? null : null, another: () => setStep((s) => s + 1) }
 }
+
+let pendingOpen: MarketCard | null = null
+
+/** Home's "Open in Marketplace" names the listing it shows; the Marketplace view opens that card's page on arrival. */
+export function queueMarketOpen(card: MarketCard): void {
+  pendingOpen = card
+}
+
+/** The queued listing, left in place: React may run a state initializer twice, so it is cleared by an effect. */
+export function peekMarketOpen(): MarketCard | null {
+  return pendingOpen
+}
+
+export function clearMarketOpen(): void {
+  pendingOpen = null
+}

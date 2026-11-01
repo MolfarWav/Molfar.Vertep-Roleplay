@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.80.2 (2026-11-01)
+
+- Home, four fixes from the owner's look at 4.80. "Open in Marketplace" opens that card's page, not only the list. "From your library" was blank for every card (the start-up list holds summaries, whose text is in `blurb`): it now shows the description, or the chat's last words, a "N msgs, time" line and chips in their own colours (chats, lorebooks, tags). "Waiting on you" shows what waits by kind and the first three inbox rows, each opens what it names. "Pick up the story" shows the portrait in a frame at its own size instead of stretching it over the block; a card with no picture of its own shows none.
+
 ## 4.80.1 (2026-11-01)
 
 - The phone menus are coloured like the desktop rail: the bottom tab bar, the All sections sheet and the chat menu's Go to block take each section's hue, and Agents has a tile in All sections (it opens the Canvas on the Agents board). In the chats list New chat is the one filled button; Recent and Select look like secondary controls and match the search field in height.
