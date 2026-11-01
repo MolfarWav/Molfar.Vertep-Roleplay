@@ -470,6 +470,8 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
     // the log tells what ran before and beside the reply as well; the notes under the reply and the toasts agents asked for come from it
     const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
     reportFailures(chatId, runs, before)
+    // an agent changed the Dashboard: the panel beside the chat reads it again at once instead of on its next poll
+    if (runs.some((x) => !before.has(runId(x)) && x.dash?.length)) void reloadDash(chatId).catch(() => {})
     for (const run of runs.filter((x) => !before.has(runId(x))))
       for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text && !(o.kind === 'note' && useAgentsLive.getState().silentNotes)) toast.message(o.title || nameOf(run.agent), { description: o.text })
     return r

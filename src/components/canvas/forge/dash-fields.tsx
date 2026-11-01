@@ -72,9 +72,12 @@ export function DashWriteForm({ p, onParams }: { p: Params; onParams: (p: Params
       {spec?.as === 'number' && (
         <Field label={t('fg.dash.limits')} hint={t('fg.dash.limitsHint')}>
           <div className="grid grid-cols-3 gap-2">
-            <NumberBox value={clamp.min} min={-100} max={100} label={t('fg.dash.min')} placeholder={t('fg.dash.min')} onChange={(n) => setClamp({ min: n })} />
-            <NumberBox value={clamp.max} min={-100} max={100} label={t('fg.dash.max')} placeholder={t('fg.dash.max')} onChange={(n) => setClamp({ max: n })} />
-            <NumberBox value={clamp.maxStep} min={0} max={200} label={t('fg.dash.step')} placeholder={t('fg.dash.step')} onChange={(n) => setClamp({ maxStep: n })} />
+            {([['min', clamp.min, -100, 100], ['max', clamp.max, -100, 100], ['step', clamp.maxStep, 0, 200]] as const).map(([k, v, lo, hi]) => (
+              <label key={k} className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate text-caption text-muted-foreground">{t(`fg.dash.${k}` as MsgKey)}</span>
+                <NumberBox value={v} min={lo} max={hi} label={t(`fg.dash.${k}` as MsgKey)} onChange={(n) => setClamp({ [k === 'step' ? 'maxStep' : k]: n })} />
+              </label>
+            ))}
           </div>
         </Field>
       )}
@@ -119,8 +122,11 @@ export function DashReadRows({ give, onGive }: { give: Give[]; onGive: (next: Gi
                 </Button>
               </div>
               {spec?.char && (
+                <label className="flex flex-col gap-0.5">
+                <span className="text-caption text-muted-foreground">{t('fg.dash.ofRead')}</span>
                 <Input value={row.of ?? ''} maxLength={60} placeholder={t('fg.dash.ofPlaceholder')} aria-label={t('fg.dash.ofRead')} className="max-md:h-10"
                   onChange={(e) => { const { of: _of, ...rest } = row; swap(row, e.target.value.trim() ? { ...rest, of: e.target.value } : rest) }} />
+                </label>
               )}
             </div>
           )

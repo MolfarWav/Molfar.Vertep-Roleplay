@@ -26,7 +26,7 @@ function DashChanges({ chatId, changes, canUndo }: { chatId: string; changes: Da
         const vars = { field: c.field, before: clipTo(c.before, t('ag.dash.empty')), after: clipTo(c.after, t('ag.dash.empty')), who: c.who ?? '' }
         const line = c.who ? t('ag.dash.lineOf', vars) : t('ag.dash.line', vars)
         return (
-          <li key={c.id} className="flex flex-wrap items-center gap-x-2 text-[11px]">
+          <li key={c.id} className="flex flex-wrap items-center gap-x-2 text-caption">
             <span className={cn('min-w-0 break-words tabular-nums', c.undone && 'text-muted-foreground line-through')}>{line}</span>
             {c.undone ? <span className="text-muted-foreground">{t('ag.dash.undone')}</span>
               : canUndo && (
