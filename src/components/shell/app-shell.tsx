@@ -42,6 +42,8 @@ import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you
 import { InboxDrawer, useInbox, useInboxBadge } from '@/components/shell/inbox'
 import { ImportProgressCard } from '@/components/shell/import-progress-card'
 import { pollNeedsYou } from '@/lib/store'
+import { loadLetters, runLettersPass } from '@/lib/letters'
+import { PASS_EVERY_MS, PASS_FIRST_MS } from '@/lib/letters-core'
 
 export function AppShell() {
   const [mounted, setMounted] = useState(false)
@@ -66,6 +68,17 @@ export function AppShell() {
     const id = setInterval(() => { if (document.visibilityState === 'visible') void pollNeedsYou() }, 60_000)
     return () => clearInterval(id)
   }, [boot, attentionLitopys, attentionSoul])
+
+  // #72: unread letters from cards, read with the other waiting things; a pass asks for a new one a little after
+  // start and every few hours while the page is visible (the plugin keeps the switch and the limits)
+  useEffect(() => {
+    if (boot !== 'ready') return
+    void loadLetters()
+    const read = setInterval(() => { if (document.visibilityState === 'visible') void loadLetters() }, 60_000)
+    const first = setTimeout(() => { if (document.visibilityState === 'visible') void runLettersPass() }, PASS_FIRST_MS)
+    const pass = setInterval(() => { if (document.visibilityState === 'visible') void runLettersPass() }, PASS_EVERY_MS)
+    return () => { clearInterval(read); clearTimeout(first); clearInterval(pass) }
+  }, [boot])
 
   // Desktop invariant: the page behind is always home/chats/chat. A persisted
   // section view (or a phone session resized wide) becomes a drawer. Phones

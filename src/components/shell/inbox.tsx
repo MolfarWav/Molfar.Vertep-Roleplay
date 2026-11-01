@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BellSimple, CaretRight, Check, Scroll, Sparkle, Warning, X } from '@phosphor-icons/react'
+import { BellSimple, BellSlash, CaretRight, Check, EnvelopeSimple, Scroll, Sparkle, Warning, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { dismissInboxRows, useApp } from '@/lib/store'
+import { dismissInboxRows as dismissStoreRows, useApp } from '@/lib/store'
+import { dismissLetters, muteCard, useLetters } from '@/lib/letters'
 import { useAttention, useInbox, inboxClosesOn, inboxRows, workerName, type InboxFilter, type InboxRow } from '@/lib/attention'
 import { APP_VERSION, TIPS } from '@/lib/guide-tips'
 import { tipText } from '@/lib/guide'
@@ -15,11 +16,20 @@ import { NeedsYouBadge } from '@/components/shell/needs-you-badge'
 
 export { useInbox }
 
+/** Dismiss rows of any kind: letters are deleted in the letters plugin, the rest go the way they did. */
+async function dismissInboxRows(rows: InboxRow[]): Promise<number> {
+  const letters = rows.filter((r): r is Extract<InboxRow, { kind: 'letter' }> => r.kind === 'letter')
+  if (letters.length) void dismissLetters(letters.map((r) => r.letter.id))
+  const rest = rows.filter((r) => r.kind !== 'letter')
+  return rest.length ? dismissStoreRows(rest) : 0
+}
+
 /** The rows, the total and the failure count, from the sources and the per-kind switches. */
 export function useInboxRows() {
   const litopys = useAttention((s) => s.litopys)
   const litNames = useAttention((s) => s.litNames)
   const soul = useAttention((s) => s.soul)
+  const letters = useLetters((s) => s.letters)
   const failed = useAttention((s) => s.failed)
   const dismissed = useAttention((s) => s.dismissed)
   const settings = useApp((s) => s.settings.attention)
@@ -30,6 +40,7 @@ export function useInboxRows() {
     settings,
     litopys,
     soul,
+    letters,
     failed,
     dismissed,
     lang: resolveLanguage(language),
@@ -53,7 +64,8 @@ export const useInboxTotal = () => useInboxRows().total
 /** A review for a card that is not in the library any more has nothing to open: dismiss it and say so. */
 function dismissIfCardGone(row: InboxRow): boolean {
   const app = useApp.getState()
-  const id = row.kind === 'soul' ? row.characterId : row.kind === 'failed' && row.item.worker === 'soul' ? row.item.ref : null
+  // a letter's card may be gone too
+  const id = row.kind === 'letter' ? row.letter.characterId : row.kind === 'soul' ? row.characterId : row.kind === 'failed' && row.item.worker === 'soul' ? row.item.ref : null
   if (!id || app.characters.some((c) => c.id === id)) return false
   void dismissInboxRows([row])
   toast.info(translate('inbox.cardGone', resolveLanguage(app.settings.language)))
@@ -64,7 +76,8 @@ function openRow(row: InboxRow) {
   if (dismissIfCardGone(row)) return
   useInbox.getState().setOpen(false)
   const app = useApp.getState()
-  if (row.kind === 'litopys') app.focusLibraryChat(row.chatId)
+  if (row.kind === 'letter') openLetter(row)
+  else if (row.kind === 'litopys') app.focusLibraryChat(row.chatId)
   else if (row.kind === 'soul') app.openCharacterOnTab(row.characterId, 'soul')
   else {
     const f = row.item
@@ -78,7 +91,17 @@ function openRow(row: InboxRow) {
   }
 }
 
-/** Colour, icon and kind label of each row kind: a failure is red, a Library approval blue, a soul review violet. */
+/** A letter opens where it points: the old chat, a new chat with the card, or the card's Soul tab. Opening it reads it: it goes. */
+function openLetter(row: Extract<InboxRow, { kind: 'letter' }>) {
+  const { letter } = row
+  const app = useApp.getState()
+  void dismissLetters([letter.id])
+  if (letter.why === 'idle' && letter.chatId && app.chats.some((c) => c.id === letter.chatId)) app.openChat(letter.chatId)
+  else if (letter.why === 'nosoul') app.openCharacterOnTab(letter.characterId, 'soul')
+  else void app.startChatAndOpen(letter.characterId)
+}
+
+/** Colour, icon and kind label of each row kind: a failure is red, a Library approval blue, a soul review violet, a letter from a card green (calm, never counted as a failure). */
 const KIND_STYLE = {
   failed: {
     icon: Warning,
@@ -98,6 +121,12 @@ const KIND_STYLE = {
     chip: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
     iconTone: 'text-violet-600 dark:text-violet-300',
   },
+  letter: {
+    icon: EnvelopeSimple,
+    row: 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10',
+    chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    iconTone: 'text-emerald-600 dark:text-emerald-300',
+  },
 } as const
 
 /** One inbox row: kind, name and what is waiting; the same row the drawer lists and Home's Waiting block repeats. */
@@ -108,9 +137,9 @@ export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: 
   const style = KIND_STYLE[row.kind]
   const Icon = style.icon
   const name = row.name || '…'
-  const kindLabel = t(row.kind === 'failed' ? 'inbox.kind.failed' : row.kind === 'litopys' ? 'inbox.kind.litopys' : 'inbox.kind.soul')
-  const what = row.kind === 'failed' ? row.reason : row.kind === 'litopys' ? t('inbox.lit', { n: row.count }) : t('inbox.soul', { n: row.count })
-  const at = row.kind === 'failed' ? row.item.at : row.kind === 'soul' ? row.at : 0
+  const kindLabel = t(row.kind === 'failed' ? 'inbox.kind.failed' : row.kind === 'litopys' ? 'inbox.kind.litopys' : row.kind === 'letter' ? 'inbox.kind.letter' : 'inbox.kind.soul')
+  const what = row.kind === 'failed' ? row.reason : row.kind === 'litopys' ? t('inbox.lit', { n: row.count }) : row.kind === 'letter' ? row.letter.text : t('inbox.soul', { n: row.count })
+  const at = row.kind === 'failed' ? row.item.at : row.kind === 'soul' ? row.at : row.kind === 'letter' ? row.letter.at : 0
   const worker = row.kind === 'failed' ? workerName(row.item.worker, lang) : ''
   return (
     <li className="flex items-stretch gap-1" data-testid={`inbox-row-${row.kind}`}>
@@ -139,16 +168,27 @@ export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: 
             {at > 0 && <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{when(at)}</span>}
           </span>
           <span className="truncate text-sm font-medium text-foreground">{name}</span>
-          <span className={cn('text-xs text-muted-foreground', row.kind === 'failed' ? 'line-clamp-2' : 'truncate')}>{what}</span>
+          <span className={cn('text-xs', row.kind === 'letter' ? 'line-clamp-4 whitespace-pre-line text-foreground/80' : 'text-muted-foreground', row.kind === 'failed' ? 'line-clamp-2' : row.kind !== 'letter' && 'truncate')}>{what}</span>
         </span>
         {!selecting && <CaretRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
       </button>
+      {!selecting && row.kind === 'letter' && (
+        <button
+          type="button"
+          onClick={() => { void muteCard(row.letter.characterId, true); toast.info(t('letters.muted', { name })) }}
+          aria-label={t('letters.mute', { name })}
+          title={t('letters.mute', { name })}
+          className={cn('flex shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground', phone ? 'w-11' : 'w-10')}
+        >
+          <BellSlash className="size-4" aria-hidden="true" />
+        </button>
+      )}
       {!selecting && (
         <button
           type="button"
           onClick={() => void dismissInboxRows([row])}
           aria-label={`${t('inbox.dismiss')}: ${name}`}
-          title={row.kind === 'soul' ? t('inbox.dismissSoul') : row.kind === 'litopys' ? t('inbox.dismissLit') : t('inbox.dismiss')}
+          title={row.kind === 'soul' ? t('inbox.dismissSoul') : row.kind === 'litopys' ? t('inbox.dismissLit') : row.kind === 'letter' ? t('inbox.dismissLetter') : t('inbox.dismiss')}
           className={cn('flex shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground', phone ? 'w-11' : 'w-10')}
         >
           <X className="size-4" aria-hidden="true" />
@@ -182,7 +222,7 @@ function NewList() {
 
 /** The filter chips: only the kinds that have something (plus All and What's new). Hidden when there is one choice. */
 function FilterChips({ counts, hasNew, value, onChange, phone }: {
-  counts: Record<'failed' | 'litopys' | 'soul', number>
+  counts: Record<'failed' | 'litopys' | 'soul' | 'letter', number>
   hasNew: boolean
   value: InboxFilter
   onChange: (f: InboxFilter) => void
@@ -193,6 +233,7 @@ function FilterChips({ counts, hasNew, value, onChange, phone }: {
   if (counts.failed) chips.push({ key: 'failed', label: t('inbox.filter.failed'), n: counts.failed })
   if (counts.litopys) chips.push({ key: 'litopys', label: t('inbox.filter.litopys'), n: counts.litopys })
   if (counts.soul) chips.push({ key: 'soul', label: t('inbox.filter.soul'), n: counts.soul })
+  if (counts.letter) chips.push({ key: 'letter', label: t('inbox.filter.letter'), n: counts.letter })
   if (hasNew) chips.push({ key: 'new', label: t('inbox.filter.new') })
   if (chips.length < 2) return null
   return (
@@ -233,6 +274,7 @@ function InboxBody({ phone }: { phone?: boolean }) {
     failed: rows.filter((r) => r.kind === 'failed').length,
     litopys: rows.filter((r) => r.kind === 'litopys').length,
     soul: rows.filter((r) => r.kind === 'soul').length,
+    letter: rows.filter((r) => r.kind === 'letter').length,
   }
   // a chip that emptied (the failure cleared, the last suggestion was settled) falls back to All
   const active: InboxFilter = filter === 'all' || filter === 'new' ? (filter === 'new' && !hasNew ? 'all' : filter) : counts[filter] > 0 ? filter : 'all'
