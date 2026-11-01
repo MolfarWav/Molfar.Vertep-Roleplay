@@ -420,15 +420,19 @@ h1 {
    built from the base path). A later "vn" look would be a sibling block.
    ────────────────────────────────────────────────────────────── */
 .look-stage {
-  --ls-av-w: calc(68px * var(--avatar-scale, 1));
-  --ls-av-h: calc(88px * var(--avatar-scale, 1));
+  /* --ls-col-w is the portrait's grid cell and never changes with the extra, so the text column stays put;
+     --ls-av-w is the portrait itself, which grows to the left into the free margin by --ls-av-extra
+     (set on the log by use-avatar-extra.ts from the width that is really free; 0 on a narrow window) */
+  --ls-col-w: calc(68px * var(--avatar-scale, 1));
+  --ls-av-w: calc(var(--ls-col-w) + var(--ls-av-extra, 0px));
+  --ls-av-h: calc(var(--ls-av-w) * 88 / 68);
   --ls-gap: 20px;
 }
 
 .look-stage .ls-row {
   position: relative;
   display: grid;
-  grid-template-columns: var(--ls-av-w) minmax(0, 1fr);
+  grid-template-columns: var(--ls-col-w) minmax(0, 1fr);
   column-gap: var(--ls-gap);
   align-items: start;
 }
@@ -449,10 +453,13 @@ h1 {
 
 /* the arched portrait */
 .look-stage .ls-av {
+  display: flex;
+  justify-content: flex-end;
   padding-bottom: 8px;
 }
 .look-stage .ls-av-btn {
   display: block;
+  flex: none;
   border-radius: calc(var(--ls-av-w) / 2) calc(var(--ls-av-w) / 2) 2px 2px;
   transition: opacity 0.15s;
 }
@@ -694,7 +701,7 @@ h1 {
 
 /* the dashboard's live line, in the text column */
 .look-stage .ls-live {
-  margin-left: calc(var(--ls-av-w) + var(--ls-gap));
+  margin-left: calc(var(--ls-col-w) + var(--ls-gap));
   font-family: var(--prose-font, Georgia), Georgia, serif;
   font-size: 13.5px;
   font-style: italic;
@@ -706,7 +713,8 @@ h1 {
 
 @media (max-width: 599px) {
   .look-stage {
-    --ls-av-w: calc(46px * var(--avatar-scale, 1));
+    --ls-col-w: calc(46px * var(--avatar-scale, 1));
+    --ls-av-w: var(--ls-col-w);
     --ls-av-h: calc(60px * var(--avatar-scale, 1));
     --ls-gap: 12px;
   }

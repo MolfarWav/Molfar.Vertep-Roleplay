@@ -2,8 +2,9 @@
 // reply"), the tabs with their tone squares and corner counters, and the panels the tabs open.
 
 import { useState, type ReactNode } from 'react'
-import { Flag, Notebook as NotebookIcon } from '@phosphor-icons/react'
+import { Flag, Notebook as NotebookIcon, Sparkle } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
+import { TONES } from '@/components/ui/tone'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AvatarButton, Box, ChangeBadge, NameChip, SceneBlock, TONE_TAB, type Tone } from './dash-common'
 import { AttitudeCard, HereCard, MoodCard, OthersGrid, OutfitCard, ThingsCard } from './dash-cards'
@@ -105,10 +106,21 @@ export function SinceRow({ changes, onPick }: { changes: DashChange[]; onPick: (
   // what fell comes first, and only a few chips show at once: a long row would push the tabs off a phone's screen
   const sorted = [...changes].sort((a, b) => Number(b.kind === 'fell') - Number(a.kind === 'fell'))
   const shown = all ? sorted : sorted.slice(0, SINCE_SHOWN)
+  const negative = sorted.some((c) => c.kind === 'fell')
   const hidden = sorted.length - shown.length
   return (
     <div className="flex flex-col gap-1.5 border-b border-border bg-muted/40 px-3 py-2" data-testid="dash-since">
-      <span className="text-[11px] tracking-wide text-muted-foreground uppercase">{t('dash.since.title')}</span>
+      <div className={cn('flex min-h-10 items-center gap-2 rounded-[10px] border px-3 py-1 font-semibold', TONES.sky.fill, TONES.sky.ink)} data-testid="dash-since-title">
+        <Sparkle aria-hidden="true" className="size-4 shrink-0" />
+        <span className="min-w-0 text-body">{t('dash.since.title')}</span>
+        <span
+          data-testid="dash-since-count"
+          data-negative={negative ? 'true' : undefined}
+          className={cn('ml-auto grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full px-1.5 text-caption font-bold text-white', negative ? 'bg-red-600' : 'bg-sky-600')}
+        >
+          {sorted.length}
+        </span>
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {shown.map((c, i) => (
           <button
