@@ -246,7 +246,7 @@ export function AgentForge() {
             />
           ) : <p className="text-xs text-muted-foreground">{t('fg.card.none')}</p>
         ) : tab === 'try' ? (
-          file && <TryPanel file={file as never} errors={errorCount} dry={dry} titleOf={(id) => graph.nodes.find((n) => n.id === id)?.title ?? id} />
+          file && <TryPanel file={file as never} errors={errorCount} dry={dry} calls={report?.maxCalls ?? 0} titleOf={(id) => graph.nodes.find((n) => n.id === id)?.title ?? id} />
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}

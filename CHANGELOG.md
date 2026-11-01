@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- The agent editor can try an agent on a real chat (#137). The Try tab has "A real chat": pick a chat, and the boxes fill with what the agent would get there (last reply, history, facts, Dashboard fields; an empty one is named) and the memory it keeps in that chat. The chat is only read. "Run with the model" then asks the chat's model (or the one you set for the agent) the agent's questions once, shows the model and the most calls before you press it, and puts the answers into the boxes, so every later trial costs nothing and a bad answer can be edited and replayed. New route `POST /agents/dry` (docs/DATA-FORMATS.md), which Molfar's `agent_dry_run` tool uses; the agent-craft skill now tells Molfar to try a draft on a real chat before handing it over.
+
 ## 4.81.0 (2026-11-01)
 
 - Characters, More no longer crashes the page ("MenuGroupContext is missing"): the Import label sits in a menu group. It came in with the characters header rows.
