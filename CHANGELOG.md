@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.84.0 (2026-11-01)
+
 - Lorebooks: the list header had one icon, an up arrow, for Import, which reads as export, and no export at all. Import now has the arrow into a tray; the new Export button (arrow out) opens a menu: the open book as JSON, or every book in one zip (one JSON per book, readable by Import; a book that cannot be read is skipped and the toast says how many). The book header's Export uses the same arrow.
 
 - Fixed: in the Memory overview (Library, Litopys) the "..." menu of a fact sat under the scrollbar and could not be pressed; the sections now keep 12 px free on the right.
