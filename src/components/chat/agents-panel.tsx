@@ -5,12 +5,17 @@ import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { AgentOwnLimits } from '@/components/chat/agent-own-limits'
+import { AgentNotesSwitch } from '@/components/chat/agent-notes-switch'
+import { AgentPermissions } from '@/components/chat/agent-permissions'
+import { allowedCount } from '@/lib/agent-permissions'
+import { useSetUsage } from '@/hooks/use-set-usage'
+import { AgentIssueText } from '@/components/chat/agent-issue'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useConfirm } from '@/components/ui/confirm'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import {
-  deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, grantAgent, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
+  deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
   loadChatAgents, loadDefaultAgentSet, removeAgent, runAgents, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
   type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
@@ -102,6 +107,7 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
           <ArrowCounterClockwise className="size-3" aria-hidden="true" /> {t('ag.backToSet')}
         </button>
       )}
+      <AgentNotesSwitch className="mt-1 w-full" />
     </div>
   )
 }
@@ -293,42 +299,23 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
   const [confirm, confirmDialog] = useConfirm()
   const ref = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
+  const [permOpen, setPermOpen] = useState(false)
   useEffect(() => { if (focus) ref.current?.scrollIntoView({ block: 'nearest' }) }, [focus])
+  // an agent that was just installed asks for its permissions at once; the person decides on the page, not in a list
+  const asked = useRef(false)
   const waiting = agent.missing.length > 0
   const capped = !!agent.own && agent.own.maxCalls > 0 && agent.maxCalls > agent.own.maxCalls
   const supported = agent.needs.filter((n) => !agent.unsupported.includes(n))
   // allowed before and asking for more now = a new version: only what is new needs a decision
-  const added = supported.filter((n) => !agent.granted.includes(n))
-  const update = waiting && agent.granted.length > 0 && added.length > 0
+  const added = agent.added ?? []
+  const update = waiting && added.length > 0
+  useEffect(() => { if (focus && waiting && !asked.current) { asked.current = true; setPermOpen(true) } }, [focus, waiting])
 
-  const allow = async () => {
-    setBusy(true)
-    try {
-      await grantAgent(agent.id)
-      await onChanged()
-      toast.success(t('ag.allowedToast', { name: agent.name }))
-    } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
-  }
   const remove = async () => {
     if (!(await confirm({ title: t('ag.removeTitle', { name: agent.name }), description: t('ag.removeBody'), actionLabel: t('ag.removeAgent') }))) return
     setBusy(true)
     try { await removeAgent(agent.id); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
   }
-  const needRow = (n: string, isNew: boolean) => (
-    <li key={n} className="flex items-start gap-1.5">
-      <Check className={cn('mt-0.5 size-3 shrink-0', agent.granted.includes(n) ? 'text-emerald-500' : 'text-transparent')} aria-hidden="true" />
-      <span className="min-w-0 flex-1">{describeNeed(n, t)}</span>
-      {isNew && <span className="shrink-0 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid="agent-need-new">{t('ag.update.new')}</span>}
-    </li>
-  )
-  const callsRow = agent.maxCalls > 0 && <li className="pl-[18px] text-[11px] text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</li>
-  const needsList = (
-    <ul className="flex flex-col gap-1 text-xs">
-      {supported.map((n) => needRow(n, false))}
-      {callsRow}
-    </ul>
-  )
-
   return (
     <div ref={ref} className={cn('flex flex-col gap-2 rounded-lg border px-3 py-2.5', waiting ? 'border-amber-500/50 bg-amber-500/5' : 'border-border')} data-testid={`agent-card-${agent.id}`}>
       <div className="flex items-start gap-2">
@@ -341,29 +328,8 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           : <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>)}
       </div>
       {agent.description && <p className="text-xs leading-relaxed text-muted-foreground">{agent.description}</p>}
-      {agent.errors.length > 0 && <p className="text-xs text-destructive">{t('ag.wait.errors')}: {agent.errors[0].message}</p>}
-      {update ? (
-        <div className="flex flex-col gap-1.5" data-testid="agent-update">
-          <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">{t('ag.update.lead', { name: agent.name, n: added.length })}</p>
-          <ul className="flex flex-col gap-1 text-xs">{added.map((n) => needRow(n, true))}</ul>
-          <details className="text-xs">
-            <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.update.same', { n: supported.length - added.length })}</summary>
-            <ul className="mt-1.5 flex flex-col gap-1">{supported.filter((n) => !added.includes(n)).map((n) => needRow(n, false))}{callsRow}</ul>
-          </details>
-        </div>
-      ) : waiting ? (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] font-medium">{t('ag.review.lead', { name: agent.name })}</p>
-          {needsList}
-        </div>
-      ) : (
-        supported.length > 0 && (
-          <details className="text-xs">
-            <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.permissions', { n: supported.length })}</summary>
-            <div className="mt-1.5">{needsList}</div>
-          </details>
-        )
-      )}
+      {agent.errors.length > 0 && <p className="text-xs text-destructive">{t('ag.wait.errors')}: <AgentIssueText issue={agent.errors[0]} /></p>}
+      {update && <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" data-testid="agent-update">{t('ag.update.lead', { name: agent.name, n: added.length })}</p>}
       {agent.unsupported.length > 0 && (
         <div className="flex flex-col gap-1 text-xs text-amber-600 dark:text-amber-400">
           <p>{t('ag.review.unsupported')}</p>
@@ -372,13 +338,17 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
       )}
       {!waiting && <AgentOwnLimits agent={agent} onChanged={onChanged} />}
       <div className="flex flex-wrap items-center gap-2">
-        {waiting && supported.some((n) => !agent.granted.includes(n)) && (
-          <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void allow()}>{update ? t('ag.update.allow') : t('ag.review.allow')}</Button>
+        {supported.length > 0 && (
+          <Button size="sm" variant={waiting ? 'default' : 'outline'} className="max-md:h-10" onClick={() => setPermOpen(true)} data-testid={`agent-perm-open-${agent.id}`}>
+            {t('ag.perm.open', { n: supported.length })}
+          </Button>
         )}
+        {waiting && <span className="text-[11px] text-muted-foreground" data-testid="agent-perm-count">{t('ag.perm.progress', allowedCount(agent.needs, agent.unsupported, agent.granted))}</span>}
         <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground max-md:h-10" disabled={busy} onClick={() => void remove()}>
           <Trash className="size-3.5" aria-hidden="true" /> {t('ag.removeAgent')}
         </Button>
       </div>
+      <AgentPermissions agent={agent} open={permOpen} onOpenChange={setPermOpen} onChanged={onChanged} />
       {confirmDialog}
     </div>
   )
@@ -393,6 +363,7 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
   const [setName, setSetName] = useState('')
   const [busy, setBusy] = useState(false)
   const { installed, sets, defaultSet, list, reload, refreshInstalled } = data
+  const usage = useSetUsage(defaultSet)
   // files Molfar wrote into the workspace; none, or no agents plugin, shows nothing
   const [drafts, setDrafts] = useState<AgentDraft[]>([])
   const loadDrafts = useCallback(async () => { try { setDrafts(await listAgentDrafts()) } catch { setDrafts([]) } }, [])
@@ -441,7 +412,8 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
     try { await setDefaultAgentSet(defaultSet === s.id ? null : s.id); await reload() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
   }
   const dropSet = async (s: AgentSet) => {
-    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: s.name }), description: t('ag.sets.deleteBody'), actionLabel: t('ag.sets.delete') }))) return
+    const users = usage.get(s.id) ?? 0
+    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: s.name }), description: users > 0 ? t('ag.sets.deleteBodyUsed', { n: users }) : t('ag.sets.deleteBody'), actionLabel: t('ag.sets.delete') }))) return
     try { await deleteAgentSet(s.id); await reload() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
   }
 
@@ -491,8 +463,8 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
                           <details className="text-[11px]">
                             <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.drafts.details')}</summary>
                             <ul className="mt-1 flex flex-col gap-0.5">
-                              {d.errors.map((x, i) => <li key={`e${i}`} className="text-destructive"><span className="font-mono text-[10px]">{x.code}</span> {x.message}</li>)}
-                              {d.warnings.map((x, i) => <li key={`w${i}`} className="text-amber-600 dark:text-amber-400"><span className="font-mono text-[10px]">{x.code}</span> {x.message}</li>)}
+                              {d.errors.map((x, i) => <li key={`e${i}`} className="text-destructive max-md:py-1"><AgentIssueText issue={x} /></li>)}
+                              {d.warnings.map((x, i) => <li key={`w${i}`} className="text-amber-600 dark:text-amber-400 max-md:py-1"><AgentIssueText issue={x} /></li>)}
                             </ul>
                           </details>
                         )}
@@ -515,7 +487,7 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
                     <div key={s.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-semibold">{s.name}</span>
-                        <span className="block text-[10px] text-muted-foreground">{t('ag.sets.count', { n: s.items.length })}</span>
+                        <span className="block text-[10px] text-muted-foreground">{t('ag.sets.count', { n: s.items.length })}{(usage.get(s.id) ?? 0) > 0 ? ` · ${t('ag.sets.users', { n: usage.get(s.id) ?? 0 })}` : ''}</span>
                       </span>
                       <Button variant={defaultSet === s.id ? 'secondary' : 'ghost'} size="sm" className="shrink-0 max-md:h-10" title={t('ag.sets.defaultTip')} onClick={() => void makeDefault(s)}>
                         <Star className="size-3.5" weight={defaultSet === s.id ? 'fill' : 'regular'} aria-hidden="true" />{defaultSet === s.id ? t('ag.sets.default') : t('ag.sets.makeDefault')}

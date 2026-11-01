@@ -753,7 +753,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Panels (`agent.panels`, at most 4): `{ "id", "title", "place": "float" | "top1" | "top2", "widgets": [ … ] }`, at most
   20 widgets. A panel describes, never runs: widgets `meter`, `number`, `counter` (a number field), `table` (a list
   field and its `columns`), `list`, `log` (a list field), `text` (a text field), `actions` (1 to 8 `{ label, send }`;
-  `send` is put into the composer, nothing is sent by itself) and `html`. `bind` must name a state field of the right
+  `send` is put into the composer, nothing is sent by itself), `html` and `grid`. `bind` must name a state field of the right
   type (`E_BIND`); an unknown widget or bad `actions` is `E_WIDGET`.
 - `html` widget: `template` up to 8192 characters, an optional `height` of the frame (a whole number of pixels, 40 to 600, default 80; else `E_WIDGET`), slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
   inside, no nested `each`) and `{{#if field}}…{{/if}}`. The checker refuses a template with a slot that is not a field
@@ -765,6 +765,22 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   the frame has `sandbox=""` and a `Content-Security-Policy` of `default-src 'none'; style-src 'unsafe-inline'; img-src data:`,
   and a template the checker would refuse is not drawn. The widget shows in the floating window; a bar above the chat
   skips it. `templateProblems(template, state)` of the checker is what the editor shows while the template is typed.
+- `grid` widget (a board of tiles: a map of territory, a dungeon floor): `{ "w": "grid", "label"?, "bind", "cols", "rows", "x", "y", "cell", "legend" }`.
+  `bind` is a **list** field whose entries have two number fields and a text field; `x` and `y` (two different number
+  fields) give the column and the row, `cell` (a text field) the tile's state; a wrong name is `E_BIND`. `cols` and
+  `rows` are whole numbers from 1 to 16 (`E_WIDGET`). `legend` is 1 to 8 states `{ "value", "label", "tone", "mark"? }`:
+  `value` (1 to 40 characters, unique) is the text the entry holds in its `cell` field, `label` (1 to 30 characters) is
+  what the person reads, `tone` is one of `ok` (green), `info` (blue), `warn` (amber), `bad` (red), `accent` (violet),
+  `muted` (grey) and `mark` (one or two characters, default the first letter of the label) goes on the tile, so colour is
+  never the only sign. The colours belong to the app (they follow the theme); a file cannot name one. Columns and rows
+  count from 1. An entry is one tile; when two entries name the same tile the later one wins, so a state changes by
+  saying the tile again (a list at its `max` takes no new entry, so ask for a new one only when a tile changed). A number
+  is rounded to the nearest tile; an entry outside the board, or without numbers, is not drawn and the widget says how many
+  were left out. A state that the legend does not name is drawn as a grey tile with a question mark. Tiles with no entry are
+  empty. Nothing on a board is a button. It shows in the floating window; a bar above the chat skips it. The app does this in
+  `src/lib/agent-grid.ts` (`gridModel`) and `components/chat/agent-grid.tsx`; the editor has a form for it. Recipes that use
+  widgets: `recipe-map` (an `html` widget draws a free-field map from a list of `{ name, x, y }`) and `recipe-territory` (a
+  `grid`), both in `.skills/agent-craft/references`.
 - Trial run (editor only): `runAgent(file, { …, explain: true }, answers)` also returns `wires`, `{ "<node>:<port>": { state: "value", value } | { state: "skip" | "wait" | "missing" } }` for every output port. The runner plugin never sets `explain`. `src/lib/agent-dry.ts` loops the executor, answering each model request from the person's text or an example.
 - Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
   `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
@@ -774,7 +790,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   permissions (the user confirmed those when installing the agent). The order of `items` is the order inside a phase;
   `phase` is optional (the agent's own `trigger.when` then applies); at most 50 items, an agent once. Routes:
   `GET /agent-presets`, `GET|PUT|DELETE /agent-presets/<id>` (PUT cleans the file and refuses one without `items`).
-- The default preset, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null }`, `GET|PUT /agent-settings`.
+- The agents' settings, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null, "silentNotes"?: true }`, `GET|PUT /agent-settings` (a PUT changes only the fields it names). `silentNotes` hides every agent's *notes* in the chats (under the reply, the feed, pop-ups); choices, panels and prompt inserts are not affected and the run log keeps the notes. Absent = notes are shown.
   A chat with no binding follows it.
 - A chat's binding, meta `agents`: `{ "v": 1, "preset"?, "own"?, "show"?, "also"? }`. With `preset` and no `own` the chat follows the
   preset live (a change to the preset reaches it at once). The first change made in the chat (turn an agent off, add or
@@ -787,7 +803,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
   `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `also` (`on`: true = also in the block), `wait` (`wait`: false = the reply does
   not wait for this agent, true = it does); it answers what runs now,
-  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ] }`.
+  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ], silentNotes }` (`silentNotes`: the agents' notes are switched off, see the agents' settings below).
 ### Running an agent (`agent-run.js`)
 
 `runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never
@@ -817,7 +833,7 @@ list takes no new entry; each refusal is returned, nothing throws. `agent-run.js
 
 The Agents plugin installs checked agent files and runs them: after a reply, before it (inside the plugin's `llmRequest` hook) and
 beside it (a call the app makes when a send starts). The routes below and the hook are the whole interface. Files, all under `data/agents/`: `<id>.vertep-agent.json` (the installed, compiled agent),
-`grants/<id>.json` (`{ v: 1, needs: [...] }`, what the user confirmed), `config.json` (`{ model?, models?: { <role>: <model> } }`),
+`grants/<id>.json` (`{ v: 1, needs: [...], asked?: [...] }`: what the user confirmed, and every need the person was shown, so `GET /agents/list` can report `added`, the needs a later version asks for), `config.json` (`{ model?, models?: { <role>: <model> } }`),
 `state/<chatId>/<id>.json` (`{ v: 1, own, last, before }`: the agent's own fields in that chat, the text it left for its
 `myPrevious`, and the state and message id before its last run), `runs/<chatId>.json` (`{ v: 1, runs }`, the newest 100) and
 `inserts/<chatId>.json` (`{ v: 1, items }`, hints waiting for the next reply).
@@ -850,6 +866,22 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   with that reason in the log instead of vanishing. The engine runs the questions of one round up to three at a time, at least
   250 ms apart, and tries a question again after a 429.
 - `GET /agents/state?chatId&agent` (the agent's own fields), `DELETE` the same (start over), `GET /agents/runs?chatId`, `GET /agents/panels?chatId` (the panels of the chat's agents that are on and allowed, each with its state schema, its state and the state before the last run; the app draws them in `top1`, `top2` or the floating button).
+- **Trial on a real chat.** `POST /agents/dry` `{ chatId, file | draft | agent, probe?, live?, inputs?, own?, replies?, model?, seed? }`
+  reads the chat and runs one agent over it; nothing is written (not the chat, the agent's memory, the run log or the
+  Dashboard). The agent is the editor's file as it stands (`file`), a draft by name (`draft`) or an installed id (`agent`); a
+  file that does not pass the check is refused with 400 and the checker's `errors`. The Input card is read by the same
+  readers a real run uses; `inputs` (by give id; `""` = empty) and `own` (memory fields) replace what the chat has. `probe: true`
+  only answers `{ source, chat: { id, title, messages, lastSpeaker }, maxCalls, models, inputs: [{ id, source, field?, text,
+  tokens, empty }], own }`, where `models` is the model each role would ask. Without `live` no model is called: each model card
+  gets `replies[<card id>]` or an example in the format it asks for. With `live: true` the questions go to the model: for a role,
+  `model`, else what the user chose for the agent (`byAgent`, `models`, `model` of `agents/config.json`), else the chat's own model,
+  else the app's (not the Dashboard sensor's); it refuses when the agent can make more calls than the user's limit for it (400).
+  The answer is the editor's trial result: `status`, `reason`, `node`, `calls`, `asked` (`node`, `prompt`, `reply`, `example`,
+  `model?`, `error?`), `wires`, `nodes`, `trace`, `ownWrites`, `dashWrites`, `refused`, `ownAfter`, `outputs`, plus `live` and,
+  when live, `usage` (`input`, `output`, `cost`, `priced`). The editor's Try tab uses it ("A real chat": fills the boxes from the
+  chat, then runs with the model once and keeps the answers in the boxes); Molfar's `agent_dry_run` tool wraps it. A trial seed
+  defaults to `<chatId>|<agentId>|dry`, so dice and picks repeat.
+- **Checker findings in lists.** The `errors` and `warnings` of `GET /agents/list` and `GET /agents/drafts` are `{ code, message, node?, nodeTitle? }`: `node` is the card's id and `nodeTitle` its title (added by the plugin, so a list can name the card without the file). The app shows a sentence per code (`src/lib/agent-issues.ts`, keys `ag.issue.<CODE>` and `.fix`) with the code as a small chip; a code with no text shows `message`.
 - **Drafts.** A file Molfar (or anyone) writes to `data/agents/drafts/<name>.vertep-agent.json` waits there for the user. The
   Agents sheet lists the drafts with what an install would say about each (`errors` and `warnings`, the checker's own codes
   and messages) and an Install button; a draft with errors cannot be installed. `GET /agents/drafts` (`{ drafts: [{ name, id,
@@ -883,7 +915,7 @@ Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_ROUNDS`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
-`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-grid.test.tsx` (the grid widget), `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
 
 ### The persona file: `personas/<id>.json`
 Pass-through JSON: `id, name, avatar, title, description, pronouns, lorebookIds, binding, boundCharacterIds, autoLock, createdAt, profile, dialogueColor` as before, and since Roleplay 4.79.0:

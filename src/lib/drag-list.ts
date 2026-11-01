@@ -40,7 +40,11 @@ export function useDragList<T extends { id: string }>(
   const HOLD_SLOP = 14
 
   const rowAt = (clientY: number): string | null => {
-    for (const r of Array.from(containerRef.current?.querySelectorAll<HTMLElement>('[data-rowid]') ?? [])) {
+    const root = containerRef.current
+    for (const r of Array.from(root?.querySelectorAll<HTMLElement>('[data-rowid]') ?? [])) {
+      // a row of a list nested inside one of this list's rows belongs to that inner list
+      const outer = r.parentElement?.closest<HTMLElement>('[data-rowid]')
+      if (outer && root && outer !== root && root.contains(outer)) continue
       const rect = r.getBoundingClientRect()
       if (clientY >= rect.top && clientY <= rect.bottom) return r.dataset.rowid ?? null
     }

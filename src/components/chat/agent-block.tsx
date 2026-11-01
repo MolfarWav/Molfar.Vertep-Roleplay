@@ -43,9 +43,10 @@ function useBlockRuns(chatId: string): AgentRun[] {
 
 function Result({ chatId, run }: { chatId: string; run: AgentRun }) {
   const t = useT()
+  const silent = useAgentsLive((s) => s.silentNotes)
   const outs: AgentOutput[] = run.status === 'ok' ? run.outputs ?? [] : []
   const writes = run.status === 'ok' ? (run.writes ?? []).map(writeLine).filter(Boolean) : []
-  const notes = outs.filter((o) => o.kind === 'note' && o.text)
+  const notes = silent ? [] : outs.filter((o) => o.kind === 'note' && o.text)
   const hints = outs.filter((o) => o.kind === 'prompt-insert' && o.text)
   const choices = outs.filter((o) => o.kind === 'choices' && o.choices?.length)
   return (

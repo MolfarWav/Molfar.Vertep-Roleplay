@@ -195,6 +195,16 @@ describe("routes", () => {
     expect(call("PUT", "/agent-settings", { defaultPreset: "../x" }).status).toBe(400);
   });
 
+  it("silentNotes is a setting of its own: a PUT changes only the fields it names", () => {
+    expect(call("GET", "/agent-settings").json.silentNotes).toBe(false);
+    call("PUT", "/agent-settings", { defaultPreset: "rp" });
+    expect(call("PUT", "/agent-settings", { silentNotes: true }).json).toEqual({ defaultPreset: "rp", silentNotes: true });
+    // changing the default does not turn the notes back on
+    expect(call("PUT", "/agent-settings", { defaultPreset: null }).json).toEqual({ defaultPreset: null, silentNotes: true });
+    expect(call("PUT", "/agent-settings", { silentNotes: "yes" }).status).toBe(400);
+    expect(call("PUT", "/agent-settings", { silentNotes: false }).json.silentNotes).toBe(false);
+  });
+
   it("a chat follows the default preset, then copies it on the first change, then goes back", () => {
     call("PUT", "/agent-presets/rp", { name: "Default RP", ...RP });
     call("PUT", "/agent-settings", { defaultPreset: "rp" });

@@ -100,6 +100,7 @@ export interface EngineChatMeta {
   promptCut?: { count: number; upTo: string | null } | null
   fieldVariantSelection?: Chat['fieldVariantSelection']
   turns?: ChatTurns
+  agents?: Chat['agents']
   spriteOutfits?: Record<string, string>
   parentChatId?: string | null
   parentMessageId?: string | null
@@ -1026,6 +1027,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     folderId: meta.folderId ?? null,
     ...(meta.pinned === true ? { pinned: true } : {}),
     ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
+    ...(meta.agents && (meta.agents.preset || meta.agents.own) ? { agents: { ...(meta.agents.preset ? { preset: meta.agents.preset } : {}), ...(meta.agents.own ? { own: meta.agents.own.map((i) => ({ agent: i.agent })) } : {}) } } : {}),
     ...(meta.spriteOutfits && Object.keys(meta.spriteOutfits).length ? { spriteOutfits: meta.spriteOutfits } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,

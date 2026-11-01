@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.81.0'
+export const APP_VERSION = '4.83.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new

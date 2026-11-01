@@ -4474,12 +4474,23 @@ export function handleRoute(req, host) {
     if (req.method === "DELETE") { try { fsx.remove("agents/presets/" + id + ".json"); return ok({ ok: true }); } catch { return ok({ ok: false }); } }
   }
   if (head === "agent-settings" && !id) {
-    if (req.method === "GET") return ok({ defaultPreset: readJson("agents/settings.json", {}).defaultPreset || null });
+    // { defaultPreset: string|null, silentNotes: boolean }; a PUT changes only the fields it names
+    const cur = readJson("agents/settings.json", {});
+    const view = () => ({ defaultPreset: cur.defaultPreset || null, silentNotes: cur.silentNotes === true });
+    if (req.method === "GET") return ok(view());
     if (req.method === "PUT") {
-      const d = body().defaultPreset;
-      if (d != null && !(typeof d === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(d))) return err(400, "defaultPreset must be a preset id or null");
-      writeJson("agents/settings.json", { defaultPreset: d ?? null });
-      return ok({ defaultPreset: d ?? null });
+      const b = body();
+      if ("defaultPreset" in b) {
+        const d = b.defaultPreset;
+        if (d != null && !(typeof d === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(d))) return err(400, "defaultPreset must be a preset id or null");
+        cur.defaultPreset = d ?? null;
+      }
+      if ("silentNotes" in b) {
+        if (typeof b.silentNotes !== "boolean") return err(400, "silentNotes must be true or false");
+        cur.silentNotes = b.silentNotes;
+      }
+      writeJson("agents/settings.json", { defaultPreset: cur.defaultPreset ?? null, ...(cur.silentNotes === true ? { silentNotes: true } : {}) });
+      return ok(view());
     }
   }
 
@@ -5469,7 +5480,8 @@ const toolX = (r) => ({
           writeJson("chats/" + id + ".meta.json", meta);
         }
       }
-      return ok(resolveChatAgents(meta.agents, presets, dflt));
+      // silentNotes rides along so the chat knows without another call whether agents' notes are hidden
+      return ok({ ...resolveChatAgents(meta.agents, presets, dflt), silentNotes: readJson("agents/settings.json", {}).silentNotes === true });
     }
 
     if (op === "preset" && req.method === "POST") {

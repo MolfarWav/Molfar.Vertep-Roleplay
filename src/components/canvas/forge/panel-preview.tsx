@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { BarRow, PanelSection, Widget } from '@/components/chat/agent-panels'
 import { useT } from '@/hooks/use-t'
+import { sampleGridEntries } from '@/lib/agent-grid'
 import { sampleState } from '@/lib/agent-template'
 import type { AgentPanel, AgentPanelSet, PanelWidget } from '@/lib/agents'
 import { WIDGET_KINDS } from '@/lib/forge'
@@ -17,12 +18,12 @@ const FITS_A_BAR = new Set(['meter', 'number', 'counter', 'text'])
 export function PanelPreview({ panel, state, full }: { panel: Obj; state: State; full: boolean }) {
   const t = useT()
   const word = t('fg.pv.word')
-  const set = useMemo(() => ({
-    name: '',
-    schema: state as AgentPanelSet['schema'],
-    own: sampleState(state, full, word),
-    prev: null,
-  }), [state, full, word])
+  const set = useMemo(() => {
+    const own = sampleState(state, full, word)
+    // a board needs entries that name its tiles and its states, which the plain sample values do not
+    for (const w of Array.isArray(panel.widgets) ? panel.widgets : []) if (w?.w === 'grid' && typeof w.bind === 'string' && state[w.bind]) own[w.bind] = sampleGridEntries(w, full)
+    return { name: '', schema: state as AgentPanelSet['schema'], own, prev: null }
+  }, [state, full, word, panel.widgets])
   const widgets = (Array.isArray(panel.widgets) ? panel.widgets : []).filter((w: Obj): w is PanelWidget => (WIDGET_KINDS as readonly string[]).includes(String(w?.w)))
   const bar = panel.place === 'top1' || panel.place === 'top2'
   const shape: AgentPanel = { id: String(panel.id), title: String(panel.title ?? ''), widgets }

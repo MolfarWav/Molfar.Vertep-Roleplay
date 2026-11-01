@@ -33,12 +33,6 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
     setBusy(true)
     try { await saveAgentOwn(agent.id, next); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
   }
-  const setModel = (role: string, ref: string) => {
-    const models = { ...own.models }
-    if (ref) models[role] = ref
-    else delete models[role]
-    return save({ ...own, models })
-  }
   const over = own.maxCalls > 0 && agent.maxCalls > own.maxCalls
 
   return (
@@ -68,18 +62,7 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
             </div>
           </div>
         )}
-        {roles.length > 0 && <p className="text-muted-foreground">{t('ag.own.roleHelp')}</p>}
-        {roles.map((role) => (
-          <div key={role} className="flex flex-col gap-1">
-            <p className="font-medium">{role}</p>
-            {agent.models?.[role]?.hint && <p className="text-muted-foreground">{agent.models[role].hint}</p>}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="min-w-0 break-all font-mono text-[11px]">{own.models[role] || t('ag.own.default')}</span>
-              <SoulModelPicker disabled={busy} label={t('ag.own.pick')} onPick={(ref) => void setModel(role, ref)} />
-              {own.models[role] && <Button size="sm" variant="ghost" className="max-md:h-10" disabled={busy} onClick={() => void setModel(role, '')}>{t('ag.own.useDefault')}</Button>}
-            </div>
-          </div>
-        ))}
+        <AgentRoleModels agent={agent} onChanged={onChanged} />
         {agent.maxCalls > 0 && (
           <div className="flex flex-col gap-1">
             <p className="font-medium">{t('ag.own.calls')}<span className="ml-1.5 font-normal text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</span></p>
@@ -111,5 +94,40 @@ export function AgentOwnLimits({ agent, onChanged }: { agent: AgentInfo; onChang
         )}
       </div>
     </details>
+  )
+}
+
+/**
+ * Which model answers each of the agent's roles (`agent.models`), with the author's hint. Nothing picked = the app's model.
+ * Used inside the limits fold and, before the first run, on the Permissions page.
+ */
+export function AgentRoleModels({ agent, onChanged }: { agent: AgentInfo; onChanged: () => Promise<void> }) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const own: AgentOwn = agent.own ?? { models: {}, maxCalls: 0 }
+  const roles = Object.keys(agent.models ?? {})
+  if (!roles.length) return null
+  const setModel = async (role: string, ref: string) => {
+    const models = { ...own.models }
+    if (ref) models[role] = ref
+    else delete models[role]
+    setBusy(true)
+    try { await saveAgentOwn(agent.id, { ...own, models }); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
+  }
+  return (
+    <div className="flex flex-col gap-2.5" data-testid={`agent-roles-${agent.id}`}>
+      <p className="text-muted-foreground">{t('ag.own.roleHelp')}</p>
+      {roles.map((role) => (
+        <div key={role} className="flex flex-col gap-1">
+          <p className="font-medium">{role}</p>
+          {agent.models?.[role]?.hint && <p className="text-muted-foreground">{agent.models[role].hint}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="min-w-0 break-all font-mono text-[11px]">{own.models[role] || t('ag.own.default')}</span>
+            <SoulModelPicker disabled={busy} label={t('ag.own.pick')} onPick={(ref) => void setModel(role, ref)} />
+            {own.models[role] && <Button size="sm" variant="ghost" className="max-md:h-10" disabled={busy} onClick={() => void setModel(role, '')}>{t('ag.own.useDefault')}</Button>}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

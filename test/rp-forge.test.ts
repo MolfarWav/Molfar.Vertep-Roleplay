@@ -158,7 +158,7 @@ describe("the file an edit leaves", () => {
 describe("the recipes the editor starts from", () => {
   it("are the skill's files (run: bun scripts/sync-agent-recipes.ts)", () => {
     expect(fs.readFileSync(new URL("../src/lib/forge-recipes.ts", import.meta.url), "utf8")).toBe(generated());
-    expect(AGENT_RECIPES.map((r) => (r.agent as Json).id)).toEqual(["next-moves-ai", "pacing-nudge", "scene-recap", "tension-meter"]);
+    expect(AGENT_RECIPES.map((r) => (r.agent as Json).id)).toEqual(["next-moves-ai", "pacing-nudge", "story-map", "scene-recap", "territory-board", "tension-meter"]);
   });
 });
 
@@ -201,9 +201,10 @@ describe("panels and memory", () => {
   });
 
   it("makes a widget for every kind that the checker accepts", () => {
+    const withTiles = { ...rich, tiles: { type: "list", item: { x: "number", y: "number", kind: "text" }, max: 100 } };
     for (const kind of WIDGET_KINDS) {
-      const panel = { id: "p", title: "P", place: "float", widgets: [newWidget(kind, rich)] };
-      const r = check(file({ state: rich, panels: [panel] }));
+      const panel = { id: "p", title: "P", place: "float", widgets: [newWidget(kind, withTiles)] };
+      const r = check(file({ state: withTiles, panels: [panel] }));
       expect(r.errors.filter((e) => e.code === "E_PANEL" || e.code === "E_WIDGET" || e.code === "E_BIND").map((e) => e.message)).toEqual([]);
     }
   });

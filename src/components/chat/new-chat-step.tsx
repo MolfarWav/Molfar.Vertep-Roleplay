@@ -4,7 +4,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
-import { listAgentSets, loadDefaultAgentSet, type AgentSet } from '@/lib/agents'
+import { listAgentSets, loadDefaultAgentSet, useAgentsLive, type AgentSet } from '@/lib/agents'
+import { lastSetFor } from '@/lib/agent-usage'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { formatTokens } from '@/lib/tokens'
@@ -59,11 +60,24 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [sets, setSets] = useState<AgentSet[]>([])
   const [defaultSet, setDefaultSet] = useState<string | null>(null)
   const [setPick, setSetPick] = useState('default')
+  // the set this character's last chat used: the select opens on it (unless the person already picked), and says so
+  const [lastFrom, setLastFrom] = useState<string | null>(null)
+  const setTouched = useRef(false)
+  const storeChats = useApp((s) => s.chats)
   useEffect(() => {
     let live = true
     // silent when the app has no agents plugin
-    Promise.all([listAgentSets(), loadDefaultAgentSet()]).then(([all, d]) => { if (live) { setSets(all); setDefaultSet(d) } }).catch(() => {})
+    Promise.all([listAgentSets(), loadDefaultAgentSet()]).then(([all, d]) => {
+      if (!live) return
+      setSets(all)
+      setDefaultSet(d)
+      if (setTouched.current) return
+      const last = lastSetFor(storeChats, useAgentsLive.getState().chats, charId, d, new Set(all.map((x) => x.id)))
+      setSetPick(last.pick)
+      setLastFrom(last.from)
+    }).catch(() => {})
     return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const defaultSetName = sets.find((x) => x.id === defaultSet)?.name
   const defaultLabel = defaultSetName ? t('ag.new.default', { name: defaultSetName }) : t('ag.new.defaultNone')
@@ -149,7 +163,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
         )}
         {sets.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Select value={setPick} onValueChange={(v) => v && setSetPick(v)}>
+            <Select value={setPick} onValueChange={(v) => { if (v) { setTouched.current = true; setSetPick(v); setLastFrom(null) } }}>
               <SelectTrigger className="h-8 w-full text-xs" aria-label={t('ag.new.label')} data-testid="new-chat-agents">
                 <SelectValue>
                   {(v: string) => t('ag.new.trigger', { what: v === 'default' ? defaultLabel : v === 'none' ? t('ag.new.none') : sets.find((x) => x.id === v)?.name ?? v })}
@@ -161,7 +175,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
                 {sets.map((x) => <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">{t('ag.new.hint')}</p>
+            <p className="text-[11px] text-muted-foreground" data-testid="new-chat-agents-hint">{lastFrom && character ? `${t('ag.new.fromLast', { name: character.name })} ` : ''}{t('ag.new.hint')}</p>
           </div>
         )}
         {character?.isGroup && (

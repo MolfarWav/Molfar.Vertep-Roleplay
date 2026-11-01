@@ -362,7 +362,10 @@ function checkCodeCard(n, err) {
     if (!isInt(p.n, 1, 20000)) bad('E_PARAM', 'n is a whole number from 1 to 20000');
   }
 }
-const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text' };
+const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text', grid: 'list' };
+/** The `grid` widget: a board of cols x rows tiles, each tile coloured by a state kept in a list (docs/DATA-FORMATS.md, "Agents"). */
+export const GRID_TONES = ['ok', 'info', 'warn', 'bad', 'accent', 'muted'];
+export const GRID_LIMITS = { size: 16, legend: 8 };
 export const PANEL_PLACES = ['top1', 'top2', 'float'];
 const TPL_TAGS = /<\s*(script|iframe|object|embed|link|meta|base|form|frame|frameset|applet|foreignobject)\b/i;
 const TPL_BAD = [
@@ -437,6 +440,38 @@ export function templateProblems(tpl, state) {
   checkTemplate(tpl, state ?? {}, 'Template', (code, message) => out.push({ code, message: message.replace(/^Template: /, '') }));
   return out;
 }
+/** The `grid` widget's own params: the size, which entry fields give the column, the row and the tile's state, and the legend. */
+function checkGrid(w, field, where, err) {
+  const max = GRID_LIMITS.size;
+  for (const k of ['cols', 'rows'])
+    if (!isInt(w[k], 1, max)) err('E_WIDGET', `${where}: grid needs ${k}, a whole number from 1 to ${max}`);
+  const item = field.item ?? {};
+  const named = (k, type) => typeof w[k] === 'string' && item[w[k]] === type;
+  if (!named('x', 'number') || !named('y', 'number') || w.x === w.y)
+    err('E_BIND', `${where}: grid needs x and y, two different number fields of the entries of "${w.bind}"`);
+  if (!named('cell', 'text'))
+    err('E_BIND', `${where}: grid needs cell, a text field of the entries of "${w.bind}" that holds the tile's state`);
+  const legend = w.legend;
+  if (!Array.isArray(legend) || !legend.length || legend.length > GRID_LIMITS.legend) {
+    err('E_WIDGET', `${where}: grid needs a legend of 1-${GRID_LIMITS.legend} states`);
+    return;
+  }
+  const seen = new Set();
+  for (const [i, l] of legend.entries()) {
+    const at = `${where}, legend ${i + 1}`;
+    if (!isObj(l) || typeof l.value !== 'string' || !l.value || l.value.length > 40 || seen.has(l.value))
+      err('E_WIDGET', `${at}: value is text of 1-40 characters, different from the others`);
+    else
+      seen.add(l.value);
+    if (!isObj(l)) continue;
+    if (typeof l.label !== 'string' || !l.label.trim() || l.label.length > 30)
+      err('E_WIDGET', `${at}: label is text of 1-30 characters`);
+    if (!GRID_TONES.includes(l.tone))
+      err('E_WIDGET', `${at}: tone must be one of ${GRID_TONES.join(', ')}`);
+    if (l.mark !== undefined && (typeof l.mark !== 'string' || !l.mark || [...l.mark].length > 2))
+      err('E_WIDGET', `${at}: mark is 1 or 2 characters`);
+  }
+}
 /** The `panels` section: what the agent shows beside the chat. A description, never code. */
 function checkPanels(raw, state, err) {
   if (raw === undefined)
@@ -494,6 +529,10 @@ function checkPanels(raw, state, err) {
       }
       if (field.type !== want) {
         err('E_BIND', `${where}: a ${w.w} shows a ${want} field, but "${w.bind}" is ${field.type}`);
+        continue;
+      }
+      if (w.w === 'grid') {
+        checkGrid(w, field, where, err);
         continue;
       }
       if (w.w === 'table' && (!Array.isArray(w.columns) || !w.columns.length || w.columns.some((c) => typeof c !== 'string' || !(c in field.item))))

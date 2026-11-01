@@ -15,6 +15,7 @@ import {
   copyAgentToDraft, deleteAgentDraft, installAgentDraft, listAgentDrafts, listInstalledAgents, readAgentDraft, saveAgentDraft,
   type AgentDraft, type AgentInfo,
 } from '@/lib/agents'
+import { AgentIssueText } from '@/components/chat/agent-issue'
 import { blankAgent, check, CARD_ORDER, copyOf, exportOf, fileOf, issuesByNode, lostWhen, newCard, prune, renameField, roomy, setCard } from '@/lib/forge'
 import { downloadJson } from '@/lib/interop'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
@@ -246,7 +247,7 @@ export function AgentForge() {
             />
           ) : <p className="text-xs text-muted-foreground">{t('fg.card.none')}</p>
         ) : tab === 'try' ? (
-          file && <TryPanel file={file as never} errors={errorCount} dry={dry} titleOf={(id) => graph.nodes.find((n) => n.id === id)?.title ?? id} />
+          file && <TryPanel file={file as never} errors={errorCount} dry={dry} calls={report?.maxCalls ?? 0} titleOf={(id) => graph.nodes.find((n) => n.id === id)?.title ?? id} />
         ) : (
           <div className="flex flex-col gap-4">
             {report && <Abilities needs={report.needs} calls={report.maxCalls} />}
@@ -405,7 +406,7 @@ export function AgentForge() {
         {[...report.errors.map((x) => ({ ...x, bad: true })), ...report.warnings.map((x) => ({ ...x, bad: false }))].map((x, i) => (
           <li key={i}>
             <button type="button" disabled={!x.node} onClick={() => x.node && pick(x.node)} className={cn('w-full rounded px-1 py-1 text-left hover:bg-accent disabled:hover:bg-transparent max-md:min-h-10', x.bad ? 'text-destructive' : 'text-amber-600 dark:text-amber-400')}>
-              <span className="mr-1 font-mono text-[10px]">{x.code}</span>{x.message}
+              <AgentIssueText issue={{ code: x.code, message: x.message, nodeTitle: x.node ? graph.nodes.find((n) => n.id === x.node)?.title : undefined }} />
             </button>
           </li>
         ))}
