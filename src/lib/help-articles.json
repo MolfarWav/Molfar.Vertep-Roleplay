@@ -393,7 +393,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2992-2992",
+          "lines": "3034-3034",
           "quote": "'voices.title': 'Voices',"
         }
       ]
@@ -534,12 +534,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2993-2993",
+          "lines": "3035-3035",
           "quote": "List who speaks: each one\\'s lines get their own colour."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2998-2998",
+          "lines": "3040-3040",
           "quote": "Colours not picked yet come from a built-in palette, in this order."
         },
         {
@@ -634,12 +634,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3343-3343",
+          "lines": "3385-3385",
           "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7408-7408",
+          "lines": "7492-7492",
           "quote": "\"Чекають на ваше «так» ({n})\""
         },
         {
@@ -649,7 +649,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3435-3435",
+          "lines": "3477-3477",
           "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
         }
       ]
@@ -1081,7 +1081,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3245-3245",
+          "lines": "3287-3287",
           "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
         },
         {
@@ -1977,7 +1977,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3231-3231",
+          "lines": "3273-3273",
           "quote": "'guide.help.reference': 'All commands and macros',"
         },
         {
@@ -2241,11 +2241,11 @@
         "uk": "Сторінка «Лорбуки»; редактор картки → вкладка «Лорбук»."
       },
       "details": {
-        "en": "An entry fires when one of its keys turns up in the scanned messages. Keys match whole words, and Ukrainian and Russian keys match every form of their words; secondary keys narrow a match down with AND or NOT logic. An entry can fire on a key, be sent every message (keep those few and short), or fire by meaning. Its position decides where the text goes: around the character definition, around the examples or the author's note, or at a depth inside the chat; when the preset has no place for it, the entry joins the end of the system block. A percentage is the chance it fires when triggered. Sticky keeps it on for more messages, cooldown waits before it fires again, delay holds back the first firing. The book's settings cap how much room entries may take, set how deep the scan goes, and can let entries trigger each other. Import and export use JSON; a book can also be embedded in a card, and links live on the card or group only.",
-        "uk": "Запис спрацьовує, коли один із його ключів трапляється у просканованих повідомленнях. Ключі збігаються цілими словами. Українські й російські збігаються в усіх формах слова. Другорядні ключі звужують збіг за логікою «І» чи «НЕ». Запис може спрацьовувати на ключ, надсилатися щоразу (тримайте таких небагато й коротко) чи вмикатися за змістом. Позиція визначає, куди піде текст: біля опису персонажа, прикладів чи нотатки автора, або на глибині всередині чату. Якщо пресет не має для неї місця, запис стає в кінець системного блоку. Відсоток — це шанс спрацювати після тригера. Липкість тримає запис увімкненим далі, перезарядка чекає перед повторним спрацюванням, затримка — перед першим. Налаштування книги обмежують місце записів, задають глибину сканування й дозволяють записам вмикати одне одного. Імпорт та експорт — у JSON; книгу можна й вбудувати в картку, а прив’язки живуть лише на картці чи групі."
+        "en": "An entry fires when one of its keys turns up in the scanned messages. Keys match whole words, and Ukrainian and Russian keys match every form of their words; secondary keys narrow a match down with AND or NOT logic. An entry can fire when one of its keys is mentioned, be always on (keep those few and short), or fire by meaning. Its position decides where the text goes: around the character definition, around the examples or the author's note, or at a depth inside the chat; when the preset has no place for it, the entry joins the end of the system block. A percentage is the chance it fires when triggered. Sticky keeps it on for more messages, cooldown waits before it fires again, delay holds back the first firing. The book's Rules tab caps how much room entries may take, sets how deep the scan goes, and can let entries trigger each other. Import and export use JSON; a book can also be embedded in a card, and links live on the card or group only.",
+        "uk": "Запис спрацьовує, коли один із його ключів трапляється у просканованих повідомленнях. Ключі збігаються цілими словами. Українські й російські збігаються в усіх формах слова. Другорядні ключі звужують збіг за логікою «І» чи «НЕ». Запис може спрацьовувати, коли згадано його ключ, бути завжди увімкненим (тримайте таких небагато й коротко) чи спрацьовувати за змістом. Позиція визначає, куди піде текст: біля опису персонажа, прикладів чи нотатки автора, або на глибині всередині чату. Якщо пресет не має для неї місця, запис стає в кінець системного блоку. Відсоток — це шанс спрацювати після тригера. Липкість тримає запис увімкненим далі, перезарядка чекає перед повторним спрацюванням, затримка — перед першим. Вкладка «Правила» книги обмежує місце записів, задає глибину сканування й дозволяє записам вмикати одне одного. Імпорт та експорт — у JSON; книгу можна й вбудувати в картку, а прив’язки живуть лише на картці чи групі."
       },
       "aliases": {
-        "en": "lorebook entry keyword secondary keys position probability sticky cooldown delay constant vectorized",
+        "en": "lorebook entry keyword secondary keys position probability sticky cooldown delay constant vectorized always on when mentioned by meaning chance rules tokens",
         "uk": "лорбук запис ключове слово другорядні ключі позиція ймовірність липкість перезарядка затримка"
       },
       "extends": "help.lorebooks",
@@ -2267,7 +2267,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2657-2657",
+          "lines": "2707-2707",
           "quote": "Grey keywords: words in the chat that trigger the entry."
         }
       ]
@@ -2309,7 +2309,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2654-2654",
+          "lines": "2704-2704",
           "quote": "'lore.global.info': 'A global book is added to every chat, whichever character or persona is in it."
         },
         {
@@ -2356,7 +2356,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2658-2658",
+          "lines": "2708-2708",
           "quote": "'lore.testKeys': 'Test triggers'"
         },
         {
@@ -3337,7 +3337,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2962-2962",
+          "lines": "3004-3004",
           "quote": "'ct.app.title': 'Model for card tasks',"
         },
         {
