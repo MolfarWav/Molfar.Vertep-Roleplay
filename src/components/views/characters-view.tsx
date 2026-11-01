@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, Folder as FolderIcon } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, EnvelopeSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, Folder as FolderIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
-  DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
+  DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -35,6 +35,7 @@ import { CharacterEditor } from '@/components/views/character-editor'
 import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
+import { LettersDialog } from '@/components/letters/letters-dialog'
 import { folderCounts, folderTags, inFolder, moveToFolder, noFolder, removeFromFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { TagManager } from '@/components/tags/tag-manager'
@@ -104,6 +105,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const addTag = useApp((s) => s.addTag)
   const updateTag = useApp((s) => s.updateTag)
   const [urlOpen, setUrlOpen] = useState(false)
+  const [lettersOpen, setLettersOpen] = useState(false)
   const [urlValue, setUrlValue] = useState('')
   const [urlBusy, setUrlBusy] = useState(false)
   const [page, setPage] = useState(0)
@@ -419,16 +421,21 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           {batchMode && <Check className="ml-auto size-4 text-primary" aria-hidden="true" />}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>{t('characters.import')}</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => importRef.current?.click()}>
-          <FileCode className="size-4" aria-hidden="true" />{t('characters.importFiles')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setUrlOpen(true)}>
-          <LinkSimple className="size-4" aria-hidden="true" />{t('characters.importUrl')}
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t('characters.import')}</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => importRef.current?.click()}>
+            <FileCode className="size-4" aria-hidden="true" />{t('characters.importFiles')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setUrlOpen(true)}>
+            <LinkSimple className="size-4" aria-hidden="true" />{t('characters.importUrl')}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => setTagManagerOpen(true)}>
           <Tag className="size-4" aria-hidden="true" />{t('characters.moreManage')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLettersOpen(true)} data-testid="characters-letters">
+          <EnvelopeSimple className="size-4" aria-hidden="true" />{t('characters.moreLetters')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -751,6 +758,8 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           </div>
         )}
       </ScrollArea>
+
+      <LettersDialog open={lettersOpen} onOpenChange={setLettersOpen} />
 
       <Dialog open={urlOpen} onOpenChange={setUrlOpen}>
         <DialogContent className="sm:max-w-md">
