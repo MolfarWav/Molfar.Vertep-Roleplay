@@ -373,9 +373,11 @@ function ScriptPorts({ list, label, hint, addLabel, minRows, onChange }: { list:
                 if (v && v !== x.id && !list.some((y) => y.id === v)) onChange(list.map((y, k) => (k === i ? { ...y, id: v } : y)))
                 else e.target.value = x.id
               }} />
-            <NativeSelect value={x.type} label={t('fg.script.type')} onChange={(type) => onChange(list.map((y, k) => (k === i ? { ...y, type } : y)))}>
-              {['text', 'number', 'flag'].map((k) => <option key={k} value={k}>{t(`fg.script.type.${k}` as MsgKey)}</option>)}
-            </NativeSelect>
+            <div className="w-28 shrink-0">
+              <NativeSelect value={x.type} label={t('fg.script.type')} onChange={(type) => onChange(list.map((y, k) => (k === i ? { ...y, type } : y)))}>
+                {['text', 'number', 'flag'].map((k) => <option key={k} value={k}>{t(`fg.script.type.${k}` as MsgKey)}</option>)}
+              </NativeSelect>
+            </div>
             <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.script.remove', { name: x.id })} disabled={list.length <= minRows} onClick={() => onChange(list.filter((_, k) => k !== i))}>
               <Trash className="size-4" aria-hidden="true" />
             </Button>
