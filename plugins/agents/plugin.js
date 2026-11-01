@@ -2439,7 +2439,13 @@ function runsRoute(req, host) {
   const chatId = str(req.query && req.query.chatId);
   if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required" }, 400);
   const f = readJsonAt(host.fs, runsPath(chatId), { runs: [] });
-  return ok({ runs: Array.isArray(f.runs) ? f.runs : [], inserts: (readJsonAt(host.fs, insertsPath(chatId), { items: [] }).items || []).map((x) => ({ agent: x.agent, label: x.label, at: x.at })) });
+  let runs = Array.isArray(f.runs) ? f.runs : [];
+  // the Dashboard changes of a run, marked undone when the ledger says so (the run file itself never changes afterwards)
+  if (runs.some((r) => isObj(r) && Array.isArray(r.dash))) {
+    const undone = new Set(readDashLedger(host.fs, chatId).entries.filter((e) => e.undone).map((e) => e.id));
+    runs = runs.map((r) => (isObj(r) && Array.isArray(r.dash) ? { ...r, dash: r.dash.map((d) => (isObj(d) && undone.has(d.id) ? { ...d, undone: true } : d)) } : r));
+  }
+  return ok({ runs, inserts: (readJsonAt(host.fs, insertsPath(chatId), { items: [] }).items || []).map((x) => ({ agent: x.agent, label: x.label, at: x.at })) });
 }
 
 /** What the chat's panels need in one call: for each agent that is on, allowed to run and has panels, the panels, the schema and its state (and the state before the last run, for a change marker). */

@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { ApiError, j } from './engine'
+import { reloadDash } from './dash-live'
 import { t as tr, type MsgKey, type Vars } from './i18n'
 import type { DryResult } from './agent-dry'
 
@@ -79,6 +80,18 @@ export interface AgentOutput {
   show?: string
 }
 
+/** One Dashboard value an agent changed in a run (#132): `who` is the character, `before` null when the field was empty. */
+export interface DashChange {
+  id: string
+  field: string
+  who?: string
+  before: string | number | null
+  after: string | number
+  key: string
+  /** the value was put back (Undo) */
+  undone?: boolean
+}
+
 /** One entry of GET /agents/runs, as far as the app reads it. `key` is `<message id>#<swipe>`. */
 export interface AgentRun {
   agent: string
@@ -90,6 +103,8 @@ export interface AgentRun {
   calls?: number
   writes?: unknown[]
   refused?: unknown[]
+  /** the Dashboard values this run changed, with what they replaced */
+  dash?: DashChange[]
   outputs?: AgentOutput[]
 }
 
@@ -284,6 +299,22 @@ export async function loadAgentRuns(chatId: string): Promise<AgentRun[]> {
   const runs = (await j<{ runs: AgentRun[] }>(`/agents/runs?chatId=${q(chatId)}`)).runs
   useAgentsLive.setState((s) => ({ runs: { ...s.runs, [chatId]: runs } }))
   return runs
+}
+
+/**
+ * Puts back the Dashboard value an agent replaced. The plugin refuses (409) when the story has moved on or the field
+ * changed since; the toast says why in the plugin's words. Returns true when the value is back.
+ */
+export async function undoDashChange(chatId: string, id: string): Promise<boolean> {
+  try {
+    await j('/agents/dash-undo', { method: 'POST', body: JSON.stringify({ chatId, id }) })
+  } catch (e) {
+    toast.error(String((e as Error)?.message ?? e))
+    await loadAgentRuns(chatId).catch(() => [])
+    return false
+  }
+  await Promise.all([loadAgentRuns(chatId).catch(() => []), reloadDash(chatId).catch(() => {})])
+  return true
 }
 
 export async function loadAgentPanels(chatId: string): Promise<AgentPanelSet[]> {
