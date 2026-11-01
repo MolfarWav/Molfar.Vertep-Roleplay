@@ -12,7 +12,7 @@ type Params = Record<string, unknown>
 /** The cards in the order the "add a card" list shows them. `note` is a comment for people. */
 export const CARD_ORDER = [
   'agent.input', 'text.template', 'model.ask', 'data.parse', 'text.extract', 'text.cut', 'logic.if', 'logic.merge',
-  'random.dice', 'random.pick', 'state.read', 'state.set', 'state.add', 'state.list', 'agent.output', 'note',
+  'code.script', 'random.dice', 'random.pick', 'state.read', 'state.set', 'state.add', 'state.list', 'agent.output', 'note',
 ] as const
 
 export const INPUT_SOURCES = ['lastReply', 'lastUserMessage', 'history', 'card', 'persona', 'authorNote', 'myPrevious', 'litopysFacts', 'lorebook'] as const
@@ -35,6 +35,7 @@ export function defaultParams(type: string): Params {
     case 'state.set': return { field: '', as: 'number' }
     case 'state.add': return { field: '', amount: 1 }
     case 'state.list': return { field: '', op: 'add', item: {} }
+    case 'code.script': return { code: '// input.text is the value you wired in.\n// Return an object with the values you give back.\nreturn { result: input.text.trim() }', inputs: [{ id: 'text', type: 'text' }], outputs: [{ id: 'result', type: 'text' }] }
     case 'agent.output': return { kind: 'note' }
     default: return {}
   }

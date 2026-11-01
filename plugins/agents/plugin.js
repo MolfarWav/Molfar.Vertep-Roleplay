@@ -88,6 +88,7 @@ const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z
 const shapeOut = (shape) => Object.entries((shape ?? {})).map(([id, spec]) => ({ id, side: 'out', type: shapeType(spec) }));
 const ownType = (as) => (as === 'number' ? 'number' : as === 'flag' ? 'flag' : 'text'); // a state value on a wire
 const itemPorts = (item) => Object.entries((item ?? {})).map(([id, spec]) => ({ id, side: 'in', type: ownType(spec) }));
+const scriptList = (v) => (Array.isArray(v) ? v : []).filter((x) => typeof x === 'object' && x !== null && typeof x.id === 'string');
 const whenIn = [{ id: 'when', side: 'in', type: 'signal', optional: true }];
 const whenDone = [{ id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }];
 const OUTPUT_TEXT_KINDS = ['prompt-insert', 'note', 'choices'];
@@ -180,6 +181,16 @@ const AGENT_CARDS = {
     label: 'Cut', colorVar: '--k-data', hint: 'Keeps the first or last part of a text: characters, words or lines.',
     ports: () => [{ id: 'in', side: 'in', type: 'text' }, { id: 'text', side: 'out', type: 'text' }],
     needs: () => [],
+  },
+  'code.script': {
+    label: 'Script', colorVar: '--k-logic', hint: 'Your own small program: values in, values out. It sees only what you wire in. No files, no internet, no clock.',
+    ports: (p) => [
+      ...scriptList(p.inputs).map((i) => ({ id: String(i.id), side: 'in', type: ownType(i.type) })),
+      { id: 'when', side: 'in', type: 'signal', optional: true },
+      ...scriptList(p.outputs).map((o) => ({ id: String(o.id), side: 'out', type: ownType(o.type) })),
+      { id: 'failed', side: 'out', type: 'signal' },
+    ],
+    needs: () => ['run:code'],
   },
   note: { label: 'Note', colorVar: '--k-data', hint: 'A note for people; never sent to a model.', ports: () => [], needs: () => [] },
 };
@@ -362,6 +373,33 @@ function checkCodeCard(n, err) {
     if (!['first', 'last'].includes(p.keep)) bad('E_PARAM', 'keep is first or last');
     if (!['chars', 'words', 'lines'].includes(p.unit)) bad('E_PARAM', 'unit is chars, words or lines');
     if (!isInt(p.n, 1, 20000)) bad('E_PARAM', 'n is a whole number from 1 to 20000');
+  }
+}
+/** Limits of the Script card (the engine enforces its own on the sandbox: .fork/handoff/script-card/DESIGN.md in the engine repo). */
+const SCRIPT_LIMITS = { code: 8000, ports: 8, perAgent: 6 };
+/** The parameters of a Script card. */
+function checkScript(n, err) {
+  const p = n.params ?? {};
+  const bad = (code, msg) => err(code, `"${n.title}": ${msg}`, n.id);
+  if (typeof p.code !== 'string' || !p.code.trim()) { bad('E_PARAM', 'the script has no code'); return; }
+  if (p.code.length > SCRIPT_LIMITS.code) bad('E_PARAM', `the code is longer than ${SCRIPT_LIMITS.code} characters`);
+  for (const key of ['inputs', 'outputs']) {
+    const list = p[key];
+    if (!Array.isArray(list) || list.length > SCRIPT_LIMITS.ports || (key === 'outputs' && !list.length)) {
+      bad('E_PARAM', key === 'outputs' ? `outputs is a list of 1 to ${SCRIPT_LIMITS.ports} values the script gives back` : `inputs is a list of up to ${SCRIPT_LIMITS.ports} values the script receives`);
+      continue;
+    }
+    const seen = new Set();
+    for (const x of list) {
+      if (!isObj(x) || typeof x.id !== 'string' || !FIELD_ID.test(x.id) || !SCALARS.includes(x.type)) { bad('E_PARAM', `every ${key === 'inputs' ? 'input' : 'output'} needs an id (letters, digits, _ and -, starting with a letter) and a type: number, text or flag`); continue; }
+      if (x.id === 'when' || x.id === 'failed') bad('E_PARAM', `"${x.id}" is taken by the card itself; pick another name`);
+      if (seen.has(x.id)) bad('E_PARAM', `${key} lists "${x.id}" twice`);
+      seen.add(x.id);
+    }
+  }
+  if (p.code.length <= SCRIPT_LIMITS.code && typeof Function === 'function') {
+    try { new Function('input', 'seed', '"use strict";\n' + p.code); }
+    catch (e) { if (e && e.name === 'SyntaxError') bad('E_SCRIPT_SYNTAX', `the code does not parse: ${String(e.message).slice(0, 120)}`); }
   }
 }
 const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text', grid: 'list' };
@@ -633,6 +671,8 @@ function validateAgent(raw) {
           if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
+    if (n.type === 'code.script')
+      checkScript(n, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
       checkCodeCard(n, err);
     if (n.type === 'model.ask' && !a.models?.[p.role])
@@ -653,6 +693,9 @@ function validateAgent(raw) {
       }
     }
   }
+  const scripts = f.nodes.filter((n) => n.type === 'code.script').length;
+  if (scripts > SCRIPT_LIMITS.perAgent)
+    err('E_SCRIPT_LIMIT', `An agent may have at most ${SCRIPT_LIMITS.perAgent} Script cards, found ${scripts}`);
   if (checkPanels(a.panels, state, err))
     needs.add('show:panel');
   const inputs = f.nodes.filter((n) => n.type === 'agent.input');
@@ -729,14 +772,14 @@ function validateAgent(raw) {
     const depth = (id) => {
       if (memo.has(id))
         return memo.get(id);
-      const own = byId.get(id)?.type === 'model.ask' ? 1 : 0;
+      const own = byId.get(id)?.type === 'model.ask' || byId.get(id)?.type === 'code.script' ? 1 : 0;
       const d = own + Math.max(0, ...(adj.get(id) ?? []).map(depth));
       memo.set(id, d);
       return d;
     };
     const rounds = Math.max(0, ...f.nodes.map((n) => depth(n.id)));
     if (rounds > AGENT_MAX_ROUNDS)
-      err('E_ROUNDS', `A path of the graph asks the model ${rounds} times one after another, and an agent may ask at most ${AGENT_MAX_ROUNDS} times in a row. Ask in parallel, or put two questions into one`);
+      err('E_ROUNDS', `A path of the graph waits for the model or a script ${rounds} times one after another, and an agent may wait at most ${AGENT_MAX_ROUNDS} times in a row. Run them in parallel, or put two questions into one`);
   }
   for (const n of f.nodes) {
     if (n.type === 'state.add' && !wiresIn.has(`${n.id}:by`) && !Number.isFinite(n.params?.amount))
@@ -1234,6 +1277,47 @@ function runCards(file, ctx, answers, seen) {
       const g = gate(['in']);
       if (g === 'skip') skip(); else if (g === 'wait') wait();
       else { const v = cutText(ins.in, p); out('text', v); ran({ text: short(v) }); }
+    } else if (node.type === 'code.script') {
+      const g = gate(ports.filter((x) => x.side === 'in' && x.id !== 'when').map((x) => x.id), 'when');
+      if (g === 'skip') skip();
+      else if (g === 'wait') wait();
+      else {
+        const a = given[id];
+        const outs = ports.filter((x) => x.side === 'out' && x.id !== 'failed');
+        const fail = (why) => {
+          if (!file.edges.some((e) => e.from === id + ':failed')) return { status: 'failed', reason: `The script of "${node.title}" failed: ${why}`, node: id, trace };
+          setAll(node, SKIP);
+          out('failed', true);
+          trace.push({ node: id, status: 'ran', out: { failed: short(why) } });
+          return null;
+        };
+        if (!a) {
+          const input = {};
+          for (const x of ports) if (x.side === 'in' && x.id !== 'when') input[x.id] = x.type === 'flag' ? (ins[x.id] === 'yes' ? true : ins[x.id] === 'no' ? false : null) : ins[x.id];
+          requests.push({ node: id, kind: 'script', code: p.code, input });
+          wait();
+        } else {
+          let why = a.error ? String(a.error) : '';
+          const values = {};
+          if (!why) {
+            const v = isPlain(a.value) ? a.value : {};
+            for (const x of outs) {
+              const got = v[x.id];
+              if (got === undefined || got === null) continue; // left out: missing data, never a silent zero
+              if (x.type === 'number' && typeof got === 'number' && Number.isFinite(got)) values[x.id] = got;
+              else if (x.type === 'flag' && typeof got === 'boolean') values[x.id] = got ? 'yes' : 'no';
+              else if (x.type === 'text' && (typeof got === 'string' || typeof got === 'number')) values[x.id] = clip(String(got), TEXT_MAX);
+              else { why = `"${x.id}" must be ${x.type === 'flag' ? 'true or false' : x.type === 'number' ? 'a number' : 'text'}`; break; }
+            }
+          }
+          if (why) { const r = fail(why); if (r) return r; }
+          else {
+            setAll(node, SKIP);
+            for (const x of outs) out(x.id, values[x.id]);
+            ran(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, short(v)])));
+          }
+        }
+      }
     } else if (node.type === 'agent.output') {
       const g = gate(['in']);
       if (g === 'skip') skip();
@@ -1605,6 +1689,11 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
 
 /** A model's answer as it travels from one pass to the next (the engine hands the plugin only the newest pass's answers). */
 const packAnswer = (r) => (isObj(r) ? { text: typeof r.text === "string" ? r.text : "", model: typeof r.model === "string" ? r.model : "", ...(r.error ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : {}) } : null);
+/** What the engine's script box answered, in the shape the executor reads: { script, value } or { script, error }. */
+const packScript = (r) => (isObj(r) ? (r.ok === true && isObj(r.value) ? { script: true, value: r.value } : { script: true, error: typeof r.error === "string" && r.error ? r.error : "the script failed" }) : null);
+/** The engine can run scripts (permission "script"); an older one cannot. */
+const canScript = (host) => !!(host && host.script && typeof host.script.request === "function");
+const NO_SCRIPT = "This agent has a Script card and this Molfar Vertep is too old to run one. Update Molfar Vertep.";
 
 // ---------- the Dashboard as an agent sees it (read only, #132) ----------
 
@@ -1691,6 +1780,8 @@ function stepRun(host, fsx, view, picks, last, stash) {
   const answersAll = isObj(stash && stash.answers) ? { ...stash.answers } : {};
   const fresh = host.llm && host.llm.results ? host.llm.results : {};
   for (const k of Object.keys(fresh)) { const a = packAnswer(fresh[k]); if (a) answersAll[k] = a; }
+  const freshScripts = host.script && host.script.results ? host.script.results : {};
+  for (const k of Object.keys(freshScripts)) { const a = packScript(freshScripts[k]); if (a) answersAll[k] = a; }
   const lastMsg = view.msgs.length ? view.msgs[view.msgs.length - 1] : null;
   // the Dashboard file is read once a pass, and only when a picked agent asks for one of its fields
   let dashSnap;
@@ -1715,9 +1806,9 @@ function stepRun(host, fsx, view, picks, last, stash) {
     pick.agent.file.nodes.forEach((n, ni) => {
       const r = answersAll[`ag_${ai}_${ni}`];
       if (!r) return;
-      answers[n.id] = r.error || !r.text.trim() ? { error: r.error || "the model sent no answer" } : { text: r.text, model: r.model };
+      answers[n.id] = r.script ? (r.error ? { error: r.error } : { value: r.value }) : r.error || !r.text.trim() ? { error: r.error || "the model sent no answer" } : { text: r.text, model: r.model };
     });
-    return { ai, pick, schema, base, st, res: runAgent(pick.agent.file, ctx, answers), answers };
+    return { ai, pick, schema, base, st, seed: ctx.seed, res: runAgent(pick.agent.file, ctx, answers), answers };
   });
 
   // one pass for each model call in a row: past the limit an agent fails with a reason instead of vanishing when the engine drops the pass
@@ -1728,11 +1819,24 @@ function stepRun(host, fsx, view, picks, last, stash) {
     }
   }
 
+  // an older engine cannot run a script: the agent fails with a reason instead of waiting for an answer that never comes
+  if (!canScript(host)) {
+    for (const r of results) {
+      const sq = r.res.status === "need" ? r.res.requests.find((q) => q.kind === "script") : null;
+      if (sq) r.res = { status: "failed", reason: NO_SCRIPT, node: sq.node, trace: r.res.trace };
+    }
+  }
+
   let asked = 0;
   for (const r of results) {
     if (r.res.status !== "need") continue;
     for (const q of r.res.requests) {
       const ni = r.pick.agent.file.nodes.findIndex((n) => n.id === q.node);
+      if (q.kind === "script") {
+        host.script.request(`ag_${r.ai}_${ni}`, { code: q.code, input: q.input, seed: r.seed + "|" + q.node });
+        asked++;
+        continue;
+      }
       const model = modelFor(fsx, view.meta, q.role, r.pick.item.agent);
       host.llm.request(`ag_${r.ai}_${ni}`, {
         ...(model ? { model } : {}),
@@ -1975,11 +2079,30 @@ function dryRoute(req, host) {
   let answered = {}; // node id -> { text, model?, error?, usage? }
   let prompts = {};
   let usage = { input: 0, output: 0, cost: 0, priced: false };
+  // a script is the one thing a trial without a model still runs for real: the engine runs it, so it takes a pass
+  const stash0 = isObj(req.stash) ? req.stash : {};
+  const scriptsDone = isObj(stash0.scripts) ? { ...stash0.scripts } : {};
+  const freshScripts = host.script && host.script.results ? host.script.results : {};
+  for (const k of Object.keys(freshScripts)) {
+    const m = /^dry_s_(\d+)$/.exec(k);
+    const node = m ? file.nodes[Number(m[1])] : null;
+    const a = node ? packScript(freshScripts[k]) : null;
+    if (a) scriptsDone[node.id] = a.error ? { error: a.error } : { value: a.value };
+  }
+  const askScripts = (requests) => {
+    for (const q of requests) host.script.request("dry_s_" + file.nodes.findIndex((n) => n.id === q.node), { code: q.code, input: q.input, seed: ctx.seed + "|" + q.node });
+  };
   if (!live) {
-    const given = {};
+    const given = { ...scriptsDone };
     for (let round = 0; round <= AGENT_MAX_ROUNDS + 1; round++) {
       res = runAgent(file, ctx, given);
       if (res.status !== "need") break;
+      const wantScripts = res.requests.filter((q) => q.kind === "script");
+      if (wantScripts.length) {
+        if (!canScript(host)) { res = { status: "failed", reason: NO_SCRIPT, node: wantScripts[0].node, trace: res.trace, wires: res.wires }; break; }
+        askScripts(wantScripts);
+        return { __llmPending: true, stash: { pass: (Number(stash0.pass) || 0) + 1, scripts: scriptsDone } };
+      }
       for (const rq of res.requests) {
         const text = isString(replies[rq.node]) ? replies[rq.node] : exampleReply(byId.get(rq.node) || {});
         given[rq.node] = { text };
@@ -2003,11 +2126,14 @@ function dryRoute(req, host) {
     }
     const exec = {};
     for (const [id, a] of Object.entries(answered)) exec[id] = a.error || !a.text.trim() ? { error: a.error || "the model sent no answer" } : { text: a.text, model: a.model };
+    Object.assign(exec, scriptsDone);
     res = runAgent(file, ctx, exec);
     const pass = Number(stash.pass) || 0;
     if (res.status === "need" && pass >= AGENT_MAX_ROUNDS) res = { status: "failed", reason: "It needs more than " + AGENT_MAX_ROUNDS + " model calls one behind another", node: res.requests[0] ? res.requests[0].node : "", trace: res.trace, wires: res.wires };
+    if (res.status === "need" && res.requests.some((q) => q.kind === "script") && !canScript(host)) res = { status: "failed", reason: NO_SCRIPT, node: res.requests.find((q) => q.kind === "script").node, trace: res.trace, wires: res.wires };
     if (res.status === "need") {
-      for (const q of res.requests) {
+      askScripts(res.requests.filter((q) => q.kind === "script"));
+      for (const q of res.requests.filter((q) => q.kind !== "script")) {
         const ni = file.nodes.findIndex((n) => n.id === q.node);
         const model = models[q.role] || "";
         prompts[q.node] = q.prompt;
@@ -2018,7 +2144,7 @@ function dryRoute(req, host) {
           presetParams: { temperature: 0.3, max_tokens: Number.isInteger(q.maxTokens) && q.maxTokens > 0 ? Math.min(q.maxTokens, 4000) : 600 },
         });
       }
-      return { __llmPending: true, stash: { pass: pass + 1, answered, prompts, usage } };
+      return { __llmPending: true, stash: { pass: pass + 1, answered, prompts, usage, scripts: scriptsDone } };
     }
   }
 

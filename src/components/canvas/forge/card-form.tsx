@@ -352,6 +352,66 @@ function CutForm({ p, set }: { p: Params; set: (patch: Params) => void }) {
 }
 
 /** What the checker says about one card, under its form. */
+// ---------- the Script card ----------
+
+const SCRIPT_CODE_MAX = 8000
+const SCRIPT_PORTS_MAX = 8
+interface ScriptPort { id: string; type: string }
+
+/** One list of ports (the values the script receives, or gives back): a name, a type, a remove button. */
+function ScriptPorts({ list, label, hint, addLabel, minRows, onChange }: { list: ScriptPort[]; label: string; hint: string; addLabel: string; minRows: number; onChange: (next: ScriptPort[]) => void }) {
+  const t = useT()
+  const fresh = () => { let i = list.length + 1; while (list.some((x) => x.id === `value${i}`)) i++; onChange([...list, { id: `value${i}`, type: 'text' }]) }
+  return (
+    <Field label={label} hint={hint}>
+      <div className="flex flex-col gap-1.5">
+        {list.map((x, i) => (
+          <div key={`${i}-${x.id}`} className="flex gap-1.5">
+            <Input defaultValue={x.id} maxLength={32} spellCheck={false} autoCapitalize="off" aria-label={t('fg.script.name')} className="min-w-0 flex-1 font-mono max-md:h-10"
+              onBlur={(e) => {
+                const v = e.target.value.replace(/[^A-Za-z0-9_-]/g, '').replace(/^[^A-Za-z]+/, '')
+                if (v && v !== x.id && !list.some((y) => y.id === v)) onChange(list.map((y, k) => (k === i ? { ...y, id: v } : y)))
+                else e.target.value = x.id
+              }} />
+            <NativeSelect value={x.type} label={t('fg.script.type')} onChange={(type) => onChange(list.map((y, k) => (k === i ? { ...y, type } : y)))}>
+              {['text', 'number', 'flag'].map((k) => <option key={k} value={k}>{t(`fg.script.type.${k}` as MsgKey)}</option>)}
+            </NativeSelect>
+            <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.script.remove', { name: x.id })} disabled={list.length <= minRows} onClick={() => onChange(list.filter((_, k) => k !== i))}>
+              <Trash className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" className="self-start max-md:h-10" disabled={list.length >= SCRIPT_PORTS_MAX} onClick={fresh}>
+          <Plus className="size-3.5" aria-hidden="true" />{addLabel}
+        </Button>
+      </div>
+    </Field>
+  )
+}
+
+function ScriptForm({ p, set }: { p: Params; set: (patch: Params) => void }) {
+  const t = useT()
+  const code = typeof p.code === 'string' ? p.code : ''
+  const inputs = (Array.isArray(p.inputs) ? p.inputs : []) as ScriptPort[]
+  const outputs = (Array.isArray(p.outputs) ? p.outputs : []) as ScriptPort[]
+  return (
+    <>
+      <Field label={t('fg.script.code')} hint={t('fg.script.codeHint')}>
+        <Textarea value={code} rows={10} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap="off" className="font-mono text-xs leading-relaxed" data-testid="script-code" onChange={(e) => set({ code: e.target.value })} />
+        <span className={cn('self-end text-[11px] tabular-nums', code.length > SCRIPT_CODE_MAX ? 'text-destructive' : 'text-muted-foreground')} data-testid="script-count">{t('fg.script.count', { n: code.length, max: SCRIPT_CODE_MAX })}</span>
+      </Field>
+      <ScriptPorts list={inputs} label={t('fg.script.inputs')} hint={t('fg.script.inputsHint')} addLabel={t('fg.script.addIn')} minRows={0} onChange={(next) => set({ inputs: next })} />
+      <ScriptPorts list={outputs} label={t('fg.script.outputs')} hint={t('fg.script.outputsHint')} addLabel={t('fg.script.addOut')} minRows={1} onChange={(next) => set({ outputs: next })} />
+      <details className="rounded-md border border-border bg-background p-2 text-xs" data-testid="script-rules">
+        <summary className="cursor-pointer select-none text-[11px] font-medium">{t('fg.script.rules')}</summary>
+        <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-snug text-muted-foreground">
+          {(['rule1', 'rule2', 'rule3', 'rule4', 'rule5'] as const).map((r) => <li key={r}>{t(`fg.script.${r}` as MsgKey)}</li>)}
+        </ul>
+      </details>
+    </>
+  )
+}
+
 function Problems({ messages }: { messages: string[] }) {
   if (!messages.length) return null
   return (
@@ -507,6 +567,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
       {node.type === 'random.pick' && <PickForm p={p} set={set} />}
       {node.type === 'text.extract' && <ExtractForm p={p} set={set} onParams={onParams} />}
       {node.type === 'text.cut' && <CutForm p={p} set={set} />}
+      {node.type === 'code.script' && <ScriptForm p={p} set={set} />}
 
       {(node.type === 'state.read' || node.type === 'state.set') && stateField(['number', 'text', 'flag'], (f) => ({ as: fields[f]?.type ?? 'number' }))}
 

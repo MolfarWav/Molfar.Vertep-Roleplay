@@ -458,6 +458,47 @@ function runCards(file, ctx, answers, seen) {
       const g = gate(['in']);
       if (g === 'skip') skip(); else if (g === 'wait') wait();
       else { const v = cutText(ins.in, p); out('text', v); ran({ text: short(v) }); }
+    } else if (node.type === 'code.script') {
+      const g = gate(ports.filter((x) => x.side === 'in' && x.id !== 'when').map((x) => x.id), 'when');
+      if (g === 'skip') skip();
+      else if (g === 'wait') wait();
+      else {
+        const a = given[id];
+        const outs = ports.filter((x) => x.side === 'out' && x.id !== 'failed');
+        const fail = (why) => {
+          if (!file.edges.some((e) => e.from === id + ':failed')) return { status: 'failed', reason: `The script of "${node.title}" failed: ${why}`, node: id, trace };
+          setAll(node, SKIP);
+          out('failed', true);
+          trace.push({ node: id, status: 'ran', out: { failed: short(why) } });
+          return null;
+        };
+        if (!a) {
+          const input = {};
+          for (const x of ports) if (x.side === 'in' && x.id !== 'when') input[x.id] = x.type === 'flag' ? (ins[x.id] === 'yes' ? true : ins[x.id] === 'no' ? false : null) : ins[x.id];
+          requests.push({ node: id, kind: 'script', code: p.code, input });
+          wait();
+        } else {
+          let why = a.error ? String(a.error) : '';
+          const values = {};
+          if (!why) {
+            const v = isPlain(a.value) ? a.value : {};
+            for (const x of outs) {
+              const got = v[x.id];
+              if (got === undefined || got === null) continue; // left out: missing data, never a silent zero
+              if (x.type === 'number' && typeof got === 'number' && Number.isFinite(got)) values[x.id] = got;
+              else if (x.type === 'flag' && typeof got === 'boolean') values[x.id] = got ? 'yes' : 'no';
+              else if (x.type === 'text' && (typeof got === 'string' || typeof got === 'number')) values[x.id] = clip(String(got), TEXT_MAX);
+              else { why = `"${x.id}" must be ${x.type === 'flag' ? 'true or false' : x.type === 'number' ? 'a number' : 'text'}`; break; }
+            }
+          }
+          if (why) { const r = fail(why); if (r) return r; }
+          else {
+            setAll(node, SKIP);
+            for (const x of outs) out(x.id, values[x.id]);
+            ran(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, short(v)])));
+          }
+        }
+      }
     } else if (node.type === 'agent.output') {
       const g = gate(['in']);
       if (g === 'skip') skip();
