@@ -9,6 +9,12 @@ Branch `claude/rp-design-foundation`. All decisions are in `docs/UI-CATALOG.md` 
 - `89b2548` `Fold`, `SettingRow` (+ `NumControl`, `Segmented`), `Section` in `src/components/ui/`.
 - `3b1c4af`, `c024c84`, `778bf4f`, `a48862b` World DM panel as three task cards (variant C), CHANGELOG entry without a version bump.
 
+## Done in the phase 2 run (branch pushed after each stage; none verified in a browser, no engine here)
+- Stage 1 `88af37f` Sensor tab: summary card, three task cards, NumTile and ToggleChip (`ui/`), `dashboard/sensor-summary.ts`; long labels shortened in en and uk.
+- Stage 2 `b9b46bd` chat: header name 20 px heading font and 40 px avatar, tinted sky and teal header icons (`chat/header-tint.ts`), side portrait grows into the free margin (`--ls-col-w` grid cell, `--ls-av-w` portrait, `--ls-av-extra` set by `chat/use-avatar-extra.ts` from `lib/avatar-extra.ts`), "Since your last reply" bar with a count circle.
+- Stage 3 `aef6932` side panel: hue per item (`shell/rail-hues.ts`), groups split, Agents link (`lib/canvas-board.ts`), Settings off the rail (a Roleplay settings button on Home is its door until the engine entry exists), Memory tab removed, `docs/ENGINE-ISSUE-shell-settings-apps.md` written (not filed). There is no command palette in this build, so the catalog's "palette entry" has nothing to attach to.
+- Not done from the catalog for stage 3: the closed-rail "names on hover" already existed (tooltips); the rail's open look is kept as is.
+
 ## Next stages, in order (each one: build, test, commit, push to this branch; no PR, no merge, no tag, no version bump)
 1. Dashboard Sensor tab: variant C (summary + tile grid) plus the new `layoutInject` switch. Mock: `docs/ui-mocks/dash-sensor/`.
 2. Chat: unchanged except four small changes (bigger name, tinted header icons, bigger side portrait without moving the text, a "Since your last reply" bar). Mock: `docs/ui-mocks/chat-small/`.
