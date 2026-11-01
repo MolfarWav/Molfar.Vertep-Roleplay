@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, BookOpenText, Smiley, Folder as FolderIcon } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, Folder as FolderIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+  DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -23,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { loadForExport, loadOwnBooks, useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
 import type { Character, Chat } from '@/lib/types'
-import { SectionPage } from '@/components/shell/section-page'
+import { PaneTitle, SectionPage, useSectionHost } from '@/components/shell/section-page'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
 import { characterToExportCard } from '@/lib/engine'
@@ -34,12 +35,13 @@ import { CharacterEditor } from '@/components/views/character-editor'
 import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
-import { folderCounts, folderTags, inFolder, resolveFolder } from '@/lib/character-folders'
+import { folderCounts, folderTags, inFolder, moveToFolder, noFolder, removeFromFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { TagManager } from '@/components/tags/tag-manager'
 import { TagRow } from '@/components/tags/tag-row'
 import { CreateGroupDialog } from '@/components/chat/create-group-dialog'
 import { GroupEditor } from '@/components/groups/group-editor'
+import { CardMarkers, FolderStrip, MoveToFolderItems, NewFolderDialog } from '@/components/views/characters-list-parts'
 
 type SortKey = 'az' | 'newest' | 'oldest' | 'favorites' | 'recent' | 'chats' | 'tokens' | 'random'
 const SORT_OPTIONS: [SortKey, string][] = [
@@ -85,6 +87,11 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const [tagFilter, setTagFilter] = useState<string[]>([])
   // the folder strip's choice: a tag name, null = All
   const [folderChoice, setFolderChoice] = useState<string | null>(null)
+  // "No folder" is a choice of its own; Favourites is a filter that stacks with the folder
+  const [unfiled, setUnfiled] = useState(false)
+  const [favOnly, setFavOnly] = useState(false)
+  // the New folder dialog: the card ids to move into the new folder ([] = just make it); null = closed
+  const [newFolderFor, setNewFolderFor] = useState<string[] | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
@@ -92,6 +99,10 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const [tagQuery, setTagQuery] = useState('')
   const [tagSort, setTagSort] = useState<'count' | 'az'>('count')
   const isMobile = useIsMobile()
+  // a page on a phone draws the big title itself (SectionPage); a drawer gets the title in the header
+  const titleInPage = useSectionHost() === 'page'
+  const addTag = useApp((s) => s.addTag)
+  const updateTag = useApp((s) => s.updateTag)
   const [urlOpen, setUrlOpen] = useState(false)
   const [urlValue, setUrlValue] = useState('')
   const [urlBusy, setUrlBusy] = useState(false)
@@ -209,7 +220,8 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       !!c.isGroup === (mode === 'groups') &&
       (!q || c.name.toLowerCase().includes(q) || listText(c).toLowerCase().includes(q) || c.tags.some((t) => t.includes(q))) &&
       (tagFilter.every((t) => c.tags.includes(t))) &&
-      (mode === 'groups' || inFolder(c, folder)),
+      (mode === 'groups' || !favOnly || !!c.favorite) &&
+      (mode === 'groups' || (unfiled ? noFolder(c, folders) : inFolder(c, folder))),
     )
     const chatCount = (id: string) => chatCounts.get(id) ?? 0
     switch (sort) {
@@ -223,12 +235,13 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       case 'random': list = [...list].sort(() => Math.random() - 0.5); break
     }
     return list
-  }, [characters, chatCounts, query, sort, tagFilter, mode, folder])
+  }, [characters, chatCounts, query, sort, tagFilter, mode, folder, folders, unfiled, favOnly])
 
   const soloCards = useMemo(() => characters.filter((c) => !c.isGroup), [characters])
   const groupCards = useMemo(() => characters.filter((c) => c.isGroup), [characters])
   const shownCount = mode === 'groups' ? groupCards.length : soloCards.length
   const favorites = soloCards.filter((c) => c.favorite)
+  const unfiledCount = useMemo(() => soloCards.filter((c) => noFolder(c, folders)).length, [soloCards, folders])
 
   /** Tag filter chips: the tag manager owns color, visibility and order —
    *  tags in use but never configured in the manager fall back to neutral
@@ -294,7 +307,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
         onClick={() => { setTagFilter((f) => f.includes(name) ? f.filter((x) => x !== name) : [...f, name]); setPage(0) }}
         style={tag ? { backgroundColor: tag.color, color: tag.textColor, borderColor: 'transparent' } : undefined}
         className={cn(
-          'shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] transition-colors',
+          'shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-caption transition-colors',
           big && 'h-8 px-3 text-xs',
           active ? 'font-medium' : 'hover:text-foreground',
           !tag && (active ? 'border-transparent bg-accent text-accent-foreground' : 'border-border text-muted-foreground'),
@@ -307,12 +320,63 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
     )
   }
 
+  // folders: a card carries a folder's name in its tags; moving adds it (a card may sit in several folders)
+  /** Applies one change to each card; returns how many changed. */
+  const retag = (ids: string[], next: (tags: string[]) => string[]): number => {
+    let changed = 0
+    for (const id of ids) {
+      const c = characters.find((x) => x.id === id)
+      if (!c) continue
+      const tags = next(c.tags)
+      if (tags.length === c.tags.length && tags.every((x, i) => x === c.tags[i])) continue
+      updateCharacter(id, { tags })
+      changed++
+    }
+    return changed
+  }
+  const noChange = () => toast.info(t('characters.folders.nothing'))
+  const pickFolder = (name: string, ids: string[]) => {
+    const n = retag(ids, (tags) => moveToFolder(tags, name, folders))
+    if (n) toast.success(t('characters.folders.moved', { n, folder: name })); else noChange()
+  }
+  const takeOutOfFolder = (name: string, ids: string[]) => {
+    const n = retag(ids, (tags) => removeFromFolder(tags, name))
+    if (n) toast.success(t('characters.folders.removed', { n, folder: name })); else noChange()
+  }
+  const clearFolders = (ids: string[]) => {
+    const n = retag(ids, (tags) => moveToFolder(tags, null, folders))
+    if (n) toast.success(t('characters.folders.cleared', { n })); else noChange()
+  }
+  /** Makes the tag a folder: a new tag is made with it set, an existing tag is ticked as a folder. Returns the name. */
+  const createFolder = (raw: string): string | null => {
+    const name = raw.trim()
+    if (!name) return null
+    const find = () => useApp.getState().tags.find((x) => x.name === name && !x.scope)
+    const have = find()
+    if (have) {
+      if (!have.asFolder) updateTag(have.id, { asFolder: true })
+    } else {
+      addTag(name)
+      const made = find()
+      if (made) updateTag(made.id, { asFolder: true })
+    }
+    return name
+  }
+  const onNewFolder = (raw: string) => {
+    const name = createFolder(raw)
+    if (!name) return
+    toast.success(t('characters.folders.created', { name }))
+    const ids = newFolderFor ?? []
+    if (ids.length) pickFolder(name, ids)
+    else { setFolderChoice(name); setUnfiled(false); setPage(0) }
+  }
+
   const newButton = mode === 'groups' ? (
     <Button data-guide="groups.create" className="h-10 shrink-0 md:h-8" data-testid="new-group" onClick={() => setGroupOpen(true)}>
       <Plus className="size-4" aria-hidden="true" />{t('groups.create')}
     </Button>
   ) : (
-    <Button data-guide="characters.new" className="h-10 shrink-0 md:h-8" data-testid="new-character" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
+    <Button size="lg" data-guide="characters.new" className="max-md:h-10 shrink-0" data-testid="new-character" onClick={() => { const id = newCharacter(); openCharacter(id) }}>
       <Plus className="size-4" aria-hidden="true" />{t('characters.createCharacter')}
     </Button>
   )
@@ -341,19 +405,30 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
     </Button>
   )
 
-  const importMenu = (
+  // the rare tools: select several, import, the tags and folders (the tag row keeps the common ones)
+  const moreMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger render={
-        <Button data-guide="characters.import" variant="outline" className="size-10 shrink-0 p-0 md:h-8 md:w-auto md:gap-1.5 md:px-2.5 md:text-xs" aria-label={t('characters.import')} title={t('characters.import')}>
-          <DownloadSimple className="size-4" aria-hidden="true" /><span className="max-md:hidden">{t('characters.import')}</span>
+        <Button data-guide="characters.more" variant="outline" className="size-10 shrink-0 p-0 md:size-8" aria-label={t('characters.more')} title={t('characters.more')}>
+          <DotsThree className="size-4" aria-hidden="true" />
         </Button>
       } />
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => { setBatchMode(!batchMode); setSelected([]) }}>
+          <CheckSquare className="size-4" weight={batchMode ? 'fill' : 'regular'} aria-hidden="true" />{t('characters.selectMode')}
+          {batchMode && <Check className="ml-auto size-4 text-primary" aria-hidden="true" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>{t('characters.import')}</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => importRef.current?.click()}>
           <FileCode className="size-4" aria-hidden="true" />{t('characters.importFiles')}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setUrlOpen(true)}>
           <LinkSimple className="size-4" aria-hidden="true" />{t('characters.importUrl')}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setTagManagerOpen(true)}>
+          <Tag className="size-4" aria-hidden="true" />{t('characters.moreManage')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -390,8 +465,23 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
 
   const batchActions = (
     <div className="ml-auto flex shrink-0 items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">{selected.length} selected</span>
-      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => void (async () => {
+      <span className="text-caption text-muted-foreground">{selected.length} selected</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={
+          <Button variant="outline" size="sm" className="h-8 text-caption max-md:h-10" data-testid="batch-move-folder">
+            <FolderIcon className="size-3.5" aria-hidden="true" />{t('characters.folders.move')}
+          </Button>
+        } />
+        <DropdownMenuContent align="end">
+          <MoveToFolderItems
+            folders={folders}
+            onPick={(name) => pickFolder(name, selected)}
+            onNew={() => setNewFolderFor(selected)}
+            onNone={() => clearFolders(selected)}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button variant="outline" size="sm" className="h-8 text-caption max-md:h-10" onClick={() => void (async () => {
         try {
           // the list holds summaries of cards and of their books: the export needs both whole
           const { cards, books } = await loadForExport(characters.filter((c) => selected.includes(c.id) && !c.isGroup).map((c) => c.id))
@@ -404,14 +494,14 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       })()}>
         <DownloadSimple className="size-3.5" aria-hidden="true" />Export
       </Button>
-      <Button variant="outline" size="sm" className="h-6 text-xs max-md:h-9" onClick={() => setConfirmBatch(true)}>
+      <Button variant="outline" size="sm" className="h-8 text-caption max-md:h-10" onClick={() => setConfirmBatch(true)}>
         <Trash className="size-3.5" aria-hidden="true" />Delete
       </Button>
     </div>
   )
 
   return (
-    <SectionPage section={mode} count={shownCount}>
+    <SectionPage section={mode} count={shownCount} actions={newButton}>
     <div className="flex h-full min-h-0 flex-col">
       {/* header + tag filter + favorites scroll WITH the grid — a pinned
           toolbar eats the viewport on mobile once the keyboard opens */}
@@ -425,53 +515,80 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
         onChange={(e) => { void importFiles(e.target.files); e.target.value = '' }}
         aria-label="Import character cards"
       />
-      <header className="flex flex-col gap-2 border-b border-border px-3 py-2 md:flex-row md:flex-wrap md:items-center md:px-4 md:py-2.5">
-        {/* phone: search and New on the first row, then icon-only tools */}
-        <div className="flex items-center gap-2 max-md:w-full md:min-w-36 md:max-w-72 md:flex-1">
-          <div className="relative min-w-0 flex-1">
+      {/* the header in rows, hairlines between them: title and New (a drawer; on a phone the page's own title
+          carries New), search and sort, the folders, the tags and tools, the active filters, the selection bar */}
+      <header className="flex flex-col divide-y divide-border border-b border-border">
+        {!titleInPage && (
+          <div className="flex items-center gap-3 px-3 py-3 md:px-4 md:py-2.5">
+            <PaneTitle section={mode} count={shownCount} />
+            <div className="ml-auto flex shrink-0 items-center">{newButton}</div>
+          </div>
+        )}
+        <div className="flex items-center gap-2 px-3 py-2 md:px-4">
+          <div className="relative min-w-0 flex-1 md:max-w-80">
             <MagnifyingGlass className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder={mode === 'groups' ? t('groups.search') : t('characters.search')} className="h-10 pl-8 text-sm md:h-8" aria-label={mode === 'groups' ? t('groups.search') : t('characters.search')} />
           </div>
-          {isMobile && newButton}
+          {mode === 'characters' && sortMenu}
         </div>
-        <div className="flex items-center gap-1.5 md:ml-auto md:shrink-0">
-          {mode === 'characters' && (<>
-            {sortMenu}
-            {viewToggle}
-            <Button variant={batchMode ? 'secondary' : 'ghost'} className="size-10 p-0 md:size-8" onClick={() => { setBatchMode(!batchMode); setSelected([]) }} aria-pressed={batchMode} aria-label={t('characters.selectMode')} title={t('characters.selectMode')}>
-              <CheckSquare className="size-4" weight={batchMode ? 'fill' : 'regular'} aria-hidden="true" />
-            </Button>
-            {importMenu}
-            {isMobile && (
-              <Button variant="outline" className="h-10 shrink-0" onClick={() => setFilterOpen(true)}>
-                <Funnel className="size-4" aria-hidden="true" />{t('characters.tagsTitle')}
-                {tagFilter.length > 0 && <Badge className="h-5 min-w-5 px-1 text-[10px]">{tagFilter.length}</Badge>}
+        {mode === 'characters' && (<>
+          <FolderStrip
+            folders={folders}
+            counts={folderCount}
+            total={soloCards.length}
+            favourites={favorites.length}
+            unfiled={unfiledCount}
+            folder={folder}
+            unfiledOn={unfiled}
+            favOn={favOnly}
+            onFolder={(name) => { setFolderChoice(name); setUnfiled(false); setPage(0) }}
+            onUnfiled={() => { setFolderChoice(null); setUnfiled(true); setPage(0) }}
+            onFavourites={() => { setFavOnly((v) => !v); setPage(0) }}
+            onNew={() => setNewFolderFor([])}
+          />
+          {/* the tag row: on desktop the tags in use (two rows at most; the rest is behind All tags), on a phone
+              the tags live in the All tags sheet */}
+          <div className="flex items-start gap-2 px-3 py-2 md:gap-1.5 md:px-4 md:py-1.5">
+            {!isMobile && <TagRow chips={tagChips} counts={tagCounts} render={(name, tag) => tagChip(name, tag)} />}
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 md:gap-1 md:pt-0.5">
+              <Button variant="outline" size="sm" className="h-10 px-2.5 text-caption md:h-6 md:px-2" onClick={() => setFilterOpen(true)} data-testid="all-tags">
+                <Funnel className="size-3.5" aria-hidden="true" />{t('characters.allTags', { n: tagChips.length })}
+                {tagFilter.length > 0 && <Badge className="h-4 min-w-4 px-1 text-caption">{tagFilter.length}</Badge>}
               </Button>
-            )}
-          </>)}
-          {!isMobile && newButton}
-        </div>
-        {/* active filters, each with its own way out (phone: the tag row is in the All tags sheet) */}
-        {isMobile && mode === 'characters' && tagFilter.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {tagFilter.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => { setTagFilter((f) => f.filter((x) => x !== name)); setPage(0) }}
-                className="flex h-8 items-center gap-1 rounded-full bg-accent px-2.5 text-xs text-accent-foreground"
-                aria-label={`Remove the ${name} filter`}
-              >
-                {name}<X className="size-3" aria-hidden="true" />
-              </button>
-            ))}
-            <Button variant="ghost" className="h-8 px-2 text-xs" onClick={() => { setTagFilter([]); setPage(0) }}>{t('characters.tagsClear')}</Button>
+              {!isMobile && (
+                <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-caption" onClick={() => setTagManagerOpen(true)}>
+                  <Tag className="size-3.5" aria-hidden="true" />{t('characters.tagsManage')}
+                </Button>
+              )}
+              {viewToggle}
+              {moreMenu}
+            </div>
           </div>
+          {/* active tag filters on a phone, each with its own way out; the chips scroll sideways */}
+          {isMobile && tagFilter.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2">
+              {tagFilter.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { setTagFilter((f) => f.filter((x) => x !== name)); setPage(0) }}
+                  className="flex h-10 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-accent px-3 text-caption text-accent-foreground"
+                  aria-label={`Remove the ${name} filter`}
+                >
+                  {name}<X className="size-3" aria-hidden="true" />
+                </button>
+              ))}
+              <Button variant="ghost" className="h-10 shrink-0 px-2 text-caption" onClick={() => { setTagFilter([]); setPage(0) }}>{t('characters.tagsClear')}</Button>
+            </div>
+          )}
+        </>)}
+        {mode === 'characters' && batchMode && selected.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 md:px-4">{batchActions}</div>
         )}
-        {isMobile && mode === 'characters' && batchMode && selected.length > 0 && batchActions}
       </header>
 
       <CreateGroupDialog open={groupOpen} onOpenChange={setGroupOpen} />
+      <NewFolderDialog open={newFolderFor !== null} onOpenChange={(o) => { if (!o) setNewFolderFor(null) }} onCreate={onNewFolder} />
 
       {/* the first start after an update builds the list in the background: say more are coming */}
       {mode === 'characters' && rosterPending > 0 && (
@@ -479,49 +596,6 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" />
           {t('characters.listFilling', { n: rosterPending })}
         </p>
-      )}
-
-      {/* folder strip: the tags marked "folder" in the tag manager; a card sits in every folder it has a tag for */}
-      {mode === 'characters' && folders.length > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-1.5 md:px-4" role="group" aria-label={t('characters.folders.aria')} data-testid="folder-strip">
-          {([null, ...folders] as (typeof folders[number] | null)[]).map((fl) => {
-            const on = (fl?.name ?? null) === folder
-            return (
-              <button
-                key={fl?.id ?? 'all'}
-                type="button"
-                aria-pressed={on}
-                onClick={() => { setFolderChoice(fl?.name ?? null); setPage(0) }}
-                className={cn(
-                  'flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs max-md:h-10',
-                  on ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
-                )}
-                data-testid={fl ? 'folder-chip' : 'folder-all'}
-              >
-                {fl && <FolderIcon className="size-3" style={{ color: fl.color }} aria-hidden="true" />}
-                {fl ? fl.name : t('characters.folders.all')}
-                <span className="tabular-nums opacity-70">{fl ? folderCount.get(fl.name) ?? 0 : soloCards.length}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {/* tag filter row (desktop): the tags in use, at most two rows; the rest is behind "All tags" */}
-      {mode === 'characters' && !isMobile && (
-      <div className="flex items-start gap-1.5 border-b border-border px-4 py-1.5">
-        <TagRow chips={tagChips} counts={tagCounts} render={(name, tag) => tagChip(name, tag)} />
-        <div className="flex shrink-0 items-center gap-1 pt-0.5">
-          <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => setFilterOpen(true)} data-testid="all-tags">
-            <Funnel className="size-3.5" aria-hidden="true" />{t('characters.allTags', { n: tagChips.length })}
-            {tagFilter.length > 0 && <Badge className="h-4 min-w-4 px-1 text-[10px]">{tagFilter.length}</Badge>}
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={() => setTagManagerOpen(true)}>
-            <Tag className="size-3.5" aria-hidden="true" />Manage
-          </Button>
-        </div>
-        {batchMode && selected.length > 0 && batchActions}
-      </div>
       )}
 
       {/* favorites hotswap bar */}
@@ -583,8 +657,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
                           <span className="flex items-center gap-1 font-semibold tabular-nums text-sky-600 dark:text-sky-400"><Chats className="size-4" weight="fill" aria-hidden="true" />{t('characters.chatsN', { n: chatCount })}</span>
                         )}
                         <span className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">{c.stub ? '~' : ''}{t('characters.tokensN', { n: formatTokens(tokens) })}</span>
-                        {hasBook(c) && <BookOpenText className="size-4 text-muted-foreground" aria-label={t('characters.hasLore')} role="img"><title>{t('characters.hasLore')}</title></BookOpenText>}
-                        {hasSprites(c) && <Smiley className="size-4 text-muted-foreground" aria-label={t('characters.hasSprites')} role="img"><title>{t('characters.hasSprites')}</title></Smiley>}
+                        <CardMarkers lore={hasBook(c)} sprites={hasSprites(c)} />
                       </span>
                     </span>
                   </button>
@@ -601,6 +674,21 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
                         </DropdownMenuItem>
                         {!c.isGroup && (
                           <>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <FolderIcon className="size-4" aria-hidden="true" />{t('characters.folders.move')}
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                <MoveToFolderItems
+                                  folders={folders}
+                                  current={folders.filter((f) => c.tags.includes(f.name)).map((f) => f.name)}
+                                  onPick={(name) => pickFolder(name, [c.id])}
+                                  onRemove={(name) => takeOutOfFolder(name, [c.id])}
+                                  onNew={() => setNewFolderFor([c.id])}
+                                  onNone={() => clearFolders([c.id])}
+                                />
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
                             <DropdownMenuItem onClick={() => { duplicateCharacter(c.id); toast.success('Duplicated') }}>
                               <Copy className="size-4" aria-hidden="true" />Duplicate
                             </DropdownMenuItem>

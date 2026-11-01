@@ -811,15 +811,27 @@ const HAND_TIPS: Tip[] = [
   },
   {
     id: 'help.import',
-    target: 'characters.import',
+    target: 'characters.more',
     open: { view: 'characters', list: true },
     help: 'characters',
     title: { en: 'Import cards', uk: 'Імпорт карток' },
     body: {
-      en: 'Import brings in PNG or JSON character cards from files, or from a link (Chub, RisuRealm, CharaVault or a direct file link). On a phone it is in the ⋮ menu.',
-      uk: 'Імпорт додає картки персонажів у PNG чи JSON з файлів або за посиланням (Chub, RisuRealm, CharaVault чи пряме посилання на файл). На телефоні він у меню ⋮.',
+      en: 'Import brings in PNG or JSON character cards from files, or from a link (Chub, RisuRealm, CharaVault or a direct file link). It is in the ⋯ menu, next to the grid switch, on desktop and on a phone.',
+      uk: 'Імпорт додає картки персонажів у PNG чи JSON з файлів або за посиланням (Chub, RisuRealm, CharaVault чи пряме посилання на файл). Він у меню ⋯ поруч із перемикачем вигляду, на комп’ютері й на телефоні.',
     },
     keywords: { en: 'chub png json card tavern import risu janitor download', uk: 'chub png json картка імпорт завантажити' },
+  },
+  {
+    id: 'help.folders',
+    target: 'characters.folders',
+    open: { view: 'characters', list: true },
+    help: 'characters',
+    title: { en: 'Folders', uk: 'Папки' },
+    body: {
+      en: 'The folder row filters your cards: All, Favourites, each folder with its count, and No folder. Tick "folder" for a tag in Manage tags to make it one, or use New folder. To put a card in a folder, use Move to folder in its ⋯ menu or in the selection bar.',
+      uk: 'Рядок папок фільтрує ваші картки: Усі, Улюблені, кожна папка з кількістю та Без папки. Щоб тег став папкою, позначте «папка» у керуванні тегами або створіть Нову папку. Щоб покласти картку в папку, скористайтеся Перенести до папки в її меню ⋯ або в панелі вибору.',
+    },
+    keywords: { en: 'folder folders group sort organize filter', uk: 'папка папки група сортувати фільтр' },
   },
   {
     id: 'help.card-editor',

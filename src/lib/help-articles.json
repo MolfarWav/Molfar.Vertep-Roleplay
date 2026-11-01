@@ -134,8 +134,8 @@
         "uk": "Імпортуйте картки з файлів чи посилань (Chub, RisuRealm, CharaVault, прямий файл). Експортуйте будь-яку картку як PNG з вбудованим JSON."
       },
       "where": {
-        "en": "Characters section → Import (or the ⋮ menu on a phone); export from the card's tile or editor.",
-        "uk": "Розділ «Персонажі» → Імпорт (або меню ⋮ на телефоні); експорт з плитки картки або редактора."
+        "en": "Characters section → ⋯ menu → Import (the same on a phone and on desktop); export from the card's tile or editor.",
+        "uk": "Розділ «Персонажі» → меню ⋯ → Імпорт (так само на телефоні й на комп’ютері); експорт з плитки картки або редактора."
       },
       "details": {
         "en": "Import from a file accepts PNG or JSON cards, single or bulk. Import from a link reads Chub, RisuRealm, CharaVault or a direct file link; JannyAI links need a manual browser download. Each result shows a toast with the card name and notes. Export writes a V2 PNG card with the card data stored inside the picture itself.",
@@ -149,17 +149,17 @@
       "sources": [
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "102-102",
+          "lines": "113-113",
           "quote": "Import cards from links: chub, RisuRealm, CharaVault or a direct file"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "133-133",
+          "lines": "144-144",
           "quote": "Real import (PNG and JSON cards, single or bulk): shared with Home."
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "136-136",
+          "lines": "147-147",
           "quote": "Real export: V2 PNG card with the JSON spliced into a tEXt chunk."
         }
       ]
@@ -195,17 +195,17 @@
       "sources": [
         {
           "path": "src/components/views/marketplace-view.tsx",
-          "lines": "30-30",
+          "lines": "31-31",
           "quote": "One marketplace listing, normalized by the plugin from whatever the"
         },
         {
           "path": "src/components/views/marketplace-view.tsx",
-          "lines": "85-85",
+          "lines": "86-86",
           "quote": "The first three are catalogs the engine plugin reads;"
         },
         {
           "path": "src/components/views/marketplace-view.tsx",
-          "lines": "101-101",
+          "lines": "102-102",
           "quote": "Sources with the tag picker."
         }
       ]
@@ -230,8 +230,8 @@
         "uk": "Меню → Персонажі."
       },
       "details": {
-        "en": "Tags have a two-row chip display: a hidden copy measures how many fit, and the rest hides behind \"All tags\". Sorting options include recent, A–Z, newest, oldest, favorites, chats, tokens and random. Batch select exports the picked cards as one file or deletes them in one go. Favorite state is saved in the card; favorites appear in the compact chat switcher in the chat header.",
-        "uk": "Теги мають дворядковий показ фішок: прихована копія вимірює, скільки вміщається, решта ховається за «Усі теги». Варіанти сортування: останні, А–Я, найновіші, найстаріші, обрані, чати, токени й випадково. Пакетний вибір експортує обрані картки одним файлом або видаляє їх разом. Обраний стан зберігається в картці; обрані з’являються в компактному перемикачі чатів у заголовку чату."
+        "en": "Tags have a two-row chip display: a hidden copy measures how many fit, and the rest hides behind \"All tags\". Sorting options include recent, A–Z, newest, oldest, favorites, chats, tokens and random. Batch select exports the picked cards as one file, moves them to a folder or deletes them in one go. The folder row above the list has All, Favourites, your folders with their counts, No folder and a New folder chip. Favorite state is saved in the card; favorites appear in the compact chat switcher in the chat header.",
+        "uk": "Теги мають дворядковий показ фішок: прихована копія вимірює, скільки вміщається, решта ховається за «Усі теги». Варіанти сортування: останні, А–Я, найновіші, найстаріші, обрані, чати, токени й випадково. Пакетний вибір експортує обрані картки одним файлом, переносить їх до папки або видаляє разом. Рядок папок над списком: Усі, Улюблені, ваші папки з кількістю, Без папки та кнопка Нова папка. Обраний стан зберігається в картці; обрані з’являються в компактному перемикачі чатів у заголовку чату."
       },
       "extends": "help.characters",
       "related": [
@@ -241,17 +241,17 @@
       "sources": [
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "60-60",
+          "lines": "62-62",
           "quote": "The Characters section, or the Groups section: the same"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "59-59",
-          "quote": "The tag chips in at most two rows"
+          "lines": "549-549",
+          "quote": "on desktop the tags in use (two rows at most"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "45-45",
+          "lines": "47-47",
           "quote": "SORT_OPTIONS: [SortKey, string][] = ["
         }
       ]
@@ -393,7 +393,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2964-2964",
+          "lines": "2992-2992",
           "quote": "'voices.title': 'Voices',"
         }
       ]
@@ -534,12 +534,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2965-2965",
+          "lines": "2993-2993",
           "quote": "List who speaks: each one\\'s lines get their own colour."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2970-2970",
+          "lines": "2998-2998",
           "quote": "Colours not picked yet come from a built-in palette, in this order."
         },
         {
@@ -634,12 +634,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3315-3315",
+          "lines": "3343-3343",
           "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7352-7352",
+          "lines": "7408-7408",
           "quote": "\"Чекають на ваше «так» ({n})\""
         },
         {
@@ -649,7 +649,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3407-3407",
+          "lines": "3435-3435",
           "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
         }
       ]
@@ -687,7 +687,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "866-866",
+          "lines": "878-878",
           "quote": "A persona is who you play: name, pronouns and description. “Use this persona” makes it your default and switches the open chat to it."
         },
         {
@@ -739,7 +739,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "843-843",
+          "lines": "855-855",
           "quote": "A group puts several characters into one chat. Create one with New group; its editor has Overview, Members, Scene, Turns, Lore and Chats."
         },
         {
@@ -754,7 +754,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1827-1827",
+          "lines": "1855-1855",
           "quote": "'group.ed.noteHint': 'Never sent to the model',"
         }
       ]
@@ -791,17 +791,17 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1948-1948",
+          "lines": "1976-1976",
           "quote": "'group.ed.generationModeNarrator': 'Narrator: one reply voices everyone',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1972-1972",
+          "lines": "2000-2000",
           "quote": "'turns.short.manual': 'You pick',"
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "854-854",
+          "lines": "866-866",
           "quote": "In a group’s Turns tab, Generation mode is either Narrator (one reply voices everyone) or Each in turn."
         },
         {
@@ -1081,7 +1081,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3217-3217",
+          "lines": "3245-3245",
           "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
         },
         {
@@ -1101,7 +1101,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2272-2272",
+          "lines": "2300-2300",
           "quote": "'lit.set.sizeAuto': 'Auto',"
         }
       ]
@@ -1243,12 +1243,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2266-2266",
+          "lines": "2294-2294",
           "quote": "'lit.set.proposalsQuiet': 'Apply pins and rewrites quietly',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2268-2268",
+          "lines": "2296-2296",
           "quote": "'lit.set.autoConsolidate': 'Tidy facts automatically',"
         },
         {
@@ -1258,7 +1258,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2272-2272",
+          "lines": "2300-2300",
           "quote": "'lit.set.sizeAuto': 'Auto',"
         }
       ]
@@ -1300,7 +1300,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2155-2155",
+          "lines": "2183-2183",
           "quote": "'lit.mode': 'Library view',"
         },
         {
@@ -1347,17 +1347,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2189-2189",
+          "lines": "2217-2217",
           "quote": "'lit.type.event': 'Event',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2195-2195",
+          "lines": "2223-2223",
           "quote": "'lit.weight.everyday': 'Everyday',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2213-2213",
+          "lines": "2241-2241",
           "quote": "'lit.pstatus.auto': 'Applied by itself',"
         }
       ]
@@ -1404,7 +1404,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2409-2409",
+          "lines": "2437-2437",
           "quote": "'lit.map.hint': 'The map of this chat: the chats it continues above, the ones that continue it below."
         }
       ]
@@ -1665,7 +1665,7 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "191-191",
+          "lines": "190-190",
           "quote": "swipeCountAllMessages: false,"
         },
         {
@@ -1977,7 +1977,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3203-3203",
+          "lines": "3231-3231",
           "quote": "'guide.help.reference': 'All commands and macros',"
         },
         {
@@ -2122,7 +2122,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1188-1188",
+          "lines": "1181-1181",
           "quote": "'canvas.prompt.state.presetOff': 'Off in the preset'"
         }
       ]
@@ -2257,7 +2257,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "892-892",
+          "lines": "904-904",
           "quote": "A lorebook is a set of entries about your world. An entry joins the request when its keywords show up in the chat, or always if you set it so."
         },
         {
@@ -2267,7 +2267,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2629-2629",
+          "lines": "2657-2657",
           "quote": "Grey keywords: words in the chat that trigger the entry."
         }
       ]
@@ -2304,12 +2304,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "904-904",
+          "lines": "916-916",
           "quote": "The Global switch adds a book to every chat, whichever character or persona is in it."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2626-2626",
+          "lines": "2654-2654",
           "quote": "'lore.global.info': 'A global book is added to every chat, whichever character or persona is in it."
         },
         {
@@ -2351,12 +2351,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "916-916",
+          "lines": "928-928",
           "quote": "Paste a message to see which entries of a book would fire and why, or what was held back."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2630-2630",
+          "lines": "2658-2658",
           "quote": "'lore.testKeys': 'Test triggers'"
         },
         {
@@ -2398,7 +2398,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "930-930",
+          "lines": "942-942",
           "quote": "A preset is the set of instructions and settings the model gets with every reply."
         },
         {
@@ -2408,7 +2408,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1093-1093",
+          "lines": "1119-1119",
           "quote": "Shows the final request this preset builds for a chat, so you can see what the model really gets."
         }
       ]
@@ -2544,7 +2544,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2453-2453",
+          "lines": "2481-2481",
           "quote": "Failures, Library suggestions and proposed souls show up here."
         },
         {
@@ -2554,12 +2554,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2482-2482",
+          "lines": "2510-2510",
           "quote": "Dismiss (the proposal is deleted)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2493-2493",
+          "lines": "2521-2521",
           "quote": "a background job fails: the World DM, the Library, the scene state or a soul rating"
         }
       ],
@@ -2634,8 +2634,8 @@
         "uk": "Теги — це мітки на картках: їх задають у полі картки та в керуванні тегами. Чати можна складати в теки на сторінці «Чати»."
       },
       "details": {
-        "en": "In a card, type tags into the field labelled “Tags (comma separated)”, with a comma between them.\n\nIn the tag manager, a tag whose visibility is switched off leaves the tag row of the Characters page.\n\nFolders hold chats. Name a new folder on the Chats page; it opens at once. Deleting a folder does not delete its chats: they stay, just without a folder.",
-        "uk": "На картці впишіть теги в поле «Tags (comma separated)», через коми.\n\nУ «Керувати тегами» тег, у якого вимкнено видимість, зникає з рядка тегів на сторінці персонажів.\n\nТеки складаються з чатів. Введіть назву, щоб створити теку на сторінці «Чати»: вона одразу відкривається. Видалення теки не видаляє її чати: вони лишаються без теки."
+        "en": "In a card, type tags into the field labelled “Tags (comma separated)”, with a comma between them.\n\nIn the tag manager, a tag whose visibility is switched off leaves the tag row of the Characters page.\n\nOn the Characters page, a tag ticked as a folder in the tag manager shows as a folder in the row above the list, with a count. A card can sit in several folders: Move to folder in its ⋯ menu (or in the selection bar) adds one, and No folder takes them all off. New folder makes a tag and ticks it as a folder at once.\n\nFolders hold chats. Name a new folder on the Chats page; it opens at once. Deleting a folder does not delete its chats: they stay, just without a folder.",
+        "uk": "На картці впишіть теги в поле «Tags (comma separated)», через коми.\n\nУ «Керувати тегами» тег, у якого вимкнено видимість, зникає з рядка тегів на сторінці персонажів.\n\nНа сторінці персонажів тег, позначений у «Керувати тегами» як папка, показується папкою в рядку над списком, з кількістю. Картка може бути в кількох папках. «Перенести до папки» в її меню ⋯ (або в панелі вибору) додає одну, а «Без папки» прибирає всі. «Нова папка» створює тег і одразу позначає його папкою.\n\nТеки складаються з чатів. Введіть назву, щоб створити теку на сторінці «Чати»: вона одразу відкривається. Видалення теки не видаляє її чати: вони лишаються без теки."
       },
       "related": [
         "help.characters",
@@ -2650,7 +2650,7 @@
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "239-239",
+          "lines": "252-252",
           "quote": "meta.get(name)?.visible !== false"
         },
         {
@@ -2662,6 +2662,16 @@
           "path": "src/lib/store.ts",
           "lines": "2494-2494",
           "quote": "chats: s.chats.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))"
+        },
+        {
+          "path": "src/components/views/characters-list-parts.tsx",
+          "lines": "92-92",
+          "quote": "testId=\"folder-new\""
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "340-340",
+          "quote": "characters.folders.move"
         }
       ],
       "where": {
@@ -2715,7 +2725,7 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "196-196",
+          "lines": "195-195",
           "quote": "targetLanguage: 'Spanish'"
         }
       ]
@@ -2756,7 +2766,7 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "195-195",
+          "lines": "194-194",
           "quote": "provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true"
         },
         {
@@ -2966,7 +2976,7 @@
         },
         {
           "path": "AGENTS.md",
-          "lines": "275-275",
+          "lines": "284-284",
           "quote": "Each app starts with every shared server off and opts in per server"
         },
         {
@@ -3327,7 +3337,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2934-2934",
+          "lines": "2962-2962",
           "quote": "'ct.app.title': 'Model for card tasks',"
         },
         {
