@@ -37,9 +37,13 @@ update at all.
 ## What this app is
 
 The roleplay studio, v4: a power-user roleplay UI. Left nav rail (components/shell/
-sections.ts is the one list, items carry a `group`: Home, Chats | Characters,
-Marketplace, Personas, Lorebooks, Litopys, Canvas, World | Presets, Connections | Shortcuts, Tools |
-Settings pinned at the bottom) + Ctrl+K command palette. From 1280px the rail is
+sections.ts is the one list, items carry a `group` and a `hue`: Home, Chats | Characters,
+Groups, Marketplace, Personas (the people) | Lorebooks, Litopys, Canvas, World, Agents (the technical block;
+Agents is a link to Canvas on its Agents board, `board: 'agents'`, current only while that board is open, state in
+lib/canvas-board.ts) | Presets | Shortcuts, Tools; Inbox and Help sit at the bottom; the Roleplay settings page
+(`settings`, group `'none'`) has no rail item: it opens from Home's Customize and the phone menu, and the engine
+issue draft docs/ENGINE-ISSUE-shell-settings-apps.md asks for an Apps entry in the shell's Settings) + Ctrl+K command
+palette. Every item has its own icon hue (rail-hues.ts). From 1280px the rail is
 206px with labels (Kurale) and ornament dividers; below that it is icons with
 tooltips; on phones it is the bottom tab bar. On desktop a section always opens
 as a DRAWER over the page (Home, Chats or a chat stays mounted underneath, with

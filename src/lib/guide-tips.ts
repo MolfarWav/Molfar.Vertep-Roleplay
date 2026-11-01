@@ -75,7 +75,6 @@ const HAND_TIPS: Tip[] = [
   {
     id: 'new.guide',
     since: '4.46.0',
-    target: 'nav.settings',
     open: { view: 'settings' },
     help: 'help',
     keywords: { en: 'guide tutorial walkthrough replay what is new', uk: 'гайд підказки навчання повторити що нового' },
@@ -971,7 +970,6 @@ const HAND_TIPS: Tip[] = [
   },
   {
     id: 'help.settings',
-    target: 'nav.settings',
     open: { view: 'settings' },
     help: 'setup',
     title: { en: 'Settings', uk: 'Налаштування' },

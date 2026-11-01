@@ -1,4 +1,4 @@
-import { Plus } from '@phosphor-icons/react'
+import { Gear, Plus } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,6 +16,7 @@ export function HomeView() {
   const t = useT()
   const model = useApp((s) => s.model)
   const setView = useApp((s) => s.setView)
+  const navigate = useApp((s) => s.navigate)
   const molfar = canAskMolfar()
   // the hero shows New character / Import card / With Molfar while there is no chat to continue:
   // the Create card would repeat the same three buttons
@@ -39,6 +40,10 @@ export function HomeView() {
       >
         {shortModel(model ?? '') || t('home.noModel')}
       </button>
+      {/* the Roleplay settings page has no rail item (docs/UI-CATALOG.md 8.2): this is its door until the shell's Settings lists it */}
+      <Button variant="ghost" className="gap-1.5 max-md:h-10" data-guide="home.settings" onClick={() => navigate('settings')}>
+        <Gear aria-hidden="true" /> {t('nav.settings')}
+      </Button>
       <Button variant="outline" className="gap-1.5 font-heading text-[14px]" onClick={() => setView('characters')}>
         <Plus aria-hidden="true" /> {t('home.newChat')}
       </Button>

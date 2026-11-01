@@ -12,7 +12,7 @@ import { GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT, guideTarget } from '@/compone
 
 const PRIMARY = new Set(['home', 'chats', 'characters'])
 const primaryTabs = SECTIONS.filter((s) => PRIMARY.has(s.key))
-const moreItems = SECTIONS.filter((s) => !PRIMARY.has(s.key))
+const moreItems = SECTIONS.filter((s) => !PRIMARY.has(s.key) && !s.board)
 
 export function MobileTabBar() {
   const view = useApp((s) => s.view)

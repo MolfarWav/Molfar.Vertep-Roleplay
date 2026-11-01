@@ -19,6 +19,7 @@ import { PromptBoard } from './prompt-board'
 import { AgentForge } from './agent-forge'
 import { AgentSets } from './forge/agent-sets'
 import { useGuidePlace } from '@/components/guide/place'
+import { BOARD_KEY, useCanvasBoard, writeCanvasBoard, type CanvasBoardKey } from '@/lib/canvas-board'
 
 type ChatInfo = LitChatItem
 
@@ -46,7 +47,7 @@ const POSITIONS_KEY = 'rp.canvas.chatLinks.positions'
 const PLACED_KEY = 'rp.canvas.chatLinks.placed'
 const DRAG_TYPE = 'application/x-vertep-chat'
 const SHELF_COLLAPSED_KEY = 'rp.canvas.shelf.collapsed'
-export const BOARD_KEY = 'rp.canvas.board'
+export { BOARD_KEY }
 const PROMPT_CHAT_KEY = 'rp.canvas.prompt.chatId'
 
 /** The Chat links board (which chats sit on it, and where) lives in the app's settings, so it comes
@@ -127,14 +128,9 @@ export function CanvasView() {
 
   const allChats = useMemo(() => chats || [], [chats])
 
-  const [board, setBoard] = useState<'links' | 'prompt' | 'agents' | 'sets'>(() => {
-    const saved = storage.get<string>(BOARD_KEY, 'links')
-    return saved === 'prompt' || saved === 'agents' || saved === 'sets' ? saved : 'links'
-  })
-  const pickBoard = useCallback((b: 'links' | 'prompt' | 'agents' | 'sets') => {
-    setBoard(b)
-    storage.set(BOARD_KEY, b)
-  }, [])
+  // the open board is shared with the rail (its Agents item opens this board), so it lives in lib/canvas-board
+  const board = useCanvasBoard()
+  const pickBoard = useCallback((b: CanvasBoardKey) => writeCanvasBoard(b), [])
   // the guide's tours follow the board on screen; "Show me" can switch it
   useEffect(() => {
     const onBoard = (e: Event) => {

@@ -130,7 +130,6 @@ export function SettingsView() {
 
   const navItems = [
     ...SECTIONS.map((s) => ({ id: s.id, label: s.label })),
-    { id: "memory", label: "Memory" },
     { id: "themes", label: "Themes" },
     { id: "prose", label: "Prose Colors" },
     { id: "custom-css", label: "Custom CSS" },
@@ -341,8 +340,6 @@ export function SettingsView() {
           <div className="mx-auto flex max-w-2xl flex-col gap-5 p-4">
             {searchResults ?? (section === "themes" ? (
               <ThemesSection themes={themes} activeThemeId={settings.activeThemeId} onPick={(id) => updateSettings({ activeThemeId: id })} />
-            ) : section === "memory" ? (
-              <MemoryMovedNote />
             ) : section === "prose" ? (
               <ProseColorsSection />
             ) : section === "custom-css" ? (
@@ -763,24 +760,3 @@ function DataSection() {
   )
 }
 
-/** Litopys' settings moved to the Library, next to the record they shape; this keeps the old way in working. */
-function MemoryMovedNote() {
-  const t = useT()
-  const setView = useApp((s) => s.setView)
-  return (
-    <div className="flex flex-col items-start gap-3 rounded-md border border-border p-3">
-      <p className="text-sm font-medium">{t('lit.settingsTitle')}</p>
-      <p className="text-xs text-muted-foreground">{t('lit.settings.moved')}</p>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          useApp.setState({ litopysSettings: true })
-          setView('litopys')
-        }}
-      >
-        {t('lit.settings.openInLibrary')}
-      </Button>
-    </div>
-  )
-}
