@@ -790,7 +790,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   permissions (the user confirmed those when installing the agent). The order of `items` is the order inside a phase;
   `phase` is optional (the agent's own `trigger.when` then applies); at most 50 items, an agent once. Routes:
   `GET /agent-presets`, `GET|PUT|DELETE /agent-presets/<id>` (PUT cleans the file and refuses one without `items`).
-- The default preset, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null }`, `GET|PUT /agent-settings`.
+- The agents' settings, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null, "silentNotes"?: true }`, `GET|PUT /agent-settings` (a PUT changes only the fields it names). `silentNotes` hides every agent's *notes* in the chats (under the reply, the feed, pop-ups); choices, panels and prompt inserts are not affected and the run log keeps the notes. Absent = notes are shown.
   A chat with no binding follows it.
 - A chat's binding, meta `agents`: `{ "v": 1, "preset"?, "own"?, "show"?, "also"? }`. With `preset` and no `own` the chat follows the
   preset live (a change to the preset reaches it at once). The first change made in the chat (turn an agent off, add or
@@ -803,7 +803,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
   `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `also` (`on`: true = also in the block), `wait` (`wait`: false = the reply does
   not wait for this agent, true = it does); it answers what runs now,
-  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ] }`.
+  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ], silentNotes }` (`silentNotes`: the agents' notes are switched off, see the agents' settings below).
 ### Running an agent (`agent-run.js`)
 
 `runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never
@@ -833,7 +833,7 @@ list takes no new entry; each refusal is returned, nothing throws. `agent-run.js
 
 The Agents plugin installs checked agent files and runs them: after a reply, before it (inside the plugin's `llmRequest` hook) and
 beside it (a call the app makes when a send starts). The routes below and the hook are the whole interface. Files, all under `data/agents/`: `<id>.vertep-agent.json` (the installed, compiled agent),
-`grants/<id>.json` (`{ v: 1, needs: [...] }`, what the user confirmed), `config.json` (`{ model?, models?: { <role>: <model> } }`),
+`grants/<id>.json` (`{ v: 1, needs: [...], asked?: [...] }`: what the user confirmed, and every need the person was shown, so `GET /agents/list` can report `added`, the needs a later version asks for), `config.json` (`{ model?, models?: { <role>: <model> } }`),
 `state/<chatId>/<id>.json` (`{ v: 1, own, last, before }`: the agent's own fields in that chat, the text it left for its
 `myPrevious`, and the state and message id before its last run), `runs/<chatId>.json` (`{ v: 1, runs }`, the newest 100) and
 `inserts/<chatId>.json` (`{ v: 1, items }`, hints waiting for the next reply).
@@ -881,6 +881,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   when live, `usage` (`input`, `output`, `cost`, `priced`). The editor's Try tab uses it ("A real chat": fills the boxes from the
   chat, then runs with the model once and keeps the answers in the boxes); Molfar's `agent_dry_run` tool wraps it. A trial seed
   defaults to `<chatId>|<agentId>|dry`, so dice and picks repeat.
+- **Checker findings in lists.** The `errors` and `warnings` of `GET /agents/list` and `GET /agents/drafts` are `{ code, message, node?, nodeTitle? }`: `node` is the card's id and `nodeTitle` its title (added by the plugin, so a list can name the card without the file). The app shows a sentence per code (`src/lib/agent-issues.ts`, keys `ag.issue.<CODE>` and `.fix`) with the code as a small chip; a code with no text shows `message`.
 - **Drafts.** A file Molfar (or anyone) writes to `data/agents/drafts/<name>.vertep-agent.json` waits there for the user. The
   Agents sheet lists the drafts with what an install would say about each (`errors` and `warnings`, the checker's own codes
   and messages) and an Install button; a draft with errors cannot be installed. `GET /agents/drafts` (`{ drafts: [{ name, id,

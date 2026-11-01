@@ -1262,7 +1262,7 @@ function runCards(file, ctx, answers, seen) {
  *
  * Data (under the app's data/ dir):
  *   agents/<id>.vertep-agent.json        the installed agent, checked and compiled
- *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...] }
+ *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...], asked?: [...] } (asked = every need the person was shown; a need outside it is new in an update)
  *   agents/config.json                   { model?, models?: { <role>: <model> }, byAgent?: { <id>: { models?: { <role>: <model> }, maxCalls?, everyN? } } }
  *   agents/state/<chatId>/<id>.json      the agent's own fields in that chat, { v, own, last, before }
  *   agents/runs/<chatId>.json            the newest runs: { v, runs: [...] }
@@ -1343,6 +1343,13 @@ function loadAgent(fsx, id) {
 const grantedOf = (fsx, id) => {
   const g = readJsonAt(fsx, "agents/grants/" + id + ".json", null);
   return isObj(g) && Array.isArray(g.needs) ? g.needs.filter((t) => typeof t === "string") : [];
+};
+
+/** The permissions the user has been shown and answered for: every need at the last grant, else (older files) what was granted. A need outside it is new in an update. */
+const askedOf = (fsx, id) => {
+  const g = readJsonAt(fsx, "agents/grants/" + id + ".json", null);
+  const a = isObj(g) && Array.isArray(g.asked) ? g.asked : grantedOf(fsx, id);
+  return a.filter((t) => typeof t === "string");
 };
 
 /** Why an installed agent cannot run now, or "" when it can. */
@@ -2070,7 +2077,8 @@ function installRoute(req, host) {
   // an update keeps what the user already confirmed, for the permissions it still asks for
   const kept = grantedOf(fsx, id).filter((t) => needs.includes(t));
   const granted = [...new Set([...kept, ...(ask || [])])];
-  writeJsonAt(fsx, "agents/grants/" + id + ".json", { v: 1, needs: granted });
+  const asked = [...new Set([...askedOf(fsx, id), ...(ask || [])])];
+  writeJsonAt(fsx, "agents/grants/" + id + ".json", { v: 1, needs: granted, ...(asked.length ? { asked } : {}) });
   return ok({ ok: true, id, updated: !!had, needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs), warnings: report.warnings });
 }
 
@@ -2092,6 +2100,14 @@ function readDraft(fsx, name) {
   return { name, file, errors: compiled.report.errors, warnings: compiled.report.warnings, derived: compiled.report.derived };
 }
 
+/** The checker's errors or warnings with `nodeTitle` (the card's title) next to `node`, so a list can name the card. */
+function withNodeTitles(file, list) {
+  const nodes = isObj(file) && Array.isArray(file.nodes) ? file.nodes : [];
+  const titles = new Map();
+  for (const n of nodes) if (isObj(n) && typeof n.id === "string" && typeof n.title === "string" && n.title) titles.set(n.id, n.title.slice(0, 80));
+  return (Array.isArray(list) ? list : []).map((x) => (x && x.node && titles.has(x.node) ? { ...x, nodeTitle: titles.get(x.node) } : x));
+}
+
 function draftsRoute(req, host) {
   const fsx = host.fs;
   let files = [];
@@ -2107,7 +2123,7 @@ function draftsRoute(req, host) {
       name, id: str(a.id), title: str(a.name) || str(d.file && d.file.title) || name, description: str(a.description),
       needs: d.derived ? d.derived.needs : [], maxCalls: d.derived ? d.derived.maxCalls : 0,
       installed: !!str(a.id) && !!readJsonAt(fsx, agentPath(str(a.id)), null),
-      errors: d.errors, warnings: d.warnings,
+      errors: withNodeTitles(d.file, d.errors), warnings: withNodeTitles(d.file, d.warnings),
     });
   }
   return ok({ drafts });
@@ -2193,7 +2209,8 @@ function listRoute(req, host) {
       id, name: str(a.name) || id, description: str(a.description), author: str(a.author), version: str(a.version),
       trigger: isObj(a.trigger) ? a.trigger : {}, models: isObj(a.models) ? a.models : {},
       needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs),
-      maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: agent.report.errors, warnings: agent.report.warnings,
+      added: (() => { const asked = askedOf(fsx, id); return asked.length ? needs.filter((t) => !asked.includes(t) && !UNSUPPORTED_NEEDS(t)) : []; })(),
+      maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: withNodeTitles(agent.file, agent.report.errors), warnings: withNodeTitles(agent.file, agent.report.warnings),
       runnable: !blocker(agent, granted, own.maxCalls), blocker: blocker(agent, granted, own.maxCalls), places: placesOf(agent.file),
       own: { models: own.models, maxCalls: own.maxCalls, everyN: own.everyN },
     });
@@ -2211,7 +2228,8 @@ function grantRoute(req, host) {
   const want = b.tokens === true ? needs : Array.isArray(b.tokens) ? b.tokens.filter((t) => typeof t === "string") : null;
   if (!want) return ok({ error: "tokens: true or a list required" }, 400);
   const granted = want.filter((t) => needs.includes(t) && !UNSUPPORTED_NEEDS(t));
-  writeJsonAt(fsx, "agents/grants/" + id + ".json", { v: 1, needs: granted });
+  // the person has now seen every need of this version, so only a later version's extra needs count as new
+  writeJsonAt(fsx, "agents/grants/" + id + ".json", { v: 1, needs: granted, asked: needs });
   return ok({ ok: true, id, granted, missing: needs.filter((t) => !granted.includes(t)) });
 }
 

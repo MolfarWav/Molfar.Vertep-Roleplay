@@ -8,6 +8,9 @@ import { ApiError, j } from './engine'
 import { t as tr, type MsgKey, type Vars } from './i18n'
 import type { DryResult } from './agent-dry'
 
+/** One thing the checker found; `nodeTitle` is the title of the card `node` (the plugin adds it). */
+export interface AgentIssueRow { code: string; message: string; node?: string; nodeTitle?: string }
+
 export type AgentPhase = 'before' | 'parallel' | 'after' | 'manual'
 
 /** One installed agent (GET /agents/list). */
@@ -24,9 +27,11 @@ export interface AgentInfo {
   missing: string[]
   /** needs this version of the runner cannot give; the agent waits */
   unsupported: string[]
+  /** needs a newer version of the file added since the person last answered; empty for a first install */
+  added?: string[]
   maxCalls: number
-  errors: { code: string; message: string }[]
-  warnings: { code: string; message: string }[]
+  errors: AgentIssueRow[]
+  warnings: AgentIssueRow[]
   runnable: boolean
   /** why it does not run ('' = it does) */
   blocker: string
@@ -51,6 +56,8 @@ export interface ChatAgents {
   /** true until the chat's first change; then the chat has its own copy */
   followsPreset: boolean
   items: ChatAgentItem[]
+  /** the agents' notes are switched off for every chat (agents/settings.json) */
+  silentNotes?: boolean
 }
 
 export interface AgentSet { id: string; name: string; items: { agent: string; on: boolean; phase?: AgentPhase; wait?: boolean }[] }
@@ -132,11 +139,13 @@ interface AgentsLive {
   /** display names of the installed agents, once the list has been read */
   names: Record<string, string>
   running: Record<string, true>
+  /** the agents' notes are hidden everywhere (agents/settings.json `silentNotes`); the chat's list answers it with every read */
+  silentNotes: boolean
 }
 
-export const useAgentsLive = create<AgentsLive>(() => ({ chats: {}, runs: {}, panels: {}, names: {}, running: {} }))
+export const useAgentsLive = create<AgentsLive>(() => ({ chats: {}, runs: {}, panels: {}, names: {}, running: {}, silentNotes: false }))
 
-const keep = (chatId: string, v: ChatAgents) => useAgentsLive.setState((s) => ({ chats: { ...s.chats, [chatId]: v } }))
+const keep = (chatId: string, v: ChatAgents) => useAgentsLive.setState((s) => ({ chats: { ...s.chats, [chatId]: v }, ...(typeof v.silentNotes === 'boolean' ? { silentNotes: v.silentNotes } : {}) }))
 const forgetChats = () => useAgentsLive.setState({ chats: {} })
 
 const q = (s: string) => encodeURIComponent(s)
@@ -185,7 +194,7 @@ export async function saveAgentOwn(id: string, own: AgentOwn): Promise<void> {
   await j('/agents/config', { method: 'PUT', body: JSON.stringify({ byAgent }) })
 }
 
-export interface InstallReply { id: string; updated: boolean; needs: string[]; granted: string[]; missing: string[]; unsupported: string[]; warnings: { code: string; message: string }[] }
+export interface InstallReply { id: string; updated: boolean; needs: string[]; granted: string[]; missing: string[]; unsupported: string[]; warnings: AgentIssueRow[] }
 
 /** Puts the file in; nothing is allowed yet (the agent waits for the user to confirm the list of needs). */
 /** One file in the workspace's agents/drafts, as GET /agents/drafts reports it. */
@@ -197,8 +206,8 @@ export interface AgentDraft {
   needs: string[]
   maxCalls: number
   installed: boolean
-  errors: { code: string; message: string }[]
-  warnings: { code: string; message: string }[]
+  errors: AgentIssueRow[]
+  warnings: AgentIssueRow[]
 }
 
 export async function listAgentDrafts(): Promise<AgentDraft[]> {
@@ -232,9 +241,9 @@ export async function installAgentFile(file: unknown): Promise<InstallReply> {
   return j<InstallReply>('/agents/install', { method: 'PUT', body: JSON.stringify({ file }) })
 }
 
-/** The user confirmed the permissions list. */
-export async function grantAgent(id: string): Promise<void> {
-  await j('/agents/grant', { method: 'POST', body: JSON.stringify({ id, tokens: true }) })
+/** Sets exactly which of the agent's needs are allowed (a list; the plugin keeps what it is sent). */
+export async function grantAgentTokens(id: string, tokens: string[]): Promise<void> {
+  await j('/agents/grant', { method: 'POST', body: JSON.stringify({ id, tokens }) })
 }
 
 export async function removeAgent(id: string): Promise<void> {
@@ -319,8 +328,22 @@ export async function deleteAgentSet(id: string): Promise<void> {
   forgetChats()
 }
 
+/** The agents' settings: the default set and whether notes are hidden. Keeps the second in the live store. */
+export async function loadAgentSettings(): Promise<{ defaultPreset: string | null; silentNotes: boolean }> {
+  const v = await j<{ defaultPreset: string | null; silentNotes?: boolean }>('/agent-settings')
+  const out = { defaultPreset: v.defaultPreset ?? null, silentNotes: v.silentNotes === true }
+  useAgentsLive.setState({ silentNotes: out.silentNotes })
+  return out
+}
+
 export async function loadDefaultAgentSet(): Promise<string | null> {
-  return (await j<{ defaultPreset: string | null }>('/agent-settings')).defaultPreset
+  return (await loadAgentSettings()).defaultPreset
+}
+
+/** Hides (true) or shows (false) the notes of every agent in every chat. Choices, panels and the run log are not touched. */
+export async function setSilentNotes(silent: boolean): Promise<void> {
+  const v = await j<{ silentNotes?: boolean }>('/agent-settings', { method: 'PUT', body: JSON.stringify({ silentNotes: silent }) })
+  useAgentsLive.setState({ silentNotes: v.silentNotes === true })
 }
 
 export async function setDefaultAgentSet(id: string | null): Promise<void> {
@@ -417,7 +440,7 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
     const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
     reportFailures(chatId, runs, before)
     for (const run of runs.filter((x) => !before.has(runId(x))))
-      for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text) toast.message(o.title || nameOf(run.agent), { description: o.text })
+      for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text && !(o.kind === 'note' && useAgentsLive.getState().silentNotes)) toast.message(o.title || nameOf(run.agent), { description: o.text })
     return r
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null

@@ -8,6 +8,8 @@ import { InfoTip } from '@/components/ui/info-tip'
 import { useConfirm } from '@/components/ui/confirm'
 import { ChatPicker, type PickerChat } from '@/components/canvas/chat-picker'
 import { useT } from '@/hooks/use-t'
+import { useSetUsage } from '@/hooks/use-set-usage'
+import { AgentNotesSwitch } from '@/components/chat/agent-notes-switch'
 import {
   costsFromRuns, freeName, GUESS_REPLY_MS, laneOf, LANES, putInLane, sameItems, setsWith, simulate,
   type Lane, type SetItem,
@@ -56,12 +58,14 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
   const storeChats = useApp((s) => s.chats)
   const characters = useApp((s) => s.characters)
   const nameInput = useRef<HTMLInputElement>(null)
+  const usage = useSetUsage(defaultSet)
   // `t` is a new function on every render; the loader reads it through a ref so it stays stable
   const tRef = useRef(t)
   tRef.current = t
 
   const saved = sets.find((s) => s.id === pickId) ?? null
   const dirty = !!saved && (name.trim() !== saved.name || !sameItems(items, saved.items))
+  const users = saved ? usage.get(saved.id) ?? 0 : 0
 
   const take = useCallback((s: AgentSet | null) => {
     setPickId(s?.id ?? null)
@@ -143,7 +147,7 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
 
   const drop = async () => {
     if (!saved) return
-    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: saved.name }), description: t('ag.sets.deleteBody'), actionLabel: t('ag.sets.delete') }))) return
+    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: saved.name }), description: users > 0 ? t('ag.sets.deleteBodyUsed', { n: users }) : t('ag.sets.deleteBody'), actionLabel: t('ag.sets.delete') }))) return
     try { await deleteAgentSet(saved.id); setPickId(null); await reload() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
   }
   const makeDefault = async () => {
@@ -206,6 +210,19 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
               </form>
             )}
             {saved && name.trim() !== saved.name && <p className="text-xs text-muted-foreground">{t('as.renamed', { name })}</p>}
+            {saved && (
+              <div className="flex flex-col gap-1" data-testid="as-usage">
+                <p className="text-xs text-muted-foreground">
+                  {users > 0 ? t('as.use.some', { n: users }) : t('as.use.none')}{defaultSet === saved.id ? ` ${t('as.use.default')}` : ''}
+                </p>
+                {dirty && users > 0 && (
+                  <p className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-300" role="status" data-testid="as-usage-warn">
+                    <Warning className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />{t('as.use.edit', { n: users })}
+                  </p>
+                )}
+              </div>
+            )}
+            <AgentNotesSwitch className="rounded-lg border border-border bg-card p-2.5" />
           </section>
 
           {!saved ? (
