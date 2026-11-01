@@ -278,3 +278,10 @@ describe("Marketplace hand-off", () => {
     expect(peekMarketOpen()).toBeNull();
   });
 });
+
+describe("taglineOf", () => {
+  it("reads the summary's blurb when the description is empty", () => {
+    expect(taglineOf({ description: "", creatorNotes: "", blurb: "A courier. She walks at night." })).toBe("A courier.");
+    expect(taglineOf({ description: "Full text.", creatorNotes: "", blurb: "Other" })).toBe("Full text.");
+  });
+});

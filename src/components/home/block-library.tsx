@@ -14,8 +14,9 @@ import { BlockCard, BlockHead, EmptyLine } from '@/components/home/home-frame'
 import { useVisitPick } from '@/components/home/use-visit-pick'
 
 /** The character's first sentence, for a one-line tagline. */
-export function taglineOf(c: Pick<Character, 'description' | 'creatorNotes'>): string {
-  const text = (c.description || c.creatorNotes || '').replace(/\s+/g, ' ').trim()
+export function taglineOf(c: Pick<Character, 'description' | 'creatorNotes'> & { blurb?: string }): string {
+  // the start-up list holds a summary: its `description` is empty and the first 300 characters are in `blurb`
+  const text = (c.description || c.blurb || c.creatorNotes || '').replace(/\s+/g, ' ').trim()
   const cut = text.search(/[.!?](\s|$)/)
   return cut > 0 && cut < 160 ? text.slice(0, cut + 1) : text.slice(0, 160)
 }

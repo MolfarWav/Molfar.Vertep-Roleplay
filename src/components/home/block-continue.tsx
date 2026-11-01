@@ -8,6 +8,7 @@ import { Chip } from '@/components/ui/section'
 import { useApp } from '@/lib/store'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { ChatQuote } from '@/components/chat/chat-preview-text'
+import { DEFAULT_AVATAR } from '@/lib/utils'
 import { CreateButtons } from '@/components/home/home-actions'
 import { BlockCard } from '@/components/home/home-frame'
 
@@ -41,6 +42,8 @@ export function ContinueBlock() {
   const book = bookId ? lorebooks.find((b) => b.id === bookId) : null
   const count = chat.messages.length > 0 ? chat.messages.length : chat.messageCount ?? 0
   const title = chat.title.trim() || character.name
+  // a card with no picture of its own carries the default one; a summary's portrait may still be on its way
+  const hasArt = (!!character.avatar && character.avatar !== DEFAULT_AVATAR) || character.avatarLazy === true
 
   return (
     <BlockCard aria-label={t('home.pickUp')} className="overflow-hidden">
@@ -74,9 +77,9 @@ export function ContinueBlock() {
         </div>
         {/* the card's picture in a frame at its own size, never stretched across the block (a small image would blur);
             a card with no picture of its own shows none rather than the grey silhouette */}
-        {character.avatar && (
+        {hasArt && (
           <img
-            src={character.avatar}
+            src={character.avatar || DEFAULT_AVATAR}
             alt=""
             aria-hidden="true"
             className="aspect-[3/4] w-24 shrink-0 self-start rounded-xl border border-border object-cover sm:w-32 md:w-36"
