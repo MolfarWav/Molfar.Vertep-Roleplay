@@ -51,6 +51,35 @@ const SOURCE_TYPE = {
   lastReply: 'text', lastUserMessage: 'text', history: 'text', card: 'text', persona: 'text', summary: 'text',
   authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', state: null,
 };
+/**
+ * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
+ * what the characters said stay closed. A `scene` field belongs to the scene; a `char` field to one character: the
+ * `of` name on the Input entry (or the If operand), else the character who spoke last. Reading only: no card writes
+ * these fields yet.
+ */
+export const DASH_FIELDS = {
+  present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' },
+  mood: { as: 'text', char: true }, condition: { as: 'text', char: true }, outfit: { as: 'text', char: true },
+  holding: { as: 'text', char: true }, goal: { as: 'text', char: true },
+  trust: { as: 'number', char: true }, comfort: { as: 'number', char: true }, attraction: { as: 'number', char: true },
+  respect: { as: 'number', char: true }, affection: { as: 'number', char: true },
+};
+/** Where the host puts a Dashboard value for the executor: the field, and `field@name` when the entry names a character. */
+export const dashKey = (x) => (x?.of ? `${x.field}@${x.of}` : x?.field);
+/** One `state` source (an Input entry or an If operand): the field must be on the list, with the right type and `of` only where it means something. */
+function checkDashRead(o, where, err, node) {
+  const spec = DASH_FIELDS[o.field];
+  if (!spec) {
+    err('E_DASH_FIELD', `${where}: the Dashboard field "${o.field}" is not available to agents. They can read: ${Object.keys(DASH_FIELDS).join(', ')}`, node);
+    return;
+  }
+  if ((o.as ?? 'text') !== spec.as)
+    err('E_DASH_TYPE', `${where}: "${o.field}" is a ${spec.as} field, so "as" must be "${spec.as}"`, node);
+  if (o.of !== undefined && !spec.char)
+    err('E_DASH_OF', `${where}: "${o.field}" belongs to the scene, so it takes no character name ("of")`, node);
+  else if (o.of !== undefined && (!isString(o.of) || !o.of.trim() || o.of.length > 60))
+    err('E_DASH_OF', `${where}: "of" is a character name of 1 to 60 characters`, node);
+}
 const shapeType = (spec) => (spec === 'number' ? 'number' : spec === 'bool' ? 'flag' : 'text'); // enum:a|b and text are text
 const PORT_ID = /^[A-Za-z0-9_-]+$/;
 const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g)].map((m) => m[1]))];
@@ -552,8 +581,15 @@ export function validateAgent(raw) {
     for (const t of card.needs(p))
       needs.add(t);
     maxCalls += card.calls ?? 0;
-    if (n.type === 'agent.input')
+    if (n.type === 'agent.input') {
       checkGiveLimits(n, warn);
+      for (const g of p.give ?? [])
+        if (g?.source === 'state') checkDashRead(g, `"${n.title}" (${g.id})`, err, n.id);
+    }
+    if (n.type === 'logic.if')
+      for (const r of p.rows ?? [])
+        for (const o of [r.left, r.right])
+          if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')

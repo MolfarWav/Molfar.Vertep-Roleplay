@@ -148,10 +148,11 @@ describe("install and permissions", () => {
     expect(r).toMatchObject({ updated: true, granted: ["llm", "show:panel"] });
   });
 
-  it("an agent that needs Dashboard fields installs but cannot be granted them or run", () => {
+  it("an agent that writes Dashboard fields installs, may read them, but cannot be granted the write or run", () => {
     const r = j("/agents/install", "PUT", { file: copy(mood), grant: true });
-    expect(r.unsupported).toEqual(["read:state.mood", "write:state.mood"]);
-    expect(r.missing).toEqual(["read:state.mood", "write:state.mood"]);
+    expect(r.unsupported).toEqual(["write:state.mood"]);
+    expect(r.missing).toEqual(["write:state.mood"]);
+    expect(r.granted).toContain("read:state.mood");
     expect(j("/agents/list").agents[0].blocker).toMatch(/cannot give yet/);
   });
 
@@ -658,5 +659,124 @@ describe("config", () => {
       call("DELETE", "/agents/dungeon-keeper");
       expect(j("/agents/config").byAgent).toEqual({ other: { maxCalls: 3 } });
     });
+  });
+});
+
+// ---------- the Dashboard as an agent sees it (#132): read only ----------
+
+/** An agent that reads Dashboard fields into one question for the model. */
+const dashAgent = (give: Json[], prompt: string, id = "dash-reader"): Json => {
+  const f = hintAgent(id, "after", {}, { kind: "note", title: "Out" });
+  f.nodes[0].params = { give };
+  f.nodes[1].params = { ...f.nodes[1].params, prompt };
+  f.edges = [...give.map((g) => ({ id: "w_" + g.id, from: "in:" + g.id, to: "ask:" + g.id })), { id: "e2", from: "ask:text", to: "out:in" }];
+  return f;
+};
+const SNAPS = {
+  "m0#0": { turn: 1, clock: { place: "the road", weather: "dry" }, present: ["Aria"], chars: { Aria: { mood: "tired", stats: { trust: 10 } } } },
+  "m2#0": {
+    turn: 3,
+    clock: { place: "the tavern", weather: "rain" },
+    present: ["Aria", "Maren", "Ghost"],
+    chars: {
+      Aria: { mood: "wary", outfit: "a cloak", holding: "a mug", goal: "", stats: { trust: 20, comfort: 15 } },
+      Maren: { mood: "calm", goal: "leave before dawn", outfit: ["boots", "a scarf"], stats: { trust: 60, comfort: 40 } },
+      Ghost: { mood: "gone" },
+    },
+  },
+};
+const writeDash = (chatId: string, state: Json) => {
+  fs.mkdirSync(path.join(root, "dashboard", "state"), { recursive: true });
+  fs.writeFileSync(path.join(root, "dashboard", "state", chatId + ".json"), JSON.stringify(state));
+};
+const msgsOf = (swipes: Record<number, number> = {}) => CHAT.map(([role, text], i) => ({ id: "m" + i, role, name: role === "user" ? "Taras" : "Aria", text, swipe: swipes[i] ?? 0 }));
+const dashRead = (give: Json[], msgs = msgsOf()) => {
+  const file = dashAgent(give, "x");
+  const view = { chatId: "c1", msgs };
+  return (plugin as any).dashFor(file, (plugin as any).dashSnapshot(host().fs, view), view) as Json;
+};
+
+describe("Dashboard fields for agents", () => {
+  it("the scene fields come from the newest snapshot on the chat's line", () => {
+    writeDash("c1", { snapshots: SNAPS });
+    const d = dashRead([{ id: "p", source: "state", field: "place" }, { id: "w", source: "state", field: "weather" }, { id: "who", source: "state", field: "present" }]);
+    expect(d).toEqual({ place: "the tavern", weather: "rain", present: "Aria, Maren, Ghost" });
+  });
+
+  it("a character field is about the one named in `of`, else the one who spoke last", () => {
+    writeDash("c1", { snapshots: SNAPS });
+    const d = dashRead([
+      { id: "a", source: "state", field: "mood" },
+      { id: "b", source: "state", field: "mood", of: "maren" },
+      { id: "c", source: "state", field: "trust", as: "number" },
+      { id: "d", source: "state", field: "comfort", as: "number", of: "Maren" },
+      { id: "e", source: "state", field: "outfit", of: "Maren" },
+      { id: "f", source: "state", field: "goal" },
+      { id: "g", source: "state", field: "mood", of: "Nobody" },
+    ]);
+    expect(d).toEqual({ mood: "wary", "mood@maren": "calm", trust: 20, "comfort@Maren": 40, "outfit@Maren": "boots, a scarf" });
+  });
+
+  it("a branch sees the snapshot of its own line, not of the swipe it left", () => {
+    writeDash("c1", { snapshots: SNAPS });
+    // the last reply is on swipe 1 now: its snapshot belongs to the other branch, so the one before it stands
+    const d = dashRead([{ id: "p", source: "state", field: "place" }], msgsOf({ 2: 1 }));
+    expect(d).toEqual({ place: "the road" });
+  });
+
+  it("a character the user took off the Dashboard is gone", () => {
+    writeDash("c1", { snapshots: SNAPS, removed: ["maren"] });
+    const d = dashRead([{ id: "who", source: "state", field: "present" }, { id: "m", source: "state", field: "mood", of: "Maren" }]);
+    expect(d).toEqual({ present: "Aria, Ghost" });
+  });
+
+  it("no Dashboard state gives nothing, a chat that continues another gives the state it carried", () => {
+    expect(dashRead([{ id: "p", source: "state", field: "place" }])).toEqual({});
+    writeDash("c1", { snapshots: {}, inherited: { from: "old", snap: SNAPS["m2#0"] } });
+    expect(dashRead([{ id: "p", source: "state", field: "place" }])).toEqual({ place: "the tavern" });
+    writeDash("c1", { snapshots: {}, inherited: { off: true, from: "old", snap: SNAPS["m2#0"] } });
+    expect(dashRead([{ id: "p", source: "state", field: "place" }])).toEqual({});
+  });
+
+  it("If operands read the Dashboard too", () => {
+    writeDash("c1", { snapshots: SNAPS });
+    const file = dashAgent([], "x");
+    file.nodes.push({ id: "if", type: "logic.if", x: 0, y: 0, title: "If", params: { inputs: [], rows: [{ left: { from: "state", field: "trust", as: "number", of: "Maren" }, op: ">", right: { value: 50 } }] } });
+    const view = { chatId: "c1", msgs: msgsOf() };
+    expect((plugin as any).dashFor(file, (plugin as any).dashSnapshot(host().fs, view), view)).toEqual({ "trust@Maren": 60 });
+  });
+
+  it("the checker refuses a field off the list, a wrong type, and `of` on a scene field", () => {
+    const codes = (give: Json[]) => ((compileAgent(dashAgent(give, give.map((g) => `{{${g.id}}}`).join(" "))) as any).report.errors as Json[]).map((e) => e.code);
+    expect(codes([{ id: "t", source: "state", field: "threads" }])).toEqual(["E_DASH_FIELD"]);
+    expect(codes([{ id: "t", source: "state", field: "trust" }])).toEqual(["E_DASH_TYPE"]);
+    expect(codes([{ id: "t", source: "state", field: "place", of: "Aria" }])).toEqual(["E_DASH_OF"]);
+    expect(codes([{ id: "t", source: "state", field: "mood", of: "" }])).toEqual(["E_DASH_OF"]);
+    expect(codes([{ id: "t", source: "state", field: "mood", of: "Aria" }])).toEqual([]);
+    const r = j("/agents/install", "PUT", { file: dashAgent([{ id: "t", source: "state", field: "threads" }], "{{t}}") });
+    expect(r.errors[0].code).toBe("E_DASH_FIELD");
+  });
+
+  it("an agent that reads fields asks the model with the Dashboard's words; without the permission it waits", () => {
+    const file = dashAgent([{ id: "place", source: "state", field: "place" }, { id: "mood", source: "state", field: "mood", of: "Maren" }], "At {{place}} Maren feels {{mood}}.");
+    makeChat("c1", CHAT);
+    writeDash("c1", { snapshots: SNAPS });
+    const r = j("/agents/install", "PUT", { file });
+    expect(r.unsupported).toEqual([]);
+    expect(r.needs).toEqual(expect.arrayContaining(["read:state.place", "read:state.mood"]));
+    useAgent("dash-reader");
+    expect(runChat("c1").skipped).toEqual([{ agent: "dash-reader", why: expect.stringMatching(/Waiting for permission/) }]);
+    j("/agents/grant", "POST", { id: "dash-reader", tokens: true });
+    let asked = "";
+    runChat("c1", {}, (q) => { asked = q.messages[0].content; return { text: "fine" }; });
+    expect(asked).toContain("At the tavern Maren feels calm.");
+  });
+
+  it("a missing Dashboard value skips the question instead of asking with a hole", () => {
+    const file = dashAgent([{ id: "place", source: "state", field: "place" }], "At {{place}}.");
+    makeChat("c1", CHAT);
+    j("/agents/install", "PUT", { file, grant: true });
+    useAgent("dash-reader");
+    runChat("c1", {}, () => { throw new Error("the model must not be asked"); });
   });
 });

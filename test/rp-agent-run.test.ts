@@ -234,7 +234,7 @@ describe("list cards, run end to end", () => {
     agent: { formatVersion: 1, id: "rooms-test", version: "1.0.0", name: "Rooms", trigger: { when: "manual" }, models: {}, limits: { maxCalls: 0 },
       state: { rooms: { type: "list", item: { name: "text", level: "number" }, max: 5 } } },
     nodes: [
-      { id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give: [{ id: "who", source: "lastReply" }, { id: "lv", source: "state", field: "lv", as: "number" }] } },
+      { id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give: [{ id: "who", source: "lastReply" }, { id: "lv", source: "state", field: "trust", as: "number" }] } },
       { id: "add", type: "state.list", x: 0, y: 0, title: "Add", params: { field: "rooms", op: "add", item: { name: "text", level: "number" } } },
       { id: "out", type: "agent.output", x: 0, y: 0, title: "Out", params: { kind: "state-patch" } },
     ],
@@ -242,7 +242,7 @@ describe("list cards, run end to end", () => {
   });
   it("adds an entry from wires", () => {
     expect(validateAgent(agent()).errors).toEqual([]);
-    const res = run.runAgent(agent(), { inputs: { who: "Vault" }, dash: { lv: 2 } }, {});
+    const res = run.runAgent(agent(), { inputs: { who: "Vault" }, dash: { trust: 2 } }, {});
     expect(res).toMatchObject({ status: "done", writes: [{ op: "list.add", field: "rooms", item: { name: "Vault", level: 2 } }] });
   });
   it("a missing value skips the card", () => {

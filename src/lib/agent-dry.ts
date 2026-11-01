@@ -3,7 +3,7 @@
 // the agent would write and show, and how its memory would change. Pure, so a test can hold it.
 
 import { applyWrites, initialOwn, runAgent } from '@/canvas-kit/boards/agent-run'
-import { AGENT_MAX_ROUNDS } from '@/canvas-kit/boards/agent-check'
+import { AGENT_MAX_ROUNDS, dashKey } from '@/canvas-kit/boards/agent-check'
 import type { Own } from '@/canvas-kit/boards/agent-run'
 
 type Json = Record<string, any>
@@ -94,7 +94,7 @@ export function dryRun(file: DryFile, setup: DrySetup): DryResult {
     if (n.type !== 'agent.input') continue
     for (const g of (n.params?.give ?? []) as Json[]) {
       const raw = setup.inputs[g.id]
-      if (g.source === 'state') dash[g.field] = raw === undefined || raw === '' ? undefined : g.as === 'number' ? Number(raw) : raw
+      if (g.source === 'state') dash[dashKey(g) as string] = raw === undefined || raw === '' ? undefined : g.as === 'number' ? Number(raw) : raw
       else inputs[g.id] = raw === '' ? undefined : raw
     }
   }

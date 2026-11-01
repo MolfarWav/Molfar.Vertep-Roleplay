@@ -691,6 +691,19 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
   `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `when` signal),
   `note`, and four cards for the agent's own state (below). A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
+- Dashboard fields an agent may read (#132; reading only): an Input entry `{ id, source: "state", field, as, of? }` or an If
+  operand `{ from: "state", field, as, of? }`. `field` must be on the list `DASH_FIELDS` of the checker, which keeps the
+  user's own notes, the threads and what the characters said closed (anything else is `E_DASH_FIELD`). Scene fields, text:
+  `present` (the names in the scene, joined with ", "), `place`, `weather`. Character fields: text `mood`, `condition`,
+  `outfit`, `holding`, `goal`, and numbers `trust`, `comfort`, `attraction`, `respect`, `affection` (the Dashboard's
+  disposition numbers). `as` is `number` for the numbers and `text` for the rest (`E_DASH_TYPE`). `of` names a character
+  (case does not matter; `E_DASH_OF` on a scene field or an empty name); without it a character field is about whoever
+  wrote the last reply in the chat, else the first character in the scene. The permission is the field alone
+  (`read:state.comfort`), whichever character it is read for. The host reads `dashboard/state/<chatId>.json` and takes
+  the newest snapshot among the chat's own messages (a swiped-away branch is not seen; a chat that continues another
+  stands on the state it carried until it has its own), leaving out characters the user removed from the Dashboard.
+  A value the Dashboard does not have is missing: a card that needs it is skipped, an If says Unknown. The executor gets
+  the values in `ctx.dash` under `dashKey`: `field`, or `field@name` with `of`.
 - Code cards, no model and no permission, 0 model calls: `random.dice` (`count` 1 to 20, default 1; `sides` 2 to 1000,
   default 20; optional `bonus` -1000 to 1000; optional `when` signal; outputs `total` (number) and `rolls` (text,
   "4, 17")), `random.pick` (`items`: 2 to 40 `{ text, weight? }`, a weight 1 to 100 or 1 when absent; optional `when`; outputs
@@ -849,7 +862,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
 - **Hint for the next reply.** An Output `prompt-insert` is kept in `inserts/<chatId>.json` and added to the end of the last user
   message of the next reply request (`position` is not used yet), with the agent's label, for as long as the agent is on in
   the chat; the agent's next run replaces it.
-- **Not yet.** Dashboard fields (`read:state.*`, `write:state.*`), the sources `preGenInjections` and `parallelResults`, the triggers
+- **Not yet.** Writing Dashboard fields (`write:state.*`), the sources `preGenInjections` and `parallelResults`, the triggers
   `before` and `parallel`, the source `summary`. An agent that needs them installs but does not run, and says so.
 - The plugin carries a generated copy of `agent-check.js` and `agent-run.js` between two marker lines; after editing either,
   run `bun scripts/sync-agents-plugin.ts` (a test fails when the copy is old).
