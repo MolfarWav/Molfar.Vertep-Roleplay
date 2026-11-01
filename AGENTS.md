@@ -108,11 +108,15 @@ chat's dashboard sensor, a failed soul rating), Library proposals per chat (lib/
 pollNeedsYou) and cards with souls proposed (GET /dashboard/soul-drafts). It is a DRAWER (`InboxDrawer`, mounted in
 app-shell): a side sheet from the rail on desktop (Inbox button above Help), a full-height sheet on phones (first
 row of the More sheet), with filter chips All / Failures / Approvals / Souls / What's new (the tips of the current
-version). Rows have a colour, icon and label per kind (failure red, Library approval blue, soul review violet);
+version). Rows have a colour, icon and label per kind (failure red, Library approval blue, soul review violet, letter from a card green);
 `NeedsYouBadge` turns red when a failure is in the count. A new failure is toasted once (`worker:ref:at` in the seen
 list; Open goes where it is fixed; not when the player is already there; the same worker+code is not toasted again
 within 10 minutes); "Dismiss" stores the key. Rows and the badge total come from `inboxRows` in lib/attention-core.ts
-and respect the per-kind switches in settings.attention (litopys, soul, failed). Toast colours by type are in
+and respect the per-kind switches in settings.attention (litopys, soul, failed). Letters from cards (#72; plugins/letters, lib/letters-core.ts + lib/letters.ts, switch and limits in the Letters dialog from
+Characters > More, off by default) are a fifth kind: a card idle for `idleDays` (14), never played, or played with no Soul writes a short
+in-character note with the Library's model; the app asks 20 s after start and every 2.5 h while visible (`runLettersPass`), the
+plugin enforces the day cap, the per-card days, one unread letter per card and the mute list; a letter writes nothing into a chat,
+opens the old chat / starts one / opens the Soul tab, and is deleted when opened. Letters never count as failures. Toast colours by type are in
 components/ui/sonner.tsx: use toast.error / warning / success / info, a plain toast() is a neutral note.
 Imports (cards, presets, lorebooks, personas, regex, chats, backups, links) report to one progress card
 (`components/shell/import-progress-card.tsx`, state in `lib/import-progress.ts`: `beginImport`, `forEachImport`): a job counts
