@@ -4362,7 +4362,10 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   if (!present.length) return null;
   // notebooks: the speaker's own; in a one-card chat (a narrator voices them all) each focus character's;
   // none when a group chat cannot say who speaks, so nothing leaks to the wrong character
-  const notesFor = speaker ? [speaker] : group ? [] : focus;
+  // a group in narrator mode is one voice for all of them, like a narrator card: each focus character's notebook, named (#184 P1c)
+  const groupFile = group ? readJson(fsx, "groups/" + chat.meta.groupId + ".json", null) : null;
+  const narratorGroup = isObj(groupFile) && groupFile.generationMode === "narrator";
+  const notesFor = speaker ? [speaker] : group ? (narratorGroup ? focus : []) : focus;
   const ctx = {
     snap,
     souls,

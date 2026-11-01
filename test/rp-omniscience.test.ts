@@ -138,3 +138,39 @@ describe("omniscience: bench, exposure by chat size", () => {
     });
   }
 });
+
+describe("omniscience: the who-knows-what brief for a narrator (#184 P1d)", () => {
+  const cfgOn = () => writeJson("litopys/config.json", { castKnowledge: true });
+
+  it("is off by default, and a narrator reply then has no brief", () => {
+    seed("narrator");
+    expect(textOf(L.llmRequest(ctx("Tavern"), mockHost().host))).not.toContain("Who knows what");
+  });
+
+  it("lists facts only some of those present know, grouped by who knows them", () => {
+    seed("narrator");
+    cfgOn();
+    const text = textOf(L.llmRequest(ctx("Tavern"), mockHost().host));
+    expect(text).toContain("[Who knows what (Litopys)");
+    expect(text).toContain("Only Jude knows: The brass key opens the hidden vault.");
+    expect(text).toContain("Only Bram knows: Bram sold the old map to a stranger.");
+    expect(text).toContain("Only Aria and Bram know: The password at the cellar door is thistle.");
+    // a fact everyone knows is not repeated in the brief
+    expect(text.split("[Who knows what")[1]).not.toContain("harbour");
+  });
+
+  it("is not added to a single character's reply, which is filtered already", () => {
+    seed("swap");
+    cfgOn();
+    expect(textOf(L.llmRequest(ctx("Aria"), mockHost().host))).not.toContain("Who knows what");
+  });
+
+  it("stays within its room and says nothing when everyone knows everything", () => {
+    seed("narrator");
+    cfgOn();
+    const full = L.castKnowledgeFor({ st: { facts: Array.from({ length: 40 }, (_, i) => ({ id: "f" + i, text: "Secret number " + i + " of the long night.", subject: "world", knownBy: ["Bram"], status: "active" })) }, line: L.activeLine([{ id: "m1", role: "char", name: "Aria", text: "x" }, { id: "m2", role: "char", name: "Bram", text: "y" }]), dash: null, meta: { userName: "Jude" }, speakerName: "" });
+    expect(full.tokens).toBeLessThanOrEqual(250);
+    const none = L.castKnowledgeFor({ st: { facts: [{ id: "f1", text: "Shared.", subject: "world", knownBy: ["Aria", "Bram", "Jude"], status: "active" }] }, line: L.activeLine([{ id: "m1", role: "char", name: "Aria", text: "x" }, { id: "m2", role: "char", name: "Bram", text: "y" }]), dash: null, meta: { userName: "Jude" }, speakerName: "" });
+    expect(none).toBeNull();
+  });
+});

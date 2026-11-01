@@ -1407,6 +1407,20 @@ describe("prompt insert", () => {
       expect(stranger).toContain("[How Bram is right now:");
     });
 
+    it("4c. a group in narrator mode gets each focus character's own notebook, named (#184)", () => {
+      fs.mkdirSync(path.join(root, "groups"), { recursive: true });
+      fs.writeFileSync(path.join(root, "groups/g1.json"), JSON.stringify({ id: "g1", name: "Tavern", generationMode: "narrator", memberIds: ["aria", "bram"] }));
+      const mock = withState(bothKnow, "g", three(), groupMeta);
+      // the voice is the group itself, so no present name speaks
+      const text = insertOf(ask(mock, "g", defaultMessages(), { turn: { op: "next", speakerName: "Tavern" } }));
+      const aria = text.split("[How ").find((p) => p.startsWith("Aria"))!;
+      const bram = text.split("[How ").find((p) => p.startsWith("Bram"))!;
+      expect(aria).toContain("What Aria knows about You: Saw: The user hides a silver key.");
+      expect(aria).not.toContain("limps");
+      expect(bram).toContain("What Bram knows about You: Saw: The user limps on the left leg.");
+      expect(bram).not.toContain("silver key");
+    });
+
     it("5. a narrator card: a full block only for whom the turn is about, each with only their own note", () => {
       const replyText = reply({
         present: ["Medli", "Garrett"],

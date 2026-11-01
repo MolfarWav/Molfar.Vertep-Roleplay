@@ -285,6 +285,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <Block tone="people" icon={Quotes} title={t('lit.blk.recollections')} hint={t('lit.blk.recollectionsHint')} summary={onOff(cfg.recollections !== false)}>
         {switchRow('lit-recollections', t('lit.set.recollections'), t('lit.set.recollectionsHint'), cfg.recollections !== false, (v) => save({ recollections: v }))}
+        {switchRow('lit-cast-knowledge', t('lit.set.castKnowledge'), t('lit.set.castKnowledgeHint'), cfg.castKnowledge === true, (v) => save({ castKnowledge: v }))}
       </Block>
 
       <Block tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
