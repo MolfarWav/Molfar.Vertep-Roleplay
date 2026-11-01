@@ -1804,6 +1804,209 @@ function runBefore(ctx, host, fsx, chatId, req) {
   return null;
 }
 
+// ---------- /agents/dry: a trial run on a real chat (#137) ----------
+
+/**
+ * The chat is only read. Nothing is written: not the chat, not the agent's memory, not the run log, not the Dashboard.
+ * `probe` answers with what the agent would receive and its memory; without it the agent runs, with example answers
+ * (or the ones in `replies`) or, with `live`, with the model.
+ */
+
+const sampleOf = (spec) => (typeof spec === "string" && spec.startsWith("enum:") ? spec.slice(5).split("|")[0] : spec === "number" ? 1 : spec === "bool" ? true : "Example");
+
+/** What a model might say to a card, in the format the card asks for (the editor's trial uses the same). */
+function exampleReply(node) {
+  const a = node.params && node.params.answer;
+  if (a && a.as === "yesno") return "YES\nThe message says so.";
+  if (a && a.as === "json") return JSON.stringify(Object.fromEntries(Object.entries(a.shape || {}).map(([k, v]) => [k, sampleOf(v)])));
+  return "An example answer from the model.";
+}
+
+/** The file to try: `file` (the editor's draft as it is now), `draft` (a name in agents/drafts) or `agent` (an installed id). */
+function dryFile(fsx, b) {
+  const bad = (errors) => ({ fail: ok({ error: errors[0].message, errors }, 400) });
+  if (isObj(b.file)) {
+    if (JSON.stringify(b.file).length > AG_FILE_MAX) return bad([{ code: "E_SIZE", message: "the file is over 256 KB" }]);
+    const c = compileAgent(b.file);
+    if ("error" in c) return bad([{ code: "E_ENVELOPE", message: c.error }]);
+    if (c.report.errors.length) return bad(c.report.errors);
+    return { file: c.file, report: c.report, source: { kind: "file", id: str(c.file.agent.id) } };
+  }
+  const draft = str(b.draft);
+  if (draft) {
+    if (!DRAFT_NAME_RE.test(draft)) return { fail: ok({ error: "bad draft name" }, 400) };
+    const d = readDraft(fsx, draft);
+    if (!d) return { fail: ok({ error: "no such draft" }, 404) };
+    if (d.errors.length || !isObj(d.file)) return bad(d.errors.length ? d.errors : [{ code: "E_ENVELOPE", message: "not an agent file" }]);
+    const c = compileAgent(d.file);
+    if ("error" in c) return bad([{ code: "E_ENVELOPE", message: c.error }]);
+    return { file: c.file, report: c.report, source: { kind: "draft", id: draft } };
+  }
+  const id = str(b.agent);
+  if (id) {
+    const a = loadAgent(fsx, id);
+    if (!a) return { fail: ok({ error: "no such agent" }, 404) };
+    if (a.report.errors.length) return bad(a.report.errors);
+    return { file: a.file, report: a.report, source: { kind: "agent", id } };
+  }
+  return { fail: ok({ error: "file, draft or agent required" }, 400) };
+}
+
+/** The model a trial asks for a role: what the user chose for agents, else the chat's own, else the app's (not the Dashboard sensor's). */
+function trialModel(fsx, meta, role, agentId, override) {
+  const cfg = readJsonAt(fsx, "agents/config.json", {});
+  const settings = readJsonAt(fsx, "settings.json", null);
+  const list = [override, ownOf(cfg, agentId).models[role], isObj(cfg.models) ? cfg.models[role] : "", cfg.model, meta && meta.model, isObj(settings) ? settings.model : ""];
+  const hit = list.find((m) => AG_MODEL.test(str(m)));
+  return hit ? str(hit) : "";
+}
+
+const packDry = (r) => {
+  const a = packAnswer(r);
+  if (!a) return null;
+  const u = isObj(r.usage) ? r.usage : {};
+  return { ...a, usage: { input: Number(u.input) || 0, output: Number(u.output) || 0, cost: Number(u.costTotal) || 0, priced: u.priced === true } };
+};
+
+function dryRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required: the id of the chat to read (GET /chats lists them)" }, 400);
+  const chat = readChatFiles(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const f = dryFile(fsx, b);
+  if (f.fail) return f.fail;
+  const file = f.file;
+  const agentId = str(file.agent && file.agent.id);
+  const schema = (file.agent && file.agent.state) || {};
+  const maxCalls = f.report.derived ? f.report.derived.maxCalls : 0;
+  const msgs = chat.msgs;
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  const view = { meta: chat.meta, msgs, chatId, turnId: last ? String(last.id) : "start", turnKey: last ? msgKey(last) : "start" };
+
+  // what the agent would receive: the same readers a real run uses, then what the person changed
+  const st = AG_ID.test(agentId) ? loadOwn(fsx, chatId, agentId, schema) : { own: initialOwn(schema), raw: null };
+  const give = file.nodes.filter((n) => n.type === "agent.input").flatMap((n) => (Array.isArray(n.params && n.params.give) ? n.params.give : [])).filter(isObj);
+  const typed = isObj(b.inputs) ? b.inputs : {};
+  const inputs = {};
+  for (const g of give) if (g.source !== "state") inputs[g.id] = sourceValue(fsx, view, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
+  const dash = dashFor(file, needsOf(file).some((t) => t.startsWith("read:state.")) ? dashSnapshot(fsx, view) : null, view);
+  const items = give.map((g) => {
+    const key = g.source === "state" ? dashKey(g) : g.id;
+    if (typeof typed[g.id] === "string") {
+      const v = typed[g.id];
+      if (g.source === "state") dash[key] = v === "" ? undefined : g.as === "number" ? Number(v) : v;
+      else inputs[g.id] = v === "" ? undefined : v;
+    }
+    const v = g.source === "state" ? dash[key] : inputs[g.id];
+    const text = v === undefined || v === null ? "" : String(v);
+    return { id: g.id, source: g.source, ...(g.source === "state" ? { field: g.field } : {}), text, tokens: approxTokens(text), empty: text === "" };
+  });
+  const own = { ...st.own, ...(isObj(b.own) ? b.own : {}) };
+  const roles = [...new Set(file.nodes.filter((n) => n.type === "model.ask").map((n) => n.params && n.params.role).filter(isString))];
+  const models = {};
+  for (const r of roles) models[r] = trialModel(fsx, chat.meta, r, agentId, str(b.model));
+  const head = {
+    ok: true,
+    source: f.source,
+    chat: { id: chatId, title: str(chat.meta.title), messages: msgs.length, lastSpeaker: str(last && last.name) },
+    maxCalls,
+    models,
+  };
+  if (b.probe === true) return ok({ ...head, probe: true, inputs: items, own });
+
+  const live = b.live === true;
+  if (live) {
+    const cap = capOf(fsx, agentId);
+    if (cap && maxCalls > cap) return ok({ error: "Can make up to " + maxCalls + " model calls a run, over your limit of " + cap + " for this agent. Raise the limit for this agent, or try without the model." }, 400);
+  }
+  const ctx = { inputs, own, dash, chat: { messageCount: msgs.length, lastSpeaker: str(last && last.name) }, explain: true, seed: str(b.seed) || chatId + "|" + agentId + "|dry" };
+  const replies = isObj(b.replies) ? b.replies : {};
+  const byId = new Map(file.nodes.map((n) => [n.id, n]));
+
+  let res;
+  let answered = {}; // node id -> { text, model?, error?, usage? }
+  let prompts = {};
+  let usage = { input: 0, output: 0, cost: 0, priced: false };
+  if (!live) {
+    const given = {};
+    for (let round = 0; round <= AGENT_MAX_ROUNDS + 1; round++) {
+      res = runAgent(file, ctx, given);
+      if (res.status !== "need") break;
+      for (const rq of res.requests) {
+        const text = isString(replies[rq.node]) ? replies[rq.node] : exampleReply(byId.get(rq.node) || {});
+        given[rq.node] = { text };
+        answered[rq.node] = { text, example: !isString(replies[rq.node]) };
+        prompts[rq.node] = rq.prompt;
+      }
+    }
+  } else {
+    const stash = isObj(req.stash) ? req.stash : {};
+    answered = isObj(stash.answered) ? { ...stash.answered } : {};
+    prompts = isObj(stash.prompts) ? { ...stash.prompts } : {};
+    if (isObj(stash.usage)) usage = { ...usage, ...stash.usage };
+    const fresh = host.llm && host.llm.results ? host.llm.results : {};
+    for (const k of Object.keys(fresh)) {
+      const m = /^dry_(\d+)$/.exec(k);
+      const node = m ? file.nodes[Number(m[1])] : null;
+      const a = node ? packDry(fresh[k]) : null;
+      if (!a) continue;
+      answered[node.id] = a;
+      usage = { input: usage.input + a.usage.input, output: usage.output + a.usage.output, cost: usage.cost + a.usage.cost, priced: usage.priced || a.usage.priced };
+    }
+    const exec = {};
+    for (const [id, a] of Object.entries(answered)) exec[id] = a.error || !a.text.trim() ? { error: a.error || "the model sent no answer" } : { text: a.text, model: a.model };
+    res = runAgent(file, ctx, exec);
+    const pass = Number(stash.pass) || 0;
+    if (res.status === "need" && pass >= AGENT_MAX_ROUNDS) res = { status: "failed", reason: "It needs more than " + AGENT_MAX_ROUNDS + " model calls one behind another", node: res.requests[0] ? res.requests[0].node : "", trace: res.trace, wires: res.wires };
+    if (res.status === "need") {
+      for (const q of res.requests) {
+        const ni = file.nodes.findIndex((n) => n.id === q.node);
+        const model = models[q.role] || "";
+        prompts[q.node] = q.prompt;
+        host.llm.request("dry_" + ni, {
+          ...(model ? { model } : {}),
+          systemPrompt: AGENT_SYSTEM,
+          messages: [{ role: "user", content: q.prompt }],
+          presetParams: { temperature: 0.3, max_tokens: Number.isInteger(q.maxTokens) && q.maxTokens > 0 ? Math.min(q.maxTokens, 4000) : 600 },
+        });
+      }
+      return { __llmPending: true, stash: { pass: pass + 1, answered, prompts, usage } };
+    }
+  }
+
+  const writes = res.writes || [];
+  const isOwn = (w) => w.op.startsWith("own.") || w.op.startsWith("list.");
+  const applied = applyWrites(schema, own, writes.filter(isOwn));
+  const nodes = {};
+  for (const t of res.trace || []) nodes[t.node] = t.status === "ran" ? "ran" : t.status === "skipped" ? "skipped" : "waiting";
+  if (res.status === "failed" && res.node) nodes[res.node] = "failed";
+  const asked = Object.entries(answered).map(([node, a]) => ({
+    node, prompt: prompts[node] || "", reply: a.text, example: a.example === true,
+    ...(a.model ? { model: a.model } : {}), ...(a.error ? { error: a.error } : {}),
+  }));
+  return ok({
+    ...head,
+    live,
+    ...(live ? { usage } : {}),
+    inputs: items.map((i) => ({ ...i, text: clip(i.text, 600) })),
+    status: res.status === "done" ? "done" : "failed",
+    reason: res.reason,
+    node: res.node,
+    calls: res.calls !== undefined ? res.calls : asked.length,
+    asked,
+    wires: res.wires || {},
+    nodes,
+    trace: res.trace || [],
+    ownWrites: writes.filter(isOwn),
+    dashWrites: writes.filter((w) => !isOwn(w)),
+    refused: applied.refused,
+    ownAfter: applied.own,
+    outputs: res.outputs || [],
+  });
+}
+
 // ---------- install, list, grant, remove ----------
 
 const needsOf = (file) => (file && file.agent && file.agent.derived && Array.isArray(file.agent.derived.needs) ? file.agent.derived.needs : []);
@@ -2071,6 +2274,7 @@ export function handleRoute(req, host) {
   if (seg.length === 3 && seg[1] === "drafts" && req.method === "DELETE") return draftRemoveRoute(req, host, seg[2]);
   if (path === "/agents/grant" && req.method === "POST") return grantRoute(req, host);
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);
+  if (path === "/agents/dry" && req.method === "POST") return dryRoute(req, host);
   if (path === "/agents/state" && (req.method === "GET" || req.method === "DELETE")) return stateRoute(req, host);
   if (path === "/agents/runs" && req.method === "GET") return runsRoute(req, host);
   if (path === "/agents/panels" && req.method === "GET") return panelsRoute(req, host);
