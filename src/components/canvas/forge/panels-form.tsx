@@ -40,18 +40,20 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
           const setWidget = (j: number, w: Obj) => setPanel(i, { widgets: widgets.map((x, k) => (k === j ? w : x)) })
           return (
             <div ref={sort.ref} style={sort.style} className={cn('flex flex-col gap-2 rounded-md border border-border p-2', sort.className)} data-testid={`forge-panel-${p.id}`}>
-              <div className="flex gap-1.5">
-                <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => setPanel(i, { title: e.target.value })} />
-                <div className="w-40 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-28 flex-1 basis-28 max-md:h-10" onChange={(e) => setPanel(i, { title: e.target.value })} />
+                <div className="min-w-32 flex-1 basis-32">
                   <NativeSelect value={String(p.place ?? 'float')} label={t('fg.panel.place')} onChange={(place) => setPanel(i, { place })}>
                     {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}
                   </NativeSelect>
                 </div>
-                {sort.handle}
-                <Mover at={i} count={panels.length} onMove={(by) => onChange(moveItem(panels, i, by))} />
-                <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={() => onChange(panels.filter((_, k) => k !== i))}>
-                  <Trash className="size-4" aria-hidden="true" />
-                </Button>
+                <div className="ml-auto flex shrink-0 items-center">
+                  {sort.handle}
+                  <Mover at={i} count={panels.length} onMove={(by) => onChange(moveItem(panels, i, by))} />
+                  <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={() => onChange(panels.filter((_, k) => k !== i))}>
+                    <Trash className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
               <SortableList items={widgets} keyOf={(_, j) => String(j)} onReorder={(from, to) => setPanel(i, { widgets: moveTo(widgets, from, to) })}>
                 {(w, j, ws) => (

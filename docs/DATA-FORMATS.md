@@ -788,6 +788,13 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `also` (`on`: true = also in the block), `wait` (`wait`: false = the reply does
   not wait for this agent, true = it does); it answers what runs now,
   as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ] }`.
+  `showAll` (`place`: a place or null, `agents`: the ids to touch) writes `show` for several agents in one call and keeps the chat following its set; the chat's
+  "Notes under replies" switch uses it with `log` (on: null) for the agents whose `places` hold `note` and not `bottom`.
+- What the person chose last, meta `agentsAt` (a time): stamped when a chat gets its binding by the person's own choice (the New chat step, or `op: preset`).
+  `GET /agent-memory/<character or group id>` returns `{ pick }` of the newest such chat: `default`, `none`, a set id that still exists, or null.
+  A chat made without a choice (`POST /chats` with no `agents` and no `agentsChosen: true`) takes that pick; the step sends `agentsChosen: true`, so "default" is a choice too.
+- `GET /agent-usage` returns `{ follows, own, total, partial }`: how many chats follow each set (`follows`, by set id, the default set counted for chats with no binding),
+  how many hold their own copy (`own`), and `partial` when the scan hit its cap of 4000 chats (the counts are then "at least"). It reads the meta files on demand; there is no index to keep.
 ### Running an agent (`agent-run.js`)
 
 `runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never

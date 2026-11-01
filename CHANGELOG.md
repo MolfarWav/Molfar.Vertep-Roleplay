@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agent sets and install, one pass (#138, #139). Agent sets say "used by N chats" (the chats that follow the set) and ask once more before a save or a delete that reaches them. A new chat starts with the set you picked last for that character (or group), and says so. The chat's Agents tab has one switch, "Notes under replies", that moves every note-making agent of the chat to the log or back, without leaving the set. The agent card keeps a summary line and a button that opens one "Allow" page: the model for each role first, then each permission with its own switch, then one button; if a model changes after you touched a switch, the page asks you to look again before it saves. The checker's codes are said in words in English and Ukrainian, name the card and say what to do; the stable code stays on the line as a small chip. Panels, widgets and action buttons in the Forge can be dragged by a grip (mouse and finger); Up and Down stay. New routes `GET /agent-usage` and `GET /agent-memory/<id>`, new chat meta `agentsAt`, new op `showAll`; tests in `rp-agent-check-text`, `rp-agent-set-memory`, `rp-agent-notes`, `rp-agent-permissions` and `rp-forge-sort`, docs in `docs/DATA-FORMATS.md`.
+
 ## 4.81.0 (2026-11-01)
 
 - Characters, More no longer crashes the page ("MenuGroupContext is missing"): the Import label sits in a menu group. It came in with the characters header rows.

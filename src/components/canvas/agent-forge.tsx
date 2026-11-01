@@ -403,7 +403,7 @@ export function AgentForge() {
           <span className="rounded-full border border-border px-2 py-0.5 text-[11px]">{t('fg.check.calls', { n: report.maxCalls })}</span>
         </span>
       </summary>
-      <ul className="flex max-h-40 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
+      <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto px-3 pb-2">
         {[...report.errors.map((x) => ({ ...x, bad: true })), ...report.warnings.map((x) => ({ ...x, bad: false }))].map((x, i) => (
           <li key={i}>
             <button type="button" disabled={!x.node} onClick={() => x.node && pick(x.node)} className={cn('w-full rounded px-1 py-1 text-left hover:bg-accent disabled:hover:bg-transparent max-md:min-h-10', x.bad ? 'text-destructive' : 'text-amber-600 dark:text-amber-400')}>
