@@ -4459,7 +4459,7 @@ function expireProposals(st, factId, now) {
 export function factRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
-  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete"].includes(op)) return bad("unknown op");
+  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete", "know"].includes(op)) return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
@@ -4526,6 +4526,17 @@ export function factRoute(fsx, body) {
       fact.edited = true;
       fact.updatedAt = now;
       addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now, { text: fact.text });
+      return;
+    }
+    // #184 P3: the user says a character found out (a flagged reply was right): the name joins the knowers
+    if (op === "know") {
+      if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
+      const who = cut(str(b.who), 80);
+      if (!who) return bad("who is empty");
+      if (fact.knownBy === "all" || arr(fact.knownBy).some((k) => sameName(k, who))) return;
+      fact.knownBy = [...arr(fact.knownBy), who];
+      fact.updatedAt = now;
+      addActivity(st, "user", "fact.edit", who + " found out: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "pin") {

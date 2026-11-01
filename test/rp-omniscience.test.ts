@@ -6,7 +6,7 @@
  * the plan wants at zero for character replies.
  */
 import { describe, expect, it } from "bun:test";
-import { L, mockHost, useRoot, writeChat, writeJson, type Msg } from "./rp-memory-m2-kit";
+import { L, mockHost, readJson, useRoot, writeChat, writeJson, type Msg } from "./rp-memory-m2-kit";
 
 useRoot();
 
@@ -273,5 +273,21 @@ describe("omniscience: a flagged leak is held back from the story record (#184 P
     expect(text).toContain("Not canon (flagged)");
     expect(text).toContain("Do not record that Aria knows it.");
     expect(L.buildWorkerRequest(st, { scene, replaces: null }, ln, null, { ...L.DEFAULT_CONFIG }, { userName: "You" }).messages.map((m: any) => m.content).join("\n")).not.toContain("Not canon");
+  });
+});
+
+describe("omniscience: the user says a character found out (#184 P3)", () => {
+  it("adds the name to the fact's knowers, once, and leaves an \"all\" fact alone", () => {
+    seed("swap");
+    const { host } = mockHost();
+    const call = (id: string, who: string) => L.handleRoute({ method: "POST", path: "/litopys/facts", query: {}, body: { chatId: "tav", op: "know", id, who } }, host);
+    expect(call("f3", "Aria").status).toBe(200);
+    expect(readJson("litopys/chats/tav.json").facts.find((f: any) => f.id === "f3").knownBy).toEqual(["Bram", "Aria"]);
+    expect(call("f3", "aria").status).toBe(200);
+    expect(readJson("litopys/chats/tav.json").facts.find((f: any) => f.id === "f3").knownBy).toEqual(["Bram", "Aria"]);
+    expect(call("f1", "Aria").status).toBe(200);
+    expect(readJson("litopys/chats/tav.json").facts.find((f: any) => f.id === "f1").knownBy).toBe("all");
+    expect(call("f3", "").status).toBe(400);
+    expect(call("f99", "Aria").status).toBe(404);
   });
 });

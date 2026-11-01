@@ -215,6 +215,19 @@ export interface DashInherit {
   canRebase?: boolean
 }
 
+/** A reply that let a character act on a secret it does not know, waiting for the user's answer (#184 P3). */
+export interface LeakHit {
+  /** the reply's message key, "<id>#<swipe>" */
+  key: string
+  msgId: string
+  swipe: number
+  who: string
+  /** the Litopys fact it concerns */
+  factId: string
+  text: string
+  quote: string
+}
+
 export interface DashResponse {
   exists: boolean
   chat: boolean
@@ -222,6 +235,8 @@ export interface DashResponse {
   view: DashView | null
   inherit?: DashInherit | null
   lastError: { at: number; message: string } | null
+  /** open leak hits on the active line; absent on an older plugin */
+  leaks?: LeakHit[]
   /** the pending "Story, move" nudge, also before the chat has any state (the view's copy needs one) */
   nudge?: Nudge | null
 }

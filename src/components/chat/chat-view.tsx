@@ -53,6 +53,7 @@ import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
 import { AgentNotes } from './agent-notes'
 import { DiceNote } from './dice-note'
+import { LeakNote } from './leak-note'
 import { refreshDice } from '@/lib/world'
 import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
 import { AgentBlock } from './agent-block'
@@ -1064,6 +1065,7 @@ export function ChatView() {
                 {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
                 {!deleteMode && <AgentNotes chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
                 {!deleteMode && <DiceNote chatId={chat.id} message={msg} index={i} />}
+                {!deleteMode && <LeakNote chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
                 {i === 0 && !deleteMode && !msg.edited && <OpeningHint chatId={chat.id} opening={carries.mine?.carries?.opening} />}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>

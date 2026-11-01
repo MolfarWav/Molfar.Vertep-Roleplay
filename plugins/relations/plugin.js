@@ -2546,7 +2546,7 @@ function leakOverlap(fact, text) {
   const there = new Set(leakStems(text));
   return { hits: mine.filter((w) => there.has(w)).length, total: mine.length };
 }
-const leakCovers = (o) => o.total >= 2 && o.hits >= Math.max(2, Math.ceil(o.total * 0.5));
+const leakCovers = (o) => o.total >= 2 && o.hits >= Math.max(1, Math.ceil(o.total * 0.34));
 
 /**
  * Step A. facts: [{id, text, knownBy}] (restricted ones: knownBy a list); reply and userText are the new messages' text;
