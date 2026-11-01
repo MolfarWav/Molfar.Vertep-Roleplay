@@ -3389,6 +3389,13 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     trimmed++;
   }
   if (trimmed > 0) omit("history", trimmed + " oldest messages", "over the context budget", removedTokens, "history");
+  // the history is down to its last message and the prompt still does not fit: the window is too small for what is always
+  // sent (card, lorebook, inserts) plus the room kept for the reply. The turn goes on with what fits; the client says so
+  // and names the ways out (a bigger window, a smaller max output, fewer inserts)
+  const needTokens = fixedTokens() + histTokens;
+  const tooSmall = needTokens > budget
+    ? { window: presetMaxCtx(preset), need: needTokens, budget: Math.max(0, budget), reply: replyReserve, windowKnown: !!(preset && preset.openai_max_context) }
+    : null;
   // where the verbatim history really starts, for the Litopys insert: it carries a chapter for every
   // message before it that a chapter covers, however the window forced the cut (a compacted history
   // is one message: nothing to say)
@@ -3655,6 +3662,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     // 0.9.2: by default the model's parameters win in the engine; this preset switch lets its own win
     ...(preset && preset.samplers_override_model === true ? { paramsSource: "request" } : {}),
     trimmed,
+    ...(tooSmall ? { tooSmall } : {}),
     // the context window this prompt was budgeted against, for hooks that size what they add
     contextTokens: presetMaxCtx(preset),
   };
@@ -4235,6 +4243,9 @@ export function handleRoute(req, host) {
   const op = seg[2];
   const ok = (json, status = 200) => ({ status, json });
   const err = (status, msg) => ({ status, json: { error: msg } });
+  // a failed model call that also carries the "context window too small" finding of its prompt: a provider that
+  // refuses an oversized prompt (or answers nothing) is then explained, not just reported
+  const failOut = (status, msg, stash) => ({ status, json: { error: msg, ...(stash && stash.tooSmall ? { tooSmall: stash.tooSmall } : {}) } });
   // ids are interpolated into fs paths — refuse path-shaped ids outright
   // ("..", ".", anything with a dot) before any route touches the disk
   if (id != null && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(id)) {
@@ -5594,7 +5605,7 @@ const toolX = (r) => ({
           turn: turnLabels({ op: "send", chatId: id, speakerId: speaker ? speaker.id : "", speakerName: speaker ? speaker.name : "" }, sp, a),
         });
         markGenerating();
-        return pendingOut(meta, a.trimmed || plan ? { ...(a.trimmed ? { trimmed: a.trimmed } : {}), ...(plan ? { plan } : {}) } : undefined);
+        return pendingOut(meta, a.trimmed || a.tooSmall || plan ? { ...(a.trimmed ? { trimmed: a.trimmed } : {}), ...(a.tooSmall ? { tooSmall: a.tooSmall } : {}), ...(plan ? { plan } : {}) } : undefined);
       }
       // PASS B: commit
       // A failed model call must not eat the user's turn: the user message is
@@ -5609,7 +5620,7 @@ const toolX = (r) => ({
           applyStashVars(req, meta);
           saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
         }
-        return err(503, llmFailReason(reply));
+        return failOut(503, llmFailReason(reply), req.stash);
       }
       if (userMsg) chat.msgs.push(userMsg);
       let speaker = members[0] || null;
@@ -5641,6 +5652,7 @@ const toolX = (r) => ({
         user: userMsg, reply: charMsg,
         // history the context could not hold this turn (auto-compaction's cue)
         ...(req.stash && req.stash.trimmed ? { trimmed: req.stash.trimmed } : {}),
+        ...(req.stash && req.stash.tooSmall ? { tooSmall: req.stash.tooSmall } : {}),
         // the rest of this group turn: members the client runs next, in order
         ...(plan && plan.length > 1 ? { queue: plan.slice(1) } : {}),
       });
@@ -5676,9 +5688,9 @@ const toolX = (r) => ({
           turn: turnLabels({ op: "next", chatId: id, speakerId: speaker.id, speakerName: speaker.name }, sp, a),
         });
         markGenerating();
-        return pendingOut(meta, a.trimmed ? { trimmed: a.trimmed } : undefined);
+        return pendingOut(meta, a.trimmed || a.tooSmall ? { ...(a.trimmed ? { trimmed: a.trimmed } : {}), ...(a.tooSmall ? { tooSmall: a.tooSmall } : {}) } : undefined);
       }
-      if (reply.model === "error") return err(503, llmFailReason(reply));
+      if (reply.model === "error") return failOut(503, llmFailReason(reply), req.stash);
       const stateTag = cutReply(cutInlineThinking(reply, inlineTags()));
       let replyText = stripEchoedName(stateTag.text, speaker.name);
       const prefill = reply.assistantPrefill;
@@ -5695,7 +5707,7 @@ const toolX = (r) => ({
       applyStashVars(req, meta);
       saveChat(fsx, id, touch({ ...meta, tainted: true }), chat.msgs);
       saveFastState(fsx, id, charMsg.id + "#0", stateTag, reply.model);
-      return ok({ reply: charMsg, ...(req.stash && req.stash.trimmed ? { trimmed: req.stash.trimmed } : {}) });
+      return ok({ reply: charMsg, ...(req.stash && req.stash.trimmed ? { trimmed: req.stash.trimmed } : {}), ...(req.stash && req.stash.tooSmall ? { tooSmall: req.stash.tooSmall } : {}) });
     }
 
     // swipe: navigate existing swipes on the last char message; generate new

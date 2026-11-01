@@ -247,6 +247,10 @@ earlier ones by name.
   but leave the prompt. Auto mode compacts when a send reports `trimmed`
   (history fell out of the context) or every `interval` turns. The per-chat
   facts vault (/memories) is unchanged, shown under Memory → Facts.
+  When the history is already down to its last message and the prompt still exceeds the model's window (a huge card,
+  a reply reserve as big as the window), the engine does not stop the turn: it sends what fits and reports
+  `tooSmall: {window, need, budget, reply}` in the send/next answer (and in the 503 body when the model fails);
+  the store shows one warning toast with the ways out (`lib/context-notice.ts`).
   Summaries and fact extraction (manual and automatic) run on
   ui.memory.model when set (memoryModelOf in the engine plugin), otherwise on
   the chat's model.

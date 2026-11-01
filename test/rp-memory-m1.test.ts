@@ -134,6 +134,49 @@ async function trimmedFor(presetExtra: Record<string, unknown>, pairs = 22) {
   return { trimmed: Number(r.json.trimmed || 0), m };
 }
 
+describe("a window too small for what is always sent", () => {
+  async function sendWith(cardDesc: string, preset: Record<string, unknown>, window: number, pairs = 22) {
+    fs.rmSync(path.join(root, "chats"), { recursive: true, force: true });
+    fs.mkdirSync(path.join(root, "chats"));
+    writePreset(preset);
+    const card = JSON.parse(fs.readFileSync(path.join(root, "characters/aria/card.json"), "utf8"));
+    card.description = cardDesc;
+    fs.writeFileSync(path.join(root, "characters/aria/card.json"), JSON.stringify(card));
+    const m = mockHost();
+    const id = await newChat(m);
+    seedPairs(id, pairs, CYR);
+    const r = await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "again", contextWindow: window } }, m);
+    return { r, m };
+  }
+
+  it("old messages just drop and nothing is reported while the rest fits", async () => {
+    const { r } = await sendWith("A barista.", { openai_max_tokens: 256 }, 4000);
+    expect(Number(r.json.trimmed)).toBeGreaterThan(0);
+    expect(r.json.tooSmall).toBeUndefined();
+  });
+
+  it("a card bigger than the window does not stop the turn: it goes on and says the window is too small", async () => {
+    const { r, m } = await sendWith("Опис. ".repeat(4500), { openai_max_tokens: 256 }, 4000);
+    expect(r.status).toBe(200);
+    expect(r.json.reply).toBeDefined();
+    const ts = r.json.tooSmall as { window: number; need: number; budget: number; reply: number };
+    expect(ts.window).toBe(4000);
+    expect(ts.reply).toBe(256);
+    expect(ts.need).toBeGreaterThan(ts.budget);
+    // the last message is still the player's
+    const sent = (m.requests.at(-1)!.req as { messages: { content: string }[] }).messages;
+    expect(sent.at(-1)!.content).toContain("again");
+  });
+
+  it("a reply reserve as big as the window leaves no room and says so", async () => {
+    const { r } = await sendWith("A barista.", { openai_max_tokens: 3900 }, 4000);
+    expect(r.status).toBe(200);
+    const ts = r.json.tooSmall as { budget: number; reply: number };
+    expect(ts.reply).toBe(3900);
+    expect(ts.budget).toBe(0);
+  });
+});
+
 describe("M1.1 history budget in tokens, with reserves", () => {
   it("a Cyrillic history that fit under chars/4 now trims, newest turn kept", async () => {
     // ~7000 chars: the old chars/4 rule (16000 chars here) trimmed nothing
