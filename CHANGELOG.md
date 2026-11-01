@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agents can read the Dashboard (#132). An Input entry or an If rule with `source: "state"` reads one of 13 fields: the scene's `present`, `place` and `weather`, and per character `mood`, `condition`, `outfit`, `holding`, `goal` and the five disposition numbers (`trust`, `comfort`, `attraction`, `respect`, `affection`). `of` names the character; without it the field is about whoever spoke last. The host takes the newest Dashboard snapshot on the chat's own line (a swiped-away branch is not seen), and the install screen asks for the field alone. Anything else of the Dashboard stays closed (`E_DASH_FIELD`); writing is still not supported. Tests in `rp-agents-plugin.test.ts`, docs in `docs/DATA-FORMATS.md`, the `agent-craft` skill updated.
+
 ## 4.80.2 (2026-11-01)
 
 - Home, four fixes from the owner's look at 4.80. "Open in Marketplace" opens that card's page, not only the list. "From your library" was blank for every card (the start-up list holds summaries, whose text is in `blurb`): it now shows the description, or the chat's last words, a "N msgs, time" line and chips in their own colours (chats, lorebooks, tags). "Waiting on you" shows what waits by kind and the first three inbox rows, each opens what it names. "Pick up the story" shows the portrait in a frame at its own size instead of stretching it over the block; a card with no picture of its own shows none.

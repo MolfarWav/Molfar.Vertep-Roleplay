@@ -18,6 +18,11 @@ export const PANEL_PLACES: string[]
 /** The most model calls an agent may make one behind another (the runner takes one pass for each, plus one to commit). */
 export const AGENT_MAX_ROUNDS: number
 
+/** The Dashboard fields an agent may read: `as` is the wire type, `char` = per character (named by `of`, else the one who spoke last). */
+export const DASH_FIELDS: Record<string, { as: 'text' | 'number'; char?: true }>
+/** The key under which the host hands a Dashboard value to the executor (`ctx.dash`): `field`, or `field@name` with `of`. */
+export const dashKey: (x: { field?: string; of?: string } | null | undefined) => string | undefined
+
 export interface AgentIssue { code: string; message: string; node?: string }
 export interface AgentDerived { needs: string[]; maxCalls: number; hash: string }
 export interface AgentReport { errors: AgentIssue[]; warnings: AgentIssue[]; derived: AgentDerived | null }

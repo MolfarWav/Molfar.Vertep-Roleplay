@@ -53,6 +53,35 @@ const SOURCE_TYPE = {
   lastReply: 'text', lastUserMessage: 'text', history: 'text', card: 'text', persona: 'text', summary: 'text',
   authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', state: null,
 };
+/**
+ * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
+ * what the characters said stay closed. A `scene` field belongs to the scene; a `char` field to one character: the
+ * `of` name on the Input entry (or the If operand), else the character who spoke last. Reading only: no card writes
+ * these fields yet.
+ */
+const DASH_FIELDS = {
+  present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' },
+  mood: { as: 'text', char: true }, condition: { as: 'text', char: true }, outfit: { as: 'text', char: true },
+  holding: { as: 'text', char: true }, goal: { as: 'text', char: true },
+  trust: { as: 'number', char: true }, comfort: { as: 'number', char: true }, attraction: { as: 'number', char: true },
+  respect: { as: 'number', char: true }, affection: { as: 'number', char: true },
+};
+/** Where the host puts a Dashboard value for the executor: the field, and `field@name` when the entry names a character. */
+const dashKey = (x) => (x?.of ? `${x.field}@${x.of}` : x?.field);
+/** One `state` source (an Input entry or an If operand): the field must be on the list, with the right type and `of` only where it means something. */
+function checkDashRead(o, where, err, node) {
+  const spec = DASH_FIELDS[o.field];
+  if (!spec) {
+    err('E_DASH_FIELD', `${where}: the Dashboard field "${o.field}" is not available to agents. They can read: ${Object.keys(DASH_FIELDS).join(', ')}`, node);
+    return;
+  }
+  if ((o.as ?? 'text') !== spec.as)
+    err('E_DASH_TYPE', `${where}: "${o.field}" is a ${spec.as} field, so "as" must be "${spec.as}"`, node);
+  if (o.of !== undefined && !spec.char)
+    err('E_DASH_OF', `${where}: "${o.field}" belongs to the scene, so it takes no character name ("of")`, node);
+  else if (o.of !== undefined && (!isString(o.of) || !o.of.trim() || o.of.length > 60))
+    err('E_DASH_OF', `${where}: "of" is a character name of 1 to 60 characters`, node);
+}
 const shapeType = (spec) => (spec === 'number' ? 'number' : spec === 'bool' ? 'flag' : 'text'); // enum:a|b and text are text
 const PORT_ID = /^[A-Za-z0-9_-]+$/;
 const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g)].map((m) => m[1]))];
@@ -554,8 +583,15 @@ function validateAgent(raw) {
     for (const t of card.needs(p))
       needs.add(t);
     maxCalls += card.calls ?? 0;
-    if (n.type === 'agent.input')
+    if (n.type === 'agent.input') {
       checkGiveLimits(n, warn);
+      for (const g of p.give ?? [])
+        if (g?.source === 'state') checkDashRead(g, `"${n.title}" (${g.id})`, err, n.id);
+    }
+    if (n.type === 'logic.if')
+      for (const r of p.rows ?? [])
+        for (const o of [r.left, r.right])
+          if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
@@ -1036,7 +1072,7 @@ function runCards(file, ctx, answers, seen) {
     const ran = (o) => trace.push({ node: id, status: 'ran', ...(o ? { out: o } : {}) });
 
     if (node.type === 'agent.input') {
-      for (const g of p.give || []) out(g.id, g.source === 'state' ? dash[g.field] : inputs[g.id]);
+      for (const g of p.give || []) out(g.id, g.source === 'state' ? dash[dashKey(g)] : inputs[g.id]);
       ran();
     } else if (node.type === 'note') {
       // no ports
@@ -1098,7 +1134,7 @@ function runCards(file, ctx, answers, seen) {
         const operand = (o) => {
           if (!isPlain(o)) return { value: undefined, type: 'text' };
           if (o.from === 'wire') { const v = ins[o.port]; return { value: v === ABSENT ? undefined : v, type: types[o.port] }; }
-          if (o.from === 'state') return { value: dash[o.field], type: o.as };
+          if (o.from === 'state') return { value: dash[dashKey(o)], type: o.as };
           if (o.from === 'chat') return { value: chat[o.what], type: o.what === 'messageCount' ? 'number' : 'text' };
           return { value: o.value, type: typeof o.value === 'number' ? 'number' : 'text' };
         };
@@ -1194,9 +1230,9 @@ function runCards(file, ctx, answers, seen) {
  *   agents/inserts/<chatId>.json         prompt inserts waiting for the next reply: { v, items: [...] }
  * Presets and a chat's binding are the engine's (agents/presets, agents/settings.json, chat meta `agents`).
  *
- * Not yet: Dashboard fields (read:state.*, write:state.*), the sources preGenInjections / parallelResults and the
- * triggers `before` and `parallel` (they need the client to wait for the agent before it sends the reply). An agent
- * that needs them installs but does not run, and says so.
+ * Dashboard fields: read:state.<field> works for the fields on DASH_FIELDS (#132); write:state.* does not yet.
+ * Not yet: write:state.*, the sources preGenInjections / parallelResults. An agent that needs them installs but does
+ * not run, and says so.
  */
 
 const AG_CHAT = /^[A-Za-z0-9_-]{1,120}$/;
@@ -1249,7 +1285,9 @@ export function chatAgents(fsx, meta) {
 
 // ---------- what this runner can give an agent ----------
 
-const UNSUPPORTED_NEEDS = (t) => t.startsWith("read:state.") || t.startsWith("write:state.") || t === "read:preGenInjections" || t === "read:parallelResults";
+const UNSUPPORTED_NEEDS = (t) =>
+  (t.startsWith("read:state.") ? !Object.prototype.hasOwnProperty.call(DASH_FIELDS, t.slice("read:state.".length)) : t.startsWith("write:state."))
+  || t === "read:preGenInjections" || t === "read:parallelResults";
 
 /** The permissions of a file this runner cannot serve yet. */
 export const unsupportedNeeds = (needs) => (Array.isArray(needs) ? needs : []).filter(UNSUPPORTED_NEEDS);
@@ -1522,6 +1560,82 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
 /** A model's answer as it travels from one pass to the next (the engine hands the plugin only the newest pass's answers). */
 const packAnswer = (r) => (isObj(r) ? { text: typeof r.text === "string" ? r.text : "", model: typeof r.model === "string" ? r.model : "", ...(r.error ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : {}) } : null);
 
+// ---------- the Dashboard as an agent sees it (read only, #132) ----------
+
+/**
+ * The Dashboard snapshot that stands for the chat's own line: the newest one among the messages the agent sees (a branch
+ * never sees another branch's snapshot, the way the Dashboard itself picks it), else the state an earlier chat carried.
+ * `removed` = the characters the user took off the Dashboard. null when the chat has no Dashboard state.
+ */
+export function dashSnapshot(fsx, view) {
+  const state = readJsonAt(fsx, "dashboard/state/" + view.chatId + ".json", null);
+  if (!isObj(state)) return null;
+  const snaps = isObj(state.snapshots) ? state.snapshots : {};
+  let snap = null;
+  for (let i = view.msgs.length - 1; i >= 0 && !snap; i--) if (isObj(snaps[msgKey(view.msgs[i])])) snap = snaps[msgKey(view.msgs[i])];
+  if (!snap && isObj(state.inherited) && state.inherited.off !== true && isObj(state.inherited.snap)) snap = state.inherited.snap;
+  if (!snap) return null;
+  const removed = new Set((Array.isArray(state.removed) ? state.removed : []).filter((n) => typeof n === "string").map((n) => n.trim().toLowerCase()));
+  return { snap, removed };
+}
+
+/** The key of `chars` that matches a name (case does not matter; a character the user removed is not there). */
+function dashCharKey(d, name) {
+  const want = str(name).toLowerCase();
+  if (!want || d.removed.has(want) || !isObj(d.snap.chars)) return "";
+  return Object.keys(d.snap.chars).find((k) => k.trim().toLowerCase() === want && isObj(d.snap.chars[k])) || "";
+}
+
+/** The character a field without `of` is about: whoever wrote the last reply in this view, else the first one in the scene. */
+function dashSpeaker(d, view) {
+  for (let i = view.msgs.length - 1; i >= 0; i--) {
+    const m = view.msgs[i];
+    if (isReplyMsg(m) && dashCharKey(d, m.name)) return dashCharKey(d, m.name);
+  }
+  const present = Array.isArray(d.snap.present) ? d.snap.present : [];
+  return present.map((n) => dashCharKey(d, n)).find((k) => k) || "";
+}
+
+/** One Dashboard value as the executor takes it (text or a finite number), undefined when the Dashboard has none. */
+function dashValue(d, view, field, of) {
+  const spec = DASH_FIELDS[field];
+  if (!d || !spec) return undefined;
+  if (!spec.char) {
+    if (field === "present") {
+      const names = (Array.isArray(d.snap.present) ? d.snap.present : []).filter((n) => str(n) && !d.removed.has(str(n).toLowerCase())).map(str);
+      return names.length ? clip(names.join(", "), 400) : undefined;
+    }
+    const v = isObj(d.snap.clock) ? d.snap.clock[field] : undefined;
+    return typeof v === "string" && v.trim() ? clip(v.trim(), 200) : undefined;
+  }
+  const who = of ? dashCharKey(d, of) : dashSpeaker(d, view);
+  const c = who ? d.snap.chars[who] : null;
+  if (!c) return undefined;
+  if (spec.as === "number") {
+    const v = isObj(c.stats) ? c.stats[field] : undefined;
+    return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  }
+  const v = Array.isArray(c[field]) ? c[field].filter((x) => typeof x === "string" && x.trim()).join(", ") : c[field];
+  return typeof v === "string" && v.trim() ? clip(v.trim(), 600) : undefined;
+}
+
+/** `ctx.dash` for one agent: only the fields its Input and If cards ask for, each under its `dashKey`. */
+export function dashFor(file, d, view) {
+  const dash = {};
+  if (!d) return dash;
+  const asks = [];
+  for (const n of file.nodes) {
+    const p = isObj(n.params) ? n.params : {};
+    if (n.type === "agent.input") for (const g of Array.isArray(p.give) ? p.give : []) { if (isObj(g) && g.source === "state") asks.push(g); }
+    else if (n.type === "logic.if") for (const r of Array.isArray(p.rows) ? p.rows : []) for (const o of [r && r.left, r && r.right]) { if (isObj(o) && o.from === "state") asks.push(o); }
+  }
+  for (const o of asks) {
+    const v = dashValue(d, view, o.field, typeof o.of === "string" ? o.of : "");
+    if (v !== undefined) dash[dashKey(o)] = v;
+  }
+  return dash;
+}
+
 /**
  * One round of a run. Every agent is run again from the start with all the answers so far (the cards that cost
  * nothing are cheap, and a pass can lose nothing); the questions that can be asked now are asked together.
@@ -1532,6 +1646,13 @@ function stepRun(host, fsx, view, picks, last, stash) {
   const fresh = host.llm && host.llm.results ? host.llm.results : {};
   for (const k of Object.keys(fresh)) { const a = packAnswer(fresh[k]); if (a) answersAll[k] = a; }
   const lastMsg = view.msgs.length ? view.msgs[view.msgs.length - 1] : null;
+  // the Dashboard file is read once a pass, and only when a picked agent asks for one of its fields
+  let dashSnap;
+  const dashOf = (pick) => {
+    if (!needsOf(pick.agent.file).some((t) => t.startsWith("read:state."))) return null;
+    if (dashSnap === undefined) dashSnap = dashSnapshot(fsx, view);
+    return dashSnap;
+  };
   const results = picks.map((pick, ai) => {
     const schema = (pick.agent.file.agent && pick.agent.file.agent.state) || {};
     const st = loadOwn(fsx, view.chatId, pick.item.agent, schema);
@@ -1543,7 +1664,7 @@ function stepRun(host, fsx, view, picks, last, stash) {
       inputs[g.id] = sourceValue(fsx, view, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
     }
     // dice and picks repeat within one reply (every pass of a run) and change with a new swipe: the key carries the swipe
-    const ctx = { inputs, own: base, dash: {}, chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
+    const ctx = { inputs, own: base, dash: dashFor(pick.agent.file, dashOf(pick), view), chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
     const answers = {};
     pick.agent.file.nodes.forEach((n, ni) => {
       const r = answersAll[`ag_${ai}_${ni}`];

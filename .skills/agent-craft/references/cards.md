@@ -8,7 +8,7 @@ Wire types: `text`, `number`, `flag` (yes or no), `signal` (fired or not; the `w
 
 | Card | params | Ports it gets |
 |---|---|---|
-| `agent.input` (exactly one) | `give: [{ id, source }]`, source one of `lastReply`, `lastUserMessage`, `history`, `card`, `persona`, `authorNote`, `myPrevious`, `litopysFacts` (the chat's active Litopys facts, optional `limit` up to 60), `lorebook` (entries that are constant or keyed by the last six messages, optional `limit` up to 20). Not yet run: `summary`, `preGenInjections`, `parallelResults`, and `source: "state"` (a Dashboard field) | one text output per `id` |
+| `agent.input` (exactly one) | `give: [{ id, source }]`, source one of `lastReply`, `lastUserMessage`, `history`, `card`, `persona`, `authorNote`, `myPrevious`, `litopysFacts` (the chat's active Litopys facts, optional `limit` up to 60), `lorebook` (entries that are constant or keyed by the last six messages, optional `limit` up to 20). `state` (a Dashboard field, read only: `{ id, source: "state", field, as, of? }`, see below). Not yet run: `summary`, `preGenInjections`, `parallelResults` | one text output per `id` |
 | `text.template` | `text` with `{{slot}}`s | one text input per slot, output `text` |
 | `model.ask` | `role` (`fast`), `prompt` with `{{slot}}`s, `answer`, `maxTokens`, `batchKey: null` | one text input per slot in the prompt. Outputs by `answer`: `{ "as": "text" }` gives `text`; `{ "as": "yesno" }` gives `answer` (flag) and `reason` (text); `{ "as": "json", "shape": { "mood": "enum:calm\|tense", "level": "number", "met": "bool", "who": "text" } }` gives one output per shape field |
 | `data.parse` | `shape` as above | input `text`, one output per field, and `failed` (signal) |
@@ -40,3 +40,5 @@ Panels (`agent.panels`, at most 4): `{ id, title, place: "float" | "top1" | "top
 `actions` (`items: [{ label, send }]`, only fills the composer). Each bound widget has `bind: "<field>"`; `html` is not drawn yet.
 
 The first run of a number field starts at its `start`. Numbers stay inside `min` / `max` whatever the cards say.
+
+Dashboard fields an agent may read (`source: "state"` on the Input card, or `from: "state"` in an `logic.if` rule; nothing else of the Dashboard is open, and nothing can be written to it): scene text `present` (names, joined), `place`, `weather`; per character text `mood`, `condition`, `outfit`, `holding`, `goal` (`as: "text"`) and numbers `trust`, `comfort`, `attraction`, `respect`, `affection` (`as: "number"`). `of: "Anna"` names the character; without it the field is about whoever spoke last. The permission is the field (`read:state.comfort`). A field the Dashboard has no value for is missing: a card that needs it is skipped and an If says Unknown. A number cannot go into a text slot of a prompt: compare it in an If, or leave the wire out.

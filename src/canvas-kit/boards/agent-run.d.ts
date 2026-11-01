@@ -30,7 +30,7 @@ export interface RunContext {
   /** what the host read for the Input card, by give id */
   inputs?: Record<string, string | number | undefined>
   own?: Own
-  /** Dashboard fields */
+  /** Dashboard values the host read, by `dashKey` (`comfort`, or `comfort@Anna` when the entry names a character) */
   dash?: Record<string, string | number | undefined>
   chat?: { messageCount?: number; lastSpeaker?: string }
   /** the editor's trial run: also return `wires` */

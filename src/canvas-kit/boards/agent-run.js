@@ -15,7 +15,7 @@
 // reads it answers Unknown. A card that needs a value and gets SKIP or missing data is skipped, and so is
 // everything that depends only on it; a skipped card costs nothing.
 
-import { AGENT_CARDS, splitEnd } from './agent-check.js';
+import { AGENT_CARDS, dashKey, splitEnd } from './agent-check.js';
 
 const SKIP = { skip: true };
 const PENDING = { pending: true };
@@ -335,7 +335,7 @@ function runCards(file, ctx, answers, seen) {
     const ran = (o) => trace.push({ node: id, status: 'ran', ...(o ? { out: o } : {}) });
 
     if (node.type === 'agent.input') {
-      for (const g of p.give || []) out(g.id, g.source === 'state' ? dash[g.field] : inputs[g.id]);
+      for (const g of p.give || []) out(g.id, g.source === 'state' ? dash[dashKey(g)] : inputs[g.id]);
       ran();
     } else if (node.type === 'note') {
       // no ports
@@ -397,7 +397,7 @@ function runCards(file, ctx, answers, seen) {
         const operand = (o) => {
           if (!isPlain(o)) return { value: undefined, type: 'text' };
           if (o.from === 'wire') { const v = ins[o.port]; return { value: v === ABSENT ? undefined : v, type: types[o.port] }; }
-          if (o.from === 'state') return { value: dash[o.field], type: o.as };
+          if (o.from === 'state') return { value: dash[dashKey(o)], type: o.as };
           if (o.from === 'chat') return { value: chat[o.what], type: o.what === 'messageCount' ? 'number' : 'text' };
           return { value: o.value, type: typeof o.value === 'number' ? 'number' : 'text' };
         };
