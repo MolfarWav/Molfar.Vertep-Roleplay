@@ -6,6 +6,7 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import { ApiError, j } from './engine'
 import { t as tr, type MsgKey, type Vars } from './i18n'
+import type { DryResult } from './agent-dry'
 
 export type AgentPhase = 'before' | 'parallel' | 'after' | 'manual'
 
@@ -231,6 +232,36 @@ export async function grantAgent(id: string): Promise<void> {
 
 export async function removeAgent(id: string): Promise<void> {
   await j(`/agents/${q(id)}`, { method: 'DELETE' })
+}
+
+// ---------- the trial on a real chat (POST /agents/dry, #137) ----------
+
+/** One thing the Input card gives, as the chat has it. `empty`: the chat has nothing for it (an unfilled Dashboard field, no author note). */
+export interface DryInputRow { id: string; source: string; field?: string; text: string; tokens: number; empty: boolean }
+export interface DryChat { id: string; title: string; messages: number; lastSpeaker: string }
+
+/** What the chat would give the agent: the inputs, the saved memory, and which model each role would ask. */
+export interface DryProbe { chat: DryChat; maxCalls: number; models: Record<string, string>; inputs: DryInputRow[]; own: Record<string, unknown> }
+
+/** A trial run on the chat's model: the usual trial result, plus who answered each question and what it cost. */
+export interface DryLiveResult extends DryResult {
+  chat: DryChat
+  maxCalls: number
+  models: Record<string, string>
+  usage?: { input: number; output: number; cost: number; priced: boolean }
+  asked: (DryResult['asked'][number] & { model?: string; error?: string })[]
+}
+
+const dryBody = (file: unknown, chatId: string, more: Record<string, unknown>) => JSON.stringify({ file, chatId, ...more })
+
+/** Reads what a real chat would give the agent. Nothing is written. */
+export async function probeAgentOnChat(file: unknown, chatId: string): Promise<DryProbe> {
+  return j<DryProbe>('/agents/dry', { method: 'POST', body: dryBody(file, chatId, { probe: true }) })
+}
+
+/** Runs the agent on the chat's model with the given inputs and memory. It costs tokens; nothing is written. */
+export async function runAgentOnChat(file: unknown, chatId: string, setup: { inputs: Record<string, string>; own: Record<string, unknown> }): Promise<DryLiveResult> {
+  return j<DryLiveResult>('/agents/dry', { method: 'POST', body: dryBody(file, chatId, { live: true, inputs: setup.inputs, own: setup.own }) })
 }
 
 export async function loadAgentRuns(chatId: string): Promise<AgentRun[]> {

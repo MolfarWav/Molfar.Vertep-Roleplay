@@ -1,19 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowCounterClockwise, Check, DiceFive, Warning } from '@phosphor-icons/react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
+import { probeAgentOnChat, runAgentOnChat } from '@/lib/agents'
 import { describeWrite, dryRun, sampleInputs, startOwn, type DryFile, type DryResult } from '@/lib/agent-dry'
 import { fmtValue } from '@/lib/agent-template'
 import type { MsgKey } from '@/lib/i18n'
 import { estimateTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 import { Field } from './card-form'
+import { ChatTrial } from './try-chat'
 
 type Json = Record<string, any>
-interface Edits { inputs: Record<string, string>; own: Record<string, unknown>; replies: Record<string, string> }
+/**
+ * `chat`: the inputs and memory above came from this real chat. `live`: the answers that came from the model, by card
+ * id, with the model's name (an answer the person edits stops being the model's).
+ */
+export interface ChatMark { id: string; title: string; messages: number; models: Record<string, string>; empty: string[] }
+interface Edits { inputs: Record<string, string>; own: Record<string, unknown>; replies: Record<string, string>; chat?: ChatMark; live?: Record<string, string> }
 const NONE: Edits = { inputs: {}, own: {}, replies: {} }
+/** What the last run on the model did: its cost, or why a card has no answer from it. */
+export interface LiveNote { models: string[]; calls: number; input: number; output: number; failed: { node: string; error: string }[]; stopped?: string }
 const newSeed = () => Math.random().toString(36).slice(2, 10)
 /** The cards that roll: a trial keeps their result until the person asks for a new one. */
 export const hasRandom = (file: Pick<DryFile, 'nodes'> | null) => !!file?.nodes.some((n) => n.type === 'random.dice' || n.type === 'random.pick')
@@ -23,10 +33,14 @@ export const hasRandom = (file: Pick<DryFile, 'nodes'> | null) => !!file?.nodes.
  * while the Try tab is open and the check has no errors, and it is recomputed on every change, so there is no Run button.
  */
 export function useDry(file: DryFile | null, key: string, active: boolean) {
+  const t = useT()
   const [edits, setEdits] = useState<Edits>(NONE)
+  // 'probe' = reading a chat, 'live' = waiting for the model; the note is the last run's outcome
+  const [busy, setBusy] = useState<'probe' | 'live' | null>(null)
+  const [note, setNote] = useState<LiveNote | null>(null)
   // the seed of the dice and picks: it stays while the person edits, and changes only with "Roll again"
   const [seed, setSeed] = useState('try')
-  useEffect(() => { setEdits(NONE); setSeed('try') }, [key])
+  useEffect(() => { setEdits(NONE); setSeed('try'); setNote(null) }, [key])
   const examples = useMemo(() => (file ? sampleInputs(file) : {}), [file])
   const result = useMemo<DryResult | null>(() => {
     if (!file || !active) return null
@@ -34,20 +48,64 @@ export function useDry(file: DryFile | null, key: string, active: boolean) {
       return dryRun(file, { inputs: { ...examples, ...edits.inputs }, own: edits.own, replies: edits.replies, chat: { messageCount: 6, lastSpeaker: 'Character' }, seed })
     } catch { return null }
   }, [file, active, examples, edits, seed])
-  return { edits, setEdits, result, examples, reroll: () => setSeed(newSeed()) }
+  /** Fill the inputs and the memory from a real chat. The chat is only read. */
+  const fromChat = async (chatId: string) => {
+    if (!file) return
+    setBusy('probe')
+    try {
+      const p = await probeAgentOnChat(file, chatId)
+      setNote(null)
+      setEdits({
+        inputs: Object.fromEntries(p.inputs.map((i) => [i.id, i.text])),
+        own: p.own,
+        replies: {},
+        chat: { id: p.chat.id, title: p.chat.title, messages: p.chat.messages, models: p.models, empty: p.inputs.filter((i) => i.empty).map((i) => (i.source === 'state' ? `${i.field}` : i.id)) },
+      })
+    } catch (e) {
+      toast.error(t('fg.chat.failed', { why: (e as Error).message }))
+    } finally { setBusy(null) }
+  }
+
+  /** Ask the chat's model what the agent's questions ask, once; its answers fill the boxes, so the trial runs on them from now on at no cost. */
+  const askModel = async () => {
+    if (!file || !edits.chat) return
+    setBusy('live')
+    setNote(null)
+    try {
+      const schema = (file.agent?.state ?? {}) as Json
+      const r = await runAgentOnChat(file, edits.chat.id, { inputs: { ...examples, ...edits.inputs }, own: startOwn(schema, edits.own) })
+      const good = r.asked.filter((a) => !a.error && a.reply.trim())
+      setEdits((e) => ({
+        ...e,
+        replies: { ...e.replies, ...Object.fromEntries(good.map((a) => [a.node, a.reply])) },
+        live: { ...e.live, ...Object.fromEntries(good.map((a) => [a.node, a.model ?? ''])) },
+      }))
+      setNote({
+        models: [...new Set(good.map((a) => a.model).filter((m): m is string => !!m))],
+        calls: r.asked.length,
+        input: r.usage?.input ?? 0,
+        output: r.usage?.output ?? 0,
+        failed: r.asked.filter((a) => a.error || !a.reply.trim()).map((a) => ({ node: a.node, error: a.error || t('fg.chat.noAnswer') })),
+      })
+    } catch (e) {
+      setNote({ models: [], calls: 0, input: 0, output: 0, failed: [], stopped: (e as Error).message })
+    } finally { setBusy(null) }
+  }
+
+  return { edits, setEdits, result, examples, reroll: () => setSeed(newSeed()), busy, note, clearNote: () => setNote(null), fromChat, askModel }
 }
 export type Dry = ReturnType<typeof useDry>
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
-export function TryPanel({ file, errors, dry, titleOf }: { file: DryFile; errors: number; dry: Dry; titleOf: (id: string) => string }) {
+export function TryPanel({ file, errors, dry, titleOf, calls }: { file: DryFile; errors: number; dry: Dry; titleOf: (id: string) => string; calls: number }) {
   const t = useT()
   const { edits, setEdits, result, examples, reroll } = dry
   const schema = (file.agent?.state ?? {}) as Json
   const own = startOwn(schema, edits.own)
   const give = file.nodes.filter((n) => n.type === 'agent.input').flatMap((n) => (n.params?.give ?? []) as Json[])
   const set = (patch: Partial<Edits>) => setEdits((e) => ({ ...e, ...patch }))
-  const changed = Object.keys(edits.inputs).length + Object.keys(edits.own).length + Object.keys(edits.replies).length > 0
+  const changed = Object.keys(edits.inputs).length + Object.keys(edits.own).length + Object.keys(edits.replies).length > 0 || !!edits.chat
 
   if (errors > 0) return <p className="text-xs text-muted-foreground" data-testid="try-fix">{t('fg.try.fix')}</p>
   return (
@@ -55,11 +113,13 @@ export function TryPanel({ file, errors, dry, titleOf }: { file: DryFile; errors
       <div className="flex items-start gap-2">
         <p className="min-w-0 flex-1 text-[11px] leading-snug text-muted-foreground">{t('fg.try.lead')}</p>
         {changed && (
-          <Button variant="outline" size="sm" className="shrink-0 max-md:h-10" onClick={() => setEdits({ inputs: {}, own: {}, replies: {} })} data-testid="try-reset">
+          <Button variant="outline" size="sm" className="shrink-0 max-md:h-10" onClick={() => { setEdits({ inputs: {}, own: {}, replies: {} }); dry.clearNote() }} data-testid="try-reset">
             <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />{t('fg.try.reset')}
           </Button>
         )}
       </div>
+
+      <ChatTrial dry={dry} calls={calls} titleOf={titleOf} />
 
       {hasRandom(file) && (
         <div className="flex items-center gap-2">
@@ -97,11 +157,11 @@ export function TryPanel({ file, errors, dry, titleOf }: { file: DryFile; errors
               <div className="flex items-center gap-2 text-xs font-medium">
                 <span className="min-w-0 flex-1 truncate">{titleOf(a.node)}</span>
                 <span className="shrink-0 font-mono text-[10px] font-normal text-muted-foreground" title={t('fg.try.promptHint')} data-testid={`try-prompt-${a.node}`}>{t('fg.try.promptTokens', { n: estimateTokens(a.prompt).toLocaleString() })}</span>
-                <span className={cn('shrink-0 rounded-full border px-1.5 text-[10px] font-normal', a.example ? 'border-border text-muted-foreground' : 'border-primary/60 text-primary')}>{a.example ? t('fg.try.example') : t('fg.try.yours')}</span>
+                <span className={cn('shrink-0 rounded-full border px-1.5 text-[10px] font-normal', a.example ? 'border-border text-muted-foreground' : 'border-primary/60 text-primary')}>{a.example ? t('fg.try.example') : edits.live?.[a.node] !== undefined ? t('fg.try.model') : t('fg.try.yours')}</span>
               </div>
-              <Textarea rows={3} value={a.reply} className="font-mono text-xs" aria-label={titleOf(a.node)} onChange={(e) => set({ replies: { ...edits.replies, [a.node]: e.target.value } })} />
+              <Textarea rows={3} value={a.reply} className="font-mono text-xs" aria-label={titleOf(a.node)} onChange={(e) => { const { [a.node]: _was, ...live } = edits.live ?? {}; set({ replies: { ...edits.replies, [a.node]: e.target.value }, live }) }} />
               {!a.example && (
-                <Button variant="ghost" size="sm" className="self-start max-md:h-10" onClick={() => { const { [a.node]: _gone, ...rest } = edits.replies; set({ replies: rest }) }}>{t('fg.try.resetReply')}</Button>
+                <Button variant="ghost" size="sm" className="self-start max-md:h-10" onClick={() => { const { [a.node]: _gone, ...rest } = edits.replies; const { [a.node]: _was, ...live } = edits.live ?? {}; set({ replies: rest, live }) }}>{t('fg.try.resetReply')}</Button>
               )}
             </div>
           ))}

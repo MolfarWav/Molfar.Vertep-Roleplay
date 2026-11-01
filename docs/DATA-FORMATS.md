@@ -839,6 +839,21 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   with that reason in the log instead of vanishing. The engine runs the questions of one round up to three at a time, at least
   250 ms apart, and tries a question again after a 429.
 - `GET /agents/state?chatId&agent` (the agent's own fields), `DELETE` the same (start over), `GET /agents/runs?chatId`, `GET /agents/panels?chatId` (the panels of the chat's agents that are on and allowed, each with its state schema, its state and the state before the last run; the app draws them in `top1`, `top2` or the floating button).
+- **Trial on a real chat.** `POST /agents/dry` `{ chatId, file | draft | agent, probe?, live?, inputs?, own?, replies?, model?, seed? }`
+  reads the chat and runs one agent over it; nothing is written (not the chat, the agent's memory, the run log or the
+  Dashboard). The agent is the editor's file as it stands (`file`), a draft by name (`draft`) or an installed id (`agent`); a
+  file that does not pass the check is refused with 400 and the checker's `errors`. The Input card is read by the same
+  readers a real run uses; `inputs` (by give id; `""` = empty) and `own` (memory fields) replace what the chat has. `probe: true`
+  only answers `{ source, chat: { id, title, messages, lastSpeaker }, maxCalls, models, inputs: [{ id, source, field?, text,
+  tokens, empty }], own }`, where `models` is the model each role would ask. Without `live` no model is called: each model card
+  gets `replies[<card id>]` or an example in the format it asks for. With `live: true` the questions go to the model: for a role,
+  `model`, else what the user chose for the agent (`byAgent`, `models`, `model` of `agents/config.json`), else the chat's own model,
+  else the app's (not the Dashboard sensor's); it refuses when the agent can make more calls than the user's limit for it (400).
+  The answer is the editor's trial result: `status`, `reason`, `node`, `calls`, `asked` (`node`, `prompt`, `reply`, `example`,
+  `model?`, `error?`), `wires`, `nodes`, `trace`, `ownWrites`, `dashWrites`, `refused`, `ownAfter`, `outputs`, plus `live` and,
+  when live, `usage` (`input`, `output`, `cost`, `priced`). The editor's Try tab uses it ("A real chat": fills the boxes from the
+  chat, then runs with the model once and keeps the answers in the boxes); Molfar's `agent_dry_run` tool wraps it. A trial seed
+  defaults to `<chatId>|<agentId>|dry`, so dice and picks repeat.
 - **Drafts.** A file Molfar (or anyone) writes to `data/agents/drafts/<name>.vertep-agent.json` waits there for the user. The
   Agents sheet lists the drafts with what an install would say about each (`errors` and `warnings`, the checker's own codes
   and messages) and an Install button; a draft with errors cannot be installed. `GET /agents/drafts` (`{ drafts: [{ name, id,
