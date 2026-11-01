@@ -82,7 +82,7 @@ export function useDry(file: DryFile | null, key: string, active: boolean) {
       }))
       setNote({
         models: [...new Set(good.map((a) => a.model).filter((m): m is string => !!m))],
-        calls: r.asked.length,
+        calls: good.length,
         input: r.usage?.input ?? 0,
         output: r.usage?.output ?? 0,
         failed: r.asked.filter((a) => a.error || !a.reply.trim()).map((a) => ({ node: a.node, error: a.error || t('fg.chat.noAnswer') })),

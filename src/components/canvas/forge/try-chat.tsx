@@ -26,7 +26,7 @@ export function ChatTrial({ dry, calls, titleOf }: { dry: Dry; calls: number; ti
   const label = (c: (typeof list)[number]) => {
     const who = characters.find((x) => x.id === c.characterId)?.name
     const n = c.messageCount ?? c.messages.length
-    return `${c.title || t('fg.chat.untitled')}${who ? ` · ${who}` : ''} · ${n}`
+    return `${c.title || t('fg.chat.untitled')}${who ? ` · ${who}` : ''} · ${t('fg.chat.msgs', { n })}`
   }
 
   return (
@@ -37,13 +37,11 @@ export function ChatTrial({ dry, calls, titleOf }: { dry: Dry; calls: number; ti
       ) : (
         <>
           <p className="text-caption text-muted-foreground">{t('fg.chat.lead')}</p>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="min-w-0 flex-1">
-              <NativeSelect value={pick} onChange={setChosen} label={t('fg.chat.pick')}>
-                {list.map((c) => <option key={c.id} value={c.id}>{label(c)}</option>)}
-              </NativeSelect>
-            </div>
-            <Button variant="outline" size="sm" className="shrink-0 max-md:h-10" disabled={!pick || busy !== null} onClick={() => void fromChat(pick)} data-testid="try-chat-fill">
+          <div className="flex flex-col gap-2">
+            <NativeSelect value={pick} onChange={setChosen} label={t('fg.chat.pick')}>
+              {list.map((c) => <option key={c.id} value={c.id}>{label(c)}</option>)}
+            </NativeSelect>
+            <Button variant="outline" size="sm" className="self-start max-md:h-10" disabled={!pick || busy !== null} onClick={() => void fromChat(pick)} data-testid="try-chat-fill">
               {busy === 'probe' && <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" />}
               {t(mark ? 'fg.chat.refill' : 'fg.chat.fill')}
             </Button>
@@ -65,7 +63,7 @@ export function ChatTrial({ dry, calls, titleOf }: { dry: Dry; calls: number; ti
                 <p className="text-caption text-muted-foreground" data-testid="try-chat-cost">
                   {t('fg.chat.cost', { model: models.length ? models.join(', ') : t('fg.chat.appModel'), n: calls })}
                 </p>
-                <Button size="sm" className="self-start max-md:h-10 max-md:self-stretch" disabled={busy !== null} onClick={() => void askModel()} data-testid="try-chat-run">
+                <Button size="sm" className="self-start max-md:h-10" disabled={busy !== null} onClick={() => void askModel()} data-testid="try-chat-run">
                   {busy === 'live' ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" weight="fill" aria-hidden="true" />}
                   {busy === 'live' ? t('fg.chat.asking') : t('fg.chat.run', { n: calls })}
                 </Button>
@@ -75,7 +73,7 @@ export function ChatTrial({ dry, calls, titleOf }: { dry: Dry; calls: number; ti
               <div role="status" className="flex flex-col gap-1 text-xs" data-testid="try-chat-note">
                 {note.stopped ? (
                   <p className="flex items-start gap-1.5 text-destructive"><Warning className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /><span>{t('fg.chat.stopped', { why: note.stopped })}</span></p>
-                ) : (
+                ) : note.calls === 0 ? null : (
                   <p className={cn('flex items-start gap-1.5', note.failed.length ? 'text-foreground' : 'text-emerald-600 dark:text-emerald-400')}>
                     <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                     <span>{t('fg.chat.asked', { model: note.models.join(', ') || t('fg.chat.appModel'), n: note.calls, input: note.input.toLocaleString(), output: note.output.toLocaleString() })}</span>
