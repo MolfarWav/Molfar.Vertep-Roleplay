@@ -37,7 +37,15 @@ Own state (`agent.state`), kept per chat: `{ "tension": { "type": "number", "min
 `{ "type": "text" }`, `{ "type": "flag" }`, `{ "type": "list", "item": { "name": "text", "level": "number" }, "max": 20 }`.
 Panels (`agent.panels`, at most 4): `{ id, title, place: "float" | "top1" | "top2", widgets }`; widgets `meter`, `number`,
 `counter` (number field), `table` (list field, `columns`), `list`, `log` (list field), `text` (text field),
-`actions` (`items: [{ label, send }]`, only fills the composer). Each bound widget has `bind: "<field>"`; `html` is not drawn yet.
+`actions` (`items: [{ label, send }]`, only fills the composer). Each bound widget has `bind: "<field>"`.
+`html` widget: `{ "w": "html", "bind": "<field>", "height": 140, "template": "<div>...</div>" }`. It draws the template in a sealed frame
+(no scripts, no network, no access to the page); `height` is whole pixels, 40 to 600 (default 80); the template is up to 8192 characters.
+Slots: `{{field}}` (a state field, any type but list), `{{#each list}}...{{/each}}` (the entry's fields inside, no nested each, at most 50 entries),
+`{{#if field}}...{{/if}}`. Plain HTML and inline `style="..."` are fine. The check refuses `<script>`, frames, forms, `<link>`, event handlers
+(`onclick=`), `src=`, `href=`, `url(...)` and `@import` (`E_TPL_FORBIDDEN`), a slot that is not a field (`E_TPL_FIELD`) and an unclosed block
+(`E_TPL_UNCLOSED`). Values are escaped by the app, so a model's text can never become markup. Example for a number `tension` and a list `events`:
+`<b>Tension {{tension}}</b>{{#each events}}<div>{{name}}</div>{{/each}}`. Give the widget a `bind` field of the same state, and keep a plain `text` or `meter`
+widget beside it for a phone or a failed frame.
 
 The first run of a number field starts at its `start`. Numbers stay inside `min` / `max` whatever the cards say.
 
