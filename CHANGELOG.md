@@ -4,6 +4,11 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.80.1 (2026-11-01)
+
+- The phone menus are coloured like the desktop rail: the bottom tab bar, the All sections sheet and the chat menu's Go to block take each section's hue, and Agents has a tile in All sections (it opens the Canvas on the Agents board). In the chats list New chat is the one filled button; Recent and Select look like secondary controls and match the search field in height.
+- Fixes from a browser check of 4.80.0. Side sheets take the width their screen asks for (the World DM sheet is 448 px and full width on a phone; before, a sheet's own width lost to the base classes and stayed at 384 px). The Home header fits a phone and Customize is no longer off screen. The World DM Profile select shows its value (and "Off" with the DM off), and switches in dimmed cards look disabled. The Lorebooks book page keeps its column when an entry is open. Dashboard lists no longer reuse React keys, the Sensor tiles' inputs line up, "Open in Marketplace" no longer runs off its card, and text on the new screens is no smaller than 12 px (the pixel-size ratchet drops to 599).
+
 ## 4.80.0 (2026-11-01)
 
 - The World DM panel, redesigned (#191). The chat's World sheet and the World section's Overview now group the settings by what the player wants: "When it runs" (every N replies, World turn, the triggers), "What it writes" (records, outfit source, limits) and "What it adds to the story" (events, dice), each a tinted card with chips that show the current values. The expert numbers sit in folds that say what is set while closed (Limits, Dice details, Recent rolls); a fold has a visible caret, a 48 px header and remembers whether it was open. "So far" is four number tiles (Records, Retired, Fronts, Runs) with chips for the scene and a waiting event. With the DM off only "When it runs" and "What it adds to the story" are dimmed, each with the reason; "What it writes" stays live because the records sweep still runs. World turn is the one filled button; "New chat in this world" is a softer filled one, Save world is outlined, Look at the world is plain.
