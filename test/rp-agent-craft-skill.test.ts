@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import { compileAgent } from "../src/canvas-kit/boards/agent-check.js";
+import { compileAgent, templateProblems } from "../src/canvas-kit/boards/agent-check.js";
 import * as run from "../src/canvas-kit/boards/agent-run.js";
 import { drawTemplate } from "../src/lib/agent-template";
 
@@ -26,6 +26,21 @@ describe("agent-craft recipes", () => {
     const skill = fs.readFileSync(new URL("../SKILL.md", dir), "utf8");
     expect(skill).toContain("Say so when the cards cannot do it");
     expect(skill).toContain("Never invent a card type");
+  });
+
+  it("knows the html widget is drawn, and its example template passes the check", () => {
+    const skill = fs.readFileSync(new URL("../SKILL.md", dir), "utf8");
+    const cards = fs.readFileSync(new URL("cards.md", dir), "utf8");
+    expect(`${skill}${cards}`).not.toMatch(/`html` is not drawn yet|`html` and grid widgets are not drawn/);
+    expect(cards).toContain("E_TPL_FORBIDDEN");
+    const example = /<b>Tension \{\{tension\}\}<\/b>[^`]*/.exec(cards)?.[0];
+    expect(example).toBeTruthy();
+    const schema = { tension: { type: "number" }, events: { type: "list", item: { name: "text" } } };
+    expect(templateProblems(example, schema)).toEqual([]);
+    // what the page says is refused really is refused
+    for (const bad of ["<script>1</script>", '<img src="x">', '<a href="y">z</a>', '<div onclick="1">z</div>', "<style>@import 'x';</style>", "<div style=\"background:url(x)\">z</div>"]) {
+      expect(templateProblems(bad, schema).map((p: Json) => p.code)).toContain("E_TPL_FORBIDDEN");
+    }
   });
 
   it.each(files)("%s passes the checker clean and compiles without help", (f) => {
