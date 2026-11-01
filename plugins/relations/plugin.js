@@ -1738,6 +1738,7 @@ export function scenesOf(state, keys) {
 /** Remove everything the snapshot of key K wrote (a re-sense starts clean). Counters stay. */
 function dropSnapshot(state, K) {
   delete state.snapshots[K];
+  if (isObj(state.leaks)) delete state.leaks[K];
   if (isObj(state.places)) delete state.places[K];
   for (const [name, notes] of Object.entries(state.notebook)) {
     const kept = arr(notes).filter((n) => n.src !== K);
@@ -2180,6 +2181,8 @@ const DEFAULT_CONFIG = {
   said: { perTurn: 1, inject: true },
   // where everyone stands, the objects in the scene and what is worn or held (#185): whether the reply prompt carries it
   layout: { inject: true },
+  // a check of replies for a character acting on a secret it does not know (#184 P3): on, a quiet badge under the reply
+  leakCheck: true,
   catchUp: true,
   // rate a card's main characters by itself when it has no soul yet
   autoSoul: true,
@@ -2292,6 +2295,7 @@ function nextConfig(stored, b) {
     put("sensorParts", sp, {});
   }
   if (b.mode === "sensor" || b.mode === "fast" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
+  if (parseBool(b.leakCheck) !== undefined) put("leakCheck", parseBool(b.leakCheck), DEFAULT_CONFIG.leakCheck);
   if (parseBool(b.catchUp) !== undefined) put("catchUp", parseBool(b.catchUp), DEFAULT_CONFIG.catchUp);
   if (parseBool(b.autoSoul) !== undefined) put("autoSoul", parseBool(b.autoSoul), DEFAULT_CONFIG.autoSoul);
   if (parseBool(b.debug) !== undefined) put("debug", parseBool(b.debug), DEFAULT_CONFIG.debug);
@@ -2523,6 +2527,170 @@ function castText(ctx) {
   return "Characters\nuser: " + ctx.userName + ". " + classes + ".";
 }
 
+// ---------- #184 P3: does a reply let a character act on a secret it does not know? ----------
+// Step A is code: the restricted facts of the Litopys record (a list of who knows them) that the new messages
+// resemble, paired with a present character who is not among the knowers. Step B is the sensor's call, or, in fast mode,
+// a small call of its own made only when step A found something. A hit is kept per reply key; until the user answers,
+// what that character learned in the reply is not written to its notebook, and the chapter worker does not grow
+// the character's knowledge of the fact (Litopys reads the open hits).
+const LEAK_MAX = 5;
+const LEAK_KEEP = 40;
+const LEAK_STATUS = ["open", "found", "ignored"];
+
+/** The content words of a text as 5-letter prefixes, so an ending does not matter (Russian and English alike). */
+const leakStems = (text) => unique(String(text || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4).map((w) => w.slice(0, 5)));
+
+/** How many of the fact's content words the text carries. */
+function leakOverlap(fact, text) {
+  const mine = leakStems(fact);
+  const there = new Set(leakStems(text));
+  return { hits: mine.filter((w) => there.has(w)).length, total: mine.length };
+}
+const leakCovers = (o) => o.total >= 2 && o.hits >= Math.max(1, Math.ceil(o.total * 0.34));
+
+/**
+ * Step A. facts: [{id, text, knownBy}] (restricted ones: knownBy a list); reply and userText are the new messages' text;
+ * people: names that may be at fault; speakers: who wrote the reply. A fact the player's own new text already says is
+ * skipped (the player told it).
+ */
+export function leakCandidates({ facts, reply, userText, people, speakers, userNames }) {
+  const lc = (n) => str(n).toLowerCase();
+  const users = new Set(arr(userNames).map(lc));
+  const out = [];
+  for (const f of arr(facts)) {
+    if (!isObj(f) || !str(f.text) || !Array.isArray(f.knownBy) || !f.knownBy.length) continue;
+    const o = leakOverlap(f.text, reply);
+    if (!leakCovers(o) || leakCovers(leakOverlap(f.text, userText))) continue;
+    const knows = new Set(f.knownBy.map(lc));
+    for (const y of unique(arr(people).map(str).filter(Boolean))) {
+      if (users.has(lc(y)) || knows.has(lc(y))) continue;
+      if (!arr(speakers).some((n) => lc(n) === lc(y)) && !mentions(reply, y)) continue;
+      out.push({ who: y, factId: str(f.id), text: cut(str(f.text), 200), score: o.hits / o.total });
+    }
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, LEAK_MAX).map(({ score, ...c }) => c);
+}
+
+/** The Litopys facts only some know, for this chat: [{id, text, knownBy}]. */
+function restrictedFacts(fsx, chatId) {
+  const st = readJson(fsx, "litopys/chats/" + chatId + ".json", null);
+  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
+}
+
+/** The candidates of this update, [] when the check is off or nothing resembles a restricted fact. */
+function leakCandidatesOf(fsx, chatId, cfg, base, newMsgs, userNames, characters) {
+  if (cfg.leakCheck === false) return [];
+  const facts = restrictedFacts(fsx, chatId);
+  if (!facts.length) return [];
+  const users = new Set(arr(userNames).map((n) => str(n).toLowerCase()));
+  const isUser = (m) => m.role === "user" || users.has(str(m.name).toLowerCase());
+  const reply = arr(newMsgs).filter((m) => !isUser(m)).map((m) => str(m.text)).join("\n");
+  if (!reply) return [];
+  const speakers = unique(arr(newMsgs).filter((m) => !isUser(m)).map((m) => str(m.name)).filter(Boolean));
+  const people = unique([...(base && base.snap ? arr(base.snap.present) : []), ...speakers, ...arr(characters)]).filter((n) => !/^(narrator|system|assistant|game master|gm|dm)$/i.test(str(n)));
+  return leakCandidates({ facts, reply, userText: arr(newMsgs).filter(isUser).map((m) => str(m.text)).join("\n"), people, speakers, userNames });
+}
+
+const leakLabel = (i) => "L" + (i + 1);
+
+/** The part of the sensor's input that asks for step B; "" when there is nothing to check. */
+function leakCheckText(ctx) {
+  const c = arr(ctx.leakCands);
+  if (!c.length) return "";
+  return [
+    "Leak check: also add \"leaks\" to your JSON: [{\"id\": \"L1\", \"quote\": \"the shortest quote from the new messages\"}]. Each line below names a character and a fact that character does NOT know in the story. List a line only when the new messages show that character speaking, thinking or acting as if they knew that fact. A guess that only resembles it, or a fact told to the character in the new messages, is not a leak. Leave \"leaks\" out when there is none.",
+    ...c.map((x, i) => leakLabel(i) + ": " + x.who + " does not know: " + x.text),
+  ].join("\n");
+}
+
+/** The model's list, kept only for the candidates it names by id. */
+export function cleanLeaks(raw, cands) {
+  const out = [];
+  for (const l of arr(raw)) {
+    const m = isObj(l) ? /L(\d+)/i.exec(str(l.id) || str(l.fact)) : null;
+    const c = m ? arr(cands)[Number(m[1]) - 1] : null;
+    if (!c || out.some((x) => x.who === c.who && x.factId === c.factId)) continue;
+    out.push({ who: c.who, factId: c.factId, text: c.text, quote: cut(str(l.quote), 240), status: "open" });
+  }
+  return out.slice(0, LEAK_MAX);
+}
+
+/** Keep the hits of the reply at key K (a re-read replaces them); the oldest keys fall off. */
+function recordLeaks(state, K, items, now) {
+  const all = isObj(state.leaks) ? { ...state.leaks } : {};
+  if (items.length) all[K] = { at: now, items };
+  else delete all[K];
+  const keys = Object.keys(all).sort((a, b) => num(all[a].at) - num(all[b].at));
+  for (const k of keys.slice(0, Math.max(0, keys.length - LEAK_KEEP))) delete all[k];
+  state.leaks = all;
+}
+
+/** What a hit holds back: the notes the leaking character wrote in this reply, which would make it canon. */
+function holdLeakNotes(state, K, items) {
+  for (const who of unique(arr(items).map((i) => i.who))) {
+    const kept = arr(state.notebook[who]).filter((n) => n.src !== K);
+    if (kept.length) state.notebook[who] = kept;
+    else delete state.notebook[who];
+  }
+}
+
+/** The open hits of the replies on the active line, for the badge: [{key, msgId, swipe, who, factId, text, quote}]. */
+function openLeaks(state, keys) {
+  const on = new Set(keys);
+  const out = [];
+  for (const [key, rec] of Object.entries(isObj(state.leaks) ? state.leaks : {})) {
+    if (!on.has(key) || !isObj(rec)) continue;
+    const at = key.lastIndexOf("#");
+    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open") out.push({ key, msgId: key.slice(0, at), swipe: Number(key.slice(at + 1)) || 0, who: str(it.who), factId: str(it.factId), text: str(it.text), quote: str(it.quote) });
+  }
+  return out;
+}
+
+/** POST /dashboard/leak { chatId, key, who, factId, op: "found" | "ignore" }: the user's answer to a badge. */
+function leakRoute(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const op = str(b.op);
+  if (op !== "found" && op !== "ignore") return ok({ error: "op must be found or ignore" }, 400);
+  const { state, existed, before } = loadStateFor(fsx, chatId);
+  const rec = existed && isObj(state.leaks) ? state.leaks[str(b.key)] : null;
+  const item = isObj(rec) ? arr(rec.items).find((i) => isObj(i) && i.who === str(b.who) && i.factId === str(b.factId) && i.status === "open") : null;
+  if (!item) return ok({ error: "no such open hit" }, 404);
+  item.status = op === "found" ? "found" : "ignored";
+  item.answeredAt = Date.now();
+  saveState(fsx, { chatId, state, before });
+  return ok({ ok: true, leaks: openLeaks(state, activeLine((readChat(fsx, chatId) || { msgs: [] }).msgs).map((l) => l.key)) });
+}
+
+/** Fast mode, the second pass: the small call's answer for the reply that was just committed. */
+function finishLeakCheck(host, input) {
+  const fsx = host.fs;
+  const check = input.leakCheck;
+  const r = host.llm.results.leak;
+  const { state, existed, before } = loadStateFor(fsx, input.chatId);
+  // nothing usable (a failed call, an edit since): the reply simply goes unchecked
+  if (!existed || !r || r.error || !isObj(state.snapshots[check.key])) return ok({ ok: true, leakCheck: "skipped" });
+  const out = parseSensorText(r.text);
+  const hits = cleanLeaks(out && out.leaks, check.cands);
+  if (!hits.length) return ok({ ok: true, leakCheck: "clear" });
+  holdLeakNotes(state, check.key, hits);
+  recordLeaks(state, check.key, hits, Date.now());
+  saveState(fsx, { chatId: input.chatId, state, before });
+  return ok({ ok: true, leakCheck: "hit", leaks: hits.length });
+}
+
+/** Fast mode: the small call made only when step A found candidates. */
+function askLeakCheck(host, ctx) {
+  const model = str(ctx.cfg.sensorModel) || str(ctx.meta.model);
+  host.llm.request("leak", {
+    ...(model ? { model } : {}),
+    systemPrompt: "You check a roleplay for one kind of mistake: a character acting on a secret they do not know. Answer with JSON only.",
+    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\nNew messages\n" + arr(ctx.newMsgs).map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || "narrator") + "] " + cut(str(m.text), 1500)).join("\n") }],
+    ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0),
+  });
+}
+
 function sensorUser(ctx) {
   return [
     castText(ctx),
@@ -2530,6 +2698,7 @@ function sensorUser(ctx) {
     ...notebookTexts(ctx),
     ...[threadCheckText(ctx)].filter(Boolean),
     ...[backdropText(ctx)].filter(Boolean),
+    ...[leakCheckText(ctx)].filter(Boolean),
     newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }
@@ -3853,6 +4022,7 @@ function planUpdate(fsx, chatId, op) {
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
+    leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names),
   };
 }
 
@@ -3893,6 +4063,9 @@ function commitUpdate(fsx, ctx, r) {
   if (r.error || !str(r.text)) return failUpdate(fsx, ctx, emptyReplyError(r, "the sensor"), { raw: String(r.text || "") });
   const out = parseSensorText(r.text);
   if (!out) return failUpdate(fsx, ctx, "sensor reply was not JSON", { raw: String(r.text) });
+  // a character caught acting on a secret learns nothing from this reply until the user answers (#184 P3)
+  const leakHits = r.fast ? [] : cleanLeaks(out.leaks, ctx.leakCands);
+  if (leakHits.length) out.learned = arr(out.learned).filter((l) => !(isObj(l) && leakHits.some((h) => str(h.who).toLowerCase() === str(l.who).toLowerCase())));
   const unknownIds = [];
   try {
     // every snapshot after the base is read again from it: start from what it wrote
@@ -3910,6 +4083,7 @@ function commitUpdate(fsx, ctx, r) {
       ...(r.fast ? { fast: (num(ctx.state.usage.fast) || 0) + 1 } : {}),
     };
     ctx.state.lastError = null;
+    if (leakHits.length || (isObj(ctx.state.leaks) && ctx.state.leaks[ctx.K])) recordLeaks(ctx.state, ctx.K, leakHits, Date.now());
     // facts the sensor wrote that could not be kept: the dashboard says so until a report keeps all (#97)
     const kept = ctx.keptOut || { user: 0, absent: 0 };
     const lowered = ctx.noQuote || 0;
@@ -3940,6 +4114,8 @@ function dropStale(fsx, ctx) {
  */
 function runUpdate(host, input) {
   const fsx = host.fs;
+  // fast mode, second pass: the leak check's small call (made only when a reply resembled a restricted fact)
+  if (input.leakCheck) return { done: finishLeakCheck(host, input) };
   let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
   // nothing new to read, only stale snapshots: drop them, no call
@@ -3976,7 +4152,14 @@ function runUpdate(host, input) {
   if (!r) {
     // fast mode: the story reply may already carry the report; anything unusable falls through to the sensor
     const fast = fastReply(host, ctx);
-    if (fast) return { done: commitUpdate(fsx, ctx, fast) };
+    if (fast) {
+      const done = commitUpdate(fsx, ctx, fast);
+      if (arr(ctx.leakCands).length && done && done.json && done.json.ok === true) {
+        askLeakCheck(host, ctx);
+        return { pending: carry({ leakCheck: { key: ctx.K, cands: ctx.leakCands } }) };
+      }
+      return { done };
+    }
     askSensor(host, ctx, key);
     return { pending: carry({}) };
   }
@@ -4782,7 +4965,7 @@ function readUpdate(req, host) {
   if (op === "impersonate") return ok({ ok: true, skipped: "impersonate" });
   if (parseBool(b.auto) === true && loadConfig(host.fs).mode === "manual") return ok({ ok: true, skipped: "manual" });
   const stash = isObj(req.stash) ? req.stash : {};
-  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated });
+  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
 }
 
@@ -5222,6 +5405,8 @@ function readState(req, fsx) {
       view: existed ? withInherit(stateView(fsx, chatId, state, keys, loadConfig(fsx)), inheritInfo(fsx, chatId, state)) : null,
       inherit: inheritInfo(fsx, chatId, state),
       lastError: existed ? state.lastError : null,
+      // replies that let a character act on a secret it does not know and wait for the user's answer (#184 P3)
+      leaks: existed ? openLeaks(state, keys) : [],
       // a chat with no state yet can still have "Story, move" armed: the composer shows it from here
       nudge: readNudge(fsx, chatId),
     });
@@ -5572,6 +5757,7 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/inherit" && method === "POST") return inheritRoute(req, fsx);
   if (path === "/dashboard/calendar" && method === "POST") return calendarRoute(req, fsx);
+  if (path === "/dashboard/leak" && method === "POST") return leakRoute(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/notice" && method === "GET") {
     const chatId = String((req.query && req.query.chatId) || "");

@@ -201,7 +201,7 @@ function CastCard({
 /** A section's frame: a coloured rule on the left, a faint wash and a coloured title. */
 function SectionBox({ kind, title, icon, children }: { kind: SectionKind; title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className={cn('mb-3 rounded-md border-l-4 py-2 pr-1 pl-2.5', SECTION_TONE[kind])} data-testid={`cast-section-${kind}`}>
+    <section className={cn('mb-3 rounded-md border-l-4 py-2 pr-3 pl-2.5', SECTION_TONE[kind])} data-testid={`cast-section-${kind}`}>
       <h4 className={cn('mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide', SECTION_TITLE_TONE[kind])}>
         {icon}
         {title}

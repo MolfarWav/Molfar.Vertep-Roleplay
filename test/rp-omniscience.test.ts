@@ -6,7 +6,7 @@
  * the plan wants at zero for character replies.
  */
 import { describe, expect, it } from "bun:test";
-import { L, mockHost, useRoot, writeChat, writeJson, type Msg } from "./rp-memory-m2-kit";
+import { L, mockHost, readJson, useRoot, writeChat, writeJson, type Msg } from "./rp-memory-m2-kit";
 
 useRoot();
 
@@ -174,5 +174,120 @@ describe("omniscience: the who-knows-what brief for a narrator (#184 P1d)", () =
     expect(full.tokens).toBeLessThanOrEqual(250);
     const none = L.castKnowledgeFor({ st: { facts: [{ id: "f1", text: "Shared.", subject: "world", knownBy: ["Aria", "Bram", "Jude"], status: "active" }] }, line: L.activeLine([{ id: "m1", role: "char", name: "Aria", text: "x" }, { id: "m2", role: "char", name: "Bram", text: "y" }]), dash: null, meta: { userName: "Jude" }, speakerName: "" });
     expect(none).toBeNull();
+  });
+});
+
+describe("omniscience: chapters follow who witnessed them (#184 P2)", () => {
+  const msgs: Msg[] = Array.from({ length: 80 }, (_, i) => (i % 5 === 0 ? U("m" + i, "Jude says line " + i) : C("m" + i, i % 2 ? "Aria" : "Bram", "answer " + i)));
+  const line = L.activeLine(msgs);
+  const chapter = (id: string, a: number, cast?: string[]) => ({ id, from: "m" + a, to: "m" + (a + 5), count: 6, sig: L.chapterSig(line.slice(a, a + 6)), label: "Scene " + id, text: "Text of chapter " + id + ".", kind: "scene", at: a, ...(cast ? { cast } : {}) });
+  const record = (extra: Record<string, unknown> = {}) => {
+    const st = L.emptyChat("hall");
+    st.migrated = true;
+    st.chapters = [chapter("c1", 0, ["Bram"]), chapter("c2", 6, ["Aria", "Bram"]), chapter("c3", 12), chapter("c4", 18, ["Cael"])];
+    st.counters.chapter = 4;
+    Object.assign(st, extra);
+    return st;
+  };
+  const head = (st: any, voices?: Set<string>) => {
+    const r = L.buildInsert({ st, line, dash: null, meta: { userName: "Jude" }, cfg: { ...L.DEFAULT_CONFIG, budget: 4000 }, scanText: "go", speakerName: "Aria", used: {}, voices });
+    return r ? r.head + "\n" + r.tail : "";
+  };
+
+  it("leaves out a chapter the speaker did not witness; one without a cast is visible to all", () => {
+    const aria = head(record(), new Set(["aria"]));
+    expect(aria).not.toContain("Text of chapter c1.");
+    expect(aria).toContain("Text of chapter c2.");
+    expect(aria).toContain("Text of chapter c3.");
+    expect(aria).not.toContain("Text of chapter c4.");
+    const bram = head(record(), new Set(["bram"]));
+    expect(bram).toContain("Text of chapter c1.");
+    expect(bram).toContain("Text of chapter c2.");
+    expect(bram).not.toContain("Text of chapter c4.");
+  });
+
+  it("a reply that voices several gets every chapter", () => {
+    const all = head(record());
+    for (const id of ["c1", "c2", "c3", "c4"]) expect(all).toContain("Text of chapter " + id + ".");
+  });
+
+  it("an arc that holds a chapter the speaker did not see is left out, its witnessed chapters ride alone", () => {
+    const st = record();
+    st.arcs = [{ id: "a1", chapterIds: ["c1", "c2"], from: "m0", to: "m11", label: "Arc A", text: "Text of arc a1.", sig: L.arcSig([st.chapters[0], st.chapters[1]]), at: 1 }];
+    st.counters.arc = 1;
+    expect(head(st)).toContain("Text of arc a1.");
+    const aria = head(st, new Set(["aria"]));
+    expect(aria).not.toContain("Text of arc a1.");
+    expect(aria).toContain("Text of chapter c2.");
+    expect(aria).not.toContain("Text of chapter c1.");
+    const bram = head(st, new Set(["bram"]));
+    expect(bram).toContain("Text of arc a1.");
+  });
+
+  it("the worker keeps the scene's people as the chapter's cast", () => {
+    const ln = L.activeLine([U("m1", "Jude knocks."), C("m2", "Aria", "Aria opens."), C("m3", "Bram", "Bram looks up."), U("m4", "Jude sits.")]);
+    const st = L.emptyChat("hall");
+    const scene = { from: ln[0].id, to: ln[3].id, fromIdx: 0, toIdx: 3, count: 4, kind: "scene", label: "" };
+    const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" } }));
+    L.applyWorkerResult(st, { scene, replaces: null }, parsed, { now: 1, line: ln, witnesses: ["Aria", "Bram"] });
+    expect(st.chapters[0].cast).toEqual(["Aria", "Bram"]);
+    const none = L.emptyChat("hall");
+    L.applyWorkerResult(none, { scene, replaces: null }, parsed, { now: 1, line: ln });
+    expect(none.chapters[0].cast).toBeUndefined();
+    expect(L.witnessed({ cast: ["Cael"] }, new Set(["aria"]))).toBe(false);
+    expect(L.witnessed({ cast: ["Cael"] }, null)).toBe(true);
+    expect(L.witnessed({}, new Set(["aria"]))).toBe(true);
+  });
+});
+
+describe("omniscience: a flagged leak is held back from the story record (#184 P3)", () => {
+  const ln = L.activeLine([U("m1", "Where did the map go?"), C("m2", "Aria", "Bram sold the guild's map to the Duke's spy, I am sure."), C("m3", "Bram", "Bram scowls."), U("m4", "Hm.")]);
+  const scene = { from: ln[0].id, to: ln[3].id, fromIdx: 0, toIdx: 3, count: 4, kind: "scene", label: "" };
+  const dash = { leaks: { "m2#0": { at: 1, items: [{ who: "Aria", factId: "f1", text: "Bram sold the guild's map to the Duke's spy.", quote: "Bram sold the guild's map", status: "open" }] } } };
+  const fact = (text: string, knownBy: unknown) => L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" }, facts: [{ op: "add", text, subject: "world", knownBy }] }));
+
+  it("finds the open hits of the scene's replies, and none once answered or outside it", () => {
+    expect(L.heldLeaks(dash, ln, scene)).toEqual([{ who: "Aria", texts: ["Bram sold the guild's map to the Duke's spy.", "Bram sold the guild's map"] }]);
+    const answered = { leaks: { "m2#0": { items: [{ who: "Aria", text: "x", status: "ignored" }] } } };
+    expect(L.heldLeaks(answered, ln, scene)).toEqual([]);
+    expect(L.heldLeaks(dash, ln, { ...scene, fromIdx: 2, toIdx: 3 })).toEqual([]);
+    expect(L.heldLeaks(null, ln, scene)).toEqual([]);
+  });
+
+  it("a new fact that says what leaked does not make the leaking character a knower; other facts are untouched", () => {
+    const held = L.heldLeaks(dash, ln, scene);
+    const run = (parsed: any) => {
+      const st = L.emptyChat("hall");
+      L.applyWorkerResult(st, { scene, replaces: null }, parsed, { now: 1, line: ln, witnesses: ["Aria", "Bram"], held });
+      return st.facts[0].knownBy;
+    };
+    expect(run(fact("Aria knows that Bram sold the map to the Duke's spy.", ["Aria", "Bram"]))).toEqual(["Bram"]);
+    expect(run(fact("Bram sold the guild's map to the spy.", "all"))).toEqual(["Bram"]);
+    expect(run(fact("Aria wears a green cloak.", ["Aria", "Bram"]))).toEqual(["Aria", "Bram"]);
+  });
+
+  it("the worker is told which reply is not canon", () => {
+    const st = L.emptyChat("hall");
+    const req = L.buildWorkerRequest(st, { scene, replaces: null }, ln, dash, { ...L.DEFAULT_CONFIG }, { userName: "You" });
+    const text = req.messages.map((m: any) => m.content).join("\n");
+    expect(text).toContain("Not canon (flagged)");
+    expect(text).toContain("Do not record that Aria knows it.");
+    expect(L.buildWorkerRequest(st, { scene, replaces: null }, ln, null, { ...L.DEFAULT_CONFIG }, { userName: "You" }).messages.map((m: any) => m.content).join("\n")).not.toContain("Not canon");
+  });
+});
+
+describe("omniscience: the user says a character found out (#184 P3)", () => {
+  it("adds the name to the fact's knowers, once, and leaves an \"all\" fact alone", () => {
+    seed("swap");
+    const { host } = mockHost();
+    const call = (id: string, who: string) => L.handleRoute({ method: "POST", path: "/litopys/facts", query: {}, body: { chatId: "tav", op: "know", id, who } }, host);
+    expect(call("f3", "Aria").status).toBe(200);
+    expect(readJson("litopys/chats/tav.json").facts.find((f: any) => f.id === "f3").knownBy).toEqual(["Bram", "Aria"]);
+    expect(call("f3", "aria").status).toBe(200);
+    expect(readJson("litopys/chats/tav.json").facts.find((f: any) => f.id === "f3").knownBy).toEqual(["Bram", "Aria"]);
+    expect(call("f1", "Aria").status).toBe(200);
+    expect(readJson("litopys/chats/tav.json").facts.find((f: any) => f.id === "f1").knownBy).toBe("all");
+    expect(call("f3", "").status).toBe(400);
+    expect(call("f99", "Aria").status).toBe(404);
   });
 });
