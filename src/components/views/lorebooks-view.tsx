@@ -17,6 +17,7 @@ import { useT } from '@/hooks/use-t'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { estimateTokens, uid } from '@/lib/tokens'
 import { bookEntryCount, importLorebookFiles } from '@/lib/engine'
+import { exportAllBooks, exportOneBook } from '@/lib/lore-export'
 import { bookUsage } from '@/lib/lore-usage'
 import { askMolfar } from '@/lib/shell-bridge'
 import { entryFilterCounts, matchesEntryFilter, type BookFilter, type EntryFilter } from '@/lib/lore-filters'
@@ -90,6 +91,19 @@ export function LorebooksView() {
     }
   }
 
+  const [exporting, setExporting] = useState(false)
+  /** Export all: every book in one zip; a book that cannot be read is skipped and the toast says how many. */
+  const exportAll = async () => {
+    setExporting(true)
+    try {
+      const { saved, skipped } = await exportAllBooks(useApp.getState().lorebooks, loadBook)
+      if (saved) toast.success(t('lore.export.done', { n: saved }) + (skipped ? ' ' + t('lore.export.skipped', { n: skipped }) : ''))
+      else toast.error(t('lore.export.none'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const select = (id: string) => {
     setSelectedId(id)
     setDetailOpen(true)
@@ -146,6 +160,9 @@ export function LorebooksView() {
           onSelect={select}
           onNew={() => select(addLorebook())}
           onImport={importFiles}
+          onExportOne={book && !book.stub ? () => exportOneBook(book) : null}
+          onExportAll={() => void exportAll()}
+          exporting={exporting}
           onMolfar={() => void createWithMolfar()}
           onActiveChats={() => setActiveViewerOpen(true)}
         />
