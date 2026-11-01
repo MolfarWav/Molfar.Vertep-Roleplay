@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Characters know less than the player (#184, P1 and P2). A character's reply now carries only the story facts that character knows (or everyone does): a fact only the player knows, or only another character present, no longer reaches it (in a 1:1 chat, in a group where each member speaks, and in the backstory of a continued chat). A reply that voices several characters (a narrator group, a narrator card) still gets what anyone present knows. A new fact whose "who knows it" the model left out or wrote unusably is now known to the people of that scene instead of to everyone. A Data Bank file scoped to one character goes into a group reply only when that character speaks (or when the reply voices the whole roster). Tests `rp-omniscience.test.ts` (includes a 5-character, 500 and 2000 message exposure check). Not done from the plan: the chapter `cast` filter, the "Cast knowledge" brief, the leak check on replies.
+
 ## 4.81.0 (2026-11-01)
 
 - Characters, More no longer crashes the page ("MenuGroupContext is missing"): the Import label sits in a menu group. It came in with the characters header rows.
