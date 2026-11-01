@@ -1223,7 +1223,7 @@ function runCards(file, ctx, answers, seen) {
  *
  * Data (under the app's data/ dir):
  *   agents/<id>.vertep-agent.json        the installed agent, checked and compiled
- *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...] }
+ *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...], asked?: [...] } (asked = every need the person was shown; a need outside it is new in an update)
  *   agents/config.json                   { model?, models?: { <role>: <model> }, byAgent?: { <id>: { models?: { <role>: <model> }, maxCalls?, everyN? } } }
  *   agents/state/<chatId>/<id>.json      the agent's own fields in that chat, { v, own, last, before }
  *   agents/runs/<chatId>.json            the newest runs: { v, runs: [...] }

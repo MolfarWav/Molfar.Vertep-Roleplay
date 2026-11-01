@@ -806,7 +806,7 @@ list takes no new entry; each refusal is returned, nothing throws. `agent-run.js
 
 The Agents plugin installs checked agent files and runs them: after a reply, before it (inside the plugin's `llmRequest` hook) and
 beside it (a call the app makes when a send starts). The routes below and the hook are the whole interface. Files, all under `data/agents/`: `<id>.vertep-agent.json` (the installed, compiled agent),
-`grants/<id>.json` (`{ v: 1, needs: [...] }`, what the user confirmed), `config.json` (`{ model?, models?: { <role>: <model> } }`),
+`grants/<id>.json` (`{ v: 1, needs: [...], asked?: [...] }`: what the user confirmed, and every need the person was shown, so `GET /agents/list` can report `added`, the needs a later version asks for), `config.json` (`{ model?, models?: { <role>: <model> } }`),
 `state/<chatId>/<id>.json` (`{ v: 1, own, last, before }`: the agent's own fields in that chat, the text it left for its
 `myPrevious`, and the state and message id before its last run), `runs/<chatId>.json` (`{ v: 1, runs }`, the newest 100) and
 `inserts/<chatId>.json` (`{ v: 1, items }`, hints waiting for the next reply).
