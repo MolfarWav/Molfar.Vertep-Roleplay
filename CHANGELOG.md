@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agents can run code and draw their own markup (#140). The Script card (`code.script`, permission `run:code`) runs a short JavaScript function on the engine in a sandbox with no clock, network or files, about 500 ms and 16 MB, and the Allow page lets you read the code first. It needs engine 1.9.3 or later (an older engine fails the agent with a plain message). The `html` widget has a second mode: `bind` to a text field, and the app draws what the model or a script wrote through an allow-list into the same sealed frame. The Try tab runs scripts on the engine. `batchKey` is not part of this.
+
 ## 4.82.0 (2026-11-01)
 
 - Agent sets, who uses them and what is remembered (#138). The Agent sets screen and the chat sheet's set list say "used by N chats" (chats that follow the set live; a chat with its own copy is not counted, a change does not reach it). Saving a set that chats follow shows an amber note, and the delete confirm carries the count. The New chat step opens on the set the character's (or group's) newest chat used and says so; a set that is gone falls back to the default. One switch, "Agents' notes in chats" (Agent sets screen and the chat's Agents tab, `agents/settings.json` `silentNotes`), takes every note out from under the replies, the feed, the toasts and the block mirror; choices, panels and the Agents line stay. `PUT /agent-settings` now merges fields. Tests `rp-agent-usage`, `rp-agents-plugin`, `rp-agent-presets`.

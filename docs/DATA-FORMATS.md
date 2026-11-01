@@ -726,6 +726,23 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   reference, is `E_REGEX_RISK`: such a pattern can run for very long on a short text, and the plugin sandbox would be stopped
   after seconds. Dice and picks are seeded: the host passes `ctx.seed` = chat id, agent id and the turn key (`id#swipe`), so every
   pass of one run rolls the same, a regenerated reply with the same swipe repeats its roll, and a new swipe rolls again.
+- `code.script` (the Script card, needs the permission `run:code`; checker `checkScript`, executor branch in `agent-run.js`):
+  `{ code, inputs: [{ id, type }], outputs: [{ id, type }] }`, `type` is `text`, `number` or `flag`, at most 8 of each, `code` up to
+  8000 characters, at most 6 Script cards in one agent (`E_SCRIPT_LIMIT`). `code` is the body of a function `(input, seed)` that
+  returns a plain object; `input` has one key per declared input (a flag is `true`/`false`/`null`), `seed` is a string that is the same
+  for every pass of one run. Ports: one input per `inputs` entry, one output per `outputs` entry, an optional `when` (signal in) and an
+  optional `failed` (signal out). A bad shape is `E_PARAM`; code that does not parse is `E_SCRIPT_SYNTAX` (a best-effort check, the
+  sandbox is the real one). The card waits like a model card (it counts toward `AGENT_MAX_ROUNDS`, and `E_ROUNDS` says "waits for
+  the model or a script"). The executor asks the host: `{ node, kind: "script", code, input }` in `requests`, and the answer for the
+  card is `{ value }` or `{ error }`. A failed script goes to the `failed` wire if one is drawn, else the run fails with the reason.
+  Outputs are checked against their type: a number must be finite, a flag must be a boolean (it travels as `yes`/`no`), a text is a
+  string or a number, clipped to the text limit. An output the code leaves out is missing data (a card that needs it is skipped).
+  The sandbox is the engine's (engine 1.9.3+, `host.script`, the plugin permission `script`; an older engine fails the agent with
+  "this Molfar Vertep is too old to run one"): QuickJS in a worker of its own, no clock (`Date`, timers, `performance`), no network,
+  no files, no `process` or `env`; `Math.random` follows `seed`, so a reply runs the same every time. Limits: about 500 ms of CPU,
+  16 MB of memory, 64 KB in, 32 KB out, 2.5 s of wall time for one script and 2 s for a pass, 16 scripts per pass. The code is
+  data, never the plugin's source. The Allow page lists every Script card's code under "Read the code". Editor trial: the page asks
+  `POST /agents/script` `{ code, input, seed }` (answers `{ ok, value }` or `{ ok: false, error }`) and runs the agent again with the answers.
 - The `history` source takes `last` (the newest N messages, 1 to 60, default 10), `only` (`user` or `char`), `thinking`, and
   `tokens` (100 to 100000, optional: the oldest messages are dropped until the text fits, the newest is always kept; the
   size is estimated by script, not counted by the model's tokenizer). The agent's user can also set how often it runs
@@ -755,7 +772,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   field and its `columns`), `list`, `log` (a list field), `text` (a text field), `actions` (1 to 8 `{ label, send }`;
   `send` is put into the composer, nothing is sent by itself), `html` and `grid`. `bind` must name a state field of the right
   type (`E_BIND`); an unknown widget or bad `actions` is `E_WIDGET`.
-- `html` widget: `template` up to 8192 characters, an optional `height` of the frame (a whole number of pixels, 40 to 600, default 80; else `E_WIDGET`), slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
+- `html` widget, mode A (the author writes the markup): `template` up to 8192 characters, an optional `height` of the frame (a whole number of pixels, 40 to 600, default 80; else `E_WIDGET`), slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
   inside, no nested `each`) and `{{#if field}}…{{/if}}`. The checker refuses a template with a slot that is not a field
   (`E_TPL_FIELD`), an unclosed block (`E_TPL_UNCLOSED`), or markup that can run code or load something
   (`E_TPL_FORBIDDEN`: script, frames, forms, `<link>`, event handlers, `src`/`href`, `url()`, `@import`). The check is
@@ -765,6 +782,15 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   the frame has `sandbox=""` and a `Content-Security-Policy` of `default-src 'none'; style-src 'unsafe-inline'; img-src data:`,
   and a template the checker would refuse is not drawn. The widget shows in the floating window; a bar above the chat
   skips it. `templateProblems(template, state)` of the checker is what the editor shows while the template is typed.
+- `html` widget, mode B (the model or a Script card writes the markup): `{ "w": "html", "bind": "<text field>", "height"? }`, with no
+  `template`. A widget has `template` or `bind`, never both and never neither (`E_WIDGET`); a `bind` that is not a `text` field of the
+  agent is `E_BIND`. The app reads the field at draw time and passes the string through `cleanMarkup` (`src/lib/agent-markup.ts`), an
+  allow-list tokenizer and rewriter: HTML and SVG tags from a fixed list, attributes from a fixed list with a shape check, `style`
+  limited to a list of properties and values without `url()`, `expression`, `@import` or `behavior`; the content of `script`,
+  `style`, frames, `object`, `embed`, `form`, `link`, `meta`, `base` and comments is dropped with the tag; no `href`, `src`, `xlink:href`
+  or event handler survives; at most 8192 characters and depth 20, the rest is cut. The clean string goes into the same sealed frame as
+  mode A (`sandbox=""`, the same CSP), so mode B adds nothing the frame did not already forbid. An empty field shows "Nothing drawn yet."
+  Tests: `test/rp-agent-markup.test.ts` (about 50 hostile vectors and a fuzz), `test/rp-agent-script.test.ts`.
 - `grid` widget (a board of tiles: a map of territory, a dungeon floor): `{ "w": "grid", "label"?, "bind", "cols", "rows", "x", "y", "cell", "legend" }`.
   `bind` is a **list** field whose entries have two number fields and a text field; `x` and `y` (two different number
   fields) give the column and the row, `cell` (a text field) the tile's state; a wrong name is `E_BIND`. `cols` and
@@ -914,7 +940,7 @@ Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`
 `E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_ROUNDS`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
-`E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
+`E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`, `E_SCRIPT_LIMIT`, `E_SCRIPT_SYNTAX`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
 `W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-grid.test.tsx` (the grid widget), `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
 
 ### The persona file: `personas/<id>.json`
