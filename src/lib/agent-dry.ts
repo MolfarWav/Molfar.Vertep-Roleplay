@@ -38,6 +38,8 @@ export interface DryResult {
   refused: { write: DryWrite; why: string }[]
   ownAfter: Own
   outputs: Json[]
+  /** scripts the engine has not run yet for this trial: the caller runs them and calls dryRun again */
+  needScripts?: DryScript[]
 }
 
 const SAMPLE_INPUT: Record<string, string> = {
@@ -85,7 +87,12 @@ export function startOwn(schema: Json | undefined, own: Record<string, unknown>)
 
 const isOwnWrite = (w: DryWrite) => w.op.startsWith('own.') || w.op.startsWith('list.')
 
-export function dryRun(file: DryFile, setup: DrySetup): DryResult {
+/** One script the trial needs the engine to run. `key` identifies the code, the input and the seed, so an answer is reused while none of them change. */
+export interface DryScript { node: string; code: string; input: Record<string, unknown>; seed: string; key: string }
+export const scriptKey = (code: string, input: unknown, seed: string) => JSON.stringify([code, input, seed])
+
+/** `scriptAnswer`: what the engine said for a script already run (cached by the caller); undefined = not run yet. */
+export function dryRun(file: DryFile, setup: DrySetup, scriptAnswer?: (key: string) => { value: Record<string, unknown> } | { error: string } | undefined): DryResult {
   const nodes = new Map(file.nodes.map((n) => [n.id, n]))
   const schema = file.agent?.state as Json | undefined
   const inputs: Record<string, string | undefined> = {}
@@ -100,12 +107,25 @@ export function dryRun(file: DryFile, setup: DrySetup): DryResult {
   }
   const own = startOwn(schema, setup.own)
   const ctx = { inputs, own, dash, chat: setup.chat, explain: true, seed: setup.seed ?? '' }
-  const answers: Record<string, { text: string }> = {}
+  const answers: Record<string, Json> = {}
+  const needScripts: DryScript[] = []
   const asked = new Map<string, Asked>()
   let res: Json = { status: 'failed', reason: 'The run did not start', trace: [], wires: {} }
   for (let round = 0; round <= AGENT_MAX_ROUNDS + 1; round++) {
     res = runAgent(file as any, ctx, answers) as Json
     if (res.status !== 'need') break
+    const wanted = (res.requests as Json[]).filter((q) => q.kind === 'script')
+    if (wanted.length) {
+      for (const q of wanted) {
+        const seed = `${setup.seed ?? ''}|${q.node}`
+        const key = scriptKey(q.code, q.input, seed)
+        const got = scriptAnswer?.(key)
+        if (got) answers[q.node] = got
+        else needScripts.push({ node: q.node, code: q.code, input: q.input, seed, key })
+      }
+      if (needScripts.length) break
+      continue
+    }
     for (const rq of res.requests as Json[]) {
       const given = setup.replies[rq.node]
       const reply = given ?? exampleReply(nodes.get(rq.node) ?? {})
@@ -113,7 +133,7 @@ export function dryRun(file: DryFile, setup: DrySetup): DryResult {
       asked.set(rq.node, { node: rq.node, prompt: rq.prompt, reply, example: given === undefined })
     }
   }
-  if (res.status === 'need') res = { ...res, status: 'failed', reason: 'The agent asks the model more times in a row than the limit', trace: res.trace ?? [] }
+  if (res.status === 'need' && !needScripts.length) res = { ...res, status: 'failed', reason: 'The agent waits for the model or a script more times in a row than the limit', trace: res.trace ?? [] }
   const writes = (res.writes ?? []) as DryWrite[]
   const applied = applyWrites(schema as never, own, writes.filter(isOwnWrite) as never)
   const states: DryResult['nodes'] = {}
@@ -133,6 +153,7 @@ export function dryRun(file: DryFile, setup: DrySetup): DryResult {
     refused: applied.refused as DryResult['refused'],
     ownAfter: applied.own,
     outputs: (res.outputs ?? []) as Json[],
+    ...(needScripts.length ? { needScripts } : {}),
   }
 }
 

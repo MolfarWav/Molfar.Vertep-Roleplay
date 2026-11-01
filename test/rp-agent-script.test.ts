@@ -244,3 +244,32 @@ describe("the Agents plugin", () => {
     expect(seeds[0]).not.toBe(seeds[1]);
   });
 });
+
+describe("the editor's trial", () => {
+  it("asks the page for the script, then runs on the answer", async () => {
+    const { dryRun } = await import("../src/lib/agent-dry");
+    const f = compiled(agent()).file;
+    const setup = { inputs: { reply: "one two three" }, own: {}, replies: {}, chat: { messageCount: 3, lastSpeaker: "A" }, seed: "try" };
+    const first = dryRun(f as never, setup);
+    expect(first.needScripts).toHaveLength(1);
+    expect(first.needScripts![0]).toMatchObject({ node: "sc", code: CODE, input: { reply: "one two three" }, seed: "try|sc" });
+    const second = dryRun(f as never, setup, (k) => (k === first.needScripts![0].key ? { value: { words: 3, loud: "ONE TWO THREE" } } : undefined));
+    expect(second.needScripts).toBeUndefined();
+    expect(second.status).toBe("done");
+    expect(second.ownAfter).toMatchObject({ words: 3, loud: "ONE TWO THREE" });
+    const bad = dryRun(f as never, setup, () => ({ error: "boom" }));
+    expect(bad.status).toBe("failed");
+    expect(bad.reason).toContain("boom");
+  });
+
+  it("the engine route answers with the box's result, and says plainly when the engine is too old", () => {
+    const first = call("POST", "/agents/script", { code: "return {};", input: {}, seed: "x" });
+    expect(first.__llmPending).toBe(true);
+    expect(scriptReqs[0][1]).toMatchObject({ code: "return {};", seed: "x" });
+    scriptResults = { one: { ok: true, value: { a: 1 } } };
+    expect(call("POST", "/agents/script", { code: "return {};", input: {} }).json).toEqual({ ok: true, value: { a: 1 } });
+    withScript = false;
+    expect(JSON.stringify(call("POST", "/agents/script", { code: "return {};", input: {} }).json)).toContain("too old");
+    expect(call("POST", "/agents/script", { input: {} }).status).toBe(400);
+  });
+});

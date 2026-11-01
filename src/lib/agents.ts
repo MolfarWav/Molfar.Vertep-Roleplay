@@ -275,6 +275,17 @@ export async function probeAgentOnChat(file: unknown, chatId: string): Promise<D
   return j<DryProbe>('/agents/dry', { method: 'POST', body: dryBody(file, chatId, { probe: true }) })
 }
 
+/** What the engine's script box made of one Script card's code: the values it returned, or why it did not. */
+export type ScriptAnswer = { value: Record<string, unknown> } | { error: string }
+export async function runScriptOnEngine(req: { code: string; input: Record<string, unknown>; seed: string }): Promise<ScriptAnswer> {
+  try {
+    const r = await j<{ ok?: boolean; value?: Record<string, unknown>; error?: string }>('/agents/script', { method: 'POST', body: JSON.stringify(req) })
+    return r.ok === true && r.value ? { value: r.value } : { error: r.error || 'The script did not answer.' }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
 /** Runs the agent on the chat's model with the given inputs and memory. It costs tokens; nothing is written. */
 export async function runAgentOnChat(file: unknown, chatId: string, setup: { inputs: Record<string, string>; own: Record<string, unknown> }): Promise<DryLiveResult> {
   return j<DryLiveResult>('/agents/dry', { method: 'POST', body: dryBody(file, chatId, { live: true, inputs: setup.inputs, own: setup.own }) })

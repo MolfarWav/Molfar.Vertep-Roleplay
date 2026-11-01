@@ -22,6 +22,8 @@ export function PanelPreview({ panel, state, full }: { panel: Obj; state: State;
     const own = sampleState(state, full, word)
     // a board needs entries that name its tiles and its states, which the plain sample values do not
     for (const w of Array.isArray(panel.widgets) ? panel.widgets : []) if (w?.w === 'grid' && typeof w.bind === 'string' && state[w.bind]) own[w.bind] = sampleGridEntries(w, full)
+    // an html widget the model draws shows a made-up drawing, so the author sees what survives the allow-list
+    for (const w of Array.isArray(panel.widgets) ? panel.widgets : []) if (w?.w === 'html' && typeof w.bind === 'string' && state[w.bind]?.type === 'text' && full) own[w.bind] = `<div style="padding:8px;border-radius:6px;background:#26304f;color:#f4e9c8"><b>${word}</b><br>${word} 1 · ${word} 2</div>`
     return { name: '', schema: state as AgentPanelSet['schema'], own, prev: null }
   }, [state, full, word, panel.widgets])
   const widgets = (Array.isArray(panel.widgets) ? panel.widgets : []).filter((w: Obj): w is PanelWidget => (WIDGET_KINDS as readonly string[]).includes(String(w?.w)))

@@ -2179,6 +2179,20 @@ function dryRoute(req, host) {
   });
 }
 
+/**
+ * POST /agents/script { code, input, seed }: runs one Script card's code on the engine's script box and says what came
+ * back. The editor's trial uses it, because the trial runs in the page and the box is the engine's. Nothing is written.
+ */
+function scriptRoute(req, host) {
+  const b = isObj(req.body) ? req.body : {};
+  if (!isString(b.code) || !b.code.trim() || !isObj(b.input)) return ok({ error: "send { code, input }" }, 400);
+  if (!canScript(host)) return ok({ ok: false, error: NO_SCRIPT });
+  const got = host.script.results ? host.script.results.one : null;
+  if (got) return ok(got.ok === true ? { ok: true, value: got.value } : { ok: false, error: typeof got.error === "string" ? got.error : "the script failed" });
+  host.script.request("one", { code: b.code, input: b.input, seed: str(b.seed) });
+  return { __llmPending: true, stash: {} };
+}
+
 // ---------- install, list, grant, remove ----------
 
 const needsOf = (file) => (file && file.agent && file.agent.derived && Array.isArray(file.agent.derived.needs) ? file.agent.derived.needs : []);
@@ -2458,6 +2472,7 @@ export function handleRoute(req, host) {
   if (path === "/agents/grant" && req.method === "POST") return grantRoute(req, host);
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);
   if (path === "/agents/dry" && req.method === "POST") return dryRoute(req, host);
+  if (path === "/agents/script" && req.method === "POST") return scriptRoute(req, host);
   if (path === "/agents/state" && (req.method === "GET" || req.method === "DELETE")) return stateRoute(req, host);
   if (path === "/agents/runs" && req.method === "GET") return runsRoute(req, host);
   if (path === "/agents/panels" && req.method === "GET") return panelsRoute(req, host);
