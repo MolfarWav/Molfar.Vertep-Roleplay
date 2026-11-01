@@ -41,7 +41,7 @@ sections.ts is the one list, items carry a `group` and a `hue`: Home, Chats | Ch
 Groups, Marketplace, Personas (the people) | Lorebooks, Litopys, Canvas, World, Agents (the technical block;
 Agents is a link to Canvas on its Agents board, `board: 'agents'`, current only while that board is open, state in
 lib/canvas-board.ts) | Presets | Shortcuts, Tools; Inbox and Help sit at the bottom; the Roleplay settings page
-(`settings`, group `'none'`) has no rail item: it opens from Home's Customize and the phone menu, and the engine
+(`settings`, group `'none'`) has no rail item: it opens from the Roleplay settings button in Home's header and the phone menu, and the engine
 issue draft docs/ENGINE-ISSUE-shell-settings-apps.md asks for an Apps entry in the shell's Settings) + Ctrl+K command
 palette. Every item has its own icon hue (rail-hues.ts). From 1280px the rail is
 206px with labels (Kurale) and ornament dividers; below that it is icons with
@@ -143,6 +143,11 @@ JSON goes through the import, anything else becomes the description, cut at 1200
 Structure it by `pendingStructure`). The questionnaire is the no-model path.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
 to it on every change. Messages are a FLAT list with swipes.
+
+Home (`views/home-view.tsx`, blocks in `components/home/block-*.tsx`) is a bento: continue (the one filled button), a random
+library card, a Marketplace card (`lib/home-market.ts`, one request an hour, left out when offline or switched off), a
+world tile on a library picture, waiting on you, quests of the latest chat, favourites, What's new and a tip. Its order,
+widths and hidden blocks are per user in `settings.homeLayout`, changed in Customize; the rules are in `lib/home-layout.ts`.
 
 ## Phase status
 

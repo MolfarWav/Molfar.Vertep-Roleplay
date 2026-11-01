@@ -1,29 +1,59 @@
-import { Gear, Plus } from '@phosphor-icons/react'
+// Home: a bento of blocks (docs/UI-CATALOG.md 7.5, 8). The order, the widths and the hidden blocks are the user's
+// (Customize), kept in the settings; lib/home-layout.ts has the rules. Continue is the page's one filled button.
+
+import { useMemo, useState } from 'react'
+import { Gear, PencilSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
+import type { MsgKey } from '@/lib/i18n'
 import { cn, shortModel } from '@/lib/utils'
-import { canAskMolfar, canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
+import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
 import { SectionPage } from '@/components/shell/section-page'
-import { HomeHero } from '@/components/home/home-hero'
-import { AchievementsBlock, AskMolfarBlock, CreateBlock, MyApps } from '@/components/home/home-blocks'
-import { RecentChats } from '@/components/home/recent-chats'
+import {
+  SPAN_CLASS, cycleSize, hideBlock, hiddenBlocks, moveBlock, resetHomeLayout, restoreBlock, setMarketSuggest,
+  shownBlocks, sizeOf, sanitizeHomeLayout, type HomeBlockId, type HomeLayout,
+} from '@/lib/home-layout'
+import { useMarketSuggest } from '@/lib/home-market'
+import { ContinueBlock } from '@/components/home/block-continue'
+import { LibraryBlock } from '@/components/home/block-library'
+import { MarketBlock } from '@/components/home/block-market'
+import { WorldBlock } from '@/components/home/block-world'
+import { WaitingBlock } from '@/components/home/block-waiting'
+import { QuestsBlock } from '@/components/home/block-quests'
+import { FavouritesBlock } from '@/components/home/block-favourites'
+import { NewsBlock } from '@/components/home/block-news'
+import { HelpBlock } from '@/components/home/block-help'
+import { EditBar, CustomizePanel } from '@/components/home/home-edit'
+import { WithMolfarButton } from '@/components/home/home-actions'
 
-/** Home: continue the latest story, create, ask Molfar, achievements, recent chats, apps. */
+/** The name a block goes by in the tray and on its tools. */
+const BLOCK_NAME: Record<HomeBlockId, MsgKey> = {
+  continue: 'home.pickUp',
+  library: 'home.library',
+  market: 'home.market',
+  world: 'home.createWorld',
+  waiting: 'inbox.title',
+  quests: 'home.quests',
+  favourites: 'home.favourites',
+  news: 'guide.whatsNew',
+  help: 'home.help',
+}
+
+/** Home: the blocks in the user's order, Customize to move, resize and hide them. */
 export function HomeView() {
   const t = useT()
   const model = useApp((s) => s.model)
-  const setView = useApp((s) => s.setView)
   const navigate = useApp((s) => s.navigate)
-  const molfar = canAskMolfar()
-  // the hero shows New character / Import card / With Molfar while there is no chat to continue:
-  // the Create card would repeat the same three buttons
-  const heroCreates = useApp((s) => {
-    const last = [...s.chats].sort((a, b) => b.updatedAt - a.updatedAt)[0]
-    return !last || !s.characters.some((c) => c.id === last.characterId)
-  })
+  const updateSettings = useApp((s) => s.updateSettings)
+  const stored = useApp((s) => s.settings.homeLayout)
+  const layout: HomeLayout = useMemo(() => sanitizeHomeLayout(stored), [stored])
+  const [editing, setEditing] = useState(false)
+  const market = useMarketSuggest(layout.marketSuggest !== false)
+  const shown = shownBlocks(layout, market.card !== null)
+  const write = (next: HomeLayout) => updateSettings({ homeLayout: next })
 
   const actions = (
     <>
@@ -35,7 +65,7 @@ export function HomeView() {
           if (!canOpenModelSettings()) { hint(); return }
           void openModelSettings(model).catch(hint)
         }}
-        className="block max-w-[9rem] truncate rounded-[3px] border border-border bg-secondary px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-foreground max-md:h-10 sm:max-w-[16rem]"
+        className="block max-w-[9rem] truncate rounded-lg border border-border bg-secondary px-2.5 py-1 font-mono text-caption text-muted-foreground transition-colors hover:text-foreground max-md:h-10 sm:max-w-[16rem]"
         aria-label={`${t('nav.connections')}: ${shortModel(model ?? '') || t('home.noModel')}`}
       >
         {shortModel(model ?? '') || t('home.noModel')}
@@ -44,28 +74,70 @@ export function HomeView() {
       <Button variant="ghost" className="gap-1.5 max-md:h-10" data-guide="home.settings" onClick={() => navigate('settings')}>
         <Gear aria-hidden="true" /> {t('nav.settings')}
       </Button>
-      <Button variant="outline" className="gap-1.5 font-heading text-[14px]" onClick={() => setView('characters')}>
-        <Plus aria-hidden="true" /> {t('home.newChat')}
-      </Button>
+      <WithMolfarButton />
+      {!editing && (
+        <Button variant="outline" className="gap-1.5 max-md:h-10" data-guide="home.customize" aria-expanded={editing} onClick={() => setEditing(true)}>
+          <PencilSimple aria-hidden="true" /> {t('home.customize')}
+        </Button>
+      )}
     </>
   )
+
+  const hidden = hiddenBlocks(layout).map((id) => ({ id, name: t(BLOCK_NAME[id]) }))
+
+  const renderBlock = (id: HomeBlockId) => {
+    switch (id) {
+      case 'continue': return <ContinueBlock />
+      case 'library': return <LibraryBlock />
+      case 'market': return market.card ? <MarketBlock card={market.card} another={market.another} /> : null
+      case 'world': return <WorldBlock />
+      case 'waiting': return <WaitingBlock />
+      case 'quests': return <QuestsBlock />
+      case 'favourites': return <FavouritesBlock />
+      case 'news': return <NewsBlock />
+      case 'help': return <HelpBlock />
+    }
+  }
 
   return (
     <SectionPage section="home" actions={actions}>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-5 px-4 py-4 md:px-8 md:py-6">
-          <HomeHero />
-          <div className={cn('grid gap-4', heroCreates
-            ? molfar ? 'md:grid-cols-[1.15fr_0.9fr]' : 'md:grid-cols-1'
-            : molfar ? 'md:grid-cols-[1.15fr_1.15fr_0.9fr]' : 'md:grid-cols-[1.15fr_0.9fr]')}>
-            {!heroCreates && <CreateBlock />}
-            {molfar && <AskMolfarBlock />}
-            <AchievementsBlock />
+        <div className="flex flex-col gap-6 px-4 py-4 md:px-8 md:py-6">
+          {editing && (
+            <CustomizePanel
+              hidden={hidden}
+              marketSuggest={layout.marketSuggest !== false}
+              onRestore={(id) => write(restoreBlock(layout, id as HomeBlockId))}
+              onMarketSuggest={(on) => write(setMarketSuggest(layout, on))}
+              onReset={() => write(resetHomeLayout(layout))}
+              onDone={() => setEditing(false)}
+            />
+          )}
+          <div className="grid grid-flow-dense grid-cols-1 gap-4 md:grid-cols-12">
+            {shown.map((id, i) => {
+              const size = sizeOf(layout, id)
+              return (
+                <div key={id} className={cn('flex min-w-0 flex-col gap-2', SPAN_CLASS[size])}>
+                  {editing && (
+                    <EditBar
+                      name={t(BLOCK_NAME[id])}
+                      canEarlier={i > 0}
+                      canLater={i < shown.length - 1}
+                      size={size}
+                      onEarlier={() => write(moveBlock(layout, id, -1))}
+                      onLater={() => write(moveBlock(layout, id, 1))}
+                      onSize={() => write(cycleSize(layout, id))}
+                      onHide={() => write(hideBlock(layout, id))}
+                    />
+                  )}
+                  {renderBlock(id)}
+                </div>
+              )
+            })}
           </div>
-          <RecentChats />
-          <MyApps />
         </div>
       </ScrollArea>
     </SectionPage>
   )
 }
+

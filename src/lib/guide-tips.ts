@@ -986,12 +986,26 @@ const HAND_TIPS: Tip[] = [
     target: 'home.ask',
     open: { view: 'home' },
     help: 'help',
-    title: { en: 'Ask Molfar', uk: 'Запитай Мольфара' },
+    title: { en: 'With Molfar', uk: 'З Мольфаром' },
     body: {
-      en: 'Ask Molfar on Home is the built-in assistant: it works in your workshop on characters, dashboards and plugins. Try a request like “character from a description”, “my own dashboard” or “Litopys review”. In Lorebooks, the With Molfar button builds a lorebook with you.',
-      uk: '«Запитай Мольфара» на Головній — вбудований помічник: він працює у вашій майстерні над персонажами, дашбордами й плагінами. Спробуйте запити на кшталт «персонаж з опису», «свій дашборд» чи «огляд Літопису». У Лорбуках кнопка «З Мольфаром» створює лорбук разом із вами.',
+      en: 'The With Molfar button in the Home header opens Molfar, the built-in assistant, with a draft for a new character card: write your idea after it and send. Molfar works in your workshop on characters, dashboards and plugins. In Lorebooks, the With Molfar button builds a lorebook with you.',
+      uk: '«З Мольфаром» у заголовку Головної відкриває Мольфара, вбудованого помічника, з чернеткою нової картки персонажа: допишіть свою ідею і надішліть. Мольфар працює у вашій майстерні над персонажами, дашбордами й плагінами. У Лорбуках кнопка «З Мольфаром» створює лорбук разом із вами.',
     },
     keywords: { en: 'assistant agent ai helper build create', uk: 'помічник агент створити допомога' },
+  },
+
+  {
+    id: 'help.home-customize',
+    target: 'home.customize',
+    open: { view: 'home' },
+    help: 'help',
+    keywords: { en: 'customize move resize hide blocks reorder layout home start page', uk: 'налаштувати переставити розмір сховати блоки розташування головна сторінка' },
+    title: { en: 'Customize Home', uk: 'Налаштування Головної' },
+    body: {
+      en: 'Customize moves, resizes and hides the blocks of the start page. Changes are saved as you make them. Hidden blocks wait in the tray, where Restore brings one back, and Reset to default puts the page back as it was. The Marketplace suggestion has its own switch there.',
+      uk: 'Налаштувати переставляє, змінює розмір і ховає блоки стартової сторінки. Зміни зберігаються одразу. Приховані блоки чекають у лотку, де «Повернути» повертає один із них, а «Скинути до типового» повертає сторінку як було. Підбірка з Маркетплейсу має власний перемикач.',
+    },
+    where: { en: 'The Customize button in the Home header.', uk: 'Кнопка «Налаштувати» у заголовку Головної.' },
   },
 
   // ── Tour steps that are not help items

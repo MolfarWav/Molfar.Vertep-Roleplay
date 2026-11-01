@@ -19,3 +19,6 @@ export function guideTarget(event: Event | undefined): boolean {
 
 /** detail: 'lorebooks' | 'presets'. That view opens its first entry (a phone shows the list first). */
 export const GUIDE_DETAIL_EVENT = 'rp-guide-detail'
+
+/** detail: { id } of a tip. Home's "Did you know?" asks the guide to show the tip (the same as the help list's Show me). */
+export const GUIDE_SHOW_EVENT = 'rp-guide-show'

@@ -1,7 +1,7 @@
 
 import { beginImport } from '@/lib/import-progress'
 import { t as tNow } from '@/lib/i18n'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ImgHTMLAttributes } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { MagnifyingGlass, Storefront, DownloadSimple, CircleNotch, ArrowSquareOut, Check, Heart, X, CaretLeft, CaretRight, BookOpenText, BookBookmark, User, Tag, Plus, SlidersHorizontal, Fire, UploadSimple, LinkSimple, Translate, Smiley } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -18,8 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useApp } from '@/lib/store'
 import { SectionPage, PaneTitle } from '@/components/shell/section-page'
-import { DEFAULT_AVATAR, cn } from '@/lib/utils'
-import { j, proxyUrl, downscaleRemoteImage } from '@/lib/engine'
+import { cn } from '@/lib/utils'
+import { ProxyImage } from '@/components/marketplace/proxy-image'
+import { j, downscaleRemoteImage } from '@/lib/engine'
 import { importCardFiles, importCardFromLink, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 import {
   TRANSLATE_LANGUAGES, TRANSLATE_CONCURRENCY, runLimited, planPreview, buildPreview, loadTranslateTo, saveTranslateTo,
@@ -354,26 +355,6 @@ const viewportOf = (root: HTMLElement | null): HTMLElement | null =>
   root?.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]') ?? null
 
 const fmtCount = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '')}k` : String(n))
-
-/** <img> for proxied remote art. The proxy route carries the session, which
- *  the sandboxed page does not have, so the bytes come through the bridge
- *  fetch (the frame's window.fetch is shimmed) as an object URL. Pointing
- *  <img src> straight at the proxy races the bridge rewriter: the browser
- *  fires a cookieless 401 first and Firefox reports a blocked response. */
-function ProxyImage({ url, ...rest }: { url: string | null } & ImgHTMLAttributes<HTMLImageElement>) {
-  const [src, setSrc] = useState(DEFAULT_AVATAR)
-  useEffect(() => {
-    if (!url) { setSrc(DEFAULT_AVATAR); return }
-    let dead = false
-    let made: string | null = null
-    fetch(proxyUrl(url))
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.blob() })
-      .then((b) => { if (dead) return; made = URL.createObjectURL(b); setSrc(made) })
-      .catch(() => { if (!dead) setSrc(DEFAULT_AVATAR) })
-    return () => { dead = true; if (made) URL.revokeObjectURL(made) }
-  }, [url])
-  return <img src={src} {...rest} />
-}
 
 export function MarketplaceView() {
   const hydrate = useApp((s) => s.hydrate)
