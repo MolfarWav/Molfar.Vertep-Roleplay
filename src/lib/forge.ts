@@ -248,6 +248,17 @@ export function moveItem<T>(list: T[], i: number, by: -1 | 1): T[] {
   return next
 }
 
+/** A list as `useDragList` wants it: every item with an id (its place), so items without an id of their own can be dragged. The saved file keeps its shape. */
+export function dragItems<T>(list: T[], idOf?: (item: T, i: number) => string): { id: string; item: T }[] {
+  return list.map((item, i) => ({ id: idOf ? idOf(item, i) : String(i), item }))
+}
+
+/** The items of a dragged list in their new order. The same list when the order did not change. */
+export function droppedItems<T>(before: T[], ordered: { id: string; item: T }[]): T[] {
+  const next = ordered.map((x) => x.item)
+  return next.length === before.length && next.every((x, i) => x === before[i]) ? before : next
+}
+
 /** The widgets a form can make. */
 export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions', 'html'] as const
 /** How tall an `html` widget is when the file does not say, and the limits the checker keeps. */

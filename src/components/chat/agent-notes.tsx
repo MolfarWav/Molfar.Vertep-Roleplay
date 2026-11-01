@@ -19,6 +19,8 @@ const OPEN_BELOW = 240
 export function AgentNotes({ chatId, message, last }: { chatId: string; message: Message; last?: boolean }) {
   const t = useT()
   const all = useAgentsLive((s) => s.runs[chatId])
+  // the person switched every agent's notes off: the run line below still says who ran
+  const silent = useAgentsLive((s) => s.silentNotes)
   const key = `${message.id}#${message.activeSwipe}`
   const runs = useMemo(() => {
     const latest = new Map<string, AgentRun>()
@@ -27,7 +29,7 @@ export function AgentNotes({ chatId, message, last }: { chatId: string; message:
   }, [all, key])
   if (message.role !== 'assistant' || !runs.length) return null
 
-  const notes = runs.flatMap((r) => (r.status === 'ok' ? (r.outputs ?? []).filter((o) => o.kind === 'note' && o.text && NOTE_PLACES.has(o.show)).map((o) => ({ r, o })) : []))
+  const notes = silent ? [] : runs.flatMap((r) => (r.status === 'ok' ? (r.outputs ?? []).filter((o) => o.kind === 'note' && o.text && NOTE_PLACES.has(o.show)).map((o) => ({ r, o })) : []))
   const cards = notes.filter(({ o }) => o.show !== 'feed')
   const lines = notes.filter(({ o }) => o.show === 'feed')
   const failed = runs.filter((r) => r.status === 'failed').length

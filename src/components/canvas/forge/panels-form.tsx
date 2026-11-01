@@ -1,13 +1,15 @@
-import { useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Plus, Trash } from '@phosphor-icons/react'
+import { useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, DotsSixVertical, Plus, Trash } from '@phosphor-icons/react'
 import { templateProblems } from '@/canvas-kit/boards/agent-check'
 import { slotsFor } from '@/lib/agent-template'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
+import { cn } from '@/lib/utils'
 import type { MsgKey } from '@/lib/i18n'
-import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
+import { dragItems, droppedItems, fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
+import { useDragList } from '@/lib/drag-list'
 import { Field, NativeSelect } from './card-form'
 import { PanelPreview } from './panel-preview'
 
@@ -19,6 +21,8 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
   const t = useT()
   const [full, setFull] = useState(true)
   const setPanel = (i: number, patch: Obj) => onChange(panels.map((p, k) => (k === i ? { ...p, ...patch } : p)))
+  const items = useMemo(() => dragItems(panels), [panels])
+  const { containerRef, dragId, ordered, rowProps } = useDragList(items, (o) => onChange(droppedItems(panels, o)))
   return (
     <div className="flex flex-col gap-2" data-testid="forge-panels-form">
       {panels.length === 0 && <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.panels.none')}</p>}
@@ -32,36 +36,15 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
           ))}
         </div>
       )}
-      {panels.map((p, i) => {
-        const widgets: Obj[] = Array.isArray(p.widgets) ? p.widgets : []
-        const setWidget = (j: number, w: Obj) => setPanel(i, { widgets: widgets.map((x, k) => (k === j ? w : x)) })
-        return (
-          <div key={String(p.id ?? i)} className="flex flex-col gap-2 rounded-md border border-border p-2" data-testid={`forge-panel-${p.id}`}>
-            <div className="flex gap-1.5">
-              <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => setPanel(i, { title: e.target.value })} />
-              <div className="w-40 shrink-0">
-                <NativeSelect value={String(p.place ?? 'float')} label={t('fg.panel.place')} onChange={(place) => setPanel(i, { place })}>
-                  {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}
-                </NativeSelect>
-              </div>
-              <Mover at={i} count={panels.length} onMove={(by) => onChange(moveItem(panels, i, by))} />
-              <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={() => onChange(panels.filter((_, k) => k !== i))}>
-                <Trash className="size-4" aria-hidden="true" />
-              </Button>
-            </div>
-            {widgets.map((w, j) => (
-              <WidgetRow key={j} w={w} state={state} onChange={(next) => setWidget(j, next)} onRemove={() => setPanel(i, { widgets: widgets.filter((_, k) => k !== j) })} at={j} count={widgets.length} onMove={(by) => setPanel(i, { widgets: moveItem(widgets, j, by) })} />
-            ))}
-            {widgets.length < MAX_WIDGETS && (
-              <NativeSelect value="" label={t('fg.widget.add')} onChange={(kind) => kind && setPanel(i, { widgets: [...widgets, newWidget(kind, state)] })}>
-                <option value="">{t('fg.widget.add')}</option>
-                {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
-              </NativeSelect>
-            )}
-            <PanelPreview panel={p} state={state} full={full} />
-          </div>
-        )
-      })}
+      <div ref={containerRef} className="flex flex-col gap-2">
+        {ordered.map(({ id, item: p }) => {
+          const i = Number(id)
+          return (
+            <PanelCard key={id} id={id} p={p} at={i} count={panels.length} state={state} full={full} dragging={dragId === id}
+              grip={rowProps(id)} onPanel={(patch) => setPanel(i, patch)} onMove={(by) => onChange(moveItem(panels, i, by))} onRemove={() => onChange(panels.filter((_, k) => k !== i))} />
+          )
+        })}
+      </div>
       {panels.length < MAX_PANELS && (
         <Button variant="outline" size="sm" className="self-start max-md:h-10" onClick={() => onChange([...panels, newPanel(panels, state, t('fg.panel.new'))])} data-testid="forge-panel-add">
           <Plus className="size-3.5" aria-hidden="true" />{t('fg.panels.add')}
@@ -71,7 +54,65 @@ export function PanelsForm({ panels, state, onChange }: { panels: Obj[]; state: 
   )
 }
 
-function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj; state: State; onChange: (w: Obj) => void; onRemove: () => void; at: number; count: number; onMove: (by: -1 | 1) => void }) {
+type GripProps = ReturnType<ReturnType<typeof useDragList>['rowProps']>
+
+/** One panel: its header, its widgets (draggable among themselves) and the preview. */
+function PanelCard({ id, p, at, count, state, full, dragging, grip, onPanel, onMove, onRemove }: {
+  id: string; p: Obj; at: number; count: number; state: State; full: boolean; dragging: boolean; grip: GripProps
+  onPanel: (patch: Obj) => void; onMove: (by: -1 | 1) => void; onRemove: () => void
+}) {
+  const t = useT()
+  const widgets: Obj[] = Array.isArray(p.widgets) ? p.widgets : []
+  const setWidget = (j: number, w: Obj) => onPanel({ widgets: widgets.map((x, k) => (k === j ? w : x)) })
+  const wItems = useMemo(() => dragItems(widgets), [widgets])
+  const wDrag = useDragList(wItems, (o) => onPanel({ widgets: droppedItems(widgets, o) }))
+  return (
+    <div data-rowid={id} className={cn('flex flex-col gap-2 rounded-md border border-border p-2', dragging && 'opacity-60 ring-2 ring-primary/50')} data-testid={`forge-panel-${p.id}`}>
+      <div className="flex gap-1.5">
+        {count > 1 && <Grip handle={grip} />}
+        <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => onPanel({ title: e.target.value })} />
+        <div className="w-40 shrink-0">
+          <NativeSelect value={String(p.place ?? 'float')} label={t('fg.panel.place')} onChange={(place) => onPanel({ place })}>
+            {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}
+          </NativeSelect>
+        </div>
+        <Mover at={at} count={count} onMove={onMove} />
+        <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.panel.remove')} onClick={onRemove}>
+          <Trash className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
+      <div ref={wDrag.containerRef} className="flex flex-col gap-2">
+        {wDrag.ordered.map(({ id: wid, item: w }) => {
+          const j = Number(wid)
+          return (
+            <WidgetRow key={wid} id={wid} w={w} state={state} dragging={wDrag.dragId === wid} grip={wDrag.rowProps(wid)} onChange={(next) => setWidget(j, next)}
+              onRemove={() => onPanel({ widgets: widgets.filter((_, k) => k !== j) })} at={j} count={widgets.length} onMove={(by) => onPanel({ widgets: moveItem(widgets, j, by) })} />
+          )
+        })}
+      </div>
+      {widgets.length < MAX_WIDGETS && (
+        <NativeSelect value="" label={t('fg.widget.add')} onChange={(kind) => kind && onPanel({ widgets: [...widgets, newWidget(kind, state)] })}>
+          <option value="">{t('fg.widget.add')}</option>
+          {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
+        </NativeSelect>
+      )}
+      <PanelPreview panel={p} state={state} full={full} />
+    </div>
+  )
+}
+
+/** The grip of a row: press and move with a mouse, or hold and move on a touch screen. The keyboard uses Move up / Move down. */
+function Grip({ handle }: { handle: GripProps }) {
+  const t = useT()
+  return (
+    <span {...handle} role="img" aria-label={t('fg.drag')} title={t('fg.drag')} data-testid="forge-grip"
+      className="flex size-6 shrink-0 cursor-grab touch-none select-none items-center justify-center self-center rounded-md text-muted-foreground hover:bg-accent active:cursor-grabbing max-md:size-10">
+      <DotsSixVertical className="size-4" aria-hidden="true" />
+    </span>
+  )
+}
+
+function WidgetRow({ id, w, state, dragging, grip, onChange, onRemove, at, count, onMove }: { id: string; w: Obj; state: State; dragging: boolean; grip: GripProps; onChange: (w: Obj) => void; onRemove: () => void; at: number; count: number; onMove: (by: -1 | 1) => void }) {
   const t = useT()
   const kind = String(w.w)
   const known = (WIDGET_KINDS as readonly string[]).includes(kind)
@@ -81,8 +122,9 @@ function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj
   const items: { label: string; send: string }[] = Array.isArray(w.items) ? w.items : []
   const setItem = (k: number, patch: Partial<{ label: string; send: string }>) => onChange({ ...w, items: items.map((x, n) => (n === k ? { ...x, ...patch } : x)) })
   return (
-    <div className="flex flex-col gap-1.5 rounded-md bg-muted/40 p-2">
+    <div data-rowid={id} className={cn('flex flex-col gap-1.5 rounded-md bg-muted/40 p-2', dragging && 'opacity-60 ring-2 ring-primary/50')}>
       <div className="flex gap-1.5">
+        {count > 1 && <Grip handle={grip} />}
         {known ? (
           <NativeSelect value={kind} label={t('fg.widget.kind')} onChange={(k) => onChange(setWidgetKind(w, k, state))}>
             {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}

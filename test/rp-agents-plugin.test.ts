@@ -518,6 +518,18 @@ describe("drafts", () => {
     expect(byName["bad-wire"].errors.length).toBeGreaterThan(0);
   });
 
+  it("names the card a finding blames (nodeTitle) in the drafts list and in the installed list", () => {
+    const loose = copy(echo) as { nodes: { id: string; title: string }[]; edges: unknown[] };
+    loose.edges = [];
+    put("loose", JSON.stringify(loose));
+    const errs = j("/agents/drafts").drafts[0].errors as Json[];
+    const unwired = errs.find((e) => e.code === "E_UNWIRED");
+    expect(unwired).toBeTruthy();
+    expect(unwired!.nodeTitle).toBe(loose.nodes.find((n) => n.id === unwired!.node)!.title);
+    // a finding about the whole file has no card to name
+    expect(errs.find((e) => e.code === "E_INPUT_COUNT")?.nodeTitle).toBeUndefined();
+  });
+
   it("installs a draft like an install does (the user still has to allow), and removes one", () => {
     put("scene-echo", JSON.stringify(copy(echo)));
     const r = j("/agents/drafts/install", "POST", { name: "scene-echo" });

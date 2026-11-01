@@ -1850,6 +1850,14 @@ function readDraft(fsx, name) {
   return { name, file, errors: compiled.report.errors, warnings: compiled.report.warnings, derived: compiled.report.derived };
 }
 
+/** The checker's errors or warnings with `nodeTitle` (the card's title) next to `node`, so a list can name the card. */
+function withNodeTitles(file, list) {
+  const nodes = isObj(file) && Array.isArray(file.nodes) ? file.nodes : [];
+  const titles = new Map();
+  for (const n of nodes) if (isObj(n) && typeof n.id === "string" && typeof n.title === "string" && n.title) titles.set(n.id, n.title.slice(0, 80));
+  return (Array.isArray(list) ? list : []).map((x) => (x && x.node && titles.has(x.node) ? { ...x, nodeTitle: titles.get(x.node) } : x));
+}
+
 function draftsRoute(req, host) {
   const fsx = host.fs;
   let files = [];
@@ -1865,7 +1873,7 @@ function draftsRoute(req, host) {
       name, id: str(a.id), title: str(a.name) || str(d.file && d.file.title) || name, description: str(a.description),
       needs: d.derived ? d.derived.needs : [], maxCalls: d.derived ? d.derived.maxCalls : 0,
       installed: !!str(a.id) && !!readJsonAt(fsx, agentPath(str(a.id)), null),
-      errors: d.errors, warnings: d.warnings,
+      errors: withNodeTitles(d.file, d.errors), warnings: withNodeTitles(d.file, d.warnings),
     });
   }
   return ok({ drafts });
@@ -1951,7 +1959,7 @@ function listRoute(req, host) {
       id, name: str(a.name) || id, description: str(a.description), author: str(a.author), version: str(a.version),
       trigger: isObj(a.trigger) ? a.trigger : {}, models: isObj(a.models) ? a.models : {},
       needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs),
-      maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: agent.report.errors, warnings: agent.report.warnings,
+      maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: withNodeTitles(agent.file, agent.report.errors), warnings: withNodeTitles(agent.file, agent.report.warnings),
       runnable: !blocker(agent, granted, own.maxCalls), blocker: blocker(agent, granted, own.maxCalls), places: placesOf(agent.file),
       own: { models: own.models, maxCalls: own.maxCalls, everyN: own.everyN },
     });

@@ -763,7 +763,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   permissions (the user confirmed those when installing the agent). The order of `items` is the order inside a phase;
   `phase` is optional (the agent's own `trigger.when` then applies); at most 50 items, an agent once. Routes:
   `GET /agent-presets`, `GET|PUT|DELETE /agent-presets/<id>` (PUT cleans the file and refuses one without `items`).
-- The default preset, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null }`, `GET|PUT /agent-settings`.
+- The agents' settings, `data/agents/settings.json` `{ "defaultPreset": "<preset id>" | null, "silentNotes"?: true }`, `GET|PUT /agent-settings` (a PUT changes only the fields it names). `silentNotes` hides every agent's *notes* in the chats (under the reply, the feed, pop-ups); choices, panels and prompt inserts are not affected and the run log keeps the notes. Absent = notes are shown.
   A chat with no binding follows it.
 - A chat's binding, meta `agents`: `{ "v": 1, "preset"?, "own"?, "show"?, "also"? }`. With `preset` and no `own` the chat follows the
   preset live (a change to the preset reaches it at once). The first change made in the chat (turn an agent off, add or
@@ -776,7 +776,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `{ op }` with `op` = `preset` (`preset`: id or null; drops `own`), `reset` (drops `own` and `show`), `add` (`agent`, `phase?`),
   `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `also` (`on`: true = also in the block), `wait` (`wait`: false = the reply does
   not wait for this agent, true = it does); it answers what runs now,
-  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ] }`.
+  as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ], silentNotes }` (`silentNotes`: the agents' notes are switched off, see the agents' settings below).
 ### Running an agent (`agent-run.js`)
 
 `runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never
@@ -839,6 +839,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   with that reason in the log instead of vanishing. The engine runs the questions of one round up to three at a time, at least
   250 ms apart, and tries a question again after a 429.
 - `GET /agents/state?chatId&agent` (the agent's own fields), `DELETE` the same (start over), `GET /agents/runs?chatId`, `GET /agents/panels?chatId` (the panels of the chat's agents that are on and allowed, each with its state schema, its state and the state before the last run; the app draws them in `top1`, `top2` or the floating button).
+- **Checker findings in lists.** The `errors` and `warnings` of `GET /agents/list` and `GET /agents/drafts` are `{ code, message, node?, nodeTitle? }`: `node` is the card's id and `nodeTitle` its title (added by the plugin, so a list can name the card without the file). The app shows a sentence per code (`src/lib/agent-issues.ts`, keys `ag.issue.<CODE>` and `.fix`) with the code as a small chip; a code with no text shows `message`.
 - **Drafts.** A file Molfar (or anyone) writes to `data/agents/drafts/<name>.vertep-agent.json` waits there for the user. The
   Agents sheet lists the drafts with what an install would say about each (`errors` and `warnings`, the checker's own codes
   and messages) and an Install button; a draft with errors cannot be installed. `GET /agents/drafts` (`{ drafts: [{ name, id,

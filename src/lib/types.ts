@@ -279,6 +279,8 @@ export interface Chat {
   hasUser?: boolean
   /** this chat's own turn settings; absent = the group's */
   turns?: ChatTurns
+  /** the agent set this chat follows (`preset`) or its own copy of the agents (`own`, even empty); absent = it follows the default set. Read from the chat list, so a set's users can be counted without opening chats. */
+  agents?: { preset?: string; own?: { agent: string }[] }
   /** the outfit each speaker's sprite wears in this chat (chat meta `spriteOutfits`): key = a voice's name, '' = the card itself */
   spriteOutfits?: Record<string, string>
   /** how this group chat plays: the group's defaults with `turns` on top (derived, never saved) */
