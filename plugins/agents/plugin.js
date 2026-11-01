@@ -549,8 +549,15 @@ function checkPanels(raw, state, err) {
         continue;
       }
       if (w.w === 'html') {
-        if (typeof w.template !== 'string' || !w.template.trim() || w.template.length > 8192)
-          err('E_WIDGET', `${where}: html needs a template of up to 8192 characters`);
+        // two modes: a template the author wrote (fixed look), or a text field the model writes the markup into
+        if (w.template !== undefined && w.bind !== undefined)
+          err('E_WIDGET', `${where}: html takes a template or a bind, not both`);
+        else if (w.bind !== undefined) {
+          if (state[w.bind]?.type !== 'text')
+            err('E_BIND', `${where}: bind "${w.bind}" must be a text field in agent.state (the markup the model writes goes there)`);
+        }
+        else if (typeof w.template !== 'string' || !w.template.trim() || w.template.length > 8192)
+          err('E_WIDGET', `${where}: html needs a template of up to 8192 characters, or a bind to a text field`);
         else
           checkTemplate(w.template, state, where, err);
         if (w.height !== undefined && (!Number.isInteger(w.height) || w.height < 40 || w.height > 600))
@@ -2352,6 +2359,7 @@ function listRoute(req, host) {
       added: (() => { const asked = askedOf(fsx, id); return asked.length ? needs.filter((t) => !asked.includes(t) && !UNSUPPORTED_NEEDS(t)) : []; })(),
       maxCalls: agent.report.derived ? agent.report.derived.maxCalls : 0, errors: withNodeTitles(agent.file, agent.report.errors), warnings: withNodeTitles(agent.file, agent.report.warnings),
       runnable: !blocker(agent, granted, own.maxCalls), blocker: blocker(agent, granted, own.maxCalls), places: placesOf(agent.file),
+      scripts: agent.file.nodes.filter((n) => n.type === "code.script").map((n) => ({ id: n.id, title: str(n.title) || n.id, code: str(n.params && n.params.code) })),
       own: { models: own.models, maxCalls: own.maxCalls, everyN: own.everyN },
     });
   }

@@ -398,13 +398,13 @@ function ScriptForm({ p, set }: { p: Params; set: (patch: Params) => void }) {
     <>
       <Field label={t('fg.script.code')} hint={t('fg.script.codeHint')}>
         <Textarea value={code} rows={10} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap="off" className="font-mono text-xs leading-relaxed" data-testid="script-code" onChange={(e) => set({ code: e.target.value })} />
-        <span className={cn('self-end text-[11px] tabular-nums', code.length > SCRIPT_CODE_MAX ? 'text-destructive' : 'text-muted-foreground')} data-testid="script-count">{t('fg.script.count', { n: code.length, max: SCRIPT_CODE_MAX })}</span>
+        <span className={cn('self-end text-caption tabular-nums', code.length > SCRIPT_CODE_MAX ? 'text-destructive' : 'text-muted-foreground')} data-testid="script-count">{t('fg.script.count', { n: code.length, max: SCRIPT_CODE_MAX })}</span>
       </Field>
       <ScriptPorts list={inputs} label={t('fg.script.inputs')} hint={t('fg.script.inputsHint')} addLabel={t('fg.script.addIn')} minRows={0} onChange={(next) => set({ inputs: next })} />
       <ScriptPorts list={outputs} label={t('fg.script.outputs')} hint={t('fg.script.outputsHint')} addLabel={t('fg.script.addOut')} minRows={1} onChange={(next) => set({ outputs: next })} />
       <details className="rounded-md border border-border bg-background p-2 text-xs" data-testid="script-rules">
-        <summary className="cursor-pointer select-none text-[11px] font-medium">{t('fg.script.rules')}</summary>
-        <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-snug text-muted-foreground">
+        <summary className="cursor-pointer select-none text-caption font-medium">{t('fg.script.rules')}</summary>
+        <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-caption leading-snug text-muted-foreground">
           {(['rule1', 'rule2', 'rule3', 'rule4', 'rule5'] as const).map((r) => <li key={r}>{t(`fg.script.${r}` as MsgKey)}</li>)}
         </ul>
       </details>

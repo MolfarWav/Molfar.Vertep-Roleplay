@@ -37,6 +37,8 @@ export interface AgentInfo {
   blocker: string
   /** the places the chat may move this agent's results to; the first is where the author put them */
   places?: string[]
+  /** the Script cards of the agent with their code, so the person can read what they allow */
+  scripts?: { id: string; title: string; code: string }[]
   /** the model roles the author named, each with a hint ("cheap, answers in JSON"); never a model id */
   models?: Record<string, { hint?: string }>
   /** the user's own choices for this agent (see saveAgentOwn) */

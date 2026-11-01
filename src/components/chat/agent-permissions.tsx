@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 const errText = (e: unknown) => String((e as Error)?.message ?? e)
 const GROUP_KEY: Record<PermGroup, MsgKey> = {
-  read: 'ag.perm.g.read', write: 'ag.perm.g.write', show: 'ag.perm.g.show', model: 'ag.perm.g.model', other: 'ag.perm.g.other',
+  read: 'ag.perm.g.read', write: 'ag.perm.g.write', show: 'ag.perm.g.show', model: 'ag.perm.g.model', code: 'ag.perm.g.code', other: 'ag.perm.g.other',
 }
 
 /**
@@ -73,6 +73,20 @@ export function AgentPermissions({ agent, open, onOpenChange, onChanged }: { age
                   )
                 })}
               </ul>
+              {g.group === 'code' && (agent.scripts?.length ?? 0) > 0 && (
+                <details className="rounded-lg border border-border p-2 text-xs" data-testid="agent-perm-code">
+                  <summary className="cursor-pointer select-none font-medium max-md:min-h-10 max-md:leading-10">{t('ag.perm.readCode', { n: agent.scripts!.length })}</summary>
+                  <p className="mt-1.5 text-caption leading-snug text-muted-foreground">{t('ag.perm.codeNote')}</p>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {agent.scripts!.map((s) => (
+                      <div key={s.id} className="flex flex-col gap-1">
+                        <span className="font-medium">{s.title}</span>
+                        <pre className="max-h-56 overflow-auto whitespace-pre rounded-md bg-muted/50 p-2 font-mono text-caption leading-relaxed" tabIndex={0}>{s.code}</pre>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </section>
           ))}
 

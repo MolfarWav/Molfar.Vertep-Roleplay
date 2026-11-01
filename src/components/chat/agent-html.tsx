@@ -21,7 +21,7 @@ export function TemplateFrame({ w, set }: { w: PanelWidget; set: Pick<AgentPanel
     [w.bind, w.template, set.schema, set.own],
   )
   if ('problems' in drawn) return <p className="text-[11px] text-muted-foreground" data-testid="agent-html-bad">{t('ag.widget.htmlBad')}</p>
-  if (w.bind !== undefined && !drawn.html.trim()) return <p className="text-[11px] text-muted-foreground" data-testid="agent-html-empty">{t('ag.widget.htmlEmpty')}</p>
+  if (w.bind !== undefined && !drawn.html.trim()) return <p className="text-caption text-muted-foreground" data-testid="agent-html-empty">{t('ag.widget.htmlEmpty')}</p>
   const height = Math.min(HTML_HEIGHT.max, Math.max(HTML_HEIGHT.min, w.height ?? HTML_HEIGHT.start))
   return (
     <iframe

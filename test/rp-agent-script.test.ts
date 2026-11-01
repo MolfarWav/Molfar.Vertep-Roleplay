@@ -273,3 +273,23 @@ describe("the editor's trial", () => {
     expect(call("POST", "/agents/script", { input: {} }).status).toBe(400);
   });
 });
+
+describe("the permission page", () => {
+  it("groups run:code on its own, and the list carries the code to read", async () => {
+    const { groupNeeds } = await import("../src/lib/agent-permissions");
+    expect(groupNeeds(["read:lastReply", "run:code", "write:own.words"], []).map((g) => g.group)).toEqual(["read", "write", "code"]);
+    const row = (j("/agents/list").agents as Json[]).find((a) => a.id === "counter")!;
+    expect(row.needs).toContain("run:code");
+    expect(row.scripts).toEqual([{ id: "sc", title: "Count", code: CODE }]);
+  });
+
+  it("an agent without a Script card does not ask for run:code", () => {
+    const plain = agent();
+    plain.agent.id = "plain";
+    plain.nodes = plain.nodes.filter((n: Json) => n.id !== "sc");
+    plain.edges = [{ id: "e6", from: "in:reply", to: "s2:value" }, { id: "e4", from: "s2:done", to: "out:in" }];
+    plain.nodes = plain.nodes.filter((n: Json) => !["s1", "m"].includes(n.id));
+    expect(compiled(plain).report.errors).toEqual([]);
+    expect(compiled(plain).report.derived.needs).not.toContain("run:code");
+  });
+});

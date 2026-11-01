@@ -227,7 +227,7 @@ function HtmlForm({ w, state, onChange }: { w: Obj; state: State; onChange: (w: 
           <button key={k} type="button" aria-pressed={on} onClick={() => { if (!on) go() }} data-testid={`forge-html-mode-${k}`}
             className={cn('min-h-8 flex-1 rounded-md border px-2 py-1 text-left text-xs max-md:min-h-10', on ? 'border-primary bg-primary/10' : 'border-input text-muted-foreground hover:bg-muted')}>
             <b className="block font-medium">{t(`fg.html.mode.${k}` as MsgKey)}</b>
-            <span className="block text-[11px] leading-snug text-muted-foreground">{t(`fg.html.mode.${k}.hint` as MsgKey)}</span>
+            <span className="block text-caption leading-snug text-muted-foreground">{t(`fg.html.mode.${k}.hint` as MsgKey)}</span>
           </button>
         ))}
       </div>
@@ -240,9 +240,9 @@ function HtmlForm({ w, state, onChange }: { w: Obj; state: State; onChange: (w: 
             </NativeSelect>
           </Field>
           <details className="rounded-md border border-border bg-background p-2 text-xs" data-testid="forge-html-tip">
-            <summary className="cursor-pointer select-none text-[11px] font-medium">{t('fg.html.tip')}</summary>
-            <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{t('fg.html.tipBody')}</p>
-            <pre className="mt-1.5 whitespace-pre-wrap rounded bg-muted/50 p-1.5 text-[11px] leading-snug">{t('fg.html.tipPrompt')}</pre>
+            <summary className="cursor-pointer select-none text-caption font-medium">{t('fg.html.tip')}</summary>
+            <p className="mt-1.5 text-caption leading-snug text-muted-foreground">{t('fg.html.tipBody')}</p>
+            <pre className="mt-1.5 whitespace-pre-wrap rounded bg-muted/50 p-1.5 text-caption leading-snug">{t('fg.html.tipPrompt')}</pre>
           </details>
         </>
       )}
@@ -259,7 +259,7 @@ function HtmlForm({ w, state, onChange }: { w: Obj; state: State; onChange: (w: 
           ))}
         </div>
       )}
-      {!model && problems.map((p, i) => <p key={i} role="alert" className="text-[11px] leading-snug text-destructive" data-testid="forge-html-problem">{problemText(t, p)}</p>)}
+      {!model && problems.map((p, i) => <p key={i} role="alert" className="text-caption leading-snug text-destructive" data-testid="forge-html-problem">{problemText(t, p)}</p>)}
       <Field label={t('fg.tpl.height')}>
         <Input type="number" inputMode="numeric" min={HTML_HEIGHT.min} max={HTML_HEIGHT.max} step={10} value={draft ?? w.height ?? HTML_HEIGHT.start} className="w-28 max-md:h-10"
           onChange={(e) => {
