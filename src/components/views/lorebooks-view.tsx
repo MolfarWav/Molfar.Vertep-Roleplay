@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { CircleNotch } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Pager, clampPage } from '@/components/ui/pager'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -203,7 +202,7 @@ const newEntry = (): LoreEntry => ({ id: uid('we'), title: 'New entry', memo: ''
 const asCopy = (e: LoreEntry, extra?: Partial<LoreEntry>): LoreEntry => ({ ...e, ...extra, id: uid('entry'), uid: undefined })
 
 /** The book page: header, then the tabs Entries | Rules | Used by. Each tab is its own screen, so the entries never
- *  share a page with the rules. Entries still open inline (the entry editor is a later change). */
+ *  share a page with the rules. An entry opens in the side panel (a full page on a phone), not inline. */
 function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   book: Lorebook; onUpdate: (p: Partial<Lorebook>) => void; onDelete: () => void; onDuplicate: () => void; onTest: () => void
 }) {
@@ -212,7 +211,8 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<(typeof SORTS)[number]>('order')
   const [filter, setFilter] = useState<EntryFilter>('all')
-  const [openIds, setOpenIds] = useState<string[]>([])
+  /** the one entry the side panel shows */
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [copyEntries, setCopyEntries] = useState<LoreEntry[] | null>(null)
@@ -242,6 +242,19 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
 
   const safeEntryPage = clampPage(entryPage, entries.length, ENTRY_PAGE)
   const pagedEntries = entries.slice(safeEntryPage * ENTRY_PAGE, safeEntryPage * ENTRY_PAGE + ENTRY_PAGE)
+  const active = book.entries.find((e) => e.id === activeId) ?? null
+  // the panel belongs to the Entries screen: the other tabs have no entry on screen
+  const panelOpen = !!active && tab === 'entries'
+
+  /** Deleting an entry asks first; the panel closes with it. */
+  const deleteEntry = (e: LoreEntry) => void confirm({
+    title: t('lore.ed.deleteTitle', { title: e.title }),
+    description: t('lore.ed.deleteBody'),
+  }).then((yes) => {
+    if (!yes) return
+    onUpdate({ entries: book.entries.filter((x) => x.id !== e.id) })
+    setActiveId((id) => (id === e.id ? null : id))
+  })
 
   const upEntry = (id: string, patch: Partial<LoreEntry>) =>
     onUpdate({ entries: book.entries.map((e) => e.id === id ? { ...e, ...patch } : e) })
@@ -276,7 +289,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   return (
     // @container: the detail pane spans from a phone page to a narrow drawer to a full page; the grids below must
     // follow the PANE's width, not the viewport, or fixed-width label+input rows crush into each other
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col @container">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col @container">
       {/* the header, the tabs and the entries scroll together: a toolbar pinned at the top eats the phone screen */}
       <ScrollArea className="min-h-0 flex-1">
         <BookHeader book={book} characters={characters} onUpdate={onUpdate} onDelete={onDelete} onDuplicate={onDuplicate} onTest={onTest} />
@@ -289,14 +302,13 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             </TabsList>
           </div>
 
-          <TabsContent value="entries" className="flex flex-col gap-3 px-4 py-3">
+          {/* beside the panel the list keeps its width: the rows are padded off the panel's 440 px on a desktop */}
+          <TabsContent value="entries" className={cn('flex flex-col gap-3 px-4 py-3', panelOpen && 'md:pr-[456px]')}>
             <EntryToolbar
               query={query}
               onQuery={(q) => { setQuery(q); setEntryPage(0) }}
               sort={sort}
               onSort={(s) => setSort(s as (typeof SORTS)[number])}
-              anyOpen={openIds.length > 0}
-              onToggleOpenAll={() => setOpenIds(openIds.length ? [] : entries.map((e) => e.id))}
               selecting={selecting}
               onToggleSelecting={toggleSelecting}
               filter={filter}
@@ -307,7 +319,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
                 const e = newEntry()
                 onUpdate({ entries: [e, ...book.entries] })
                 setFilter('all'); setQuery('')
-                setOpenIds((o) => [...o, e.id])
+                setActiveId(e.id)
               }}
             />
             {selected.length > 0 && (
@@ -325,29 +337,18 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             )}
             <ul className="flex flex-col gap-2">
               {pagedEntries.map((e) => {
-                const open = openIds.includes(e.id)
+                const open = active?.id === e.id
                 return (
-                  <li key={e.id} className={cn('rounded-lg border border-border', !e.enabled && 'opacity-60')}>
+                  <li key={e.id} className={cn('rounded-lg border border-border', !e.enabled && 'opacity-60', open && 'border-ring bg-accent/40')}>
                     <EntryRowHead
                       e={e}
                       open={open}
                       selecting={selecting}
                       checked={selected.includes(e.id)}
                       onCheck={(v) => setSelected((s) => v ? [...s, e.id] : s.filter((x) => x !== e.id))}
-                      onToggle={() => setOpenIds((o) => open ? o.filter((x) => x !== e.id) : [...o, e.id])}
+                      onToggle={() => setActiveId((id) => (id === e.id ? null : e.id))}
                       onEnable={(v) => upEntry(e.id, { enabled: v })}
                     />
-                    <Collapsible open={open}>
-                      <CollapsibleContent>
-                        <EntryEditor
-                          entry={e}
-                          onChange={(patch) => upEntry(e.id, patch)}
-                          onDelete={() => onUpdate({ entries: book.entries.filter((x) => x.id !== e.id) })}
-                          onDuplicate={() => { onUpdate({ entries: [...book.entries, asCopy(e, { title: `${e.title} (copy)` })] }); toast.success(t('lore.entry.duplicated')) }}
-                          onCopyToBook={() => setCopyEntries([e])}
-                        />
-                      </CollapsibleContent>
-                    </Collapsible>
                   </li>
                 )
               })}
@@ -365,6 +366,18 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           </TabsContent>
         </Tabs>
       </ScrollArea>
+
+      {panelOpen && active && (
+        <EntryEditor
+          key={active.id}
+          entry={active}
+          onChange={(patch) => upEntry(active.id, patch)}
+          onDelete={() => deleteEntry(active)}
+          onDuplicate={() => { onUpdate({ entries: [...book.entries, asCopy(active, { title: `${active.title} (copy)` })] }); toast.success(t('lore.entry.duplicated')) }}
+          onCopyToBook={() => setCopyEntries([active])}
+          onClose={() => setActiveId(null)}
+        />
+      )}
 
       <Dialog open={!!copyEntries} onOpenChange={(o) => { if (!o) setCopyEntries(null) }}>
         <DialogContent className="max-h-[70dvh] overflow-y-auto sm:max-w-sm">

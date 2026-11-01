@@ -1,4 +1,4 @@
-import { CaretDown, CaretRight, ClockCountdown, Funnel, PushPin, Snowflake, Warning } from '@phosphor-icons/react'
+import { CaretRight, ClockCountdown, Funnel, PushPin, Snowflake, Warning } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Chip } from '@/components/ui/section'
 import { Switch } from '@/components/ui/switch'
@@ -13,7 +13,7 @@ import type { EntryStatus, LoreEntry } from '@/lib/types'
 /** The tone of each entry status: the same colours the filter chips use. */
 export const STATUS_TONE: Record<EntryStatus, ToneName> = { constant: 'amber', normal: 'sky', vectorized: 'violet' }
 
-/** The collapsed row of an entry: status, title, keys and the small badges for what is set. Two lines on a phone. */
+/** One row of an entry: status, title, keys and the small badges for what is set. Two lines on a phone. `open` marks the entry the side panel shows. */
 export function EntryRowHead({ e, open, selecting, checked, onCheck, onToggle, onEnable }: {
   e: LoreEntry
   open: boolean
@@ -51,11 +51,12 @@ export function EntryRowHead({ e, open, selecting, checked, onCheck, onToggle, o
       <button
         type="button"
         onClick={onToggle}
+        aria-haspopup="dialog"
         aria-expanded={open}
         className="flex min-w-0 flex-1 flex-col items-start gap-1.5 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span className="flex w-full min-w-0 items-start gap-2">
-          {open ? <CaretDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : <CaretRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+          <CaretRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="line-clamp-2 min-w-0 flex-1 text-body font-medium break-words">{e.title}</span>
           <span className="shrink-0 pt-0.5 text-caption text-muted-foreground">{t('lore.header.tokens', { n: formatTokens(estimateTokens(e.content)) })}</span>
         </span>

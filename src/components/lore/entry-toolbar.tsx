@@ -14,16 +14,14 @@ const FILTER_TONE: Partial<Record<EntryFilter, ToneName>> = { constant: 'amber',
 const SORTS = ['order', 'title', 'tokens', 'priority', 'trigger'] as const
 
 /**
- * The Entries tab's toolbar: search, sort, open all, select several and the one primary "Add entry", then the filter
- * chips with their counts in one row. On a phone the search takes its own row and the chips scroll sideways.
+ * The Entries tab's toolbar: search, sort, select several and the one primary "Add entry", then the filter chips with
+ * their counts in one row. On a phone the search takes its own row and the chips scroll sideways.
  */
-export function EntryToolbar({ query, onQuery, sort, onSort, anyOpen, onToggleOpenAll, selecting, onToggleSelecting, filter, onFilter, counts, onAdd, badgesInfo }: {
+export function EntryToolbar({ query, onQuery, sort, onSort, selecting, onToggleSelecting, filter, onFilter, counts, onAdd, badgesInfo }: {
   query: string
   onQuery: (q: string) => void
   sort: string
   onSort: (s: string) => void
-  anyOpen: boolean
-  onToggleOpenAll: () => void
   selecting: boolean
   onToggleSelecting: () => void
   filter: EntryFilter
@@ -50,9 +48,6 @@ export function EntryToolbar({ query, onQuery, sort, onSort, anyOpen, onToggleOp
             {Object.entries(sortLabels).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="ghost" size="sm" className="text-caption max-md:h-10" onClick={onToggleOpenAll}>
-          {anyOpen ? t('lore.closeAll') : t('lore.openAll')}
-        </Button>
         <Button variant={selecting ? 'secondary' : 'outline'} size="sm" className="text-caption max-md:h-10" aria-pressed={selecting} onClick={onToggleSelecting}>
           <CheckSquare className="size-3.5" aria-hidden="true" />{t('lore.entries.select')}
         </Button>
