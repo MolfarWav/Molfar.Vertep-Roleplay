@@ -568,8 +568,8 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
         <div className="flex flex-col gap-2 border border-destructive/50 bg-destructive/10 p-3 text-xs" role="alert">
           <div className="min-w-0 break-words">
             <b>{t('soul.ratingFailed')}</b> {draft.error}
-            {draft.model && <p className="mt-1 font-mono text-[11px] text-muted-foreground">{t('soul.failedModel', { model: draft.model })}</p>}
-            <p className="mt-1 font-mono text-[11px] text-muted-foreground">{t('soul.sensorModel', { model: sensorModel || t('soul.chatModel') })}</p>
+            {draft.model && <p className="mt-1 font-mono text-caption text-muted-foreground">{t('soul.failedModel', { model: draft.model })}</p>}
+            <p className="mt-1 font-mono text-caption text-muted-foreground">{t('soul.sensorModel', { model: sensorModel || t('soul.chatModel') })}</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Button variant="outline" size="sm" className="rounded-none" disabled={rating || unavailable} onClick={() => void rateNow()}>
@@ -619,11 +619,11 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
               >
                 {/* the class colour rings the portrait; no soul yet = a thin ring of the text colour */}
                 <span className="flex shrink-0" style={{ boxShadow: `0 0 0 1.5px ${noSoul ? 'currentColor' : (CLASS_COLORS[cls as SoulClass] ?? CLASS_COLORS.neutral)}` }} aria-hidden="true">
-                  <AvatarImg name={name} url={portraits.get(name.toLowerCase())} className="size-5 [&_[data-slot=avatar-fallback]]:text-[8px]" />
+                  <AvatarImg name={name} url={portraits.get(name.toLowerCase())} className="size-5 [&_[data-slot=avatar-fallback]]:text-caption" />
                 </span>
                 <span className="max-w-40 truncate">{name}</span>
-                {noSoul && <span className="text-[10px]">{t('soul.noSoul')}</span>}
-                {(proposed || isUpdate) && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t(isUpdate ? 'soul.update' : 'soul.proposed')}</span>}
+                {noSoul && <span className="text-caption">{t('soul.noSoul')}</span>}
+                {(proposed || isUpdate) && <span className="text-caption text-amber-600 dark:text-amber-400">{t(isUpdate ? 'soul.update' : 'soul.proposed')}</span>}
                 {inWork && dirtyOf(name) && <span className="size-1.5 shrink-0 rounded-full bg-amber-500" title={t('soul.unsavedDot')} role="img" aria-label={t('soul.unsavedDot')} />}
               </button>
             )

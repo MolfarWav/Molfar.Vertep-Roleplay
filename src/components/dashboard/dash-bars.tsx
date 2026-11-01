@@ -16,7 +16,7 @@ function TrendArrow({ dir }: { dir: -1 | 0 | 1 }) {
   return (
     <span
       aria-hidden="true"
-      className={cn('w-3 shrink-0 text-center font-mono text-[11px]', dir === 0 && 'text-muted-foreground/60')}
+      className={cn('w-3 shrink-0 text-center font-mono text-caption', dir === 0 && 'text-muted-foreground/60')}
       style={dir === 1 ? { color: '#8fc6d6' } : dir === -1 ? { color: '#ff6b7d' } : undefined}
     >
       {dir === 1 ? '▲' : dir === -1 ? '▼' : '—'}
@@ -67,7 +67,7 @@ export function SignedBar({ stat, value, prev, tier, compact, slim }: {
           )}
           <div className="absolute inset-y-[-2px] left-1/2 w-px bg-border" aria-hidden="true" />
         </div>
-        <div className={cn('shrink-0 text-right font-mono text-[11px] tabular-nums', slim ? 'w-8' : 'w-9', value < 0 && NEG_TEXT)}>{minus(value)}</div>
+        <div className={cn('shrink-0 text-right font-mono text-caption tabular-nums', slim ? 'w-8' : 'w-9', value < 0 && NEG_TEXT)}>{minus(value)}</div>
         <TrendArrow dir={trend(value, prev)} />
       </div>
       {tier && (
@@ -108,7 +108,7 @@ export function PulseBar({ stat, value, base, prev, slim }: {
           title={t('dash.pulse.base', { n: base })}
         />
       </div>
-      <div className={cn('shrink-0 text-right font-mono text-[11px] tabular-nums', slim ? 'w-8' : 'w-9', value < 0 && NEG_TEXT)}>{value}</div>
+      <div className={cn('shrink-0 text-right font-mono text-caption tabular-nums', slim ? 'w-8' : 'w-9', value < 0 && NEG_TEXT)}>{value}</div>
       <TrendArrow dir={trend(value, prev)} />
     </div>
   )
@@ -130,7 +130,7 @@ export function HostilityBar({ value, className, slim }: { value: number; classN
       >
         <div className="absolute inset-y-0 left-0" style={{ width: `${Math.min(100, value)}%`, background: STAT_COLORS.hostility }} aria-hidden="true" />
       </div>
-      <div className={cn('shrink-0 text-right font-mono text-[11px] tabular-nums', slim ? 'w-8' : 'w-9')}>{value}</div>
+      <div className={cn('shrink-0 text-right font-mono text-caption tabular-nums', slim ? 'w-8' : 'w-9')}>{value}</div>
       <span className="w-3 shrink-0" aria-hidden="true" />
     </div>
   )

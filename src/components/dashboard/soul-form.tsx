@@ -38,8 +38,8 @@ function ValueCell({ now, was, text }: { now: number; was?: number; text: (n: nu
   const t = useT()
   return (
     <span className="flex flex-col items-end leading-tight" aria-hidden="true">
-      <span className="font-mono text-[11px]">{text(now)}</span>
-      {was !== undefined && was !== now && <span className="whitespace-nowrap text-[9px] text-muted-foreground">{t('soul.was', { n: text(was) })}</span>}
+      <span className="font-mono text-caption">{text(now)}</span>
+      {was !== undefined && was !== now && <span className="whitespace-nowrap text-caption text-muted-foreground">{t('soul.was', { n: text(was) })}</span>}
     </span>
   )
 }
@@ -77,7 +77,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
               wasLabel={savedCls ? t('soul.was', { n: t(mk(`soul.class.${savedCls}`)) }) : undefined}
               options={CLASSES.map((id) => ({ id, label: t(mk(`soul.class.${id}`)) }))}
             />
-            <FieldDescription className="text-[11px]">{t('soul.classHint')}</FieldDescription>
+            <FieldDescription className="text-caption">{t('soul.classHint')}</FieldDescription>
           </div>
           <div className="flex flex-col gap-1.5">
             <SubLabel>{t('soul.pronouns')}</SubLabel>
@@ -92,7 +92,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
           </div>
           <div className="flex flex-col gap-1">
             <SubLabel>{t('soul.startValues')}</SubLabel>
-            <FieldDescription className="mb-0.5 text-[11px]">{t('soul.startHint')}</FieldDescription>
+            <FieldDescription className="mb-0.5 text-caption">{t('soul.startHint')}</FieldDescription>
             {DISPOSITION.map((stat) => {
               const v = soul.start?.[stat] ?? 0
               return (
@@ -148,7 +148,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
                     <span className="min-w-0 break-words text-right">{right}</span>
                   </div>
                   <RangeBar value={v} min={0} max={100} fillFrom={50} color="#8b8478" disabled={locked} label={`${left} ↔ ${right}`} was={was?.spectra?.[id]} onChange={(n) => setSpectrum(id, n)} />
-                  <div className="pt-0.5 text-center text-[11px] text-foreground/80">{word}{was?.spectra?.[id] !== undefined && was.spectra[id] !== v && <span className="text-muted-foreground"> · {t('soul.was', { n: was.spectra[id]! })}</span>}</div>
+                  <div className="pt-0.5 text-center text-caption text-foreground/80">{word}{was?.spectra?.[id] !== undefined && was.spectra[id] !== v && <span className="text-muted-foreground"> · {t('soul.was', { n: was.spectra[id]! })}</span>}</div>
                 </div>
               )
             })}
@@ -186,7 +186,7 @@ export function SoulForm({ soul, locked, events, effects, was, onChange }: Props
                 const { tag, text } = effectText(e, t, lang)
                 return (
                   <li key={i} className="flex gap-2 border-b border-dashed border-border py-1.5 text-xs last:border-b-0">
-                    {tag && <b className="min-w-12 shrink-0 pt-px font-mono text-[11px] font-normal text-emerald-600 dark:text-emerald-400">{tag}</b>}
+                    {tag && <b className="min-w-12 shrink-0 pt-px font-mono text-caption font-normal text-emerald-600 dark:text-emerald-400">{tag}</b>}
                     <span className="min-w-0 break-words">{text}</span>
                   </li>
                 )
@@ -242,7 +242,7 @@ function RuleList({ kind, title, addLabel, soul, events, onChange }: {
           <Plus aria-hidden="true" />{addLabel}
         </Button>
       </div>
-      {events === null && rules.length > 0 && <p className="text-[11px] text-muted-foreground">{t('soul.noEvents')}</p>}
+      {events === null && rules.length > 0 && <p className="text-caption text-muted-foreground">{t('soul.noEvents')}</p>}
       {rules.map((r, i) => (
         <RuleRow
           key={i}
@@ -317,7 +317,7 @@ function RuleRow({ rule, events, onChange, onRemove }: {
           </SelectContent>
         </Select>
       </div>
-      {!known && <p className="text-[11px] text-amber-600 dark:text-amber-400">{t('soul.eventUnknown')}</p>}
+      {!known && <p className="text-caption text-amber-600 dark:text-amber-400">{t('soul.eventUnknown')}</p>}
     </div>
   )
 }

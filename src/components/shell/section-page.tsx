@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import type { ViewKey } from '@/lib/store'
@@ -28,7 +29,7 @@ function useSectionTitle(section: ViewKey): string {
  * hideOnPhone drops the title on phones while a detail pane is open: the
  * detail already has its own back row there and the room is better spent.
  */
-export function SectionPage({ section, count, title: titleOverride, hideOnPhone, actions, children }: {
+export function SectionPage({ section, count, title: titleOverride, hideOnPhone, actions, flowActions, children }: {
   section: ViewKey
   count?: number | string
   /** replaces the section's name when the count belongs to a sub-list (Characters > Groups) */
@@ -36,6 +37,9 @@ export function SectionPage({ section, count, title: titleOverride, hideOnPhone,
   hideOnPhone?: boolean
   /** shown at the right end of the title row */
   actions?: ReactNode
+  /** phones: the actions join the title's row and wrap with it (title and first chip on row one, the rest below) instead of
+   *  sitting in one block at the right that can outgrow the screen */
+  flowActions?: boolean
   children: ReactNode
 }) {
   const host = useSectionHost()
@@ -47,10 +51,10 @@ export function SectionPage({ section, count, title: titleOverride, hideOnPhone,
   return (
     <div className="flex h-full min-h-0 flex-col">
       {showTitle && (
-        <div data-guide={`${section}.title`} className="flex shrink-0 items-center gap-3 border-b border-border px-4 pt-3.5 pb-3 md:px-8 md:pt-5 md:pb-4">
+        <div data-guide={`${section}.title`} className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 pt-3.5 pb-3 md:px-8 md:pt-5 md:pb-4">
           <h1 className="font-heading text-[25px] leading-none md:text-[40px]">{title}</h1>
           {count != null && <Badge variant="secondary">{count}</Badge>}
-          {actions && <div className="ml-auto flex min-w-0 items-center gap-2">{actions}</div>}
+          {actions && <div className={cn('ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2', flowActions && 'max-md:contents')}>{actions}</div>}
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>

@@ -62,5 +62,12 @@ export function sectionGroups(items: SectionItem[] = RAIL_SECTIONS): SectionItem
   return out
 }
 
-export const sectionsFor = (keys: ViewKey[]): SectionItem[] =>
+/** The three tabs of the phone's bottom bar; every other section sits in its "All sections" sheet. */
+export const PHONE_TAB_KEYS: readonly ViewKey[] = ['home', 'chats', 'characters']
+export const PHONE_TABS: SectionItem[] = SECTIONS.filter((s) => PHONE_TAB_KEYS.includes(s.key))
+/** The tiles of the phone's "All sections" sheet: everything but the tabs, in rail order. Unlike `sectionsFor`
+ *  it keeps the board links, so Agents (a Canvas board) is there as on the desktop rail. */
+export const PHONE_MORE_TILES: SectionItem[] = SECTIONS.filter((s) => !PHONE_TAB_KEYS.includes(s.key))
+
+export const sectionsFor =(keys: ViewKey[]): SectionItem[] =>
   keys.flatMap((k) => SECTIONS.filter((s) => s.key === k && !s.board))

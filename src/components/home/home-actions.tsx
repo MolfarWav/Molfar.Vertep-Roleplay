@@ -31,8 +31,9 @@ export function WithMolfarButton() {
   const t = useT()
   if (!canAskMolfar()) return null
   return (
-    <Button variant="ghost" className="gap-1.5 max-md:h-10" data-guide="home.ask" onClick={() => void draftToMolfar(DRAFT_CHARACTER, 'home.askError', t)}>
-      <Sparkle aria-hidden="true" /> {t('home.withMolfar')}
+    // on a phone the header is short of room: an icon button (the name stays for screen readers and as a tooltip)
+    <Button variant="ghost" className="gap-1.5 max-md:h-10 max-md:w-10 max-md:px-0" data-guide="home.ask" aria-label={t('home.withMolfar')} title={t('home.withMolfar')} onClick={() => void draftToMolfar(DRAFT_CHARACTER, 'home.askError', t)}>
+      <Sparkle aria-hidden="true" /> <span className="max-md:sr-only">{t('home.withMolfar')}</span>
     </Button>
   )
 }

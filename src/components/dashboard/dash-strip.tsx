@@ -126,7 +126,7 @@ export function DashStrip({ chatId, view, here, focus, onFocus, onOpen, onNotebo
       <StripHandle width={width} onWidth={onWidth} />
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
         <span className="font-heading text-[15px]">{t('dash.title')}</span>
-        <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-caption text-muted-foreground">
           <LiveDot at={view.at} now={now} />
           <AgeText at={view.at} now={now} />
         </span>

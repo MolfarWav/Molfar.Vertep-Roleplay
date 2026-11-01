@@ -7,10 +7,11 @@ import { useT } from '@/hooks/use-t'
 import { useDashLive } from '@/lib/dash-live'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { withKeys } from '@/lib/unique-keys'
 import { ageLabel, DashError, liveError } from './dash-common'
 import { useDashMaybe } from './dash-mount'
 
-const LINE = 'ls-live flex min-w-0 flex-wrap items-center gap-x-1.5 px-1 text-[11px] leading-snug text-muted-foreground'
+const LINE = 'ls-live flex min-w-0 flex-wrap items-center gap-x-1.5 px-1 text-caption leading-snug text-muted-foreground'
 const LINK = 'rounded-none underline underline-offset-2 hover:text-foreground disabled:opacity-50'
 
 /** The line grows after the reply landed: a log pinned to its bottom follows it, so the line is never half under the composer. */
@@ -78,14 +79,14 @@ export function DashLiveLine({ chatId }: { chatId: string }) {
     .slice(0, 2)
 
   return (
-    <Follow className="ls-live flex min-w-0 flex-col gap-0.5 px-1 text-[11px] leading-snug text-muted-foreground">
+    <Follow className="ls-live flex min-w-0 flex-col gap-0.5 px-1 text-caption leading-snug text-muted-foreground">
       <span>{reread
         ? t(reread.trimmed ? 'dash.live.rereadTrimmed' : 'dash.live.reread', { n: reread.from, age })
         : view.fast ? t('dash.live.fast', { age }) : ms > 0 ? t('dash.live.updatedIn', { age, s: (ms / 1000).toFixed(1) }) : t('dash.live.updated', { age })}</span>
-      {notes.map(({ name, n }) => {
+      {withKeys(notes, ({ name, n }) => `${name}:${n.id}`).map(({ item: { name, n }, key: k }) => {
         const text = n.text.length > 60 ? `${n.text.slice(0, 60)}…` : n.text
         const key = n.how === 'heard' ? 'dash.live.heard' : n.how === 'saw' ? 'dash.live.saw' : 'dash.live.remembered'
-        return <span key={`${name}:${n.id}`} className="min-w-0 break-words">{t(key, { name, text })}</span>
+        return <span key={k} className="min-w-0 break-words">{t(key, { name, text })}</span>
       })}
     </Follow>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MagnifyingGlass, Chats, Users, Plus, X, Folder as FolderIcon, PushPin, CheckSquare, Square, Trash, GitBranch } from '@phosphor-icons/react'
+import { MagnifyingGlass, ArrowsDownUp, Chats, Users, Plus, X, Folder as FolderIcon, PushPin, CheckSquare, Square, Trash, GitBranch } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -206,8 +206,9 @@ export function ChatsView() {
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-2.5 border-b border-border px-4 py-3">
-          <Button variant="outline" className="h-9 w-full justify-center gap-1.5 font-heading text-[14px] max-sm:h-10" onClick={() => setView('characters')}>
-            <Plus aria-hidden="true" /> {t('home.newChat')}
+          {/* the one loud primary action of the screen (docs/UI-CATALOG.md button ladder) */}
+          <Button size="lg" className="w-full justify-center gap-1.5 font-heading text-body font-semibold" onClick={() => setView('characters')}>
+            <Plus weight="bold" aria-hidden="true" /> {t('home.newChat')}
           </Button>
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
@@ -215,14 +216,19 @@ export function ChatsView() {
               <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('chats.search')} className="h-9 pl-8 text-sm max-sm:h-10" aria-label={t('chats.search')} />
             </div>
             <Select value={sort} onValueChange={(v) => setSort(v as ChatSort)}>
-              <SelectTrigger className="h-9 w-auto shrink-0 max-sm:h-10" aria-label={t('chats.sort')}><SelectValue /></SelectTrigger>
+              {/* a secondary control, not a text field: filled with the muted surface and a sort icon, same height as the search */}
+              <SelectTrigger className="w-auto shrink-0 border-border bg-muted font-medium data-[size=default]:h-9 max-sm:data-[size=default]:h-10 dark:bg-muted" aria-label={t('chats.sort')}>
+                <ArrowsDownUp className="text-muted-foreground" aria-hidden="true" />
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="recent">{t('chats.sortRecent')}</SelectItem>
                 <SelectItem value="messages">{t('chats.sortMessages')}</SelectItem>
                 <SelectItem value="name">{t('chats.sortName')}</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant={selecting ? 'default' : 'secondary'} className="h-9 min-w-[4.75rem] shrink-0 max-sm:h-10" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+            <Button variant={selecting ? 'tonal' : 'outline'} className="h-9 min-w-[4.75rem] shrink-0 gap-1.5 font-medium max-sm:h-10" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+              <CheckSquare aria-hidden="true" />
               {selecting ? t('chats.done') : t('chats.select')}
             </Button>
           </div>

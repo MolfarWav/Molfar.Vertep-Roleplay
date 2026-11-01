@@ -10,7 +10,7 @@ export function SoulCard({ title, hint, children, className, 'data-guide': guide
     <section data-guide={guide} className={cn('border border-border bg-card', className)}>
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2">
         <h2 className="text-sm font-semibold">{title}</h2>
-        {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+        {hint && <span className="text-caption text-muted-foreground">{hint}</span>}
       </header>
       <div className="flex flex-col gap-3 p-3">{children}</div>
     </section>
@@ -18,7 +18,7 @@ export function SoulCard({ title, hint, children, className, 'data-guide': guide
 }
 
 export function SubLabel({ children }: { children: ReactNode }) {
-  return <div className="text-[11px] text-muted-foreground">{children}</div>
+  return <div className="text-caption text-muted-foreground">{children}</div>
 }
 
 export function Segmented<T extends string>({ value, options, onChange, label, className, was, wasLabel }: {

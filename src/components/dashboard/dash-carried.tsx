@@ -68,7 +68,7 @@ export function CarriedBanner({ chatId, inherit, className }: { chatId: string; 
           <ArrowsClockwise className="mt-px size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="break-words">{t('dash.rebase.on', { title: inherit.title || inherit.from })}</span>
-            <span className="text-[11px] text-muted-foreground">{t('dash.rebase.hint', { title: inherit.title || inherit.from })}</span>
+            <span className="text-caption text-muted-foreground">{t('dash.rebase.hint', { title: inherit.title || inherit.from })}</span>
           </div>
         </div>
         <Button variant="outline" size="sm" className="h-10 w-full rounded-none md:h-7 md:w-fit" disabled={busy} onClick={() => { void rebuild() }}>
@@ -97,7 +97,7 @@ export function CarriedBanner({ chatId, inherit, className }: { chatId: string; 
 
   if (!inherit.canSwitch) {
     return (
-      <p className={cn('flex items-start gap-1.5 text-[11px] text-muted-foreground', className)} data-testid="dash-carried-line">
+      <p className={cn('flex items-start gap-1.5 text-caption text-muted-foreground', className)} data-testid="dash-carried-line">
         {inherit.on ? <ArrowUUpLeft className="mt-px size-3.5 shrink-0" aria-hidden="true" /> : <Eraser className="mt-px size-3.5 shrink-0" aria-hidden="true" />}
         <span className="min-w-0 break-words">{inherit.on ? t('dash.carried.line', params) : t('dash.carried.offLine')}</span>
       </p>
@@ -113,7 +113,7 @@ export function CarriedBanner({ chatId, inherit, className }: { chatId: string; 
         {inherit.on ? <ArrowUUpLeft className="mt-px size-4 shrink-0" aria-hidden="true" /> : <Eraser className="mt-px size-4 shrink-0" aria-hidden="true" />}
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="break-words">{inherit.on ? t('dash.carried.on', params) : t('dash.carried.off', params)}</span>
-          {inherit.on && <span className="text-[11px] text-muted-foreground">{t('dash.carried.hint')}</span>}
+          {inherit.on && <span className="text-caption text-muted-foreground">{t('dash.carried.hint')}</span>}
         </div>
       </div>
       <Button variant="outline" size="sm" className="h-10 w-full rounded-none md:h-7 md:w-fit" disabled={busy} onClick={() => void set(!inherit.on)}>
