@@ -3154,7 +3154,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // (term-scored retrieval over enabled files — basic RAG)
   const dbScan = (pendingUserText ? pendingUserText + "\n" : "") + msgs.slice(-4).map((m) => m.text || "").join("\n");
   const extras = [];
-  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: members.map((m) => m.id) });
+  // a file scoped to a character goes in when that character speaks; the whole roster only when the reply
+  // voices all of them (narrator, append) (#184 P1e)
+  const dbCharacterIds = isGroup && !rosterMembers.length && speaker && speaker.id ? [speaker.id] : members.map((m) => m.id);
+  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds });
   if (isOff("databank")) {
     omit("databank", "Data bank", "off for this chat", undefined, "databank");
   } else if (dbHits.length) {
