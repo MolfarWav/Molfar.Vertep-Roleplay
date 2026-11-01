@@ -5,6 +5,7 @@ import { useT } from '@/hooks/use-t'
 import { insertIntoComposer, nameOf, useAgentsLive, type AgentPanel, type AgentPanelSet, type PanelPlace, type PanelWidget } from '@/lib/agents'
 import { fmtValue } from '@/lib/agent-template'
 import { cn } from '@/lib/utils'
+import { GridWidget } from './agent-grid'
 import { TemplateFrame } from './agent-html'
 
 const CHOICE_BOTTOM = new Set<string | undefined>([undefined, 'bottom'])
@@ -99,6 +100,7 @@ export function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: Pick<
     )
   }
   if (w.w === 'html') return compact ? null : <TemplateFrame w={w} set={set} />
+  if (w.w === 'grid') return compact ? null : <GridWidget w={w} set={set} />
 
   if (w.w === 'meter' || w.w === 'counter' || w.w === 'number') {
     const n = typeof value === 'number' ? value : 0

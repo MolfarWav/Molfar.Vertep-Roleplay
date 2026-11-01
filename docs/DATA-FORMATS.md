@@ -742,7 +742,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Panels (`agent.panels`, at most 4): `{ "id", "title", "place": "float" | "top1" | "top2", "widgets": [ … ] }`, at most
   20 widgets. A panel describes, never runs: widgets `meter`, `number`, `counter` (a number field), `table` (a list
   field and its `columns`), `list`, `log` (a list field), `text` (a text field), `actions` (1 to 8 `{ label, send }`;
-  `send` is put into the composer, nothing is sent by itself) and `html`. `bind` must name a state field of the right
+  `send` is put into the composer, nothing is sent by itself), `html` and `grid`. `bind` must name a state field of the right
   type (`E_BIND`); an unknown widget or bad `actions` is `E_WIDGET`.
 - `html` widget: `template` up to 8192 characters, an optional `height` of the frame (a whole number of pixels, 40 to 600, default 80; else `E_WIDGET`), slots `{{field}}`, `{{#each list}}…{{/each}}` (the entry's fields
   inside, no nested `each`) and `{{#if field}}…{{/if}}`. The checker refuses a template with a slot that is not a field
@@ -754,6 +754,22 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   the frame has `sandbox=""` and a `Content-Security-Policy` of `default-src 'none'; style-src 'unsafe-inline'; img-src data:`,
   and a template the checker would refuse is not drawn. The widget shows in the floating window; a bar above the chat
   skips it. `templateProblems(template, state)` of the checker is what the editor shows while the template is typed.
+- `grid` widget (a board of tiles: a map of territory, a dungeon floor): `{ "w": "grid", "label"?, "bind", "cols", "rows", "x", "y", "cell", "legend" }`.
+  `bind` is a **list** field whose entries have two number fields and a text field; `x` and `y` (two different number
+  fields) give the column and the row, `cell` (a text field) the tile's state; a wrong name is `E_BIND`. `cols` and
+  `rows` are whole numbers from 1 to 16 (`E_WIDGET`). `legend` is 1 to 8 states `{ "value", "label", "tone", "mark"? }`:
+  `value` (1 to 40 characters, unique) is the text the entry holds in its `cell` field, `label` (1 to 30 characters) is
+  what the person reads, `tone` is one of `ok` (green), `info` (blue), `warn` (amber), `bad` (red), `accent` (violet),
+  `muted` (grey) and `mark` (one or two characters, default the first letter of the label) goes on the tile, so colour is
+  never the only sign. The colours belong to the app (they follow the theme); a file cannot name one. Columns and rows
+  count from 1. An entry is one tile; when two entries name the same tile the later one wins, so a state changes by
+  saying the tile again (a list at its `max` takes no new entry, so ask for a new one only when a tile changed). A number
+  is rounded to the nearest tile; an entry outside the board, or without numbers, is not drawn and the widget says how many
+  were left out. A state that the legend does not name is drawn as a grey tile with a question mark. Tiles with no entry are
+  empty. Nothing on a board is a button. It shows in the floating window; a bar above the chat skips it. The app does this in
+  `src/lib/agent-grid.ts` (`gridModel`) and `components/chat/agent-grid.tsx`; the editor has a form for it. Recipes that use
+  widgets: `recipe-map` (an `html` widget draws a free-field map from a list of `{ name, x, y }`) and `recipe-territory` (a
+  `grid`), both in `.skills/agent-craft/references`.
 - Trial run (editor only): `runAgent(file, { …, explain: true }, answers)` also returns `wires`, `{ "<node>:<port>": { state: "value", value } | { state: "skip" | "wait" | "missing" } }` for every output port. The runner plugin never sets `explain`. `src/lib/agent-dry.ts` loops the executor, answering each model request from the person's text or an example.
 - Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
   `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
@@ -872,7 +888,7 @@ Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_ROUNDS`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings
-`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
+`W_UNKNOWN_TYPE`, `W_ISLAND`. Tests: `test/rp-agent-board.test.ts`, `test/rp-agent-grid.test.tsx` (the grid widget), `test/rp-agent-run.test.ts` and `test/rp-agent-check-sandbox.test.ts` (runs the source in a bare context; examples: `test/fixtures/mood-tracker.vertep-agent.json`, and `dungeon-keeper.vertep-agent.json` with own state and a panel).
 
 ### The persona file: `personas/<id>.json`
 Pass-through JSON: `id, name, avatar, title, description, pronouns, lorebookIds, binding, boundCharacterIds, autoLock, createdAt, profile, dialogueColor` as before, and since Roleplay 4.79.0:

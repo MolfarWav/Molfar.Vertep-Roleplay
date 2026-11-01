@@ -249,7 +249,7 @@ export function moveItem<T>(list: T[], i: number, by: -1 | 1): T[] {
 }
 
 /** The widgets a form can make. */
-export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions', 'html'] as const
+export const WIDGET_KINDS = ['meter', 'number', 'counter', 'table', 'list', 'log', 'text', 'actions', 'html', 'grid'] as const
 /** How tall an `html` widget is when the file does not say, and the limits the checker keeps. */
 export const HTML_HEIGHT = { start: 80, min: 40, max: 600 } as const
 export const PANEL_PLACE_LIST = ['top1', 'top2', 'float'] as const
@@ -257,11 +257,22 @@ export const MAX_PANELS = 4
 export const MAX_WIDGETS = 20
 export const MAX_ACTIONS = 8
 /** The type of state field a widget shows (the checker's own table). */
-export const WIDGET_BIND: Record<string, string> = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text' }
+export const WIDGET_BIND: Record<string, string> = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text', grid: 'list' }
+/** What a `grid` widget needs: the biggest board, and its legend. The checker's own numbers. */
+export const GRID = { max: 16, legend: 8, tones: ['ok', 'info', 'warn', 'bad', 'accent', 'muted'] } as const
+
+/** The entry fields a grid reads from a list: two numbers (column, row) and a text (the tile's state), or null when the list cannot be a board. */
+export function gridFields(f: StateField | undefined): { x: string; y: string; cell: string } | null {
+  const item = Object.entries(f?.item ?? {})
+  const nums = item.filter(([, t]) => t === 'number').map(([k]) => k)
+  const text = item.find(([, t]) => t === 'text')?.[0]
+  return f?.type === 'list' && nums.length >= 2 && text ? { x: nums[0]!, y: nums[1]!, cell: text } : null
+}
 
 /** The state fields a widget of this kind may show. */
 export function fieldsFor(kind: string, state: State): string[] {
   const want = WIDGET_BIND[kind]
+  if (kind === 'grid') return Object.keys(state).filter((k) => gridFields(state[k]))
   return want ? Object.keys(state).filter((k) => state[k]?.type === want) : []
 }
 
@@ -277,6 +288,10 @@ export function starterTemplate(state: State): string {
 export function newWidget(kind: string, state: State): Params {
   if (kind === 'html') return { w: 'html', template: starterTemplate(state), height: HTML_HEIGHT.start }
   if (kind === 'actions') return { w: 'actions', items: [{ label: 'Continue', send: 'Continue.' }] }
+  if (kind === 'grid') {
+    const bind = fieldsFor('grid', state)[0] ?? ''
+    return { w: 'grid', label: bind, bind, cols: 8, rows: 6, ...(gridFields(state[bind]) ?? { x: '', y: '', cell: '' }), legend: [{ value: 'seen', label: 'Seen', tone: 'info', mark: '•' }] }
+  }
   const bind = fieldsFor(kind, state)[0] ?? ''
   const w: Params = { w: kind, label: bind, bind }
   if (kind === 'table') w.columns = Object.keys(state[bind]?.item ?? {}).slice(0, 3)
@@ -285,7 +300,7 @@ export function newWidget(kind: string, state: State): Params {
 
 /** The same widget as another kind: the label stays, the field is the first of the new kind that fits. */
 export function setWidgetKind(w: Params, kind: string, state: State): Params {
-  if (kind === 'actions' || kind === 'html' || w.w === 'actions' || w.w === 'html') return newWidget(kind, state)
+  if (['actions', 'html', 'grid'].includes(kind) || ['actions', 'html', 'grid'].includes(String(w.w))) return newWidget(kind, state)
   const keep = fieldsFor(kind, state).includes(String(w.bind)) ? String(w.bind) : (fieldsFor(kind, state)[0] ?? '')
   const next: Params = { ...w, w: kind, bind: keep }
   delete next.columns

@@ -87,7 +87,7 @@ export interface AgentRun {
 
 /** One widget of a panel (docs/DATA-FORMATS.md, "Agents"); the checker has already vetted it. */
 export interface PanelWidget {
-  w: 'meter' | 'number' | 'counter' | 'table' | 'list' | 'log' | 'text' | 'actions' | 'html'
+  w: 'meter' | 'number' | 'counter' | 'table' | 'list' | 'log' | 'text' | 'actions' | 'html' | 'grid'
   label?: string
   bind?: string
   of?: number
@@ -98,6 +98,13 @@ export interface PanelWidget {
   /** `html` widget: the template with its slots, and how tall the frame is (px) */
   template?: string
   height?: number
+  /** `grid` widget: the board size, the entry fields that give the column, the row and the tile's state, and what each state looks like */
+  cols?: number
+  rows?: number
+  x?: string
+  y?: string
+  cell?: string
+  legend?: { value: string; label: string; tone: string; mark?: string }[]
 }
 export type PanelPlace = 'top1' | 'top2' | 'float'
 export interface AgentPanel { id: string; title: string; place?: PanelPlace; widgets: PanelWidget[] }

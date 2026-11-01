@@ -1,0 +1,324 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Story map",
+  "agent": {
+    "formatVersion": 1,
+    "id": "story-map",
+    "version": "1.0.0",
+    "name": "Story map",
+    "description": "Draws a map of the places the story visits. A new place gets a spot on the map, and the map is in the floating window.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "cheap, short answers"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    },
+    "state": {
+      "places": {
+        "type": "list",
+        "item": {
+          "name": "text",
+          "x": "number",
+          "y": "number"
+        },
+        "max": 24
+      },
+      "known": {
+        "type": "text",
+        "start": "(none yet)"
+      },
+      "here": {
+        "type": "text"
+      }
+    },
+    "panels": [
+      {
+        "id": "map",
+        "title": "Map",
+        "place": "float",
+        "widgets": [
+          {
+            "w": "html",
+            "height": 340,
+            "template": "<style>\nsvg{display:block;width:100%;height:auto}\n.sea{fill:rgba(127,127,127,.14)}\n.grid{stroke:rgba(127,127,127,.38);stroke-width:.25;fill:none}\n.pin{fill:#8b5cf6;stroke:Canvas;stroke-width:.8}\n.name{font:5px system-ui,sans-serif;fill:CanvasText;text-anchor:middle;paint-order:stroke;stroke:Canvas;stroke-width:1.2px;stroke-linejoin:round}\n.dir{font:4.4px system-ui,sans-serif;fill:CanvasText;opacity:.6;text-anchor:middle}\n.now{margin:6px 0 0;font-size:12px}\n</style>\n<svg viewBox=\"-20 -9 140 122\" role=\"img\" aria-label=\"Map\">\n<rect class=\"sea\" x=\"0\" y=\"0\" width=\"100\" height=\"100\" rx=\"2\"/>\n<path class=\"grid\" d=\"M25 0V100M50 0V100M75 0V100M0 25H100M0 50H100M0 75H100\"/>\n<text class=\"dir\" x=\"50\" y=\"-3\">N</text><text class=\"dir\" x=\"50\" y=\"107\">S</text>\n<text class=\"dir\" x=\"-9\" y=\"52\">W</text><text class=\"dir\" x=\"109\" y=\"52\">E</text>\n{{#each places}}<circle class=\"pin\" cx=\"{{x}}\" cy=\"{{y}}\" r=\"2\"/><text class=\"name\" x=\"{{x}}\" y=\"{{y}}\" dy=\"7.5\">{{name}}</text>{{/each}}\n</svg>\n<p class=\"now\">{{#if here}}Now: <b>{{here}}</b>{{/if}}</p>"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 120,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "reply",
+            "source": "lastReply"
+          }
+        ]
+      }
+    },
+    {
+      "id": "known",
+      "type": "state.read",
+      "x": 10,
+      "y": 300,
+      "title": "Places so far",
+      "params": {
+        "field": "known",
+        "as": "text"
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 260,
+      "y": 120,
+      "title": "Where are we",
+      "params": {
+        "role": "fast",
+        "prompt": "You keep the map of a story. Places already on it: {{known}}.\nRead the scene below. Name the place where it happens now, in one to three words. If it is one of the places above, use the same name.\nThen say where that place lies on a map 100 wide and 100 tall: x runs from 0 in the west to 100 in the east, y from 0 in the north to 100 in the south. Put it near the places it connects to.\nAnswer with JSON only.\n\n{{reply}}",
+        "answer": {
+          "as": "json",
+          "shape": {
+            "place": "text",
+            "x": "number",
+            "y": "number"
+          }
+        },
+        "maxTokens": 80,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "fresh",
+      "type": "logic.if",
+      "x": 520,
+      "y": 120,
+      "title": "A new place on the map?",
+      "params": {
+        "inputs": [
+          {
+            "id": "place",
+            "type": "text"
+          },
+          {
+            "id": "known",
+            "type": "text"
+          },
+          {
+            "id": "x",
+            "type": "number"
+          },
+          {
+            "id": "y",
+            "type": "number"
+          }
+        ],
+        "match": "all",
+        "rows": [
+          {
+            "left": {
+              "from": "wire",
+              "port": "place"
+            },
+            "op": "isSet"
+          },
+          {
+            "left": {
+              "from": "wire",
+              "port": "known"
+            },
+            "op": "notContains",
+            "right": {
+              "from": "wire",
+              "port": "place"
+            }
+          },
+          {
+            "left": {
+              "from": "wire",
+              "port": "x"
+            },
+            "op": "between",
+            "right": {
+              "value": [
+                0,
+                100
+              ]
+            }
+          },
+          {
+            "left": {
+              "from": "wire",
+              "port": "y"
+            },
+            "op": "between",
+            "right": {
+              "value": [
+                0,
+                100
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "add",
+      "type": "state.list",
+      "x": 780,
+      "y": 60,
+      "title": "Put it on the map",
+      "params": {
+        "field": "places",
+        "op": "add",
+        "item": {
+          "name": "text",
+          "x": "number",
+          "y": "number"
+        }
+      }
+    },
+    {
+      "id": "names",
+      "type": "text.template",
+      "x": 780,
+      "y": 240,
+      "title": "Places, with the new one",
+      "params": {
+        "text": "{{known}}; {{place}}"
+      }
+    },
+    {
+      "id": "remember",
+      "type": "state.set",
+      "x": 1040,
+      "y": 240,
+      "title": "Remember its name",
+      "params": {
+        "field": "known",
+        "as": "text"
+      }
+    },
+    {
+      "id": "now",
+      "type": "state.set",
+      "x": 1040,
+      "y": 400,
+      "title": "Where we are now",
+      "params": {
+        "field": "here",
+        "as": "text"
+      }
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 1300,
+      "y": 400,
+      "title": "Output",
+      "params": {
+        "kind": "state-patch",
+        "show": "float"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:reply",
+      "to": "ask:reply"
+    },
+    {
+      "id": "e2",
+      "from": "known:value",
+      "to": "ask:known"
+    },
+    {
+      "id": "e3",
+      "from": "ask:place",
+      "to": "fresh:place"
+    },
+    {
+      "id": "e4",
+      "from": "known:value",
+      "to": "fresh:known"
+    },
+    {
+      "id": "e5",
+      "from": "ask:x",
+      "to": "fresh:x"
+    },
+    {
+      "id": "e6",
+      "from": "ask:y",
+      "to": "fresh:y"
+    },
+    {
+      "id": "e7",
+      "from": "fresh:yes",
+      "to": "add:when"
+    },
+    {
+      "id": "e8",
+      "from": "ask:place",
+      "to": "add:name"
+    },
+    {
+      "id": "e9",
+      "from": "ask:x",
+      "to": "add:x"
+    },
+    {
+      "id": "e10",
+      "from": "ask:y",
+      "to": "add:y"
+    },
+    {
+      "id": "e11",
+      "from": "known:value",
+      "to": "names:known"
+    },
+    {
+      "id": "e12",
+      "from": "ask:place",
+      "to": "names:place"
+    },
+    {
+      "id": "e13",
+      "from": "names:text",
+      "to": "remember:value"
+    },
+    {
+      "id": "e14",
+      "from": "add:done",
+      "to": "remember:when"
+    },
+    {
+      "id": "e15",
+      "from": "ask:place",
+      "to": "now:value"
+    },
+    {
+      "id": "e16",
+      "from": "now:done",
+      "to": "out:in"
+    }
+  ]
+}
