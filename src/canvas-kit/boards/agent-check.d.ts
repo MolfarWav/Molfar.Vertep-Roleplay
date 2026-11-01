@@ -15,6 +15,9 @@ export const AGENT_CARDS: Record<string, AgentCard>
 /** Where an Output of each kind may show its result. The first entry is the default place. */
 export const SHOW_BY_KIND: Record<string, string[]>
 export const PANEL_PLACES: string[]
+/** The `grid` widget: the tones a legend entry may name, and the most columns/rows (`size`) and legend entries. */
+export const GRID_TONES: string[]
+export const GRID_LIMITS: { size: number; legend: number }
 /** The most model calls an agent may make one behind another (the runner takes one pass for each, plus one to commit). */
 export const AGENT_MAX_ROUNDS: number
 

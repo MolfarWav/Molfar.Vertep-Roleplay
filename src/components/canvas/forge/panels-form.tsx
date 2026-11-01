@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
-import { fieldsFor, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
-import { Field, NativeSelect } from './card-form'
+import { fieldsFor, GRID, gridFields, HTML_HEIGHT, MAX_ACTIONS, MAX_PANELS, MAX_WIDGETS, moveItem, newPanel, newWidget, PANEL_PLACE_LIST, setWidgetKind, WIDGET_KINDS } from '@/lib/forge'
+import { Field, NativeSelect, NumberBox } from './card-form'
 import { PanelPreview } from './panel-preview'
 
 type Obj = Record<string, any>
@@ -95,6 +95,8 @@ function WidgetRow({ w, state, onChange, onRemove, at, count, onMove }: { w: Obj
       </div>
       {kind === 'html' ? (
         <HtmlForm w={w} state={state} onChange={onChange} />
+      ) : kind === 'grid' ? (
+        <GridForm w={w} state={state} onChange={onChange} fields={fields} />
       ) : kind === 'actions' ? (
         <div className="flex flex-col gap-1.5">
           {items.map((it, k) => (
@@ -198,6 +200,73 @@ function HtmlForm({ w, state, onChange }: { w: Obj; state: State; onChange: (w: 
             if (n !== w.height) onChange({ ...w, height: n })
           }} />
       </Field>
+    </div>
+  )
+}
+
+/** The form of a `grid` widget: which list is the board, its size, which entry fields are the column, the row and the state, and the legend. */
+function GridForm({ w, state, onChange, fields }: { w: Obj; state: State; onChange: (w: Obj) => void; fields: string[] }) {
+  const t = useT()
+  const bind = String(w.bind ?? '')
+  const item = state[bind]?.item ?? {}
+  const ofType = (type: string) => Object.keys(item).filter((k) => item[k] === type)
+  const legend: Obj[] = Array.isArray(w.legend) ? w.legend : []
+  const setLegend = (i: number, patch: Obj) => onChange({ ...w, legend: legend.map((l, k) => (k === i ? { ...l, ...patch } : l)) })
+  const pick = (key: 'x' | 'y' | 'cell', type: 'number' | 'text') => (
+    <Field label={t(`fg.grid.${key}` as MsgKey)}>
+      <NativeSelect value={String(w[key] ?? '')} onChange={(v) => onChange({ ...w, [key]: v })}>
+        {!ofType(type).includes(String(w[key])) && <option value={String(w[key] ?? '')}>{String(w[key] || t('fg.pick'))}</option>}
+        {ofType(type).map((f) => <option key={f} value={f}>{f}</option>)}
+      </NativeSelect>
+    </Field>
+  )
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="forge-grid-form">
+      <Field label={t('fg.widget.label')}>
+        <Input value={String(w.label ?? '')} className="max-md:h-10" onChange={(e) => onChange({ ...w, label: e.target.value })} />
+      </Field>
+      <Field label={t('fg.grid.list')} hint={fields.length ? t('fg.grid.listHint') : t('fg.grid.noList')}>
+        <NativeSelect value={bind} onChange={(b) => onChange({ ...w, bind: b, ...(gridFields(state[b]) ?? {}) })}>
+          {!fields.includes(bind) && <option value={bind}>{bind || t('fg.pick')}</option>}
+          {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+        </NativeSelect>
+      </Field>
+      <div className="grid grid-cols-2 gap-1.5">
+        <Field label={t('fg.grid.cols')}><NumberBox value={w.cols} min={1} max={GRID.max} label={t('fg.grid.cols')} onChange={(v) => onChange({ ...w, cols: v })} /></Field>
+        <Field label={t('fg.grid.rows')}><NumberBox value={w.rows} min={1} max={GRID.max} label={t('fg.grid.rows')} onChange={(v) => onChange({ ...w, rows: v })} /></Field>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {pick('x', 'number')}
+        {pick('y', 'number')}
+        {pick('cell', 'text')}
+      </div>
+      <p className="text-xs leading-snug text-muted-foreground">{t('fg.grid.fieldsHint', { max: GRID.max })}</p>
+      <span className="text-xs font-medium">{t('fg.grid.legend')}</span>
+      <div className="grid grid-cols-2 gap-1.5 px-1.5 text-xs text-muted-foreground" aria-hidden="true"><span>{t('fg.grid.value')}</span><span>{t('fg.grid.label')}</span></div>
+      {legend.map((l, i) => (
+        <div key={i} className="flex flex-col gap-1 rounded-md border border-border bg-background p-1.5" data-testid="forge-grid-legend">
+          <div className="grid grid-cols-2 gap-1.5">
+            <Input value={String(l.value ?? '')} placeholder={t('fg.grid.value')} aria-label={t('fg.grid.value')} className="max-md:h-10" onChange={(e) => setLegend(i, { value: e.target.value })} />
+            <Input value={String(l.label ?? '')} placeholder={t('fg.grid.label')} aria-label={t('fg.grid.label')} className="max-md:h-10" onChange={(e) => setLegend(i, { label: e.target.value })} />
+          </div>
+          <div className="flex gap-1.5">
+            <div className="min-w-0 flex-1">
+              <NativeSelect value={String(l.tone ?? 'muted')} label={t('fg.grid.tone')} onChange={(tone) => setLegend(i, { tone })}>
+                {GRID.tones.map((tn) => <option key={tn} value={tn}>{t(`fg.grid.tone.${tn}` as MsgKey)}</option>)}
+              </NativeSelect>
+            </div>
+            <Input value={String(l.mark ?? '')} maxLength={2} placeholder={t('fg.grid.mark')} aria-label={t('fg.grid.mark')} className="w-20 shrink-0 max-md:h-10" onChange={(e) => setLegend(i, { mark: e.target.value || undefined })} />
+            <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.grid.remove')} disabled={legend.length < 2} onClick={() => onChange({ ...w, legend: legend.filter((_, k) => k !== i) })}>
+              <Trash className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      ))}
+      {legend.length < GRID.legend && (
+        <Button variant="outline" size="sm" className="self-start max-md:h-10" onClick={() => onChange({ ...w, legend: [...legend, { value: '', label: '', tone: 'muted' }] })}>
+          <Plus className="size-3.5" aria-hidden="true" />{t('fg.grid.add')}
+        </Button>
+      )}
     </div>
   )
 }
