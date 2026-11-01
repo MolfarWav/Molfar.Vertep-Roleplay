@@ -14,7 +14,7 @@ import { useT } from '@/hooks/use-t'
 
 export function LettersDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useT()
-  const { config, muted, model, available } = useLetters()
+  const { config, muted, model, source, available } = useLetters()
   const characters = useApp((s) => s.characters)
   useEffect(() => { if (open) void loadLetters() }, [open])
   const nameOf = (id: string) => characters.find((c) => c.id === id)?.name ?? id
@@ -46,7 +46,7 @@ export function LettersDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               <SettingRow
                 label={t('letters.model')}
                 off={off}
-                status={config.enabled && !model ? <span className="text-destructive">{t('letters.noModel')}</span> : model ? t('letters.modelIs', { model }) : undefined}
+                status={config.enabled && !model ? <span className="text-destructive">{t('letters.noModel')}</span> : model ? t(source === 'litopys' ? 'letters.modelLit' : 'letters.modelApp', { model }) : undefined}
               >
                 <span />
               </SettingRow>

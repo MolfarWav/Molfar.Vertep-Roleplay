@@ -72,14 +72,16 @@ export function cleanConfig(raw) {
 
 export const readConfig = (fsx) => cleanConfig(readJson(fsx, CONFIG_FILE, {}));
 
-/** Which model writes: the config's, else Litopys', else the app's default. */
-export function letterModel(fsx, config) {
-  if (config.model) return config.model;
+/** Which model writes and why: the config's, else Litopys', else the app's default. {model, source} with source config | litopys | app | none. */
+export function letterModelSource(fsx, config) {
+  if (config.model) return { model: config.model, source: "config" };
   const lit = readJson(fsx, "litopys/config.json", null);
-  if (isObj(lit) && MODEL_REF.test(str(lit.model))) return str(lit.model);
+  if (isObj(lit) && MODEL_REF.test(str(lit.model))) return { model: str(lit.model), source: "litopys" };
   const settings = readJson(fsx, "settings.json", null);
-  return isObj(settings) && MODEL_REF.test(str(settings.model)) ? str(settings.model) : "";
+  return isObj(settings) && MODEL_REF.test(str(settings.model)) ? { model: str(settings.model), source: "app" } : { model: "", source: "none" };
 }
+
+export const letterModel = (fsx, config) => letterModelSource(fsx, config).model;
 
 const readCardState = (fsx, id) => {
   const o = readJson(fsx, CARDS_DIR + id + ".json", null);
@@ -271,14 +273,15 @@ export function handleRoute(req, host) {
   const fsx = host.fs;
   const method = req.method;
   if (path === "/letters" && method === "GET") {
-    return ok({ letters: listLetters(fsx), config: readConfig(fsx), muted: mutedCards(fsx), today: readDay(fsx, Date.now()), model: letterModel(fsx, readConfig(fsx)) });
+    const config = readConfig(fsx);
+    return ok({ letters: listLetters(fsx), config, muted: mutedCards(fsx), today: readDay(fsx, Date.now()), ...letterModelSource(fsx, config) });
   }
   if (path === "/letters/write" && method === "POST") return writeRoute(req, host);
   if (path === "/letters/dismiss" && method === "POST") return dismissRoute(req, fsx);
   if (path === "/letters/config" && method === "PUT") {
     const next = cleanConfig({ ...readConfig(fsx), ...(isObj(req.body) ? req.body : {}) });
     fsx.write(CONFIG_FILE, JSON.stringify({ v: 1, ...next }, null, 2));
-    return ok({ config: next, model: letterModel(fsx, next) });
+    return ok({ config: next, ...letterModelSource(fsx, next) });
   }
   if (path === "/letters/mute" && method === "POST") {
     const b = isObj(req.body) ? req.body : {};

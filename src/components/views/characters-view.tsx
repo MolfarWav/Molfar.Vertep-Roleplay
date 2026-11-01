@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
-  DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
+  DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -421,13 +421,15 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           {batchMode && <Check className="ml-auto size-4 text-primary" aria-hidden="true" />}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>{t('characters.import')}</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => importRef.current?.click()}>
-          <FileCode className="size-4" aria-hidden="true" />{t('characters.importFiles')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setUrlOpen(true)}>
-          <LinkSimple className="size-4" aria-hidden="true" />{t('characters.importUrl')}
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t('characters.import')}</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => importRef.current?.click()}>
+            <FileCode className="size-4" aria-hidden="true" />{t('characters.importFiles')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setUrlOpen(true)}>
+            <LinkSimple className="size-4" aria-hidden="true" />{t('characters.importUrl')}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => setTagManagerOpen(true)}>
           <Tag className="size-4" aria-hidden="true" />{t('characters.moreManage')}

@@ -53,6 +53,9 @@ describe("config", () => {
     expect((handleRoute(req("GET", "/letters"), m.host) as any).json.model).toBe("c/lit");
     handleRoute(req("PUT", "/letters/config", { model: "c/own" }), m.host);
     expect((handleRoute(req("GET", "/letters"), m.host) as any).json.model).toBe("c/own");
+    expect((handleRoute(req("GET", "/letters"), m.host) as any).json.source).toBe("config");
+    expect((handleRoute(req("GET", "/letters"), memHost(base()).host) as any).json.source).toBe("app");
+    expect((handleRoute(req("GET", "/letters"), memHost({}).host) as any).json).toMatchObject({ model: "", source: "none" });
   });
 });
 

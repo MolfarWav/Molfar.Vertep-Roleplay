@@ -21,13 +21,15 @@ interface LettersState {
   muted: string[]
   /** the model that will write, '' when there is none */
   model: string
+  /** where that model comes from: config (picked here), litopys, app (the app's default) or none */
+  source: string
   /** the plugin answered at least once (a missing plugin leaves everything empty and silent) */
   available: boolean
 }
 
-export const useLetters = create<LettersState>(() => ({ letters: [], config: DEFAULT_LETTERS_CONFIG, muted: [], model: '', available: false }))
+export const useLetters = create<LettersState>(() => ({ letters: [], config: DEFAULT_LETTERS_CONFIG, muted: [], model: '', source: 'none', available: false }))
 
-interface ListBody { letters?: unknown; config?: Partial<LettersConfig>; muted?: unknown; model?: unknown }
+interface ListBody { letters?: unknown; config?: Partial<LettersConfig>; muted?: unknown; model?: unknown; source?: unknown }
 
 function apply(body: ListBody | null) {
   if (!body) return
@@ -37,6 +39,7 @@ function apply(body: ListBody | null) {
     config: { ...DEFAULT_LETTERS_CONFIG, ...c },
     muted: Array.isArray(body.muted) ? body.muted.filter((x): x is string => typeof x === 'string') : [],
     model: typeof body.model === 'string' ? body.model : '',
+    source: typeof body.source === 'string' ? body.source : 'none',
     available: true,
   })
 }
@@ -54,8 +57,8 @@ export async function saveLettersConfig(patch: Partial<LettersConfig>) {
   const prev = useLetters.getState().config
   useLetters.setState({ config: { ...prev, ...patch } })
   try {
-    const r = await j<{ config: LettersConfig; model: string }>('/letters/config', { method: 'PUT', body: JSON.stringify(patch) })
-    useLetters.setState({ config: { ...DEFAULT_LETTERS_CONFIG, ...r.config }, model: r.model ?? '' })
+    const r = await j<{ config: LettersConfig; model: string; source?: string }>('/letters/config', { method: 'PUT', body: JSON.stringify(patch) })
+    useLetters.setState({ config: { ...DEFAULT_LETTERS_CONFIG, ...r.config }, model: r.model ?? '', source: r.source ?? 'none' })
   } catch {
     useLetters.setState({ config: prev })
     toast.error(t('letters.saveFailed', resolveLanguage(useApp.getState().settings.language)))
