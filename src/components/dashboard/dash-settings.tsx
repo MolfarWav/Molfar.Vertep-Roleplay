@@ -50,6 +50,7 @@ interface DashConfig {
   /** the sensor's reply limit; absent on an older plugin */
   sensorMaxTokens?: number
   catchUp: boolean
+  leakCheck?: boolean
   autoSoul: boolean
   sensor: string
   custom: string[]
@@ -100,6 +101,7 @@ interface Form {
   said: { perTurn: number; inject: boolean }
   layout: { inject: boolean }
   catchUp: boolean
+  leakCheck: boolean
   autoSoul: boolean
   /** the whole prompt: only sent in "whole" and legacy mode */
   sensor: string
@@ -170,6 +172,7 @@ function pickForm(c: DashConfig): Form {
     said: { perTurn: c.said?.perTurn ?? DEFAULT_SAID, inject: c.said?.inject !== false },
     layout: { inject: c.layout?.inject !== false },
     catchUp: c.catchUp !== false,
+    leakCheck: c.leakCheck !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
     parts: Object.fromEntries((c.sensorParts ?? []).map((p) => [p.key, p.text])),
@@ -541,6 +544,9 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                 <Button size="sm" variant="ghost" className="max-md:h-10" onClick={() => patch({ sensorModel: '' })}>{t('dash.set.useChatModel')}</Button>
               )}
             </div>
+          </SettingRow>
+          <SettingRow label={t('dash.set.leakCheck')} info={t('dash.set.leakCheck.hint')}>
+            <Switch checked={form.leakCheck} onCheckedChange={(v) => patch({ leakCheck: v })} aria-label={t('dash.set.leakCheck')} />
           </SettingRow>
           <SettingRow label={t('dash.set.catchUp')} info={t('dash.set.catchUp.hint')}>
             <Switch checked={form.catchUp} onCheckedChange={(v) => patch({ catchUp: v })} aria-label={t('dash.set.catchUp')} />

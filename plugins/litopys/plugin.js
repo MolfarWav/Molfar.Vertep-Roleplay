@@ -193,6 +193,8 @@ export const DEFAULT_CONFIG = {
   // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
   // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
+  // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
+  castKnowledge: true,
   // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
   // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
@@ -438,6 +440,7 @@ export function loadConfig(fsx) {
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
+  cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
   return cfg;
@@ -491,6 +494,7 @@ export function patchConfig(fsx, body) {
   if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
+  if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -997,6 +1001,36 @@ export function storyView(fsx, meta) {
   };
 }
 
+/** The content words of a text as 5-letter prefixes (an ending does not matter). */
+const heldStems = (text) => [...new Set(String(text || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4).map((w) => w.slice(0, 5)))];
+
+/** Does the text say what a held text says? At least two shared content words and half of the shorter one's. */
+function saysHeld(text, held) {
+  const a = heldStems(text);
+  const b = new Set(heldStems(held));
+  const shared = a.filter((w) => b.has(w)).length;
+  return shared >= 2 && shared >= Math.ceil(Math.min(a.length, b.size) * 0.5);
+}
+
+/**
+ * #184 P3: the open leak hits (the Dashboard's, answered by nobody yet) of the replies in this scene:
+ * [{ who, texts }] with the secret and the quote. What the leaking character did in the reply is not canon.
+ */
+export function heldLeaks(dash, line, scene) {
+  if (!dash || !isObj(dash.leaks) || !scene) return [];
+  const keys = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) {
+    const m = line[i];
+    if (m) keys.add(m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0));
+  }
+  const out = [];
+  for (const [key, rec] of Object.entries(dash.leaks)) {
+    if (!keys.has(key) || !isObj(rec)) continue;
+    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open" && str(it.who)) out.push({ who: str(it.who), texts: [str(it.text), str(it.quote)].filter(Boolean) });
+  }
+  return out;
+}
+
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
@@ -1026,6 +1060,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   activeFacts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + f.text);
   if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
+
+  // a reply of this scene was flagged: a character seems to act on a secret it does not know; not canon until the user says so
+  const flagged = heldLeaks(dash, line, scene);
+  if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
 
   // Scene messages
   const msgLines = [];
@@ -1396,16 +1434,8 @@ export function rankChapters(chapters, scanText, sem, opts) {
     .map((x) => x.ch);
 }
 
-/** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut }) {
-  if (!st || !Array.isArray(line) || !line.length) return null;
-  // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
-  // window may have dropped more than the recent window allows: what lies before is carried here. In
-  // "scenes" mode the engine's cut is the cut: a scene still in the prompt is not carried twice.
-  const told = Number.isInteger(promptCut) && promptCut >= 0 ? Math.min(line.length, promptCut) : null;
-  const own = cutCount(st, line, cfg);
-  const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
-  // who is present: the newest snapshot of the line, else the names in the recent window
+/** Who is present: the newest snapshot of the line, else the names in the recent window; the speaker and the player too. */
+function presentNames({ line, dash, meta, speakerName }) {
   const present = new Set();
   let snapFound = false;
   for (let i = line.length - 1; i >= 0 && !snapFound; i--) {
@@ -1421,13 +1451,79 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   if (str(speakerName)) present.add(str(speakerName));
   const userName = str(meta && meta.userName) || "You";
   present.add(userName);
+  return { present, userName };
+}
+
+/** At most this many names are kept as the cast of a chapter. */
+const CAST_MAX = 12;
+
+/**
+ * Did this speaker witness the chapter (#184 P2)? A chapter with no cast (written before the cast was kept, or a scene
+ * with nobody named) is visible to all. `voices` null means a reply that voices several: everything is visible.
+ */
+export function witnessed(ch, voices) {
+  if (!(voices instanceof Set) || !voices.size) return true;
+  const cast = arr(ch && ch.cast).map((n) => str(n).toLowerCase()).filter(Boolean);
+  return !cast.length || cast.some((n) => voices.has(n));
+}
+
+/** The room of the "who knows what" brief, in tokens. */
+const CAST_TOKENS = 250;
+
+/**
+ * #184 P1d: for a reply that voices several characters, the facts only some of the people here know, grouped by who
+ * knows them ("Only Aria and Bram know: ..."): the narrator sees at a glance what each character may use. Built from
+ * the record, no model call. null when everyone here knows everything that is restricted, or nothing is.
+ */
+export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = [] }) {
+  if (!st || !Array.isArray(line) || !line.length) return null;
+  const { present } = presentNames({ line, dash, meta, speakerName });
+  const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase())]);
+  const userKey = (str(meta && meta.userName) || "You").toLowerCase();
+  const people = [...present].filter((n) => !skip.has(n.toLowerCase()) || n.toLowerCase() === userKey);
+  if (people.length < 2) return null;
+  const groups = new Map();
+  for (const f of arr(st.facts)) {
+    if (!isObj(f) || f.status !== "active" || !str(f.text) || !Array.isArray(f.knownBy)) continue;
+    const by = new Set(f.knownBy.map((k) => str(k).toLowerCase()));
+    const who = people.filter((n) => by.has(n.toLowerCase()));
+    if (who.length === people.length) continue;
+    const key = who.join("\u0000");
+    if (!groups.has(key)) groups.set(key, { who, texts: [] });
+    groups.get(key).texts.push(cut(str(f.text), 100));
+  }
+  if (!groups.size) return null;
+  const head = "[Who knows what (Litopys): a character acts only on what they know. Never let one use what only another knows.]";
+  const lineOf = (g) => (g.who.length ? "Only " + g.who.join(" and ") + (g.who.length > 1 ? " know" : " knows") : "None of them here knows, it is said elsewhere") + ": " + g.texts.slice(-4).join("; ");
+  const rows = [...groups.values()].sort((a, b) => a.who.length - b.who.length).slice(0, 6);
+  while (rows.length && estimateTokens([head, ...rows.map(lineOf)].join("\n")) > CAST_TOKENS) rows.pop();
+  if (!rows.length) return null;
+  const text = [head, ...rows.map(lineOf)].join("\n");
+  return { text, tokens: estimateTokens(text), groups: rows.length };
+}
+
+/** The fill order and text of the Litopys insert; null when nothing can be inserted. */
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices }) {
+  if (!st || !Array.isArray(line) || !line.length) return null;
+  // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
+  // window may have dropped more than the recent window allows: what lies before is carried here. In
+  // "scenes" mode the engine's cut is the cut: a scene still in the prompt is not carried twice.
+  const told = Number.isInteger(promptCut) && promptCut >= 0 ? Math.min(line.length, promptCut) : null;
+  const own = cutCount(st, line, cfg);
+  const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
+  const { present, userName } = presentNames({ line, dash, meta, speakerName });
   const here = new Set([...present].map((n) => n.toLowerCase()));
   const subj = (f) => str(f.subject).toLowerCase();
 
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
+  // #184 P2: a character's reply gets what that character knows (or everyone does), never what only the player or
+  // another one present knows; a reply that voices several (`voices` unset) gets what anyone present knows
+  const knowers = voices instanceof Set && voices.size ? voices : here;
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
   const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
-  const allBefore = chaptersBeforeCut(st, line, cut);
+  // a chapter the speaking character did not witness stays out, and so does an arc that holds one (its witnessed
+  // chapters then ride by themselves)
+  const allBefore = chaptersBeforeCut(st, line, cut).filter((ch) => witnessed(ch, voices));
   if (!active.length && !allBefore.length) return null;
   // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
   const beforeIds = new Set(allBefore.map((ch) => ch.id));
@@ -1653,7 +1749,7 @@ export function llmRequest(ctx, host) {
     const line = activeLine(rc.msgs);
     const speakerName = str(ctx.turn.speakerName);
     // a chat that continues an earlier one gets its story from the first reply on, with or without a record of its own
-    const back = litOff ? null : buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
+    const back = litOff ? null : buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
     const st = litOff ? null : loadChatFile(fsx, chatId);
     const scanText = req.messages
       .filter((m) => m && m.role !== "system" && typeof m.content === "string")
@@ -1669,7 +1765,7 @@ export function llmRequest(ctx, host) {
     const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
     const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line) }) : null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
@@ -1731,7 +1827,18 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall) return null;
+    // who knows what, for a reply that voices several characters (#184 P1d); a single character's reply is filtered already
+    let castKn = null;
+    if (st && line.length && cfg.castKnowledge !== false && !soleVoice(fsx, rc.meta, speakerName)) {
+      try {
+        castKn = castKnowledgeFor({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, speakerName, notCast: narratorNames(fsx, rc.meta) });
+      } catch (e) {
+        try {
+          host.log("litopys who knows what: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1789,6 +1896,10 @@ export function llmRequest(ctx, host) {
     if (insert && insert.tail) {
       messages = withTailInsert(messages, insert.tail);
       promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
+    }
+    if (castKn) {
+      messages = withTailInsert(messages, castKn.text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: String(castKn.text).trim() });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
@@ -1997,6 +2108,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a cast of two or more
   const views = ctx.cast && ctx.cast.length >= 2 ? cleanViews(parsed.views, ctx.cast) : [];
   if (views.length) newChapter.views = views;
+  // #184 P2: who witnessed the scene, so a character's reply can leave out a chapter that character did not see
+  const cast = arr(ctx.witnesses).map(str).filter(Boolean).slice(0, CAST_MAX);
+  if (cast.length) newChapter.cast = cast;
   if (model) newChapter.model = model;
   const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
   if (at >= 0) st.chapters[at] = newChapter;
@@ -2016,7 +2130,17 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       const text = cut(op.text, 300);
       if (!text) continue;
       const subject = str(op.subject) || "world";
-      let knownBy = op.knownBy === "all" ? "all" : Array.isArray(op.knownBy) && op.knownBy.length ? op.knownBy.map((x) => str(x)).filter(Boolean) : "all";
+      // a model that says nothing (or nothing usable) about who knows gets the people of the scene, not everyone (#184 P1a)
+      const told = Array.isArray(op.knownBy) ? op.knownBy.map((x) => str(x)).filter(Boolean) : [];
+      const witnesses = arr(ctx.witnesses).map(str).filter(Boolean);
+      let knownBy = op.knownBy === "all" ? "all" : told.length ? told : witnesses.length ? witnesses : "all";
+      // #184 P3: a fact that says what a flagged reply leaked does not make the leaking character a knower
+      for (const h of arr(ctx.held)) {
+        if (!h.texts.some((t) => saysHeld(text, t))) continue;
+        const without = (list) => list.filter((k) => k.toLowerCase() !== h.who.toLowerCase());
+        knownBy = knownBy === "all" ? (witnesses.length ? without(witnesses) : knownBy) : without(knownBy);
+        if (Array.isArray(knownBy) && !knownBy.length) knownBy = [subject];
+      }
       // a character knows what is about them; models often list only the others
       if (Array.isArray(knownBy) && subject.toLowerCase() !== "world" && !knownBy.some((k) => k.toLowerCase() === subject.toLowerCase())) knownBy = [subject, ...knownBy];
       const typeMap = ["event", "trait", "change", "relation", "world", "plan"];
@@ -3122,6 +3246,8 @@ export function onTick(_ctx, host) {
                 userName: meta && meta.userName,
                 cardRules: cfg.habits !== false ? cardHabitRules(fsx, meta) : [],
                 cast: cfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)) : [],
+                witnesses: sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)),
+                held: heldLeaks(dash, line, w.scene),
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
@@ -4142,7 +4268,7 @@ const CHAIN_SHARES = [[1], [0.65, 0.35], [0.5, 0.3, 0.2]];
  * first within its share and what it leaves unused goes to the nearer ones, so the nearest gets the
  * rest. Rendered oldest first, each chat as its own part (backstoryPart).
  */
-export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
+export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voices }) {
   const budget = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
   if (!budget) return null;
   // "Start clean" in the chat's Dashboard (#100) is one switch for the whole carried memory: the story too
@@ -4172,7 +4298,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, knowers: voices instanceof Set && voices.size ? voices : here, voices, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
@@ -4195,21 +4321,21 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle, continues }) {
+function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
   if (!prc || !pst) return null;
   const pline = activeLine(prc.msgs);
   const subj = (f) => str(f.subject).toLowerCase();
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
   const factKey = (f) => str(f.text).trim().toLowerCase();
   const active = arr(pst.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f) && !usedFacts.has(factKey(f)));
 
   const ranges = new Map();
   const chapters = arr(pst.chapters)
     .map((ch) => ({ ch, r: rangeOf(ch, pline) }))
-    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text))
+    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text) && witnessed(ch, voices))
     .sort((x, y) => x.r.fromIdx - y.r.fromIdx);
   for (const { ch, r } of chapters) ranges.set(ch.id, r);
   const last = chapters.length ? chapters[chapters.length - 1].ch : null;
@@ -4333,7 +4459,7 @@ function expireProposals(st, factId, now) {
 export function factRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
-  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete"].includes(op)) return bad("unknown op");
+  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete", "know"].includes(op)) return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
@@ -4400,6 +4526,17 @@ export function factRoute(fsx, body) {
       fact.edited = true;
       fact.updatedAt = now;
       addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now, { text: fact.text });
+      return;
+    }
+    // #184 P3: the user says a character found out (a flagged reply was right): the name joins the knowers
+    if (op === "know") {
+      if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
+      const who = cut(str(b.who), 80);
+      if (!who) return bad("who is empty");
+      if (fact.knownBy === "all" || arr(fact.knownBy).some((k) => sameName(k, who))) return;
+      fact.knownBy = [...arr(fact.knownBy), who];
+      fact.updatedAt = now;
+      addActivity(st, "user", "fact.edit", who + " found out: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "pin") {
@@ -4781,6 +4918,7 @@ export function chatView(fsx, chatId) {
       edited: ch.edited === true,
       ...(ch.marked === true ? { marked: true } : {}),
       ...(Array.isArray(ch.views) && ch.views.length ? { views: ch.views } : {}),
+      ...(Array.isArray(ch.cast) && ch.cast.length ? { cast: ch.cast } : {}),
     });
   }
   return {
@@ -5498,6 +5636,15 @@ function recollectors(fsx, meta, speakerName) {
   return { names: new Set(), many: false, name: "" };
 }
 
+/**
+ * The lower-case names of the one character this reply is spoken by (#184 P2), or null when it voices several (a
+ * group in narrator mode, a narrator card) or the speaker is unknown: then the reply may use what anyone present knows.
+ */
+export function soleVoice(fsx, meta, speakerName) {
+  const { names, many } = recollectors(fsx, meta, speakerName);
+  return names.size && !many ? names : null;
+}
+
 /** The room of the "what the character remembers" block, in tokens. */
 const RECOLLECT_TOKENS = 300;
 
@@ -5931,9 +6078,9 @@ function carriesRoute(fsx, query) {
   const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
   let insert = null;
   try {
-    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {} }) : null;
+    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
   } catch {}
-  const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
+  const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
   let card = null;
   try {
     card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash, cfg });

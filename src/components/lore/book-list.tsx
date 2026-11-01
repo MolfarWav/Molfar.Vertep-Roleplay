@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { BookOpenText, CaretRight, DotsThreeVertical, Globe, MagnifyingGlass, Plus, Pulse, Sparkle, UploadSimple } from '@phosphor-icons/react'
+import { BookOpenText, CaretRight, DotsThreeVertical, DownloadSimple, Globe, MagnifyingGlass, Plus, Pulse, Sparkle, UploadSimple } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Pager, clampPage } from '@/components/ui/pager'
@@ -22,7 +22,7 @@ import type { Character, Lorebook } from '@/lib/types'
  * The left list of books (380 px on desktop, the whole screen on a phone): the kind icons, the search, the filter
  * chips with counts, and New (the one filled button), Create with Molfar and Import.
  */
-export function BookList({ books, characters, selectedId, query, onQuery, filter, onFilter, page, onPage, pageSize, onSelect, onNew, onImport, onMolfar, onActiveChats }: {
+export function BookList({ books, characters, selectedId, query, onQuery, filter, onFilter, page, onPage, pageSize, onSelect, onNew, onImport, onExportOne, onExportAll, exporting, onMolfar, onActiveChats }: {
   books: Lorebook[]
   characters: Character[]
   selectedId: string | null
@@ -36,6 +36,11 @@ export function BookList({ books, characters, selectedId, query, onQuery, filter
   onSelect: (id: string) => void
   onNew: () => void
   onImport: (files: FileList | null) => void | Promise<void>
+  /** the open book as a JSON file; null when no book is open */
+  onExportOne: (() => void) | null
+  /** every book in one zip */
+  onExportAll: () => void
+  exporting: boolean
   onMolfar: () => void
   onActiveChats: () => void
 }) {
@@ -53,8 +58,24 @@ export function BookList({ books, characters, selectedId, query, onQuery, filter
         <PaneTitle section="lorebooks" icon={<BookOpenText className="size-4 text-primary" aria-hidden="true" />} />
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon" className="max-md:size-10" onClick={() => importInput.current?.click()} aria-label={t('lore.import')} title={t('lore.import')}>
-            <UploadSimple className="size-4" aria-hidden="true" />
+            <DownloadSimple className="size-4" aria-hidden="true" />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button variant="ghost" size="icon" className="max-md:size-10" disabled={exporting || books.length === 0} aria-label={t('lore.exportMenu')} title={t('lore.exportMenu')} data-testid="lore-export">
+                <UploadSimple className="size-4" aria-hidden="true" />
+              </Button>
+            } />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled={!onExportOne} onClick={() => onExportOne?.()}>
+                <span className="flex max-w-64 flex-col">
+                  {t('lore.export.one')}
+                  {!onExportOne && <span className="text-caption text-muted-foreground">{t('lore.export.pick')}</span>}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onExportAll}>{t('lore.export.all', { n: books.length })}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger render={
               <Button variant="ghost" size="icon" className="max-md:size-10" aria-label={t('lore.header.more')} title={t('lore.header.more')}>
