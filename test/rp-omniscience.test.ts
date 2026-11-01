@@ -142,8 +142,10 @@ describe("omniscience: bench, exposure by chat size", () => {
 describe("omniscience: the who-knows-what brief for a narrator (#184 P1d)", () => {
   const cfgOn = () => writeJson("litopys/config.json", { castKnowledge: true });
 
-  it("is off by default, and a narrator reply then has no brief", () => {
+  it("is on by default, and off when the setting says so", () => {
     seed("narrator");
+    expect(textOf(L.llmRequest(ctx("Tavern"), mockHost().host))).toContain("[Who knows what (Litopys)");
+    writeJson("litopys/config.json", { castKnowledge: false });
     expect(textOf(L.llmRequest(ctx("Tavern"), mockHost().host))).not.toContain("Who knows what");
   });
 
