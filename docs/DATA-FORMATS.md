@@ -703,7 +703,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
   `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
-  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `when` signal),
+  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `of`, optional `clamp`, optional `when` signal; below),
   `note`, and four cards for the agent's own state (below). A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
 - Dashboard fields an agent may read (#132; reading only): an Input entry `{ id, source: "state", field, as, of? }` or an If
   operand `{ from: "state", field, as, of? }`. `field` must be on the list `DASH_FIELDS` of the checker, which keeps the
@@ -718,6 +718,26 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   stands on the state it carried until it has its own), leaving out characters the user removed from the Dashboard.
   A value the Dashboard does not have is missing: a card that needs it is skipped, an If says Unknown. The executor gets
   the values in `ctx.dash` under `dashKey`: `field`, or `field@name` with `of`.
+- Dashboard fields an agent may change (#132, write): a `write.state` card `{ field, as, of?, clamp? }` with the permission
+  `write:state.<field>`, one per field. The list is `DASH_WRITE_FIELDS` of the checker: the readable ones except `present`
+  (it decides who is on the Dashboard at all), 12 fields. `as` and `of` follow the same rules as reading (`E_DASH_TYPE`,
+  `E_DASH_OF`); `clamp: { min?, max?, maxStep? }` belongs to number fields (`E_DASH_CLAMP`). The staged write is
+  `{ op: "dash.set", field, of?, value, clamp? }`. After a successful run the host applies it to the newest snapshot
+  among the chat's own messages (the one the agent read; a swiped-away branch is not touched), for the character named in
+  `of`, else whoever wrote the last reply. A chat the Dashboard has not read yet, a character that is not on the
+  Dashboard (or was removed), an empty text and a value that is not a number are refused, and the run lists them under
+  `refused`. A number is cut to a whole number in -100..100, then by `clamp.min`/`max`, then to `maxStep` from the
+  current value; text is cut to 300 characters (200 for `place` and `weather`). A text field is marked fresh, so the
+  next reply's Dashboard note carries it. Nothing is locked: the later writer wins. An agent runs after the sensor of the
+  same reply, so its value stands for that turn; after that a text field changes only when the sensor reports a change,
+  and a number carries on from the written value with the sensor's events added. Every applied write is kept in
+  `dashboard/agent/<chatId>.json`, `{ v: 1, counter, entries: [{ id, agent, key, field, who?, before, after, at, undone? }] }`
+  (`key` = the snapshot, `before` = the value replaced, exactly as it was stored), one entry for an agent, field, character and snapshot
+  (a run done again replaces it and keeps the first `before`). The run record gets `dash: [{ id, field, who?, before, after, key }]`
+  and `GET /agents/runs` marks the undone ones. `POST /agents/dash-undo { chatId, id }` puts `before` back, only while that
+  snapshot is still the newest on the line and the field still holds what the agent wrote (else 409 with the reason).
+  The Dashboard plugin (`relations`) applies the ledger again to a snapshot it makes anew (a message read again), so an
+  earlier edit of the chat does not lose the change; an undone entry, or one whose message is off the line, is ignored.
 - Code cards, no model and no permission, 0 model calls: `random.dice` (`count` 1 to 20, default 1; `sides` 2 to 1000,
   default 20; optional `bonus` -1000 to 1000; optional `when` signal; outputs `total` (number) and `rolls` (text,
   "4, 17")), `random.pick` (`items`: 2 to 40 `{ text, weight? }`, a weight 1 to 100 or 1 when absent; optional `when`; outputs
@@ -908,7 +928,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
 - **Hint for the next reply.** An Output `prompt-insert` is kept in `inserts/<chatId>.json` and added to the end of the last user
   message of the next reply request (`position` is not used yet), with the agent's label, for as long as the agent is on in
   the chat; the agent's next run replaces it.
-- **Not yet.** Writing Dashboard fields (`write:state.*`), the sources `preGenInjections` and `parallelResults`, the triggers
+- **Not yet.** The sources `preGenInjections` and `parallelResults`, the triggers
   `before` and `parallel`, the source `summary`. An agent that needs them installs but does not run, and says so.
 - The plugin carries a generated copy of `agent-check.js` and `agent-run.js` between two marker lines; after editing either,
   run `bun scripts/sync-agents-plugin.ts` (a test fails when the copy is old).

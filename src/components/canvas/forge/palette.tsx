@@ -13,6 +13,7 @@ const GROUPS: { key: MsgKey; types: string[] }[] = [
   { key: 'fg.pal.model', types: ['model.ask', 'data.parse'] },
   { key: 'fg.pal.logic', types: ['logic.if', 'logic.merge', 'random.dice', 'random.pick'] },
   { key: 'fg.pal.write', types: ['state.set', 'state.add', 'state.list'] },
+  { key: 'fg.pal.dash', types: ['write.state'] },
   { key: 'fg.pal.out', types: ['agent.output'] },
   { key: 'fg.pal.misc', types: ['note'] },
 ]

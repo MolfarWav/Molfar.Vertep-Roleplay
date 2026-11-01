@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Agents can change Dashboard fields (#132, write). A "Write to Dashboard" card (`write:state.<field>`, one permission per field) now runs: 12 fields (the 13 readable ones except `present`), for the character named in `of` or whoever spoke last, with optional limits for numbers. It lands after a successful run on the newest Dashboard snapshot of the chat's own line; the later writer wins, and the sensor goes on from the written value. The agent log under the reply lists each change (`trust: 42 → 55`) with an Undo while the Dashboard has not moved on. A message read again keeps the change (ledger `dashboard/agent/<chatId>.json`). The Forge has the card in its palette (group Dashboard) with a field picker, a character box and number limits, and the Input card has a block for the Dashboard fields it reads (part of #196). The `agent-craft` skill and `docs/DATA-FORMATS.md` describe it.
+
 ## 4.84.0 (2026-11-01)
 
 - Lorebooks: the list header had one icon, an up arrow, for Import, which reads as export, and no export at all. Import now has the arrow into a tray; the new Export button (arrow out) opens a menu: the open book as JSON, or every book in one zip (one JSON per book, readable by Import; a book that cannot be read is skipped and the toast says how many). The book header's Export uses the same arrow.

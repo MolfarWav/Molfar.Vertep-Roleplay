@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { ApiError, j } from './engine'
+import { reloadDash } from './dash-live'
 import { t as tr, type MsgKey, type Vars } from './i18n'
 import type { DryResult } from './agent-dry'
 
@@ -79,6 +80,18 @@ export interface AgentOutput {
   show?: string
 }
 
+/** One Dashboard value an agent changed in a run (#132): `who` is the character, `before` null when the field was empty. */
+export interface DashChange {
+  id: string
+  field: string
+  who?: string
+  before: string | number | null
+  after: string | number
+  key: string
+  /** the value was put back (Undo) */
+  undone?: boolean
+}
+
 /** One entry of GET /agents/runs, as far as the app reads it. `key` is `<message id>#<swipe>`. */
 export interface AgentRun {
   agent: string
@@ -90,6 +103,8 @@ export interface AgentRun {
   calls?: number
   writes?: unknown[]
   refused?: unknown[]
+  /** the Dashboard values this run changed, with what they replaced */
+  dash?: DashChange[]
   outputs?: AgentOutput[]
 }
 
@@ -286,6 +301,22 @@ export async function loadAgentRuns(chatId: string): Promise<AgentRun[]> {
   return runs
 }
 
+/**
+ * Puts back the Dashboard value an agent replaced. The plugin refuses (409) when the story has moved on or the field
+ * changed since; the toast says why in the plugin's words. Returns true when the value is back.
+ */
+export async function undoDashChange(chatId: string, id: string): Promise<boolean> {
+  try {
+    await j('/agents/dash-undo', { method: 'POST', body: JSON.stringify({ chatId, id }) })
+  } catch (e) {
+    toast.error(String((e as Error)?.message ?? e))
+    await loadAgentRuns(chatId).catch(() => [])
+    return false
+  }
+  await Promise.all([loadAgentRuns(chatId).catch(() => []), reloadDash(chatId).catch(() => {})])
+  return true
+}
+
 export async function loadAgentPanels(chatId: string): Promise<AgentPanelSet[]> {
   const panels = (await j<{ panels: AgentPanelSet[] }>(`/agents/panels?chatId=${q(chatId)}`)).panels
   useAgentsLive.setState((s) => ({ panels: { ...s.panels, [chatId]: panels } }))
@@ -439,6 +470,8 @@ export async function runAgents(chatId: string, agent?: string): Promise<RunRepl
     // the log tells what ran before and beside the reply as well; the notes under the reply and the toasts agents asked for come from it
     const [runs] = await Promise.all([loadAgentRuns(chatId).catch(() => [] as AgentRun[]), loadAgentPanels(chatId).catch(() => [])])
     reportFailures(chatId, runs, before)
+    // an agent changed the Dashboard: the panel beside the chat reads it again at once instead of on its next poll
+    if (runs.some((x) => !before.has(runId(x)) && x.dash?.length)) void reloadDash(chatId).catch(() => {})
     for (const run of runs.filter((x) => !before.has(runId(x))))
       for (const o of run.outputs ?? []) if (o.show === 'toast' && o.text && !(o.kind === 'note' && useAgentsLive.getState().silentNotes)) toast.message(o.title || nameOf(run.agent), { description: o.text })
     return r

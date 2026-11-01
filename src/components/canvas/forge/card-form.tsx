@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
+import { DashReadRows, DashWriteForm } from './dash-fields'
 import { INPUT_SOURCES, OUTPUT_KINDS, portsOf, setWire, wireChoices } from '@/lib/forge'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -456,6 +457,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
           </div>
         </Field>
       )}
+      {node.type === 'agent.input' && <DashReadRows give={give as never} onGive={(next) => set({ give: next })} />}
 
       {node.type === 'text.template' && (
         <Field label={t('fg.template.text')} hint={t('fg.slots')}>
@@ -539,6 +541,8 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
           )}
         </>
       )}
+
+      {node.type === 'write.state' && <DashWriteForm p={p} onParams={onParams} />}
 
       {node.type === 'agent.output' && (
         <>
