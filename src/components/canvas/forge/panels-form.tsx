@@ -68,9 +68,9 @@ function PanelCard({ id, p, at, count, state, full, dragging, grip, onPanel, onM
   const wDrag = useDragList(wItems, (o) => onPanel({ widgets: droppedItems(widgets, o) }))
   return (
     <div data-rowid={id} className={cn('flex flex-col gap-2 rounded-md border border-border p-2', dragging && 'opacity-60 ring-2 ring-primary/50')} data-testid={`forge-panel-${p.id}`}>
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {count > 1 && <Grip handle={grip} />}
-        <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-0 flex-1 max-md:h-10" onChange={(e) => onPanel({ title: e.target.value })} />
+        <Input value={String(p.title ?? '')} aria-label={t('fg.panel.title')} className="min-w-[9rem] flex-1 max-md:h-10" onChange={(e) => onPanel({ title: e.target.value })} />
         <div className="w-40 shrink-0">
           <NativeSelect value={String(p.place ?? 'float')} label={t('fg.panel.place')} onChange={(place) => onPanel({ place })}>
             {PANEL_PLACE_LIST.map((pl) => <option key={pl} value={pl}>{t(`fg.place.${pl}` as MsgKey)}</option>)}

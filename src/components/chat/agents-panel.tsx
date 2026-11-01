@@ -307,8 +307,8 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
   const capped = !!agent.own && agent.own.maxCalls > 0 && agent.maxCalls > agent.own.maxCalls
   const supported = agent.needs.filter((n) => !agent.unsupported.includes(n))
   // allowed before and asking for more now = a new version: only what is new needs a decision
-  const added = supported.filter((n) => !agent.granted.includes(n))
-  const update = waiting && agent.granted.length > 0 && added.length > 0
+  const added = agent.added ?? []
+  const update = waiting && added.length > 0
   useEffect(() => { if (focus && waiting && !asked.current) { asked.current = true; setPermOpen(true) } }, [focus, waiting])
 
   const remove = async () => {

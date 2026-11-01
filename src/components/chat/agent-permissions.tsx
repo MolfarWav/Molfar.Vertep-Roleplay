@@ -28,7 +28,7 @@ export function AgentPermissions({ agent, open, onOpenChange, onChanged }: { age
   const groups = groupNeeds(agent.needs, agent.unsupported)
   const { done, n } = allowedCount(agent.needs, agent.unsupported, agent.granted)
   // allowed before and asking for more now = a new version: the new lines are marked
-  const isUpdate = agent.granted.length > 0 && agent.missing.length > 0
+  const added = agent.added ?? []
   const supported = agent.needs.filter((x) => !agent.unsupported.includes(x))
 
   const set = async (tokens: string[]) => {
@@ -60,7 +60,7 @@ export function AgentPermissions({ agent, open, onOpenChange, onChanged }: { age
               <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
                 {g.tokens.map((tok) => {
                   const on = agent.granted.includes(tok)
-                  const fresh = isUpdate && !on
+                  const fresh = added.includes(tok)
                   const what = describeNeed(tok, t)
                   return (
                     <li key={tok}>

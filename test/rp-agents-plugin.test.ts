@@ -148,6 +148,21 @@ describe("install and permissions", () => {
     expect(r).toMatchObject({ updated: true, granted: ["llm", "show:panel"] });
   });
 
+  it("`added` marks only what a later version asks for: a half-answered first install has none", () => {
+    j("/agents/install", "PUT", { file: copy(keeper) });
+    expect(j("/agents/list").agents[0].added).toEqual([]);
+    j("/agents/grant", "POST", { id: "dungeon-keeper", tokens: ["llm"] });
+    const first = j("/agents/list").agents[0];
+    expect(first.granted).toEqual(["llm"]);
+    expect(first.missing.length).toBeGreaterThan(0);
+    expect(first.added).toEqual([]);
+    // the person answered for an older version that asked for "llm" only: every other need is new in this one
+    fs.writeFileSync(path.join(root, "agents", "grants", "dungeon-keeper.json"), JSON.stringify({ v: 1, needs: ["llm"], asked: ["llm"] }));
+    const later = j("/agents/list").agents[0];
+    expect(later.added).toEqual(later.needs.filter((t: string) => t !== "llm" && !later.unsupported.includes(t)));
+    expect(later.added.length).toBeGreaterThan(0);
+  });
+
   it("an agent that writes Dashboard fields installs, may read them, but cannot be granted the write or run", () => {
     const r = j("/agents/install", "PUT", { file: copy(mood), grant: true });
     expect(r.unsupported).toEqual(["write:state.mood"]);

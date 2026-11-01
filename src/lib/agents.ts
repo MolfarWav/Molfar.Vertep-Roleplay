@@ -26,6 +26,8 @@ export interface AgentInfo {
   missing: string[]
   /** needs this version of the runner cannot give; the agent waits */
   unsupported: string[]
+  /** needs a newer version of the file added since the person last answered; empty for a first install */
+  added?: string[]
   maxCalls: number
   errors: AgentIssueRow[]
   warnings: AgentIssueRow[]
