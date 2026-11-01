@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.79.1'
+export const APP_VERSION = '4.80.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -75,7 +75,6 @@ const HAND_TIPS: Tip[] = [
   {
     id: 'new.guide',
     since: '4.46.0',
-    target: 'nav.settings',
     open: { view: 'settings' },
     help: 'help',
     keywords: { en: 'guide tutorial walkthrough replay what is new', uk: 'гайд підказки навчання повторити що нового' },
@@ -812,15 +811,27 @@ const HAND_TIPS: Tip[] = [
   },
   {
     id: 'help.import',
-    target: 'characters.import',
+    target: 'characters.more',
     open: { view: 'characters', list: true },
     help: 'characters',
     title: { en: 'Import cards', uk: 'Імпорт карток' },
     body: {
-      en: 'Import brings in PNG or JSON character cards from files, or from a link (Chub, RisuRealm, CharaVault or a direct file link). On a phone it is in the ⋮ menu.',
-      uk: 'Імпорт додає картки персонажів у PNG чи JSON з файлів або за посиланням (Chub, RisuRealm, CharaVault чи пряме посилання на файл). На телефоні він у меню ⋮.',
+      en: 'Import brings in PNG or JSON character cards from files, or from a link (Chub, RisuRealm, CharaVault or a direct file link). It is in the ⋯ menu, next to the grid switch, on desktop and on a phone.',
+      uk: 'Імпорт додає картки персонажів у PNG чи JSON з файлів або за посиланням (Chub, RisuRealm, CharaVault чи пряме посилання на файл). Він у меню ⋯ поруч із перемикачем вигляду, на комп’ютері й на телефоні.',
     },
     keywords: { en: 'chub png json card tavern import risu janitor download', uk: 'chub png json картка імпорт завантажити' },
+  },
+  {
+    id: 'help.folders',
+    target: 'characters.folders',
+    open: { view: 'characters', list: true },
+    help: 'characters',
+    title: { en: 'Folders', uk: 'Папки' },
+    body: {
+      en: 'The folder row filters your cards: All, Favourites, each folder with its count, and No folder. Tick "folder" for a tag in Manage tags to make it one, or use New folder. To put a card in a folder, use Move to folder in its ⋯ menu or in the selection bar.',
+      uk: 'Рядок папок фільтрує ваші картки: Усі, Улюблені, кожна папка з кількістю та Без папки. Щоб тег став папкою, позначте «папка» у керуванні тегами або створіть Нову папку. Щоб покласти картку в папку, скористайтеся Перенести до папки в її меню ⋯ або в панелі вибору.',
+    },
+    keywords: { en: 'folder folders group sort organize filter', uk: 'папка папки група сортувати фільтр' },
   },
   {
     id: 'help.card-editor',
@@ -971,7 +982,6 @@ const HAND_TIPS: Tip[] = [
   },
   {
     id: 'help.settings',
-    target: 'nav.settings',
     open: { view: 'settings' },
     help: 'setup',
     title: { en: 'Settings', uk: 'Налаштування' },
@@ -988,12 +998,26 @@ const HAND_TIPS: Tip[] = [
     target: 'home.ask',
     open: { view: 'home' },
     help: 'help',
-    title: { en: 'Ask Molfar', uk: 'Запитай Мольфара' },
+    title: { en: 'With Molfar', uk: 'З Мольфаром' },
     body: {
-      en: 'Ask Molfar on Home is the built-in assistant: it works in your workshop on characters, dashboards and plugins. Try a request like “character from a description”, “my own dashboard” or “Litopys review”. In Lorebooks, the With Molfar button builds a lorebook with you.',
-      uk: '«Запитай Мольфара» на Головній — вбудований помічник: він працює у вашій майстерні над персонажами, дашбордами й плагінами. Спробуйте запити на кшталт «персонаж з опису», «свій дашборд» чи «огляд Літопису». У Лорбуках кнопка «З Мольфаром» створює лорбук разом із вами.',
+      en: 'The With Molfar button in the Home header opens Molfar, the built-in assistant, with a draft for a new character card: write your idea after it and send. Molfar works in your workshop on characters, dashboards and plugins. In Lorebooks, the With Molfar button builds a lorebook with you.',
+      uk: '«З Мольфаром» у заголовку Головної відкриває Мольфара, вбудованого помічника, з чернеткою нової картки персонажа: допишіть свою ідею і надішліть. Мольфар працює у вашій майстерні над персонажами, дашбордами й плагінами. У Лорбуках кнопка «З Мольфаром» створює лорбук разом із вами.',
     },
     keywords: { en: 'assistant agent ai helper build create', uk: 'помічник агент створити допомога' },
+  },
+
+  {
+    id: 'help.home-customize',
+    target: 'home.customize',
+    open: { view: 'home' },
+    help: 'help',
+    keywords: { en: 'customize move resize hide blocks reorder layout home start page', uk: 'налаштувати переставити розмір сховати блоки розташування головна сторінка' },
+    title: { en: 'Customize Home', uk: 'Налаштування Головної' },
+    body: {
+      en: 'Customize moves, resizes and hides the blocks of the start page. Changes are saved as you make them. Hidden blocks wait in the tray, where Restore brings one back, and Reset to default puts the page back as it was. The Marketplace suggestion has its own switch there.',
+      uk: 'Налаштувати переставляє, змінює розмір і ховає блоки стартової сторінки. Зміни зберігаються одразу. Приховані блоки чекають у лотку, де «Повернути» повертає один із них, а «Скинути до типового» повертає сторінку як було. Підбірка з Маркетплейсу має власний перемикач.',
+    },
+    where: { en: 'The Customize button in the Home header.', uk: 'Кнопка «Налаштувати» у заголовку Головної.' },
   },
 
   // ── Tour steps that are not help items

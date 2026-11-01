@@ -22,6 +22,7 @@ export function MasterDetail({
   detailOpen,
   onBack,
   detailTitle,
+  backLabel,
   masterWidth = 'w-64',
   master,
   detail,
@@ -31,6 +32,8 @@ export function MasterDetail({
   onBack: () => void
   /** Shown in the mobile back header. */
   detailTitle?: string
+  /** The mobile back button's words (default: the app's "Back"). */
+  backLabel?: string
   /** Tailwind width class for the master pane on desktop. */
   masterWidth?: string
   master: ReactNode
@@ -57,7 +60,7 @@ export function MasterDetail({
               className="-ml-1 flex min-h-9 items-center gap-0.5 rounded-md pr-2 pl-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <CaretLeft className="size-5" aria-hidden="true" />
-              {t('dash.set.back')}
+              {backLabel ?? t('dash.set.back')}
             </button>
             {detailTitle && (
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">{detailTitle}</span>

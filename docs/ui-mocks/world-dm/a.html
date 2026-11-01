@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>World DM — A. Calm column</title><link rel="stylesheet" href="shared.css"></head><body>
+<script src="shared.js"></script>
+<script>
+const sec = (tone, title, body, cap = '') => `<section class="sec t-${tone}"><h3 class="sh"><i></i>${title}${cap ? `<span class="cap">${cap}</span>` : ''}</h3><div class="card rows">${body}</div></section>`
+mount({
+  label: 'A · Calm column',
+  blurb: 'Five real headings (as now), one pattern, only Records folds',
+  settingsHTML:
+    sec('sky', 'Schedule', S.everyN() + S.turnBtn()) +
+    sec('teal', 'More triggers', S.still() + S.skip() + S.place()) +
+    `<section class="sec t-emerald">${fold({ id: 'records', title: 'Records', summary: 'every 5 replies · 800 characters · 8 changes', tone: 'emerald', body: `<div class="rows">${S.recEvery()}${S.textMax()}${S.changesMax()}</div>` })}</section>` +
+    sec('amber', 'Outfit and hands', S.outfit()) +
+    sec('violet', 'Events and dice', S.insert() + S.diceMode() + S.diceStat() + S.diceTilt() + S.diceChance() + S.diceShow() + S.diceLife() + S.rolls('flat'))
+})
+</script></body></html>

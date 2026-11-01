@@ -31,3 +31,16 @@ export function bookKind(characters: Character[], bookId: ID): BookKind {
   if (users.length === 0) return 'unlinked'
   return owners.length === 1 && users.length === 1 ? 'own' : 'shared'
 }
+
+/** The short line that says who uses a book: its own card, a count of cards, or none. `key` is an i18n key. */
+export function bookUsageLabel(characters: Character[], bookId: ID): { key: 'lore.use.none' | 'lore.use.own' | 'lore.use.cardsOne' | 'lore.use.cards'; vars: Record<string, string | number>; muted: boolean } {
+  const { owners, users } = bookUsage(characters, bookId)
+  if (users.length === 0) return { key: 'lore.use.none', vars: {}, muted: true }
+  if (owners.length === 1 && users.length === 1) return { key: 'lore.use.own', vars: { name: owners[0]!.name }, muted: false }
+  return { key: users.length === 1 ? 'lore.use.cardsOne' : 'lore.use.cards', vars: { n: users.length }, muted: false }
+}
+
+/** The cards on the Used by tab: every card that holds the book as its own or links it. */
+export function usedByRows(characters: Character[], bookId: ID): { id: ID; name: string; own: boolean }[] {
+  return bookUsage(characters, bookId).users.map((c) => ({ id: c.id, name: c.name, own: c.embeddedLorebookId === bookId }))
+}

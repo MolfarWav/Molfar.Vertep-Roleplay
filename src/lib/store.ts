@@ -29,7 +29,8 @@ import {
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
 import { adoptMarkedSections, compileIfWrittenElsewhere } from './profile'
-import { shellLocale } from './shell-bridge'
+import { canOpenModelSettings, openModelSettings, shellLocale } from './shell-bridge'
+import { contextNotice, parseTooSmall, type TooSmall } from './context-notice'
 import {
   j, fetchModels, fetchImageModels, fetchEngineConnections, type ModelFavorite, fetchBootstrap, connectStreams, ApiError, reloadWithReason,
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
@@ -432,6 +433,20 @@ let distReloadPending = false
 let distReloadArmed = false
 /** in-flight generation controllers by chat — Stop aborts the matching one */
 const activeGens = new Map<ID, AbortController>()
+
+/** The engine found the prompt too big for the model's context window even with the history cut down to its last
+ *  message: say so once (one toast, replaced when it comes again) and name the ways out. */
+function noticeContextTooSmall(raw: unknown, model: string | null | undefined, lang: Lang) {
+  const ts: TooSmall | null = parseTooSmall(raw)
+  if (!ts) return
+  const { title, description } = contextNotice(ts, (key, vars) => t(key, lang, vars))
+  toast.warning(title, {
+    id: 'context-too-small',
+    description,
+    duration: 20_000,
+    ...(canOpenModelSettings() ? { action: { label: t('ctx.small.open', lang), onClick: () => { void openModelSettings(model).catch(() => {}) } } } : {}),
+  })
+}
 
 /** The relationship dashboard notes when its prompt insert did not fit the
  *  user's token limit; say once what was left out and whether a bigger limit would help. */
@@ -2922,12 +2937,15 @@ async function runStream(
     committedRes = res
     await refreshChat(set, get, chatId)
     committed = true
+    noticeContextTooSmall((res as Record<string, unknown>)?.tooSmall, get().model, resolveLanguage(get().settings.language))
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
       stoppedRuns.add(chatId)
       return false // stopped by the user
     }
     toast.error(String((e as Error).message ?? e))
+    // a model that refused (or never answered) a prompt that did not fit its window: explain why, next to the error
+    noticeContextTooSmall((e as { data?: Record<string, unknown> }).data?.tooSmall, get().model, resolveLanguage(get().settings.language))
     await refreshChat(set, get, chatId)
   } finally {
     activeGens.delete(chatId)

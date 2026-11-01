@@ -66,7 +66,7 @@
         },
         {
           "path": "src/components/character/card-model-panel.tsx",
-          "lines": "20-20",
+          "lines": "19-19",
           "quote": "\"Model for this card's tasks\" (GitHub #104): the model Structure it"
         }
       ]
@@ -113,7 +113,7 @@
         },
         {
           "path": "src/components/views/character-editor.tsx",
-          "lines": "470-470",
+          "lines": "443-443",
           "quote": "EDITOR_TABS.filter((tabName) => !(c.isGroup && (tabName === 'profile' || tabName === 'soul' || tabName === 'memory'))).map((tabName) => {"
         }
       ]
@@ -134,8 +134,8 @@
         "uk": "Імпортуйте картки з файлів чи посилань (Chub, RisuRealm, CharaVault, прямий файл). Експортуйте будь-яку картку як PNG з вбудованим JSON."
       },
       "where": {
-        "en": "Characters section → Import (or the ⋮ menu on a phone); export from the card's tile or editor.",
-        "uk": "Розділ «Персонажі» → Імпорт (або меню ⋮ на телефоні); експорт з плитки картки або редактора."
+        "en": "Characters section → ⋯ menu → Import (the same on a phone and on desktop); export from the card's tile or editor.",
+        "uk": "Розділ «Персонажі» → меню ⋯ → Імпорт (так само на телефоні й на комп’ютері); експорт з плитки картки або редактора."
       },
       "details": {
         "en": "Import from a file accepts PNG or JSON cards, single or bulk. Import from a link reads Chub, RisuRealm, CharaVault or a direct file link; JannyAI links need a manual browser download. Each result shows a toast with the card name and notes. Export writes a V2 PNG card with the card data stored inside the picture itself.",
@@ -149,17 +149,17 @@
       "sources": [
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "133-133",
+          "lines": "113-113",
           "quote": "Import cards from links: chub, RisuRealm, CharaVault or a direct file"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "164-164",
+          "lines": "144-144",
           "quote": "Real import (PNG and JSON cards, single or bulk): shared with Home."
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "167-167",
+          "lines": "147-147",
           "quote": "Real export: V2 PNG card with the JSON spliced into a tEXt chunk."
         }
       ]
@@ -195,17 +195,17 @@
       "sources": [
         {
           "path": "src/components/views/marketplace-view.tsx",
-          "lines": "30-30",
+          "lines": "31-31",
           "quote": "One marketplace listing, normalized by the plugin from whatever the"
         },
         {
           "path": "src/components/views/marketplace-view.tsx",
-          "lines": "85-85",
+          "lines": "86-86",
           "quote": "The first three are catalogs the engine plugin reads;"
         },
         {
           "path": "src/components/views/marketplace-view.tsx",
-          "lines": "101-101",
+          "lines": "102-102",
           "quote": "Sources with the tag picker."
         }
       ]
@@ -230,8 +230,8 @@
         "uk": "Меню → Персонажі."
       },
       "details": {
-        "en": "Tags have a two-row chip display: a hidden copy measures how many fit, and the rest hides behind \"All tags\". Sorting options include recent, A–Z, newest, oldest, favorites, chats, tokens and random. Batch select exports the picked cards as one file or deletes them in one go. Favorite state is saved in the card; favorites appear in the compact chat switcher in the chat header.",
-        "uk": "Теги мають дворядковий показ фішок: прихована копія вимірює, скільки вміщається, решта ховається за «Усі теги». Варіанти сортування: останні, А–Я, найновіші, найстаріші, обрані, чати, токени й випадково. Пакетний вибір експортує обрані картки одним файлом або видаляє їх разом. Обраний стан зберігається в картці; обрані з’являються в компактному перемикачі чатів у заголовку чату."
+        "en": "Tags have a two-row chip display: a hidden copy measures how many fit, and the rest hides behind \"All tags\". Sorting options include recent, A–Z, newest, oldest, favorites, chats, tokens and random. Batch select exports the picked cards as one file, moves them to a folder or deletes them in one go. The folder row above the list has All, Favourites, your folders with their counts, No folder and a New folder chip. Favorite state is saved in the card; favorites appear in the compact chat switcher in the chat header.",
+        "uk": "Теги мають дворядковий показ фішок: прихована копія вимірює, скільки вміщається, решта ховається за «Усі теги». Варіанти сортування: останні, А–Я, найновіші, найстаріші, обрані, чати, токени й випадково. Пакетний вибір експортує обрані картки одним файлом, переносить їх до папки або видаляє разом. Рядок папок над списком: Усі, Улюблені, ваші папки з кількістю, Без папки та кнопка Нова папка. Обраний стан зберігається в картці; обрані з’являються в компактному перемикачі чатів у заголовку чату."
       },
       "extends": "help.characters",
       "related": [
@@ -241,17 +241,17 @@
       "sources": [
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "95-95",
+          "lines": "62-62",
           "quote": "The Characters section, or the Groups section: the same"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "59-59",
-          "quote": "The tag chips in at most two rows"
+          "lines": "549-549",
+          "quote": "on desktop the tags in use (two rows at most"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "44-44",
+          "lines": "47-47",
           "quote": "SORT_OPTIONS: [SortKey, string][] = ["
         }
       ]
@@ -291,12 +291,12 @@
         },
         {
           "path": "src/components/profile/profile-form.tsx",
-          "lines": "83-83",
+          "lines": "84-84",
           "quote": "{ id: 'identity', title: 'Identity', Icon: IdentificationCard, accent: 'sky', switchable: false }"
         },
         {
           "path": "src/components/character/card-model-panel.tsx",
-          "lines": "45-45",
+          "lines": "44-44",
           "quote": "CollapsibleContent className=\"flex flex-col gap-3 border-t border-border p-3\""
         }
       ]
@@ -378,22 +378,22 @@
       "sources": [
         {
           "path": "src/components/views/character-editor.tsx",
-          "lines": "702-702",
+          "lines": "675-675",
           "quote": "TabsContent value=\"colors\" className=\"flex flex-col gap-3\""
         },
         {
           "path": "src/components/views/character-editor.tsx",
-          "lines": "717-717",
+          "lines": "690-690",
           "quote": "['name', 'Name color'], ['dialogue', 'Dialogue highlight'], ['bubble', 'Bubble tint']"
         },
         {
           "path": "src/components/views/character-editor.tsx",
-          "lines": "737-737",
+          "lines": "710-710",
           "quote": "VoicesEditor voices={c.voices ?? []} onChange={(voices) => up({ voices })}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2819-2819",
+          "lines": "3034-3034",
           "quote": "'voices.title': 'Voices',"
         }
       ]
@@ -534,12 +534,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2820-2820",
+          "lines": "3035-3035",
           "quote": "List who speaks: each one\\'s lines get their own colour."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2825-2825",
+          "lines": "3040-3040",
           "quote": "Colours not picked yet come from a built-in palette, in this order."
         },
         {
@@ -586,17 +586,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "436-436",
+          "lines": "471-471",
           "quote": "Dialogue set off by a dash (— Hello) is coloured like quoted speech, with the author\\'s words between two dashes left plain."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "436-436",
+          "lines": "471-471",
           "quote": "A voice is found when the story spells its name in the other script (Ember as Эмбер)."
         },
         {
           "path": "src/components/markdown.tsx",
-          "lines": "216-216",
+          "lines": "225-225",
           "quote": "carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry"
         }
       ]
@@ -634,12 +634,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3103-3103",
+          "lines": "3385-3385",
           "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6550-6550",
+          "lines": "7492-7492",
           "quote": "\"Чекають на ваше «так» ({n})\""
         },
         {
@@ -649,7 +649,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3195-3195",
+          "lines": "3477-3477",
           "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
         }
       ]
@@ -687,7 +687,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "831-831",
+          "lines": "878-878",
           "quote": "A persona is who you play: name, pronouns and description. “Use this persona” makes it your default and switches the open chat to it."
         },
         {
@@ -697,12 +697,12 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2181-2181",
+          "lines": "2240-2240",
           "quote": "usePersona: (id) => {"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "235-235",
+          "lines": "276-276",
           "quote": "card's `molfar_profile`, written by the Personas page's five questions, its Profile section,"
         }
       ]
@@ -739,22 +739,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "808-808",
+          "lines": "855-855",
           "quote": "A group puts several characters into one chat. Create one with New group; its editor has Overview, Members, Scene, Turns, Lore and Chats."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "244-244",
+          "lines": "312-312",
           "quote": "chat's meta has `groupId` and no `characterId`. Deleting a group deletes its chats; its members stay."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1800-1800",
+          "lines": "1847-1847",
           "quote": "body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1703-1703",
+          "lines": "1855-1855",
           "quote": "'group.ed.noteHint': 'Never sent to the model',"
         }
       ]
@@ -791,22 +791,22 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1824-1824",
+          "lines": "1976-1976",
           "quote": "'group.ed.generationModeNarrator': 'Narrator: one reply voices everyone',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1848-1848",
+          "lines": "2000-2000",
           "quote": "'turns.short.manual': 'You pick',"
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "819-819",
+          "lines": "866-866",
           "quote": "In a group’s Turns tab, Generation mode is either Narrator (one reply voices everyone) or Each in turn."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "250-250",
+          "lines": "318-318",
           "quote": "Who answers: `natural` (whoever the user names, else one pick by talkativeness), `list` (everyone in order), `manual` (only a triggered member)."
         }
       ]
@@ -845,22 +845,22 @@
       "sources": [
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "418-418",
+          "lines": "472-472",
           "quote": "{char.mood && ("
         },
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "419-419",
+          "lines": "473-473",
           "quote": "<Field label={t('dash.mood')}>"
         },
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "421-421",
+          "lines": "475-475",
           "quote": "{char.moodWas && <span className=\"ml-1 text-[11px] text-muted-foreground\">({t('dash.moodWas', { mood: char.moodWas })})</span>}"
         },
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "336-336",
+          "lines": "346-346",
           "quote": "export type Tone = 'scene' | 'people' | 'memory' | 'plot'"
         }
       ]
@@ -898,17 +898,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "628-628",
+          "lines": "663-663",
           "quote": "Quests are the open questions and promises that drive the story: main ones (what it is about now), side ones, and small everyday ones that end by themselves."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "425-425",
+          "lines": "460-460",
           "quote": "Story, move can pick a quest or a step, or add a Twist: something outside the quests."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "652-652",
+          "lines": "687-687",
           "quote": "The arrow beside it picks one open quest to pull on."
         }
       ]
@@ -950,7 +950,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "640-640",
+          "lines": "675-675",
           "quote": "You can add a note, edit one, pin it or mark it important or everyday, and remove it or bring it back."
         }
       ]
@@ -1034,17 +1034,17 @@
       "sources": [
         {
           "path": "src/lib/types.ts",
-          "lines": "247-247",
+          "lines": "253-253",
           "quote": "authorNote: {"
         },
         {
           "path": "src/lib/types.ts",
-          "lines": "249-249",
+          "lines": "255-255",
           "quote": "position: 'before-system' | 'after-system' | 'in-chat'"
         },
         {
           "path": "src/lib/types.ts",
-          "lines": "252-252",
+          "lines": "258-258",
           "quote": "frequency: number"
         }
       ]
@@ -1081,7 +1081,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3005-3005",
+          "lines": "3287-3287",
           "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
         },
         {
@@ -1101,7 +1101,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2144-2144",
+          "lines": "2300-2300",
           "quote": "'lit.set.sizeAuto': 'Auto',"
         }
       ]
@@ -1138,22 +1138,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "734-734",
+          "lines": "769-769",
           "quote": "Record in the chat header (on a phone: Menu) opens the Library record of this chat in a side panel: chapters, facts and proposals, with an option to rebuild"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "628-628",
+          "lines": "715-715",
           "quote": "which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay)."
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "177-177",
+          "lines": "264-264",
           "quote": "Rebuild from scratch no longer empties a chat's record: with no closed scene it refuses to start"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "623-623",
+          "lines": "710-710",
           "quote": "**Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling)"
         }
       ]
@@ -1190,12 +1190,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "468-468",
+          "lines": "503-503",
           "quote": "Litopys follows the scenes you see"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "179-179",
+          "lines": "211-211",
           "quote": "A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`"
         },
         {
@@ -1238,17 +1238,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "688-688",
+          "lines": "723-723",
           "quote": "Litopys, the chronicler, writes a chapter after each scene closes and keeps facts about the story."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2138-2138",
+          "lines": "2294-2294",
           "quote": "'lit.set.proposalsQuiet': 'Apply pins and rewrites quietly',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2140-2140",
+          "lines": "2296-2296",
           "quote": "'lit.set.autoConsolidate': 'Tidy facts automatically',"
         },
         {
@@ -1258,7 +1258,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2144-2144",
+          "lines": "2300-2300",
           "quote": "'lit.set.sizeAuto': 'Auto',"
         }
       ]
@@ -1300,12 +1300,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2027-2027",
+          "lines": "2183-2183",
           "quote": "'lit.mode': 'Library view',"
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "700-700",
+          "lines": "735-735",
           "quote": "Overview shows a chat’s story as a timeline of chapters with its characters beside it."
         }
       ]
@@ -1342,22 +1342,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "710-710",
+          "lines": "745-745",
           "quote": "Facts are things the story has established, each with a type, a weight and who knows it; pin the important ones."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2061-2061",
+          "lines": "2217-2217",
           "quote": "'lit.type.event': 'Event',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2067-2067",
+          "lines": "2223-2223",
           "quote": "'lit.weight.everyday': 'Everyday',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2085-2085",
+          "lines": "2241-2241",
           "quote": "'lit.pstatus.auto': 'Applied by itself',"
         }
       ]
@@ -1394,7 +1394,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "722-722",
+          "lines": "757-757",
           "quote": "The map shows which chats continue which, and it is view-only."
         },
         {
@@ -1404,7 +1404,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2275-2275",
+          "lines": "2437-2437",
           "quote": "'lit.map.hint': 'The map of this chat: the chats it continues above, the ones that continue it below."
         }
       ]
@@ -1442,7 +1442,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "746-746",
+          "lines": "781-781",
           "quote": "World in the chat header (on a phone: Menu) switches on a game master for this chat."
         },
         {
@@ -1457,12 +1457,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "68-68",
+          "lines": "70-70",
           "quote": "'world.level.chaos.hint': 'Anything may happen, whatever the genre. Still never rewrites the story, and waits out explicit scenes.',"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "339-339",
+          "lines": "407-407",
           "quote": "The World DM plugin (`plugins/world/`) keeps the world around the characters for one chat."
         }
       ]
@@ -1499,17 +1499,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "232-232",
+          "lines": "244-244",
           "quote": "In World, the Profiles tab holds the five built-in DMs and your own: open one, change its prompts, roll a block back to the default."
         },
         {
           "path": "src/components/world/world-common.tsx",
-          "lines": "82-82",
+          "lines": "85-85",
           "quote": "A profile's name: a built-in one is its level's, an own one has its own."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "342-342",
+          "lines": "410-410",
           "quote": "the chat's world book, a normal lorebook with `ownerChatId`"
         }
       ]
@@ -1546,22 +1546,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "242-242",
+          "lines": "254-254",
           "quote": "Start tab drafts records and fronts from its cards or a short interview"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "296-296",
+          "lines": "374-374",
           "quote": "'world.recipe.from-cards.desc': 'The DM reads the cards and their lorebooks and writes what they imply: places, people, factions, a conflict.',"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "381-381",
+          "lines": "484-484",
           "quote": "state.draft` holds a Start in progress or waiting for the player"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "393-393",
+          "lines": "496-496",
           "quote": "world/library/w-<id>.json`: a saved world"
         }
       ]
@@ -1598,12 +1598,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "252-252",
+          "lines": "287-287",
           "quote": "Backgrounds tab links a folder, plans a set of pictures for its places"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "389-389",
+          "lines": "467-467",
           "quote": "'world.bg.setHint': 'The DM plans names and prompts for the places you pick; you check the plan, then the pictures are drawn one by one.',"
         },
         {
@@ -1613,12 +1613,12 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "374-374",
+          "lines": "477-477",
           "quote": "Backgrounds of a world: a folder of the app's Backgrounds library"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "490-490",
+          "lines": "571-571",
           "quote": "'world.bg.auto': 'Change the background by scene'"
         }
       ]
@@ -1655,22 +1655,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "507-507",
+          "lines": "542-542",
           "quote": "the arrows flip between its versions (swipes). The right arrow on the last version asks the model for a new one"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "570-570",
+          "lines": "583-583",
           "quote": "const showSwipes = !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "191-191",
+          "lines": "190-190",
           "quote": "swipeCountAllMessages: false,"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "1093-1093",
+          "lines": "1108-1108",
           "quote": "Swipe {index + 1}"
         }
       ]
@@ -1707,22 +1707,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "519-519",
+          "lines": "554-554",
           "quote": "press Edit to change its text, then Save. The buttons appear when you point at a message"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "534-534",
+          "lines": "547-547",
           "quote": "setDraft(swipe?.content ?? '')"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "828-828",
+          "lines": "841-841",
           "quote": "<Button size=\"sm\" onClick={() => { editMessage(chat.id, message.id, draft); setEditing(false) }}>Save</Button>"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "964-964",
+          "lines": "979-979",
           "quote": "aria-label={t('msg.edit')}"
         }
       ]
@@ -1759,7 +1759,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "531-531",
+          "lines": "566-566",
           "quote": "redoes the last reply and lets you say what to change. The hint goes to the model for that one reply"
         },
         {
@@ -1811,7 +1811,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "543-543",
+          "lines": "578-578",
           "quote": "holds Copy text, Translate, Speak, Bookmark, Fork here, Generation data, Prompt peek, Hide from AI, Move up and down"
         },
         {
@@ -1821,12 +1821,12 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "606-606",
+          "lines": "619-619",
           "quote": "<DropdownMenuContent align=\"end\" className=\"w-64\">"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "964-964",
+          "lines": "979-979",
           "quote": "<Button variant=\"ghost\" size=\"sm\" className=\"ls-act\" aria-label={t('msg.edit')} onClick={startEdit}>"
         }
       ]
@@ -1863,22 +1863,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "555-555",
+          "lines": "590-590",
           "quote": "starts a new chat from that message and leaves the original unchanged"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "639-639",
+          "lines": "665-665",
           "quote": "{ key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "579-579",
+          "lines": "592-592",
           "quote": "case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1653-1653",
+          "lines": "1700-1700",
           "quote": "toast.success('Forked into a new chat')"
         }
       ]
@@ -1915,7 +1915,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "567-567",
+          "lines": "602-602",
           "quote": "shows the request behind that reply, and Generation data shows its model, tokens, cost and time"
         },
         {
@@ -1930,7 +1930,7 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "1028-1028",
+          "lines": "1043-1043",
           "quote": "<DialogTitle>Generation data</DialogTitle>"
         }
       ]
@@ -1967,7 +1967,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "578-578",
+          "lines": "613-613",
           "quote": "such as /continue, /impersonate, /regenerate and your own shortcuts. Macros like {{char}}, {{user}} and {{roll:d20}} are filled in"
         },
         {
@@ -1977,7 +1977,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2991-2991",
+          "lines": "3273-3273",
           "quote": "'guide.help.reference': 'All commands and macros',"
         },
         {
@@ -2019,22 +2019,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "590-590",
+          "lines": "625-625",
           "quote": "holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "633-633",
+          "lines": "659-659",
           "quote": "{ key: 'note', icon: Note, label: \"Author's note\", onSelect: () => setNotesOpen(true) },"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "646-646",
+          "lines": "672-672",
           "quote": "{ key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "649-649",
+          "lines": "675-675",
           "quote": "// the story tools sit in the header (desktop, when it is wide enough) or on top of the phone menu; the lists keep the rest"
         }
       ]
@@ -2070,7 +2070,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "130-130",
+          "lines": "129-129",
           "quote": "the second continues the first and gets the earlier story as backstory. Dashed wires are branches forked from a message."
         },
         {
@@ -2122,7 +2122,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1097-1097",
+          "lines": "1181-1181",
           "quote": "'canvas.prompt.state.presetOff': 'Off in the preset'"
         }
       ]
@@ -2168,7 +2168,7 @@
         },
         {
           "path": "src/lib/engine.ts",
-          "lines": "1086-1086",
+          "lines": "1113-1113",
           "quote": "export const DEFAULT_PROMPT_HISTORY: PromptBoardHistory = { lastN: 0, only: 'all', thinking: true }"
         }
       ]
@@ -2205,22 +2205,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "162-162",
+          "lines": "161-161",
           "quote": "Each card is one part: preset sections, card fields, persona, lorebooks. Most have a switch that turns the part off for this chat only."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "150-150",
+          "lines": "149-149",
           "quote": "The board shows what this chat sends to the model with its next reply."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "171-171",
+          "lines": "170-170",
           "quote": "Everything that stays on, in order, with the total tokens."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "180-180",
+          "lines": "179-179",
           "quote": "Details list what was taken and why something was left out, and show the text itself."
         }
       ]
@@ -2241,11 +2241,11 @@
         "uk": "Сторінка «Лорбуки»; редактор картки → вкладка «Лорбук»."
       },
       "details": {
-        "en": "An entry fires when one of its keys turns up in the scanned messages. Keys match whole words, and Ukrainian and Russian keys match every form of their words; secondary keys narrow a match down with AND or NOT logic. An entry can fire on a key, be sent every message (keep those few and short), or fire by meaning. Its position decides where the text goes: around the character definition, around the examples or the author's note, or at a depth inside the chat; when the preset has no place for it, the entry joins the end of the system block. A percentage is the chance it fires when triggered. Sticky keeps it on for more messages, cooldown waits before it fires again, delay holds back the first firing. The book's settings cap how much room entries may take, set how deep the scan goes, and can let entries trigger each other. Import and export use JSON; a book can also be embedded in a card, and links live on the card or group only.",
-        "uk": "Запис спрацьовує, коли один із його ключів трапляється у просканованих повідомленнях. Ключі збігаються цілими словами. Українські й російські збігаються в усіх формах слова. Другорядні ключі звужують збіг за логікою «І» чи «НЕ». Запис може спрацьовувати на ключ, надсилатися щоразу (тримайте таких небагато й коротко) чи вмикатися за змістом. Позиція визначає, куди піде текст: біля опису персонажа, прикладів чи нотатки автора, або на глибині всередині чату. Якщо пресет не має для неї місця, запис стає в кінець системного блоку. Відсоток — це шанс спрацювати після тригера. Липкість тримає запис увімкненим далі, перезарядка чекає перед повторним спрацюванням, затримка — перед першим. Налаштування книги обмежують місце записів, задають глибину сканування й дозволяють записам вмикати одне одного. Імпорт та експорт — у JSON; книгу можна й вбудувати в картку, а прив’язки живуть лише на картці чи групі."
+        "en": "An entry fires when one of its keys turns up in the scanned messages. Keys match whole words, and Ukrainian and Russian keys match every form of their words; secondary keys narrow a match down with AND or NOT logic. An entry can fire when one of its keys is mentioned, be always on (keep those few and short), or fire by meaning. Its position decides where the text goes: around the character definition, around the examples or the author's note, or at a depth inside the chat; when the preset has no place for it, the entry joins the end of the system block. A percentage is the chance it fires when triggered. Sticky keeps it on for more messages, cooldown waits before it fires again, delay holds back the first firing. The book's Rules tab caps how much room entries may take, sets how deep the scan goes, and can let entries trigger each other. Import and export use JSON; a book can also be embedded in a card, and links live on the card or group only.",
+        "uk": "Запис спрацьовує, коли один із його ключів трапляється у просканованих повідомленнях. Ключі збігаються цілими словами. Українські й російські збігаються в усіх формах слова. Другорядні ключі звужують збіг за логікою «І» чи «НЕ». Запис може спрацьовувати, коли згадано його ключ, бути завжди увімкненим (тримайте таких небагато й коротко) чи спрацьовувати за змістом. Позиція визначає, куди піде текст: біля опису персонажа, прикладів чи нотатки автора, або на глибині всередині чату. Якщо пресет не має для неї місця, запис стає в кінець системного блоку. Відсоток — це шанс спрацювати після тригера. Липкість тримає запис увімкненим далі, перезарядка чекає перед повторним спрацюванням, затримка — перед першим. Вкладка «Правила» книги обмежує місце записів, задає глибину сканування й дозволяє записам вмикати одне одного. Імпорт та експорт — у JSON; книгу можна й вбудувати в картку, а прив’язки живуть лише на картці чи групі."
       },
       "aliases": {
-        "en": "lorebook entry keyword secondary keys position probability sticky cooldown delay constant vectorized",
+        "en": "lorebook entry keyword secondary keys position probability sticky cooldown delay constant vectorized always on when mentioned by meaning chance rules tokens",
         "uk": "лорбук запис ключове слово другорядні ключі позиція ймовірність липкість перезарядка затримка"
       },
       "extends": "help.lorebooks",
@@ -2257,17 +2257,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "857-857",
+          "lines": "904-904",
           "quote": "A lorebook is a set of entries about your world. An entry joins the request when its keywords show up in the chat, or always if you set it so."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "323-323",
+          "lines": "391-391",
           "quote": "Percent chance to fire when keyed; omit for always."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2489-2489",
+          "lines": "2707-2707",
           "quote": "Grey keywords: words in the chat that trigger the entry."
         }
       ]
@@ -2304,17 +2304,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "869-869",
+          "lines": "916-916",
           "quote": "The Global switch adds a book to every chat, whichever character or persona is in it."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2486-2486",
+          "lines": "2704-2704",
           "quote": "'lore.global.info': 'A global book is added to every chat, whichever character or persona is in it."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "293-293",
+          "lines": "361-361",
           "quote": "Links live on the card (or the group) only"
         }
       ]
@@ -2351,17 +2351,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "881-881",
+          "lines": "928-928",
           "quote": "Paste a message to see which entries of a book would fire and why, or what was held back."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2490-2490",
+          "lines": "2708-2708",
           "quote": "'lore.testKeys': 'Test triggers'"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "314-314",
+          "lines": "382-382",
           "quote": "Words of 3 letters or fewer match only exactly."
         }
       ]
@@ -2398,17 +2398,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "895-895",
+          "lines": "942-942",
           "quote": "A preset is the set of instructions and settings the model gets with every reply."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "410-410",
+          "lines": "513-513",
           "quote": "A preset is the prompt the model gets around the chat, plus sampler settings."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1059-1059",
+          "lines": "1119-1119",
           "quote": "Shows the final request this preset builds for a chat, so you can see what the model really gets."
         }
       ]
@@ -2449,17 +2449,17 @@
         },
         {
           "path": "src/components/views/regex-view.tsx",
-          "lines": "491-491",
+          "lines": "490-490",
           "quote": "placeholder=\"replacement: $1, $2 for groups, {{match}} for the trimmed match\""
         },
         {
           "path": "src/components/views/regex-view.tsx",
-          "lines": "23-27",
+          "lines": "25-29",
           "quote": "[\"userInput\", \"User input\"], [\"aiOutput\", \"AI output\"], [\"slash\", \"Slash commands\"], [\"wi\", \"World info\"], [\"reasoning\", \"Reasoning\"],"
         },
         {
           "path": "src/components/views/regex-view.tsx",
-          "lines": "558-558",
+          "lines": "557-557",
           "quote": "Rewrites the message itself when it is saved. Existing messages are not touched."
         }
       ]
@@ -2492,22 +2492,22 @@
       "sources": [
         {
           "path": "src/components/views/quickreplies-view.tsx",
-          "lines": "144-144",
+          "lines": "142-142",
           "quote": "on app startup, after you send a message, after an AI reply commits, and when a chat opens."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1897-1897",
+          "lines": "1955-1955",
           "quote": ".filter((r) => r.mode === 'send' && r.autoExecute?.[event])"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2974-2974",
+          "lines": "3046-3046",
           "quote": "Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1895-1895",
+          "lines": "1953-1953",
           "quote": ".filter((set) => set.enabled)"
         }
       ],
@@ -2544,7 +2544,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2319-2319",
+          "lines": "2481-2481",
           "quote": "Failures, Library suggestions and proposed souls show up here."
         },
         {
@@ -2554,12 +2554,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2348-2348",
+          "lines": "2510-2510",
           "quote": "Dismiss (the proposal is deleted)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2359-2359",
+          "lines": "2521-2521",
           "quote": "a background job fails: the World DM, the Library, the scene state or a soul rating"
         }
       ],
@@ -2594,7 +2594,7 @@
       "sources": [
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "400-400",
+          "lines": "397-397",
           "quote": "Theme colors are applied live over the base design tokens."
         },
         {
@@ -2634,8 +2634,8 @@
         "uk": "Теги — це мітки на картках: їх задають у полі картки та в керуванні тегами. Чати можна складати в теки на сторінці «Чати»."
       },
       "details": {
-        "en": "In a card, type tags into the field labelled “Tags (comma separated)”, with a comma between them.\n\nIn the tag manager, a tag whose visibility is switched off leaves the tag row of the Characters page.\n\nFolders hold chats. Name a new folder on the Chats page; it opens at once. Deleting a folder does not delete its chats: they stay, just without a folder.",
-        "uk": "На картці впишіть теги в поле «Tags (comma separated)», через коми.\n\nУ «Керувати тегами» тег, у якого вимкнено видимість, зникає з рядка тегів на сторінці персонажів.\n\nТеки складаються з чатів. Введіть назву, щоб створити теку на сторінці «Чати»: вона одразу відкривається. Видалення теки не видаляє її чати: вони лишаються без теки."
+        "en": "In a card, type tags into the field labelled “Tags (comma separated)”, with a comma between them.\n\nIn the tag manager, a tag whose visibility is switched off leaves the tag row of the Characters page.\n\nOn the Characters page, a tag ticked as a folder in the tag manager shows as a folder in the row above the list, with a count. A card can sit in several folders: Move to folder in its ⋯ menu (or in the selection bar) adds one, and No folder takes them all off. New folder makes a tag and ticks it as a folder at once.\n\nFolders hold chats. Name a new folder on the Chats page; it opens at once. Deleting a folder does not delete its chats: they stay, just without a folder.",
+        "uk": "На картці впишіть теги в поле «Tags (comma separated)», через коми.\n\nУ «Керувати тегами» тег, у якого вимкнено видимість, зникає з рядка тегів на сторінці персонажів.\n\nНа сторінці персонажів тег, позначений у «Керувати тегами» як папка, показується папкою в рядку над списком, з кількістю. Картка може бути в кількох папках. «Перенести до папки» в її меню ⋯ (або в панелі вибору) додає одну, а «Без папки» прибирає всі. «Нова папка» створює тег і одразу позначає його папкою.\n\nТеки складаються з чатів. Введіть назву, щоб створити теку на сторінці «Чати»: вона одразу відкривається. Видалення теки не видаляє її чати: вони лишаються без теки."
       },
       "related": [
         "help.characters",
@@ -2645,23 +2645,33 @@
       "sources": [
         {
           "path": "src/components/views/character-editor.tsx",
-          "lines": "552-552",
+          "lines": "525-525",
           "quote": "Tags (comma separated)"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "260-260",
+          "lines": "252-252",
           "quote": "meta.get(name)?.visible !== false"
         },
         {
           "path": "src/components/views/chats-view.tsx",
-          "lines": "100-100",
+          "lines": "104-104",
           "quote": "setActiveFolderId(addFolder(name, 'chats'))"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2424-2424",
+          "lines": "2494-2494",
           "quote": "chats: s.chats.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))"
+        },
+        {
+          "path": "src/components/views/characters-list-parts.tsx",
+          "lines": "92-92",
+          "quote": "testId=\"folder-new\""
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "340-340",
+          "quote": "characters.folders.move"
         }
       ],
       "where": {
@@ -2710,12 +2720,12 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1289-1289",
+          "lines": "1336-1336",
           "quote": "if ((outMode === 'inputs' || outMode === 'both') && effective.trim()) {"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "196-196",
+          "lines": "195-195",
           "quote": "targetLanguage: 'Spanish'"
         }
       ]
@@ -2756,12 +2766,12 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "195-195",
+          "lines": "194-194",
           "quote": "provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "375-375",
+          "lines": "391-391",
           "quote": "if (!settings.tts.autoPlay || settings.tts.provider === 'None' || isStreaming || !chat) return"
         },
         {
@@ -2818,7 +2828,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2939-2939",
+          "lines": "3011-3011",
           "quote": "Turn on Tools → Image Generation to see it."
         }
       ]
@@ -2920,7 +2930,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "507-507",
+          "lines": "588-588",
           "quote": "Stores each image again as WebP in the asset store: smaller, and out of library.json. GIFs and animated images stay as they are."
         }
       ]
@@ -2966,7 +2976,7 @@
         },
         {
           "path": "AGENTS.md",
-          "lines": "244-244",
+          "lines": "284-284",
           "quote": "Each app starts with every shared server off and opts in per server"
         },
         {
@@ -3122,7 +3132,7 @@
         },
         {
           "path": "src/components/views/presets-view.tsx",
-          "lines": "325-325",
+          "lines": "326-326",
           "quote": "<TabsTrigger value=\"utility\" className=\"flex-none px-2.5 text-xs\">Utility prompts</TabsTrigger>"
         }
       ],
@@ -3265,12 +3275,12 @@
       "sources": [
         {
           "path": "src/components/chat/chat-quick-bar.tsx",
-          "lines": "360-360",
+          "lines": "358-358",
           "quote": "Star models in Settings › Connections and models to switch between them here."
         },
         {
           "path": "src/components/chat/chat-quick-bar.tsx",
-          "lines": "158-158",
+          "lines": "156-156",
           "quote": "void setChatModel(chatId, ref)"
         },
         {
@@ -3280,7 +3290,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3184-3184",
+          "lines": "3371-3371",
           "quote": "the old connection profiles (library.json) become the engine's quick"
         }
       ]
@@ -3298,16 +3308,16 @@
         "uk": "налаштування розділи параметри вигляд шрифт поведінка стрімінг пам’ять теми кольори css завдання картки імпорт дані резервна копія скидання гайд тури"
       },
       "short": {
-        "en": "Settings has eleven sections: Appearance, Chat Behavior, Streaming, Memory, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data and Guide. The search box at the top filters them.",
-        "uk": "У налаштуваннях одинадцять розділів: Appearance, Chat Behavior, Streaming, Memory, Themes, Prose Colors, Custom CSS, «Завдання картки», Import, Data і «Гайд». Рядок пошуку зверху їх фільтрує."
+        "en": "Settings has ten sections: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data and Guide. The search box at the top filters them.",
+        "uk": "У налаштуваннях десять розділів: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, «Завдання картки», Import, Data і «Гайд». Рядок пошуку зверху їх фільтрує."
       },
       "where": {
         "en": "The Settings tab.",
         "uk": "Вкладка «Налаштування»."
       },
       "details": {
-        "en": "- Appearance: interface language, chat font, font and line spacing, chat width, avatars, quote style.\n- Chat Behavior: switches such as “Send on Enter”, “Auto-scroll” and “Confirm Deletions”.\n- Streaming: “Show Replies” as the model writes them or when they are finished, “Streaming FPS”, “Auto-expand Thinking”.\n- Memory: the Litopys settings now live in the Library, next to the record they shape.\n- Themes, Prose Colors, Custom CSS: the look of the whole app and of the story text. See the Themes article.\n- Card tasks: the model that “Structure it”, “Fill empty” and the Soul rating use when a card has none of its own.\n- Import: “Backup zip” brings back everything at once, and other rows import single files.\n- Data: export and restore your Roleplay data as a zip, and reset the look and local settings.\n- Guide: show or hide the short tours, and show “What’s new” again.\n\nThe Data zip covers Roleplay only. The whole profile, with every app and connection, is saved in the Backup section of the Molfar Vertep settings.",
-        "uk": "- Appearance: мова інтерфейсу, шрифт чату, розмір шрифту й міжрядки, ширина чату, аватари, стиль лапок.\n- Chat Behavior: перемикачі, як-от «Send on Enter», «Auto-scroll» і «Confirm Deletions».\n- Streaming: «Show Replies» — під час написання чи коли відповідь готова, «Streaming FPS», «Auto-expand Thinking».\n- Memory: налаштування Літопису тепер у Бібліотеці, поряд із записом, який вони змінюють.\n- Themes, Prose Colors, Custom CSS: вигляд застосунку й тексту історії. Дивіться статтю про теми.\n- «Завдання картки»: модель для «Структурувати», «Заповнити порожні» й оцінки Soul, якщо в картки немає власної.\n- Import: «Backup zip» повертає все одразу, інші рядки імпортують окремі файли.\n- Data: експорт і відновлення даних Roleplay одним zip, а також скидання вигляду й локальних налаштувань.\n- «Гайд»: показати чи сховати короткі тури, показати «Що нового» знову.\n\nZip у Data охоплює лише Roleplay. Увесь профіль, з усіма застосунками й підключеннями, зберігає розділ Backup у налаштуваннях Molfar Vertep."
+        "en": "- Appearance: interface language, chat font, font and line spacing, chat width, avatars, quote style.\n- Chat Behavior: switches such as “Send on Enter”, “Auto-scroll” and “Confirm Deletions”.\n- Streaming: “Show Replies” as the model writes them or when they are finished, “Streaming FPS”, “Auto-expand Thinking”.\n- Themes, Prose Colors, Custom CSS: the look of the whole app and of the story text. See the Themes article.\n- Card tasks: the model that “Structure it”, “Fill empty” and the Soul rating use when a card has none of its own.\n- Import: “Backup zip” brings back everything at once, and other rows import single files.\n- Data: export and restore your Roleplay data as a zip, and reset the look and local settings.\n- Guide: show or hide the short tours, and show “What’s new” again.\n\nThe Data zip covers Roleplay only. The whole profile, with every app and connection, is saved in the Backup section of the Molfar Vertep settings.",
+        "uk": "- Appearance: мова інтерфейсу, шрифт чату, розмір шрифту й міжрядки, ширина чату, аватари, стиль лапок.\n- Chat Behavior: перемикачі, як-от «Send on Enter», «Auto-scroll» і «Confirm Deletions».\n- Streaming: «Show Replies» — під час написання чи коли відповідь готова, «Streaming FPS», «Auto-expand Thinking».\n- Themes, Prose Colors, Custom CSS: вигляд застосунку й тексту історії. Дивіться статтю про теми.\n- «Завдання картки»: модель для «Структурувати», «Заповнити порожні» й оцінки Soul, якщо в картки немає власної.\n- Import: «Backup zip» повертає все одразу, інші рядки імпортують окремі файли.\n- Data: експорт і відновлення даних Roleplay одним zip, а також скидання вигляду й локальних налаштувань.\n- «Гайд»: показати чи сховати короткі тури, показати «Що нового» знову.\n\nZip у Data охоплює лише Roleplay. Увесь профіль, з усіма застосунками й підключеннями, зберігає розділ Backup у налаштуваннях Molfar Vertep."
       },
       "related": [
         "kb.themes",
@@ -3317,7 +3327,7 @@
       "sources": [
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "135-135",
+          "lines": "134-134",
           "quote": "{ id: \"prose\", label: \"Prose Colors\" },"
         },
         {
@@ -3327,22 +3337,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2186-2186",
-          "quote": "'lit.settings.moved': 'Litopys settings are in the Library now, next to the record they shape.',"
-        },
-        {
-          "path": "src/lib/i18n.ts",
-          "lines": "2791-2791",
+          "lines": "3004-3004",
           "quote": "'ct.app.title': 'Model for card tasks',"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "605-605",
+          "lines": "601-601",
           "quote": "Everything at once: characters, chats, personas, presets, worlds, regex"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "731-731",
+          "lines": "727-727",
           "quote": "These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use."
         }
       ]

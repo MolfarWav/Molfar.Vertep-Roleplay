@@ -1,5 +1,5 @@
 import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
 
 /** The universal avatar fallback — every speaker/persona/app identity
  *  without its own image resolves to this, so nothing ever renders as a
@@ -25,6 +25,11 @@ export function onImageError(img: HTMLImageElement, giveUp: () => void, graceMs 
     if (img.isConnected && !(img.complete && img.naturalWidth > 0)) giveUp()
   }, graceMs)
 }
+
+/** tailwind-merge must know the type tokens (globals.css) are font sizes, else `text-caption` loses to a later text colour. */
+const twMerge = extendTailwindMerge({
+  extend: { classGroups: { 'font-size': [{ text: ['caption', 'body', 'heading', 'title', 'display'] }] } },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

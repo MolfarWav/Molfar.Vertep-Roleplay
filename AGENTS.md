@@ -37,9 +37,13 @@ update at all.
 ## What this app is
 
 The roleplay studio, v4: a power-user roleplay UI. Left nav rail (components/shell/
-sections.ts is the one list, items carry a `group`: Home, Chats | Characters,
-Marketplace, Personas, Lorebooks, Litopys, Canvas, World | Presets, Connections | Shortcuts, Tools |
-Settings pinned at the bottom) + Ctrl+K command palette. From 1280px the rail is
+sections.ts is the one list, items carry a `group` and a `hue`: Home, Chats | Characters,
+Groups, Marketplace, Personas (the people) | Lorebooks, Litopys, Canvas, World, Agents (the technical block;
+Agents is a link to Canvas on its Agents board, `board: 'agents'`, current only while that board is open, state in
+lib/canvas-board.ts) | Presets | Shortcuts, Tools; Inbox and Help sit at the bottom; the Roleplay settings page
+(`settings`, group `'none'`) has no rail item: it opens from the Roleplay settings button in Home's header and the phone menu, and the engine
+issue draft docs/ENGINE-ISSUE-shell-settings-apps.md asks for an Apps entry in the shell's Settings) + Ctrl+K command
+palette. Every item has its own icon hue (rail-hues.ts). From 1280px the rail is
 206px with labels (Kurale) and ornament dividers; below that it is icons with
 tooltips; on phones it is the bottom tab bar. On desktop a section always opens
 as a DRAWER over the page (Home, Chats or a chat stays mounted underneath, with
@@ -66,7 +70,7 @@ is what links, the store and older builds pass), and `src/lib/editor-tabs.ts`
 buttons, not Base UI tabs, because a group holds more than one panel.
 The World section (components/world/, `world` in the rail) is the hub of the World DM plugin: chats
 with a DM on the left (top switch Chats | Profiles), one chat's Overview (the same controls as the chat's
-World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit profile button; the settings are a list of `SettingRow`s in folds with an (i) popover for the long hint, `world-setting-row.tsx`), World book (the
+World DM sheet, `world-controls.tsx`: a DM switch, a profile picker, an Edit profile button; the settings are a list of `SettingRow`s in folds with an (i) popover for the long hint, `ui/setting-row.tsx`), World book (the
 world book's records, editable by hand; `world-records.tsx`) and Runs (history,
 tokens, errors) on the right, and World settings (the play model for all chats, a model test). The Profiles
 tab (`world-profiles.tsx`, data in `lib/world-profiles.ts`) edits the five built-in levels and the player's
@@ -139,6 +143,11 @@ JSON goes through the import, anything else becomes the description, cut at 1200
 Structure it by `pendingStructure`). The questionnaire is the no-model path.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
 to it on every change. Messages are a FLAT list with swipes.
+
+Home (`views/home-view.tsx`, blocks in `components/home/block-*.tsx`) is a bento: continue (the one filled button), a random
+library card, a Marketplace card (`lib/home-market.ts`, one request an hour, left out when offline or switched off), a
+world tile on a library picture, waiting on you, open quests gathered from the 12 latest chats (one request, GET /dashboard/quests; a row opens its chat), favourites, What's new and a tip. Its order,
+widths and hidden blocks are per user in `settings.homeLayout`, changed in Customize; the rules are in `lib/home-layout.ts`.
 
 ## Phase status
 
@@ -238,6 +247,10 @@ earlier ones by name.
   but leave the prompt. Auto mode compacts when a send reports `trimmed`
   (history fell out of the context) or every `interval` turns. The per-chat
   facts vault (/memories) is unchanged, shown under Memory → Facts.
+  When the history is already down to its last message and the prompt still exceeds the model's window (a huge card,
+  a reply reserve as big as the window), the engine does not stop the turn: it sends what fits and reports
+  `tooSmall: {window, need, budget, reply}` in the send/next answer (and in the 503 body when the model fails);
+  the store shows one warning toast with the ways out (`lib/context-notice.ts`).
   Summaries and fact extraction (manual and automatic) run on
   ui.memory.model when set (memoryModelOf in the engine plugin), otherwise on
   the chat's model.

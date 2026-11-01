@@ -175,9 +175,8 @@ export function withBuiltinThemes(themes: ThemePreset[]): ThemePreset[] {
 
 // No seeded backgrounds — the picker shows None + whatever the user uploads.
 
-// ── Data bank / memory / achievements ──
-// No seeds: the data bank starts EMPTY (uploads register real files), and
-// achievements are DERIVED from real usage in home-view (no fake unlocks).
+// ── Data bank / memory ──
+// No seeds: the data bank starts EMPTY (uploads register real files).
 
 // ── Default settings ──
 export function defaultSettings(): AppSettings {

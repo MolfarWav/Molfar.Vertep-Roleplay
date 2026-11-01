@@ -21,7 +21,8 @@ import {
   type ProfileDraft,
 } from '@/lib/world-profiles'
 import { type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
-import { DiceFields, NumField } from './dice-fields'
+import { NumControl } from '@/components/ui/setting-row'
+import { DiceFields } from './dice-fields'
 import { LEVEL_ICON, LEVEL_TONE, LevelChip, useProfileHint, useProfileName } from './world-common'
 import { OwnMark } from './world-profile-picker'
 
@@ -119,11 +120,11 @@ function DefaultsSection({ base, defaults, onChange }: { base: WorldLevel; defau
       </div>
       <label className="flex items-center justify-between gap-3 text-sm">
         <span>{t('world.everyN')}</span>
-        <NumField label={t('world.everyN')} value={defaults.everyN} min={1} max={50} onCommit={(n) => onChange({ ...defaults, everyN: n })} />
+        <NumControl label={t('world.everyN')} value={defaults.everyN} min={1} max={50} onCommit={(n) => onChange({ ...defaults, everyN: n })} />
       </label>
       <label className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0">{t('world.still')}<span className="block text-xs text-muted-foreground">{t('world.stillHint')}</span></span>
-        <NumField label={t('world.still')} value={defaults.stagnation} min={0} max={50} onCommit={(n) => onChange({ ...defaults, stagnation: n })} />
+        <NumControl label={t('world.still')} value={defaults.stagnation} min={0} max={50} onCommit={(n) => onChange({ ...defaults, stagnation: n })} />
       </label>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0">{t('world.transition')}<span className="block text-xs text-muted-foreground">{t('world.transitionHint')}</span></span>
@@ -167,7 +168,7 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
       {code && (
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="min-w-0">{t('world.opt.every')}<span className="block text-xs text-muted-foreground">{t('world.opt.everyHint')}</span></span>
-          <NumField label={t('world.opt.every')} value={options.clockEvery} min={CLOCK_MIN} max={CLOCK_MAX} onCommit={(n) => onChange({ ...options, clockEvery: n })} />
+          <NumControl label={t('world.opt.every')} value={options.clockEvery} min={CLOCK_MIN} max={CLOCK_MAX} onCommit={(n) => onChange({ ...options, clockEvery: n })} />
         </label>
       )}
       <div className="flex items-center justify-between gap-3 text-sm">
@@ -178,14 +179,16 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
         <Switch checked={options.deck} onCheckedChange={(v) => onChange({ ...options, deck: v })} aria-label={t('world.prof.opt.deck')} />
       </div>
-      <DiceFields
-        mode={options.dice}
-        stat={options.diceStat}
-        chance={options.diceChance}
-        tilt={options.diceTilt}
-        life={options.diceLife}
-        onChange={(patch) => onChange({ ...options, ...patch })}
-      />
+      <div className="-mx-3 flex flex-col border-t border-border">
+        <DiceFields
+          mode={options.dice}
+          stat={options.diceStat}
+          chance={options.diceChance}
+          tilt={options.diceTilt}
+          life={options.diceLife}
+          onChange={(patch) => onChange({ ...options, ...patch })}
+        />
+      </div>
     </section>
   )
 }

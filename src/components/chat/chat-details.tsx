@@ -1,5 +1,6 @@
 import { Info } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
+import { headerTint } from '@/components/chat/header-tint'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ModelMark } from '@/components/model-mark'
@@ -65,7 +66,7 @@ export function ChatDetailsButton({ title, chatIndex, chatCount, model, cost, co
                     <ContextRing pct={pct} known={!!context && context.total > 0} />
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="icon-sm" aria-label={t('details.open')}>
+                  <Button variant="ghost" size="icon-sm" aria-label={t('details.open')} className={headerTint('sky')}>
                     <Info aria-hidden="true" />
                   </Button>
                 )

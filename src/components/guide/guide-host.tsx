@@ -12,7 +12,7 @@ import {
 } from '@/lib/guide'
 import { APP_VERSION, TIPS, TOURS } from '@/lib/guide-tips'
 import { BOARD_KEY } from '@/components/canvas/canvas-view'
-import { GUIDE_DETAIL_EVENT, GUIDE_MENU_EVENT, GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT } from './events'
+import { GUIDE_DETAIL_EVENT, GUIDE_MENU_EVENT, GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT, GUIDE_SHOW_EVENT } from './events'
 import { HelpList } from './help-list'
 import { useCurrentPlace } from './place'
 import { findTarget } from './target'
@@ -23,7 +23,7 @@ interface CardState { tips: Tip[]; index: number; lastVersion: string }
 
 type Spot =
   /** from: where "Show me" was pressed, so the button back goes there */
-  | { kind: 'single'; tip: Tip; from: 'card' | 'help' }
+  | { kind: 'single'; tip: Tip; from: 'card' | 'help' | 'home' }
   | { kind: 'tour'; tourId: string; place: Place; steps: Tip[]; index: number }
 
 const TOUR_DELAY_MS = 600
@@ -156,6 +156,19 @@ export function GuideHost() {
     // an element to point at: spotlight it; otherwise the place itself is the answer
     if (tip.target) setSpot({ kind: 'single', tip, from: 'help' })
   }
+
+  // Home's "Did you know?" asks for a tip by id: the same place and spotlight as the help list's Show me
+  useEffect(() => {
+    const onShow = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id
+      const tip = TIPS.find((x) => x.id === id)
+      if (!tip) return
+      if (tip.open) openPlace(tip.open, tip.target)
+      if (tip.target) setSpot({ kind: 'single', tip, from: 'home' })
+    }
+    window.addEventListener(GUIDE_SHOW_EVENT, onShow)
+    return () => window.removeEventListener(GUIDE_SHOW_EVENT, onShow)
+  }, [])
   const helpList = (
     <HelpList
       open={helpOpen}
@@ -171,7 +184,12 @@ export function GuideHost() {
 
   if (spot?.kind === 'single') {
     const fromHelp = spot.from === 'help'
+    const fromHome = spot.from === 'home'
     const back = () => { setSpot(null); if (fromHelp) setHelpOpen(true) }
+    // from Home there is no list or card to go back to: the spotlight just closes
+    const primary = fromHome
+      ? { label: t('guide.gotIt'), onClick: () => setSpot(null) }
+      : { label: t(fromHelp ? 'guide.backToHelp' : 'guide.backToCard'), onClick: back }
     return (
       <>
       {helpList}
@@ -182,9 +200,9 @@ export function GuideHost() {
         step={0}
         total={1}
         mobile={mobile}
-        primary={{ label: t(fromHelp ? 'guide.backToHelp' : 'guide.backToCard'), onClick: back }}
-        secondary={{ label: t('guide.close'), onClick: fromHelp ? () => setSpot(null) : closeCard }}
-        onEscape={back}
+        primary={primary}
+        secondary={{ label: t('guide.close'), onClick: fromHelp || fromHome ? () => setSpot(null) : closeCard }}
+        onEscape={fromHome ? () => setSpot(null) : back}
       />
       </>
     )

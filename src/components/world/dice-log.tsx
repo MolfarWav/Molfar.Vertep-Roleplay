@@ -1,8 +1,10 @@
-// The chat's recent dice rolls, folded away in the World DM sheet; read when opened.
-import { useState } from 'react'
+// The chat's recent dice rolls: a flat Fold in the DM panel. Read on mount (its summary shows the newest roll) and on Refresh.
+import { useCallback, useEffect, useState } from 'react'
+import { Fold } from '@/components/ui/fold'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { loadWorldDice, type WorldDiceRoll } from '@/lib/world'
+import { rollsSummary } from './world-summaries'
 
 const SHOWN = 10
 
@@ -29,28 +31,39 @@ export function DiceLog({ chatId }: { chatId: string }) {
   const [rolls, setRolls] = useState<WorldDiceRoll[] | null>(null)
   const [failed, setFailed] = useState(false)
 
-  const load = () => {
+  const load = useCallback(() => {
     setFailed(false)
     loadWorldDice(chatId).then((r) => setRolls(r.rolls.slice(-SHOWN).reverse())).catch(() => setFailed(true))
-  }
+  }, [chatId])
+
+  useEffect(() => {
+    setRolls(null)
+    load()
+  }, [load])
+
+  const newest = rolls?.[0]
+  const summary = rolls === null ? t('chats.panel.loading') : rollsSummary(t, { last: newest ? rollLine(t, newest) : null, n: rolls.length })
 
   return (
-    <details className="rounded-md border border-border bg-background/60 px-3 text-sm" onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) load() }} data-testid="dice-log">
-      <summary className="flex cursor-pointer items-center gap-2 py-1 font-medium max-md:min-h-11">{t('world.dice.log')}</summary>
-      <div className="flex flex-col gap-1 pb-1">
-        {failed && <p className="text-xs text-muted-foreground">{t('chats.panel.loading')}</p>}
-        {rolls && rolls.length === 0 && <p className="text-xs text-muted-foreground">{t('world.dice.log.empty')}</p>}
-        {rolls && rolls.length > 0 && (
-          <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-            {rolls.map((r, i) => (
-              <li key={`${r.at}-${i}`} className={r.gated ? 'text-foreground' : ''}>
-                {rollLine(t, r)} <span className="text-muted-foreground">· {relativeTime(r.at)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button type="button" onClick={load} className="self-start text-xs text-primary underline-offset-2 hover:underline max-md:min-h-11">{t('world.dice.log.refresh')}</button>
-      </div>
-    </details>
+    <div data-testid="dice-log">
+      <Fold id="rolls" title={t('world.dice.log')} summary={summary} flat>
+        <div className="flex flex-col gap-1 px-4 py-2">
+          {failed && <p className="text-caption text-muted-foreground">{t('chats.panel.loading')}</p>}
+          {rolls && rolls.length === 0 && <p className="text-caption text-muted-foreground">{t('world.dice.log.empty')}</p>}
+          {rolls && rolls.length > 0 && (
+            <ul className="flex flex-col gap-0.5 text-caption text-muted-foreground">
+              {rolls.map((r, i) => (
+                <li key={`${r.at}-${i}`} className={r.gated ? 'text-foreground' : ''}>
+                  {rollLine(t, r)} <span className="text-muted-foreground">· {relativeTime(r.at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button type="button" onClick={load} className="self-start text-caption text-primary underline-offset-2 hover:underline max-md:min-h-10">
+            {t('world.dice.log.refresh')}
+          </button>
+        </div>
+      </Fold>
+    </div>
   )
 }

@@ -4,22 +4,28 @@
 // unsaved state and one save never discards the other's edits.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowClockwise, ArrowLeft, CaretDown, CaretRight, Check, Plus, Trash, Warning } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowLeft, CaretDown, CaretRight, Check, Compass, Eye, Plus, Sparkle, Trash, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useConfirm } from '@/components/ui/confirm'
+import { Fold } from '@/components/ui/fold'
 import { Input } from '@/components/ui/input'
+import { Chip, Section } from '@/components/ui/section'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NumTile, Segmented, SettingRow } from '@/components/ui/setting-row'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleChip } from '@/components/ui/toggle-chip'
 import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { ASK_MOLFAR_MAX, askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import { cn, copyText } from '@/lib/utils'
 import type { DashView } from '@/lib/dashboard'
-import { AgeText, Box, useTx } from './dash-common'
+import { AgeText, useTx } from './dash-common'
+import { howChips, questsChip, remindedChips, summaryChips, type SensorSummaryInput } from './sensor-summary'
 import { SoulModelPicker } from './soul-model-picker'
 
 interface VocabRow {
@@ -139,15 +145,6 @@ const DEFAULT_RETIRE = 3
 const DEFAULT_NOTE_AGE = 30
 const DEFAULT_SAID = 2
 const FIELD = 'rounded-none'
-
-function NumRow({ label, value, min, max, onChange, onBlur }: { label: string; value: number; min: number; max: number; onChange: (n: number) => void; onBlur: () => void }) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-sm">
-      <span>{label}</span>
-      <Input type="number" min={min} max={max} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} onBlur={onBlur} className={cn(FIELD, 'w-24 max-md:h-10')} />
-    </label>
-  )
-}
 
 function readTab(): Section {
   try {
@@ -425,20 +422,22 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
         <Button variant="ghost" size="icon-sm" onClick={onBack} aria-label={t('dash.set.back')} title={t('dash.set.back')} className={FIELD}>
           <ArrowLeft />
         </Button>
-        <h2 className="min-w-0 truncate font-heading text-[15px]">{t('dash.set.title')}</h2>
+        <h2 className="min-w-0 truncate font-heading text-heading">{t('dash.set.title')}</h2>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-        <nav className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-border p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:border-r sm:border-b-0 sm:p-3">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 md:w-52 md:flex-col md:overflow-x-visible md:border-r md:border-b-0 md:p-3">
           {SECTIONS.map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => setSection(s)}
               aria-current={s === section ? 'page' : undefined}
-              className={cn(
-                'shrink-0 rounded-none border px-2.5 py-1 text-left font-heading text-[13px] whitespace-nowrap transition-colors sm:whitespace-normal',
-                s === section ? 'border-cta bg-cta/15 text-foreground' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
+              className={`${cn(
+                "relative min-h-11 shrink-0 rounded-lg px-3 text-left font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 md:whitespace-normal",
+                s === section
+                  ? "bg-accent font-semibold text-foreground before:absolute before:rounded-sm before:bg-cta before:content-[''] before:max-md:inset-x-3 before:max-md:bottom-0 before:max-md:h-[3px] md:before:inset-y-2.5 md:before:left-0 md:before:w-[3px]"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )} text-body`}
             >
               {t(`dash.set.tab.${s}`)}
             </button>
@@ -453,41 +452,14 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
 
 // ---------- shared bits ----------
 
-function SwitchRow({ label, hint, checked, onChange, disabled }: {
-  label: string
-  hint?: string
-  checked: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="min-w-0 text-sm">
-        {label}
-        {hint && <span className="block text-[11px] text-muted-foreground">{hint}</span>}
-      </span>
-      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
-    </div>
-  )
-}
-
-/** Sticks to the bottom of the scrolling section: the save button is never a long scroll away. */
+/** Sticks to the bottom of the scrolling section: the save button is never a long scroll away. It is the one important button here. */
 function SaveBar({ dirty, saving, onSave, children }: { dirty: boolean; saving: boolean; onSave: () => void; children?: ReactNode }) {
   const t = useT()
   return (
-    <div className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center gap-2 border-t border-border bg-card px-4 py-2">
-      <Button size="sm" className={FIELD} disabled={!dirty || saving} onClick={onSave}>{t('dash.set.save')}</Button>
-      {dirty && <span className="text-[11px] text-muted-foreground">{t('dash.set.unsaved')}</span>}
+    <div className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-card px-5 py-3 max-md:px-3">
+      <Button size="lg" className="max-md:flex-1" disabled={!dirty || saving} onClick={onSave}>{t('dash.set.save')}</Button>
+      {dirty && <Chip tone="amber">{t('dash.set.unsaved')}</Chip>}
       {children && <div className="ml-auto flex flex-wrap gap-2">{children}</div>}
-    </div>
-  )
-}
-
-function Fieldset({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
-      {children}
     </div>
   )
 }
@@ -511,146 +483,130 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
   const tx = useTx()
   const patch = (p: Partial<Form>) => setForm((cur) => (cur ? { ...cur, ...p } : cur))
   const modes: Form['mode'][] = ['sensor', 'fast', 'manual']
+  const groupsOn = meta.familyList.filter((f) => form.families[f] !== false).length
+  const sum: SensorSummaryInput = {
+    mode: form.mode,
+    sensorModel: form.sensorModel,
+    insertOn: form.injection.enabled,
+    insertTokens: form.injection.maxTokens,
+    saidOn: form.said.inject,
+    groupsOn,
+    groupsTotal: meta.familyList.length,
+    hasQuests: meta.questCfg,
+    maxMain: form.maxMain,
+    maxThreads: form.maxThreads,
+  }
+  const questsChipText = questsChip(t, sum)
+  const promptCount = (meta.sensorMode === 'parts' ? meta.partList.length : 1) + OTHER_PROMPTS.filter((k) => typeof form.prompts[k] === 'string').length
+  const promptsChanged = meta.custom.length
   return (
     <>
-      <div className="flex flex-col gap-4 p-4">
-        <Fieldset label={t('dash.set.mode')}>
-          <div className="flex w-fit max-w-full flex-wrap border border-border" role="group" aria-label={t('dash.set.mode')}>
-            {modes.map((m) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={form.mode === m}
-                onClick={() => patch({ mode: m })}
-                className={cn('rounded-none px-3 py-1 font-heading text-[13px] transition-colors', form.mode === m ? 'bg-cta/15 text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}
-              >
-                {t(`dash.set.mode.${m}`)}
-              </button>
-            ))}
+      <div className="flex max-w-3xl flex-col gap-6 p-5 max-md:p-3">
+        <Card variant="padded" data-testid="sensor-summary" className="gap-2.5">
+          <h3 className="text-heading font-semibold">{t('dash.set.summary')}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {summaryChips(t, sum).map((c) => <Chip key={c.text} tone={c.tone}>{c.text}</Chip>)}
           </div>
-          <p className="text-[11px] text-muted-foreground">{t(`dash.set.mode.${form.mode}.hint`, { n: meta.fastTokens ?? 0 })}</p>
-        </Fieldset>
-
-        <Fieldset label={t('dash.set.model')}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 break-all font-mono text-xs">{form.sensorModel || t('dash.set.chatModel')}</span>
-            <SoulModelPicker label={t('dash.set.chooseModel')} onPick={(ref) => patch({ sensorModel: ref })} />
-            {form.sensorModel && (
-              <Button size="sm" variant="ghost" className={FIELD} onClick={() => patch({ sensorModel: '' })}>{t('dash.set.useChatModel')}</Button>
-            )}
-          </div>
-        </Fieldset>
-
-        <Box>
-          <div className="flex flex-col gap-3">
-            <SwitchRow label={t('dash.set.insert')} hint={t('dash.set.insert.hint')} checked={form.injection.enabled} onChange={(v) => patch({ injection: { ...form.injection, enabled: v } })} />
-            {form.injection.enabled && (
-              <label className="flex items-center justify-between gap-3 text-sm">
-                <span>{t('dash.set.tokens')}</span>
-                <Input
-                  type="number" min={MIN_TOKENS} max={MAX_TOKENS} step={10}
-                  value={form.injection.maxTokens}
-                  onChange={(e) => patch({ injection: { ...form.injection, maxTokens: Number(e.target.value) } })}
-                  onBlur={() => patch({ injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) } })}
-                  className={cn(FIELD, 'w-24')}
-                />
-              </label>
-            )}
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span>{t('dash.set.sensorTokens')}</span>
-              <Input
-                type="number" min={MIN_SENSOR_TOKENS} max={MAX_SENSOR_TOKENS} step={100}
-                value={form.sensorMaxTokens}
-                onChange={(e) => patch({ sensorMaxTokens: Number(e.target.value) })}
-                onBlur={() => patch({ sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens) })}
-                className={cn(FIELD, 'w-24')}
-              />
-            </label>
-            <p className="-mt-1 text-[11px] text-amber-600 dark:text-amber-400">{t('dash.set.sensorTokens.warn')}</p>
-            {meta.threadCfg && (
-              <>
-                {meta.questCfg && (
-                  <>
-                    <NumRow label={t('dash.set.maxMain')} min={1} max={2} value={form.maxMain} onChange={(n) => patch({ maxMain: n })} onBlur={() => patch({ maxMain: clampMain(form.maxMain) })} />
-                    <NumRow label={t('dash.set.maxThreads')} min={1} max={6} value={form.maxThreads} onChange={(n) => patch({ maxThreads: n })} onBlur={() => patch({ maxThreads: clampThreads(form.maxThreads) })} />
-                    <NumRow label={t('dash.set.maxSteps')} min={1} max={6} value={form.maxSteps} onChange={(n) => patch({ maxSteps: n })} onBlur={() => patch({ maxSteps: clampSteps(form.maxSteps) })} />
-                    <NumRow label={t('dash.set.everydayTurns')} min={0} max={30} value={form.everydayTurns} onChange={(n) => patch({ everydayTurns: n })} onBlur={() => patch({ everydayTurns: clampEveryday(form.everydayTurns) })} />
-                    <NumRow label={t('dash.set.retireAfter')} min={0} max={10} value={form.retireAfter} onChange={(n) => patch({ retireAfter: n })} onBlur={() => patch({ retireAfter: clampRetire(form.retireAfter) })} />
-                  </>
-                )}
-                {!meta.questCfg && <NumRow label={t('dash.set.maxThreads')} min={1} max={6} value={form.maxThreads} onChange={(n) => patch({ maxThreads: n })} onBlur={() => patch({ maxThreads: clampThreads(form.maxThreads) })} />}
-                <label className="flex items-center justify-between gap-3 text-sm">
-                  <span>{t('dash.set.threadCheck')}</span>
-                  <Input
-                    type="number" min={0} max={50} step={1}
-                    value={form.threadCheckEvery}
-                    onChange={(e) => patch({ threadCheckEvery: Number(e.target.value) })}
-                    onBlur={() => patch({ threadCheckEvery: clampCheck(form.threadCheckEvery) })}
-                    className={cn(FIELD, 'w-24')}
-                  />
-                </label>
-                <label className="flex items-center justify-between gap-3 text-sm">
-                  <span>{t('dash.set.noteAge')}</span>
-                  <Input
-                    type="number" min={5} max={500} step={1}
-                    value={form.noteAgeTurns}
-                    onChange={(e) => patch({ noteAgeTurns: Number(e.target.value) })}
-                    onBlur={() => patch({ noteAgeTurns: clampNoteAge(form.noteAgeTurns) })}
-                    className={cn(FIELD, 'w-24')}
-                  />
-                </label>
-              </>
-            )}
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span>{t('dash.set.said')}</span>
-              <Input
-                type="number" min={1} max={4} step={1}
-                value={form.said.perTurn}
-                onChange={(e) => patch({ said: { ...form.said, perTurn: Number(e.target.value) } })}
-                onBlur={() => patch({ said: { ...form.said, perTurn: clampSaid(form.said.perTurn) } })}
-                className={cn(FIELD, 'w-24')}
-              />
-            </label>
-            <p className="-mt-1 text-[11px] text-muted-foreground">{t('dash.set.said.hint')}</p>
-            <SwitchRow label={t('dash.set.saidInject')} hint={t('dash.set.saidInject.hint')} checked={form.said.inject} onChange={(v) => patch({ said: { ...form.said, inject: v } })} />
-            <SwitchRow label={t('dash.set.layoutInject')} hint={t('dash.set.layoutInject.hint')} checked={form.layout.inject} onChange={(v) => patch({ layout: { inject: v } })} />
-            <SwitchRow label={t('dash.set.catchUp')} hint={t('dash.set.catchUp.hint')} checked={form.catchUp} onChange={(v) => patch({ catchUp: v })} />
-            <SwitchRow label={t('dash.set.autoSoul')} hint={t('dash.set.autoSoul.hint')} checked={form.autoSoul} onChange={(v) => patch({ autoSoul: v })} />
-          </div>
-        </Box>
-
-        <Fieldset label={t('dash.set.families')}>
-          <Box>
-            <div className="flex flex-col gap-2.5">
-              {meta.familyList.map((f) => (
-                <SwitchRow key={f} label={tx('dash.set.family', f)} checked={form.families[f] !== false} onChange={(v) => patch({ families: { ...form.families, [f]: v } })} />
-              ))}
+          {view && (
+            <div className="flex flex-wrap gap-1.5" aria-label={t('dash.set.counters')}>
+              <Chip>{t('dash.set.calls', { n: view.usage.calls })}</Chip>
+              <Chip>{t('dash.set.tokensInOut', { in: view.usage.inTokens, out: view.usage.outTokens })}</Chip>
+              {view.usage.lastMs > 0 && <Chip>{t('dash.set.lastSensor', { s: (view.usage.lastMs / 1000).toFixed(1) })}</Chip>}
             </div>
-          </Box>
-        </Fieldset>
+          )}
+          {view?.lastError && (
+            <p className="break-words text-caption text-amber-700 dark:text-amber-300">
+              {t('dash.set.lastError', { message: view.lastError.message })} · <AgeText at={view.lastError.at} now={Date.now()} />
+            </p>
+          )}
+        </Card>
 
-        {view && (
-          <Fieldset label={t('dash.set.counters')}>
-            <div className="flex flex-col gap-0.5 font-mono text-[11px] text-muted-foreground">
-              <span>{t('dash.set.calls', { n: view.usage.calls })}</span>
-              <span>{t('dash.set.tokensInOut', { in: view.usage.inTokens, out: view.usage.outTokens })}</span>
-              {view.usage.lastMs > 0 && <span>{t('dash.set.lastSensor', { s: (view.usage.lastMs / 1000).toFixed(1) })}</span>}
-              {view.lastError && (
-                <span className="break-words text-amber-600 dark:text-amber-400">
-                  {t('dash.set.lastError', { message: view.lastError.message })} · <AgeText at={view.lastError.at} now={Date.now()} />
-                </span>
+        <Section variant="tinted" tone="sky" icon={Eye} id="sensor-how" title={t('dash.set.card.how')} chips={howChips(t, sum)}>
+          <div className="flex flex-col gap-2 px-4 py-3">
+            <span className="text-body font-semibold">{t('dash.set.mode')}</span>
+            <Segmented
+              label={t('dash.set.mode')}
+              value={form.mode}
+              options={modes.map((m) => ({ id: m, label: t(`dash.set.mode.${m}`), className: m === 'fast' ? 'max-md:order-3 max-md:col-span-2 max-md:whitespace-normal' : undefined }))}
+              onChange={(m) => patch({ mode: m })}
+              className="w-full max-md:grid max-md:grid-cols-2 md:w-fit [&>button]:flex-1"
+            />
+            <p className="text-caption text-muted-foreground">{t(`dash.set.mode.${form.mode}.hint`, { n: meta.fastTokens ?? 0 })}</p>
+          </div>
+          <SettingRow label={t('dash.set.model')}>
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+              <span className="min-w-0 break-all font-mono text-caption">{form.sensorModel || t('dash.set.chatModel')}</span>
+              <SoulModelPicker label={t('dash.set.chooseModel')} onPick={(ref) => patch({ sensorModel: ref })} />
+              {form.sensorModel && (
+                <Button size="sm" variant="ghost" className="max-md:h-10" onClick={() => patch({ sensorModel: '' })}>{t('dash.set.useChatModel')}</Button>
               )}
             </div>
-          </Fieldset>
+          </SettingRow>
+          <SettingRow label={t('dash.set.catchUp')} info={t('dash.set.catchUp.hint')}>
+            <Switch checked={form.catchUp} onCheckedChange={(v) => patch({ catchUp: v })} aria-label={t('dash.set.catchUp')} />
+          </SettingRow>
+          <SettingRow label={t('dash.set.autoSoul')} info={t('dash.set.autoSoul.hint')}>
+            <Switch checked={form.autoSoul} onCheckedChange={(v) => patch({ autoSoul: v })} aria-label={t('dash.set.autoSoul')} />
+          </SettingRow>
+        </Section>
+
+        <Section variant="tinted" tone="violet" icon={Sparkle} id="sensor-reminded" title={t('dash.set.card.reminded')} chips={remindedChips(t, sum)}>
+          <SettingRow label={t('dash.set.insert')} info={t('dash.set.insert.hint')}>
+            <Switch checked={form.injection.enabled} onCheckedChange={(v) => patch({ injection: { ...form.injection, enabled: v } })} aria-label={t('dash.set.insert')} />
+          </SettingRow>
+          <SettingRow label={t('dash.set.saidInject')} info={t('dash.set.saidInject.hint')}>
+            <Switch checked={form.said.inject} onCheckedChange={(v) => patch({ said: { ...form.said, inject: v } })} aria-label={t('dash.set.saidInject')} />
+          </SettingRow>
+          <SettingRow label={t('dash.set.layoutInject')} info={t('dash.set.layoutInject.hint')}>
+            <Switch checked={form.layout.inject} onCheckedChange={(v) => patch({ layout: { inject: v } })} aria-label={t('dash.set.layoutInject')} />
+          </SettingRow>
+          <div className="grid grid-cols-2 gap-3 p-4 max-md:grid-cols-1">
+            <NumTile label={t('dash.set.tokens')} value={form.injection.maxTokens} min={MIN_TOKENS} max={MAX_TOKENS} step={10} disabled={!form.injection.enabled} onCommit={(n) => patch({ injection: { ...form.injection, maxTokens: n } })} />
+            {meta.threadCfg && (
+              <NumTile label={t('dash.set.noteAge')} hint={t('dash.set.hint.noteAge')} value={form.noteAgeTurns} min={5} max={500} onCommit={(n) => patch({ noteAgeTurns: n })} />
+            )}
+            <NumTile label={t('dash.set.said')} hint={t('dash.set.hint.said')} info={t('dash.set.said.hint')} value={form.said.perTurn} min={1} max={4} onCommit={(n) => patch({ said: { ...form.said, perTurn: n } })} />
+            <NumTile label={t('dash.set.sensorTokens')} hint={t('dash.set.hint.sensorTokens')} info={t('dash.set.sensorTokens.warn')} value={form.sensorMaxTokens} min={MIN_SENSOR_TOKENS} max={MAX_SENSOR_TOKENS} step={100} onCommit={(n) => patch({ sensorMaxTokens: n })} />
+          </div>
+          <div className="flex flex-col gap-2 px-4 pb-4">
+            <p className="text-body font-semibold">{t('dash.set.families')}</p>
+            <div className="flex flex-wrap gap-2">
+              {meta.familyList.map((f) => (
+                <ToggleChip key={f} tone="violet" pressed={form.families[f] !== false} onPressedChange={(v) => patch({ families: { ...form.families, [f]: v } })}>
+                  {tx('dash.set.family', f)}
+                </ToggleChip>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        {meta.threadCfg && (
+          <Section variant="tinted" tone="pink" icon={Compass} id="sensor-quests" title={t('dash.set.card.quests')} chips={questsChipText ? [questsChipText] : undefined}>
+            <div className="grid grid-cols-2 gap-3 p-4 max-md:grid-cols-1">
+              {meta.questCfg && (
+                <NumTile label={t('dash.set.maxMain')} hint={t('dash.set.hint.mainQuests')} value={form.maxMain} min={1} max={2} onCommit={(n) => patch({ maxMain: n })} />
+              )}
+              <NumTile label={t('dash.set.maxThreads')} hint={t('dash.set.hint.sideQuests')} value={form.maxThreads} min={1} max={6} onCommit={(n) => patch({ maxThreads: n })} />
+              {meta.questCfg && (
+                <>
+                  <NumTile label={t('dash.set.maxSteps')} value={form.maxSteps} min={1} max={6} onCommit={(n) => patch({ maxSteps: n })} />
+                  <NumTile label={t('dash.set.everydayTurns')} hint={t('dash.set.hint.never')} value={form.everydayTurns} min={0} max={30} onCommit={(n) => patch({ everydayTurns: n })} />
+                  <NumTile label={t('dash.set.retireAfter')} hint={t('dash.set.hint.never')} value={form.retireAfter} min={0} max={10} onCommit={(n) => patch({ retireAfter: n })} />
+                </>
+              )}
+              <NumTile label={t('dash.set.threadCheck')} hint={t('dash.set.hint.never')} value={form.threadCheckEvery} min={0} max={50} onCommit={(n) => patch({ threadCheckEvery: n })} />
+            </div>
+          </Section>
         )}
 
-        <Collapsible className="flex flex-col gap-2">
-          <CollapsibleTrigger className="group/adv flex w-fit items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground">
-            <CaretRight className="size-3 group-data-[panel-open]/adv:hidden" aria-hidden="true" />
-            <CaretDown className="hidden size-3 group-data-[panel-open]/adv:block" aria-hidden="true" />
-            {t('dash.set.advanced')}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="flex flex-col gap-2">
+        <Fold
+          id="sensor-prompts"
+          title={t('dash.set.advanced')}
+          tone="slate"
+          count={promptsChanged}
+          summary={promptsChanged > 0 ? t('dash.set.prompts.sumChanged', { n: promptCount, c: promptsChanged }) : t('dash.set.prompts.sum', { n: promptCount })}
+        >
+          <div className="flex flex-col gap-2 p-4">
             {meta.sensorMode === 'parts' ? (
               <>
                 <span className="text-sm">{t('dash.set.prompt')}</span>
@@ -721,8 +677,8 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
                 )}
               </div>
             ))}
-          </CollapsibleContent>
-        </Collapsible>
+          </div>
+        </Fold>
       </div>
       <SaveBar dirty={dirty} saving={saving} onSave={onSave} />
     </>

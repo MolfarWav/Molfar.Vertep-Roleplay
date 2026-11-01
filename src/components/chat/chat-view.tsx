@@ -33,6 +33,9 @@ import { useT } from '@/hooks/use-t'
 import { cleanPreview } from '@/lib/preview'
 import type { ID } from '@/lib/types'
 import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
+import { headerTint } from '@/components/chat/header-tint'
+import { useAvatarExtra } from '@/components/chat/use-avatar-extra'
+import type { ToneName } from '@/components/ui/tone'
 import { cssAttrValue, scopeCss } from '@/lib/scope-css'
 import { toast } from 'sonner'
 import { MessageRow } from './message-row'
@@ -253,6 +256,7 @@ export function ChatView() {
   useEffect(() => () => setDeleteMode(false), [setDeleteMode])
   const pinnedRef = useRef(true)
   const scrollRef = useRef<HTMLDivElement>(null)
+  useAvatarExtra(scrollRef, look === 'stage', chat?.id ?? '')
   // Rows compensate their own height changes (swipe swaps, streaming commits)
   // and need to know whether the reader is following the bottom. Measuring it
   // themselves mid-stream reads a scrollTop that is one frame behind, so the
@@ -726,23 +730,23 @@ export function ChatView() {
           the top row stays visible at all times (back, name, search, preset
           switcher are crucial chrome). `text-sm` & co are rem-based, so the
           log's fontScale doesn't resize them. */}
-      <header ref={setHeaderEl} className="relative z-10 hidden h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:flex">
+      <header ref={setHeaderEl} className="relative z-10 hidden h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:flex">
           <Button variant="ghost" size="icon-sm" onClick={closeChat} aria-label="Back to chats">
             <ArrowLeft aria-hidden="true" />
           </Button>
           <AvatarMenu characterId={character.id} align="start" onViewPortrait={() => setPortraitOpen(true)}>
             <button type="button" className="shrink-0 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <Avatar className="size-8 rounded-md">
+              <Avatar className="size-10 rounded-lg">
                 <AvatarImage src={character.avatar || DEFAULT_AVATAR} alt="" />
                 <AvatarFallback>{character.name.slice(0, 2)}</AvatarFallback>
               </Avatar>
             </button>
           </AvatarMenu>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium leading-tight" style={{ color: readableNameColor(character.colors.name) }}>
+            <p className="truncate font-heading text-title" style={{ color: readableNameColor(character.colors.name) }}>
               {character.name}
             </p>
-            <p className="flex items-center gap-1 text-[11px] leading-tight text-muted-foreground">
+            <p className="flex items-center gap-1 text-caption text-muted-foreground">
               <span className="min-w-0 truncate">{chat.title}</span>
               <span>·</span>
               <button
@@ -773,7 +777,7 @@ export function ChatView() {
               context={chatContext}
             />
             {toolMode === 'none' && <WorldStatusButton chatId={chat.id} onClick={() => setWorldOpen(true)} />}
-            <HeaderIcon label="Find in chat (Ctrl+F)" onClick={() => setFindOpen((o) => !o)}>
+            <HeaderIcon label="Find in chat (Ctrl+F)" tone="teal" onClick={() => setFindOpen((o) => !o)}>
               <MagnifyingGlass aria-hidden="true" />
             </HeaderIcon>
             {/* All chat tools behind one kebab, every width */}
@@ -1452,12 +1456,12 @@ function formatDay(ts: number) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined })
 }
 
-function HeaderIcon({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+function HeaderIcon({ label, onClick, tone, children }: { label: string; onClick: () => void; tone?: ToneName; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button variant="ghost" size="icon-sm" onClick={onClick} aria-label={label}>
+          <Button variant="ghost" size="icon-sm" onClick={onClick} aria-label={label} className={tone ? headerTint(tone) : undefined}>
             {children}
           </Button>
         }

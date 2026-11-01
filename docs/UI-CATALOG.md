@@ -1,0 +1,517 @@
+# UI catalog (draft, phase 1 of issue MolfarWav/Molfar.Vertep#191)
+
+Status: a proposal, not built. Nothing here is in the app yet. The owner picked variant C (2026-10-31) but building waits:
+another branch is working on the DM and the final layout may need to be adjusted to it. Mocks: `docs/ui-mocks/world-dm/index.html`. Numbers were counted on `main` at 4.79.0 (2026-10-31), `src/**`.
+
+The bar (ux-review): practical, native, designed, client-first. This file is the catalog the rule "reuse
+before inventing" was missing: what exists, what is duplicated, and the few shared pieces to build.
+
+## 1. Audit
+
+### 1.1 `ui/` primitives (33 files in `src/components/ui/`)
+
+Base-ui/shadcn pieces, fine as they are: `alert-dialog`, `avatar`, `badge`, `button`, `checkbox`, `command`,
+`dialog`, `dropdown-menu`, `input`, `input-group`, `label`, `popover`, `scroll-area`, `select`, `separator`,
+`sheet`, `slider`, `switch`, `tabs`, `textarea`, `tooltip`, and the app's own `confirm`, `empty`, `error-boundary`,
+`field`, `image-viewer`, `info-tip`, `marquee-text`, `pager`, `scroll-strip`, `sonner`.
+
+Layout level (setting row, section, fold, card): **missing or unused.**
+
+- `ui/card.tsx` exists and is imported by **1** file (`<Card` appears once). Instead there are **143** hand-written
+  `border … bg-card` boxes (147 `rounded-md border border-border`, 68 `rounded-lg border border-border`).
+- `ui/collapsible.tsx` is a bare primitive (20 lines, no look). 16 `<Collapsible>` roots and 16 native `<details>`
+  each style it themselves (41 `aria-expanded` buttons in all).
+- `ui/info-tip.tsx` (the "i" popover) exists, and `world-setting-row.tsx:12` has a second one, `InfoButton`.
+- `ui/field.tsx` exists; there are also local `Field` in `canvas/forge/card-form.tsx:19`,
+  `dashboard/dash-common.tsx:458`, `lore/entry-editor.tsx:35`, `views/character-editor.tsx:981`.
+
+### 1.2 Fold patterns (what a "fold" looks like today, all different)
+
+| # | Where | Look |
+|---|---|---|
+| 1 | `world/world-setting-row.tsx:120` `FoldSection` (World DM, 5 per panel) | plain text button, 14 px caret `text-muted-foreground`, no hover, no summary, sessionStorage state |
+| 2 | `settings/memory-summary-section.tsx:330` `Block` | **the best one**: `min-h-11` tinted title bar in a tone, icon, caret `size-4` rotating, summary when closed |
+| 3 | `profile/profile-form.tsx:405-430` `SectionCard` | `min-h-14` row, `border-l-4` accent, count `2/5`, blurb, caret `size-4` muted |
+| 4 | `character/card-model-panel.tsx:32` | bordered box, `min-h-10` trigger, `text-xs` |
+| 5 | `chat/prompt-sources.tsx:122, 171` | `w-fit` text link, `text-xs font-semibold`, no box |
+| 6 | `dashboard/dash-notebook.tsx:200`, `dash-said.tsx:117` | "show more" link, `text-xs`, caret only on hover colour |
+| 7 | `dashboard/dash-settings.tsx:644` ("Advanced") | `text-[11px] uppercase tracking-wide`, caret `size-3` |
+| 8 | `dashboard/dash-settings.tsx:657` (prompt parts) | border with no radius, `text-sm`, caret `size-3`, `hover:bg-muted` |
+| 9 | `dashboard/dash-threads.tsx:302, 314` | `text-[11px]`, `min-h-6`, caret `size-3` |
+| 10 | `chat/message-row.tsx:145, 751, 782` (reasoning) | the `ls-chip` pill from `globals.css` |
+| 11 | 16 native `<details>` (`canvas/agent-forge.tsx:394`, `canvas/forge/card-form.tsx:596`, `canvas/forge/agent-form.tsx:132`, `canvas/forge/palette.tsx:90`, `canvas/forge/try-panel.tsx:169`, `chat/agent-notes.tsx:44,52`, `chat/agent-own-limits.tsx:45`, `chat/agents-panel.tsx:349,361,491`, `chat/preset-panel.tsx:72`, `chat/prompt-peek-dialog.tsx:137`, `dashboard/dash-cards.tsx:355`) | browser marker, five different box styles |
+
+That is **about 11 looks for one job.** Pattern 2 is the template for the shared `Fold` (section 2.1).
+
+### 1.3 Local rows, sections, headings
+
+- Setting row: `world-setting-row.tsx:37` `SettingRow` (good, 40 px on a phone), `dice-fields.tsx:42` `Row`
+  (wraps it again), `NumControl` (`world-setting-row.tsx:53`) and `NumField` (`dice-fields.tsx:12`) are the same control
+  twice; the dice card also adds `border-l-4` and `bg-muted/30` inside a fold inside a card (three levels of box).
+- Section / block: `chats/chat-panel.tsx:49` `Section`, `character/memory-import-dialog.tsx:368` `Section`,
+  `character/memory-block.tsx:13` `Block`, `character/memory-story-lines.tsx:148` `Block`, `home/home-ui.tsx:38` `Block`,
+  `persona/persona-tabs.tsx:110` `Block`, `settings/memory-summary-section.tsx:330` `Block`, `lore/book-settings.tsx:14`
+  `Group`. Eight local copies.
+- `<h3>` headings: 8 different class strings (`text-sm font-medium` ×14, `text-xs font-semibold uppercase tracking-wider` ×10,
+  `border-b pb-1 text-base font-semibold` ×4, …); 109 `uppercase` labels.
+- Hints: `text-xs text-muted-foreground` ×455.
+
+### 1.4 Type sizes (measured)
+
+`text-[Npx]` literals: **800** (STATE.md said 783; the difference is counting). Named steps: `text-xs` 1193,
+`text-sm` 646, `text-base` 27, `text-lg` 15, `text-xl` 7, `text-2xl` 2, `text-3xl` 2.
+
+Note `--text-base: 0.8125rem` in `globals.css:11` and `body { font-size: 13px }`: `text-base` is **13 px, smaller than
+`text-sm` (14 px)**. That alone makes the scale unreadable ("which one is the body?").
+
+Below the 12 px floor: **697** literals (`text-[11px]` 446, `[10px]` 226, `[9px]` 14, `[10.5px]` 5, `[11.5px]` 5, `[8px]` 1).
+Top files by count of ≤ 11 px: `views/marketplace-view.tsx` 36, `views/presets-view.tsx` 28, `dashboard/dash-settings.tsx` 27,
+`views/lorebooks-view.tsx` 25, `chat/agents-panel.tsx` 24, `chat/chat-quick-bar.tsx` 21.
+
+### 1.5 Spacing, radius, borders (measured; counts of `p/px/py/gap/space` steps)
+
+`2` (8 px) 1181, `1.5` (6 px) 674, `3` (12 px) 618, `1` (4 px) 547, `4` (16 px) 227, `0.5` (2 px) 216, `2.5` (10 px) 191,
+`6` 31, `5` 30, `8` 12. So **1112 of 3728 (30 %) are off the 4 px rhythm** (`0.5`, `1.5`, `2.5`, `3.5`, `5`).
+Radius: `rounded-md` 355, `-full` 196, `-lg` 158, bare `rounded` 120, `-none` 75, `-xl` 25, `-sm` 13, and 19 `rounded-[Npx]`.
+Side bars: `border-l-4` ×5, `border-l-2` ×6 (accent edges on cards).
+Files over 850 lines (tsx/ts): 17 incl. `i18n.ts` 8065 and `store.ts` 3402; of the UI files `marketplace-view.tsx` 1737,
+`chat-view.tsx` 1520, `prompt-board.tsx` 1251, `dash-settings.tsx` 1129, `message-row.tsx` 1127.
+
+## 2. Proposal: the foundation
+
+### 2.1 Type scale: five named steps, floor 12 px
+
+Added as Tailwind theme tokens (`--text-caption` etc. in `globals.css`) so the classes are `text-caption`, `text-body`,
+`text-heading`, `text-title`, `text-display`; a test counts `text-[Npx]` and may only go down (ratchet, start at 800).
+
+| Step | px / line | Weight | Used for | Today it replaces (counts) |
+|---|---|---|---|---|
+| `caption` | 12 / 16 | 400, 500 for chips | hints, status lines, chips, meta, badges | `text-xs` 1193 (same size); `[8…11.5px]` **697**; `[12px]` 24; `[12.5px]` 6 |
+| `body` | 14 / 20 | 400, 500 labels, 600 titles of a row group | rows, labels, inputs, buttons, prose in panels | `text-sm` 646 (same); `text-base` 27 (13 px); `[13px]` 29; `[14px]` 4 |
+| `heading` | 16 / 24 | 600 | a section's heading | `[15px]` 16; `[16px]` 1; `[17px]` 10; `[18px]` 3; `[19px]` 2; most of `text-lg` 15 |
+| `title` | 20 / 28 | 400 `font-heading` (Kurale) | a page or sheet title | `text-xl` 7; `[22px]` 1; some `text-lg` |
+| `display` | 28 / 32 | 600, tabular | big numerals, empty-state hero | `[25px]` 1, `[26px]` 2, `[28px]` 1, `text-2xl`/`3xl` 4 |
+
+Not mapped, check by hand: `[32px]` 2, `[40px]` 1 (clock / numerals, probably `display` exceptions). Check: 697 + 30 + 33 + 32 + 1 + 4 + 3 = 800.
+
+Rules: at most three levels on a screen (title, heading, row); `uppercase tracking-wide` labels stop being a heading style
+(109 uses): a heading is `heading`, a small label is `caption`. Body text (`body`) is 14, so `body { font-size: 13px }` becomes
+14 px in phase 2 only for screens built on the tokens; old screens keep their size until redone. Chat prose has its own scale
+(`--prose-scale`, 15 px × scale) and is not part of this.
+
+### 2.2 Spacing, radius, border, tone
+
+- Steps (px): 4, 8, 12, 16, 24 (`1, 2, 3, 4, 6`); 32 between page blocks. `0.5`, `1.5`, `2.5` are allowed only inside a
+  control (icon and label gap, chip padding), never between blocks.
+- Between rows of one section: hairline (`border-t`), not a gap. Between sections: 24. Section heading to its card: 8.
+  Related things closer than unrelated ones.
+- Radius: controls (input, button, select, segmented tray) `rounded-lg` (8 px); containers (card, fold) `rounded-xl`
+  (11 px, the `ui/card` value); inner pieces `rounded-md`; chips, switches, avatars `rounded-full`. Bare `rounded`
+  and `rounded-[Npx]` go.
+- Border: 1 px `border-border` on containers, `bg-card` surface, flat (no shadow except popovers). No coloured left bar:
+  the tone goes into the heading mark or tinted header (`border-l-4/2` ×11 go).
+- Tone (one hue per kind of content, from `dash-common.tsx` `TONE`): sky = schedule / scene, emerald = records / memory,
+  violet = story / people, pink = plot, teal = place, amber = thing / warning, slate = neutral. A tone is always paired with
+  an icon or a word, never colour alone. No hex in new code; the tones are Tailwind palette classes as today.
+- Touch: 40 px minimum on a phone (rows 48, fold header 48, switch hit area 40 via the extended `::after`).
+
+### 2.3 Shared pieces (specs)
+
+All in `src/components/ui/` (new files `fold.tsx`, `setting-row.tsx`, `section.tsx`; `card.tsx` extended in place).
+
+**`Fold`** (replaces the ~11 looks in 1.2; built on `ui/collapsible.tsx`, i.e. base-ui, so keyboard and aria are free)
+
+- Props: `id` (state key), `title`, `summary?: string` (what is set, one line, shown only while closed, truncated),
+  `tone?`, `icon?`, `count?` (number of settings changed from default), `defaultOpen?`, `flat?` (no outer box, used inside a
+  card), `children`.
+- Look: a full-width button, `min-h-12` (48 px), `bg-muted`, hover `bg-accent`, focus ring `ring-ring/50`, title 14/600,
+  summary caption `text-muted-foreground`, caret **20 px in `text-foreground`**, rotating; open: summary hidden, hairline under
+  the header. Tone: a 10 px square before the title.
+- Remembered: open state per `id` in `localStorage` (`rp.fold.<id>`), wrapped in try/catch (the existing `rp.worldSections`
+  is session-only). No nesting: a dev-time warning if a `Fold` is rendered inside a `Fold`.
+- Tests: opens on click and Enter/Space, `aria-expanded`, summary only when closed, state survives remount, no nesting.
+- Replaces: `FoldSection` (1), `Block` (2, becomes `Fold` with `tone`+`icon`), `SectionCard` fold mode (3), 4, 5, 6, 7, 8, 9
+  and the `<details>` of 11; (10) the reasoning chip stays: it is a chip, not a section.
+
+**`SettingRow`** (replaces `world-setting-row.tsx` `SettingRow`, `dice-fields.tsx` `Row`, local `Field`s in settings screens)
+
+- Props: `label`, `info?` (long text → `InfoTip` popover on click), `status?` (one muted live line), `children` (the control),
+  `off?` (dimmed, with the reason in `status`).
+- Look: label `body`, (i) 32 px hit area (40 on a phone), control right, `min-h-11` (48 on a phone), wraps under 9 rem.
+- Companions moved next to it: `NumControl` (one number control, was twice), `Segmented` (active option gets border and
+  weight, not only a shade), the (i) is `ui/info-tip.tsx` (delete `InfoButton`).
+
+**`Section`**
+
+- Props: `title`, `tone?`, `icon?`, `aside?` (caption on the right), `variant: 'plain' | 'card' | 'tinted'`, `chips?`, `children`.
+- `plain`: heading (16/600, tone square) above a `Card` of `SettingRow`s. `tinted`: the header bar is the tone's soft fill with icon,
+  heading and value chips (variant C in the mocks). One variant per screen.
+- Replaces the eight local `Section`/`Block`/`Group` (1.3) and the `<h3>` class zoo.
+
+**`Card`** (extend `ui/card.tsx`, do not add a new one)
+
+- Surface `bg-card`, `border border-border`, `rounded-xl`, no padding of its own for row lists (`variant="rows"`: children are
+  separated by hairlines), padding 16 for free content (`variant="padded"`). Drops `ring-1` in favour of the border so
+  it matches the 143 hand-made boxes and they can switch over without changing look.
+- Replaces the 143 `border … bg-card` boxes over time, screen by screen (not a codemod).
+
+### 2.4 Rule: the important button stands out (owner, 2026-10-31)
+
+Like "Buy" in a shop: a button that commits or starts something (Save, Create, New chat, Send, Open chat, World turn) is filled
+in `primary`/`cta` and is the loudest thing in its block, also over a picture (label contrast, a scrim behind it when needed).
+Look at, Edit, Cancel and navigation are outline or ghost. Few filled buttons: one per decision, two side by side only when
+they are different jobs. **Weight is a ladder** (owner, same day: four equal green buttons have no main one). `Button` variants, strongest first:
+`default` (solid cta, `size="lg"` 44 px, one per screen), `onImage` (white, dark text, for banners), `tonal` (soft cta fill,
+cta border, cta ink, semibold), `outline`, `ghost` (muted text and icon). Two buttons of one weight side by side must be of
+equal importance. In the mocks: World turn = default lg; Open chat = onImage; New chat in this world = tonal; Save world =
+outline; Look at the world = ghost; Edit profile and World settings = outline. Which job gets which step is the owner's call
+per screen. The audit of existing screens happens when each screen is redone.
+
+### 2.5 Colour and picture on the hub
+
+- The "So far" tiles take the tone of what they count: Records emerald (memory), Retired slate, Fronts pink (plot), Runs sky,
+  each with an icon and the word, number in the tone's ink.
+- The hub header is a banner: the chat's current background (the place's picture when the story is somewhere, else the chat's
+  own background, else the plain card) with a dark scrim, the title in `display` over it, the cast as avatar chips, and
+  "Open chat" as the filled button. The mock draws a placeholder harbour scene; the real one reuses the existing
+  background picker data (`world-bg-set.tsx`, chat background), no new storage.
+
+## 3. UI plan for the World DM panel (ux-review section 1)
+
+**Where it lives and the steps.** Chat header globe → World DM sheet (`chat/world-sheet.tsx`, 448 px wide `sm:max-w-md`,
+full width on a phone) or World section → Overview (`world/world-view.tsx:191`, `wide`, two columns from 1024 px). Both render
+`WorldControls` (`world/world-controls.tsx`). Steps to a setting: open the sheet (1), the setting is on screen or one tap
+away behind a fold/tab whose label and summary say what is inside (2).
+
+**Reused:** `ui/switch`, `ui/input`, `ui/select`, `ui/button`, `ui/popover` + `ui/info-tip`, `ui/collapsible` (inside `Fold`),
+`ui/tabs` (variant B only), `ui/confirm`, `world/world-common.tsx` tones, `world/world-profile-picker.tsx`,
+`world/dice-fields.tsx` (rows rebuilt on `SettingRow`, own card chrome removed), `world/dice-log.tsx` (becomes the "Recent rolls" `Fold`).
+**New:** `Fold`, `Section`, `SettingRow` move to `ui/`, the type tokens. **Why existing do not fit:** `ui/collapsible` has no look,
+`ui/card` is unused, the world-local `FoldSection` is the faint pattern the owner rejected.
+
+**States to build and check:** DM off (settings dimmed, the reason in a status line, controls disabled), loading, `missing`,
+default, changed (count on the fold/tab), no sensor (three trigger rows disabled with "Needs the Relationship dashboard"),
+level without events (Events section hidden), dice off (dice details hidden), "DM is N messages behind" + "Read the whole chat"
+(inline notice above the schedule), reading progress with Stop, last-run error (`WorldErrorCard` on top), World turn running,
+folded and open, 390 px, 448 px sheet, 1280 px hub; dark and light; Ukrainian strings (about a third longer).
+
+**Variants** (mocks in `docs/ui-mocks/world-dm/`, real tokens, dark and light, 1280 and 390):
+A calm column (five headings, only Records folded), B tabs (three tabs, World turn always visible), C task cards (three
+tinted cards by task, value chips, expert numbers folded with a summary). The owner picked C; hold the build until the parallel DM branch lands, then re-fit the layout to it.
+
+**Shared on every variant (so the comparison is only about the settings):** the banner header (2.5), the DM switch and profile, "So far" as four
+tinted number tiles plus chips (instead of a bullet list), the model block; phone order profile → settings → so far → model.
+
+**Compare with this plan at done:** same place, same components, every state above, screenshots at 390/448/1280, dark and light,
+squint test, `ux-review` walk-through.
+
+## 4. Phase 2 (after the pick, no release)
+
+1. Type tokens in `globals.css` + a ratchet test on `text-[Npx]`.
+2. `ui/fold.tsx`, `ui/setting-row.tsx`, `ui/section.tsx`, `ui/card.tsx` extended; `InfoButton`, `NumField` removed.
+3. World DM rebuilt on them (world-controls, dice-fields, dice-log, world-profile-picker header, status tiles); new i18n keys in
+   all locales Roleplay ships; the old `FoldSection` deleted.
+4. Tests: component tests for the three shared pieces, the existing `test/` world tests updated, no-nesting check.
+5. `browser-check` in dark, light and 390 px (and the 448 px sheet), `ux-review` walk-through against section 3, CHANGELOG note.
+6. Not in phase 2: other screens (dashboard Settings, chat, home and lists, card and persona editors follow, in that order).
+
+## 5. Next screen: Dashboard settings, Sensor tab (owner flagged it, 2026-10-31)
+
+Code: `dashboard/dash-settings.tsx` `SensorSection` (line 493). What the screenshot shows is real: after Mode (3 choices) and
+Sensor model, **one `Box` holds 14 controls in a row** (prompt insert + tokens, sensor reply limit + warning, six quest numbers,
+check every N, notes age, said per turn, remind, catch up, rate automatically), then 7 event-group switches, usage counters
+as monospace text, and "Advanced" (prompts). Labels such as "Ask to close a quest after N old-quest checks (0 = never)" are
+sentences; four rows carry a second hint line.
+
+Local copies of shared pieces in this file: `SwitchRow` (452), `Fieldset` (482), `NumRow` (140), `SaveBar` (471), and five
+inline `<label>… <Input>` rows; Advanced is fold look 7 and 8 from 1.2. Look: `rounded-none`, `border-cta` square nav buttons
+in the heading font, `uppercase tracking-wide` 11 px labels; 27 literals at 11 px or below in the file. It reads like a different
+product than the World DM panel.
+
+Three variants (mocks `docs/ui-mocks/dash-sensor/`): A task cards (same pattern as the picked World DM variant: How it works /
+What the model is reminded of / Quests; event groups become toggle chips; prompts folded), B real Folds with summaries, C a
+"Current setup" summary card plus a tile grid for the numbers (short labels, so the copy changes in every locale).
+Left nav: vertical list with an active bar on desktop, scrolling tabs on a phone. Save stays in a sticky bar and becomes the
+primary button (2.4). The three other tabs (Event vocabulary, What the model sees, Tune with Molfar) are not designed yet.
+Recommendation: A, for one pattern across both screens; C if the owner wants the densest overview.
+
+**Picked: C (owner, 2026-10-31).** Build waits, like the World DM panel (the DM branch is in flight; Dashboard follows it in the screen order).
+What C needs when it is built:
+
+- Shorter labels, all locales Roleplay ships (key → new English; the old sentence moves into the (i) or the hint under the tile):
+  `dash.set.maxSteps` → "Steps per main quest"; `dash.set.everydayTurns` → "Everyday quests end after (turns)" + hint "0 = never";
+  `dash.set.retireAfter` → "Ask to close after (old-quest checks)" + "0 = never"; `dash.set.threadCheck` → "Check old quests every (turns)" + "0 = never";
+  `dash.set.noteAge` → "Notes stay in the insert (turns)" + "5 to 500"; `dash.set.said` → "Said per turn, at most" + "1 to 4" (the long sentence stays as the hint of "Remind the model what characters said");
+  `dash.set.sensorTokens` → "Sensor reply limit (tokens)" + "raise only if replies get cut off" (the long warning goes to its (i)).
+- New: the "Current setup" summary card (chips derived from the form: mode, model, insert on/off and tokens, enabled groups count, quest caps; usage chips replace the monospace counters), toggle chips for event groups (`aria-pressed`, check icon so it is not colour alone), a `NumTile` (label, hint, number input) next to `SettingRow` in `ui/`.
+- Unchanged logic: `Form`/`patch`, clamps on blur, `SaveBar` (sticky, becomes the primary button), the Advanced prompts (a closed `Fold` with a summary), the other three tabs.
+
+## 6. The chat: kept as it is, four small changes (owner, 2026-10-31)
+
+The owner's decision: the chat is not redesigned. My first three mocks (X1 to X3) were drawn from the code, did not match the real
+chat (Note / Lore / Record / World buttons, token count, context chip, dashboard strip with tabs) and are dropped. What stays on
+the table is what the owner marked on a screenshot of the real chat; mocks `docs/ui-mocks/chat-small/index.html` show each before and after.
+
+1. **Character name in the header** (`chat-view.tsx:729`, now `text-sm font-medium`, second line `text-[11px]`, avatar 32 px):
+   heading font at 20 px (the phone header already uses `font-heading`), second line 12 px, avatar 40 px.
+2. **Colour for the right-hand header buttons** (info ring, find, More): tinted tones (info sky, find teal) with the icon in the
+   tone's ink; More stays an outlined labelled button. A calmer fallback: no tint, only 40 px. The owner said "maybe", so this is
+   the one to confirm.
+3. **Bigger side portrait, text does not move.** Today `.look-stage` (`globals.css:411`): `--ls-av-w: 68px`, `--ls-av-h: 88px`
+   times `--avatar-scale`, grid `68px 1fr` with a 20 px gap. Proposed on wide screens: 168 x 216 px, right-aligned in the same
+   68 px grid cell so it grows into the empty margin to its left and the text column stays at the same x. The size follows the
+   free margin (a container query on the log: `clamp(0, (log width - chat max) / 2 - 16, 100px)` extra), so it falls back to 68 px
+   on a narrow window or with the dashboard strip open, and a phone is unchanged. Keeps `--avatar-scale` as a multiplier and the
+   click that opens the full portrait. Open point: the arch border radius and the ring scale with the width.
+4. **"Since your last reply" stands out** (the dashboard strip's change list, `dashboard/dash-tabs.tsx`): the 11 px muted
+   uppercase caption becomes a tinted sky bar with a 14 px semibold title and a count circle (the dashboard's change markers; red
+   when a change is negative); the chips below are unchanged.
+
+Not touched: the header tool buttons, token count, context chip, Open dashboard, the log, the composer. The weight ladder (2.4) still
+applies to buttons the owner touches later. Backgrounds already show in the chat (a user setting), so nothing to add there.
+
+**Accepted (owner, 2026-10-31): all four as proposed** (header icons in the tinted version). Build waits with the others; this one is
+small and independent of the DM branch, so it can ship first when building starts.
+
+## 7. Home, the characters list and the side panel (owner, 2026-10-31)
+
+Scope from the owner: redo Home; in the cards only a few changes to the general list; personas are not touched (just reworked);
+the side panel gets a closed and an open design. Mocks: `docs/ui-mocks/home/`, `characters-list/`, `rail/`.
+
+### 7.1 Home (`views/home-view.tsx`, `home/*.tsx`)
+
+Now: header (model chip, "New chat" outline button that actually opens the Characters list, a blind step), the hero (continue the
+last chat, art on the right 44 %), then a grid of three equal blocks (Create, Ask Molfar, Achievements: three rings, three tiles, two
+badges), then up to 8 recent-chat rows (persona chip in red, 18 px title), then My apps. Findings: three "primary" buttons compete
+(Continue, New character, Ask Molfar's Open), the blocks have equal weight, achievements take a full column, the home components use
+their own look (`rounded` 4 px, `rounded-[3px]`, Kurale buttons at 13 to 17 px, a red diamond marker), 5 one-off text sizes of
+12.5 to 32 px; the recent list repeats the Chats section and carries select-and-delete.
+
+Variants: H1 continue first (one primary, recent chats as a card row with portraits, Create and Ask Molfar side by side,
+achievements as a line of chips), H2 tone cards (emerald create, violet Molfar, amber achievements, teal apps, recent chats as a
+list), H3 shelves (recent chats, your characters with New character as the first tile, apps; Ask Molfar as a bottom bar,
+achievements as a link). Recommendation: H1 for the order and calm, with H2's tinted Create and Ask cards if more colour is wanted.
+Common to all: header "New chat" goes (Continue and the shelf tiles cover it); weight ladder: Continue primary, New character
+tonal, Import outline, With Molfar ghost; persona chip uses the violet tone, not red.
+
+### 7.2 Characters list (`views/characters-view.tsx`, the owner's four marks)
+
+1. Header spread out: row 1 title and count with New character (the one primary), row 2 search and sort, row 3 folders, row 4
+   "All tags", grid/list switch and a "More" menu (select, import, manage tags and folders). Desktop: one row plus the folders.
+2. Folders block always visible: the existing strip (`characters-view.tsx:484`, the tags marked "folder", `lib/character-folders.ts`)
+   only renders when such tags exist, so it is invisible to most users. Proposal: always render All, Favourites, the folders with counts,
+   "No folder" and a dashed "New folder" chip; "Move to folder" in the card menu and the batch bar; "New folder..." creates the tag
+   with `asFolder` set. No new storage.
+3. Marker colour: lorebook (`BookOpenText`, line 586) emerald and sprites (`Smiley`, line 587) violet, as chips with icon and word
+   ("Lore", "Sprites"); option B from isekaizero.ai: corner badges on the art with the name and counts over a fade.
+Cards and the card editor are not touched otherwise.
+
+### 7.3 Side panel (`shell/app-shell.tsx:286` `IconRail`)
+
+Now: closed 48 px with 17 identical grey icons, 36 px caret, current item a red-tinted strip with a bar; open 206 px with Kurale 17 px labels
+and an ornament picture between groups; the two states look unrelated. Option 1 keeps one tone per item (the app's tones) with a rounded
+filled pill for the current one in both states; option 2 adds four named groups (Play, Cast, World, Setup; needs `sections.ts` group 1
+split in two) with captions when open and a coloured short rule when closed, icons calm and only the current item coloured. Both: 44 px
+items, 12 px radius, focus ring, a bordered 36 px toggle in the same spot in both states, names on hover and focus when closed, the
+inbox badge as a number circle (red on failures). Phone bar: a floating rounded bar with the current item as a named pill (idea from
+isekaizero.ai); targets stay 48 px.
+
+### 7.4 What was taken from isekaizero.ai (ideas only, nothing copied)
+
+Looked at its home in the built-in browser. Taken: portrait-first cards with feature badges in the corner of the art and the title over a
+fade; shelves with titles; a filled rounded pill for the current item in the rail with labels always readable; a floating rounded phone bar;
+a cast strip of small avatars on the featured story (group chats). Not taken: currencies, ads, store badges, contests and rankings, the
+coverflow carousel (nice, but it hides most characters behind the centre one and does not fit a personal library). 
+
+### 7.5 Home, second round (owner, 2026-10-31): H1 to H3 rejected, a library-style start page
+
+The first three Home variants were rejected ("none of them"; the owner would rebuild it differently and add other blocks). Answers:
+Home is first of all a **library**, with some mixing: a random character, the last chat, a "Create a world" block that opens World and
+has its own background taken at random from the library, and more in that spirit. **Not wanted: My apps. Not now: achievements.**
+Blocks to add: news from our repo (releases come fast, not everyone follows Discord), what waits for me, quests and plot threads,
+favourite characters. Character: a calm showcase plus customizable, but no big empty areas; backgrounds pulled from somewhere
+(the user's library) or our own set.
+
+Mocks `docs/ui-mocks/home2/` (the first set is deleted): N1 bento (tiles of different sizes, Customize turns on move, resize and
+hide, a tray of hidden blocks and a reset), N2 magazine (a wide main column: continue, random character and create a world side by
+side, favourites; a narrow side column of live lists: waiting, quests, news). Ask Molfar is a slim bar in the page header. One
+primary button on the page (Continue); Start a chat is tonal; Open World is a white button on the art.
+
+What each block needs (nothing is built yet):
+- Continue: the existing hero data (`home-hero.tsx`).
+- Random character: a random card with a chat or not, "Another" re-rolls; a button that starts a chat.
+- Create a world: opens World; the background is a random picture from the user's backgrounds (World > Backgrounds, chat backgrounds)
+  and, when there are none, from a small set we ship; the shuffle button on it picks another.
+- Favourites: the starred cards (already in the list screen), click starts or continues a chat.
+- Waiting for you: the inbox (`useInboxBadge`, the section "needs you" counts), red when something failed.
+- Quests and threads: open quests and plot threads over all chats from the dashboard data (`dash-threads`), a click opens that chat.
+- What's new: the latest release notes of the project (online fetch with an offline fallback to the bundled CHANGELOG), a link to all releases.
+- Customize: per-user list of block ids, order and size in the app's settings; default is the full set; "Reset to default".
+
+Next on the list after Home (owner): the **Lorebooks** tab needs redoing too.
+
+**Marketplace pick on Home (owner, 2026-10-31): a random card from the Marketplace tops next to the random card from the library, new each time.**
+Feasible with what exists, no new service: the Marketplace search already runs through the engine plugin (`marketplace-view.tsx:527`, body
+`{ source, sort, trending, page, first }`, normalized `MarketplaceItem` with `name`, `creator`, `tagline`, `topics`, `downloads`, `tokens`,
+`nsfw`, `avatar`, `hasLore`, `pageUrl`). Home would call the same route once with `source: 'chub'`, `trending: true`
+(or `sort: 'downloads'`), `first: 24`, the safe maturity filter, keep the 24 for about an hour (memory plus localStorage) and pick one at
+random per Home visit; "Another" takes the next from the same 24, so a visit costs no request. The avatar goes through the same proxy the
+Marketplace uses (`marketplace-view.tsx:360`). Click: "Preview" opens that listing in the Marketplace (the existing preview with Import).
+Decisions to fix when building: (1) adult cards follow the Marketplace's own maturity setting, default hidden; (2) the automatic request
+is a visible switch in Customize ("Suggestions from the Marketplace", default on) and the block is not shown offline or on error,
+no spinner of shame; (3) the source follows the Marketplace's last-used source when it supports a top order, else Chub; (4) the block says
+where it came from (source chip and "top this week") so nobody mistakes it for the library. Mocks: both Home variants carry the new tile.
+
+**Home: N1 bento picked (owner, 2026-10-31); N2 dropped.** The bottom row is What's new (wide) and a help tile.
+**Help tile ("Did you know?")**: a random tip or help article from the guide registry that already exists (`lib/guide-tips.ts` `TIPS`, hand
+tips plus `help-articles.json`: title, short text, "where to find it", both English and Ukrainian). Shows the title, the short text and
+the "where" line; "Show me" starts the existing guide step for it (the tip's `target` / `open`), "Next tip" takes another, "All help"
+opens the help list (`setGuideHelpOpen`). Prefers tips for features the user has not met (the guide already tracks seen tips) and the
+tips of the newest release ("since"), otherwise any. No new content to write. Final block order (desktop): Continue + library pick;
+Marketplace pick + Create a world + Waiting; Quests + Favourites; What's new + Did you know. All blocks hide-able in Customize.
+
+## 8. Decisions log (owner, 2026-10-31)
+
+| Screen | Decision |
+|---|---|
+| World DM panel | Variant C, task cards (build waits for the parallel DM branch) |
+| Dashboard settings, Sensor | Variant C, current-setup summary plus tile grid (shorter labels in all locales) |
+| Chat | Kept; four small changes accepted: name size, tinted header icons, bigger side portrait (text does not move), "Since your last reply" bar |
+| Home | Library-style bento (7.5): continue, library pick, Marketplace pick, create a world, waiting, quests, favourites, What's new, Did you know; Customize; no achievements for now, no My apps |
+| Characters list | Header spread over rows, folders block always visible (assign via "Move to folder"), markers as **chips with a word** (Lore emerald, Sprites violet) |
+| Side panel | **Option 1**, a tone per item and a filled pill for the current one, same in closed and open states, 44 px items, bordered toggle, names on hover when closed; no group captions |
+| Phone bar | **Kept as the full-width bar** (tone on the current item); the floating pill is not taken |
+| Buttons everywhere | Weight ladder (2.4); the important button stands out |
+| Cards, persona editors | Not touched now (personas were just reworked) |
+| Next | Lorebooks tab |
+
+Not decided or not started: the Lorebooks tab; phase 2 (tokens, shared pieces, building) waits for the DM branch.
+
+### 8.1 Side panel: Settings moves (owner, 2026-10-31)
+
+The rail's Settings (the gear, which opens the Roleplay settings page) leaves the bottom corner, where it floated far from everything,
+and joins the **Setup group** with Presets, Shortcuts and Tools (`sections.ts`: `settings` changes from `group: 'end'` to the
+setup group; the bottom keeps Inbox and Help, both "needs you" items). Example screens with the final panel, closeable by its arrow:
+`docs/ui-mocks/example/home.html` and `example/settings.html` (panel closed, Settings is the current item).
+Note for the build: there are two settings in the product. The gear in the rail opens **Roleplay settings** (Appearance, Chat
+Behavior, ..., Data); the gear at the top right of the shell opens **Molfar Vertep's settings** (General, Backup, Connections and
+models, ...). The rail item's name and tooltip say "Settings" in both; label the rail one "Roleplay settings" in its tooltip and page
+title, and keep "Open it" links between the two (the Data page already has one).
+
+### 8.2 Side panel and Settings, corrected (owner, 2026-10-31)
+
+Three corrections to 8.1:
+
+1. **One colour per item, all different.** Characters, Groups and Personas were the same violet and Lorebooks and Library the same emerald, so the
+   colour told nothing. Now every item has its own hue (Home sky, Chats rose, Characters violet, Groups cyan, Marketplace amber, Personas fuchsia,
+   Lorebooks emerald, Library orange, Canvas indigo, World lime-green, Presets blue, Shortcuts yellow, Tools grey); the icon is tinted, the label stays neutral.
+   Shapes still differ per icon, so colour is never the only cue.
+2. **The open panel keeps its own look** (the owner's reminder: it is not the rounded-pill look of my first mock). Kept as it is: 206 px, square
+   rows with a 3 px left bar, Kurale 17 px labels, the ornament dividers between groups, the gradient from the primary colour on the current item,
+   groups as in `sections.ts`. The closed rail (48 px) is the same rows without labels. Changes are only the icon colours, a bordered 36 px
+   toggle in the same place in both states and names on hover when closed.
+3. **Settings leaves the rail for the general Settings of the shell** (the gear at the top right). The shell Settings gets an **Apps** section at the
+   top of its list with **Roleplay**; it opens Roleplay's own settings page (Appearance, Chat Behavior, ..., Data, Guide) inside the dialog.
+   This overrides, for the app-level page only, the 2026-10-11 rule in `ux-review` ("app settings live in the apps, not in the shell's Settings"):
+   settings of one chat or one card stay in that chat's or card's own panel. Needs an engine change (a settings entry that an app contributes,
+   or a link that opens the app on its settings view) and a Roleplay change (the rail drops `settings`; the page keeps its route and also opens from Home's
+   Customize and a command-palette entry). Examples: `docs/ui-mocks/example/home.html` (panel open and closable) and `example/shell-settings.html`.
+   Decision to confirm before building: rewrite the 2026-10-11 line of the skill to say "app-level settings are reachable from the shell's Settings, per-chat and per-card settings from their own panels".
+
+### 8.3 Side panel, two more changes; one in Roleplay settings (owner, 2026-10-31)
+
+- **Agents under World**: a rail item with its own icon and colour that opens Canvas on its Agents board (Canvas already has the boards
+  `links | prompt | agents | sets`, remembered per user, `canvas-view.tsx:130`); it is a link to a Canvas view, not a new section, so
+  `sections.ts` gets an entry that navigates to `canvas` with `board: 'agents'` and is current while that board is open.
+- **Groups of the rail**: Home and Chats | Characters, Groups, Marketplace, Personas (the people block) | Lorebooks, Library, Canvas,
+  World, Agents (the technical block) | Presets | Shortcuts, Tools. `sections.ts` group 1 splits in two; the ornament divider sits between them.
+- **Memory tab in Roleplay settings** (owner's mark on a screenshot): it holds only a pointer, "Story record (Litopys): Litopys settings are in
+  the Library now, next to the record they shape. [Open in the Library]". An empty tab is a blind step; remove the tab (and the key
+  `settings.memory`) and keep the pointer where people look for it, in the Library. Done in the example (`example/shell-settings.html` has no Memory tab).
+
+**Confirmed (owner, 2026-10-31): the Memory tab of the Roleplay settings is removed** (the pointer to Litopys stays in the Library).
+Still waiting for the owner's confirmation: moving the Roleplay settings page into the shell Settings (8.2), which changes the 2026-10-11 line of `ux-review`.
+
+**Confirmed (owner, 2026-10-31): the Roleplay settings page moves into the shell Settings (Apps > Roleplay);** the rail has no Settings item.
+The `ux-review` line of 2026-10-11 is rewritten accordingly (engine repo): whole-app settings are reachable from the shell's Settings,
+per-chat and per-card settings stay in their own panels. Build tasks: engine (an app-contributed settings entry or a deep link to the app's settings view)
+and Roleplay (drop `settings` from `sections.ts`, keep the page's route, open it from Home's Customize and the command palette).
+
+## 9. Lorebooks (owner, 2026-10-31: "the tab needs redoing too")
+
+Code: `views/lorebooks-view.tsx` (653 lines: list `LorebooksView`, `BookEditor` from line 336, `EntryRowHead` 579), `lore/entry-editor.tsx` (431),
+`lore/book-settings.tsx` (146), `lore/keyword-test.tsx`, `lore/why-rows.tsx`. 51 literals at 11 px or below in these files (25 in the view).
+
+What is there now:
+- **List** (300 px): title, three icon buttons (import, new, more), a "Create with Molfar" outline button, a search field, a filter select (all, global,
+  own, shared, unlinked), rows with a kind icon, name, a globe for global and "N entries · used by".
+- **Book header**: name field, a Global switch with an info button, a "N tok total" badge in 10 px, and then **seven more controls** in
+  one wrapped row: Test triggers, Settings (opens the rules above the entries), Used by (popover), export, duplicate, delete.
+- **Entries toolbar**: search, sort select, Open all, an "i" for the badge legend, Entry (the one add button); **seven filter chips**
+  (All, On, Off, Constant, Keyed, Vector, No keys); a **bulk bar of nine buttons** in 11 px.
+- **Entry row**: checkbox, title, tokens, keys as 10 px badges, position badge, chance badge, timing icons; opening it unfolds the editor inside the list.
+- **Entry editor** (`entry-editor.tsx`): title, status, keys, secondary keys and logic, content, position, depth, role, order, chance, sticky,
+  cooldown, delay, group fields, characters, filters: about 30 fields in one open row, in a list that is itself long.
+- **Book rules** (`book-settings.tsx`): scanning (scan depth, include names, case, whole words, word forms, recursion, max recursion, min activations and
+  its depth), budget (percent, cap, overflow alert), order (strategy), groups, format template: about 16 settings, shown as one block when "Settings" is pressed.
+Findings against the bar: a wall of small controls above the actual content (the entries); words are the engine's ("Constant", "Keyed", "Vector",
+"Trigger %", "Order") rather than the player's; the warning "needs keys" is a 10 px red word; editing an entry inside the list moves everything below it;
+rules, entries and "used by" are three different places.
+
+Proposed vocabulary (copy change in all locales): Constant becomes "Always on", Keyed "When mentioned", Vector "By meaning"; "Trigger %" becomes "Chance";
+tokens are shown as "tokens", not "tok".
+
+Mocks `docs/ui-mocks/lorebooks/`: both variants share the same book page and the same new entry editor.
+- **Book page** (shared): a header with the name, three chips (entries, tokens, who uses it), the Global switch, "Test triggers" and one "more" menu (export,
+  duplicate, delete); tabs **Entries | Rules | Used by (n)**; Rules are folds with a summary line each (Scanning, Recursion, Budget, Order and groups).
+  Entries: search, sort, select-several, the one primary "Add entry", seven filter chips with counts (the odd one, "No keys", in the warning colour),
+  rows with a switch, a status chip, key chips and a plain warning ("Needs keys, will never fire"), bulk actions appear only after selecting.
+- **Entry editor** (shared): a side panel instead of unfolding in the list. Top: title, an on switch. Then Title, Content (with a token count), "When it
+  appears" (three choices), Keys as chips you type, folds "Where it goes" (position, role, depth, order) and "More conditions" (chance, sticky, cooldown,
+  delay, secondary keys, group), each with a summary. Footer: Copy to a book, Delete. It saves as you type (as today); on a phone it is a full page.
+- **L1 list and book**: the list stays left (with filter chips instead of a select), the book at right. Least relearning.
+- **L2 shelf and book page**: books as cards (tinted top, counts, who uses them as small avatars, a Global chip), a click opens the book full width.
+  Best at a glance with many books; one more step to switch between books.
+Recommendation: L1, since people switch between books while writing; take L2's cards for the empty state and for the picker when a card links a book.
+Open for the owner: the new words, and whether the "Used by" tab should also show a "Link to a card" action (today linking is done from the card).
+
+### 9.1 Lorebooks: L1 picked, with the owner's notes (2026-10-31)
+
+L1 (list and book, entry editor in a side panel) is picked; the owner liked the right-hand panel ("more room, better reading"). Corrections made in the mocks:
+
+- **The list is wider** (380 px instead of 300): book names are long ("Apartment Portal — Lorebook B (explicit, NSFW always-on)" in the owner's data), so a
+  name takes up to two lines.
+- **The app's own kind icons stay**, with their colours (`KIND_ICON`): own book = user-circle amber, shared = users sky, not linked = link-break grey,
+  global = globe emerald. The filter chips carry the same icons. Names still carry the words ("Own book of Mira"), so colour is never alone.
+- **The Rules tab replaces the old "Settings" block, with all its settings** (the first mock only had placeholders there). Regrouped into four cards:
+  *What it reads* (scan depth, include names, whole words, word forms, case sensitive; a fold "If too few entries fire" holds min activations and its max depth),
+  *How much fits* (context %, budget cap, overflow alert), *Order and chains* (insertion strategy as a 3-way switch with its explanation, group scoring,
+  recursive scan, max recursion that is dimmed with the reason while recursion is off), *Wrapper text* (format template, "Use default").
+- **"More options" of an entry is regrouped by purpose, with nothing dropped.** Always visible: title, content, "When it appears", keys (with the regex switch).
+  Five sibling folds with a summary each (no fold inside a fold): *Where it goes* (position, role, depth, order, ignore budget), *Only when...* (secondary keys and
+  logic, chance, only these speakers with "exclude them instead", only these tags, only these kinds of reply), *How long it stays* (sticky, cooldown, delay),
+  *Groups and chains* (group name, weight, group scoring, prioritize in group, not triggered by other entries, does not trigger others, waits for recursion level),
+  *How its keys match* (case sensitive, whole words, word forms, scan depth, also scan the card's description, personality, scenario, persona, automation id).
+  "Triggers/Filters/Chance/Timed/Recursion/Matching/Also scan" of the old file map onto these five; the old open/closed state of "More options"
+  (`readMore`/`writeMore`) goes, each fold remembers its own state.
+- Mocks: `docs/ui-mocks/lorebooks/l1.html` with `?entry=0` (no panel), none (panel), `?more=1` (all folds open), `?tab=rules`. L2 (shelf) is dropped; its cards may
+  return for the empty state.
+
+Phone layout of the book page (fixed after the owner's screenshot, 2026-10-31): the header is the title (22 px), a row of chips (Global, kind) and a row (entries, tokens),
+then one row with "Test triggers" (stretches) and the "more" button; tabs scroll; the toolbar is search on its own row, then Order, select-several and the one primary "Add entry" (stretches);
+the filter chips are **one scrolling row**, not four wrapped rows; an entry's title may take two lines; the list view is the book list with the same icons, the book opens on its own screen with "← Lorebooks".
+Lesson for the build: any toolbar of more than three controls gets rows on a phone, and chip rows scroll sideways instead of wrapping.
+
+## 10. After the DM branch merged (`outfit-drift-185`, main at 09ed111, 2026-10-31)
+
+Checked against the merged code: the files of the World panel (`world-controls.tsx`, `world-setting-row.tsx`, `dice-fields.tsx`) did not change, so the designs stand.
+What the merge changes in them:
+
+- **The DM "off" is no longer "nothing happens".** With the DM off the book still fills itself from the story (the sweep: a small records-only call about the
+  places and things the scene tracker named). The DM switch line and the Off level hint were reworded ("Off: no events and no dice. Places and things the story names
+  are still recorded, and the book is still shown to the reply model."). Consequence for the panel: in the off state only *When it runs* and *What it adds to the story* are dimmed
+  (each with a note saying why); *What it writes* (records, limits) stays live. Mock: `world-dm/c.html?off=1`.
+- **Sensor tab gets one more switch**, `dash.set.layoutInject` "Remind the model where everyone stands and what they wear" (`dash-settings.tsx`, new in `Form.layout`):
+  it joins the card *What the model is reminded of*, next to "Remind the model what characters said". Added to the Sensor mocks.
+- The merge adds no new screens; the world plugin (sweep, places, objects) and the relations plugin changed on the engine side only.
+The design branch was rebased onto this main before any code was written.

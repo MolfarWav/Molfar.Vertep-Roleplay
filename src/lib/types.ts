@@ -876,6 +876,9 @@ export interface AppSettings {
   canvasBoard?: { placed: string[]; positions: Record<string, { x: number; y: number }>; id?: string; name?: string; seq?: number }
   /** The other named Chat links boards (the one on screen is `canvasBoard`). */
   canvasBoards?: Array<{ id: string; name: string; placed: string[]; positions: Record<string, { x: number; y: number }>; seq: number }>
+  /** Home's layout (lib/home-layout.ts): the block ids in order, the hidden ones, a size per block (sm, md, lg) and whether
+   *  the Marketplace suggestion is fetched. Absent = the default page. */
+  homeLayout?: { order: string[]; hidden: string[]; sizes?: Record<string, 'sm' | 'md' | 'lg'>; marketSuggest?: boolean }
   /** Image generation via the engine's pi-ai images bridge (POST /v1/images). */
   /** The model for card tasks (Structure it, Fill empty, the Soul rating) when a card names none; empty = the sensor's, then the default. */
   cardTasks?: { model: string }

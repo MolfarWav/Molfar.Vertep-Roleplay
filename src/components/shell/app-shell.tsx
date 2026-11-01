@@ -35,7 +35,9 @@ import { GuideHost } from '@/components/guide/guide-host'
 import { PresetImportReportHost } from '@/components/presets/import-report-dialog'
 import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
-import { SECTIONS, sectionGroups, type SectionItem } from '@/components/shell/sections'
+import { SECTIONS, itemId, sectionGroups, type SectionItem } from '@/components/shell/sections'
+import { RAIL_HUES, type RailHue } from '@/components/shell/rail-hues'
+import { useCanvasBoard, writeCanvasBoard } from '@/lib/canvas-board'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 import { InboxDrawer, useInbox, useInboxBadge } from '@/components/shell/inbox'
 import { ImportProgressCard } from '@/components/shell/import-progress-card'
@@ -296,6 +298,7 @@ function IconRail() {
   const roomy = useIsWideRail()
   const wide = roomy && !railCollapsed
   const t = useT()
+  const canvasBoard = useCanvasBoard()
 
   const toggleLabel = t(wide ? 'nav.hideRail' : 'nav.showRail')
   const toggle = !roomy ? null : wide ? (
@@ -304,7 +307,7 @@ function IconRail() {
       onClick={() => setRailCollapsed(true)}
       aria-label={toggleLabel}
       title={toggleLabel}
-      className="mx-2 mb-1 flex h-8 shrink-0 items-center justify-end rounded-md pr-1 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+      className="mr-2 mb-1 ml-auto flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
     >
       <CaretLeft className="size-4" aria-hidden="true" />
     </button>
@@ -316,7 +319,7 @@ function IconRail() {
             type="button"
             onClick={() => setRailCollapsed(false)}
             aria-label={toggleLabel}
-            className="mx-auto mb-1 flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+            className="mx-auto mb-1 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
           >
             <CaretRight className="size-4" aria-hidden="true" />
           </button>
@@ -330,7 +333,7 @@ function IconRail() {
     <nav
       aria-label="Primary sections"
       className={cn(
-        // scrolls when the window is shorter than the rail, so Settings at the bottom stays reachable (#120)
+        // scrolls when the window is shorter than the rail, so the inbox and help at the bottom stay reachable (#120)
         'hidden min-h-0 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-border bg-card py-2 [scrollbar-width:thin] md:flex',
         wide ? 'w-[206px]' : 'w-12',
       )}
@@ -338,37 +341,42 @@ function IconRail() {
       {toggle}
       {sectionGroups().map((group, gi) => (
         <Fragment key={String(group[0]!.group)}>
-          {gi > 0 && <RailDivider wide={wide} pinned={group[0]!.group === 'end'} />}
-          {/* the help list is an action, not a view: it sits just above Settings */}
-          {group[0]?.group === 'end' && <InboxRailItem wide={wide} />}
-          {group[0]?.group === 'end' && (
-            <RailItem
-              data-guide="nav.help"
-              item={{ icon: Question }}
-              wide={wide}
-              label={t('guide.help')}
-              active={guideHelpOpen}
-              onClick={() => setGuideHelpOpen(true)}
-            />
-          )}
-          {group.map((item) => (
-            <SectionRailItem
-              key={item.key}
-              data-guide={`nav.${item.key}`}
-              item={item}
-              wide={wide}
-              label={t(item.labelKey)}
-              active={drawer ? drawer === item.key : view === item.key || (view === 'chat' && item.key === 'chats')}
-              onClick={() => {
-                // clicking the open drawer's icon toggles it shut; anything
-                // else navigates (a section over a chat becomes its drawer)
-                if (drawer === item.key) { closeDrawer(); return }
-                navigate(item.key)
-              }}
-            />
-          ))}
+          {gi > 0 && <RailDivider wide={wide} pinned={false} />}
+          {group.map((item) => {
+            // Agents is a link to a Canvas board, not a section: it is current only while that board is open
+            const open = drawer ? drawer === item.key : view === item.key || (view === 'chat' && item.key === 'chats')
+            const active = item.key === 'canvas' ? open && (canvasBoard === 'agents') === !!item.board : open
+            return (
+              <SectionRailItem
+                key={itemId(item)}
+                data-guide={`nav.${itemId(item)}`}
+                item={item}
+                wide={wide}
+                label={t(item.labelKey)}
+                active={active}
+                onClick={() => {
+                  // clicking the open drawer's icon toggles it shut; anything
+                  // else navigates (a section over a chat becomes its drawer)
+                  if (active && drawer === item.key) { closeDrawer(); return }
+                  if (item.key === 'canvas') writeCanvasBoard(item.board ?? (canvasBoard === 'agents' ? 'links' : canvasBoard))
+                  navigate(item.key)
+                }}
+              />
+            )
+          })}
         </Fragment>
       ))}
+      {/* what waits on the player sits at the bottom: the inbox, then the help list (an action, not a view) */}
+      <RailDivider wide={wide} pinned />
+      <InboxRailItem wide={wide} />
+      <RailItem
+        data-guide="nav.help"
+        item={{ icon: Question }}
+        wide={wide}
+        label={t('guide.help')}
+        active={guideHelpOpen}
+        onClick={() => setGuideHelpOpen(true)}
+      />
     </nav>
   )
 }
@@ -391,7 +399,9 @@ function RailDivider({ wide, pinned }: { wide: boolean; pinned: boolean }) {
   )
 }
 
-function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0, failures = 0 }: {
+function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, badge = 0, failures = 0, hue }: {
+  /** the icon's own colour; the help and inbox items have none */
+  hue?: RailHue
   badge?: number
   /** how many of the badge are failures: the badge turns red */
   failures?: number
@@ -419,7 +429,7 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
       )}
     >
       <span className="relative inline-flex shrink-0">
-        <item.icon className={cn('shrink-0', wide ? 'size-[19px]' : 'size-5', active && 'text-cta')} aria-hidden="true" />
+        <item.icon className={cn('shrink-0', wide ? 'size-[19px]' : 'size-5', hue ? RAIL_HUES[hue] : active && 'text-cta')} aria-hidden="true" />
         {!wide && <NeedsYouBadge count={badge} dot failed={failures > 0} />}
       </span>
       {wide && <span className="min-w-0 flex-1 text-left">{label}</span>}
@@ -438,7 +448,7 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
 /** A section's rail item with its "needs you" count. */
 function SectionRailItem(props: Omit<Parameters<typeof RailItem>[0], 'badge'> & { item: SectionItem }) {
   const badge = useSectionAttention(props.item.key)
-  return <RailItem {...props} badge={badge} />
+  return <RailItem {...props} hue={props.item.hue} badge={badge} />
 }
 
 /** The inbox (#55): everything that waits on the player, one button above Help. It opens the inbox drawer. */

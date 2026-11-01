@@ -14,6 +14,7 @@
  * Routes (under /v1/apps/roleplay/):
  *  POST /dashboard/update {chatId, op?, auto?}  sensor now (two-phase); auto = the UI's trigger after a reply
  *  GET  /dashboard/state?chatId=           state + active keys + current key
+ *  GET  /dashboard/quests?chatIds=a,b,c    the open quests and threads of several chats: {chats: [{chatId, threads}]}
  *  GET  /dashboard/preview?chatId=&speaker=&text= the insert the next reply gets, and the speakers it can be built for
  *  GET  /dashboard/notice?chatId=          the last insert that did not fit the limit
  *  POST /dashboard/nudge {chatId, threadId?, twist?}  "Story, move": the next reply moves the story (one open thread or step, null = all; twist = an event in none of them)
@@ -5225,6 +5226,32 @@ function readState(req, fsx) {
   return ok({ state: existed ? state : null, activeKeys: keys, current });
 }
 
+const QUESTS_MAX_CHATS = 20;
+
+/** GET /dashboard/quests?chatIds=a,b,c: the open quests and plot threads of several chats at once (Home's "what still waits
+ *  for you"). The caller names the chats (the most recent ones; at most QUESTS_MAX_CHATS, because every chat is read to settle
+ *  its view), the answer holds the settled threads of each chat that has a dashboard state, in the order asked. */
+function questsRoute(req, fsx) {
+  const raw = String((req.query && req.query.chatIds) || "");
+  const ids = [...new Set(raw.split(",").map((x) => x.trim()).filter((x) => CHAT_ID.test(x)))].slice(0, QUESTS_MAX_CHATS);
+  const chats = [];
+  for (const chatId of ids) {
+    try {
+      const { state, existed } = loadStateFor(fsx, chatId);
+      if (!existed) continue;
+      const chat = readChat(fsx, chatId);
+      if (!chat) continue;
+      const keys = activeLine(chat.msgs).map((l) => l.key);
+      const view = stateView(fsx, chatId, state, keys, loadConfig(fsx));
+      const threads = Array.isArray(view && view.threads) ? view.threads.filter((t) => t && t.status === "open") : [];
+      if (threads.length) chats.push({ chatId, threads });
+    } catch {
+      // one unreadable chat must not hide the others
+    }
+  }
+  return ok({ chats });
+}
+
 function configBody(fsx) {
   const cfg = loadConfig(fsx);
   const sensorParts = SENSOR_PARTS.map((part) => {
@@ -5538,6 +5565,7 @@ export function handleRoute(req, host) {
     const b = isObj(req.body) ? req.body : {};
     return ok({ effects: soulEffects(normalizeSoul(b.soul), loadVocab(fsx)) });
   }
+  if (path === "/dashboard/quests" && method === "GET") return questsRoute(req, fsx);
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/inherit" && method === "POST") return inheritRoute(req, fsx);
   if (path === "/dashboard/calendar" && method === "POST") return calendarRoute(req, fsx);

@@ -1,0 +1,70 @@
+/* Full-screen examples with the side panel as it is today (square, Kurale, ornament dividers, primary bar), plus a distinct colour per item.
+   Uses ../world-dm/shared.css and ../home2/home2.css. */
+.shell { display: flex; height: calc(100vh - 36px); min-height: 560px; }
+.bare .shell { height: 100vh; }
+.t-h { --tl: oklch(66% .2 var(--hue)); --ti: oklch(50% .17 var(--hue)); }
+:root.dark .t-h { --ti: oklch(80% .13 var(--hue)); }
+.rail { display: flex; flex-direction: column; flex: none; padding: 8px 0; border-right: 1px solid var(--border); background: var(--card); overflow-y: auto; overflow-x: hidden; }
+.rail.c { width: 48px; } .rail.x { width: 206px; }
+.tgrow { display: flex; padding: 0 8px 6px; }
+.rail.x .tgrow { justify-content: flex-end; }
+.rail.c .tgrow { justify-content: center; padding: 0 0 6px; }
+.tg { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--input); border-radius: 8px; background: transparent; color: var(--foreground); flex: none; }
+.tg:hover { background: var(--accent); }
+.tg svg.i { width: 18px; height: 18px; }
+.it { position: relative; display: flex; align-items: center; width: 100%; flex: none; border: 0; border-left: 3px solid transparent; background: none; color: var(--muted-foreground); text-align: left; }
+.rail.x .it { gap: 12px; padding: 8px 22px 8px 13px; font-family: var(--font-heading); font-size: 17px; line-height: 1.2; }
+.rail.c .it { height: 40px; justify-content: center; padding: 0; }
+.it svg.i { flex: none; color: var(--ti); }
+.rail.x .it svg.i { width: 19px; height: 19px; }
+.rail.c .it svg.i { width: 20px; height: 20px; }
+.it:hover { background: color-mix(in oklab, var(--accent) 60%, transparent); color: var(--foreground); }
+.it:focus-visible { outline: none; box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+.it .lb { flex: 1; min-width: 0; }
+.rail.c .it .lb { display: none; }
+.it[aria-current='page'] { border-left-color: var(--primary); background: linear-gradient(to right, color-mix(in oklab, var(--primary) 25%, transparent), color-mix(in oklab, var(--primary) 3%, transparent)); color: var(--foreground); }
+.rail.c .it:hover::after { content: attr(data-tip); position: absolute; left: 52px; top: 50%; transform: translateY(-50%); z-index: 20; padding: 4px 10px; border-radius: 8px; background: var(--foreground); color: var(--background); font: 500 var(--fs-caption)/16px var(--font-sans); white-space: nowrap; pointer-events: none; }
+.bdg { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--cta); color: var(--cta-foreground); font: 700 var(--fs-caption)/20px var(--font-sans); text-align: center; }
+.rail.c .bdg { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; font-size: 11px; }
+.orn { display: block; width: 178px; height: 19px; margin: 8px auto; flex: none; opacity: .9; }
+.rail.c .orn { display: none; }
+.rl { display: none; width: 24px; height: 1px; margin: 10px auto; background: var(--border); flex: none; }
+.rail.c .rl { display: block; }
+.sp { flex: 1; }
+.main { flex: 1; min-width: 0; overflow-y: auto; }
+.tabbar { display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 56px; z-index: 30; border-top: 1px solid var(--border); background: var(--card); }
+.tabbar button { flex: 1; display: grid; place-items: center; border: 0; background: none; color: var(--muted-foreground); position: relative; }
+.tabbar button[aria-current='page'] { color: var(--foreground); box-shadow: inset 0 -3px 0 var(--primary); }
+.tabbar svg.i { width: 22px; height: 22px; color: var(--ti); }
+.tabbar .bdg { position: absolute; top: 6px; right: calc(50% - 22px); min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; padding: 0 4px; }
+@media (max-width: 767px) {
+  .rail { display: none; }
+  .tabbar { display: flex; }
+  .shell { height: auto; }
+  .main { padding-bottom: 64px; overflow: visible; }
+}
+/* shell top bar and the shell settings dialog */
+.topbar { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); font-weight: 500; font-size: var(--fs-caption); flex: none; }
+.topbar .sp { flex: 1; }
+.topbar button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; }
+.topbar button:hover { background: var(--accent); color: var(--foreground); }
+.topbar button.on { background: var(--accent); color: var(--foreground); border-color: var(--input); }
+.topbar svg.i { width: 16px; height: 16px; }
+.topbar .user { color: var(--foreground); }
+.scrim { position: absolute; inset: 0; background: rgb(0 0 0 / .5); display: grid; place-items: center; padding: 24px; z-index: 40; }
+.dlg { width: min(960px, 100%); height: min(640px, 100%); display: flex; border: 1px solid var(--border); border-radius: 14px; background: var(--popover); overflow: hidden; box-shadow: 0 16px 48px rgb(0 0 0 / .5); }
+.dnv { width: 220px; flex: none; padding: 12px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; overflow-y: auto; background: var(--card); }
+.dnv .cap { padding: 12px 10px 4px; font-weight: 600; }
+.dnv button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); text-align: left; font-weight: 500; }
+.dnv button:hover { background: var(--accent); color: var(--foreground); }
+.dnv button[aria-current='page'] { background: var(--accent); color: var(--foreground); box-shadow: inset 3px 0 0 var(--primary); }
+.dnv svg.i { width: 18px; height: 18px; }
+.dnv .rl2 { height: 1px; background: var(--border); margin: 8px 4px; }
+.dct { flex: 1; min-width: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.dct h3.t { font: 400 var(--fs-title)/var(--lh-title) var(--font-heading); }
+.subnav { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.subnav button { position: relative; height: 40px; padding: 0 12px; border: 0; background: none; color: var(--muted-foreground); font-weight: 500; white-space: nowrap; }
+.subnav button:hover { color: var(--foreground); }
+.subnav button[aria-current='page'] { color: var(--foreground); font-weight: 600; box-shadow: inset 0 -3px 0 var(--primary); }
+.stage { position: relative; }
+@media (max-width: 767px) { .dnv { display: none; } .scrim { padding: 0; } .dlg { border-radius: 0; height: 100%; } }

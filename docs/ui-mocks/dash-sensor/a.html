@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dashboard Sensor — A. Task cards</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="dash.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="dash.js"></script>
+<script>
+mountDash({ label: 'A · Task cards', blurb: 'The pattern of World DM variant C: three tinted cards by task, groups as toggle chips, prompts folded', html:
+  D.use() +
+  dsec('sky', 'eye', 'How it works', ['Sensor', 'chat’s model'], D.mode() + D.model() + D.catchUp() + D.autoSoul() + D.sensorTokens()) +
+  dsec('violet', 'spark', 'What the model is reminded of', ['insert on · 80 tokens', 'said: on'], D.insert() + D.insTokens() + D.saidInject() + D.layout() + D.said() + D.noteAge() + `<div><p class="subh">Event groups</p><div class="tchips">${D.groups()}</div></div>`) +
+  dsec('pink', 'compass', 'Quests', ['2 main', '4 side'], D.maxMain() + D.maxThreads() + D.maxSteps() + D.everyday() + D.retire() + D.check()) +
+  D.prompts()
+})
+</script></body></html>

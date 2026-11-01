@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Example — Home with the side panel</title><link rel="stylesheet" href="../world-dm/shared.css"><link rel="stylesheet" href="../home2/home2.css"><link rel="stylesheet" href="shell.css"></head><body>
+<script src="../world-dm/shared.js"></script><script src="../home2/home2.js"></script><script src="rail.js"></script>
+<script>
+const content = `<div class="hpage">${header(false)}<main class="hbody"><div class="bento">
+  <div class="c8" style="display:flex">${B.cont('c8').replace('class="bt art c8"', 'class="bt art" style="flex:1"')}</div>
+  <div class="c4" style="display:flex">${B.rand('').replace('class="bt "', 'class="bt" style="flex:1"')}</div>
+  <div class="c4" style="display:flex">${B.market('').replace('class="bt t-amber "', 'class="bt t-amber" style="flex:1"')}</div>
+  <div class="c4" style="display:flex">${B.world('').replace('min-height:200px', 'min-height:240px;flex:1')}</div>
+  <div class="c4">${B.waits()}</div>
+  <div class="c4">${B.quests()}</div>
+  <div class="c8">${B.favs()}</div>
+  <div class="c8">${B.news('wide')}</div>
+  <div class="c4">${B.help()}</div></div></main></div>`
+mountShell({ label: 'Example · Home', blurb: 'the side panel in its current style with a colour per item (click the arrow to close or open it); no Settings in the rail', current: 'Home', tab: 0, content })
+</script></body></html>

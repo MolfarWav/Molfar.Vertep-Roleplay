@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>World DM — C. Task cards</title><link rel="stylesheet" href="shared.css"></head><body>
+<script src="shared.js"></script>
+<script>
+// ?off=1 shows the DM switched off: since the sweep (#185) the book still fills itself from the story, so only the parts about events and the schedule are dimmed
+const dim = (h, why) => (OFF ? h.replace('<div class="rows">', `<div class="rows"><p class="cap note">${why}</p>`).replace('class="card tcard', 'class="dimmed card tcard') : h)
+const card = (tone, ic, title, chips, body) => `<section class="card tcard t-${tone}"><div class="thead">${icon(ic)}<h3>${title}</h3><div class="chips">${chips.map((c) => chip(c, tone)).join('')}</div></div><div class="rows">${body}</div></section>`
+const when = card('sky', 'clock', 'When it runs', ['every 3 replies', 'next in 2'], S.everyN() + S.turnBtn() + S.still() + S.skip() + S.place())
+const writes = card('emerald', 'book', 'What it writes', ['records every 5', '800 characters'], S.recEvery() + S.outfit() +
+  fold({ id: 'limits', title: 'Limits', summary: '800 characters · 8 changes per run', cls: 'flat', body: `<div class="rows">${S.textMax()}${S.changesMax()}</div>` }))
+const adds = card('violet', 'spark', 'What it adds to the story', ['events on', 'dice: hint'], S.insert() + S.diceMode() +
+  fold({ id: 'dice', title: 'Dice details', summary: 'By the action · even luck · 30% of replies · world 10%', cls: 'flat', body: `<div class="rows">${S.diceStat()}${S.diceTilt()}${S.diceChance()}${S.diceShow()}${S.diceLife()}</div>` }) + S.rolls('flat'))
+mount({
+  label: 'C · Task cards',
+  blurb: 'Regrouped by what the player wants; value chips; expert numbers fold with a summary (add ?off=1 for the DM switched off)',
+  settingsHTML:
+    dim(when, 'Needs the DM on. The book still fills itself from the story (places and things) with a small records-only call.') +
+    writes +
+    dim(adds, 'Needs the DM on: no events and no dice while it is off.')
+})
+</script></body></html>

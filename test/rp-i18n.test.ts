@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { DICTIONARIES, detectLanguage, relativeTime, resolveLanguage, t, type MsgKey } from "../src/lib/i18n";
-import { SECTIONS, sectionGroups } from "../src/components/shell/sections";
+import { RAIL_SECTIONS, SECTIONS, itemId, sectionGroups } from "../src/components/shell/sections";
+import { RAIL_HUES } from "../src/components/shell/rail-hues";
 
 describe("i18n", () => {
   it("every English key has a Ukrainian string", () => {
@@ -82,16 +83,30 @@ describe("placeholders and relative time", () => {
 });
 
 describe("rail groups", () => {
-  it("split Home+Chats | Characters, Groups, Marketplace, Personas, Lorebooks, Litopys, Canvas, World | Presets | Shortcuts, Tools | Settings", () => {
-    const groups = sectionGroups().map((g) => g.map((s) => s.key));
+  it("split Home+Chats | the people | the technical block | Presets | Shortcuts, Tools; Settings is not on the rail", () => {
+    const groups = sectionGroups().map((g) => g.map(itemId));
     expect(groups).toEqual([
       ["home", "chats"],
-      ["characters", "groups", "marketplace", "personas", "lorebooks", "litopys", "canvas", "world"],
+      ["characters", "groups", "marketplace", "personas"],
+      ["lorebooks", "litopys", "canvas", "world", "agents"],
       ["presets"],
       ["quickreplies", "extensions"],
-      ["settings"],
     ]);
-    // Settings is the one pinned to the bottom
-    expect(sectionGroups().at(-1)![0]!.group).toBe("end");
+    // the Roleplay settings page keeps its route and its title, but has no rail item
+    expect(RAIL_SECTIONS.some((s) => s.key === "settings")).toBe(false);
+    expect(SECTIONS.find((s) => s.key === "settings")!.group).toBe("none");
+  });
+
+  it("Agents is a link to the Canvas agents board, not a section of its own", () => {
+    const agents = SECTIONS.find((s) => s.id === "agents")!;
+    expect(agents.key).toBe("canvas");
+    expect(agents.board).toBe("agents");
+  });
+
+  it("every rail item has its own hue", () => {
+    const hues = RAIL_SECTIONS.map((s) => s.hue);
+    expect(new Set(hues).size).toBe(hues.length);
+    for (const h of hues) expect(RAIL_HUES[h]).toContain("dark:");
   });
 });
+
