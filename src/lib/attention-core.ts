@@ -1,6 +1,7 @@
 // The pure part of "needs you" (#55): no network, no DOM, so tests import it directly.
 import type { LitChat, LitChatItem, LitProposal } from '@/components/library/litopys-api'
 import { t, type Lang, type MsgKey } from '@/lib/i18n'
+import type { Letter } from '@/lib/letters-core'
 
 export type AttentionKind = 'litopys' | 'soul' | 'failed'
 
@@ -185,11 +186,12 @@ export type InboxRow =
   | { kind: 'failed'; key: string; item: FailedItem; name: string; reason: string }
   | { kind: 'litopys'; key: string; chatId: string; name: string; count: number }
   | { kind: 'soul'; key: string; characterId: string; name: string; count: number; at: number }
+  | { kind: 'letter'; key: string; letter: Letter; name: string }
 
 /** A Library row hidden from the inbox: gone until that chat's pending count changes. */
 export const litDismissKey = (chatId: string, count: number) => `lit:${chatId}:${count}`
 
-/** The local key a row is dismissed by, or null for a Soul review (its proposal is dismissed in the engine). */
+/** The local key a row is dismissed by, or null for a Soul review or a letter (dismissed in the engine). */
 export function rowDismissKey(row: InboxRow): string | null {
   return row.kind === 'failed' ? failKey(row.item) : row.kind === 'litopys' ? litDismissKey(row.chatId, row.count) : null
 }
@@ -199,6 +201,8 @@ export interface InboxInput {
   /** pending Library proposals per chat id */
   litopys: Record<string, number>
   soul: SoulWaiting[]
+  /** unread letters from cards (#72); they are never failures and never turn the badge red */
+  letters?: Letter[]
   /** background failures from every source, soul ones included only through `soul` */
   failed?: FailedItem[]
   /** failure keys the player dismissed */
@@ -212,7 +216,7 @@ export interface InboxInput {
 /**
  * The rows of the inbox and the number on its badge. A kind switched off (settings.attention)
  * is neither listed nor counted. Failures come first (newest first), then Library rows (the chat
- * with the most waiting at the top), then soul rows (newest first). The total counts every Library
+ * with the most waiting at the top), then soul rows (newest first), then letters from cards (newest first). The total counts every Library
  * proposal, every failure and every card with souls waiting (a card is one item, however many
  * souls it proposes). `failures` tells the badge to turn red.
  */
@@ -238,6 +242,7 @@ export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number;
       rows.push({ kind: 'soul', key: `soul:${d.characterId}`, characterId: d.characterId, name: input.cardName(d.characterId), count: d.n, at: d.at })
     }
   }
+  for (const l of input.letters ?? []) rows.push({ kind: 'letter', key: `letter:${l.id}`, letter: l, name: input.cardName(l.characterId) })
   const failures = rows.filter((r) => r.kind === 'failed').length
   const total = rows.reduce((a, r) => a + (r.kind === 'litopys' ? r.count : 1), 0)
   return { rows, total, failures }

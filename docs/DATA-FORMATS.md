@@ -655,6 +655,17 @@ character saw, heard or guessed), `names` and `history`:
   Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
 
+## Letters from cards: `data/letters/` (the Letters plugin; leave it to the Letters dialog)
+
+Optional (#72), off until the player turns it on in Characters > More > Letters from cards. A card that is idle, never played, or played without a Soul writes a short in-character note; nothing is ever written into a chat.
+
+| File | What it is |
+|---|---|
+| `letters/config.json` | Only what differs from the defaults: `enabled` (false), `idleDays` (14, 7-90), `perDay` (3, 1-10), `perCardDays` (30, 7-180), `model` (empty = Litopys' model, else the app's default). |
+| `letters/inbox/<id>.json` | One unread letter: `{v, id, characterId, chatId?, why: "idle" or "unplayed" or "nosoul", text, at, model}`. Deleted when opened or dismissed. |
+| `letters/cards/<characterId>.json` | `{v, lastAt, lastWhy, soulAskedAt, muted}`: the card's cooldown, the once-only Soul nudge and the "do not write again" mark. Survives a dismissed letter. |
+| `letters/day.json` | `{day, n}`: letters written today (UTC day). |
+
 ## Agents: `data/agents/<id>.vertep-agent.json` (checked and run by the Agents plugin; no screen writes it yet)
 
 An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,

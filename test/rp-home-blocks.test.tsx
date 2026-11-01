@@ -229,7 +229,7 @@ describe("WaitingView detail", () => {
   });
 
   it("an empty inbox has no chips and no list", () => {
-    const html = renderToStaticMarkup(<WaitingView total={0} failures={0} onOpen={noop} kinds={{ failed: 0, litopys: 0, soul: 0 }} />);
+    const html = renderToStaticMarkup(<WaitingView total={0} failures={0} onOpen={noop} kinds={{ failed: 0, litopys: 0, soul: 0, letter: 0 }} />);
     expect(html).not.toContain("<ul");
     expect(html).not.toContain("rounded-full border");
   });
@@ -240,7 +240,7 @@ describe("WaitingView detail", () => {
       { kind: "litopys", key: "b", chatId: "c", name: "y", count: 3 },
       { kind: "soul", key: "c", characterId: "d", name: "z", count: 4, at: 1 },
     ] as never;
-    expect(kindsOf(rows)).toEqual({ failed: 1, litopys: 3, soul: 1 });
+    expect(kindsOf(rows)).toEqual({ failed: 1, litopys: 3, soul: 1, letter: 0 });
   });
 });
 

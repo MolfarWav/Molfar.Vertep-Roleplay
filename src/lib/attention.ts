@@ -247,7 +247,7 @@ export function setDashFailure(chatId: string, title: string, err: { at: number;
 }
 
 /** The inbox drawer: one open flag for the rail (desktop) and the More sheet (phone), and the chip picked. */
-export type InboxFilter = 'all' | 'failed' | 'litopys' | 'soul' | 'new'
+export type InboxFilter = 'all' | 'failed' | 'litopys' | 'soul' | 'letter' | 'new'
 export const useInbox = create<{ open: boolean; filter: InboxFilter; setOpen: (open: boolean) => void; setFilter: (f: InboxFilter) => void }>((set) => ({
   open: false,
   filter: 'all',
