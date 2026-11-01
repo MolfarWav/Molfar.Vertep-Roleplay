@@ -1,0 +1,8 @@
+{
+  "name": "Letters from cards",
+  "version": "1.0.0",
+  "description": "A card you have not played for a while writes you a short in-character note (#72). The app picks who is due and asks; this plugin keeps the switch, the limits (per day, per card), the cards that must not write again, and makes the one model call that writes a letter. A letter never writes into a chat. Letters live in data/letters/.",
+  "origin": "local",
+  "permissions": ["routes", "llm", "fs"],
+  "priority": 30
+}

@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.81.0 (2026-11-01)
+
+- Characters, More no longer crashes the page ("MenuGroupContext is missing"): the Import label sits in a menu group. It came in with the characters header rows.
+- Letters from cards (#72). A card you have not played for a while can write you a short note in its own voice: a chat left idle for 14 days, a card imported and never played, or a played card with no Soul (once). It arrives in the inbox as a green Letter row with its own filter chip, never counts as a failure and never turns the badge red; opening it goes to the old chat (or starts one, or opens the Soul tab) and writes nothing into the chat. Off by default: Characters, More, Letters from cards has the switch, the days, the limits (3 a day, 1 per card per 30 days, never while its last letter is unread), the model line and a list of cards that were told to stop (every letter has a bell button for that). The app asks 20 s after start and every 2.5 h while open; the Library's model writes it, from the card and the end of the chat, and never invents events. New plugin `letters`, tests `rp-letters-plugin`, `rp-letters-core`.
 - Agents can read the Dashboard (#132). An Input entry or an If rule with `source: "state"` reads one of 13 fields: the scene's `present`, `place` and `weather`, and per character `mood`, `condition`, `outfit`, `holding`, `goal` and the five disposition numbers (`trust`, `comfort`, `attraction`, `respect`, `affection`). `of` names the character; without it the field is about whoever spoke last. The host takes the newest Dashboard snapshot on the chat's own line (a swiped-away branch is not seen), and the install screen asks for the field alone. Anything else of the Dashboard stays closed (`E_DASH_FIELD`); writing is still not supported. Tests in `rp-agents-plugin.test.ts`, docs in `docs/DATA-FORMATS.md`, the `agent-craft` skill updated.
 
 ## 4.80.2 (2026-11-01)
