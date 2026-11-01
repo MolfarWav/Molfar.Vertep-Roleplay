@@ -239,3 +239,39 @@ describe("omniscience: chapters follow who witnessed them (#184 P2)", () => {
     expect(L.witnessed({}, new Set(["aria"]))).toBe(true);
   });
 });
+
+describe("omniscience: a flagged leak is held back from the story record (#184 P3)", () => {
+  const ln = L.activeLine([U("m1", "Where did the map go?"), C("m2", "Aria", "Bram sold the guild's map to the Duke's spy, I am sure."), C("m3", "Bram", "Bram scowls."), U("m4", "Hm.")]);
+  const scene = { from: ln[0].id, to: ln[3].id, fromIdx: 0, toIdx: 3, count: 4, kind: "scene", label: "" };
+  const dash = { leaks: { "m2#0": { at: 1, items: [{ who: "Aria", factId: "f1", text: "Bram sold the guild's map to the Duke's spy.", quote: "Bram sold the guild's map", status: "open" }] } } };
+  const fact = (text: string, knownBy: unknown) => L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" }, facts: [{ op: "add", text, subject: "world", knownBy }] }));
+
+  it("finds the open hits of the scene's replies, and none once answered or outside it", () => {
+    expect(L.heldLeaks(dash, ln, scene)).toEqual([{ who: "Aria", texts: ["Bram sold the guild's map to the Duke's spy.", "Bram sold the guild's map"] }]);
+    const answered = { leaks: { "m2#0": { items: [{ who: "Aria", text: "x", status: "ignored" }] } } };
+    expect(L.heldLeaks(answered, ln, scene)).toEqual([]);
+    expect(L.heldLeaks(dash, ln, { ...scene, fromIdx: 2, toIdx: 3 })).toEqual([]);
+    expect(L.heldLeaks(null, ln, scene)).toEqual([]);
+  });
+
+  it("a new fact that says what leaked does not make the leaking character a knower; other facts are untouched", () => {
+    const held = L.heldLeaks(dash, ln, scene);
+    const run = (parsed: any) => {
+      const st = L.emptyChat("hall");
+      L.applyWorkerResult(st, { scene, replaces: null }, parsed, { now: 1, line: ln, witnesses: ["Aria", "Bram"], held });
+      return st.facts[0].knownBy;
+    };
+    expect(run(fact("Aria knows that Bram sold the map to the Duke's spy.", ["Aria", "Bram"]))).toEqual(["Bram"]);
+    expect(run(fact("Bram sold the guild's map to the spy.", "all"))).toEqual(["Bram"]);
+    expect(run(fact("Aria wears a green cloak.", ["Aria", "Bram"]))).toEqual(["Aria", "Bram"]);
+  });
+
+  it("the worker is told which reply is not canon", () => {
+    const st = L.emptyChat("hall");
+    const req = L.buildWorkerRequest(st, { scene, replaces: null }, ln, dash, { ...L.DEFAULT_CONFIG }, { userName: "You" });
+    const text = req.messages.map((m: any) => m.content).join("\n");
+    expect(text).toContain("Not canon (flagged)");
+    expect(text).toContain("Do not record that Aria knows it.");
+    expect(L.buildWorkerRequest(st, { scene, replaces: null }, ln, null, { ...L.DEFAULT_CONFIG }, { userName: "You" }).messages.map((m: any) => m.content).join("\n")).not.toContain("Not canon");
+  });
+});

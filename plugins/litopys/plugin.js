@@ -1001,6 +1001,36 @@ export function storyView(fsx, meta) {
   };
 }
 
+/** The content words of a text as 5-letter prefixes (an ending does not matter). */
+const heldStems = (text) => [...new Set(String(text || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4).map((w) => w.slice(0, 5)))];
+
+/** Does the text say what a held text says? At least two shared content words and half of the shorter one's. */
+function saysHeld(text, held) {
+  const a = heldStems(text);
+  const b = new Set(heldStems(held));
+  const shared = a.filter((w) => b.has(w)).length;
+  return shared >= 2 && shared >= Math.ceil(Math.min(a.length, b.size) * 0.5);
+}
+
+/**
+ * #184 P3: the open leak hits (the Dashboard's, answered by nobody yet) of the replies in this scene:
+ * [{ who, texts }] with the secret and the quote. What the leaking character did in the reply is not canon.
+ */
+export function heldLeaks(dash, line, scene) {
+  if (!dash || !isObj(dash.leaks) || !scene) return [];
+  const keys = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) {
+    const m = line[i];
+    if (m) keys.add(m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0));
+  }
+  const out = [];
+  for (const [key, rec] of Object.entries(dash.leaks)) {
+    if (!keys.has(key) || !isObj(rec)) continue;
+    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open" && str(it.who)) out.push({ who: str(it.who), texts: [str(it.text), str(it.quote)].filter(Boolean) });
+  }
+  return out;
+}
+
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
@@ -1030,6 +1060,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   activeFacts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + f.text);
   if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
+
+  // a reply of this scene was flagged: a character seems to act on a secret it does not know; not canon until the user says so
+  const flagged = heldLeaks(dash, line, scene);
+  if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
 
   // Scene messages
   const msgLines = [];
@@ -2100,6 +2134,13 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       const told = Array.isArray(op.knownBy) ? op.knownBy.map((x) => str(x)).filter(Boolean) : [];
       const witnesses = arr(ctx.witnesses).map(str).filter(Boolean);
       let knownBy = op.knownBy === "all" ? "all" : told.length ? told : witnesses.length ? witnesses : "all";
+      // #184 P3: a fact that says what a flagged reply leaked does not make the leaking character a knower
+      for (const h of arr(ctx.held)) {
+        if (!h.texts.some((t) => saysHeld(text, t))) continue;
+        const without = (list) => list.filter((k) => k.toLowerCase() !== h.who.toLowerCase());
+        knownBy = knownBy === "all" ? (witnesses.length ? without(witnesses) : knownBy) : without(knownBy);
+        if (Array.isArray(knownBy) && !knownBy.length) knownBy = [subject];
+      }
       // a character knows what is about them; models often list only the others
       if (Array.isArray(knownBy) && subject.toLowerCase() !== "world" && !knownBy.some((k) => k.toLowerCase() === subject.toLowerCase())) knownBy = [subject, ...knownBy];
       const typeMap = ["event", "trait", "change", "relation", "world", "plan"];
@@ -3206,6 +3247,7 @@ export function onTick(_ctx, host) {
                 cardRules: cfg.habits !== false ? cardHabitRules(fsx, meta) : [],
                 cast: cfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)) : [],
                 witnesses: sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)),
+                held: heldLeaks(dash, line, w.scene),
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
