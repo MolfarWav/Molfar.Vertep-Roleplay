@@ -16,6 +16,7 @@ import {
 } from '@/lib/agents'
 import type { MsgKey } from '@/lib/i18n'
 import { installMessage } from '@/lib/agent-install'
+import { CheckLine } from '@/components/canvas/forge/check-line'
 import { cn } from '@/lib/utils'
 
 const errText = (e: unknown) => String((e as Error)?.message ?? e)
@@ -341,7 +342,13 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           : <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>)}
       </div>
       {agent.description && <p className="text-xs leading-relaxed text-muted-foreground">{agent.description}</p>}
-      {agent.errors.length > 0 && <p className="text-xs text-destructive">{t('ag.wait.errors')}: {agent.errors[0].message}</p>}
+      {agent.errors.length > 0 && (
+        <div className="flex flex-col gap-1" data-testid="agent-errors">
+          <p className="text-xs font-medium text-destructive">{t('ag.wait.errors')}</p>
+          <CheckLine item={agent.errors[0]} bad />
+          {agent.errors.length > 1 && <p className="text-xs text-muted-foreground">{t('ag.errors.more', { n: agent.errors.length - 1 })}</p>}
+        </div>
+      )}
       {update ? (
         <div className="flex flex-col gap-1.5" data-testid="agent-update">
           <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">{t('ag.update.lead', { name: agent.name, n: added.length })}</p>
@@ -491,8 +498,8 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
                           <details className="text-[11px]">
                             <summary className="cursor-pointer select-none text-muted-foreground">{t('ag.drafts.details')}</summary>
                             <ul className="mt-1 flex flex-col gap-0.5">
-                              {d.errors.map((x, i) => <li key={`e${i}`} className="text-destructive"><span className="font-mono text-[10px]">{x.code}</span> {x.message}</li>)}
-                              {d.warnings.map((x, i) => <li key={`w${i}`} className="text-amber-600 dark:text-amber-400"><span className="font-mono text-[10px]">{x.code}</span> {x.message}</li>)}
+                              {d.errors.map((x, i) => <li key={`e${i}`}><CheckLine item={x} bad /></li>)}
+                              {d.warnings.map((x, i) => <li key={`w${i}`}><CheckLine item={x} bad={false} /></li>)}
                             </ul>
                           </details>
                         )}

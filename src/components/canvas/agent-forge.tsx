@@ -20,8 +20,10 @@ import { downloadJson } from '@/lib/interop'
 import { AGENT_RECIPES } from '@/lib/forge-recipes'
 import type { MsgKey } from '@/lib/i18n'
 import { installMessage } from '@/lib/agent-install'
+import { explainCheck } from '@/lib/agent-check-text'
 import { cn } from '@/lib/utils'
 import { AgentForm } from './forge/agent-form'
+import { CheckLine } from './forge/check-line'
 import { AgentBoard } from './forge/agent-board'
 import { CardForm, type StateFields } from './forge/card-form'
 import { Abilities, Palette, PlacesGuide } from './forge/palette'
@@ -236,7 +238,7 @@ export function AgentForge() {
               graph={graph}
               fields={fields}
               // an input with no wire is shown by its own box under Wires (red), so its message is not said twice
-              problems={report?.errors.filter((e) => e.node === node.id && e.code !== 'E_UNWIRED').map((e) => e.message) ?? []}
+              problems={report?.errors.filter((e) => e.node === node.id && e.code !== 'E_UNWIRED').map((e) => { const x = explainCheck(e, t, node.title); return x.fix ? `${x.what} ${x.fix}` : x.what }) ?? []}
               onParams={(params) => patchCard(node.id, { params })}
               onTitle={(title) => patchCard(node.id, { title })}
               onNote={(text) => noteOf(node.id, text)}
@@ -405,7 +407,7 @@ export function AgentForge() {
         {[...report.errors.map((x) => ({ ...x, bad: true })), ...report.warnings.map((x) => ({ ...x, bad: false }))].map((x, i) => (
           <li key={i}>
             <button type="button" disabled={!x.node} onClick={() => x.node && pick(x.node)} className={cn('w-full rounded px-1 py-1 text-left hover:bg-accent disabled:hover:bg-transparent max-md:min-h-10', x.bad ? 'text-destructive' : 'text-amber-600 dark:text-amber-400')}>
-              <span className="mr-1 font-mono text-[10px]">{x.code}</span>{x.message}
+              <CheckLine item={x} bad={x.bad} cardTitle={x.node ? graph.nodes.find((n) => n.id === x.node)?.title : undefined} />
             </button>
           </li>
         ))}
