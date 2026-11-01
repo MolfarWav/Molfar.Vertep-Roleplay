@@ -424,7 +424,7 @@ function runCards(file, ctx, answers, seen) {
       else {
         const f = schema[p.field];
         let w = null;
-        if (node.type === 'write.state') w = { op: 'dash.set', field: p.field, value: p.as === 'number' ? Number(ins.value) : asText(ins.value), ...(p.clamp ? { clamp: p.clamp } : {}) };
+        if (node.type === 'write.state') w = { op: 'dash.set', field: p.field, ...(typeof p.of === 'string' && p.of.trim() ? { of: p.of.trim() } : {}), value: p.as === 'number' ? Number(ins.value) : asText(ins.value), ...(p.clamp ? { clamp: p.clamp } : {}) };
         else if (node.type === 'state.set') w = { op: 'own.set', field: p.field, value: p.as === 'flag' ? (ins.value === 'yes' ? true : ins.value === 'no' ? false : undefined) : ins.value };
         else if (node.type === 'state.add') w = { op: 'own.add', field: p.field, by: needBy ? ins.by : p.amount, ...(p.clamp ? { clamp: p.clamp } : {}) };
         else if (f && f.type === 'list') {

@@ -56,8 +56,8 @@ const SOURCE_TYPE = {
 /**
  * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
  * what the characters said stay closed. A `scene` field belongs to the scene; a `char` field to one character: the
- * `of` name on the Input entry (or the If operand), else the character who spoke last. Reading only: no card writes
- * these fields yet.
+ * `of` name on the Input entry (or the If operand), else the character who spoke last. Writing (#132) is the same list
+ * without `present` (DASH_WRITE_FIELDS).
  */
 const DASH_FIELDS = {
   present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' },
@@ -66,6 +66,8 @@ const DASH_FIELDS = {
   trust: { as: 'number', char: true }, comfort: { as: 'number', char: true }, attraction: { as: 'number', char: true },
   respect: { as: 'number', char: true }, affection: { as: 'number', char: true },
 };
+/** The fields an agent may change: the readable ones except `present`, which decides who has an entry on the Dashboard at all. */
+const DASH_WRITE_FIELDS = Object.fromEntries(Object.entries(DASH_FIELDS).filter(([k]) => k !== 'present'));
 /** Where the host puts a Dashboard value for the executor: the field, and `field@name` when the entry names a character. */
 const dashKey = (x) => (x?.of ? `${x.field}@${x.of}` : x?.field);
 /** One `state` source (an Input entry or an If operand): the field must be on the list, with the right type and `of` only where it means something. */
@@ -543,6 +545,31 @@ function checkPanels(raw, state, err) {
   }
   return raw.length;
 }
+/** A "Write to Dashboard" card: the field must be one agents may change, with the right type; `of` only for a character field; a clamp only for numbers. */
+function checkDashWrite(n, err) {
+  const p = (n.params ?? {});
+  const where = `"${n.title}"`;
+  const spec = DASH_WRITE_FIELDS[p.field];
+  if (!spec) {
+    err('E_DASH_FIELD', p.field === 'present'
+      ? `${where}: the Dashboard field "present" can be read but not changed (it decides who is on the Dashboard)`
+      : `${where}: the Dashboard field "${p.field}" is not available to agents. They can change: ${Object.keys(DASH_WRITE_FIELDS).join(', ')}`, n.id);
+    return;
+  }
+  if ((p.as ?? 'text') !== spec.as)
+    err('E_DASH_TYPE', `${where}: "${p.field}" is a ${spec.as} field, so "as" must be "${spec.as}"`, n.id);
+  if (p.of !== undefined && !spec.char)
+    err('E_DASH_OF', `${where}: "${p.field}" belongs to the scene, so it takes no character name ("of")`, n.id);
+  else if (p.of !== undefined && (!isString(p.of) || !p.of.trim() || p.of.length > 60))
+    err('E_DASH_OF', `${where}: "of" is a character name of 1 to 60 characters`, n.id);
+  if (p.clamp !== undefined) {
+    const c = p.clamp;
+    if (spec.as !== 'number')
+      err('E_DASH_CLAMP', `${where}: a clamp belongs to a number field; "${p.field}" is text`, n.id);
+    else if (!isObject(c) || ['min', 'max', 'maxStep'].some((k) => c[k] !== undefined && !Number.isFinite(c[k])) || (Number.isFinite(c.min) && Number.isFinite(c.max) && c.min > c.max) || (Number.isFinite(c.maxStep) && c.maxStep < 0))
+      err('E_DASH_CLAMP', `${where}: clamp takes numbers min, max and maxStep (not below 0), with min not above max`, n.id);
+  }
+}
 /** Extra rules of the four cards that touch the agent's own state: the field must exist, with the type the card says. */
 function checkStateCard(n, state, err) {
   const p = (n.params ?? {});
@@ -631,6 +658,8 @@ function validateAgent(raw) {
       for (const r of p.rows ?? [])
         for (const o of [r.left, r.right])
           if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
+    if (n.type === 'write.state')
+      checkDashWrite(n, err);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
@@ -1200,7 +1229,7 @@ function runCards(file, ctx, answers, seen) {
       else {
         const f = schema[p.field];
         let w = null;
-        if (node.type === 'write.state') w = { op: 'dash.set', field: p.field, value: p.as === 'number' ? Number(ins.value) : asText(ins.value), ...(p.clamp ? { clamp: p.clamp } : {}) };
+        if (node.type === 'write.state') w = { op: 'dash.set', field: p.field, ...(typeof p.of === 'string' && p.of.trim() ? { of: p.of.trim() } : {}), value: p.as === 'number' ? Number(ins.value) : asText(ins.value), ...(p.clamp ? { clamp: p.clamp } : {}) };
         else if (node.type === 'state.set') w = { op: 'own.set', field: p.field, value: p.as === 'flag' ? (ins.value === 'yes' ? true : ins.value === 'no' ? false : undefined) : ins.value };
         else if (node.type === 'state.add') w = { op: 'own.add', field: p.field, by: needBy ? ins.by : p.amount, ...(p.clamp ? { clamp: p.clamp } : {}) };
         else if (f && f.type === 'list') {
@@ -1269,8 +1298,9 @@ function runCards(file, ctx, answers, seen) {
  *   agents/inserts/<chatId>.json         prompt inserts waiting for the next reply: { v, items: [...] }
  * Presets and a chat's binding are the engine's (agents/presets, agents/settings.json, chat meta `agents`).
  *
- * Dashboard fields: read:state.<field> works for the fields on DASH_FIELDS (#132); write:state.* does not yet.
- * Not yet: write:state.*, the sources preGenInjections / parallelResults. An agent that needs them installs but does
+ * Dashboard fields: read:state.<field> works for the fields on DASH_FIELDS and write:state.<field> for DASH_WRITE_FIELDS (#132).
+ *   dashboard/agent/<chatId>.json        the changes agents made to the Dashboard: { v, counter, entries: [{ id, agent, key, field, who?, before, after, at, undone? }] }
+ * Not yet: the sources preGenInjections / parallelResults. An agent that needs them installs but does
  * not run, and says so.
  */
 
@@ -1325,7 +1355,8 @@ export function chatAgents(fsx, meta) {
 // ---------- what this runner can give an agent ----------
 
 const UNSUPPORTED_NEEDS = (t) =>
-  (t.startsWith("read:state.") ? !Object.prototype.hasOwnProperty.call(DASH_FIELDS, t.slice("read:state.".length)) : t.startsWith("write:state."))
+  (t.startsWith("read:state.") ? !Object.prototype.hasOwnProperty.call(DASH_FIELDS, t.slice("read:state.".length))
+    : t.startsWith("write:state.") ? !Object.prototype.hasOwnProperty.call(DASH_WRITE_FIELDS, t.slice("write:state.".length)) : false)
   || t === "read:preGenInjections" || t === "read:parallelResults";
 
 /** The permissions of a file this runner cannot serve yet. */
@@ -1606,7 +1637,7 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
 /** A model's answer as it travels from one pass to the next (the engine hands the plugin only the newest pass's answers). */
 const packAnswer = (r) => (isObj(r) ? { text: typeof r.text === "string" ? r.text : "", model: typeof r.model === "string" ? r.model : "", ...(r.error ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : {}) } : null);
 
-// ---------- the Dashboard as an agent sees it (read only, #132) ----------
+// ---------- the Dashboard as an agent sees it (#132) ----------
 
 /**
  * The Dashboard snapshot that stands for the chat's own line: the newest one among the messages the agent sees (a branch
@@ -1618,11 +1649,12 @@ export function dashSnapshot(fsx, view) {
   if (!isObj(state)) return null;
   const snaps = isObj(state.snapshots) ? state.snapshots : {};
   let snap = null;
-  for (let i = view.msgs.length - 1; i >= 0 && !snap; i--) if (isObj(snaps[msgKey(view.msgs[i])])) snap = snaps[msgKey(view.msgs[i])];
+  let key = null;
+  for (let i = view.msgs.length - 1; i >= 0 && !snap; i--) if (isObj(snaps[msgKey(view.msgs[i])])) { key = msgKey(view.msgs[i]); snap = snaps[key]; }
   if (!snap && isObj(state.inherited) && state.inherited.off !== true && isObj(state.inherited.snap)) snap = state.inherited.snap;
   if (!snap) return null;
   const removed = new Set((Array.isArray(state.removed) ? state.removed : []).filter((n) => typeof n === "string").map((n) => n.trim().toLowerCase()));
-  return { snap, removed };
+  return { snap, removed, key, state };
 }
 
 /** The key of `chars` that matches a name (case does not matter; a character the user removed is not there). */
@@ -1680,6 +1712,150 @@ export function dashFor(file, d, view) {
     if (v !== undefined) dash[dashKey(o)] = v;
   }
   return dash;
+}
+
+// ---------- the Dashboard as an agent changes it (#132, write) ----------
+//
+// A `write.state` card stages `{ op: "dash.set", field, of?, value, clamp? }`; a run that succeeded has them applied here,
+// to the newest snapshot on the chat's own line (the one the agent read), so every reader of the Dashboard sees the value.
+// Nothing is locked: the later writer wins, and the sensor goes on from the written value. Every applied write is kept in
+// `dashboard/agent/<chatId>.json` with the value it replaced, which is what the run log shows and Undo restores; the
+// Dashboard plugin applies that ledger again when it reads a message again (its snapshot is made anew).
+
+const dashLedgerPath = (chatId) => "dashboard/agent/" + chatId + ".json";
+const DASH_LEDGER_MAX = 200;
+const DASH_TEXT_MAX = 300;
+const DASH_NOT_READ = "the Dashboard has not read this chat yet";
+const dashStat = (n) => Math.min(100, Math.max(-100, Math.trunc(n)));
+
+function readDashLedger(fsx, chatId) {
+  const f = readJsonAt(fsx, dashLedgerPath(chatId), null);
+  const entries = isObj(f) && Array.isArray(f.entries) ? f.entries.filter(isObj) : [];
+  return { v: 1, counter: isObj(f) && Number.isInteger(f.counter) ? f.counter : entries.length, entries };
+}
+
+/** Where a Dashboard value lives in a snapshot: `get` and `set`, or null when the character or the field is not there. */
+function dashSlot(snap, field, who) {
+  const spec = DASH_WRITE_FIELDS[field];
+  if (!spec || !isObj(snap)) return null;
+  if (!spec.char) {
+    if (!isObj(snap.clock)) snap.clock = {};
+    const clock = snap.clock;
+    return { get: () => clock[field], set: (v) => { clock[field] = v; } };
+  }
+  const c = isObj(snap.chars) ? snap.chars[who] : null;
+  if (!isObj(c)) return null;
+  if (spec.as === "number") return { get: () => (isObj(c.stats) ? c.stats[field] : undefined), set: (v) => { if (!isObj(c.stats)) c.stats = {}; c.stats[field] = v; } };
+  return {
+    get: () => c[field],
+    set: (v) => {
+      c[field] = v;
+      // the prompt insert takes a character's text only when it is fresh; an outfit that was set counts as known
+      if (v) c.fresh = [...new Set([...(Array.isArray(c.fresh) ? c.fresh : []), field])];
+      if (field === "outfit" && v) c.outfitSet = true;
+    },
+  };
+}
+
+/** The value as the Dashboard shows it: text (a list joined), or a finite number; null when empty. */
+function dashShown(v) {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const t = Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).join(", ") : v;
+  return typeof t === "string" && t.trim() ? t.trim() : null;
+}
+
+/**
+ * Applies the staged `dash.set` writes of one agent's run to the Dashboard file of the chat.
+ * Returns { applied: [{ id, field, who, before, after, key }], refused: [{ write, why }] }.
+ */
+export function applyDashWrites(fsx, chatId, view, agent, writes) {
+  const out = { applied: [], refused: [] };
+  const list = (Array.isArray(writes) ? writes : []).filter((w) => isObj(w) && w.op === "dash.set");
+  if (!list.length) return out;
+  const refuseAll = (why) => { for (const w of list) out.refused.push({ write: w, why }); return out; };
+  const path = "dashboard/state/" + chatId + ".json";
+  const d = dashSnapshot(fsx, view);
+  if (!d || !d.key) return refuseAll(DASH_NOT_READ);
+  const state = d.state; // the snapshot object d.snap is part of it
+  const ledger = readDashLedger(fsx, chatId);
+  const now = Date.now();
+  let changed = false;
+  for (const w of list) {
+    const spec = DASH_WRITE_FIELDS[w.field];
+    if (!spec) { out.refused.push({ write: w, why: "agents cannot change this Dashboard field" }); continue; }
+    let who = "";
+    if (spec.char) {
+      who = typeof w.of === "string" && w.of.trim() ? dashCharKey(d, w.of) : dashSpeaker(d, view);
+      if (!who) { out.refused.push({ write: w, why: w.of ? 'no character "' + str(w.of) + '" on the Dashboard' : "no character on the Dashboard to write about" }); continue; }
+    }
+    const slot = dashSlot(d.snap, w.field, who);
+    if (!slot) { out.refused.push({ write: w, why: "the Dashboard has no such field here" }); continue; }
+    const was = slot.get();
+    const before = dashShown(was);
+    let after;
+    if (spec.as === "number") {
+      if (typeof w.value !== "number" || !Number.isFinite(w.value)) { out.refused.push({ write: w, why: "not a number" }); continue; }
+      const from = Number.isFinite(was) ? was : 0;
+      const cl = isObj(w.clamp) ? w.clamp : {};
+      after = dashStat(w.value);
+      if (Number.isFinite(cl.min)) after = Math.max(cl.min, after);
+      if (Number.isFinite(cl.max)) after = Math.min(cl.max, after);
+      if (Number.isFinite(cl.maxStep)) after = Math.min(from + Math.abs(cl.maxStep), Math.max(from - Math.abs(cl.maxStep), after));
+      after = dashStat(after);
+      if (after === from) continue;
+    } else {
+      const v = typeof w.value === "string" ? w.value.trim() : "";
+      if (!v) { out.refused.push({ write: w, why: "nothing to write" }); continue; }
+      after = clip(v, w.field === "place" || w.field === "weather" ? 200 : DASH_TEXT_MAX);
+      if (after === before) continue;
+    }
+    slot.set(after);
+    if (w.field === "place" && isObj(state.places) && isObj(state.places[d.key])) state.places[d.key].place = after;
+    changed = true;
+    // one entry for the same agent, field and character on the same snapshot: a run done again replaces it and keeps what was there first
+    const at = ledger.entries.findIndex((e) => e.agent === agent && e.key === d.key && e.field === w.field && (e.who || "") === who && !e.undone);
+    const first = at >= 0 ? ledger.entries[at] : null;
+    const entry = { id: first ? first.id : "d" + ++ledger.counter, agent, key: d.key, field: w.field, ...(who ? { who } : {}), before: first ? first.before : was === undefined ? null : was, after, at: now };
+    if (at >= 0) ledger.entries.splice(at, 1);
+    ledger.entries.push(entry);
+    out.applied.push({ id: entry.id, field: w.field, ...(who ? { who } : {}), before: first ? dashShown(first.before) : before, after, key: d.key });
+  }
+  if (changed) {
+    if (ledger.entries.length > DASH_LEDGER_MAX) ledger.entries = ledger.entries.slice(-DASH_LEDGER_MAX);
+    // the Dashboard plugin writes its file the same way
+    fsx.write(path, JSON.stringify(state, null, 2));
+    writeJsonAt(fsx, dashLedgerPath(chatId), ledger);
+  }
+  return out;
+}
+
+/**
+ * POST /agents/dash-undo { chatId, id }: puts back the value an agent replaced. Only while the Dashboard's newest
+ * snapshot is the one that was changed (later replies have built on it since) and the field still holds what the agent wrote.
+ */
+function dashUndoRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  const id = str(b.id);
+  if (!AG_CHAT.test(chatId) || !id) return ok({ error: "chatId and id required" }, 400);
+  const ledger = readDashLedger(fsx, chatId);
+  const entry = ledger.entries.find((e) => e.id === id);
+  if (!entry) return ok({ error: "no such change" }, 404);
+  if (entry.undone) return ok({ error: "this change is already undone" }, 409);
+  const chat = readChatFiles(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const d = dashSnapshot(fsx, { meta: chat.meta, msgs: chat.msgs, chatId });
+  if (!d || d.key !== entry.key) return ok({ error: "The story has moved on since this change, so it can no longer be undone here" }, 409);
+  const slot = dashSlot(d.snap, entry.field, str(entry.who));
+  if (!slot) return ok({ error: "The field is no longer on the Dashboard" }, 409);
+  if (dashShown(slot.get()) !== entry.after) return ok({ error: "The field has changed since, so it was left as it is" }, 409);
+  slot.set(entry.before === null || entry.before === undefined ? (DASH_WRITE_FIELDS[entry.field].as === "number" ? 0 : null) : entry.before);
+  if (entry.field === "place" && isObj(d.state.places) && isObj(d.state.places[d.key])) d.state.places[d.key].place = typeof entry.before === "string" ? entry.before : null;
+  entry.undone = Date.now();
+  fsx.write("dashboard/state/" + chatId + ".json", JSON.stringify(d.state, null, 2));
+  writeJsonAt(fsx, dashLedgerPath(chatId), ledger);
+  return ok({ ok: true, id, field: entry.field, ...(entry.who ? { who: entry.who } : {}), restored: dashShown(slot.get()) });
 }
 
 /**
@@ -1748,7 +1924,7 @@ function stepRun(host, fsx, view, picks, last, stash) {
 }
 
 /** Every agent has its answer: keep the state, the log and the hints. Returns what each agent did. */
-function commitRun(fsx, chatId, results, turn, runs, started, phase) {
+function commitRun(fsx, chatId, view, results, turn, runs, started, phase) {
   const now = Date.now();
   const ranOut = [];
   const inserts = readJsonAt(fsx, insertsPath(chatId), { v: 1, items: [] });
@@ -1761,11 +1937,13 @@ function commitRun(fsx, chatId, results, turn, runs, started, phase) {
       ranOut.push({ agent: id, status: "failed", reason: r.res.reason });
       continue;
     }
-    const applied = applyWrites(r.schema, r.base, r.res.writes);
+    const isDash = (w) => w.op === "dash.set";
+    const applied = applyWrites(r.schema, r.base, r.res.writes.filter((w) => !isDash(w)));
+    const dash = applyDashWrites(fsx, chatId, view, id, r.res.writes);
     const outputs = r.res.outputs.map((o) => (o.show || r.pick.item.show ? { ...o, show: r.pick.item.show && (SHOW_BY_KIND[o.kind] || []).includes(r.pick.item.show) ? r.pick.item.show : o.show } : o));
     writeJsonAt(fsx, statePath(chatId, id), { v: 1, own: applied.own, last: lastTextOf(outputs), before: { id: turn.id, own: r.base } });
     items2 = items2.filter((x) => x.agent !== id).concat(outputs.filter((o) => o.kind === "prompt-insert" && o.text).map((o) => ({ agent: id, label: o.label, text: o.text, position: o.position, at: now })));
-    runs.push({ ...entry, calls: r.res.calls, writes: r.res.writes, refused: applied.refused, outputs });
+    runs.push({ ...entry, calls: r.res.calls, writes: r.res.writes, refused: [...applied.refused, ...dash.refused], ...(dash.applied.length ? { dash: dash.applied } : {}), outputs });
     ranOut.push({ agent: id, status: "ok", calls: r.res.calls, writes: r.res.writes.length, outputs: outputs.length });
   }
   writeJsonAt(fsx, runsPath(chatId), { v: 1, runs: runs.slice(-AG_RUNS_MAX) });
@@ -1806,7 +1984,7 @@ function runRoute(req, host) {
   const step = stepRun(host, fsx, view, picks, last, req.stash);
   if (step.pending) return { __llmPending: true, stash: step.pending };
   const started = Number(req.stash && req.stash.started) || Date.now();
-  return ok({ ok: true, ran: commitRun(fsx, chatId, step.results, turn, runs, started, phase), skipped });
+  return ok({ ok: true, ran: commitRun(fsx, chatId, view, step.results, turn, runs, started, phase), skipped });
 }
 
 /** The text of the last user message of a model request, as the model gets it. */
@@ -1846,7 +2024,7 @@ function runBefore(ctx, host, fsx, chatId, req) {
   const stash = isObj(ctx.stash) ? ctx.stash : null;
   const step = stepRun(host, fsx, view, picks, last, stash);
   if (step.pending) return { pending: step.pending };
-  commitRun(fsx, chatId, step.results, turn, runs, Number(stash && stash.started) || Date.now(), "before");
+  commitRun(fsx, chatId, view, step.results, turn, runs, Number(stash && stash.started) || Date.now(), "before");
   return null;
 }
 
@@ -2331,6 +2509,7 @@ export function handleRoute(req, host) {
   if (seg.length === 3 && seg[1] === "drafts" && req.method === "DELETE") return draftRemoveRoute(req, host, seg[2]);
   if (path === "/agents/grant" && req.method === "POST") return grantRoute(req, host);
   if (path === "/agents/run" && req.method === "POST") return runRoute(req, host);
+  if (path === "/agents/dash-undo" && req.method === "POST") return dashUndoRoute(req, host);
   if (path === "/agents/dry" && req.method === "POST") return dryRoute(req, host);
   if (path === "/agents/state" && (req.method === "GET" || req.method === "DELETE")) return stateRoute(req, host);
   if (path === "/agents/runs" && req.method === "GET") return runsRoute(req, host);

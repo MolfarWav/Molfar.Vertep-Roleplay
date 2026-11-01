@@ -1522,6 +1522,41 @@ function loadState(fsx, chatId) {
   return { state: normalizeState(raw, chatId), existed: raw !== null };
 }
 
+// ---------- changes agents made (the Agents plugin, #132) ----------
+// An agent's `write.state` card changes a Dashboard value in the snapshot of the message it ran on and records the change in
+// `dashboard/agent/<chatId>.json`: `entries: [{ id, key, field, who?, before, after, undone? }]`. A snapshot made anew (the message
+// was read again, or this file was saved from an older read) loses the change, so it is put back here, from that ledger.
+const AGENT_STATS = new Set(DISPOSITION);
+const AGENT_CHAR_TEXT = new Set(["mood", "condition", "outfit", "holding", "goal"]);
+const AGENT_SCENE_TEXT = new Set(["place", "weather"]);
+
+function reapplyAgentWrites(fsx, state, chatId) {
+  const f = readJson(fsx, "dashboard/agent/" + chatId + ".json", null);
+  if (!isObj(f) || !Array.isArray(f.entries)) return;
+  for (const e of f.entries) {
+    if (!isObj(e) || e.undone || typeof e.field !== "string" || !isObj(state.snapshots[e.key])) continue;
+    const snap = state.snapshots[e.key];
+    if (AGENT_SCENE_TEXT.has(e.field)) {
+      if (typeof e.after !== "string") continue;
+      if (!isObj(snap.clock)) snap.clock = {};
+      snap.clock[e.field] = e.after;
+      if (e.field === "place" && isObj(state.places) && isObj(state.places[e.key])) state.places[e.key].place = e.after;
+      continue;
+    }
+    const c = isObj(snap.chars) && typeof e.who === "string" ? snap.chars[e.who] : null;
+    if (!isObj(c)) continue;
+    if (AGENT_STATS.has(e.field)) {
+      if (!Number.isFinite(e.after)) continue;
+      if (!isObj(c.stats)) c.stats = {};
+      c.stats[e.field] = e.after;
+    } else if (AGENT_CHAR_TEXT.has(e.field) && typeof e.after === "string") {
+      c[e.field] = e.after;
+      c.fresh = [...new Set([...arr(c.fresh), e.field])];
+      if (e.field === "outfit") c.outfitSet = true;
+    }
+  }
+}
+
 function saveState(fsx, ctx) {
   if (JSON.stringify(ctx.state) === ctx.before) return;
   fsx.write(STATE_DIR + ctx.chatId + ".json", JSON.stringify(ctx.state, null, 2));
@@ -3914,6 +3949,7 @@ function commitUpdate(fsx, ctx, r) {
     const kept = ctx.keptOut || { user: 0, absent: 0 };
     const lowered = ctx.noQuote || 0;
     ctx.state.keptOut = kept.user || kept.absent || lowered ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent, ...(lowered ? { noQuote: lowered } : {}) } : null;
+    reapplyAgentWrites(fsx, ctx.state, ctx.chatId);
     saveState(fsx, ctx);
     noteUnknownEvents(fsx, unknownIds, ctx.unknownQuotes);
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds, keptOut: kept });

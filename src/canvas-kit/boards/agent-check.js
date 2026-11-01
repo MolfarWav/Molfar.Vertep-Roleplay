@@ -54,8 +54,8 @@ const SOURCE_TYPE = {
 /**
  * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
  * what the characters said stay closed. A `scene` field belongs to the scene; a `char` field to one character: the
- * `of` name on the Input entry (or the If operand), else the character who spoke last. Reading only: no card writes
- * these fields yet.
+ * `of` name on the Input entry (or the If operand), else the character who spoke last. Writing (#132) is the same list
+ * without `present` (DASH_WRITE_FIELDS).
  */
 export const DASH_FIELDS = {
   present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' },
@@ -64,6 +64,8 @@ export const DASH_FIELDS = {
   trust: { as: 'number', char: true }, comfort: { as: 'number', char: true }, attraction: { as: 'number', char: true },
   respect: { as: 'number', char: true }, affection: { as: 'number', char: true },
 };
+/** The fields an agent may change: the readable ones except `present`, which decides who has an entry on the Dashboard at all. */
+export const DASH_WRITE_FIELDS = Object.fromEntries(Object.entries(DASH_FIELDS).filter(([k]) => k !== 'present'));
 /** Where the host puts a Dashboard value for the executor: the field, and `field@name` when the entry names a character. */
 export const dashKey = (x) => (x?.of ? `${x.field}@${x.of}` : x?.field);
 /** One `state` source (an Input entry or an If operand): the field must be on the list, with the right type and `of` only where it means something. */
@@ -541,6 +543,31 @@ function checkPanels(raw, state, err) {
   }
   return raw.length;
 }
+/** A "Write to Dashboard" card: the field must be one agents may change, with the right type; `of` only for a character field; a clamp only for numbers. */
+function checkDashWrite(n, err) {
+  const p = (n.params ?? {});
+  const where = `"${n.title}"`;
+  const spec = DASH_WRITE_FIELDS[p.field];
+  if (!spec) {
+    err('E_DASH_FIELD', p.field === 'present'
+      ? `${where}: the Dashboard field "present" can be read but not changed (it decides who is on the Dashboard)`
+      : `${where}: the Dashboard field "${p.field}" is not available to agents. They can change: ${Object.keys(DASH_WRITE_FIELDS).join(', ')}`, n.id);
+    return;
+  }
+  if ((p.as ?? 'text') !== spec.as)
+    err('E_DASH_TYPE', `${where}: "${p.field}" is a ${spec.as} field, so "as" must be "${spec.as}"`, n.id);
+  if (p.of !== undefined && !spec.char)
+    err('E_DASH_OF', `${where}: "${p.field}" belongs to the scene, so it takes no character name ("of")`, n.id);
+  else if (p.of !== undefined && (!isString(p.of) || !p.of.trim() || p.of.length > 60))
+    err('E_DASH_OF', `${where}: "of" is a character name of 1 to 60 characters`, n.id);
+  if (p.clamp !== undefined) {
+    const c = p.clamp;
+    if (spec.as !== 'number')
+      err('E_DASH_CLAMP', `${where}: a clamp belongs to a number field; "${p.field}" is text`, n.id);
+    else if (!isObject(c) || ['min', 'max', 'maxStep'].some((k) => c[k] !== undefined && !Number.isFinite(c[k])) || (Number.isFinite(c.min) && Number.isFinite(c.max) && c.min > c.max) || (Number.isFinite(c.maxStep) && c.maxStep < 0))
+      err('E_DASH_CLAMP', `${where}: clamp takes numbers min, max and maxStep (not below 0), with min not above max`, n.id);
+  }
+}
 /** Extra rules of the four cards that touch the agent's own state: the field must exist, with the type the card says. */
 function checkStateCard(n, state, err) {
   const p = (n.params ?? {});
@@ -629,6 +656,8 @@ export function validateAgent(raw) {
       for (const r of p.rows ?? [])
         for (const o of [r.left, r.right])
           if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
+    if (n.type === 'write.state')
+      checkDashWrite(n, err);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
