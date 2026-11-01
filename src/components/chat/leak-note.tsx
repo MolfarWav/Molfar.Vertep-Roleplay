@@ -24,17 +24,22 @@ export function LeakNote({ chatId, message, last }: { chatId: string; message: M
   const dash = useDashMaybe()
   const regenerate = useApp((s) => s.regenerate)
   const [busy, setBusy] = useState('')
-  const hits = leaksFor(dash?.data?.leaks, message)
+  // answered hits leave the screen at once; the server calls take a few seconds. A failed call brings the note back.
+  const [gone, setGone] = useState<string[]>([])
+  const hits = leaksFor(dash?.data?.leaks, message).filter((h) => !gone.includes(`${h.key}:${h.who}:${h.factId}`))
   if (!hits.length || !dash) return null
 
   const answer = async (hit: LeakHit, op: 'found' | 'ignore') => {
-    setBusy(`${hit.who}:${hit.factId}:${op}`)
+    const id = `${hit.key}:${hit.who}:${hit.factId}`
+    setBusy(id)
+    setGone((g) => [...g, id])
     try {
       // "found out" first writes the fact (the name joins its knowers, and the Activity tab shows it), then closes the note
       if (op === 'found') await j('/litopys/facts', { method: 'POST', body: JSON.stringify({ chatId, op: 'know', id: hit.factId, who: hit.who }) })
       await j('/dashboard/leak', { method: 'POST', body: JSON.stringify({ chatId, key: hit.key, who: hit.who, factId: hit.factId, op }) })
       await dash.reload()
     } catch (e) {
+      setGone((g) => g.filter((x) => x !== id))
       toast.error(t('leak.error', { message: String((e as Error)?.message ?? e) }))
     } finally {
       setBusy('')
