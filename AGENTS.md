@@ -146,7 +146,7 @@ to it on every change. Messages are a FLAT list with swipes.
 
 Home (`views/home-view.tsx`, blocks in `components/home/block-*.tsx`) is a bento: continue (the one filled button), a random
 library card, a Marketplace card (`lib/home-market.ts`, one request an hour, left out when offline or switched off), a
-world tile on a library picture, waiting on you, quests of the latest chat, favourites, What's new and a tip. Its order,
+world tile on a library picture, waiting on you, open quests gathered from the 12 latest chats (one request, GET /dashboard/quests; a row opens its chat), favourites, What's new and a tip. Its order,
 widths and hidden blocks are per user in `settings.homeLayout`, changed in Customize; the rules are in `lib/home-layout.ts`.
 
 ## Phase status

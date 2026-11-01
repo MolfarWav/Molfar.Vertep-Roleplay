@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  MARKET_TTL_MS, RELEASES_URL, freshMarket, latestTips, normalizeMarket, openQuests, pickAt, shortCount, tipPool,
+  MARKET_TTL_MS, RELEASES_URL, freshMarket, latestTips, gatherQuests, normalizeMarket, openQuests, pickAt, shortCount, tipPool,
 } from "../src/lib/home-pick";
 import { TIPS } from "../src/lib/guide-tips";
 import type { Tip } from "../src/lib/guide";
@@ -69,6 +69,25 @@ describe("latestTips and openQuests", () => {
       { id: "e1", text: "everyday", status: "open", since: 7, kind: "everyday" },
     ]);
     expect(q.map((x) => x.id)).toEqual(["m1", "s2", "s1", "e1"]);
+  });
+});
+
+describe("gatherQuests", () => {
+  const th = (id: string, since: number, kind: "main" | "side" | "everyday" = "side", status: "open" | "resolved" = "open") => ({ id, text: id, status, since, kind });
+  const chats = [
+    { chatId: "c1", chatTitle: "One", threads: [th("a1", 5), th("a2", 4), th("a3", 3), th("done", 9, "main", "resolved")] },
+    { chatId: "c2", chatTitle: "Two", threads: [th("b1", 1, "main"), th("b2", 8)] },
+  ];
+  it("main quests first, then chats in the order given, newest first; resolved threads are left out", () => {
+    const { items, total } = gatherQuests(chats, 10);
+    expect(items.map((q) => q.thread.id)).toEqual(["b1", "a1", "a2", "b2"]);
+    expect(items.map((q) => q.chatId)).toEqual(["c2", "c1", "c1", "c2"]);
+    expect(total).toBe(5);
+  });
+  it("one chat shows at most perChat rows and the list at most limit", () => {
+    expect(gatherQuests(chats, 10, 1).items.map((q) => q.thread.id)).toEqual(["b1", "a1"]);
+    expect(gatherQuests(chats, 2).items).toHaveLength(2);
+    expect(gatherQuests([], 5)).toEqual({ items: [], total: 0 });
   });
 });
 

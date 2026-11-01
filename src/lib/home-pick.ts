@@ -55,6 +55,49 @@ export function openQuests<T extends QuestLike>(threads: readonly T[]): T[] {
     .sort((a, b) => (KIND_RANK[a.kind ?? 'side'] ?? 1) - (KIND_RANK[b.kind ?? 'side'] ?? 1) || b.since - a.since)
 }
 
+/** The open threads of one chat, as the quests route returns them, with the chat's name for the row. */
+export interface ChatThreads<T extends QuestLike = QuestLike> {
+  chatId: string
+  chatTitle: string
+  threads: readonly T[]
+}
+
+export interface GatheredQuest<T extends QuestLike = QuestLike> {
+  chatId: string
+  chatTitle: string
+  thread: T
+}
+
+/** How many quests one chat may put on Home, so a busy chat does not push the others out. */
+export const QUESTS_PER_CHAT = 2
+
+/**
+ * Open quests from several chats for Home: main quests first, then the rest; inside a kind the chats keep the order
+ * they came in (most recent first), then newest first. One chat shows at most `perChat` rows and the list at most
+ * `limit`; `total` counts every open thread so the block can say how many more wait.
+ */
+export function gatherQuests<T extends QuestLike>(chats: readonly ChatThreads<T>[], limit: number, perChat = QUESTS_PER_CHAT): { items: GatheredQuest<T>[]; total: number } {
+  const all: GatheredQuest<T>[] = []
+  for (const c of chats) for (const thread of openQuests(c.threads)) all.push({ chatId: c.chatId, chatTitle: c.chatTitle, thread })
+  const order = new Map(chats.map((c, i) => [c.chatId, i]))
+  all.sort(
+    (a, b) =>
+      (KIND_RANK[a.thread.kind ?? 'side'] ?? 1) - (KIND_RANK[b.thread.kind ?? 'side'] ?? 1) ||
+      (order.get(a.chatId) ?? 0) - (order.get(b.chatId) ?? 0) ||
+      b.thread.since - a.thread.since,
+  )
+  const used = new Map<string, number>()
+  const items: GatheredQuest<T>[] = []
+  for (const q of all) {
+    const n = used.get(q.chatId) ?? 0
+    if (n >= perChat) continue
+    used.set(q.chatId, n + 1)
+    items.push(q)
+    if (items.length >= limit) break
+  }
+  return { items, total: all.length }
+}
+
 /** One Marketplace listing as Home shows it. */
 export interface MarketCard {
   id: string

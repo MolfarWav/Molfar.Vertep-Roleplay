@@ -123,18 +123,29 @@ describe("NewsView", () => {
 
 describe("QuestsView", () => {
   it("draws nothing until the answer is in", () => {
-    const html = renderToStaticMarkup(<QuestsView ready={false} chatTitle={null} items={[]} onOpen={noop} />);
+    const html = renderToStaticMarkup(<QuestsView ready={false} items={[]} total={0} onOpen={noop} />);
     expect(html).not.toContain("<ul");
     expect(html).not.toContain("<button");
   });
 
   it("lists the open threads with their chat and kind", () => {
     const html = renderToStaticMarkup(
-      <QuestsView ready chatTitle="Harbour" items={[{ id: "q1", text: "Find who burned the harbour", kind: "main" }]} onOpen={noop} />,
+      <QuestsView
+        ready
+        total={3}
+        items={[
+          { id: "q1", text: "Find who burned the harbour", kind: "main", chatId: "c1", chatTitle: "Harbour" },
+          { id: "q2", text: "Decide what to tell the captain", kind: "side", chatId: "c2", chatTitle: "Ship" },
+        ]}
+        onOpen={noop}
+      />,
     );
     expect(html).toContain("Find who burned the harbour");
     expect(html).toContain("Harbour");
+    expect(html).toContain("Ship");
     expect(html).toMatch(/<button[^>]*class="[^"]*min-h-12/);
+    // 3 open in all, 2 shown: the block says how many more wait
+    expect(html).toMatch(/1 more in your chats|Ще 1 у ваших чатах/);
   });
 });
 

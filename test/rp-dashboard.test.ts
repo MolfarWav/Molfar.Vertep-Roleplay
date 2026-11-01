@@ -355,6 +355,22 @@ const keptPromise = reply({
 });
 
 describe("update route", () => {
+  it("GET /dashboard/quests gathers the open threads of the named chats, in the order asked", () => {
+    writeChat("c1", three());
+    writeChat("c2", three());
+    writeChat("c3", three());
+    const mock = mockHost([keptPromise, keptPromise]);
+    update(mock, "c1");
+    update(mock, "c2");
+    // c3 has no dashboard state; "bad id" is not a chat id
+    const out = drive(mock, { method: "GET", path: "/dashboard/quests", query: { chatIds: "c2,c1,c3,bad id,c2" } });
+    expect(out.status ?? 200).toBe(200);
+    expect(out.json.chats.map((c: any) => c.chatId)).toEqual(["c2", "c1"]);
+    expect(out.json.chats[0].threads.map((t: any) => t.text)).toEqual(["Who has the key?"]);
+    expect(out.json.chats[0].threads.every((t: any) => t.status === "open")).toBe(true);
+    expect(drive(mock, { method: "GET", path: "/dashboard/quests", query: {} }).json).toEqual({ chats: [] });
+  });
+
   it("an event of a family switched off counts as other and moves nothing", () => {
     writeChat("c1", three());
     fs.mkdirSync(path.join(root, "dashboard"), { recursive: true });
