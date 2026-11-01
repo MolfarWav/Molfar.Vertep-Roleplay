@@ -11,9 +11,13 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import {
   deleteAgentDraft, deleteAgentSet, describeNeed, editChatAgents, grantAgent, installAgentDraft, installAgentFile, listAgentDrafts, listAgentSets, listInstalledAgents, loadAgentRuns,
-  loadChatAgents, loadDefaultAgentSet, removeAgent, runAgents, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
-  type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type ChatAgentItem, type ChatAgentsOp,
+  loadAgentUsage, loadChatAgents, loadDefaultAgentSet, removeAgent, runAgents, saveAgentSet, setDefaultAgentSet, setIdFromName, useAgentsLive,
+  type AgentDraft, type AgentInfo, type AgentPhase, type AgentRun, type AgentSet, type AgentUsage, type ChatAgentItem, type ChatAgentsOp,
 } from '@/lib/agents'
+import { noteAgentIds, notesMode, QUIET_PLACE } from '@/lib/agent-notes'
+import { usageFor } from '@/lib/agent-sets'
+import { InfoTip } from '@/components/ui/info-tip'
+import { Switch } from '@/components/ui/switch'
 import type { MsgKey } from '@/lib/i18n'
 import { installMessage } from '@/lib/agent-install'
 import { CheckLine } from '@/components/canvas/forge/check-line'
@@ -79,29 +83,51 @@ function waitingFor(info: AgentInfo | undefined, t: ReturnType<typeof useT>, loa
 
 const phaseOf = (it: ChatAgentItem, info: AgentInfo | undefined): AgentPhase | undefined => it.phase ?? info?.trigger.when
 
-/** The line above the tab's list: what the chat's agents follow. */
+/** The line above the tab's list: what the chat's agents follow, and one switch for the notes of all of them. */
 export function AgentsTabContext({ chatId, data }: { chatId: string; data: AgentsData }) {
   const t = useT()
   const edit = useEdit(chatId)
-  const { list, sets } = data
+  const { list, sets, installed } = data
   const setName = list?.presetId ? sets.find((s) => s.id === list.presetId)?.name ?? list.presetId : ''
   const line = !list ? '…'
     : !list.followsPreset ? t('ag.ownList')
       : list.presetId && list.presetMissing ? t('ag.missingSet', { name: setName })
         : list.presetId ? t('ag.followsSet', { name: setName })
           : t('ag.noSet')
+  // the notes switch reaches the agents that make notes; with none in the chat there is nothing to switch
+  const noteIds = noteAgentIds(list?.items ?? [], installed)
+  const mode = notesMode(list?.items ?? [], noteIds)
   return (
-    <div className="flex w-full flex-wrap items-center gap-1 border-b border-border bg-card px-3 py-2">
-      <Robot className="size-4 shrink-0 text-violet-500" aria-hidden="true" />
-      <span className="min-w-[8rem] flex-1 truncate text-xs font-semibold" data-testid="agents-context">{line}</span>
-      {list && !list.followsPreset && (
-        <button
-          type="button"
-          onClick={() => void edit({ op: 'reset' })}
-          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground max-md:min-h-10"
-        >
-          <ArrowCounterClockwise className="size-3" aria-hidden="true" /> {t('ag.backToSet')}
-        </button>
+    <div className="flex w-full flex-col border-b border-border bg-card">
+      <div className="flex w-full flex-wrap items-center gap-1 px-3 py-2">
+        <Robot className="size-4 shrink-0 text-violet-500" aria-hidden="true" />
+        <span className="min-w-[8rem] flex-1 truncate text-xs font-semibold" data-testid="agents-context">{line}</span>
+        {list && !list.followsPreset && (
+          <button
+            type="button"
+            onClick={() => void edit({ op: 'reset' })}
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground max-md:min-h-10"
+          >
+            <ArrowCounterClockwise className="size-3" aria-hidden="true" /> {t('ag.backToSet')}
+          </button>
+        )}
+      </div>
+      {noteIds.length > 0 && (
+        <div className="flex items-center gap-2 border-t border-border/60 px-3 py-1 max-md:min-h-11" data-testid="agents-notes-switch">
+          <label htmlFor={`notes-all-${chatId}`} className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-medium">{t('ag.notes.label')}</span>
+            {mode === 'mixed' && <span className="block text-xs text-muted-foreground">{t('ag.notes.mixed')}</span>}
+          </label>
+          <InfoTip label={t('ag.notes.infoLabel')}>{t('ag.notes.info')}</InfoTip>
+          <Switch
+            id={`notes-all-${chatId}`}
+            size="sm"
+            className="max-md:after:-inset-y-3.5"
+            checked={mode !== 'quiet'}
+            onCheckedChange={(on) => void edit({ op: 'showAll', place: on ? null : QUIET_PLACE, agents: noteIds })}
+            data-testid="agents-notes-all"
+          />
+        </div>
       )}
     </div>
   )
@@ -400,6 +426,9 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
   const [setName, setSetName] = useState('')
   const [busy, setBusy] = useState(false)
   const { installed, sets, defaultSet, list, reload, refreshInstalled } = data
+  // how many chats follow each set: read when the sheet opens (it opens every chat's meta file), never at boot
+  const [usage, setUsage] = useState<AgentUsage | null | undefined>(undefined)
+  useEffect(() => { if (open) void loadAgentUsage().then(setUsage) }, [open])
   // files Molfar wrote into the workspace; none, or no agents plugin, shows nothing
   const [drafts, setDrafts] = useState<AgentDraft[]>([])
   const loadDrafts = useCallback(async () => { try { setDrafts(await listAgentDrafts()) } catch { setDrafts([]) } }, [])
@@ -448,8 +477,10 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
     try { await setDefaultAgentSet(defaultSet === s.id ? null : s.id); await reload() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
   }
   const dropSet = async (s: AgentSet) => {
-    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: s.name }), description: t('ag.sets.deleteBody'), actionLabel: t('ag.sets.delete') }))) return
-    try { await deleteAgentSet(s.id); await reload() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
+    const u = usageFor(usage, s.id)
+    const inUse = u && u.n > 0 ? ` ${t('as.deleteInUse', { count: u.partial ? `${u.n}+` : String(u.n) })}` : ''
+    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: s.name }), description: `${t('ag.sets.deleteBody')}${inUse}`, actionLabel: t('ag.sets.delete') }))) return
+    try { await deleteAgentSet(s.id); await reload(); void loadAgentUsage().then(setUsage) } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
   }
 
   return (
@@ -522,7 +553,10 @@ export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: stri
                     <div key={s.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-semibold">{s.name}</span>
-                        <span className="block text-[10px] text-muted-foreground">{t('ag.sets.count', { n: s.items.length })}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {t('ag.sets.count', { n: s.items.length })}
+                          {(() => { const u = usageFor(usage, s.id); return u && (u.n > 0 || u.partial) ? ` · ${t(u.partial ? 'as.usage.atLeast' : 'as.usage.count', { n: u.n })}` : '' })()}
+                        </span>
                       </span>
                       <Button variant={defaultSet === s.id ? 'secondary' : 'ghost'} size="sm" className="shrink-0 max-md:h-10" title={t('ag.sets.defaultTip')} onClick={() => void makeDefault(s)}>
                         <Star className="size-3.5" weight={defaultSet === s.id ? 'fill' : 'regular'} aria-hidden="true" />{defaultSet === s.id ? t('ag.sets.default') : t('ag.sets.makeDefault')}

@@ -4,7 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
-import { listAgentSets, loadDefaultAgentSet, type AgentSet } from '@/lib/agents'
+import { listAgentSets, loadAgentMemory, loadDefaultAgentSet, type AgentSet } from '@/lib/agents'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
 import { formatTokens } from '@/lib/tokens'
@@ -59,12 +59,24 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [sets, setSets] = useState<AgentSet[]>([])
   const [defaultSet, setDefaultSet] = useState<string | null>(null)
   const [setPick, setSetPick] = useState('default')
+  // the set came from this character's last chat (until the person picks another)
+  const [fromLast, setFromLast] = useState(false)
+  const setTouched = useRef(false)
   useEffect(() => {
     let live = true
     // silent when the app has no agents plugin
-    Promise.all([listAgentSets(), loadDefaultAgentSet()]).then(([all, d]) => { if (live) { setSets(all); setDefaultSet(d) } }).catch(() => {})
+    Promise.all([listAgentSets(), loadDefaultAgentSet(), loadAgentMemory(charId)]).then(([all, d, last]) => {
+      if (!live) return
+      setSets(all)
+      setDefaultSet(d)
+      // the set this character's last chat chose, when it is still there; a late answer must not undo a click
+      if (!setTouched.current && last && (last === 'none' || last === 'default' || all.some((x) => x.id === last))) {
+        setSetPick(last)
+        setFromLast(last !== 'default')
+      }
+    }).catch(() => {})
     return () => { live = false }
-  }, [])
+  }, [charId])
   const defaultSetName = sets.find((x) => x.id === defaultSet)?.name
   const defaultLabel = defaultSetName ? t('ag.new.default', { name: defaultSetName }) : t('ag.new.defaultNone')
 
@@ -103,6 +115,8 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
     void startChatWith(charId, greetingIndex, {
       presetId: preset.id, presetVars: values,
       ...(setPick === 'none' ? { agents: { own: [] as [] } } : setPick !== 'default' ? { agents: { preset: setPick } } : {}),
+      // the picker was on screen: whatever it said (even "default") is the choice this character's next chat starts from
+      ...(sets.length > 0 ? { agentsChosen: true } : {}),
       ...(character?.isGroup && genMode !== groupMode ? { turns: { generationMode: genMode } } : {}),
       ...(worldPick.startsWith('w:') ? { world: { worldId: worldPick.slice(2) } } : worldPick.startsWith('c:') ? { world: { fromChatId: worldPick.slice(2) } } : {}),
     })
@@ -149,7 +163,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
         )}
         {sets.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Select value={setPick} onValueChange={(v) => v && setSetPick(v)}>
+            <Select value={setPick} onValueChange={(v) => { if (!v) return; setTouched.current = true; setFromLast(false); setSetPick(v) }}>
               <SelectTrigger className="h-8 w-full text-xs" aria-label={t('ag.new.label')} data-testid="new-chat-agents">
                 <SelectValue>
                   {(v: string) => t('ag.new.trigger', { what: v === 'default' ? defaultLabel : v === 'none' ? t('ag.new.none') : sets.find((x) => x.id === v)?.name ?? v })}
@@ -161,7 +175,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
                 {sets.map((x) => <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">{t('ag.new.hint')}</p>
+            <p className="text-[11px] text-muted-foreground" data-testid="new-chat-agents-hint">{fromLast ? t('ag.new.fromLast', { name: character?.name ?? '' }) : t('ag.new.hint')}</p>
           </div>
         )}
         {character?.isGroup && (

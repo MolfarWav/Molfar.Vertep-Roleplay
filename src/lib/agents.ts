@@ -59,6 +59,8 @@ export type ChatAgentsOp =
   | { op: 'reset' }
   | { op: 'add'; agent: string; phase?: AgentPhase }
   | { op: 'remove' | 'toggle' | 'phase' | 'move' | 'show' | 'also' | 'wait'; agent: string; on?: boolean; phase?: AgentPhase | null; to?: number; place?: string | null; wait?: boolean }
+  /** one place for several agents at once (the chat's notes switch); `place: null` puts each back where its author set it */
+  | { op: 'showAll'; place: string | null; agents: string[] }
 
 /** What an agent left for the chat: a note under the reply, choices, a hint for the next reply, or a silent state change. */
 export interface AgentOutput {
@@ -279,6 +281,19 @@ export async function saveAgentSet(id: string, name: string, items: AgentSet['it
 export async function deleteAgentSet(id: string): Promise<void> {
   await j(`/agent-presets/${q(id)}`, { method: 'DELETE' })
   forgetChats()
+}
+
+/** How many chats follow each set (GET /agent-usage). `own` = chats with their own copy of the list; `partial` = the count stopped at a cap. */
+export interface AgentUsage { follows: Record<string, number>; own: number; total: number; partial: boolean }
+
+/** Read on demand, never at boot: it opens every chat's small meta file. Null when the app cannot say. */
+export async function loadAgentUsage(): Promise<AgentUsage | null> {
+  try { return await j<AgentUsage>('/agent-usage') } catch { return null }
+}
+
+/** The set the person last chose for this character or group: 'default', 'none', a set id, or null when there is no such chat. */
+export async function loadAgentMemory(key: string): Promise<string | null> {
+  try { return (await j<{ pick: string | null }>(`/agent-memory/${q(key)}`)).pick } catch { return null }
 }
 
 export async function loadDefaultAgentSet(): Promise<string | null> {

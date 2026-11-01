@@ -9,12 +9,12 @@ import { useConfirm } from '@/components/ui/confirm'
 import { ChatPicker, type PickerChat } from '@/components/canvas/chat-picker'
 import { useT } from '@/hooks/use-t'
 import {
-  costsFromRuns, freeName, GUESS_REPLY_MS, laneOf, LANES, putInLane, sameItems, setsWith, simulate,
+  costsFromRuns, freeName, GUESS_REPLY_MS, laneOf, LANES, putInLane, sameItems, setsWith, simulate, usageFor,
   type Lane, type SetItem,
 } from '@/lib/agent-sets'
 import {
-  deleteAgentSet, listAgentSets, listInstalledAgents, loadAgentRuns, loadDefaultAgentSet, saveAgentSet, setDefaultAgentSet, setIdFromName,
-  type AgentInfo, type AgentRun, type AgentSet,
+  deleteAgentSet, listAgentSets, listInstalledAgents, loadAgentRuns, loadAgentUsage, loadDefaultAgentSet, saveAgentSet, setDefaultAgentSet, setIdFromName,
+  type AgentInfo, type AgentRun, type AgentSet, type AgentUsage,
 } from '@/lib/agents'
 import { useApp } from '@/lib/store'
 import type { MsgKey } from '@/lib/i18n'
@@ -43,6 +43,8 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
   const [installed, setInstalled] = useState<AgentInfo[] | null | undefined>(undefined)
   const [sets, setSets] = useState<AgentSet[]>([])
   const [defaultSet, setDefault] = useState<string | null>(null)
+  // undefined = counting, null = the app could not say
+  const [usage, setUsage] = useState<AgentUsage | null | undefined>(undefined)
   const [pickId, setPickId] = useState<string | null>(null)
   // the working copy of the picked set: saved only on Save
   const [name, setName] = useState('')
@@ -76,6 +78,8 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
       setInstalled(i)
       setSets(s)
       setDefault(d)
+      // counted after the screen has what it needs: opening every chat's meta must not hold the sets back
+      void loadAgentUsage().then(setUsage)
       setPickId((cur) => {
         const id = select ?? (cur && s.some((x) => x.id === cur) ? cur : d && s.some((x) => x.id === d) ? d : s[0]?.id ?? null)
         const set = s.find((x) => x.id === id) ?? null
@@ -118,6 +122,20 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
     take(sets.find((s) => s.id === id) ?? null)
   }
 
+  /** What a chat-count line says: "3 chats", "at least 4000 chats". */
+  const countText = (u: { n: number; partial: boolean }) => (u.partial ? `${u.n}+` : String(u.n))
+
+  /** Saving the picked set: when chats follow it and its agents change, say so first (the change reaches them on their next reply). */
+  const saveSet = async () => {
+    if (!saved) return
+    const u = usageFor(usage, saved.id)
+    if (u && u.n > 0 && !sameItems(items, saved.items)) {
+      const ok = await confirm({ title: t('as.saveInUseTitle', { name: saved.name }), description: t('as.saveInUseBody', { count: countText(u) }), actionLabel: t('as.save'), destructive: false })
+      if (!ok) return
+    }
+    await persist(saved.id, name.trim(), items)
+  }
+
   const persist = async (id: string, nm: string, its: SetItem[]) => {
     setBusy(true)
     try {
@@ -143,7 +161,9 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
 
   const drop = async () => {
     if (!saved) return
-    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: saved.name }), description: t('ag.sets.deleteBody'), actionLabel: t('ag.sets.delete') }))) return
+    const u = usageFor(usage, saved.id)
+    const inUse = u && u.n > 0 ? ` ${t('as.deleteInUse', { count: countText(u) })}` : ''
+    if (!(await confirm({ title: t('ag.sets.deleteTitle', { name: saved.name }), description: `${t('ag.sets.deleteBody')}${inUse}`, actionLabel: t('ag.sets.delete') }))) return
     try { await deleteAgentSet(saved.id); setPickId(null); await reload() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) }
   }
   const makeDefault = async () => {
@@ -184,7 +204,7 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
               </select>
               {dirty && <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400" data-testid="as-dirty">{t('as.dirty')}</span>}
               <span className="flex-1 max-md:hidden" />
-              {saved && <Button size="sm" className="shrink-0 max-md:h-10" disabled={!dirty || busy || !name.trim()} onClick={() => void persist(saved.id, name.trim(), items)} data-testid="as-save">{t('as.save')}</Button>}
+              {saved && <Button size="sm" className="shrink-0 max-md:h-10" disabled={!dirty || busy || !name.trim()} onClick={() => void saveSet()} data-testid="as-save">{t('as.save')}</Button>}
             </div>
             <div className="flex flex-wrap items-center gap-1">
               <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => openNaming('new')} data-testid="as-new"><Plus className="size-3.5" aria-hidden="true" />{t('as.new')}</Button>
@@ -206,6 +226,15 @@ export function AgentSets({ onOpenAgents }: { onOpenAgents: () => void }) {
               </form>
             )}
             {saved && name.trim() !== saved.name && <p className="text-xs text-muted-foreground">{t('as.renamed', { name })}</p>}
+            {saved && (() => {
+              const u = usageFor(usage, saved.id)
+              return (
+                <p className="flex items-center gap-0.5 text-xs text-muted-foreground" data-testid="as-usage" aria-live="polite">
+                  {usage === undefined ? t('as.usage.counting') : !u ? null : u.n === 0 && !u.partial ? t('as.usage.none') : t(u.partial ? 'as.usage.atLeast' : 'as.usage.count', { n: u.n })}
+                  {u && <InfoTip label={t('as.usage.infoLabel')} testId="as-usage-info">{t('as.usage.info')}{usage && usage.own > 0 ? ` ${t('as.usage.own', { n: usage.own })}` : ''}</InfoTip>}
+                </p>
+              )
+            })()}
           </section>
 
           {!saved ? (

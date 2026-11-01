@@ -2569,6 +2569,66 @@ export function resolveChatAgents(binding, presets, defaultPresetId) {
   const items = (b && b.own ? b.own : preset ? preset.items : []).map((it) => ({ ...it, show: (b && b.show && b.show[it.agent]) || null, ...(b && b.also && b.also[it.agent] ? { also: true } : {}) }));
   return { presetId, presetMissing: !!presetId && !preset, followsPreset: !(b && b.own), items };
 }
+/** The most chats `agentUsage` reads in one pass; past it the answer says `partial`. */
+export const AGENT_USAGE_CAP = 4000;
+/**
+ * How many chats follow each agent set, for the Agent sets screen ("used by N chats"). A chat follows a set when it has no
+ * own copy of the list (`followsPreset`): a change or a delete of the set reaches exactly those. No binding = the default set.
+ * Chats with their own copy are counted apart (`own`). Temporary chats are left out. Read on demand, never at boot; the cap
+ * keeps one pass inside the sandbox's time limit on a very large library.
+ */
+export function agentUsage(fsx, defaultPresetId, cap = AGENT_USAGE_CAP) {
+  const follows = {};
+  let own = 0;
+  let total = 0;
+  let partial = false;
+  let files = [];
+  try { files = fsx.list("chats").filter((f) => f.endsWith(".meta.json")); } catch {}
+  for (const f of files) {
+    if (total >= cap) { partial = true; break; }
+    let raw = "";
+    try { raw = String(fsx.read("chats/" + f)); } catch { continue; }
+    if (/"temporary":\s*true/.test(raw)) continue;
+    total++;
+    let binding = null;
+    // most chats have no binding: skip the parse unless the text mentions one
+    if (raw.includes('"agents"')) { try { binding = cleanAgentBinding(JSON.parse(raw).agents); } catch {} }
+    if (binding && binding.own) { own++; continue; }
+    const id = (binding && binding.preset) || defaultPresetId || null;
+    if (id) follows[id] = (follows[id] || 0) + 1;
+  }
+  return { follows, own, total, partial };
+}
+/**
+ * Per-character (or per-group) memory of the agent set: what the newest chat where the person chose a set used
+ * (meta.agentsAt, stamped by the New chat step and by the chat's own "use this set"). `pick` is `default` (the person
+ * chose the default), `none` (no agents) or a set id. Null when there is no such chat or its set is gone. Mirrors presetMemory.
+ */
+export function agentSetMemory(fsx, key, setExists) {
+  let best = null;
+  try {
+    for (const f of fsx.list("chats")) {
+      if (!f.endsWith(".meta.json")) continue;
+      let raw = "";
+      try { raw = String(fsx.read("chats/" + f)); } catch { continue; }
+      if (!raw.includes('"agentsAt"')) continue;
+      let m = null;
+      try { m = JSON.parse(raw); } catch {}
+      if (!m || m.temporary || !m.agentsAt || (m.characterId !== key && m.groupId !== key)) continue;
+      if (!best || m.agentsAt > best.agentsAt) best = m;
+    }
+  } catch {}
+  if (!best) return null;
+  const b = cleanAgentBinding(best.agents);
+  if (b && b.preset) return setExists(b.preset) ? { pick: b.preset } : null;
+  if (b && b.own && b.own.length === 0) return { pick: "none" };
+  return { pick: "default" };
+}
+/** The binding a new chat starts with when it follows the memory (null = follow the default, as a chat with no binding does). */
+export function bindingFromMemory(mem) {
+  if (!mem || mem.pick === "default") return null;
+  return mem.pick === "none" ? { v: 1, own: [] } : { v: 1, preset: mem.pick };
+}
 /** One change to a chat's agents (`wait`: whether the reply waits for an agent set to run before it). Any change except choosing a preset or resetting makes the chat's own copy first, from
  *  `baseItems` (the preset's items). Returns the new binding (null = nothing left set) or `{ error }`. */
 export function editChatAgents(binding, baseItems, op) {
@@ -2587,6 +2647,21 @@ export function editChatAgents(binding, baseItems, op) {
     delete next.own;
     delete next.show;
     delete next.also;
+    return cleanAgentBinding(next);
+  }
+  if (op.op === "showAll") {
+    // one place for many agents at once (the chat's "notes" switch): `place` null puts each back where its author set it.
+    // It touches only `show`, so the chat keeps following its set.
+    if (op.place != null && !AGENT_PLACES.includes(op.place)) return { error: "unknown place" };
+    const agents = Array.isArray(op.agents) ? op.agents.filter((a) => typeof a === "string" && AGENT_ID_RE.test(a)).slice(0, AGENT_MAX_ITEMS) : [];
+    const show = { ...(b.show || {}) };
+    for (const a of agents) {
+      if (op.place == null) delete show[a];
+      else show[a] = op.place;
+    }
+    const next = { ...b };
+    if (Object.keys(show).length) next.show = show;
+    else delete next.show;
     return cleanAgentBinding(next);
   }
   const items = (b.own || cleanAgentItems(baseItems) || []).map((it) => ({ ...it }));
@@ -4470,6 +4545,15 @@ export function handleRoute(req, host) {
     }
     if (req.method === "DELETE") { try { fsx.remove("agents/presets/" + id + ".json"); return ok({ ok: true }); } catch { return ok({ ok: false }); } }
   }
+  // how many chats follow each set (read on demand: the Agent sets screen and a chat's set list)
+  if (head === "agent-usage" && !id && req.method === "GET") {
+    return ok(agentUsage(fsx, readJson("agents/settings.json", {}).defaultPreset || null));
+  }
+  // the set the person last chose for this character (or group): { pick: "default" | "none" | <set id> | null }
+  if (head === "agent-memory" && id && req.method === "GET") {
+    const mem = agentSetMemory(fsx, id, (pid) => !!cleanAgentPreset(readJson("agents/presets/" + pid + ".json", null), pid));
+    return ok({ pick: mem ? mem.pick : null });
+  }
   if (head === "agent-settings" && !id) {
     if (req.method === "GET") return ok({ defaultPreset: readJson("agents/settings.json", {}).defaultPreset || null });
     if (req.method === "PUT") {
@@ -5199,6 +5283,12 @@ export function handleRoute(req, host) {
       // no step and no memory: the user's own default choices for that preset
       const mine = (() => { const d = readJson("preset-defaults.json", {}); return d && typeof d === "object" && d[presetId] ? cleanPresetVars(d[presetId]) : null; })();
       const picks = stepVars || (mem && !b.presetId ? cleanPresetVars(mem.vars) : null) || mine;
+      const sentAgents = cleanAgentBinding(b.agents);
+      const agentsChosen = !!sentAgents || b.agentsChosen === true;
+      const memKey = b.groupId || b.characterId;
+      const agentsBinding = sentAgents || (!agentsChosen && memKey
+        ? bindingFromMemory(agentSetMemory(fsx, memKey, (pid) => !!cleanAgentPreset(readJson("agents/presets/" + pid + ".json", null), pid)))
+        : null);
       const meta = {
         id: cid,
         title: b.title || "New chat",
@@ -5215,8 +5305,11 @@ export function handleRoute(req, host) {
         lorebookIds: [],
         // a group chat's own turn settings, picked when it was started
         ...(b.groupId && cleanTurns(b.turns) ? { turns: cleanTurns(b.turns) } : {}),
-        // agents picked on the New chat screen (a preset, or the set changed there)
-        ...(cleanAgentBinding(b.agents) ? { agents: cleanAgentBinding(b.agents) } : {}),
+        // agents picked on the New chat screen (a preset, or the set changed there); with nothing sent, the set this
+        // character's (or group's) last chat chose, else the chat follows the default set
+        ...(agentsBinding ? { agents: agentsBinding } : {}),
+        // the person looked at the set picker, so what it said is a choice per-character memory follows (even "default")
+        ...(agentsChosen ? { agentsAt: Date.now() } : {}),
         createdAt: Date.now(), updatedAt: Date.now(),
       };
       // seed the greeting (all greetings as swipes → swipe chevrons rotate them)
@@ -5460,9 +5553,12 @@ const toolX = (r) => ({
         const baseId = (cur && cur.preset) || dflt;
         const edited = editChatAgents(cur, baseId && presets[baseId] ? presets[baseId].items : [], body());
         if (edited && edited.error) return err(400, edited.error);
-        if (JSON.stringify(edited ?? null) !== JSON.stringify(cur ?? null)) {
+        // choosing a set for this chat is a choice per-character memory follows, even when it changes nothing
+        const chose = body().op === "preset";
+        if (chose || JSON.stringify(edited ?? null) !== JSON.stringify(cur ?? null)) {
           if (edited) meta.agents = edited;
           else delete meta.agents;
+          if (chose) meta.agentsAt = Date.now();
           writeJson("chats/" + id + ".meta.json", meta);
         }
       }

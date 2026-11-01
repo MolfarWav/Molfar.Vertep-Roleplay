@@ -282,13 +282,13 @@ interface AppState {
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
   /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
-  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] } }) => Promise<ID>
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; agentsChosen?: boolean }) => Promise<ID>
   startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
   /** the open new-chat step (preset and choices before a chat starts); null = none */
   newChatStep: { charId: ID; greetingIndex?: number } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; world?: { worldId: string } | { fromChatId: ID } }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; agentsChosen?: boolean; world?: { worldId: string } | { fromChatId: ID } }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
@@ -1806,6 +1806,8 @@ export const useApp = create<AppState>()(
             ...(char?.isGroup && opts?.turns ? { turns: opts.turns } : {}),
             // the agent set picked on the New chat screen; none picked = the chat follows the default set
             ...(opts?.agents ? { agents: { v: 1, ...opts.agents } } : {}),
+            // the New chat step showed the set picker: nothing sent still means "the default set", not "ask the memory"
+            ...(opts?.agentsChosen ? { agentsChosen: true } : {}),
           }),
         })
         let chat = uiChat(get, r.meta, r.messages ?? [])

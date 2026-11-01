@@ -2,7 +2,7 @@
 // calls (worked out from the agents' real runs), and the small edits the screen makes to a set before it is saved.
 // Pure, so a test can hold it.
 
-import type { AgentInfo, AgentPhase, AgentRun, AgentSet } from './agents'
+import type { AgentInfo, AgentPhase, AgentRun, AgentSet, AgentUsage } from './agents'
 
 export type SetItem = AgentSet['items'][number]
 
@@ -125,4 +125,10 @@ export function freeName(name: string, taken: string[]): string {
 /** The sets an agent is in, for the library's line "In sets: …". */
 export function setsWith(sets: AgentSet[], agent: string): AgentSet[] {
   return sets.filter((s) => s.items.some((it) => it.agent === agent))
+}
+
+/** How many chats follow one set, from the usage answer: `n` is a floor when `partial`. Null while it is unknown. */
+export function usageFor(usage: AgentUsage | null | undefined, setId: string): { n: number; partial: boolean } | null {
+  if (!usage) return null
+  return { n: usage.follows[setId] ?? 0, partial: usage.partial }
 }

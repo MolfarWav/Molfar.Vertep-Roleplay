@@ -4265,6 +4265,21 @@ const en = {
   'fg.ck.E_SIZE.fix': 'Make the agent smaller: fewer cards, or shorter texts in them.',
   'fg.ck.E_JSON': 'The file is not valid JSON.',
   'fg.ck.E_JSON.fix': 'Save the agent again from the Forge, or fix the syntax in a text editor.',
+  'as.usage.counting': 'Counting chats…',
+  'as.usage.none': 'No chat follows this set.',
+  'as.usage.count': 'Used by {n} {n|chat|chats}',
+  'as.usage.atLeast': 'Used by at least {n} {n|chat|chats}',
+  'as.usage.infoLabel': 'About this count',
+  'as.usage.info': 'A chat follows a set when you picked it for that chat, or when the chat has no set of its own and this one is the default. A change to the set reaches those chats on their next reply.',
+  'as.usage.own': 'Chats with their own copy of the list are not counted: {n}.',
+  'as.saveInUseTitle': 'Save changes to “{name}”?',
+  'as.saveInUseBody': 'The chats that follow this set ({count}) will use the change from their next reply.',
+  'as.deleteInUse': 'The chats that follow this set ({count}) will run no agents until you pick another set for them.',
+  'ag.notes.label': 'Notes under replies',
+  'ag.notes.mixed': 'Some agents have their own place',
+  'ag.notes.infoLabel': 'About the notes switch',
+  'ag.notes.info': 'Turns the notes of all agents in this chat off or on at once. Off keeps them out of the chat: they stay in the “agents ran” line under the reply. On puts each agent back where its author set it. Agents that offer choices are not changed. You can still set one agent by hand with the place button on its row.',
+  'ag.new.fromLast': 'Same as your last chat with {name}. You can change it later in the chat’s Agents tab.',
 } as const
 
 export type MsgKey = keyof typeof en
@@ -8526,6 +8541,21 @@ const uk: Record<MsgKey, string> = {
   'fg.ck.E_SIZE.fix': 'Зробіть агента меншим: менше карток або коротші тексти в них.',
   'fg.ck.E_JSON': 'Файл не є коректним JSON.',
   'fg.ck.E_JSON.fix': 'Збережіть агента ще раз із Кузні або виправте синтаксис у текстовому редакторі.',
+  'as.usage.counting': 'Рахую чати…',
+  'as.usage.none': 'Жоден чат не користується цим набором.',
+  'as.usage.count': 'Набір використовують: {n} {n|чат|чати|чатів}',
+  'as.usage.atLeast': 'Набір використовують щонайменше {n} {n|чат|чати|чатів}',
+  'as.usage.infoLabel': 'Про цей підрахунок',
+  'as.usage.info': 'Чат користується набором, якщо ви обрали його для цього чату або якщо в чату немає свого набору, а цей — типовий. Зміна набору дійде до цих чатів з їхньої наступної відповіді.',
+  'as.usage.own': 'Чатів із власною копією списку не враховано: {n}.',
+  'as.saveInUseTitle': 'Зберегти зміни в «{name}»?',
+  'as.saveInUseBody': 'Чати, що користуються цим набором ({count}), застосують зміну з наступної відповіді.',
+  'as.deleteInUse': 'Чати, що користуються цим набором ({count}), не запускатимуть агентів, доки ви не оберете їм інший набір.',
+  'ag.notes.label': 'Нотатки під відповідями',
+  'ag.notes.mixed': 'У деяких агентів своє місце',
+  'ag.notes.infoLabel': 'Про перемикач нотаток',
+  'ag.notes.info': 'Вмикає й вимикає нотатки всіх агентів цього чату одразу. Вимкнені нотатки не з’являються в чаті: вони лишаються в рядку «агенти відпрацювали» під відповіддю. Увімкнені повертаються туди, куди їх поставив автор агента. Агентів, що пропонують варіанти, це не зачіпає. Одного агента можна налаштувати окремо кнопкою місця на його рядку.',
+  'ag.new.fromLast': 'Так само, як в останньому чаті з {name}. Потім його можна змінити у вкладці «Агенти» чату.',
 }
 
 export const DICTIONARIES: Record<Lang, Record<MsgKey, string>> = { en, uk }
