@@ -74,16 +74,16 @@ function ThreadRow({ th, editable, openOnly, step }: { th: Thread; editable: boo
       ) : (
         <span className="min-w-0 flex-1">
           <span className={cn('break-words', !open && 'line-through')}>{th.text}</span>
-          {th.by === 'user' && <span className="ml-1.5 border border-border px-1 text-[10px] uppercase tracking-wide">{t('dash.thread.yours')}</span>}
+          {th.by === 'user' && <span className="ml-1.5 border border-border px-1 text-caption uppercase tracking-wide">{t('dash.thread.yours')}</span>}
           {/* a flat list (the strip) has no group titles: say which are main, side or everyday */}
           {openOnly && !step && (
-            <span className={cn('ml-1.5 inline-flex items-center gap-0.5 border px-1 text-[10px] uppercase tracking-wide', QUEST_LOOK[questKindOf(th)].badge)}>
+            <span className={cn('ml-1.5 inline-flex items-center gap-0.5 border px-1 text-caption uppercase tracking-wide', QUEST_LOOK[questKindOf(th)].badge)}>
               {questKindOf(th) === 'main' && <Star className="size-2.5" weight="fill" aria-hidden="true" />}
               {t(`dash.quest.kind.${questKindOf(th)}`)}
             </span>
           )}
           {!openOnly && (
-            <span className="ml-2 whitespace-nowrap text-[11px]">
+            <span className="ml-2 whitespace-nowrap text-caption">
               {open ? t('dash.thread.since', { n: th.since }) : t('dash.thread.resolved')}
             </span>
           )}
@@ -137,7 +137,7 @@ function AddThread({ threads, limits, parent }: { threads: Thread[]; limits: Que
           <InfoTip label={t('dash.quest.kinds.about')}>{t('dash.quest.kinds.info')}</InfoTip>
         </div>
       )}
-      {full && <p className="text-[11px] text-muted-foreground">{parent ? t('dash.quest.full.steps') : t('dash.quest.full', { kind: t(`dash.quest.kind.${kind}`) })}</p>}
+      {full && <p className="text-caption text-muted-foreground">{parent ? t('dash.quest.full.steps') : t('dash.quest.full', { kind: t(`dash.quest.kind.${kind}`) })}</p>}
       <div className="flex gap-2">
         <Button size="xs" className={cn(FIELD, TOUCH)} disabled={busy || !text.trim()} onClick={() => { void add() }}>{t('dash.set.addRow')}</Button>
         <Button size="xs" variant="ghost" className={cn(FIELD, TOUCH)} onClick={() => setOpen(false)}>{t('home.cancel')}</Button>
@@ -162,14 +162,14 @@ function ProposalRow({ p, threads, limits }: { p: QuestProposal; threads: Thread
   const label = isClose ? t('dash.quest.sugg.close') : p.parent ? t('dash.quest.sugg.openStep') : t('dash.quest.sugg.open', { kind: t(`dash.quest.kind.${p.kind}`).toLowerCase() })
   return (
     <li className="flex flex-col gap-1.5 text-xs leading-snug">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-caption text-muted-foreground">{label}</span>
       <span className="break-words">
         {p.text}
-        {p.by === 'user' && <span className="ml-1.5 border border-border px-1 text-[10px] uppercase tracking-wide">{t('dash.thread.yours')}</span>}
+        {p.by === 'user' && <span className="ml-1.5 border border-border px-1 text-caption uppercase tracking-wide">{t('dash.thread.yours')}</span>}
       </span>
       {replacing ? (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] text-muted-foreground">{t('dash.quest.replace')}</span>
+          <span className="text-caption text-muted-foreground">{t('dash.quest.replace')}</span>
           {questReplaceable(threads, p.kind, p.parent).map((th) => (
             <Button key={th.id} size="xs" variant="outline" className={cn(FIELD, TOUCH, 'h-auto justify-start whitespace-normal py-1 text-left')} disabled={busy} onClick={() => { void run({ op: 'proposal-accept', id: p.id, replace: th.id }) }}>{th.text}</Button>
           ))}
@@ -193,7 +193,7 @@ function Suggestions({ proposals, threads, limits }: { proposals: QuestProposal[
         <Lightbulb className="size-3.5" aria-hidden="true" />
         {t('dash.quest.sugg', { n: proposals.length })}
       </div>
-      <p className="text-[11px] text-muted-foreground">{t('dash.quest.sugg.hint')}</p>
+      <p className="text-caption text-muted-foreground">{t('dash.quest.sugg.hint')}</p>
       <ul className="flex flex-col gap-3">
         {proposals.map((p) => <ProposalRow key={p.id} p={p} threads={threads} limits={limits} />)}
       </ul>
@@ -204,7 +204,7 @@ function Suggestions({ proposals, threads, limits }: { proposals: QuestProposal[
 function GroupTitle({ kind, n, max }: { kind: QuestKind; n: number; max?: number }) {
   const t = useT()
   return (
-    <div className={cn('flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide', QUEST_LOOK[kind].title)}>
+    <div className={cn('flex items-center gap-1 text-caption font-semibold uppercase tracking-wide', QUEST_LOOK[kind].title)}>
       {kind === 'main' && <Star className="size-3" weight="fill" aria-hidden="true" />}
       <span>{t(`dash.quest.kind.${kind}`)}</span>
       <span aria-label={max === undefined ? undefined : t('dash.quest.of', { n, max })}>{max === undefined ? n : `${n}/${max}`}</span>
@@ -253,7 +253,7 @@ function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, l
       <div className="flex flex-col gap-2">
         {waiting.length > 0 && <Suggestions proposals={waiting} threads={threads} limits={lim} />}
         {shown.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground">{t('dash.threads.none')}</p>
+          <p className="text-caption text-muted-foreground">{t('dash.threads.none')}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {shown.map(({ th, steps }) => (
@@ -266,7 +266,7 @@ function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, l
             ))}
           </ul>
         )}
-        {flat.length > shown.length && <p className="text-[11px] text-muted-foreground">{t('dash.quest.more', { n: flat.length - shown.length })}</p>}
+        {flat.length > shown.length && <p className="text-caption text-muted-foreground">{t('dash.quest.more', { n: flat.length - shown.length })}</p>}
       </div>
     )
   }
@@ -274,7 +274,7 @@ function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, l
   return (
     <div className="flex flex-col gap-3">
       {waiting.length > 0 && <Suggestions proposals={waiting} threads={threads} limits={lim} />}
-      {openCount === 0 && <p className="text-[11px] text-muted-foreground">{t('dash.threads.none')}</p>}
+      {openCount === 0 && <p className="text-caption text-muted-foreground">{t('dash.threads.none')}</p>}
       {g.main.length > 0 && (
         <section className="flex flex-col gap-2" aria-label={t('dash.quest.kind.main')}>
           <GroupTitle kind="main" n={g.main.length} max={lim.main} />
@@ -283,7 +283,7 @@ function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, l
               <ul><ThreadRow th={quest} editable={ed} /></ul>
               {(steps.length > 0 || done > 0) && (
                 <>
-                  <span className="ml-3 text-[11px] text-muted-foreground">{t('dash.quest.stepsDone', { done, total: done + steps.length })}</span>
+                  <span className="ml-3 text-caption text-muted-foreground">{t('dash.quest.stepsDone', { done, total: done + steps.length })}</span>
                   <ul className="ml-3.5 flex flex-col gap-1.5">{steps.map((s) => <ThreadRow key={s.id} th={s} editable={ed} step />)}</ul>
                 </>
               )}
@@ -300,7 +300,7 @@ function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, l
       )}
       {g.everyday.length > 0 && (
         <Collapsible>
-          <CollapsibleTrigger className="group/ev flex min-h-6 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground max-md:min-h-10">
+          <CollapsibleTrigger className="group/ev flex min-h-6 items-center gap-1 text-caption text-muted-foreground hover:text-foreground max-md:min-h-10">
             <CaretRight className="size-3 group-data-[panel-open]/ev:hidden" aria-hidden="true" />
             <CaretDown className="hidden size-3 group-data-[panel-open]/ev:block" aria-hidden="true" />
             {t('dash.quest.everydayN', { n: g.everyday.length })}
@@ -312,7 +312,7 @@ function ThreadListBody({ threads, limit, openOnly, editable, canAdd, maxOpen, l
       )}
       {g.resolved.length > 0 && (
         <Collapsible>
-          <CollapsibleTrigger className="group/rs flex min-h-6 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground max-md:min-h-10">
+          <CollapsibleTrigger className="group/rs flex min-h-6 items-center gap-1 text-caption text-muted-foreground hover:text-foreground max-md:min-h-10">
             <CaretRight className="size-3 group-data-[panel-open]/rs:hidden" aria-hidden="true" />
             <CaretDown className="hidden size-3 group-data-[panel-open]/rs:block" aria-hidden="true" />
             {t('dash.thread.resolvedN', { n: g.resolved.length })}

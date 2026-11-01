@@ -13,6 +13,7 @@ import { AvatarImg, Box, ChangeBadge, CLASS_MARK, GOLD_TEXT, MARK, useTx } from 
 import { useDashMaybe } from './dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { cn } from '@/lib/utils'
+import { withKeys } from '@/lib/unique-keys'
 import { useT } from '@/hooks/use-t'
 import { canEditNotes, DISPOSITION, PULSE, type DashChar, type DashView } from '@/lib/dashboard'
 import { outfitEmpty, outfitOf, sensorDifference, thingCount } from '@/lib/dash-outfit'
@@ -32,7 +33,7 @@ export function Chip({ tone = 'plain', sub, children, className }: { tone?: Chip
   return (
     <span className={cn('inline-flex max-w-full items-center gap-1 border px-1.5 py-px text-[12px] leading-snug break-words', CHIP[tone], className)}>
       {children}
-      {sub ? <span className="text-[11px] opacity-75">{sub}</span> : null}
+      {sub ? <span className="text-caption opacity-75">{sub}</span> : null}
     </span>
   )
 }
@@ -44,7 +45,7 @@ function Chips({ children }: { children: ReactNode }) {
 /** A group's small uppercase label with its icon (Wearing, In hands, Carried, Nearby, Things here). */
 function GroupLabel({ icon: Glyph, children }: { icon: Icon; children: ReactNode }) {
   return (
-    <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-300">
+    <div className="mt-0.5 flex items-center gap-1.5 text-caption font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-300">
       <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       {children}
     </div>
@@ -76,7 +77,7 @@ export function AttitudeCard({ name, char, narrow, count }: { name: string; char
       count={count}
       right={
         <span className="flex items-center gap-1">
-          <Badge variant="outline" className={cn('rounded-none text-[10px]', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
+          <Badge variant="outline" className={cn('rounded-none text-caption', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
           {removable && (
             <Button variant="ghost" size="icon-xs" onClick={remove} aria-label={t('dash.remove.title', { name })} title={t('dash.remove.title', { name })} className="rounded-none">
               <UserMinus aria-hidden="true" />
@@ -100,7 +101,7 @@ export function AttitudeCard({ name, char, narrow, count }: { name: string; char
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 leading-tight">
           <span className={cn('font-heading text-[15px]', GOLD_TEXT)}>{tx('dash.const', char.constellation)}</span>
-          <span className="text-[11px] text-muted-foreground">{tx('dash.constLine', char.constellation)}</span>
+          <span className="text-caption text-muted-foreground">{tx('dash.constLine', char.constellation)}</span>
         </div>
       </div>
     </Box>
@@ -126,7 +127,7 @@ export function MoodBody({ char, pulse }: { char: DashChar; pulse?: boolean }) {
       {char.mood && (
         <div className={cn('flex min-w-0 flex-wrap items-baseline justify-between gap-x-2', moodChanged && 'border-l-2 border-cta pl-2')}>
           <span className="font-heading text-[19px] leading-tight break-words text-sky-700 dark:text-sky-300">{char.mood}</span>
-          {moodChanged && <span className="text-[11px] text-muted-foreground">{t('dash.moodWas', { mood: char.moodWas ?? '' })}</span>}
+          {moodChanged && <span className="text-caption text-muted-foreground">{t('dash.moodWas', { mood: char.moodWas ?? '' })}</span>}
         </div>
       )}
       {char.condition && <Chips><Chip>{char.condition}</Chip></Chips>}
@@ -203,29 +204,29 @@ export function OutfitBody({ name, char, here, chatId, onReload }: { name: strin
       {o.wearing.length > 0 && (
         <>
           <GroupLabel icon={TShirt}>{t('dash.outfit.wearing')}</GroupLabel>
-          <Chips>{o.wearing.map((w) => <Chip key={w}>{w}</Chip>)}</Chips>
+          <Chips>{withKeys(o.wearing, String).map(({ item: w, key: k }) => <Chip key={k}>{w}</Chip>)}</Chips>
         </>
       )}
       {o.hands.length > 0 && (
         <>
           <GroupLabel icon={Hand}>{t('dash.outfit.hands')}</GroupLabel>
-          <Chips>{o.hands.map((h) => <Chip key={h} tone="thing">{h}</Chip>)}</Chips>
+          <Chips>{withKeys(o.hands, String).map(({ item: h, key: k }) => <Chip key={k} tone="thing">{h}</Chip>)}</Chips>
         </>
       )}
       {o.carried.length > 0 && (
         <>
           <GroupLabel icon={Handbag}>{t('dash.outfit.carried')}</GroupLabel>
-          <Chips>{o.carried.map((c) => <Chip key={c.what} tone="thing" sub={c.where ? `(${c.where})` : undefined}>{c.what}</Chip>)}</Chips>
+          <Chips>{withKeys(o.carried, (x) => `${x.what}|${x.where ?? ''}`).map(({ item: c, key: k }) => <Chip key={k} tone="thing" sub={c.where ? `(${c.where})` : undefined}>{c.what}</Chip>)}</Chips>
         </>
       )}
       {o.nearby.length > 0 && (
         <>
           <GroupLabel icon={MapPin}>{t('dash.outfit.nearby')}</GroupLabel>
-          <Chips>{o.nearby.map((n) => <Chip key={n} tone="sleep">{n}</Chip>)}</Chips>
+          <Chips>{withKeys(o.nearby, String).map(({ item: n, key: k }) => <Chip key={k} tone="sleep">{n}</Chip>)}</Chips>
         </>
       )}
       {diff && (
-        <p className="mt-1 text-[11px] leading-snug text-muted-foreground" data-testid="dash-sensor-sees">
+        <p className="mt-1 text-caption leading-snug text-muted-foreground" data-testid="dash-sensor-sees">
           {t('dash.outfit.sensorSees', { text: [diff.wearing.join(', '), diff.hands.length ? t('dash.outfit.sensorHands', { hands: diff.hands.join(', ') }) : ''].filter(Boolean).join('; ') })}
         </p>
       )}
@@ -268,7 +269,7 @@ export function OthersGrid({ view, here, focus, onFocus, avatars }: { view: Dash
             </span>
             <span className="min-w-0">
               <span className="block truncate font-heading text-[13px]">{n}</span>
-              <span className={cn('block truncate font-heading text-[11px]', GOLD_TEXT)}>{tx('dash.const', c.constellation)}</span>
+              <span className={cn('block truncate font-heading text-caption', GOLD_TEXT)}>{tx('dash.const', c.constellation)}</span>
             </span>
           </button>
         )
@@ -291,14 +292,14 @@ export function HereBody({ here, scenePlace, chatId, onReload }: { here: WorldHe
       <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
           <span className="font-heading text-[18px] leading-tight break-words">{place.name}</span>
-          {!!place.visits && <span className="text-[11px] text-muted-foreground">{t('dash.here.visits', { n: place.visits })}</span>}
+          {!!place.visits && <span className="text-caption text-muted-foreground">{t('dash.here.visits', { n: place.visits })}</span>}
         </div>
         {here?.parent && <Chips><Chip tone="place">{t('dash.here.in', { name: here.parent.name })}</Chip></Chips>}
         {place.text && <p className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground" title={place.text}>{place.text}</p>}
         {(here?.spots.length ?? 0) > 0 && (
           <>
             <GroupLabelTeal>{t('dash.here.spots')}</GroupLabelTeal>
-            <Chips>{here?.spots.map((s) => <Chip key={s.id} tone="place">{s.name}</Chip>)}</Chips>
+            <Chips>{withKeys(here?.spots ?? [], (x) => x.id).map(({ item: s, key: k }) => <Chip key={k} tone="place">{s.name}</Chip>)}</Chips>
           </>
         )}
       </div>
@@ -321,7 +322,7 @@ export function HereBody({ here, scenePlace, chatId, onReload }: { here: WorldHe
 }
 
 function GroupLabelTeal({ children }: { children: ReactNode }) {
-  return <div className="mt-0.5 text-[10.5px] font-semibold tracking-wide text-teal-700 uppercase dark:text-teal-300">{children}</div>
+  return <div className="mt-0.5 text-caption font-semibold tracking-wide text-teal-700 uppercase dark:text-teal-300">{children}</div>
 }
 
 export function HereCard({ here, scenePlace, chatId, onReload, count, right }: { here: WorldHere | null; scenePlace?: string | null; chatId: string; onReload: () => void; count?: ChangeCount | null; right?: ReactNode }) {
@@ -347,22 +348,22 @@ export function ThingsCard({ view, here, focus, onFocus }: { view: DashView; her
       <div className="flex min-w-0 flex-col gap-1.5">
         <GroupLabel icon={Package}>{t('dash.things.here')}</GroupLabel>
         {lying.length > 0 ? (
-          <Chips>{lying.map((th) => <Chip key={th.id} tone="thing" sub={th.place && !sameWord(th.place, placeName) ? th.place : undefined}>{th.name}</Chip>)}</Chips>
+          <Chips>{withKeys(lying, (x) => x.id).map(({ item: th, key: k }) => <Chip key={k} tone="thing" sub={th.place && !sameWord(th.place, placeName) ? th.place : undefined}>{th.name}</Chip>)}</Chips>
         ) : (
           <p className="text-[12px] text-muted-foreground">{t('dash.things.none')}</p>
         )}
         {asleep.length > 0 && (
           <details className="group">
-            <summary className="flex min-h-8 cursor-pointer items-center text-[11px] text-muted-foreground max-md:min-h-10">{t('dash.things.asleep', { n: asleep.length })}</summary>
-            <Chips>{asleep.map((th) => <Chip key={th.id} tone="sleep" sub={th.holder ? t('dash.things.with', { name: th.holder }) : th.place}>{th.name}</Chip>)}</Chips>
+            <summary className="flex min-h-8 cursor-pointer items-center text-caption text-muted-foreground max-md:min-h-10">{t('dash.things.asleep', { n: asleep.length })}</summary>
+            <Chips>{withKeys(asleep, (x) => x.id).map(({ item: th, key: k }) => <Chip key={k} tone="sleep" sub={th.holder ? t('dash.things.with', { name: th.holder }) : th.place}>{th.name}</Chip>)}</Chips>
           </details>
         )}
         <div className="my-1 h-px bg-border" />
         <GroupLabel icon={Hand}>{t('dash.things.on', { name: focus })}</GroupLabel>
         {mine.wearing.length + mine.hands.length > 0 ? (
           <Chips>
-            {mine.wearing.map((w) => <Chip key={`w-${w}`}>{w}</Chip>)}
-            {mine.hands.map((h) => <Chip key={`h-${h}`} tone="thing">{h}</Chip>)}
+            {withKeys(mine.wearing, String).map(({ item: w, key: k }) => <Chip key={`w-${k}`}>{w}</Chip>)}
+            {withKeys(mine.hands, String).map(({ item: h, key: k }) => <Chip key={`h-${k}`} tone="thing">{h}</Chip>)}
           </Chips>
         ) : (
           <p className="text-[12px] text-muted-foreground">{t('dash.things.onNone')}</p>

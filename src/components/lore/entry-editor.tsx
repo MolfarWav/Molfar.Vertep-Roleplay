@@ -61,7 +61,7 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
       aria-modal="false"
       aria-label={t('lore.ed.panel')}
       data-testid="entry-panel"
-      className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background outline-none max-md:inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-[440px] md:border-l md:border-border md:shadow-lg"
+      className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background outline-none @[680px]:static @[680px]:z-auto @[680px]:shrink @[680px]:basis-[440px] @[680px]:min-w-[320px] @[680px]:border-l @[680px]:border-border"
     >
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <Input

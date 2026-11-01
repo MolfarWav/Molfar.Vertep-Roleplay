@@ -72,7 +72,7 @@ function ToolRow({ name, args, result, running, isError }: {
   const argText = Object.entries(args ?? {}).map(([k, v]) => `${k}=${String(v)}`).join(', ')
   const firstLine = result?.split('\n').find((l) => l.trim()) ?? ''
   return (
-    <div className="my-1.5 rounded-md border border-border bg-muted/25 font-mono text-[11px] leading-relaxed text-muted-foreground">
+    <div className="my-1.5 rounded-md border border-border bg-muted/25 font-mono text-caption leading-relaxed text-muted-foreground">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -924,7 +924,7 @@ export const MessageRow = memo(function MessageRow({
                 {message.translation && (
                   <div className="mt-1.5 border-t border-dashed border-border pt-1.5">
                     <RichText content={message.translation} scope={cssScope} />
-                    <Badge variant="outline" className="mt-1 text-[10px]">{settings.translation.targetLanguage}</Badge>
+                    <Badge variant="outline" className="mt-1 text-caption">{settings.translation.targetLanguage}</Badge>
                   </div>
                 )}
               </div>
@@ -1084,9 +1084,9 @@ export const MessageRow = memo(function MessageRow({
               const topP = p.params?.top_p
               return (
                 <>
-                  <dt className="text-muted-foreground">Temperature <span className="text-[10px]">({src})</span></dt><dd>{p.temperature ?? presetSamplers.temperature.value}</dd>
+                  <dt className="text-muted-foreground">Temperature <span className="text-caption">({src})</span></dt><dd>{p.temperature ?? presetSamplers.temperature.value}</dd>
                   {topP != null && (<><dt className="text-muted-foreground">Top-P</dt><dd>{topP}</dd></>)}
-                  {topP == null && (<><dt className="text-muted-foreground">Top-P <span className="text-[10px]">({src})</span></dt><dd>{presetSamplers.top_p.value}</dd></>)}
+                  {topP == null && (<><dt className="text-muted-foreground">Top-P <span className="text-caption">({src})</span></dt><dd>{presetSamplers.top_p.value}</dd></>)}
                 </>
               )
             })()}

@@ -5,18 +5,21 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
-import { SECTIONS } from '@/components/shell/sections'
+import { PHONE_MORE_TILES, PHONE_TABS, itemId } from '@/components/shell/sections'
+import { RAIL_HUES } from '@/components/shell/rail-hues'
+import { useCanvasBoard, writeCanvasBoard } from '@/lib/canvas-board'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 import { useInbox, useInboxBadge } from '@/components/shell/inbox'
 import { GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT, guideTarget } from '@/components/guide/events'
 
-const PRIMARY = new Set(['home', 'chats', 'characters'])
-const primaryTabs = SECTIONS.filter((s) => PRIMARY.has(s.key))
-const moreItems = SECTIONS.filter((s) => !PRIMARY.has(s.key) && !s.board)
+// the sections keep their rail hue on the phone too: the icon is tinted, the label stays neutral
+const primaryTabs = PHONE_TABS
+const moreItems = PHONE_MORE_TILES
 
 export function MobileTabBar() {
   const view = useApp((s) => s.view)
   const navigate = useApp((s) => s.navigate)
+  const canvasBoard = useCanvasBoard()
   const setGuideHelpOpen = useApp((s) => s.setGuideHelpOpen)
   const t = useT()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -54,7 +57,7 @@ export function MobileTabBar() {
                 active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
               )}
             >
-              <item.icon className={cn('size-5', active && 'text-cta')} aria-hidden="true" />
+              <item.icon className={cn('size-5', RAIL_HUES[item.hue])} aria-hidden="true" />
               {t(item.labelKey)}
             </button>
           )
@@ -69,7 +72,7 @@ export function MobileTabBar() {
           )}
         >
           <span className="relative inline-flex">
-            <List className={cn('size-5', moreActive && 'text-cta')} aria-hidden="true" />
+            <List className={cn('size-5', moreActive ? 'text-cta' : RAIL_HUES.zinc)} aria-hidden="true" />
             <NeedsYouBadge count={waiting} dot failed={failures > 0} />
           </span>
           {t('nav.more')}
@@ -88,39 +91,47 @@ export function MobileTabBar() {
               onClick={() => { setMoreOpen(false); useInbox.getState().setFilter('all'); setInboxOpen(true) }}
               className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border px-3 font-heading text-[15px] text-foreground hover:bg-accent"
             >
-              <Tray className="size-5 text-cta" aria-hidden="true" />
+              <Tray className={cn('size-5', RAIL_HUES.sky)} aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-left">{t('inbox.button')}</span>
               <NeedsYouBadge count={waiting} failed={failures > 0} />
             </button>
           </div>
           <div className="grid grid-cols-4 gap-2 px-4 pb-2">
-            {moreItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                data-guide={`nav.${item.key}`}
-                onClick={() => { navigate(item.key); setMoreOpen(false) }}
-                className={cn(
-                  'flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border font-heading text-[12px]',
-                  view === item.key
-                    ? 'border-primary/40 bg-accent text-foreground [&>svg]:text-cta'
-                    : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
-                )}
-              >
-                <span className="relative inline-flex">
-                  <item.icon className="size-5" aria-hidden="true" />
-                  {item.key === 'litopys' && <LibraryDot />}
-                </span>
-                {t(item.labelKey)}
-              </button>
-            ))}
+            {moreItems.map((item) => {
+              // Agents is a link to a Canvas board, not a section: current only while that board is open (as on the rail)
+              const active = item.key === 'canvas' ? view === 'canvas' && (canvasBoard === 'agents') === !!item.board : view === item.key
+              return (
+                <button
+                  key={itemId(item)}
+                  type="button"
+                  data-guide={`nav.${itemId(item)}`}
+                  onClick={() => {
+                    if (item.key === 'canvas') writeCanvasBoard(item.board ?? (canvasBoard === 'agents' ? 'links' : canvasBoard))
+                    navigate(item.key)
+                    setMoreOpen(false)
+                  }}
+                  className={cn(
+                    'flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border font-heading text-caption',
+                    active
+                      ? 'border-primary/40 bg-accent text-foreground'
+                      : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  <span className="relative inline-flex">
+                    <item.icon className={cn('size-5', RAIL_HUES[item.hue])} aria-hidden="true" />
+                    {item.key === 'litopys' && <LibraryDot />}
+                  </span>
+                  {t(item.labelKey)}
+                </button>
+              )
+            })}
             <button
               type="button"
               data-guide="nav.help"
               onClick={() => { setGuideHelpOpen(true); setMoreOpen(false) }}
               className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-border font-heading text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              <Question className="size-5" aria-hidden="true" />
+              <Question className={cn('size-5', RAIL_HUES.zinc)} aria-hidden="true" />
               {t('guide.help')}
             </button>
           </div>

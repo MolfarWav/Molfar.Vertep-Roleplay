@@ -646,11 +646,11 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
                       <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: readableNameColor(c.colors.name) }}>
                         {c.name}
                         {c.favorite && <Star weight="fill" className="size-3 text-primary" aria-hidden="true" />}
-                        {c.isGroup && <Badge variant="outline" className="border-group/50 text-[10px] text-group">group</Badge>}
+                        {c.isGroup && <Badge variant="outline" className="border-group/50 text-caption text-group">group</Badge>}
                       </span>
                       <CardKindBadge type={cardTypeOf(c)} className="w-fit" />
                       <span className="mt-1 flex flex-wrap gap-1">
-                        {c.tags.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                        {c.tags.slice(0, 3).map((t) => <Badge key={t} variant="secondary" className="text-caption">{t}</Badge>)}
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
                         {chatCount > 0 && (
@@ -727,12 +727,12 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
                     <span className="flex items-center gap-1.5 text-sm font-medium">
                       {c.name}
                       {c.favorite && <Star weight="fill" className="size-3 text-primary" aria-hidden="true" />}
-                      <CardKindBadge type={cardTypeOf(c)} className="px-1.5 py-0 text-[10px]" />
+                      <CardKindBadge type={cardTypeOf(c)} className="px-1.5 py-0 text-caption" />
                     </span>
                     <span className="line-clamp-1 text-xs text-muted-foreground">{listText(c)}</span>
                   </span>
                   <span className="hidden gap-1 sm:flex">
-                    {c.tags.slice(0, 4).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                    {c.tags.slice(0, 4).map((t) => <Badge key={t} variant="secondary" className="text-caption">{t}</Badge>)}
                   </span>
                 </button>
                 <Button variant="ghost" size="sm" onClick={() => { void startChatAndOpen(c.id) }} aria-label={`New chat with ${c.name}`}>
@@ -867,7 +867,7 @@ function NoPortrait({ name }: { name: string }) {
   return (
     <span role="img" aria-label={`${name}: no portrait`} className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
       <UserCircle className="size-1/3" weight="light" aria-hidden="true" />
-      <span className="text-[11px]">No portrait</span>
+      <span className="text-caption">No portrait</span>
     </span>
   )
 }
@@ -914,7 +914,7 @@ function GroupTiles({ groups, chats, onCreate, onDelete, hasAny }: {
                   <span className="min-w-0 truncate">{c.name}</span>
                   {c.favorite && <Star weight="fill" className="size-3 shrink-0 text-primary" aria-hidden="true" />}
                 </span>
-                <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-2 text-caption text-muted-foreground">
                   <span className="flex items-center gap-0.5 font-medium text-group"><Users className="size-3" weight="fill" aria-hidden="true" />{members.length} {members.length === 1 ? 'member' : 'members'}</span>
                   <span className="flex items-center gap-0.5"><Chats className="size-3" aria-hidden="true" />{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</span>
                 </span>

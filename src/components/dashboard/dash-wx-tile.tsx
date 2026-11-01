@@ -17,7 +17,7 @@ export function WeatherTile({ text, night, size = 52, className }: { text: strin
     <div className={cn('grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5', className)} data-testid="dash-weather" data-weather={kind}>
       <WeatherIcon kind={kind} night={night} size={size} />
       <div className="min-w-0">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('dash.wx.label')}</div>
+        <div className="text-caption uppercase tracking-wide text-muted-foreground">{t('dash.wx.label')}</div>
         <div className={cn('font-heading text-[19px] leading-tight break-words', tone)}>{t(weatherNameKey(kind, night))}</div>
         <div className="line-clamp-2 text-[12px] leading-snug text-muted-foreground" title={raw}>{raw}</div>
       </div>
