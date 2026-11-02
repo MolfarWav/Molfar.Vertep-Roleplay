@@ -84,6 +84,23 @@ export interface SaidNote {
   source: string
   edited?: boolean
 }
+/** A line of a character's journal about a person: the sensor's reading, or one the user wrote. Absent on an older engine. */
+export interface JournalLine { id: string; about: string; text: string; by: 'sensor' | 'user'; turn: number }
+/** The journal's settings (the view's `journal`, the config's `journal`). */
+export interface JournalSettings { on: boolean; inject: boolean; thoughtTurns: number; maxTokens: number }
+/** What an older engine means: the journal on, in the prompt, a thought for 3 turns, 120 tokens a character. */
+export const DEFAULT_JOURNAL: JournalSettings = { on: true, inject: true, thoughtTurns: 3, maxTokens: 120 }
+/** The journal settings of a view, the defaults for every field an older engine leaves out. */
+export function journalOf(view: { journal?: Partial<JournalSettings> | null } | null | undefined): JournalSettings {
+  const j = view?.journal
+  return {
+    on: j?.on ?? DEFAULT_JOURNAL.on,
+    inject: j?.inject ?? DEFAULT_JOURNAL.inject,
+    thoughtTurns: j?.thoughtTurns ?? DEFAULT_JOURNAL.thoughtTurns,
+    maxTokens: j?.maxTokens ?? DEFAULT_JOURNAL.maxTokens,
+  }
+}
+
 export interface NameInfo { knowsUserName: boolean; calls: string }
 export type HistoryLine =
   | { turn: number; kind: 'tier'; stat: DispositionStat; from: number; to: number }
@@ -127,6 +144,14 @@ export interface DashChar {
   history: HistoryLine[]
   /** up to the last 10 snapshots that have this character, oldest first */
   series: { turn: number; stats: Stats }[]
+  /** the thought the sensor wrote for the next reply (journal); absent on an older engine */
+  thought?: string | null
+  /** the turn the thought was written on */
+  thoughtTurn?: number | null
+  /** false once the thought is past its turns and no longer goes into the prompt */
+  thoughtFresh?: boolean
+  /** what the character thinks of the people around it; absent on an older engine */
+  journal?: JournalLine[]
 }
 
 export interface DashView {
@@ -171,6 +196,8 @@ export interface DashView {
   scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null; approx?: boolean; date?: string | null }[]
   /** where the date comes from (the story's text, today's date, the user) and whether it is hidden; absent on an older plugin, null before the first reading (#113) */
   calendar?: { source: 'text' | 'today' | 'user'; off: boolean } | null
+  /** the journal's settings; absent on an older engine (see journalOf) */
+  journal?: JournalSettings
 }
 
 /** "Mon, 26 Oct 2026" in the app's language; the date is a calendar date, so no time zone moves it. */

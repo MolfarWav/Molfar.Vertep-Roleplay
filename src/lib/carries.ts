@@ -40,7 +40,7 @@ export interface DashCarries {
 export type CarryKind = 'memory' | 'habits' | 'personamem' | 'worldmem' | 'recollections' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
 /** Every kind, in strip order. */
 export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'personamem', 'worldmem', 'recollections', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
-export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:recollections' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:world'
+export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:recollections' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:journal' | 'plugin:world'
 
 export interface CarryPart {
   key: CarryKind

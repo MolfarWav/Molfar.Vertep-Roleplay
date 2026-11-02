@@ -26,10 +26,10 @@ const seedCards = () => {
 
 describe("hook reserve: the blocks that were counted before", () => {
   it("defaults: the dashboard (max*2+200) and its said block, the Litopys insert (budget+100)", () => {
-    expect(byId(rows())).toEqual({ dashboard: 800, "dashboard said": 120, litopys: 900 });
+    expect(byId(rows())).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900 });
     writeJson("dashboard/config.json", { injection: { enabled: true, maxTokens: 1000 }, said: { inject: false } });
     writeJson("litopys/config.json", { budget: 2000 });
-    expect(byId(rows())).toEqual({ dashboard: 2200, litopys: 2100 });
+    expect(byId(rows())).toEqual({ dashboard: 2200, "dashboard journal": 360, litopys: 2100 });
     writeJson("dashboard/config.json", { injection: { enabled: false } });
     writeJson("litopys/config.json", { insert: false });
     expect(rows()).toEqual([]);
@@ -49,7 +49,46 @@ describe("hook reserve: the blocks that were counted before", () => {
     const fsx = mockHost().host.fs;
     fsx.write("dashboard/config.json", "{not json");
     fsx.write("litopys/config.json", "{not json");
-    expect(byId(E.hookInsertBreakdown(fsx, "c1", { id: "c1" }))).toEqual({ dashboard: 800, "dashboard said": 120, litopys: 900 });
+    expect(byId(E.hookInsertBreakdown(fsx, "c1", { id: "c1" }))).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900 });
+  });
+});
+
+describe("hook reserve: the Dashboard journal", () => {
+  it("one row right after the said block: the default 120 tokens times the 3 focus characters", () => {
+    writeJson("dashboard/config.json", { injection: { enabled: true, maxTokens: 300 } });
+    const r = rows();
+    expect(byId(r)["dashboard journal"]).toBe(120 * 3);
+    expect(r.map((x) => x.id).indexOf("dashboard journal")).toBe(r.map((x) => x.id).indexOf("dashboard said") + 1);
+  });
+  it("follows a changed journal.maxTokens, clamped to 40..400", () => {
+    writeJson("dashboard/config.json", { journal: { maxTokens: 200 } });
+    expect(byId(rows())["dashboard journal"]).toBe(200 * 3);
+    writeJson("dashboard/config.json", { journal: { maxTokens: 10 } });
+    expect(byId(rows())["dashboard journal"]).toBe(40 * 3);
+    writeJson("dashboard/config.json", { journal: { maxTokens: 9000 } });
+    expect(byId(rows())["dashboard journal"]).toBe(400 * 3);
+    writeJson("dashboard/config.json", { journal: { on: true, inject: true } });
+    expect(byId(rows())["dashboard journal"]).toBe(120 * 3);
+  });
+  it("disappears with journal.on=false", () => {
+    writeJson("dashboard/config.json", { journal: { on: false, maxTokens: 200 } });
+    expect(byId(rows())["dashboard journal"]).toBeUndefined();
+    expect(byId(rows())["dashboard said"]).toBe(120);
+  });
+  it("disappears with journal.inject=false", () => {
+    writeJson("dashboard/config.json", { journal: { inject: false } });
+    expect(byId(rows())["dashboard journal"]).toBeUndefined();
+    expect(byId(rows())["dashboard said"]).toBe(120);
+  });
+  it("disappears when the chat mutes plugin:journal", () => {
+    expect(byId(rows({ promptBoard: { off: ["plugin:journal"] } }))["dashboard journal"]).toBeUndefined();
+    expect(byId(rows({ promptBoard: { off: ["plugin:said"] } }))["dashboard journal"]).toBe(120 * 3);
+  });
+  it("disappears when the Dashboard insert itself is off", () => {
+    writeJson("dashboard/config.json", { injection: { enabled: false } });
+    expect(byId(rows())["dashboard journal"]).toBeUndefined();
+    writeJson("dashboard/config.json", { injection: { enabled: true } });
+    expect(byId(rows({ promptBoard: { off: ["plugin:relations"] } }))["dashboard journal"]).toBeUndefined();
   });
 });
 

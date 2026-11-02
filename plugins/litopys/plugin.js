@@ -190,8 +190,8 @@ export const DEFAULT_CONFIG = {
   // is earned (starts to act in the chat) once it was seen in this many chapters
   habits: true,
   habitsEarnAfter: 2,
-  // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
-  // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
+  // #99: when a scene has a named character besides the player (one is enough), the worker also writes what each of them
+  // remembers of it and what they want now (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
   // the room of the "what the character remembers" blocks (head and tail together), in tokens
   recollectBudget: 300,
@@ -297,11 +297,11 @@ export const HABITS_RULE = [
 ].join("\n");
 export const HABITS_SHAPE = ',"habits":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
 
-/** Added to the chapter prompt when the scene has two or more named characters besides the player (#99). */
+/** Added to the chapter prompt when the scene has a named character besides the player (#99: one is enough). */
 export const RECOLLECTIONS_RULE = [
   "Recollections:",
-  "- For each character listed under Characters, write what THEY remember of this scene: 1-2 short sentences, first person, past tense, in their own voice.",
-  "- Only what that character saw, heard, did or was told in this scene, and how it left them feeling. Nothing they were not present for, nothing another character thought in private.",
+  "- For each character listed under Characters, write what THEY remember of this scene: 1-2 short sentences, first person, past tense for what happened, in their own voice.",
+  "- Only what that character saw, heard, did or was told in this scene, how it left them feeling, and what they want or mean to do now as a result of it (present tense, one short clause). Nothing they were not present for, nothing another character thought in private.",
   "- Different characters remember the same event differently: keep each one's own view. Never invent; use only the messages. Skip a character who has nothing of their own to remember.",
 ].join("\n");
 export const RECOLLECTIONS_SHAPE = ',"views":[{"who":"a name from Characters","text":"I ..."}]';
@@ -1121,9 +1121,9 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     const text = cut(opts.view ? opts.view(String(m.text), m.role) : m.text, 1500);
     if (text) msgLines.push("[" + name + "] " + text);
   }
-  // #99: who could remember this scene on their own, when there are two or more
+  // #99: who could remember this scene on their own: any named character besides the player
   const cast = cfg.recollections !== false ? sceneCast(scene, line, dash, meta, opts.notCast) : [];
-  const viewsOn = cast.length >= 2;
+  const viewsOn = cast.length >= 1;
   if (viewsOn) parts.push("Characters\n" + cast.map((n) => "- " + n).join("\n"));
   parts.push("Scene messages\n" + msgLines.join("\n"));
 
@@ -2204,8 +2204,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   if (chapterAlso.length) newChapter.also = chapterAlso;
   if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
-  // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a cast of two or more
-  const views = ctx.cast && ctx.cast.length >= 2 ? cleanViews(parsed.views, ctx.cast) : [];
+  // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a named character
+  const views = ctx.cast && ctx.cast.length >= 1 ? cleanViews(parsed.views, ctx.cast) : [];
   if (views.length) newChapter.views = views;
   // #184 P2: who witnessed the scene, so a character's reply can leave out a chapter that character did not see
   const cast = arr(ctx.witnesses).map(str).filter(Boolean).slice(0, CAST_MAX);
