@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Dev only: a recall bench (`test/rp-recall-mrr-bench.test.ts`) asks paraphrased questions about old facts and chapters in a synthetic 500 / 2000 / 5000 message chat and prints how often the answer reaches the 800-token insert, with words only and with two mock embedders (#184, P0). Run it to see the table; it asserts only a collapse.
+
 ## 4.84.0 (2026-11-01)
 
 - Lorebooks: the list header had one icon, an up arrow, for Import, which reads as export, and no export at all. Import now has the arrow into a tray; the new Export button (arrow out) opens a menu: the open book as JSON, or every book in one zip (one JSON per book, readable by Import; a book that cannot be read is skipped and the toast says how many). The book header's Export uses the same arrow.
