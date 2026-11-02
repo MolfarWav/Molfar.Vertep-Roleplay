@@ -1488,7 +1488,8 @@ describe("prompt insert", () => {
     const fresh = insertOf(ask(blank, "c2"));
     expect(fresh).toContain("Toward You: no history yet.");
     // the first reading of a chat puts today's date on the day it found (here day 3); the part of the day follows
-    expect(fresh).toContain(`the scene: ${P.dateWords(P.localToday())}, evening.`);
+    // a time worked out from the part of the day is told as "about" (#207); with the date hidden it stays words only
+    expect(fresh).toContain(`the scene: ${P.dateWords(P.localToday())}, about 19:00, evening.`);
     // a hidden date goes back to the day in words
     drive(blank, { method: "POST", path: "/dashboard/calendar", body: { chatId: "c2", off: true } });
     const hidden = insertOf(ask(blank, "c2"));

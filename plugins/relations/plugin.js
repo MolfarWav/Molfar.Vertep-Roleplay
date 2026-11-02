@@ -76,6 +76,8 @@ const PLACES_LIMIT = 2000;
 const SCENES_LIMIT = 200;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
+// a stated time of day this many minutes before the clock (and no new day number) is the next day
+const NEW_DAY_BACK = 180;
 const CHAT_ID = /^[A-Za-z0-9_-]{1,120}$/;
 
 // ---------- vocabulary of the physics ----------
@@ -3006,13 +3008,18 @@ export function advanceClock(prevClock, out, op) {
   const c = { day: 1, time: null, minutes: 0, band: null, place: null, weather: null, ...(prevClock || {}) };
   // the date is worked out from the chat's calendar when the clock is read, never kept in a snapshot
   delete c.date;
+  const prevDay = c.day;
+  const prevTotal = c.time ? Number(c.time.split(":")[0]) * 60 + Number(c.time.split(":")[1]) : null;
   const day = num(out.day);
   // the day count only goes forward: a model that writes "day 1" in a continued chat does not set it back
   if (Number.isFinite(day) && day >= c.day) c.day = Math.floor(day);
+  // where the time the text states falls on the clock (minutes after midnight), or null when it states none
+  let stated = null;
   const t = str(out.time);
   const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
   if (hm && Number(hm[1]) < 24 && Number(hm[2]) < 60) {
     c.time = pad2(Number(hm[1])) + ":" + hm[2];
+    stated = Number(hm[1]) * 60 + Number(hm[2]);
     delete c.approx;
   } else if (BAND_WORDS.includes(t.toLowerCase())) {
     const band = t.toLowerCase();
@@ -3020,8 +3027,13 @@ export function advanceClock(prevClock, out, op) {
     if (!(c.time && bandOfHour(Number(c.time.split(":")[0])) === band)) {
       c.band = band;
       c.time = null;
+      stated = BAND_ANCHOR[band];
     }
   }
+  // a time of day well before the clock's, with no new day number: the story went past midnight ("the next morning",
+  // "07:00" after 23:00). Without this the clock rewinds inside the same day and every date after it is a day short (#207).
+  // A small step back is the sensor correcting itself and stays on the same day.
+  if (stated !== null && prevTotal !== null && c.day === prevDay && prevTotal - stated > NEW_DAY_BACK) c.day += 1;
   if (!c.time && c.band && BAND_ANCHOR[c.band] !== undefined) {
     c.time = hhmm(BAND_ANCHOR[c.band]);
     c.approx = true;
@@ -4499,9 +4511,12 @@ function dayWords(clock, cal) {
   const day = Number(clock && clock.day) || 1;
   const date = dateOf(cal, day);
   if (date) {
-    const exact = clock && clock.time && clock.approx !== true ? ", " + clock.time : "";
-    return dateWords(date) + exact + (clock && clock.band ? ", " + clock.band : "");
+    // an hour worked out from the part of the day is told as "about": left out, the story model made up its own hour
+    // ("it is already noon" while the Dashboard said about 09:00, #207)
+    const hour = clock && clock.time ? ", " + (clock.approx === true ? "about " : "") + clock.time : "";
+    return dateWords(date) + hour + (clock && clock.band ? ", " + clock.band : "");
   }
+  // a hidden date keeps the prompt words only: the day and the part of the day, no digits
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
   const band = clock && clock.band ? cap1(clock.band) : "";
   return band ? band + " of " + which : cap1(which);
@@ -4816,7 +4831,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   // who gets a full block: the speaker; in a narrator chat, those this turn is about (maybe nobody:
   // then everyone is one short line, which keeps the narrator from a roll call of the cast)
   const focus = speaker ? [speaker] : group ? present.slice(0, FULL_FOCUS) : aboutNow(present, turn.userText, snap).slice(0, FULL_FOCUS);
-  if (!present.length) return null;
+  // nobody in the scene (the user's character alone) still gets the scene line: without it the model has no clock (#207)
   // notebooks: the speaker's own; in a one-card chat (a narrator voices them all) each focus character's;
   // none when a group chat cannot say who speaks, so nothing leaks to the wrong character
   // a group in narrator mode is one voice for all of them, like a narrator card: each focus character's notebook, named (#184 P1c)
