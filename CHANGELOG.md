@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.86.0 (2026-11-02)
+
 - The story model no longer invents its own hour (#207). When the story only said "morning", the Dashboard ran a clock from the start of that part of the day (shown as ≈09:00), but the reply prompt told the model only "morning", so it made up an hour and could say it was already noon. The prompt now says "about 09:00, morning" for such a time (an exact time reads as before; with the date hidden the prompt stays words only).
 - The Dashboard clock no longer falls a day behind (#207). When the story jumped to "the next morning" (or said "07:00" after 23:00) without a day number, the clock set the morning time on the same day, so every date after it was one day short and the story model read a wrong date. A time of day more than three hours before the clock's, with no new day number, now moves the day on; a small step back (the sensor correcting itself) stays on the same day. Also, when your character is alone in a scene (nobody present), the reply prompt got no Dashboard block at all, so no date, time or place; it now still carries the scene line. A chat that continues another and opens on "a new morning" after an evening now starts the next day.
 
