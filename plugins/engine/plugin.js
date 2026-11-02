@@ -42,6 +42,10 @@ const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // it is cut out here (in every mode, a model may keep writing it) and its body
 // waits in dashboard/fast/<chatId>.json for the dashboard update (plugins/relations).
 const FAST_TAG = "vertep_state";
+// #184 P1d: the optional hidden "who knows what" plan the memory plugin (litopys) asks a multi-voice reply to open with:
+// <vertep_plan>...</vertep_plan>. It is cut from every saved text, reasoning and part, in every mode and with every
+// preset, and its body is dropped: the plan is scaffolding for the model, not part of the story.
+const PLAN_TAG = "vertep_plan";
 const FAST_DIR = "dashboard/fast/";
 const FAST_BODY_MAX = 16000;
 const FAST_MAX_ENTRIES = 20;
@@ -56,7 +60,7 @@ const FAST_TTL_MS = 24 * 60 * 60 * 1000;
 export function cutStateTag(text) {
   const open = "<" + FAST_TAG + ">";
   const close = "</" + FAST_TAG + ">";
-  const whole = String(text == null ? "" : text);
+  const whole = cutPlanTag(String(text == null ? "" : text));
   let rest = whole;
   let body = null;
   let closed = false;
@@ -74,16 +78,38 @@ export function cutStateTag(text) {
   return body === null ? { text: whole, body: null, closed: false } : { text: rest.trimEnd(), body, closed };
 }
 
+/**
+ * The text without its hidden plan blocks. A block that never closes is a model that forgot the end of it, and the story may
+ * follow: only its opening tag goes (the same rule as an unclosed inline thinking block). A reply cut off by a Stop (`stopped`)
+ * is the other case: an unclosed plan is the plan still being written, and it goes to the end. Text without a plan comes back as it is.
+ */
+export function cutPlanTag(text, stopped = false) {
+  const open = "<" + PLAN_TAG + ">";
+  const close = "</" + PLAN_TAG + ">";
+  const whole = String(text == null ? "" : text);
+  if (!whole.includes(open)) return whole;
+  const re = new RegExp(escapeRegExp(open) + "[\\s\\S]*?" + escapeRegExp(close), "g");
+  const closed = whole.replace(re, "");
+  const at = closed.indexOf(open);
+  const rest = at < 0 ? closed : stopped ? closed.slice(0, at) : closed.split(open).join("");
+  return rest.replace(/^\s+/, "");
+}
+
 /** The same cut over the text parts of a tool-using or aborted reply; a part that was only the tag goes. */
-function cutPartsTag(parts) {
+function cutPartsTag(parts, stopped = false) {
   if (!Array.isArray(parts)) return { parts, body: null, closed: false };
   let body = null;
   let closed = false;
   const out = [];
   for (const p of parts) {
     if (!p || p.type !== "text" || typeof p.text !== "string") { out.push(p); continue; }
-    const c = cutStateTag(p.text);
-    if (c.body === null) { out.push(p); continue; }
+    const c = cutStateTag(cutPlanTag(p.text, stopped));
+    if (c.body === null) {
+      // only a hidden plan went: the part keeps the rest, and a part that was only the plan goes
+      if (c.text === p.text) out.push(p);
+      else if (c.text.trim()) out.push({ ...p, text: c.text });
+      continue;
+    }
     body = c.body;
     closed = c.closed;
     if (c.text.trim()) out.push({ ...p, text: c.text });
@@ -5816,8 +5842,8 @@ const toolX = (r) => ({
       const b = body();
       const cancelSpeaker = voices.find((m) => m.id === (chat.msgs.find((x) => x.id === b.targetMessageId) || {}).charId) || members[0] || null;
       // the client froze what it showed, which may still carry the state tag: cut it, keep nothing of it
-      const text = onSave(stripEchoedName(cutStateTag(String(b.text ?? "")).text, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
-      const parts = Array.isArray(b.parts) ? cutPartsTag(b.parts).parts : null;
+      const text = onSave(stripEchoedName(cutStateTag(cutPlanTag(String(b.text ?? ""), true)).text, cancelSpeaker ? cancelSpeaker.name : undefined), "ai_output", cancelSpeaker);
+      const parts = Array.isArray(b.parts) ? cutPartsTag(b.parts, true).parts : null;
       if (!text.trim() && !(parts && parts.length)) return err(400, "nothing to keep");
       let idx = -1;
       if (b.targetMessageId) {

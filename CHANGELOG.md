@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- A hidden plan for a narrator, off by default (#184, P1d). Settings > Memory: "Plan who knows what first, for a narrator". When one reply voices several characters and the "who knows what" list is on, the narrator is asked to open with a short plan, one line per acting character with what that character may use; the engine cuts the plan (`<vertep_plan>`) from the reply before it is shown or saved, with any preset, on send, Regenerate, swipe, group turns and Stop. It costs about 150 tokens per reply. In the bench (24 narrator replies per model) it cut leaks of a secret on a local 9B model from 6 to 2 on top of the list (17 without it), and made no difference on the two paid models, which leak little either way; a model may skip the plan.
+
 - Dev only: a recall bench (`test/rp-recall-mrr-bench.test.ts`) asks paraphrased questions about old facts and chapters in a synthetic 500 / 2000 / 5000 message chat and prints how often the answer reaches the 800-token insert, with words only and with two mock embedders (#184, P0). Run it to see the table; it asserts only a collapse.
 
 ## 4.84.0 (2026-11-01)

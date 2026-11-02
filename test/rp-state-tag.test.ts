@@ -50,3 +50,24 @@ describe("hideStateTag", () => {
     }
   });
 });
+
+describe("hideStateTag: the hidden plan (#184)", () => {
+  const plan = "<vertep_plan>\nAria knows: the password.\nBram knows: nothing.\n</vertep_plan>";
+  it("drops a closed plan at the start, with the whitespace after it", () => {
+    expect(hideStateTag(plan + "\n\nThe door opens.")).toBe("The door opens.");
+    expect(hideStateTag(plan + "\n\nThe door opens.", true)).toBe("The door opens.");
+  });
+  it("while streaming, an unclosed plan hides to the end and so does a partial opening tag", () => {
+    expect(hideStateTag("<vertep_plan>\nAria knows: the pass", true)).toBe("");
+    expect(hideStateTag("<vertep_pl", true)).toBe("");
+    expect(hideStateTag("<", true)).toBe("");
+    expect(hideStateTag("Story <vertep_plan>\nAria kn", true)).toBe("Story");
+  });
+  it("saved (not streaming), an unclosed plan loses only its tag, as the chat plugin does", () => {
+    expect(hideStateTag("<vertep_plan>\nAria knows: x.\nThe door opens.")).toBe("Aria knows: x.\nThe door opens.");
+  });
+  it("the plan and the state tag together; text without either is untouched", () => {
+    expect(hideStateTag(plan + "\nShe nods.\n<vertep_state>{\"a\":1}</vertep_state>")).toBe("She nods.");
+    expect(hideStateTag("  A reply with <b>html</b>.  ")).toBe("  A reply with <b>html</b>.  ");
+  });
+});

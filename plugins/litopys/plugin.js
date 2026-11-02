@@ -195,6 +195,9 @@ export const DEFAULT_CONFIG = {
   recollections: true,
   // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
   castKnowledge: true,
+  // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
+  // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
+  hiddenPlan: false,
   // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
   // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
@@ -441,6 +444,7 @@ export function loadConfig(fsx) {
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
   cfg.castKnowledge = cfg.castKnowledge !== false;
+  cfg.hiddenPlan = cfg.hiddenPlan === true;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
   return cfg;
@@ -495,6 +499,7 @@ export function patchConfig(fsx, body) {
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
+  if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -1502,6 +1507,23 @@ export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = 
   return { text, tokens: estimateTokens(text), groups: rows.length };
 }
 
+/**
+ * #184 P1d: the optional instruction to open a reply that voices several characters with a hidden plan, one `knows` line
+ * per acting character. It rides only with the brief (no restricted fact, nothing to plan). The engine plugin cuts the tag
+ * from the saved reply, so it works with every preset.
+ */
+export const HIDDEN_PLAN_TAG = "vertep_plan";
+export function hiddenPlanNote() {
+  return (
+    "[Hidden plan (Litopys): this reply voices several characters. Begin it with <" + HIDDEN_PLAN_TAG + ">, then one line per character who speaks or acts in it, " +
+    "in the form `Name knows: what that character may use here from the list above, or nothing`, then </" + HIDDEN_PLAN_TAG + ">, " +
+    "and only then the reply itself. The plan is cut out before anyone reads the reply; never mention it in the story. " +
+    "A character acts only on what their line says.]"
+  );
+}
+/** The turns a plan can ride on: a new reply, not a Continue. */
+const PLAN_OPS = ["send", "next", "swipe", ""];
+
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
@@ -1838,6 +1860,9 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
+    // the hidden plan: only beside the brief, only on a new reply
+    let plan = null;
+    if (castKn && cfg.hiddenPlan === true && PLAN_OPS.includes(str(ctx.turn.op))) plan = hiddenPlanNote();
     if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
@@ -1900,6 +1925,10 @@ export function llmRequest(ctx, host) {
     if (castKn) {
       messages = withTailInsert(messages, castKn.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: String(castKn.text).trim() });
+    }
+    if (plan) {
+      messages = withTailInsert(messages, plan);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · hidden plan", text: plan });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {

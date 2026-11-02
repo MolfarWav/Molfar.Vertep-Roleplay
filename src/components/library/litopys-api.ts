@@ -327,8 +327,10 @@ export interface LitConfig {
   habitsEarnAfter?: number
   /** #99: the chapter worker also writes what each character remembers of a scene (default on); missing from an older plugin */
   recollections?: boolean
-  /** #184: a "who knows what" brief for a reply that voices several characters (default off); missing from an older plugin */
+  /** #184: a "who knows what" brief for a reply that voices several characters (default on); missing from an older plugin */
   castKnowledge?: boolean
+  /** #184: on top of the brief, the narrator writes a hidden plan first (default off); missing from an older plugin */
+  hiddenPlan?: boolean
   /** which prompts differ from the default (4.34; absent on an older plugin) */
   custom?: string[]
 }
