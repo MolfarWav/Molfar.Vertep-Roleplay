@@ -12,7 +12,7 @@ import { cn, storedMediaUrl } from '@/lib/utils'
 import { proxyUrl } from '@/lib/engine'
 import { scopeCss } from '@/lib/scope-css'
 import { rehypeSafeStyle, safeRuleBody, stripRiskyAtRules } from '@/lib/safe-style'
-import { firstVoiceIn, leadVoiceIn, opensWithLabel, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
+import { EXTRA_VOICE, firstVoiceIn, leadVoiceIn, opensWithLabel, sideLabelIn, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -222,7 +222,15 @@ export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carry
       if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
       return carry
     }
-    carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
+    const lead = leadVoiceIn(line, voices)
+    if (lead) carry = lead
+    else {
+      // a name-like label that names no known voice is a side character (Nurse, Doctor): not the previous
+      // speaker, and not a name that only appears inside the quote. A known name in the label itself
+      // (Dr. Tsubaki:) still wins.
+      const label = sideLabelIn(line)
+      carry = label ? firstVoiceIn(label, voices) ?? EXTRA_VOICE : firstVoiceIn(line, voices) ?? carry
+    }
     return carry
   })
 }

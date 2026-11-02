@@ -118,6 +118,18 @@ export function leadLabelIn(line: string): string | null {
 /** Does the line open like a speaker label of one to three words (`Mary Jane:`)? Whose it is does not matter. */
 export const opensWithLabel = (line: string): boolean => /^[\s*_~"“«(\[]*\p{L}[\p{L}'’]*(?:[ \u00a0]\p{L}[\p{L}'’]*){0,2}[\s*_~)\]]*[:：]/u.test(line)
 
+/** The name-like label a line opens with, one to three words that each start with a capital
+ *  (`Nurse:`, `Mary Jane:`, `Dr. Tsubaki:`, `Toda-sensei:`), or null. Prose before a quote
+ *  (`Keiko said softly:`, `She smiled:`) has lower-case words in it and is not a label. */
+export function sideLabelIn(line: string): string | null {
+  return /^[\s*_~"“«(\[]*(\p{Lu}[\p{L}.'’-]*(?:[  ]\p{Lu}[\p{L}.'’-]*){0,2})[\s*_~)\]]*[:：]/u.exec(line)?.[1] ?? null
+}
+
+/** The voice of someone who is not in the cast (a nurse, a passerby): a line that opens with a label
+ *  naming no known voice takes it, so it neither carries the previous speaker's colour nor borrows
+ *  a name said inside the quote. A colour the palette does not have. */
+export const EXTRA_VOICE: DialogueVoice = { name: '—', color: '#4fd1a5', match: { exec: () => null, test: () => false } }
+
 /** Each member's dialogue colour in a group: the group's choice, else the card's, else the palette's by position. */
 export function memberColor(group: Character, member: Character): string {
   const g = group.group

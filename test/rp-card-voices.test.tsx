@@ -2,7 +2,7 @@
 // (Molfar Vertep issue #93). The speaker comes from the text.
 import { describe, expect, it } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { cardVoices, leadVoiceIn, VOICE_PALETTE } from "../src/lib/dialogue-voices";
+import { cardVoices, EXTRA_VOICE, leadVoiceIn, sideLabelIn, VOICE_PALETTE } from "../src/lib/dialogue-voices";
 
 (globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
 const { Markdown, DialogueVoices, VoiceLeadOnly } = await import("../src/components/markdown");
@@ -52,6 +52,35 @@ describe("a Narrator reply, painted by speaker", () => {
   it("works across a <br> and inside emphasis", () => {
     expect(colors('Aria: "One."  \nBo: "Two."')).toEqual(["111111", "222222"]);
     expect(colors('*Aria smiles.* "Hello." **Bo:** "Hm."')).toEqual(["111111", "111111"]);
+  });
+  describe("a side character (a label that names no voice)", () => {
+    const side = EXTRA_VOICE.color.slice(1);
+    it("is not painted with the previous speaker's colour, nor with a name said in the quote", () => {
+      expect(colors('Aria: "We go."\nNurse: "Take a seat."\nBo: "Wait."')).toEqual(["111111", side, "222222"]);
+      expect(colors('Aria: "Go."\nNurse: "Bo is waiting."')).toEqual(["111111", side]);
+      expect(colors('Aria: "Go."\n**Mary Jane:** "Hello."')).toEqual(["111111", side]);
+    });
+    it("keeps its colour on the lines after it, until another label", () => {
+      expect(colors('Nurse: "One."\n"Two."\nAria: "Three."')).toEqual([side, side, "111111"]);
+    });
+    it("a known name in the label still wins (Dr. Aria:), and prose before a quote does not make a side character", () => {
+      expect(colors('Bo: "Hm."\nDr. Aria: "Sit."')).toEqual(["222222", "111111"]);
+      expect(colors('Aria: "Hm."\nBo said softly: "Wait."')).toEqual(["111111", "222222"]);
+      expect(colors('Aria: "Hm."\nShe smiled: "Fine."')).toEqual(["111111", "111111"]);
+      expect(colors('Aria: "Hm."\nThen quietly: "Yes."')).toEqual(["111111", "111111"]);
+    });
+    it("is not in the palette, so no cast member shares its colour", () => {
+      expect(VOICE_PALETTE).not.toContain(EXTRA_VOICE.color);
+    });
+  });
+});
+
+describe("sideLabelIn", () => {
+  it("takes one to three capitalised words before a colon, and nothing else", () => {
+    for (const [line, want] of [['Nurse: "x"', "Nurse"], ['**Mary Jane:** x', "Mary Jane"], ['Dr. Tsubaki: x', "Dr. Tsubaki"], ['Toda-sensei: x', "Toda-sensei"], ['Медсестра: x', "Медсестра"]] as const) {
+      expect(sideLabelIn(line), line).toBe(want);
+    }
+    for (const line of ['She smiled: "x"', 'Bo said softly: "x"', 'Then quietly: "x"', 'No colon here', 'One Two Three Four: x']) expect(sideLabelIn(line), line).toBeNull();
   });
 });
 
