@@ -491,6 +491,44 @@ export function loadConfig(fsx) {
   return cfg;
 }
 
+/**
+ * #122: what a chat may set for itself over the global config (st.config). Only these keys, each with the
+ * global limits; a key that is not there follows the global value. `scene` holds minMessages and maxMessages.
+ */
+const CHAT_LIMITS = {
+  recentMessages: [6, 200],
+  sceneKeep: [2, SCENE_KEEP_MAX],
+  pinLimit: [1, 20],
+  budget: [200, BUDGET_MAX],
+};
+const CHAT_SCENE_LIMITS = { minMessages: [1, 40], maxMessages: [10, 200] };
+
+/** A chat's own settings, cleaned: known keys only, whole numbers inside the limits; {} when it has none. */
+export function chatOverrides(st) {
+  const raw = st && isObj(st.config) ? st.config : {};
+  const out = {};
+  for (const [key, [lo, hi]] of Object.entries(CHAT_LIMITS)) {
+    const n = intOf(raw[key], NaN);
+    if (Number.isFinite(n)) out[key] = clamp(n, lo, hi);
+  }
+  const scene = {};
+  for (const [key, [lo, hi]] of Object.entries(CHAT_SCENE_LIMITS)) {
+    const n = intOf(isObj(raw.scene) ? raw.scene[key] : undefined, NaN);
+    if (Number.isFinite(n)) scene[key] = clamp(n, lo, hi);
+  }
+  if (Object.keys(scene).length) out.scene = scene;
+  return out;
+}
+
+/** The global config with one chat's own settings laid over it (a max below the min follows the min). */
+export function withChat(cfg, st) {
+  const own = chatOverrides(st);
+  if (!Object.keys(own).length) return cfg;
+  const next = { ...cfg, ...own, scene: { ...cfg.scene, ...(own.scene || {}) } };
+  if (next.scene.maxMessages < next.scene.minMessages) next.scene.maxMessages = next.scene.minMessages;
+  return next;
+}
+
 /** A whole number from a value, or the fallback when it is not a number. */
 function intOf(v, dflt) {
   return v !== "" && v !== null && v !== undefined && Number.isFinite(Number(v)) ? Math.round(Number(v)) : dflt;
@@ -1829,7 +1867,9 @@ export function llmRequest(ctx, host) {
     // wave 2: the engine embedded the scan window (ctx.turn.scanVec); Litopys ranks by it too when it holds vectors
     // Auto memory size: a share of the model's context window (the engine says it in the turn labels)
     const autoSize = cfg.budgetMode === "auto" ? autoBudget(ctx.turn.contextTokens) : null;
-    const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
+    const chatCfg = withChat(cfg, st);
+    // a budget the chat set for itself beats the automatic one
+    const sizedCfg = autoSize && !(st && st.config && st.config.budget) ? { ...chatCfg, budget: autoSize } : chatCfg;
     const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
     const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
@@ -2485,6 +2525,9 @@ export function loadChatFile(fsx, chatId) {
   st.activity = arr(st.activity);
   st.skipScenes = arr(st.skipScenes);
   st.marks = arr(st.marks).filter(isObj);
+  const own = chatOverrides(st);
+  if (Object.keys(own).length) st.config = own;
+  else delete st.config;
   return st;
 }
 
@@ -3138,12 +3181,13 @@ function keptByUser(f) {
 /** Start over from the messages, as a new generation beside the record in use: chapters and the facts written
  *  from them are rewritten, the user's and the dashboard's facts stay. The old record rides the prompt until
  *  the new one is done (finishRebuild), so the insert never goes empty. */
-export function rebuildChat(fsx, chatId, cfg) {
+export function rebuildChat(fsx, chatId, baseCfg) {
   if (!SAFE_ID.test(chatId)) return null;
   const rc = readChat(fsx, chatId);
   if (!rc) return null;
   // no closed scene to write from: a rebuild would swap in an empty record over the one in use (it did, 2026-10-22)
   const own = loadChatFile(fsx, chatId);
+  const cfg = withChat(baseCfg, own);
   const closed = findScenes(activeLine(rc.msgs), readDash(fsx, chatId), cfg, own ? own.marks : []).filter((s) => s.closed).length;
   if (!closed) return { none: true, messages: activeLine(rc.msgs).length };
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -3178,8 +3222,8 @@ export function onTick(_ctx, host) {
   try {
     const fsx = host && host.fs ? host.fs : null;
     if (!fsx) return;
-    const cfg = loadConfig(fsx);
-    if (cfg.enabled === false) return;
+    const baseCfg = loadConfig(fsx);
+    if (baseCfg.enabled === false) return;
     let all = null;
     try {
       all = fsx.list("chats");
@@ -3229,6 +3273,8 @@ export function onTick(_ctx, host) {
         const dash = readDash(fsx, chatId);
         const ensured = ensureChat(fsx, chatId, meta, line, 0);
         let st = ensured.st;
+        // #122: this chat's own scene length, recent messages and limits over the global ones
+        const cfg = withChat(baseCfg, st);
         let changed = ensured.changed;
         if (fixMigratedWeights(st)) changed = true;
         if (moveNotes(fsx, chatId, st, dash, line, str(meta.userName) || "You", now) > 0) changed = true;
@@ -4564,8 +4610,9 @@ export function factRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
   if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete", "know"].includes(op)) return bad("unknown op");
-  const cfg = loadConfig(fsx);
+  const baseCfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
+    const cfg = withChat(baseCfg, st);
     const now = Date.now();
     if (op === "add") {
       const text = cut(str(b.text), 300);
@@ -4808,13 +4855,54 @@ export function sceneRoute(fsx, body) {
   return res;
 }
 
+/**
+ * POST /litopys/chat-config { chatId, values?: { recentMessages?, pinLimit?, budget?, scene?: { minMessages?, maxMessages? } }, reset?: true } (#122)
+ * Sets this chat's own settings over the global ones. A key sent as null or "" goes back to following the
+ * global value; reset clears them all. Scenes already chaptered keep their chapters: the new layout is for the
+ * scenes that come next (Rebuild from scratch applies it to the whole chat).
+ */
+export function chatConfigRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const values = isObj(b.values) ? b.values : {};
+  const res = mutateChat(fsx, str(b.chatId), (st) => {
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    const had = b.reset === true ? {} : chatOverrides(st);
+    const raw = { ...had, scene: { ...(had.scene || {}) } };
+    const empty = (v) => v === null || v === "";
+    for (const key of Object.keys(CHAT_LIMITS)) {
+      if (!(key in values)) continue;
+      if (empty(values[key])) delete raw[key];
+      else raw[key] = values[key];
+    }
+    if (isObj(values.scene)) {
+      for (const key of Object.keys(CHAT_SCENE_LIMITS)) {
+        if (!(key in values.scene)) continue;
+        if (empty(values.scene[key])) delete raw.scene[key];
+        else raw.scene[key] = values.scene[key];
+      }
+    }
+    for (const key of [...Object.keys(CHAT_LIMITS), "scene.minMessages", "scene.maxMessages"]) {
+      const v = key.startsWith("scene.") ? (isObj(raw.scene) ? raw.scene[key.slice(6)] : undefined) : raw[key];
+      if (v !== undefined && !Number.isFinite(Number(v))) return bad("not a number: " + key);
+    }
+    st.config = raw;
+    const own = chatOverrides(st);
+    if (Object.keys(own).length) st.config = own;
+    else delete st.config;
+    addActivity(st, "user", "chat.config", Object.keys(own).length ? "Set this chat's own Litopys settings" : "This chat follows the global Litopys settings", [], Date.now());
+  });
+  if (res.status === 200) wake(fsx, str(b.chatId), true);
+  return res;
+}
+
 /** POST /litopys/proposals { chatId, id, op: "accept"|"reject"|"undo", replace? } (undo: only a proposal applied by itself) */
 export function proposalRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
   if (op !== "accept" && op !== "reject" && op !== "undo") return bad("unknown op");
-  const cfg = loadConfig(fsx);
+  const baseCfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
+    const cfg = withChat(baseCfg, st);
     const now = Date.now();
     const p = st.proposals.find((x) => x.id === str(b.id));
     if (!p) return { status: 404, json: { error: "no such proposal" } };
@@ -5000,7 +5088,8 @@ export function chatView(fsx, chatId) {
   if (!rc) return null;
   const line = activeLine(rc.msgs);
   const st = loadChatFile(fsx, chatId);
-  const cfg = loadConfig(fsx);
+  const globalCfg = loadConfig(fsx);
+  const cfg = withChat(globalCfg, st);
   const gen = st ? (isObj(st.rebuild) ? st.rebuild : st) : null;
   const next = gen ? countWork(gen, line, readDash(fsx, chatId), cfg) : 0;
   const chapters = [];
@@ -5044,6 +5133,12 @@ export function chatView(fsx, chatId) {
     marks: st ? markRanges(line, st.marks).map((x) => ({ id: x.id, fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
     skipped: st ? skipRanges(st, line).map((x) => ({ fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
     pinLimit: cfg.pinLimit,
+    // #122: what this chat sets for itself, the value in effect, and the global one it follows otherwise
+    chatConfig: {
+      own: chatOverrides(st),
+      value: { recentMessages: cfg.recentMessages, sceneKeep: cfg.sceneKeep, pinLimit: cfg.pinLimit, budget: cfg.budget, scene: { ...cfg.scene } },
+      global: { cutMode: globalCfg.cutMode, recentMessages: globalCfg.recentMessages, sceneKeep: globalCfg.sceneKeep, pinLimit: globalCfg.pinLimit, budget: globalCfg.budget, scene: { ...globalCfg.scene } },
+    },
     rev: st ? st.rev : 0,
     // M4d: arcs over older chapters, and the merge offer / the merge in progress
     arcs: arcsView(st, line),
@@ -5055,7 +5150,7 @@ export function chatView(fsx, chatId) {
 
 /** M3 additions to one chat's view: the cut, the last insert and how many scenes a rebuild would take. */
 function chatViewExtras(fsx, chatId, st, line) {
-  const cfg = loadConfig(fsx);
+  const cfg = withChat(loadConfig(fsx), st);
   const count = st ? cutCount(st, line, cfg) : 0;
   const lastInsert = readJson(fsx, INSERT_DIR + chatId + ".json", null);
   return {
@@ -5111,6 +5206,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
   if (path === "/litopys/scenes" && req.method === "POST") return sceneRoute(fsx, req.body);
+  if (path === "/litopys/chat-config" && req.method === "POST") return chatConfigRoute(fsx, req.body);
   if (path === "/litopys/arcs" && req.method === "POST") return arcRoute(fsx, req.body);
   if (path === "/litopys/consolidate" && req.method === "POST") return consolidateRoute(fsx, req.body);
   if (path === "/litopys/story-summary" && req.method === "POST") return summaryRoute(fsx, req.body);

@@ -189,7 +189,7 @@ export type LitActivityKind =
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
   | 'summary.ask' | 'summary.done' | 'summary.fail'
-  | 'habit.seen' | 'habit.earn' | 'habit.accept'
+  | 'habit.seen' | 'habit.earn' | 'habit.accept' | 'chat.config'
   | 'scene.mark' | 'scene.unmark'
 
 /**
@@ -262,6 +262,8 @@ export interface LitChat {
   /** scenes the reader set apart by hand (1-based message numbers); missing from an engine before #118 */
   marks?: { id: string; fromNo: number; toNo: number }[]
   pinLimit: number
+  /** #122: this chat's own settings over the global ones; missing from an engine before it */
+  chatConfig?: LitChatSettings
   rev: number
   /** M4d */
   arcs: LitArc[]
@@ -269,6 +271,23 @@ export interface LitChat {
   /** #51; missing from an engine before it */
   consolidate?: LitConsolidate
 }
+
+/** #122: the settings a chat may set for itself. own = what it set, value = what is in effect, global = what it follows otherwise. */
+export interface LitChatValues {
+  recentMessages?: number
+  sceneKeep?: number
+  pinLimit?: number
+  budget?: number
+  scene?: { minMessages?: number; maxMessages?: number }
+}
+type LitChatFull = Required<Omit<LitChatValues, 'scene'>> & { scene: Required<NonNullable<LitChatValues['scene']>> }
+export interface LitChatSettings {
+  own: LitChatValues
+  value: LitChatFull
+  global: LitChatFull & { cutMode: 'fit' | 'scenes' }
+}
+/** What a save sends: a number sets a key, null puts it back on the global value. */
+export type LitChatPatch = { [K in keyof Omit<LitChatValues, 'scene'>]?: number | null } & { scene?: { minMessages?: number | null; maxMessages?: number | null } }
 
 /** #51 Consolidate facts: batches is the run's size, next the batch being read (0-based). */
 export interface LitConsolidate {
@@ -371,6 +390,9 @@ export const editLitChapter = (chatId: string, id: string, fields: { label?: str
 export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('/litopys/chapters', { chatId, op: 'rewrite', id })
 /** keepGone: the worker never writes a chapter for these messages again; they still leave the prompt. */
 /** Set messages apart as a scene of their own (message ids), or take that mark off. */
+/** Sets this chat's own values; null puts a key back on the global value, reset clears them all. */
+export const putLitChatConfig = (chatId: string, values: LitChatPatch | { reset: true }) =>
+  post<LitChat>('/litopys/chat-config', 'reset' in values ? { chatId, reset: true } : { chatId, values })
 export const markLitScene = (chatId: string, from: string, to: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'mark', from, to })
 export const unmarkLitScene = (chatId: string, id: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'unmark', id })
 export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) => post<LitChat>('/litopys/chapters', { chatId, op: 'delete', id, keepGone })

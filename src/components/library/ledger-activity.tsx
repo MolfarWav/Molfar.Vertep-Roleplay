@@ -73,6 +73,7 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'arc.fail': return t('lit.act.arcFail', { error })
     case 'scene.mark': return t('lit.act.sceneMark', { from: num(d.fromNo), to: num(d.toNo) })
     case 'scene.unmark': return t('lit.act.sceneUnmark')
+    case 'chat.config': return t('lit.act.chatConfig')
     case 'habit.seen': return t('lit.act.habitSeen', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'habit.earn': return t('lit.act.habitEarn', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
     case 'habit.accept': return t('lit.act.habitAccept', { who: typeof d.who === 'string' ? d.who : '', name: typeof d.name === 'string' ? d.name : '' })
