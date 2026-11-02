@@ -181,9 +181,11 @@ name. The chapter worker writes them in the same call as the chapter, only when 
 besides the player (Litopys setting `recollections`, default on; the player's name, "Narrator" and a narrator group's own
 name never count), and only what that character saw, heard or was told. `POST /litopys/chapters { chatId, op: "edit", id, views }`
 replaces them (an empty list removes them; a views-only edit does not mark the chapter `edited`). A reply carries the
-recollections of the scenes that have left the prompt, newest first within 300 tokens, whole scenes only: the speaking card's
-own, or everyone's it voices (a group in narrator mode, a narrator card). The block is "Litopys · recollections", muted by the
-Prompt board key `plugin:recollections`, and listed as `recollections { scenes, who, tokens, text }` in `GET /litopys/carries`.
+recollections of the scenes that have left the prompt, newest first within `recollectBudget` tokens (Litopys setting, default 300,
+100 to 1500), whole scenes only: the speaking card's own, or everyone's it voices (a group in narrator mode, a narrator card).
+The newest of those scenes rides right before the player's message ("Litopys · latest recollection", after "who knows what");
+the older ones sit above the history ("Litopys · recollections"). Both are muted by the Prompt board key `plugin:recollections`
+and listed together as `recollections { scenes, who, tokens, text }` in `GET /litopys/carries`.
 
 **Who witnessed a scene (#184).** A chapter may carry `cast`: `["<name as the scene spells it>", ...]`, at most 12, the named characters of the scene besides the player (the same list the recollections use, kept even when there are fewer than two). The chapter worker writes it; a chapter without it (older, hand-made, or a scene with nobody named) is visible to every reply. A reply spoken by one character leaves out a chapter whose cast does not include that character (and an arc that holds such a chapter; its witnessed chapters ride alone), in the story insert and in the backstory of a continued chat. A reply that voices several characters (a narrator, a group in narrator mode) gets every chapter. Facts have their own `knownBy`: a fact whose `knownBy` is missing or unusable is written with the scene's cast instead of `"all"`. `GET /litopys/chat?chatId=` lists `cast` on each chapter.
 

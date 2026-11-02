@@ -193,6 +193,8 @@ export const DEFAULT_CONFIG = {
   // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
   // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
+  // the room of the "what the character remembers" blocks (head and tail together), in tokens
+  recollectBudget: 300,
   // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
   castKnowledge: true,
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
@@ -215,12 +217,16 @@ export const ARC_MODES = ["ask", "auto", "off"];
 export const PROPOSAL_MODES = ["ask", "quiet"];
 
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
-export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
+// It also says the past shapes how they act now: a record read only as "do not contradict" stayed a reference sheet.
+export const REMEMBERS = "The characters remember it: it really happened to them, it shapes how they feel and act now, and a question about it gets a real answer. Let it show in what they do and say, not by retelling it; do not contradict it.";
 export const CONTINUES =
   "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 // The sentences that tell the model what the memory parts are FOR are editable like the writing prompts (#113):
 // the bracketed lead of each part stays in code, only the sentence after it is the user's.
-export const CARD_MEMORY_RULE = "{name} lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+// The memory parts are written in English (owner decision 2026-10-07) while a story may not be: said once per reply, on the
+// first Litopys block, so the story model does not drift into English. The Dashboard's CLOSING says the same for its block.
+export const LANGUAGE_NOTE = "(These memory notes are in English for the app: write the reply in the language the story is written in.)";
+export const CARD_MEMORY_RULE = "{name} lived through these, and they shaped who {name} is now: let them colour how {name} feels and acts, recognise them when reminded or asked, and do not bring them up unprompted.";
 
 export const DEFAULT_PROMPTS = {
   chapter: [
@@ -476,6 +482,7 @@ export function loadConfig(fsx) {
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
+  cfg.recollectBudget = clamp(intOf(cfg.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.hiddenPlan = cfg.hiddenPlan === true;
   cfg.searchWords = cfg.searchWords !== false;
@@ -532,6 +539,7 @@ export function patchConfig(fsx, body) {
   if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
+  if (b.recollectBudget !== undefined) next.recollectBudget = clamp(intOf(b.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
   if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
@@ -1879,7 +1887,7 @@ export function llmRequest(ctx, host) {
     let recall = null;
     if (st && line.length && cfg.recollections !== false && !offForChat(fsx, chatId, "plugin:recollections")) {
       try {
-        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName });
+        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName, budget: cfg.recollectBudget });
       } catch (e) {
         try {
           host.log("litopys recollections: " + (e && e.message ? e.message : String(e)));
@@ -1927,41 +1935,63 @@ export function llmRequest(ctx, host) {
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
     const promptSources = { parts: [] };
+    // the language note rides once, on whichever block comes first
+    let langLeft = true;
+    const said = (text) => {
+      const t = String(text || "");
+      if (!langLeft || !t.trim()) return t;
+      langLeft = false;
+      return t.replace(/\s*$/, "") + "\n" + LANGUAGE_NOTE;
+    };
     if (back) {
-      messages = withInsert(messages, back.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: String(back.text || "").trim() });
+      const t_back_text = said(back.text);
+      messages = withInsert(messages, t_back_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: t_back_text.trim() });
     }
     if (cardMem) {
-      messages = withInsert(messages, cardMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
+      const t_cardMem_text = said(cardMem.text);
+      messages = withInsert(messages, t_cardMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: t_cardMem_text.trim() });
     }
     if (personaMem) {
-      messages = withInsert(messages, personaMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: String(personaMem.text).trim() });
+      const t_personaMem_text = said(personaMem.text);
+      messages = withInsert(messages, t_personaMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: t_personaMem_text.trim() });
     }
     if (worldMem) {
-      messages = withInsert(messages, worldMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: String(worldMem.text).trim() });
+      const t_worldMem_text = said(worldMem.text);
+      messages = withInsert(messages, t_worldMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: t_worldMem_text.trim() });
     }
     if (habits) {
-      messages = withInsert(messages, habits.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: String(habits.text).trim() });
+      const t_habits_text = said(habits.text);
+      messages = withInsert(messages, t_habits_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: t_habits_text.trim() });
     }
-    if (recall) {
-      messages = withInsert(messages, recall.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: String(recall.text).trim() });
+    if (recall && recall.text) {
+      const t_recall_text = said(recall.text);
+      messages = withInsert(messages, t_recall_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: t_recall_text.trim() });
     }
     if (insert && insert.head) {
-      messages = withInsert(messages, insert.head);
-      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: String(insert.head).trim() });
+      const t_insert_head = said(insert.head);
+      messages = withInsert(messages, t_insert_head);
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: t_insert_head.trim() });
     }
     if (insert && insert.tail) {
-      messages = withTailInsert(messages, insert.tail);
-      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
+      const t_insert_tail = said(insert.tail);
+      messages = withTailInsert(messages, t_insert_tail);
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: t_insert_tail.trim() });
     }
     if (castKn) {
-      messages = withTailInsert(messages, castKn.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: String(castKn.text).trim() });
+      const t_castKn_text = said(castKn.text);
+      messages = withTailInsert(messages, t_castKn_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: t_castKn_text.trim() });
+    }
+    if (recall && recall.tail) {
+      const t_recall_tail = said(recall.tail);
+      messages = withTailInsert(messages, t_recall_tail);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · latest recollection", text: t_recall_tail.trim() });
     }
     if (plan) {
       messages = withTailInsert(messages, plan);
@@ -5717,17 +5747,21 @@ export function soleVoice(fsx, meta, speakerName) {
   return names.size && !many ? names : null;
 }
 
-/** The room of the "what the character remembers" block, in tokens. */
+/** The room of the "what the character remembers" blocks, in tokens: the default and the range of `recollectBudget`. */
 const RECOLLECT_TOKENS = 300;
+const RECOLLECT_MIN = 100;
+const RECOLLECT_MAX = 1500;
 
 /**
- * The block "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
+ * The blocks "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
  * for a narrator, for everyone it voices) of the scenes that have left the prompt, newest first, whole scenes, within
- * RECOLLECT_TOKENS. The same text between replies until a chapter closes or the speaker changes, so it can sit above
- * the history. null when the chat has none for this reply.
+ * `budget` tokens (head and tail together). The newest scene goes to `tail`, next to the reply where it weighs most;
+ * the older ones stay in `text`, above the history. Both stay the same between replies until a chapter closes or the
+ * speaker changes. null when the chat has none for this reply.
  */
-export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
+export function recollectionsFor({ fsx, meta, st, line, cut, speakerName, budget }) {
   if (!st || !line.length) return null;
+  const room = clamp(intOf(budget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   const { names, many, name } = recollectors(fsx, meta, speakerName);
   if (!names.size) return null;
   const rows = [];
@@ -5736,23 +5770,32 @@ export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
     if (mine.length) rows.push({ ch, mine });
   }
   if (!rows.length) return null;
+  const who = name || "this character";
   const head = many
-    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it. Each knows only their own part, so never let one use what only another remembers.]"
-    : "[What " + (name || "this character") + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it, and they know nothing of those scenes beyond it.]";
+    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. The story record shows the narrator the whole of those scenes, but each character knows only their own part: never let one use what only another remembers or what only the record tells.]"
+    : "[What " + who + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. Where the story record tells more about those scenes, " + who + " knows only this part.]";
+  const tailHead = many
+    ? "[What each character remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now; never let one use what only another remembers.]"
+    : "[What " + who + " remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now.]";
   const lineOf = (ch, v) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + (many ? str(v.who) + ": " : "") + str(v.text);
-  const picked = [];
-  const render = () => [head, ...rows.filter((r) => picked.includes(r)).flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n");
-  // newest scene first into the room; a scene goes in whole or not at all
-  for (const r of rows.slice().reverse()) {
-    picked.push(r);
-    if (estimateTokens(render()) > RECOLLECT_TOKENS) {
-      picked.pop();
+  const block = (header, list) => (list.length ? [header, ...list.flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n") : "");
+  const newest = rows[rows.length - 1];
+  const older = [];
+  const size = () => estimateTokens(block(tailHead, [newest])) + estimateTokens(block(head, older.slice().reverse()));
+  // the newest scene always comes when it fits alone; then the older ones, newest first, whole scenes only
+  if (size() > room) return null;
+  for (const r of rows.slice(0, -1).reverse()) {
+    older.push(r);
+    if (size() > room) {
+      older.pop();
       break;
     }
   }
-  if (!picked.length) return null;
-  const text = render();
-  return { text, tokens: estimateTokens(text), scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
+  const text = block(head, older.slice().reverse());
+  const tail = block(tailHead, [newest]);
+  const tokens = (text ? estimateTokens(text) : 0) + estimateTokens(tail);
+  const picked = [newest, ...older];
+  return { text, tail, tokens, scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
 }
 
 /** The habits block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
@@ -6200,7 +6243,7 @@ function carriesRoute(fsx, query) {
   // what the characters remember of the scenes that left the prompt (#99), as the reply of `speaker` would carry it
   let recall = null;
   try {
-    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName }) : null;
+    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName, budget: cfg.recollectBudget }) : null;
   } catch {}
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
   const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
@@ -6229,7 +6272,7 @@ function carriesRoute(fsx, query) {
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
       personaMemory: sharedMemory("persona"),
       worldMemory: sharedMemory("world"),
-      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: recall.text } : null,
+      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: [recall.text, recall.tail].filter(Boolean).join("\n") } : null,
     },
   };
 }
