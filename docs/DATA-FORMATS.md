@@ -279,7 +279,7 @@ proposal in `data/profile-drafts/<id>.json` (`kind: "structure"`); accepting it 
 sections, puts the text that fit no field in `notes`, and saves the old text as a version.
 "Fill empty" asks the model for the empty fields of the switched-on sections (or one section) and files
 `kind: "fill"`; accepting it writes only fields that are still empty, never relationships, and saves the
-old text as a version. The portrait goes along to the engine's Vision model (Settings) unless the request names a model; "Read from picture" (`replace: true`) rewrites filled appearance fields.
+old text as a version. With a portrait it takes two model calls in one route: the vision model (the request's `model`, else the engine's Vision model from Settings) only describes the picture (key `look`), then the card's task model writes the fields from the card text and that description; if the picture cannot be read, the fields come from the text and the draft's `note` says so. "Read from picture" (`replace: true`) is one call on the vision model and rewrites filled appearance fields.
 
 ## Personas: `data/personas/<id>.json`
 
