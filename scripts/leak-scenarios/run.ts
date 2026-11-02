@@ -1,7 +1,9 @@
 /**
  * Runs the leak scenarios (issue #184, P0b) on chosen models and has a judge model label each reply.
  *
- *   bun scripts/leak-scenarios/run.ts --out <results.json> [--reps 3] [--only nanogpt:google/gemma-4-31b-it,local]
+ *   bun scripts/leak-scenarios/run.ts --out <results.json> [--reps 3] [--only nanogpt:google/gemma-4-31b-it,local] [--plan]
+ *
+ * --kind narrator runs only the narrator scenes. --plan adds the narrator condition "plan" (the brief plus the hidden-plan instruction; the plan is cut before judging, kept in the row).
  *
  * Models: `nanogpt:<model id>` (the key is read from the ask-model skill's keys.env, never printed) and `local`
  * (a llama-server on 127.0.0.1:8081). The judge is `nanogpt:deepseek/deepseek-v4-pro-0813`. Synthetic text only.
@@ -13,12 +15,15 @@ import path from "node:path";
 import { CARDS, NEUTRAL_FACTS, SCENARIOS, USER, history, type Scenario } from "./scenarios";
 
 const L = (await import(new URL("../../plugins/litopys/plugin.js", import.meta.url).href)) as Record<string, any>;
+const E = (await import(new URL("../../plugins/engine/plugin.js", import.meta.url).href)) as { cutPlanTag: (t: string) => string };
 
 const arg = (name: string, d = "") => {
   const i = process.argv.indexOf("--" + name);
   return i >= 0 ? process.argv[i + 1]! : d;
 };
 const OUT = arg("out");
+const WITH_PLAN = process.argv.includes("--plan");
+const KIND = arg("kind"); // "char" or "narrator": run only those scenes (default both)
 const REPS = Number(arg("reps", "3"));
 const MODELS = arg("only", "nanogpt:google/gemma-4-31b-it,nanogpt:deepseek/deepseek-v4-flash,local").split(",");
 const JUDGE = "nanogpt:deepseek/deepseek-v4-pro-0813";
@@ -87,15 +92,17 @@ function build(sc: Scenario, condition: string): Msg[] {
   } else {
     const ins = L.buildInsert({ ...common, speakerName: "" });
     if (ins && ins.tail) extra.push(ins.tail);
-    if (condition === "brief") {
+    if (condition === "brief" || condition === "plan") {
       const brief = L.castKnowledgeFor({ st, line, dash: null, meta, speakerName: "", notCast: [] });
       if (brief) extra.push(brief.text);
+      // "plan": the brief plus the hidden-plan instruction; the plan is cut before judging (the engine's own cut) and kept in the row
+      if (condition === "plan") extra.push(L.hiddenPlanNote());
     }
   }
   const secretIn = extra.some((t) => t.includes(sc.secret));
-  const expectIn = condition === "with" || condition === "plain" || condition === "brief";
+  const expectIn = condition === "with" || condition === "plain" || condition === "brief" || condition === "plan";
   if (secretIn !== expectIn) throw new Error(`${sc.id}/${condition}: secret in prompt = ${secretIn}, expected ${expectIn}`);
-  if (condition === "brief" && !extra.some((t) => t.includes("Who knows what"))) throw new Error(`${sc.id}: no brief built`);
+  if ((condition === "brief" || condition === "plan") && !extra.some((t) => t.includes("Who knows what"))) throw new Error(`${sc.id}: no brief built`);
   return [{ role: "system", content: system }, ...chat, ...extra.map((t) => ({ role: "system" as const, content: t })), { role: "user", content: final.text }];
 }
 
@@ -125,13 +132,18 @@ async function judge(sc: Scenario, reply: string): Promise<{ leak: boolean | nul
   return { leak: null, quote: "" };
 }
 
-type Row = { model: string; id: string; kind: string; condition: string; rep: number; reply: string; leak: boolean | null; quote: string };
+function conditionsOf(sc: Scenario): string[] {
+  return sc.kind === "char" ? ["with", "filtered"] : ["plain", "brief", ...(WITH_PLAN ? ["plan"] : [])];
+}
+
+type Row = { model: string; id: string; kind: string; condition: string; rep: number; reply: string; leak: boolean | null; quote: string; plan?: string; planClosed?: boolean };
 const rows: Row[] = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, "utf8")) : [];
 const done = new Set(rows.map((r) => [r.model, r.id, r.condition, r.rep].join("|")));
 const jobs: Array<() => Promise<void>> = [];
 for (const model of MODELS) {
   for (const sc of SCENARIOS) {
-    for (const condition of sc.kind === "char" ? ["with", "filtered"] : ["plain", "brief"]) {
+    if (KIND && sc.kind !== KIND) continue;
+    for (const condition of conditionsOf(sc)) {
       for (let rep = 0; rep < REPS; rep++) {
         if (done.has([model, sc.id, condition, rep].join("|"))) continue;
         jobs.push(async () => {
@@ -142,8 +154,11 @@ for (const model of MODELS) {
             console.error(`FAILED ${model} ${sc.id} ${condition}: ${(e as Error).message}`);
             return;
           }
-          const j = await judge(sc, reply);
-          rows.push({ model, id: sc.id, kind: sc.kind, condition, rep, reply, ...j });
+          // the plan is scaffolding: the judge reads the reply as a reader would, the row keeps the whole
+          const shown = condition === "plan" ? E.cutPlanTag(reply) : reply;
+          const j = await judge(sc, shown);
+          const planRow = condition === "plan" ? { plan: /<vertep_plan>[\s\S]*?(?:<\/vertep_plan>|$)/.exec(reply)?.[0] ?? "", planClosed: reply.includes("</vertep_plan>") } : {};
+          rows.push({ model, id: sc.id, kind: sc.kind, condition, rep, reply, ...j, ...planRow });
           fs.writeFileSync(OUT, JSON.stringify(rows, null, 1));
         });
       }
@@ -151,7 +166,7 @@ for (const model of MODELS) {
   }
 }
 // build() throws on a wrong prompt: check every scenario before spending a token
-for (const sc of SCENARIOS) for (const c of sc.kind === "char" ? ["with", "filtered"] : ["plain", "brief"]) build(sc, c);
+for (const sc of SCENARIOS) for (const c of conditionsOf(sc)) build(sc, c);
 console.log(`${jobs.length} jobs to run (${rows.length} already done)`);
 
 let next = 0;

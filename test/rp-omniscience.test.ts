@@ -177,6 +177,64 @@ describe("omniscience: the who-knows-what brief for a narrator (#184 P1d)", () =
   });
 });
 
+describe("omniscience: the optional hidden plan for a narrator (#184 P1d)", () => {
+  const planOn = () => writeJson("litopys/config.json", { castKnowledge: true, hiddenPlan: true });
+  const withOp = (op: string, speaker = "Tavern") => ({ ...ctx(speaker), turn: { op, chatId: "tav", speakerName: speaker } });
+
+  it("is off by default: no plan note, the setting is false and survives a save", () => {
+    seed("narrator");
+    expect(L.DEFAULT_CONFIG.hiddenPlan).toBe(false);
+    expect(textOf(L.llmRequest(ctx("Tavern"), mockHost().host))).not.toContain("Hidden plan");
+    writeJson("litopys/config.json", { castKnowledge: true });
+    expect(L.loadConfig(mockHost().host.fs).hiddenPlan).toBe(false);
+  });
+
+  it("asks a narrator reply to open with the tag, one knows line per acting character, as a Prompt-board part", () => {
+    seed("narrator");
+    planOn();
+    const res = L.llmRequest(withOp("send"), mockHost().host);
+    const text = textOf(res);
+    expect(text).toContain("[Hidden plan (Litopys)");
+    expect(text).toContain("<vertep_plan>");
+    expect(text).toContain("</vertep_plan>");
+    expect(text).toContain("Name knows:");
+    expect(res.promptSources.parts.map((p: any) => p.label)).toContain("Litopys · hidden plan");
+    // the brief rides with it: the plan has the list to draw from
+    expect(text.indexOf("Who knows what")).toBeLessThan(text.indexOf("Hidden plan"));
+  });
+
+  it("rides on a new reply (send, next, swipe) and not on a Continue or an impersonation", () => {
+    seed("narrator");
+    planOn();
+    for (const op of ["send", "next", "swipe"]) expect(textOf(L.llmRequest(withOp(op), mockHost().host))).toContain("Hidden plan");
+    expect(textOf(L.llmRequest(withOp("continue"), mockHost().host))).not.toContain("Hidden plan");
+    expect(L.llmRequest(withOp("impersonate"), mockHost().host)).toBeNull();
+  });
+
+  it("needs the brief: not for one character's reply, not when the brief switch is off, not when nothing is restricted", () => {
+    seed("swap");
+    planOn();
+    expect(textOf(L.llmRequest(withOp("send", "Aria"), mockHost().host))).not.toContain("Hidden plan");
+    seed("narrator");
+    writeJson("litopys/config.json", { castKnowledge: false, hiddenPlan: true });
+    expect(textOf(L.llmRequest(withOp("send"), mockHost().host))).not.toContain("Hidden plan");
+    planOn();
+    const st = readJson("litopys/chats/tav.json");
+    st.facts = st.facts.map((f: any) => ({ ...f, knownBy: "all" }));
+    writeJson("litopys/chats/tav.json", st);
+    expect(textOf(L.llmRequest(withOp("send"), mockHost().host))).not.toContain("Hidden plan");
+  });
+
+  it("the setting is saved by the config route as a real boolean", () => {
+    seed("narrator");
+    const host = mockHost().host;
+    expect(L.patchConfig(host.fs, { hiddenPlan: true }).hiddenPlan).toBe(true);
+    expect(L.loadConfig(host.fs).hiddenPlan).toBe(true);
+    expect(L.patchConfig(host.fs, { hiddenPlan: "yes" }).hiddenPlan).toBe(false);
+    expect(L.patchConfig(host.fs, { castKnowledge: false }).hiddenPlan).toBe(false);
+  });
+});
+
 describe("omniscience: chapters follow who witnessed them (#184 P2)", () => {
   const msgs: Msg[] = Array.from({ length: 80 }, (_, i) => (i % 5 === 0 ? U("m" + i, "Jude says line " + i) : C("m" + i, i % 2 ? "Aria" : "Bram", "answer " + i)));
   const line = L.activeLine(msgs);

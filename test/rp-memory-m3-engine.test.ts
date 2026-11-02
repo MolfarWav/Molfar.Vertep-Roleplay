@@ -249,7 +249,7 @@ async function cutOf(id: string, m: ReturnType<typeof mockHost>) {
 
 /** A window with no room for the chat: chatWithThirty's prompt, its Litopys reserve and a 100-token reply
  *  leave the history too little for the covered stretch (20 messages), so all of it goes. */
-const TIGHT = { contextWindow: 1970, maxOutput: 100 };
+const TIGHT = { contextWindow: 2090, maxOutput: 100 }; // +120: the Dashboard said block now has its room in the reserve
 const previewOf = (id: string, m: ReturnType<typeof mockHost>, limits: Record<string, number> = {}) =>
   drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, ...limits } }, m);
 
@@ -292,7 +292,7 @@ it("a chat that fits the window keeps every message, covered or not", async () =
 it("the cut takes only as many covered messages as the window needs", async () => {
   const { id, m } = await chatWithThirty();
   // a little room short: the oldest covered messages go, the newer covered ones stay
-  const r = await previewOf(id, m, { contextWindow: 2040, maxOutput: 100 });
+  const r = await previewOf(id, m, { contextWindow: 2160, maxOutput: 100 });
   const contents = messageContents(r.json);
   const has = (i: number) => contents.some((c) => hasNum(c, `user turn #${i}`));
   expect(has(0)).toBe(false);
@@ -359,7 +359,7 @@ it("recentMessages 20 of 30 messages: chapters covering 1-26 still cut only 1-10
   });
   // the ceiling: messages 1-10 only, the last 20 stay however far the chapter reaches
   expect(await cutOf(id, m)).toEqual({ count: 10, upTo: "c4" });
-  const r = await previewOf(id, m, { contextWindow: 1960, maxOutput: 100 });
+  const r = await previewOf(id, m, { contextWindow: 2080, maxOutput: 100 });
   expect(r.status).toBe(200);
   const contents = messageContents(r.json);
   // a window with no room: pairs 0-4 go (what the chapter covers), the later ones stay as far as they fit
