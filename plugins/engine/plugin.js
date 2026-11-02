@@ -1648,9 +1648,9 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
       const f = SAFE_RESERVE_ID.test(wid) ? jsonAt(fsx, "memory/worlds/" + wid + ".json") : null;
       if (f && Array.isArray(f.sources) && f.sources.length) add("litopys world memory", clampInt(f.inject && f.inject.maxTokens, 100, 1500, 300));
     }
-    // what the characters remember of old scenes (a fixed room of 300): a group has casts, and a chat whose last insert had some
+    // what the characters remember of old scenes (litopys recollectBudget, 100 to 1500, default 300): a group has casts, and a chat whose last insert had some
     const ins = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/insert/" + chatId + ".json") : null;
-    if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", 300);
+    if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", clampInt(lit.recollectBudget, 100, 1500, 300));
     // who knows what, and the optional hidden plan: only a reply that voices several characters
     if (grouped && lit.castKnowledge !== false && !off("plugin:litopys")) {
       add("litopys who knows what", 250);

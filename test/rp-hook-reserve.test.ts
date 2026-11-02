@@ -107,6 +107,10 @@ describe("hook reserve: persona and world memory, recollections, who knows what,
     writeJson("litopys/insert/c1.json", { recollections: { tokens: 120, scenes: 2, who: ["Aria"] } });
     expect(byId(rows())["litopys recollections"]).toBe(300);
     expect(byId(rows({ promptBoard: { off: ["plugin:recollections"] } }))["litopys recollections"]).toBeUndefined();
+    writeJson("litopys/config.json", { recollectBudget: 700 });
+    expect(byId(rows({ groupId: "g1" }))["litopys recollections"]).toBe(700);
+    writeJson("litopys/config.json", { recollectBudget: 5000 });
+    expect(byId(rows({ groupId: "g1" }))["litopys recollections"]).toBe(1500);
     writeJson("litopys/config.json", { recollections: false });
     expect(byId(rows({ groupId: "g1" }))["litopys recollections"]).toBeUndefined();
   });
