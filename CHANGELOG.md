@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Memory now says it shapes how characters act, not only that it must not be contradicted. The Litopys record ("The characters remember it…") and the card memory rule add that the past colours how the character feels and acts now and should show in what they do, not by retelling. The new wording reaches you unless you edited these sentences in the Litopys prompts; an edited one stays yours.
+- The newest recollection sits next to your message. Of the scenes a character remembers, the newest now rides right before your message ("Litopys · latest recollection" in the prompt inspector); older ones stay above the history, so the cache is unchanged. The recollections have their own budget: Litopys settings, Recollections, "Recollections budget" (100 to 1500 tokens, default 300, as before).
+- The Soul's temperament reaches the story model. Until now traits and spectra only tilted the numbers and the model never saw them. A character's Dashboard block now has a "Temperament:" line from the soul (a trait at 70+ or 30-, a spectrum outside the middle, as "rather …" when it leans only a little), right before "Under strain". A soul that leans nowhere adds nothing.
+
 ## 4.84.0 (2026-11-01)
 
 - Lorebooks: the list header had one icon, an up arrow, for Import, which reads as export, and no export at all. Import now has the arrow into a tray; the new Export button (arrow out) opens a menu: the open book as JSON, or every book in one zip (one JSON per book, readable by Import; a book that cannot be read is skipped and the toast says how many). The book header's Export uses the same arrow.

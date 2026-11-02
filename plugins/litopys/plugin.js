@@ -193,6 +193,8 @@ export const DEFAULT_CONFIG = {
   // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
   // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
+  // the room of the "what the character remembers" blocks (head and tail together), in tokens
+  recollectBudget: 300,
   // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
   castKnowledge: true,
   // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
@@ -209,12 +211,13 @@ export const ARC_MODES = ["ask", "auto", "off"];
 export const PROPOSAL_MODES = ["ask", "quiet"];
 
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
-export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
+// It also says the past shapes how they act now: a record read only as "do not contradict" stayed a reference sheet.
+export const REMEMBERS = "The characters remember it: it really happened to them, it shapes how they feel and act now, and a question about it gets a real answer. Let it show in what they do and say, not by retelling it; do not contradict it.";
 export const CONTINUES =
   "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 // The sentences that tell the model what the memory parts are FOR are editable like the writing prompts (#113):
 // the bracketed lead of each part stays in code, only the sentence after it is the user's.
-export const CARD_MEMORY_RULE = "{name} lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+export const CARD_MEMORY_RULE = "{name} lived through these, and they shaped who {name} is now: let them colour how {name} feels and acts, recognise them when reminded or asked, and do not bring them up unprompted.";
 
 export const DEFAULT_PROMPTS = {
   chapter: [
@@ -440,6 +443,7 @@ export function loadConfig(fsx) {
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
+  cfg.recollectBudget = clamp(intOf(cfg.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
@@ -494,6 +498,7 @@ export function patchConfig(fsx, body) {
   if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
+  if (b.recollectBudget !== undefined) next.recollectBudget = clamp(intOf(b.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
@@ -1820,7 +1825,7 @@ export function llmRequest(ctx, host) {
     let recall = null;
     if (st && line.length && cfg.recollections !== false && !offForChat(fsx, chatId, "plugin:recollections")) {
       try {
-        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName });
+        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName, budget: cfg.recollectBudget });
       } catch (e) {
         try {
           host.log("litopys recollections: " + (e && e.message ? e.message : String(e)));
@@ -1885,7 +1890,7 @@ export function llmRequest(ctx, host) {
       messages = withInsert(messages, habits.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: String(habits.text).trim() });
     }
-    if (recall) {
+    if (recall && recall.text) {
       messages = withInsert(messages, recall.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: String(recall.text).trim() });
     }
@@ -1900,6 +1905,10 @@ export function llmRequest(ctx, host) {
     if (castKn) {
       messages = withTailInsert(messages, castKn.text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: String(castKn.text).trim() });
+    }
+    if (recall && recall.tail) {
+      messages = withTailInsert(messages, recall.tail);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · latest recollection", text: String(recall.tail).trim() });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
@@ -5645,17 +5654,21 @@ export function soleVoice(fsx, meta, speakerName) {
   return names.size && !many ? names : null;
 }
 
-/** The room of the "what the character remembers" block, in tokens. */
+/** The room of the "what the character remembers" blocks, in tokens: the default and the range of `recollectBudget`. */
 const RECOLLECT_TOKENS = 300;
+const RECOLLECT_MIN = 100;
+const RECOLLECT_MAX = 1500;
 
 /**
- * The block "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
+ * The blocks "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
  * for a narrator, for everyone it voices) of the scenes that have left the prompt, newest first, whole scenes, within
- * RECOLLECT_TOKENS. The same text between replies until a chapter closes or the speaker changes, so it can sit above
- * the history. null when the chat has none for this reply.
+ * `budget` tokens (head and tail together). The newest scene goes to `tail`, next to the reply where it weighs most;
+ * the older ones stay in `text`, above the history. Both stay the same between replies until a chapter closes or the
+ * speaker changes. null when the chat has none for this reply.
  */
-export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
+export function recollectionsFor({ fsx, meta, st, line, cut, speakerName, budget }) {
   if (!st || !line.length) return null;
+  const room = clamp(intOf(budget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   const { names, many, name } = recollectors(fsx, meta, speakerName);
   if (!names.size) return null;
   const rows = [];
@@ -5664,23 +5677,32 @@ export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
     if (mine.length) rows.push({ ch, mine });
   }
   if (!rows.length) return null;
+  const who = name || "this character";
   const head = many
-    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it. Each knows only their own part, so never let one use what only another remembers.]"
-    : "[What " + (name || "this character") + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it, and they know nothing of those scenes beyond it.]";
+    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. Each knows only their own part, so never let one use what only another remembers.]"
+    : "[What " + who + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, it colours how they act now, and they know nothing of those scenes beyond it.]";
+  const tailHead = many
+    ? "[What each character remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now; never let one use what only another remembers.]"
+    : "[What " + who + " remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now.]";
   const lineOf = (ch, v) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + (many ? str(v.who) + ": " : "") + str(v.text);
-  const picked = [];
-  const render = () => [head, ...rows.filter((r) => picked.includes(r)).flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n");
-  // newest scene first into the room; a scene goes in whole or not at all
-  for (const r of rows.slice().reverse()) {
-    picked.push(r);
-    if (estimateTokens(render()) > RECOLLECT_TOKENS) {
-      picked.pop();
+  const block = (header, list) => (list.length ? [header, ...list.flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n") : "");
+  const newest = rows[rows.length - 1];
+  const older = [];
+  const size = () => estimateTokens(block(tailHead, [newest])) + estimateTokens(block(head, older.slice().reverse()));
+  // the newest scene always comes when it fits alone; then the older ones, newest first, whole scenes only
+  if (size() > room) return null;
+  for (const r of rows.slice(0, -1).reverse()) {
+    older.push(r);
+    if (size() > room) {
+      older.pop();
       break;
     }
   }
-  if (!picked.length) return null;
-  const text = render();
-  return { text, tokens: estimateTokens(text), scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
+  const text = block(head, older.slice().reverse());
+  const tail = block(tailHead, [newest]);
+  const tokens = (text ? estimateTokens(text) : 0) + estimateTokens(tail);
+  const picked = [newest, ...older];
+  return { text, tail, tokens, scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
 }
 
 /** The habits block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
@@ -6128,7 +6150,7 @@ function carriesRoute(fsx, query) {
   // what the characters remember of the scenes that left the prompt (#99), as the reply of `speaker` would carry it
   let recall = null;
   try {
-    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName }) : null;
+    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName, budget: cfg.recollectBudget }) : null;
   } catch {}
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
   const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
@@ -6157,7 +6179,7 @@ function carriesRoute(fsx, query) {
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
       personaMemory: sharedMemory("persona"),
       worldMemory: sharedMemory("world"),
-      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: recall.text } : null,
+      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: [recall.text, recall.tail].filter(Boolean).join("\n") } : null,
     },
   };
 }
