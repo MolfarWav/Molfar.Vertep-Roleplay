@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
-const { SettingsTab, ownCount } = await import("../src/components/library/ledger-settings");
+const { SettingsTab, ownCount, settingAction } = await import("../src/components/library/ledger-settings");
 
 const global = { cutMode: "fit", recentMessages: 100, sceneKeep: 2, pinLimit: 5, budget: 800, scene: { minMessages: 6, maxMessages: 40 } };
 const chat = (own: Record<string, unknown>, cutMode = "fit") =>
@@ -17,6 +17,23 @@ describe("ownCount", () => {
     expect(ownCount(undefined)).toBe(0);
     expect(ownCount({})).toBe(0);
     expect(ownCount({ pinLimit: 3, scene: { maxMessages: 20 } })).toBe(2);
+  });
+});
+
+describe("settingAction (what leaving a field does)", () => {
+  it("an emptied field clears the key, so the chat follows the global value again", () => {
+    expect(settingAction("", 30, 10, 200)).toEqual({ kind: "clear", show: "" });
+    expect(settingAction("  ", 30, 10, 200)).toEqual({ kind: "clear", show: "" });
+  });
+  it("an empty field with nothing set does nothing", () => {
+    expect(settingAction("", undefined, 10, 200)).toEqual({ kind: "none", show: "" });
+  });
+  it("a number is rounded, kept inside the limits and set; the same number again does nothing", () => {
+    expect(settingAction("30", undefined, 10, 200)).toEqual({ kind: "set", n: 30, show: "30" });
+    expect(settingAction("3", 30, 10, 200)).toEqual({ kind: "set", n: 10, show: "10" });
+    expect(settingAction("9999", undefined, 6, 200)).toEqual({ kind: "set", n: 200, show: "200" });
+    expect(settingAction("12.6", undefined, 1, 40)).toEqual({ kind: "set", n: 13, show: "13" });
+    expect(settingAction("30", 30, 10, 200)).toEqual({ kind: "none", show: "30" });
   });
 });
 
