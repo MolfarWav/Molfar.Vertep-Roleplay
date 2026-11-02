@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 
 const engineUrl = new URL("../plugins/engine/plugin.js", import.meta.url).href;
-const E = (await import(engineUrl)) as { handleRoute: Function; cutStateTag: (t: unknown) => { text: string; body: string | null; closed: boolean } };
+const E = (await import(engineUrl)) as { handleRoute: Function; cutStateTag: (t: unknown) => { text: string; body: string | null; closed: boolean }; cutPlanTag: (t: unknown, stopped?: boolean) => string };
 
 const TAG = (body: string) => `<vertep_state>${body}</vertep_state>`;
 const STATE = '{"present":["Aria"],"minutes":5}';
@@ -365,5 +365,98 @@ describe("both halves together", () => {
     // the story text the sensor would have read is the saved, tag-free one
     const again = relations.handleRoute({ method: "POST", path: "/dashboard/update", query: {}, body: { chatId: id, op: "send" } }, mock.host) as { json?: Record<string, any> };
     expect(again.json?.unchanged).toBe(true);
+  });
+});
+
+// #184 P1d: the hidden "who knows what" plan a multi-voice reply may open with. Cut from every saved reply, with any preset.
+const PLAN = (body: string) => `<vertep_plan>${body}</vertep_plan>`;
+const PLAN_BODY = "\nAria knows: the password.\nBram knows: nothing.\n";
+
+describe("the hidden plan (cutPlanTag)", () => {
+  it("a closed block goes with the whitespace after it; text without one is untouched", () => {
+    expect(E.cutPlanTag(PLAN(PLAN_BODY) + "\n\nThe door opens.")).toBe("The door opens.");
+    expect(E.cutPlanTag("A " + PLAN("x") + " B " + PLAN("y") + " C")).toBe("A  B  C");
+    const plain = "  Plain reply with <b>html</b> and vertep_plan words.  \n";
+    expect(E.cutPlanTag(plain)).toBe(plain);
+    expect(E.cutPlanTag(null)).toBe("");
+  });
+
+  it("an unclosed block: the story may follow, so only the tag goes; a stopped reply loses the plan to the end", () => {
+    expect(E.cutPlanTag("<vertep_plan>\nAria knows: x.\nThe door opens.")).toBe("Aria knows: x.\nThe door opens.");
+    expect(E.cutPlanTag("<vertep_plan>\nAria knows: x.\nBram kn", true)).toBe("");
+    expect(E.cutPlanTag("Before.<vertep_plan>\nAria kn", true)).toBe("Before.");
+  });
+
+  it("the plan and the fast-mode state tag in one reply: both leave the text, the state body stays", () => {
+    const r = E.cutStateTag(PLAN(PLAN_BODY) + "\nShe nods.\n" + TAG(STATE));
+    expect(r).toEqual({ text: "She nods.", body: STATE, closed: true });
+    expect(E.cutStateTag(PLAN(PLAN_BODY) + "She nods.")).toEqual({ text: "She nods.", body: null, closed: false });
+  });
+});
+
+describe("the hidden plan in saved replies", () => {
+  const stored = (id: string) => fs.readFileSync(path.join(root, "chats", `${id}.jsonl`), "utf8");
+
+  it("send, swipe, continue and next: the plan is never saved, in any mode, text and swipes alike", async () => {
+    for (const mode of ["sensor", "fast"]) {
+      setMode(mode);
+      const mock = mockHost();
+      const id = await newChat(mock, { groupId: "duo" });
+      say(mock, PLAN(PLAN_BODY) + "\nAria speaks.");
+      const sent = await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello both" } });
+      const reply = sent.json.reply as { id: string; text: string; swipes: string[] };
+      expect(reply.text).toBe("Aria speaks.");
+      expect(reply.swipes).toEqual(["Aria speaks."]);
+      say(mock, PLAN(PLAN_BODY) + "Another take.");
+      const sw = await drive(mock, { method: "POST", path: `/chats/${id}/swipe`, body: { dir: 1 } });
+      expect((sw.json.message as { swipes: string[] }).swipes).toEqual(["Aria speaks.", "Another take."]);
+      say(mock, PLAN("x") + "More.");
+      const ct = await drive(mock, { method: "POST", path: `/chats/${id}/continue`, body: {} });
+      expect((ct.json.message as { text: string }).text).toBe("Another take. More.");
+      say(mock, PLAN(PLAN_BODY) + "Bo speaks.");
+      const nx = await drive(mock, { method: "POST", path: `/chats/${id}/next`, body: { charId: "bo" } });
+      expect((nx.json.reply as { text: string }).text).toBe("Bo speaks.");
+      expect(stored(id)).not.toContain("vertep_plan");
+      expect(stored(id)).not.toContain("knows:");
+    }
+  });
+
+  it("with the fast tag in the same reply, the plan goes and the state report is kept as before", async () => {
+    setMode("fast");
+    const mock = mockHost();
+    const id = await newChat(mock);
+    say(mock, PLAN(PLAN_BODY) + "\nShe nods.\n" + TAG(STATE));
+    const r = await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello" } });
+    const msg = r.json.reply as { id: string; text: string };
+    expect(msg.text).toBe("She nods.");
+    expect(readFast(id).entries[msg.id + "#0"].body).toBe(STATE);
+    expect(stored(id)).not.toContain("vertep_plan");
+  });
+
+  it("a reply without the tag is saved as it was, and the plan is cut from the parts of a tool-using reply", async () => {
+    setMode("sensor");
+    const mock = mockHost();
+    const id = await newChat(mock);
+    say(mock, "No plan here, only <b>story</b>.");
+    const r = await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "one" } });
+    expect((r.json.reply as { text: string }).text).toBe("No plan here, only <b>story</b>.");
+    const parts = [{ type: "text", text: PLAN(PLAN_BODY) + "Let me roll." }, { type: "tool", name: "roll", args: {}, result: "5" }, { type: "text", text: "A five!" }];
+    say(mock, PLAN(PLAN_BODY) + "Let me roll.\nA five!", parts);
+    await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "roll" } });
+    const saved = lines(id).at(-1);
+    expect(saved.text).toBe("Let me roll.\nA five!");
+    expect(saved.extra.parts).toEqual([{ type: "text", text: "Let me roll." }, parts[1], parts[2]]);
+    expect(stored(id)).not.toContain("vertep_plan");
+  });
+
+  it("a Stop in the middle of the plan keeps no piece of it; a Stop after it keeps the story", async () => {
+    const mock = mockHost();
+    const id = await newChat(mock);
+    const cut = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "<vertep_plan>\nAria knows: the pass", userText: "hi" } });
+    expect(cut.status).toBe(400);
+    const kept = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: PLAN(PLAN_BODY) + "\nHalf a sen", userText: "hi" } });
+    expect(kept.status).toBe(200);
+    expect(lines(id).at(-1).text).toBe("Half a sen");
+    expect(stored(id)).not.toContain("vertep_plan");
   });
 });

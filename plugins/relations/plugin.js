@@ -76,6 +76,8 @@ const PLACES_LIMIT = 2000;
 const SCENES_LIMIT = 200;
 // one turn moves the clock at most this far (a night's sleep fits)
 const MAX_MINUTES = 720;
+// a stated time of day this many minutes before the clock (and no new day number) is the next day
+const NEW_DAY_BACK = 180;
 const CHAT_ID = /^[A-Za-z0-9_-]{1,120}$/;
 
 // ---------- vocabulary of the physics ----------
@@ -90,6 +92,52 @@ const TRAIT_KEYS = ["dominance", "confidence", "shyness", "patience", "curiosity
 const SPECTRUM_KEYS = ["introvert_extrovert", "cautious_reckless", "reserved_emotional", "lawful_rebellious", "suspicious_trusting", "pessimist_optimist"];
 // above this shyness, trust and comfort grow at most +1 per turn
 const SHYNESS_BRAKE = 60;
+
+// The words of a soul's fixed temperament in the prompt: a trait at 70 or more takes its high word, at 30 or less its
+// low word; a spectrum below 25 or above 75 takes its word plainly, 25..44 and 56..75 as "rather <word>" (the bands of
+// the soul editor, src/lib/soul.ts spectrumBand); the middle says nothing.
+const TRAIT_WORDS = {
+  dominance: ["yielding", "dominant"],
+  confidence: ["self-doubting", "self-assured"],
+  shyness: ["bold", "shy"],
+  patience: ["impatient", "patient"],
+  curiosity: ["incurious", "curious"],
+};
+const SPECTRUM_WORDS = {
+  introvert_extrovert: ["introverted", "outgoing"],
+  cautious_reckless: ["cautious", "reckless"],
+  reserved_emotional: ["reserved", "emotional"],
+  lawful_rebellious: ["law-abiding", "rebellious"],
+  suspicious_trusting: ["suspicious of people", "trusting"],
+  pessimist_optimist: ["pessimistic", "optimistic"],
+};
+
+/**
+ * The soul's fixed temperament as one prompt line, or "" when nothing in it leans: "Temperament: dominant, rather
+ * reserved, rather suspicious of people." The traits and spectra otherwise only tilt the numbers, and the story model
+ * never saw them.
+ */
+export function temperamentLine(soul) {
+  if (!isObj(soul)) return "";
+  const words = [];
+  const traits = isObj(soul.traits) ? soul.traits : {};
+  for (const k of TRAIT_KEYS) {
+    const v = num(traits[k]);
+    if (!Number.isFinite(v)) continue;
+    if (v >= 70) words.push(TRAIT_WORDS[k][1]);
+    else if (v <= 30) words.push(TRAIT_WORDS[k][0]);
+  }
+  const spectra = isObj(soul.spectra) ? soul.spectra : {};
+  for (const k of SPECTRUM_KEYS) {
+    const v = num(spectra[k]);
+    if (!Number.isFinite(v)) continue;
+    const side = v < 45 ? 0 : v > 55 ? 1 : -1;
+    if (side < 0) continue;
+    const far = v < 25 || v > 75;
+    words.push((far ? "" : "rather ") + SPECTRUM_WORDS[k][side]);
+  }
+  return words.length ? "Temperament: " + words.join(", ") + "." : "";
+}
 
 // [family, id, meaning, deltas]; Sergey tunes these later, a user file can replace any of them
 const EVENT_ROWS = [
@@ -562,6 +610,14 @@ const OUTFIT_RULE =
 const LAYOUT_RULE =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. A worn or held thing that is put down goes to remove in outfit or holding and to objects add with where it lies (\"on the sofa\"); a thing picked up leaves objects. A body or a fallen thing is an object too.";
 
+// The character journal (Dashboard, docs/JOURNAL-HANDOFF.md): what a character thinks now, and how it sees the people it knows.
+// The journal text is in the story's language, an exception to the Language rule of the sensor prompt; one constant to switch.
+export const JOURNAL_LANGUAGE = "in the language the story is written in (an exception to the Language rule above)";
+export const JOURNAL_THOUGHT_RULE =
+  "- thought (inside chars): for each present character, one short line in first person, " + JOURNAL_LANGUAGE + ": what they think or feel right now about what just happened, in their own voice and true to who they are. Never repeat an earlier thought; write it from the new messages only. Leave it out when the new messages give them nothing to think about. Written from the character's own values, not from whether the user's character would like it: a grudge, a doubt or mixed feelings are fine.";
+export const JOURNAL_PEOPLE_RULE =
+  "- people: when the new messages change how a present character sees someone (another character, or the user's character), one short line in first person, " + JOURNAL_LANGUAGE + ", on how they see that person now, with the reason the text shows. Only a real change; most turns have none; at most 2 per turn. It replaces their earlier line about that person. Written from the character's own values, not from what the user's character would like.";
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -589,6 +645,7 @@ export const DEFAULT_PROMPTS = {
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
+    JOURNAL_THOUGHT_RULE,
     OUTFIT_RULE,
     LAYOUT_RULE,
     "",
@@ -602,6 +659,7 @@ export const DEFAULT_PROMPTS = {
     "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who: the character who learned it, one of those present and never the user's character; what: the fact), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
     SAID_RULE,
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+    JOURNAL_PEOPLE_RULE,
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
     "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
@@ -642,8 +700,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
+const SENSOR_PROMPT_16 = DEFAULT_PROMPTS.sensor.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
 // The fifteenth sensor prompt (before the outfit and layout rules: clothes were rewritten from whatever the new text mentioned, #185).
-const SENSOR_PROMPT_15 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE + "\n" + LAYOUT_RULE + "\n", "");
+const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE + "\n" + LAYOUT_RULE + "\n", "");
 // The fourteenth sensor prompt (before threads became quests with kinds and steps, #117).
 const SENSOR_PROMPT_14 = SENSOR_PROMPT_15.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
 // The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
@@ -705,16 +765,19 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
-const OUTPUT_SHAPE = [
+// the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
+const SHAPE_THOUGHT = ", \"thought\": \"text\"";
+const SHAPE_PEOPLE = "  \"people\": [ { \"who\": \"name\", \"about\": \"name or user\", \"text\": \"text\" } ],";
+export const OUTPUT_SHAPE = [
   "{ \"present\": [\"name\"], \"struck\": [\"name\"],",
   "  \"minutes\": 0, \"time\": \"HH:MM or dawn|morning|late morning|day|evening|night\", \"day\": 1, \"date\": \"YYYY-MM-DD\",",
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"holding\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\" } },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"holding\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
   "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
@@ -722,9 +785,12 @@ const OUTPUT_SHAPE = [
   "  \"retire\": [\"entry id\"],",
   "  \"names\": [ { \"who\": \"name\", \"heardUserName\": true, \"calls\": \"text\" } ],",
   "  \"threads\": { \"open\": [ { \"id\": \"t1 or null\", \"text\": \"...\", \"kind\": \"main|side|everyday\", \"parent\": \"main thread id, only for a step\" } ], \"resolved\": [\"thread id\"] },",
+  SHAPE_PEOPLE,
   "  \"blindSpot\": { \"name\": \"text\" },",
   "  \"edges\": [ { \"from\": \"name\", \"to\": \"name\", \"role\": \"word\", \"warmth\": \"word\" } ] }",
 ].join("\n");
+// the same shape with the journal left out: what a sensor is asked when the journal is off (one source: derived from OUTPUT_SHAPE)
+export const OUTPUT_SHAPE_NO_JOURNAL = OUTPUT_SHAPE.replace(SHAPE_THOUGHT, "").replace(SHAPE_PEOPLE + "\n", "");
 
 // ---------- tiny utils ----------
 const readJson = (fsx, path, dflt) => {
@@ -1494,7 +1560,8 @@ function emptyState(chatId) {
     names: {},
     history: {},
     said: {},
-    counters: { note: 0, thread: 0, said: 0, proposal: 0 },
+    journal: {},
+    counters: { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 },
     proposals: [],
     removed: [],
     lastError: null,
@@ -1506,7 +1573,7 @@ function emptyState(chatId) {
 function normalizeState(raw, chatId) {
   const base = emptyState(chatId);
   const st = { ...base, ...(isObj(raw) ? raw : {}), v: 2, chatId };
-  for (const k of ["snapshots", "places", "notebook", "names", "history", "said"]) if (!isObj(st[k])) st[k] = {};
+  for (const k of ["snapshots", "places", "notebook", "names", "history", "said", "journal"]) if (!isObj(st[k])) st[k] = {};
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
@@ -1586,8 +1653,18 @@ function buildInherit(fsx, chatId) {
     const kept = arr(list).filter((s) => isObj(s) && str(s.text)).map((s) => ({ ...s, src: INHERIT_KEY, fromChat: from }));
     if (kept.length) said[name] = kept;
   }
+  // the people lines as they stand (the newest one per person): kept like what the characters said, the thoughts are not carried
+  const journal = {};
+  for (const [name, list] of Object.entries(effectiveJournal(end.state, end.keys))) {
+    const kept = arr(list).map((j) => ({ ...j, src: INHERIT_KEY, fromChat: from }));
+    if (kept.length) journal[name] = kept;
+  }
   const threads = effectiveThreads(end.overlay, end.snap.threads, end.snap.turn).filter((t) => t.status === "open" && str(t.text));
   const { sig: _s, base: _b, partial: _p, fast: _f, ...snap } = end.snap;
+  // the thought is not carried: a character's last thought belongs to the chat it was written in
+  const chars = isObj(snap.chars)
+    ? Object.fromEntries(Object.entries(snap.chars).map(([n, c]) => { const { thought: _t, thoughtTurn: _w, ...rest } = isObj(c) ? c : {}; return [n, rest]; }))
+    : snap.chars;
   return {
     inherited: {
       v: 1,
@@ -1597,11 +1674,12 @@ function buildInherit(fsx, chatId) {
       turn: end.snap.turn || 0,
       notes,
       threads: threads.length,
-      snap: { ...snap, op: "inherit", events: [], threads },
+      snap: { ...snap, chars, op: "inherit", events: [], threads },
     },
     notebook,
     names,
     said,
+    journal,
     counters: end.state.counters,
     calendar: isObj(end.state.calendar) ? end.state.calendar : null,
   };
@@ -1609,13 +1687,14 @@ function buildInherit(fsx, chatId) {
 
 function applyInherit(state, seed) {
   state.inherited = seed.inherited;
-  for (const bag of ["notebook", "names", "said"]) {
+  for (const bag of ["notebook", "names", "said", "journal"]) {
+    state[bag] = isObj(state[bag]) ? state[bag] : {};
     for (const [name, list] of Object.entries(seed[bag] || {})) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
   }
   // the date of day 1 goes on from the earlier chat, unless the chat has a calendar of its own
   if (isObj(seed.calendar) && !(isObj(state.calendar) && state.calendar.inherited !== true)) state.calendar = { ...seed.calendar, inherited: true };
   // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
-  for (const k of ["note", "thread", "said"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
+  for (const k of ["note", "thread", "said", "journal"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
 }
 
 /** Switch the carried state off: the chat starts clean. The choice stays, so it is not offered again. */
@@ -1623,8 +1702,8 @@ function dropInherit(state) {
   const was = isObj(state.inherited) ? state.inherited : {};
   state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", notes: was.notes || 0, threads: was.threads || 0, at: Date.now() };
   if (isObj(state.calendar) && state.calendar.inherited === true) delete state.calendar;
-  for (const bag of ["notebook", "names", "said"]) {
-    for (const name of Object.keys(state[bag])) {
+  for (const bag of ["notebook", "names", "said", "journal"]) {
+    for (const name of Object.keys(state[bag] || {})) {
       state[bag][name] = arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY);
       if (!state[bag][name].length) delete state[bag][name];
     }
@@ -1671,6 +1750,43 @@ const activeBySrc = (bag, keys) => {
 };
 export const activeNames = (state, keys) => activeBySrc(state.names, keys);
 export const activeHistory = (state, keys) => activeBySrc(state.history, keys);
+
+/**
+ * The people lines as they count: the active ones, one per (who, about) with the about compared case-insensitively.
+ * A line the user wrote wins over any sensor line; otherwise the newest (the later one in the bag: the bag is in
+ * the order the lines were written, carried lines first). Returns { who: [{ about, text, by, turn, id }] }, each
+ * person's lines in the order of the winners.
+ */
+export function effectiveJournal(state, keys) {
+  const out = {};
+  for (const [who, list] of Object.entries(activeBySrc(state.journal, keys))) {
+    const best = new Map();
+    list.forEach((line, pos) => {
+      if (!isObj(line) || !str(line.text) || !str(line.about)) return;
+      const k = str(line.about).toLowerCase();
+      // a user line is never replaced by a sensor line; otherwise the later one in the bag wins
+      const cur = best.get(k);
+      if (!cur || line.by === "user" || cur.line.by !== "user") best.set(k, { line, pos });
+    });
+    const winners = [...best.values()]
+      .sort((a, b) => a.pos - b.pos)
+      .map(({ line }) => ({ about: str(line.about), text: str(line.text), by: line.by === "user" ? "user" : "sensor", turn: Number(line.turn) || 0, id: line.id }));
+    if (winners.length) out[who] = winners;
+  }
+  return out;
+}
+
+/** How many sensor lines about one person a character keeps in the bag (the older ones go, so a swipe can show the one before). */
+const JOURNAL_KEEP = 4;
+function keepJournalLines(state, who, about) {
+  const bag = listIn(state.journal, who);
+  const mine = bag.filter((x) => x.by !== "user" && str(x.about).toLowerCase() === about.toLowerCase());
+  const extra = mine.length - JOURNAL_KEEP;
+  if (extra > 0) {
+    const gone = new Set(mine.slice(0, extra));
+    state.journal[who] = bag.filter((x) => !gone.has(x));
+  }
+}
 
 /** FNV-1a 32-bit over the message texts, 8 hex chars: tells whether the newest message was edited or continued. */
 function textSig(msgs) {
@@ -1738,6 +1854,7 @@ export function scenesOf(state, keys) {
 /** Remove everything the snapshot of key K wrote (a re-sense starts clean). Counters stay. */
 function dropSnapshot(state, K) {
   delete state.snapshots[K];
+  if (isObj(state.leaks)) delete state.leaks[K];
   if (isObj(state.places)) delete state.places[K];
   for (const [name, notes] of Object.entries(state.notebook)) {
     const kept = arr(notes).filter((n) => n.src !== K);
@@ -1745,7 +1862,7 @@ function dropSnapshot(state, K) {
     if (kept.length) state.notebook[name] = kept;
     else delete state.notebook[name];
   }
-  for (const bag of [state.names, state.history]) {
+  for (const bag of [state.names, state.history, state.journal || {}]) {
     for (const [name, list] of Object.entries(bag)) {
       const kept = arr(list).filter((x) => x.src !== K);
       if (kept.length) bag[name] = kept;
@@ -2178,8 +2295,13 @@ const DEFAULT_CONFIG = {
   injection: { enabled: true, maxTokens: 300 },
   // what characters said (#98): how many strong statements a turn may add, and whether they go into the reply prompt
   said: { perTurn: 1, inject: true },
+  // the character journal (Dashboard): a thought and people lines from the sensor; on = asked for and kept, inject = in the reply prompt,
+  // thoughtTurns = turns a thought stays fresh, maxTokens = the budget per focused character in the reply prompt
+  journal: { on: true, inject: true, thoughtTurns: 3, maxTokens: 120 },
   // where everyone stands, the objects in the scene and what is worn or held (#185): whether the reply prompt carries it
   layout: { inject: true },
+  // a check of replies for a character acting on a secret it does not know (#184 P3): on, a quiet badge under the reply
+  leakCheck: true,
   catchUp: true,
   // rate a card's main characters by itself when it has no soul yet
   autoSoul: true,
@@ -2222,9 +2344,21 @@ const mergeConfig = (stored) => ({
   families: { ...DEFAULT_CONFIG.families, ...(isObj(stored.families) ? stored.families : {}) },
   injection: { ...DEFAULT_CONFIG.injection, ...(isObj(stored.injection) ? stored.injection : {}) },
   said: { ...DEFAULT_CONFIG.said, ...(isObj(stored.said) ? stored.said : {}) },
+  journal: { ...DEFAULT_CONFIG.journal, ...(isObj(stored.journal) ? stored.journal : {}) },
   layout: { ...DEFAULT_CONFIG.layout, ...(isObj(stored.layout) ? stored.layout : {}) },
 });
 export const saidPerTurnOf = (cfg) => clamp(Math.round(num(cfg && cfg.said && cfg.said.perTurn)) || DEFAULT_CONFIG.said.perTurn, 1, 4);
+/** The journal is on unless the config says off (a chat without the setting is on). */
+export const journalOnOf = (cfg) => !(cfg && isObj(cfg.journal) && cfg.journal.on === false);
+export const journalInjectOf = (cfg) => !(cfg && isObj(cfg.journal) && cfg.journal.inject === false);
+export const thoughtTurnsOf = (cfg) => {
+  const n = num(cfg && cfg.journal && cfg.journal.thoughtTurns);
+  return Number.isFinite(n) ? clamp(Math.round(n), 1, 10) : DEFAULT_CONFIG.journal.thoughtTurns;
+};
+export const journalTokensOf = (cfg) => {
+  const n = num(cfg && cfg.journal && cfg.journal.maxTokens);
+  return Number.isFinite(n) ? clamp(Math.round(n), 40, 400) : DEFAULT_CONFIG.journal.maxTokens;
+};
 const loadConfig = (fsx) => mergeConfig(storedConfig(fsx));
 const customPrompts = (fsx) => {
   const stored = storedConfig(fsx);
@@ -2292,6 +2426,7 @@ function nextConfig(stored, b) {
     put("sensorParts", sp, {});
   }
   if (b.mode === "sensor" || b.mode === "fast" || b.mode === "manual") put("mode", b.mode, DEFAULT_CONFIG.mode);
+  if (parseBool(b.leakCheck) !== undefined) put("leakCheck", parseBool(b.leakCheck), DEFAULT_CONFIG.leakCheck);
   if (parseBool(b.catchUp) !== undefined) put("catchUp", parseBool(b.catchUp), DEFAULT_CONFIG.catchUp);
   if (parseBool(b.autoSoul) !== undefined) put("autoSoul", parseBool(b.autoSoul), DEFAULT_CONFIG.autoSoul);
   if (parseBool(b.debug) !== undefined) put("debug", parseBool(b.debug), DEFAULT_CONFIG.debug);
@@ -2317,6 +2452,15 @@ function nextConfig(stored, b) {
     if (parseBool(b.said.inject) !== undefined) sd.inject = parseBool(b.said.inject);
     for (const k of Object.keys(sd)) if (sd[k] === DEFAULT_CONFIG.said[k]) delete sd[k];
     put("said", sd, {});
+  }
+  if (isObj(b.journal)) {
+    const jo = { ...(isObj(next.journal) ? next.journal : {}) };
+    if (parseBool(b.journal.on) !== undefined) jo.on = parseBool(b.journal.on);
+    if (parseBool(b.journal.inject) !== undefined) jo.inject = parseBool(b.journal.inject);
+    if (Number.isFinite(num(b.journal.thoughtTurns))) jo.thoughtTurns = thoughtTurnsOf({ journal: b.journal });
+    if (Number.isFinite(num(b.journal.maxTokens))) jo.maxTokens = journalTokensOf({ journal: b.journal });
+    for (const k of Object.keys(jo)) if (jo[k] === DEFAULT_CONFIG.journal[k]) delete jo[k];
+    put("journal", jo, {});
   }
   if (isObj(b.layout)) {
     const lo = { ...(isObj(next.layout) ? next.layout : {}) };
@@ -2349,11 +2493,18 @@ function vocabularyText(vocab, cfg) {
     .join("\n");
 }
 
+/** A line taken out of a sensor text (a user-edited text may not have it at all). */
+const withoutLine = (text, line) => String(text).split("\n").filter((l) => l !== line).join("\n");
+/** The sensor text as asked: with the journal off, its two rule lines are left out. */
+const journalFree = (cfg, text) => (journalOnOf(cfg) ? text : withoutLine(withoutLine(text, JOURNAL_THOUGHT_RULE), JOURNAL_PEOPLE_RULE));
+/** The output shape as asked: without thought and people when the journal is off. */
+const shapeFor = (cfg) => (journalOnOf(cfg) ? OUTPUT_SHAPE : OUTPUT_SHAPE_NO_JOURNAL);
+
 function sensorSystem(cfg, vocab) {
   return (
-    promptOf("sensor", cfg) +
+    journalFree(cfg, promptOf("sensor", cfg)) +
     "\n\nEvent vocabulary\n" + vocabularyText(vocab, cfg) +
-    "\n\nOutput shape\n" + OUTPUT_SHAPE +
+    "\n\nOutput shape\n" + shapeFor(cfg) +
     "\nLeave out any key the new messages give nothing for. date: only a whole date the text states (day, month and year), never a guess."
   );
 }
@@ -2367,6 +2518,26 @@ function clockLine(c, cal) {
 }
 
 const objectText = (o) => o.item + (o.where ? " (" + o.where + ")" : "");
+
+/**
+ * The people lines of the Previous state: each present character's view of the player and of the others present.
+ * Never a thought: the sensor must not see the last one, or it would copy it (docs/JOURNAL-HANDOFF.md).
+ */
+function journalPreviousLines(ctx, B) {
+  const gone = arr(ctx.drop);
+  const eff = effectiveJournal(ctx.state, arr(ctx.line).map((l) => l.key).filter((k) => !gone.includes(k)));
+  const present = arr(B.present);
+  const me = String(ctx.userName || "").toLowerCase();
+  const out = [];
+  for (const name of present) {
+    for (const j of arr(eff[name])) {
+      const about = j.about.toLowerCase();
+      if (about !== me && !present.some((p) => String(p).toLowerCase() === about)) continue;
+      out.push(name + "'s view of " + j.about + ": " + j.text.replace(/[.!?]+$/, "") + ".");
+    }
+  }
+  return out;
+}
 
 function previousStateText(ctx) {
   const B = ctx.base && ctx.base.snap;
@@ -2392,6 +2563,7 @@ function previousStateText(ctx) {
     if (B.layout.userAt) lines.push(ctx.userName + ": " + B.layout.userAt + ".");
     if (arr(B.layout.objects).length) lines.push("Objects here: " + B.layout.objects.map(objectText).join("; ") + ".");
   }
+  if (journalOnOf(ctx.cfg)) lines.push(...journalPreviousLines(ctx, B));
   const open = arr(ctx.threads).filter((t) => t.status === "open");
   if (open.length) lines.push("Open threads: " + open.map(threadLabel).join(", "));
   lines.push(limitsLine(ctx.cfg, ctx.threads));
@@ -2523,6 +2695,170 @@ function castText(ctx) {
   return "Characters\nuser: " + ctx.userName + ". " + classes + ".";
 }
 
+// ---------- #184 P3: does a reply let a character act on a secret it does not know? ----------
+// Step A is code: the restricted facts of the Litopys record (a list of who knows them) that the new messages
+// resemble, paired with a present character who is not among the knowers. Step B is the sensor's call, or, in fast mode,
+// a small call of its own made only when step A found something. A hit is kept per reply key; until the user answers,
+// what that character learned in the reply is not written to its notebook, and the chapter worker does not grow
+// the character's knowledge of the fact (Litopys reads the open hits).
+const LEAK_MAX = 5;
+const LEAK_KEEP = 40;
+const LEAK_STATUS = ["open", "found", "ignored"];
+
+/** The content words of a text as 5-letter prefixes, so an ending does not matter (Russian and English alike). */
+const leakStems = (text) => unique(String(text || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4).map((w) => w.slice(0, 5)));
+
+/** How many of the fact's content words the text carries. */
+function leakOverlap(fact, text) {
+  const mine = leakStems(fact);
+  const there = new Set(leakStems(text));
+  return { hits: mine.filter((w) => there.has(w)).length, total: mine.length };
+}
+const leakCovers = (o) => o.total >= 2 && o.hits >= Math.max(1, Math.ceil(o.total * 0.34));
+
+/**
+ * Step A. facts: [{id, text, knownBy}] (restricted ones: knownBy a list); reply and userText are the new messages' text;
+ * people: names that may be at fault; speakers: who wrote the reply. A fact the player's own new text already says is
+ * skipped (the player told it).
+ */
+export function leakCandidates({ facts, reply, userText, people, speakers, userNames }) {
+  const lc = (n) => str(n).toLowerCase();
+  const users = new Set(arr(userNames).map(lc));
+  const out = [];
+  for (const f of arr(facts)) {
+    if (!isObj(f) || !str(f.text) || !Array.isArray(f.knownBy) || !f.knownBy.length) continue;
+    const o = leakOverlap(f.text, reply);
+    if (!leakCovers(o) || leakCovers(leakOverlap(f.text, userText))) continue;
+    const knows = new Set(f.knownBy.map(lc));
+    for (const y of unique(arr(people).map(str).filter(Boolean))) {
+      if (users.has(lc(y)) || knows.has(lc(y))) continue;
+      if (!arr(speakers).some((n) => lc(n) === lc(y)) && !mentions(reply, y)) continue;
+      out.push({ who: y, factId: str(f.id), text: cut(str(f.text), 200), score: o.hits / o.total });
+    }
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, LEAK_MAX).map(({ score, ...c }) => c);
+}
+
+/** The Litopys facts only some know, for this chat: [{id, text, knownBy}]. */
+function restrictedFacts(fsx, chatId) {
+  const st = readJson(fsx, "litopys/chats/" + chatId + ".json", null);
+  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
+}
+
+/** The candidates of this update, [] when the check is off or nothing resembles a restricted fact. */
+function leakCandidatesOf(fsx, chatId, cfg, base, newMsgs, userNames, characters) {
+  if (cfg.leakCheck === false) return [];
+  const facts = restrictedFacts(fsx, chatId);
+  if (!facts.length) return [];
+  const users = new Set(arr(userNames).map((n) => str(n).toLowerCase()));
+  const isUser = (m) => m.role === "user" || users.has(str(m.name).toLowerCase());
+  const reply = arr(newMsgs).filter((m) => !isUser(m)).map((m) => str(m.text)).join("\n");
+  if (!reply) return [];
+  const speakers = unique(arr(newMsgs).filter((m) => !isUser(m)).map((m) => str(m.name)).filter(Boolean));
+  const people = unique([...(base && base.snap ? arr(base.snap.present) : []), ...speakers, ...arr(characters)]).filter((n) => !/^(narrator|system|assistant|game master|gm|dm)$/i.test(str(n)));
+  return leakCandidates({ facts, reply, userText: arr(newMsgs).filter(isUser).map((m) => str(m.text)).join("\n"), people, speakers, userNames });
+}
+
+const leakLabel = (i) => "L" + (i + 1);
+
+/** The part of the sensor's input that asks for step B; "" when there is nothing to check. */
+function leakCheckText(ctx) {
+  const c = arr(ctx.leakCands);
+  if (!c.length) return "";
+  return [
+    "Leak check: also add \"leaks\" to your JSON: [{\"id\": \"L1\", \"quote\": \"the shortest quote from the new messages\"}]. Each line below names a character and a fact that character does NOT know in the story. List a line only when the new messages show that character speaking, thinking or acting as if they knew that fact. A guess that only resembles it, or a fact told to the character in the new messages, is not a leak. Leave \"leaks\" out when there is none.",
+    ...c.map((x, i) => leakLabel(i) + ": " + x.who + " does not know: " + x.text),
+  ].join("\n");
+}
+
+/** The model's list, kept only for the candidates it names by id. */
+export function cleanLeaks(raw, cands) {
+  const out = [];
+  for (const l of arr(raw)) {
+    const m = isObj(l) ? /L(\d+)/i.exec(str(l.id) || str(l.fact)) : null;
+    const c = m ? arr(cands)[Number(m[1]) - 1] : null;
+    if (!c || out.some((x) => x.who === c.who && x.factId === c.factId)) continue;
+    out.push({ who: c.who, factId: c.factId, text: c.text, quote: cut(str(l.quote), 240), status: "open" });
+  }
+  return out.slice(0, LEAK_MAX);
+}
+
+/** Keep the hits of the reply at key K (a re-read replaces them); the oldest keys fall off. */
+function recordLeaks(state, K, items, now) {
+  const all = isObj(state.leaks) ? { ...state.leaks } : {};
+  if (items.length) all[K] = { at: now, items };
+  else delete all[K];
+  const keys = Object.keys(all).sort((a, b) => num(all[a].at) - num(all[b].at));
+  for (const k of keys.slice(0, Math.max(0, keys.length - LEAK_KEEP))) delete all[k];
+  state.leaks = all;
+}
+
+/** What a hit holds back: the notes the leaking character wrote in this reply, which would make it canon. */
+function holdLeakNotes(state, K, items) {
+  for (const who of unique(arr(items).map((i) => i.who))) {
+    const kept = arr(state.notebook[who]).filter((n) => n.src !== K);
+    if (kept.length) state.notebook[who] = kept;
+    else delete state.notebook[who];
+  }
+}
+
+/** The open hits of the replies on the active line, for the badge: [{key, msgId, swipe, who, factId, text, quote}]. */
+function openLeaks(state, keys) {
+  const on = new Set(keys);
+  const out = [];
+  for (const [key, rec] of Object.entries(isObj(state.leaks) ? state.leaks : {})) {
+    if (!on.has(key) || !isObj(rec)) continue;
+    const at = key.lastIndexOf("#");
+    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open") out.push({ key, msgId: key.slice(0, at), swipe: Number(key.slice(at + 1)) || 0, who: str(it.who), factId: str(it.factId), text: str(it.text), quote: str(it.quote) });
+  }
+  return out;
+}
+
+/** POST /dashboard/leak { chatId, key, who, factId, op: "found" | "ignore" }: the user's answer to a badge. */
+function leakRoute(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const op = str(b.op);
+  if (op !== "found" && op !== "ignore") return ok({ error: "op must be found or ignore" }, 400);
+  const { state, existed, before } = loadStateFor(fsx, chatId);
+  const rec = existed && isObj(state.leaks) ? state.leaks[str(b.key)] : null;
+  const item = isObj(rec) ? arr(rec.items).find((i) => isObj(i) && i.who === str(b.who) && i.factId === str(b.factId) && i.status === "open") : null;
+  if (!item) return ok({ error: "no such open hit" }, 404);
+  item.status = op === "found" ? "found" : "ignored";
+  item.answeredAt = Date.now();
+  saveState(fsx, { chatId, state, before });
+  return ok({ ok: true, leaks: openLeaks(state, activeLine((readChat(fsx, chatId) || { msgs: [] }).msgs).map((l) => l.key)) });
+}
+
+/** Fast mode, the second pass: the small call's answer for the reply that was just committed. */
+function finishLeakCheck(host, input) {
+  const fsx = host.fs;
+  const check = input.leakCheck;
+  const r = host.llm.results.leak;
+  const { state, existed, before } = loadStateFor(fsx, input.chatId);
+  // nothing usable (a failed call, an edit since): the reply simply goes unchecked
+  if (!existed || !r || r.error || !isObj(state.snapshots[check.key])) return ok({ ok: true, leakCheck: "skipped" });
+  const out = parseSensorText(r.text);
+  const hits = cleanLeaks(out && out.leaks, check.cands);
+  if (!hits.length) return ok({ ok: true, leakCheck: "clear" });
+  holdLeakNotes(state, check.key, hits);
+  recordLeaks(state, check.key, hits, Date.now());
+  saveState(fsx, { chatId: input.chatId, state, before });
+  return ok({ ok: true, leakCheck: "hit", leaks: hits.length });
+}
+
+/** Fast mode: the small call made only when step A found candidates. */
+function askLeakCheck(host, ctx) {
+  const model = str(ctx.cfg.sensorModel) || str(ctx.meta.model);
+  host.llm.request("leak", {
+    ...(model ? { model } : {}),
+    systemPrompt: "You check a roleplay for one kind of mistake: a character acting on a secret they do not know. Answer with JSON only.",
+    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\nNew messages\n" + arr(ctx.newMsgs).map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || "narrator") + "] " + cut(str(m.text), 1500)).join("\n") }],
+    ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0),
+  });
+}
+
 function sensorUser(ctx) {
   return [
     castText(ctx),
@@ -2530,6 +2866,7 @@ function sensorUser(ctx) {
     ...notebookTexts(ctx),
     ...[threadCheckText(ctx)].filter(Boolean),
     ...[backdropText(ctx)].filter(Boolean),
+    ...[leakCheckText(ctx)].filter(Boolean),
     newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }
@@ -2671,13 +3008,18 @@ export function advanceClock(prevClock, out, op) {
   const c = { day: 1, time: null, minutes: 0, band: null, place: null, weather: null, ...(prevClock || {}) };
   // the date is worked out from the chat's calendar when the clock is read, never kept in a snapshot
   delete c.date;
+  const prevDay = c.day;
+  const prevTotal = c.time ? Number(c.time.split(":")[0]) * 60 + Number(c.time.split(":")[1]) : null;
   const day = num(out.day);
   // the day count only goes forward: a model that writes "day 1" in a continued chat does not set it back
   if (Number.isFinite(day) && day >= c.day) c.day = Math.floor(day);
+  // where the time the text states falls on the clock (minutes after midnight), or null when it states none
+  let stated = null;
   const t = str(out.time);
   const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
   if (hm && Number(hm[1]) < 24 && Number(hm[2]) < 60) {
     c.time = pad2(Number(hm[1])) + ":" + hm[2];
+    stated = Number(hm[1]) * 60 + Number(hm[2]);
     delete c.approx;
   } else if (BAND_WORDS.includes(t.toLowerCase())) {
     const band = t.toLowerCase();
@@ -2685,8 +3027,13 @@ export function advanceClock(prevClock, out, op) {
     if (!(c.time && bandOfHour(Number(c.time.split(":")[0])) === band)) {
       c.band = band;
       c.time = null;
+      stated = BAND_ANCHOR[band];
     }
   }
+  // a time of day well before the clock's, with no new day number: the story went past midnight ("the next morning",
+  // "07:00" after 23:00). Without this the clock rewinds inside the same day and every date after it is a day short (#207).
+  // A small step back is the sensor correcting itself and stays on the same day.
+  if (stated !== null && prevTotal !== null && c.day === prevDay && prevTotal - stated > NEW_DAY_BACK) c.day += 1;
   if (!c.time && c.band && BAND_ANCHOR[c.band] !== undefined) {
     c.time = hhmm(BAND_ANCHOR[c.band]);
     c.approx = true;
@@ -3109,6 +3456,11 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   entry.prevConstellation = old ? (oldC !== entry.constellation ? oldC : old.prevConstellation ?? null) : null;
   entry.moodWas = old && old.mood && old.mood !== entry.mood ? old.mood : old ? old.moodWas ?? null : null;
   entry.blindSpot = str(blind) ? cut(str(blind), 300) : old ? old.blindSpot ?? null : null;
+  // the journal's thought (#journal): written this turn only for a character present now; otherwise the last one stays
+  // with its turn (not in TEXT_FIELDS: those count as fresh, and a thought is fresh only when it is written this turn)
+  const thinks = journalOnOf(ctx.cfg) && arr(ctx.presentNow).includes(name) && isObj(sensorChar) && !!str(sensorChar.thought);
+  entry.thought = thinks ? cut(str(sensorChar.thought), 200) : old ? old.thought ?? null : null;
+  entry.thoughtTurn = thinks ? (B ? B.turn || 0 : 0) + 1 : old ? old.thoughtTurn ?? null : null;
   entry.compact = false;
   // the math lines belong to the events that caused them; caps go on the last one
   let last = -1;
@@ -3313,6 +3665,47 @@ function applySaid(ctx, out, present, turn, K) {
   }
 }
 
+const JOURNAL_PER_TURN = 2;
+/**
+ * The people lines of a turn (the journal): how a present character sees the player or one other person known, at
+ * most two a turn. A line for a character who is not in the scene, or from the player's own character, is kept out
+ * and counted (keptOut), as notes are. The text of a line the effective one already says is not written again.
+ */
+function applyJournal(ctx, out, present, turn, K) {
+  if (!journalOnOf(ctx.cfg)) return;
+  const { state } = ctx;
+  const B = ctx.base && ctx.base.snap;
+  const eff = effectiveJournal(state, ctx.line.map((l) => l.key));
+  const kept = ctx.keptOut || { user: 0, absent: 0 };
+  ctx.keptOut = kept;
+  const known = unique([...present, ...Object.keys(isObj(state.notebook) ? state.notebook : {}), ...Object.keys((B && B.chars) || {})]);
+  const items = arr(out.people).filter((p) => isObj(p) && str(p.text)).slice(0, JOURNAL_PER_TURN);
+  for (const p of items) {
+    if (sideOf(p.who, userAll(ctx), present, ctx) === "user") {
+      kept.user++;
+      continue;
+    }
+    const who = canonName(p.who, present, ctx);
+    if (!present.includes(who)) {
+      kept.absent++;
+      continue;
+    }
+    let about;
+    if (sideOf(p.about, userAll(ctx), present, ctx) === "user") about = ctx.userName;
+    else {
+      about = canonName(p.about, known, ctx);
+      if (!known.includes(about)) continue;
+    }
+    if (about.toLowerCase() === who.toLowerCase()) continue;
+    const text = cut(str(p.text), 200);
+    const current = arr(eff[who]).find((j) => j.about.toLowerCase() === about.toLowerCase());
+    if (current && sameText(current.text) === sameText(text)) continue;
+    state.counters.journal = (Number(state.counters.journal) || 0) + 1;
+    listIn(state.journal, who).push({ id: "j" + state.counters.journal, about, text, src: K, turn, by: "sensor" });
+    keepJournalLines(state, who, about);
+  }
+}
+
 function applyNames(ctx, out, present, turn, K) {
   const live = activeNames(ctx.state, ctx.line.map((l) => l.key));
   for (const n of arr(out.names)) {
@@ -3443,6 +3836,8 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const known0 = withTwins.filter((n) => !twins.includes(n));
   const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0, ctx)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n))]);
   const present = scenePresent(ctx, out, known);
+  // charEntry writes a thought only for a character present this turn
+  ctx.presentNow = present;
   const events = readEvents(out.events, ctx, known, unknownIds);
 
   const sensorChars = {};
@@ -3472,6 +3867,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
 
   applyNotebook(ctx, out, present, turn, K);
   applySaid(ctx, out, present, turn, K);
+  applyJournal(ctx, out, present, turn, K);
   applyNames(ctx, out, present, turn, K);
   const clock = advanceClock(B && B.clock, out, op);
   noteCalendar(state, clock.day, out.date, ctx.today);
@@ -3853,6 +4249,7 @@ function planUpdate(fsx, chatId, op) {
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
+    leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names),
   };
 }
 
@@ -3893,6 +4290,9 @@ function commitUpdate(fsx, ctx, r) {
   if (r.error || !str(r.text)) return failUpdate(fsx, ctx, emptyReplyError(r, "the sensor"), { raw: String(r.text || "") });
   const out = parseSensorText(r.text);
   if (!out) return failUpdate(fsx, ctx, "sensor reply was not JSON", { raw: String(r.text) });
+  // a character caught acting on a secret learns nothing from this reply until the user answers (#184 P3)
+  const leakHits = r.fast ? [] : cleanLeaks(out.leaks, ctx.leakCands);
+  if (leakHits.length) out.learned = arr(out.learned).filter((l) => !(isObj(l) && leakHits.some((h) => str(h.who).toLowerCase() === str(l.who).toLowerCase())));
   const unknownIds = [];
   try {
     // every snapshot after the base is read again from it: start from what it wrote
@@ -3910,6 +4310,7 @@ function commitUpdate(fsx, ctx, r) {
       ...(r.fast ? { fast: (num(ctx.state.usage.fast) || 0) + 1 } : {}),
     };
     ctx.state.lastError = null;
+    if (leakHits.length || (isObj(ctx.state.leaks) && ctx.state.leaks[ctx.K])) recordLeaks(ctx.state, ctx.K, leakHits, Date.now());
     // facts the sensor wrote that could not be kept: the dashboard says so until a report keeps all (#97)
     const kept = ctx.keptOut || { user: 0, absent: 0 };
     const lowered = ctx.noQuote || 0;
@@ -3940,6 +4341,8 @@ function dropStale(fsx, ctx) {
  */
 function runUpdate(host, input) {
   const fsx = host.fs;
+  // fast mode, second pass: the leak check's small call (made only when a reply resembled a restricted fact)
+  if (input.leakCheck) return { done: finishLeakCheck(host, input) };
   let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
   // nothing new to read, only stale snapshots: drop them, no call
@@ -3976,7 +4379,14 @@ function runUpdate(host, input) {
   if (!r) {
     // fast mode: the story reply may already carry the report; anything unusable falls through to the sensor
     const fast = fastReply(host, ctx);
-    if (fast) return { done: commitUpdate(fsx, ctx, fast) };
+    if (fast) {
+      const done = commitUpdate(fsx, ctx, fast);
+      if (arr(ctx.leakCands).length && done && done.json && done.json.ok === true) {
+        askLeakCheck(host, ctx);
+        return { pending: carry({ leakCheck: { key: ctx.K, cands: ctx.leakCands } }) };
+      }
+      return { done };
+    }
     askSensor(host, ctx, key);
     return { pending: carry({}) };
   }
@@ -4084,14 +4494,29 @@ const FULL_FOCUS = 3;
 
 const pronounsOf = (soul) => PRONOUNS[soul && soul.pronouns] || PRONOUNS.they;
 const estimateTokens = (s) => Math.ceil(String(s).length / 3.2);
+/** Script-aware estimate (the engine's estimateTokens): ASCII ~3.5 characters a token, other letters ~2, the rest 1. Used for the journal budget only. */
+export function estimateTokensScript(text) {
+  const s = String(text == null ? "" : text);
+  let ascii = 0, alpha = 0, other = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) ascii++;
+    else if (c < 0x2e80) alpha++;
+    else other++;
+  }
+  return Math.ceil(ascii / 3.5 + alpha / 2 + other);
+}
 
 function dayWords(clock, cal) {
   const day = Number(clock && clock.day) || 1;
   const date = dateOf(cal, day);
   if (date) {
-    const exact = clock && clock.time && clock.approx !== true ? ", " + clock.time : "";
-    return dateWords(date) + exact + (clock && clock.band ? ", " + clock.band : "");
+    // an hour worked out from the part of the day is told as "about": left out, the story model made up its own hour
+    // ("it is already noon" while the Dashboard said about 09:00, #207)
+    const hour = clock && clock.time ? ", " + (clock.approx === true ? "about " : "") + clock.time : "";
+    return dateWords(date) + hour + (clock && clock.band ? ", " + clock.band : "");
   }
+  // a hidden date keeps the prompt words only: the day and the part of the day, no digits
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
   const band = clock && clock.band ? cap1(clock.band) : "";
   return band ? band + " of " + which : cap1(which);
@@ -4251,6 +4676,9 @@ function characterBlock(ctx, name, withNotes, limit) {
   // the form of address, when the character knows the name and uses another word
   const asked = arr(ctx.names[name]).slice(-1)[0];
   if (asked && asked.knowsUserName && str(asked.calls) && str(asked.calls).toLowerCase() !== str(user).toLowerCase()) lines.push("Calls " + user + " \"" + cut(str(asked.calls), 100) + "\".");
+  // the fixed temperament of the soul (traits and spectra), so the story model sees who this is, not only the numbers
+  const temper = temperamentLine(soul);
+  if (temper) lines.push(temper);
   if (soul && str(soul.coping)) lines.push("Under strain: " + cut(str(soul.coping), 200) + ".");
   lines.push("]");
   return lines.join("\n");
@@ -4285,6 +4713,50 @@ export function layoutBlock(ctx, present, focus) {
 function compactLine(ctx, name) {
   const c = ctx.snap.chars[name];
   return name + ": " + warmthWord(c.stats) + " toward " + ctx.user + (c.mood ? ", " + c.mood : "") + ".";
+}
+
+/** A thought is fresh while it is written (with its turn) and fewer than thoughtTurns turns old. */
+export function thoughtFreshOf(snap, c, cfg) {
+  if (!isObj(c) || !str(c.thought) || !Number.isFinite(c.thoughtTurn)) return false;
+  return (Number(snap && snap.turn) || 0) - c.thoughtTurn < thoughtTurnsOf(cfg);
+}
+
+/**
+ * "What <name> thinks and feels (journal)" for one character, or "". ctx = { snap, user, state, keys }: the snapshot the
+ * reply stands on, the player's name, the state and the active keys (the people lines come from effectiveJournal).
+ * The thought only while fresh. People lines only about the player or a character present (not <name>): the player's
+ * first, then the others in the order of snap.present. Over journalTokensOf(cfg) (script-aware count) the people lines
+ * go from the end; the thought is never cut.
+ */
+export function journalBlock(ctx, name, cfg) {
+  const snap = isObj(ctx.snap) ? ctx.snap : {};
+  const user = str(ctx.user);
+  const me = user.toLowerCase();
+  const c = isObj(snap.chars) ? snap.chars[name] : null;
+  const thought = thoughtFreshOf(snap, c, cfg) ? str(c.thought) : "";
+  const eff = arr(effectiveJournal(ctx.state, ctx.keys)[name]);
+  const lineAbout = (who) => eff.find((l) => l.about.toLowerCase() === who.toLowerCase());
+  const people = [];
+  const player = me ? lineAbout(user) : null;
+  if (player) people.push({ who: user, text: player.text });
+  for (const other of unique(arr(snap.present).map((n) => str(n)).filter(Boolean))) {
+    if (other === name || other.toLowerCase() === me) continue;
+    const l = lineAbout(other);
+    if (l) people.push({ who: other, text: l.text });
+  }
+  const head = "[What " + name + " thinks and feels (journal): their own view, in their own words. Let it colour what they do; never quote it.";
+  const build = (k) => {
+    const rows = [head];
+    if (thought) rows.push("Right now: " + thought);
+    for (const p of people.slice(0, k)) rows.push("About " + p.who + ": " + p.text);
+    return rows.join("\n") + "]";
+  };
+  const budget = journalTokensOf(cfg);
+  let k = people.length;
+  let text = build(k);
+  while (k > 0 && estimateTokensScript(text) > budget) text = build(--k);
+  if (!thought && k === 0) return "";
+  return text;
 }
 
 /**
@@ -4359,10 +4831,13 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   // who gets a full block: the speaker; in a narrator chat, those this turn is about (maybe nobody:
   // then everyone is one short line, which keeps the narrator from a roll call of the cast)
   const focus = speaker ? [speaker] : group ? present.slice(0, FULL_FOCUS) : aboutNow(present, turn.userText, snap).slice(0, FULL_FOCUS);
-  if (!present.length) return null;
+  // nobody in the scene (the user's character alone) still gets the scene line: without it the model has no clock (#207)
   // notebooks: the speaker's own; in a one-card chat (a narrator voices them all) each focus character's;
   // none when a group chat cannot say who speaks, so nothing leaks to the wrong character
-  const notesFor = speaker ? [speaker] : group ? [] : focus;
+  // a group in narrator mode is one voice for all of them, like a narrator card: each focus character's notebook, named (#184 P1c)
+  const groupFile = group ? readJson(fsx, "groups/" + chat.meta.groupId + ".json", null) : null;
+  const narratorGroup = isObj(groupFile) && groupFile.generationMode === "narrator";
+  const notesFor = speaker ? [speaker] : group ? (narratorGroup ? focus : []) : focus;
   const ctx = {
     snap,
     souls,
@@ -4428,7 +4903,12 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const overEvenBare = estimateTokens(text) > budget;
   // what the speakers said and are held to: its own part, outside the notebook's budget
   const saidText = cfg.said && cfg.said.inject === false ? "" : saidBlock(state, at.keys, notes.filter((n) => focus.includes(n)), SAID_TOKENS, overlay);
-  return { text, layoutTokens: layoutText ? estimateTokens(layoutText) : 0, saidText, saidTokens: saidText ? estimateTokens(saidText) : 0, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
+  // the journal: only characters whose notebook may show (notesFor: nobody in a group that cannot say who speaks), so a
+  // private thought never reaches another character's reply
+  const journalText = journalOnOf(cfg) && journalInjectOf(cfg)
+    ? focus.filter((n) => notes.includes(n)).map((n) => journalBlock({ snap, user: ctx.user, state, keys: at.keys }, n, cfg)).filter(Boolean).join("\n")
+    : "";
+  return { text, layoutTokens: layoutText ? estimateTokens(layoutText) : 0, saidText, saidTokens: saidText ? estimateTokens(saidText) : 0, journalText, journalTokens: journalText ? estimateTokensScript(journalText) : 0, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
 /**
@@ -4490,6 +4970,10 @@ export function llmRequest(ctx, host) {
       if (insert) {
         messages = withTailInsert(messages, insert.text);
         promptSources.parts.push({ kind: "dashboard", label: "Relationship dashboard", text: String(insert.text || "").trim() });
+        if (insert.journalText && !offForChat(fsx, chatId, "plugin:journal")) {
+          messages = withTailInsert(messages, insert.journalText);
+          promptSources.parts.push({ kind: "dashboard", label: "Dashboard · journal", text: String(insert.journalText).trim() });
+        }
         if (insert.saidText && !offForChat(fsx, chatId, "plugin:said")) {
           messages = withTailInsert(messages, insert.saidText);
           promptSources.parts.push({ kind: "dashboard", label: "Dashboard · said", text: String(insert.saidText).trim() });
@@ -4625,7 +5109,7 @@ const FAST_PARTS = ["truth", "events", "scene", "direction", "knowledge", "threa
 function fastRules(cfg) {
   // a whole custom sensor prompt is cut at its headings; a part it lacks falls back to the default
   const own = wholeSensorCustom(cfg) ? splitSensor(cfg.sensor) : isObj(cfg.sensorParts) ? cfg.sensorParts : {};
-  return FAST_PARTS.map((key) => (typeof own[key] === "string" && own[key].trim() ? own[key] : DEFAULT_SENSOR_PARTS[key])).join("\n\n");
+  return journalFree(cfg, FAST_PARTS.map((key) => (typeof own[key] === "string" && own[key].trim() ? own[key] : DEFAULT_SENSOR_PARTS[key])).join("\n\n"));
 }
 
 /**
@@ -4637,7 +5121,7 @@ export function fastInstructions(ctx) {
     promptOf("fast", ctx.cfg),
     fastRules(ctx.cfg),
     "Event vocabulary\n" + vocabularyText(ctx.vocab, ctx.cfg),
-    "Output shape\n" + OUTPUT_SHAPE + "\nLeave out any key this turn gives nothing for. date: only a whole date the text states (day, month and year), never a guess.",
+    "Output shape\n" + shapeFor(ctx.cfg) + "\nLeave out any key this turn gives nothing for. date: only a whole date the text states (day, month and year), never a guess.",
     castText(ctx),
     previousStateText(ctx),
     ...notebookTexts(ctx),
@@ -4779,7 +5263,7 @@ function readUpdate(req, host) {
   if (op === "impersonate") return ok({ ok: true, skipped: "impersonate" });
   if (parseBool(b.auto) === true && loadConfig(host.fs).mode === "manual") return ok({ ok: true, skipped: "manual" });
   const stash = isObj(req.stash) ? req.stash : {};
-  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated });
+  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
 }
 
@@ -5029,6 +5513,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   // the user's removals and a second name of one soul stay off the Dashboard, whatever an older snapshot kept
   const shown = withoutNames(snap, [...removedOf(state), ...twinNames(souls, cast.names, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
+  // the journal as it counts: each character's people lines (the player's and the others', present or not)
+  const journalLive = effectiveJournal(state, keys);
   const chars = {};
   for (const [name, c] of Object.entries(isObj(shown.chars) ? shown.chars : {})) {
     if (!isObj(c)) continue;
@@ -5047,6 +5533,10 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       name: arr(names[name]).slice(-1).map(({ knowsUserName, calls }) => ({ knowsUserName: !!knowsUserName, calls: calls || "" }))[0] || null,
       history: arr(history[name]).map(({ src: _src, ...line }) => line),
       series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
+      thought: str(c.thought) || null,
+      thoughtTurn: Number.isFinite(c.thoughtTurn) ? c.thoughtTurn : null,
+      thoughtFresh: thoughtFreshOf(snap, c, cfg),
+      journal: arr(journalLive[name]).map(({ id, about, text, by, turn }) => ({ id, about, text, by, turn })),
     };
   }
   const present = arr(shown.present).filter((n) => chars[n]);
@@ -5088,6 +5578,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     limits: { main: maxMainOf(cfg), side: maxThreadsOf(cfg), steps: maxStepsOf(cfg), everydayTurns: everydayTurnsOf(cfg), retireAfter: retireAfterOf(cfg) },
     noteAgeTurns: noteAgeOf(cfg),
     saidPerTurn: saidPerTurnOf(cfg),
+    journal: { on: journalOnOf(cfg), inject: journalInjectOf(cfg), thoughtTurns: thoughtTurnsOf(cfg), maxTokens: journalTokensOf(cfg) },
     mode: cfg.mode,
     // reading only: an expired file is removed by the hook, not here
     nudge: readNudge(fsx, chatId),
@@ -5147,7 +5638,8 @@ function inheritRoute(req, fsx) {
     state.names = {};
     state.history = {};
     state.said = {};
-    state.counters = { note: 0, thread: 0, said: 0, proposal: 0 };
+    state.journal = {};
+    state.counters = { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 };
     state.proposals = [];
     state.keptOut = null;
     state.lastError = null;
@@ -5219,6 +5711,8 @@ function readState(req, fsx) {
       view: existed ? withInherit(stateView(fsx, chatId, state, keys, loadConfig(fsx)), inheritInfo(fsx, chatId, state)) : null,
       inherit: inheritInfo(fsx, chatId, state),
       lastError: existed ? state.lastError : null,
+      // replies that let a character act on a secret it does not know and wait for the user's answer (#184 P3)
+      leaks: existed ? openLeaks(state, keys) : [],
       // a chat with no state yet can still have "Story, move" armed: the composer shows it from here
       nudge: readNudge(fsx, chatId),
     });
@@ -5569,6 +6063,7 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/inherit" && method === "POST") return inheritRoute(req, fsx);
   if (path === "/dashboard/calendar" && method === "POST") return calendarRoute(req, fsx);
+  if (path === "/dashboard/leak" && method === "POST") return leakRoute(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/notice" && method === "GET") {
     const chatId = String((req.query && req.query.chatId) || "");

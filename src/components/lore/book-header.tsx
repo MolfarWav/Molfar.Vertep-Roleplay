@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, DownloadSimple, DotsThreeVertical, Flask, Trash, Translate } from '@phosphor-icons/react'
+import { Copy, DotsThreeVertical, Flask, Trash, Translate, UploadSimple } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/section'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,7 @@ import { BookTranslateDialog } from '@/components/lore/book-translate-menu'
 import { KIND_ICON } from '@/components/lore/lore-kind'
 import { entriesKey } from '@/components/lore/lore-labels'
 import { useT } from '@/hooks/use-t'
-import { downloadJson } from '@/lib/interop'
+import { exportOneBook } from '@/lib/lore-export'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { bookKind, bookUsageLabel } from '@/lib/lore-usage'
 import type { Character, Lorebook } from '@/lib/types'
@@ -32,10 +32,7 @@ export function BookHeader({ book, characters, onUpdate, onDelete, onDuplicate, 
   const totalTokens = book.entries.reduce((a, e) => a + estimateTokens(e.content), 0)
   const use = bookUsageLabel(characters, book.id)
   const kind = KIND_ICON[bookKind(characters, book.id)]
-  const exportBook = () => {
-    const { rev: _rev, ...rest } = book
-    downloadJson({ ...rest, linkedCharacterIds: [], isEmbedded: false, globalActive: false }, book.name || 'lorebook')
-  }
+  const exportBook = () => exportOneBook(book)
   return (
     <header className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-border px-4 py-3">
       <Input
@@ -72,7 +69,7 @@ export function BookHeader({ book, characters, onUpdate, onDelete, onDuplicate, 
               <Translate className="size-4" aria-hidden="true" />{t('lore.tr.button')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={exportBook}>
-              <DownloadSimple className="size-4" aria-hidden="true" />{t('lore.export')}
+              <UploadSimple className="size-4" aria-hidden="true" />{t('lore.export')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="size-4" aria-hidden="true" />{t('lore.book.duplicate')}

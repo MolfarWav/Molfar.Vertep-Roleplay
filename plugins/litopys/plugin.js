@@ -190,9 +190,19 @@ export const DEFAULT_CONFIG = {
   // is earned (starts to act in the chat) once it was seen in this many chapters
   habits: true,
   habitsEarnAfter: 2,
-  // #99: when a scene has two or more named characters besides the player, the worker also writes what each of them
-  // remembers of it (chapter.views); the reply of a character carries its own, the narrator's carries all
+  // #99: when a scene has a named character besides the player (one is enough), the worker also writes what each of them
+  // remembers of it and what they want now (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
+  // the room of the "what the character remembers" blocks (head and tail together), in tokens
+  recollectBudget: 300,
+  // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
+  castKnowledge: true,
+  // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
+  // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
+  hiddenPlan: false,
+  // #184: the chapter worker also writes a few search words (synonyms, the story's own language) for each new fact and for the chapter,
+  // kept as `also` and read only by the word search, never shown to the model
+  searchWords: true,
   // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
   // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
@@ -207,12 +217,16 @@ export const ARC_MODES = ["ask", "auto", "off"];
 export const PROPOSAL_MODES = ["ask", "quiet"];
 
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
-export const REMEMBERS = "The characters remember it: it is established canon and a question about it gets a real answer. Do not retell it unprompted, do not contradict it.";
+// It also says the past shapes how they act now: a record read only as "do not contradict" stayed a reference sheet.
+export const REMEMBERS = "The characters remember it: it really happened to them, it shapes how they feel and act now, and a question about it gets a real answer. Let it show in what they do and say, not by retelling it; do not contradict it.";
 export const CONTINUES =
   "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 // The sentences that tell the model what the memory parts are FOR are editable like the writing prompts (#113):
 // the bracketed lead of each part stays in code, only the sentence after it is the user's.
-export const CARD_MEMORY_RULE = "{name} lived through these; recognise them when reminded or asked, and do not bring them up unprompted.";
+// The memory parts are written in English (owner decision 2026-10-07) while a story may not be: said once per reply, on the
+// first Litopys block, so the story model does not drift into English. The Dashboard's CLOSING says the same for its block.
+export const LANGUAGE_NOTE = "(These memory notes are in English for the app: write the reply in the language the story is written in.)";
+export const CARD_MEMORY_RULE = "{name} lived through these, and they shaped who {name} is now: let them colour how {name} feels and acts, recognise them when reminded or asked, and do not bring them up unprompted.";
 
 export const DEFAULT_PROMPTS = {
   chapter: [
@@ -283,11 +297,11 @@ export const HABITS_RULE = [
 ].join("\n");
 export const HABITS_SHAPE = ',"habits":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
 
-/** Added to the chapter prompt when the scene has two or more named characters besides the player (#99). */
+/** Added to the chapter prompt when the scene has a named character besides the player (#99: one is enough). */
 export const RECOLLECTIONS_RULE = [
   "Recollections:",
-  "- For each character listed under Characters, write what THEY remember of this scene: 1-2 short sentences, first person, past tense, in their own voice.",
-  "- Only what that character saw, heard, did or was told in this scene, and how it left them feeling. Nothing they were not present for, nothing another character thought in private.",
+  "- For each character listed under Characters, write what THEY remember of this scene: 1-2 short sentences, first person, past tense for what happened, in their own voice.",
+  "- Only what that character saw, heard, did or was told in this scene, how it left them feeling, and what they want or mean to do now as a result of it (present tense, one short clause). Nothing they were not present for, nothing another character thought in private.",
   "- Different characters remember the same event differently: keep each one's own view. Never invent; use only the messages. Skip a character who has nothing of their own to remember.",
 ].join("\n");
 export const RECOLLECTIONS_SHAPE = ',"views":[{"who":"a name from Characters","text":"I ..."}]';
@@ -297,6 +311,36 @@ export const CAUSE_RULE = [
   '- When a new fact happened BECAUSE of a Known fact, add "because": that fact\'s id (one id, like "f3"). Only a cause the messages show; leave it out otherwise.',
 ].join("\n");
 export const CAUSE_SHAPE = ',"because":"f3"?';
+
+/**
+ * Added to the chapter prompt while search words are on (#184). The record is searched by words, and a question seldom uses the
+ * words the fact was written with (a synonym, or another language: the default record is English whatever the story's language).
+ */
+export const SEARCH_RULE = [
+  "Search words (optional):",
+  '- For the chapter and for each new fact add "also": 3 to 6 other words someone might use when asking about it later. Synonyms and near terms for its key nouns, verbs and places; and, when the story is not written in English, the same key words in the story\'s own language.',
+  "- Single lowercase words. No names (names are matched already), no words the text already has, nothing the text does not mean.",
+].join("\n");
+export const SEARCH_SHAPE = ',"also":["word"]?';
+/** At most this many search words to a chapter or a fact, each this long. */
+const ALSO_MAX = 8;
+const ALSO_CHARS = 24;
+/** The search words as kept: lowercase, short, no repeats, none the text already has. */
+export function cleanAlso(list, text) {
+  const have = new Set(wordTokensM3b(str(text)).map(wordStemM3b));
+  const out = [];
+  for (const raw of arr(list)) {
+    const w = cut(str(raw).toLowerCase(), ALSO_CHARS);
+    const key = wordStemM3b(w);
+    if (!w || w.split(/\s+/).length > 2 || have.has(key) || out.includes(w)) continue;
+    out.push(w);
+    have.add(key);
+    if (out.length >= ALSO_MAX) break;
+  }
+  return out;
+}
+/** What the word search reads of a fact or a chapter: its text (with the label of a chapter) and its search words. */
+const indexText = (x) => (str(x.label) ? str(x.label) + " " : "") + str(x.text) + (Array.isArray(x.also) && x.also.length ? " " + x.also.map(str).join(" ") : "");
 
 /** At most this many recollections to a chapter, each this long (the worker may ramble). */
 const VIEWS_MAX = 8;
@@ -438,6 +482,10 @@ export function loadConfig(fsx) {
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
+  cfg.recollectBudget = clamp(intOf(cfg.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
+  cfg.castKnowledge = cfg.castKnowledge !== false;
+  cfg.hiddenPlan = cfg.hiddenPlan === true;
+  cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
   return cfg;
@@ -491,6 +539,10 @@ export function patchConfig(fsx, body) {
   if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
+  if (b.recollectBudget !== undefined) next.recollectBudget = clamp(intOf(b.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
+  if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
+  if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
+  if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -997,6 +1049,36 @@ export function storyView(fsx, meta) {
   };
 }
 
+/** The content words of a text as 5-letter prefixes (an ending does not matter). */
+const heldStems = (text) => [...new Set(String(text || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4).map((w) => w.slice(0, 5)))];
+
+/** Does the text say what a held text says? At least two shared content words and half of the shorter one's. */
+function saysHeld(text, held) {
+  const a = heldStems(text);
+  const b = new Set(heldStems(held));
+  const shared = a.filter((w) => b.has(w)).length;
+  return shared >= 2 && shared >= Math.ceil(Math.min(a.length, b.size) * 0.5);
+}
+
+/**
+ * #184 P3: the open leak hits (the Dashboard's, answered by nobody yet) of the replies in this scene:
+ * [{ who, texts }] with the secret and the quote. What the leaking character did in the reply is not canon.
+ */
+export function heldLeaks(dash, line, scene) {
+  if (!dash || !isObj(dash.leaks) || !scene) return [];
+  const keys = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) {
+    const m = line[i];
+    if (m) keys.add(m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0));
+  }
+  const out = [];
+  for (const [key, rec] of Object.entries(dash.leaks)) {
+    if (!keys.has(key) || !isObj(rec)) continue;
+    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open" && str(it.who)) out.push({ who: str(it.who), texts: [str(it.text), str(it.quote)].filter(Boolean) });
+  }
+  return out;
+}
+
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
@@ -1027,6 +1109,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + f.text);
   if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
 
+  // a reply of this scene was flagged: a character seems to act on a secret it does not know; not canon until the user says so
+  const flagged = heldLeaks(dash, line, scene);
+  if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
+
   // Scene messages
   const msgLines = [];
   for (let i = scene.fromIdx; i <= scene.toIdx; i++) {
@@ -1035,9 +1121,9 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     const text = cut(opts.view ? opts.view(String(m.text), m.role) : m.text, 1500);
     if (text) msgLines.push("[" + name + "] " + text);
   }
-  // #99: who could remember this scene on their own, when there are two or more
+  // #99: who could remember this scene on their own: any named character besides the player
   const cast = cfg.recollections !== false ? sceneCast(scene, line, dash, meta, opts.notCast) : [];
-  const viewsOn = cast.length >= 2;
+  const viewsOn = cast.length >= 1;
   if (viewsOn) parts.push("Characters\n" + cast.map((n) => "- " + n).join("\n"));
   parts.push("Scene messages\n" + msgLines.join("\n"));
 
@@ -1053,8 +1139,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   // #178: only when there is a known fact to point at
   const causesOn = cfg.causes !== false && factLines.length > 0;
   const base = causesOn ? WORKER_SHAPE.replace('"weight":"everyday|important|key"}', '"weight":"everyday|important|key"' + CAUSE_SHAPE + "}") : WORKER_SHAPE;
-  const shape = base.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + "\n\nOutput shape\n" + shape;
+  const alsoOn = cfg.searchWords !== false;
+  const baseAlso = alsoOn ? base.replace(/("weight":"everyday\|important\|key"(?:,"because":"f3"\?)?)\}/, "$1" + SEARCH_SHAPE + "}").replace('"text":"3-6 sentences"', '"text":"3-6 sentences"' + SEARCH_SHAPE) : base;
+  const shape = baseAlso.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
@@ -1139,7 +1227,7 @@ export function scanMatcherM3b(scanWords) {
 const weightBonus = (f) => (f && f.weight === "key" ? 6 : f && f.weight === "important" ? 3 : 0);
 /** A fact's lexical score against the scan text (ported from relations rankNotes plus weight bonus). */
 function factScore(f, scan, inScan, df, n) {
-  const keys = wordTokensM3b(str(f.text));
+  const keys = wordTokensM3b(indexText(f));
   let score = weightBonus(f);
   if (scan.length) {
     for (const k of keys) {
@@ -1334,7 +1422,7 @@ function lexicalScorer(list, textOf, givenOf, scanText, opts) {
 export function rankFacts(facts, scanText, recency, sem, opts) {
   const list = arr(facts).filter(isObj);
   if (opts) {
-    const lex = lexicalScorer(list, (f) => str(f.text), (f) => [f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : [])], scanText, opts);
+    const lex = lexicalScorer(list, indexText, (f) => [f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : [])], scanText, opts);
     const extra = semanticBonuses(list, sem);
     return list
       .map((f) => ({ f, score: (weightBonus(f) + lex(f) + (extra.get(f) || 0)) * (recency ? recency(f) : 1) }))
@@ -1344,7 +1432,7 @@ export function rankFacts(facts, scanText, recency, sem, opts) {
   const df = new Map();
   const keysMap = new Map();
   for (const f of list) {
-    const ks = [...new Set(wordTokensM3b(str(f.text)))];
+    const ks = [...new Set(wordTokensM3b(indexText(f)))];
     keysMap.set(f, ks);
     for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
   }
@@ -1361,7 +1449,7 @@ export function rankFacts(facts, scanText, recency, sem, opts) {
 export function rankChapters(chapters, scanText, sem, opts) {
   const list = arr(chapters).filter(isObj);
   if (opts) {
-    const lex = lexicalScorer(list, (ch) => str(ch.label) + " " + str(ch.text), null, scanText, opts);
+    const lex = lexicalScorer(list, indexText, null, scanText, opts);
     const extra = semanticBonuses(list, sem);
     return list
       .map((ch) => ({ ch, score: lex(ch) + (extra.get(ch) || 0) }))
@@ -1371,7 +1459,7 @@ export function rankChapters(chapters, scanText, sem, opts) {
   const df = new Map();
   const keysMap = new Map();
   for (const ch of list) {
-    const ks = [...new Set(wordTokensM3b(str(ch.label) + " " + str(ch.text)))];
+    const ks = [...new Set(wordTokensM3b(indexText(ch)))];
     keysMap.set(ch, ks);
     for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
   }
@@ -1396,16 +1484,8 @@ export function rankChapters(chapters, scanText, sem, opts) {
     .map((x) => x.ch);
 }
 
-/** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut }) {
-  if (!st || !Array.isArray(line) || !line.length) return null;
-  // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
-  // window may have dropped more than the recent window allows: what lies before is carried here. In
-  // "scenes" mode the engine's cut is the cut: a scene still in the prompt is not carried twice.
-  const told = Number.isInteger(promptCut) && promptCut >= 0 ? Math.min(line.length, promptCut) : null;
-  const own = cutCount(st, line, cfg);
-  const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
-  // who is present: the newest snapshot of the line, else the names in the recent window
+/** Who is present: the newest snapshot of the line, else the names in the recent window; the speaker and the player too. */
+function presentNames({ line, dash, meta, speakerName }) {
   const present = new Set();
   let snapFound = false;
   for (let i = line.length - 1; i >= 0 && !snapFound; i--) {
@@ -1421,13 +1501,96 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   if (str(speakerName)) present.add(str(speakerName));
   const userName = str(meta && meta.userName) || "You";
   present.add(userName);
+  return { present, userName };
+}
+
+/** At most this many names are kept as the cast of a chapter. */
+const CAST_MAX = 12;
+
+/**
+ * Did this speaker witness the chapter (#184 P2)? A chapter with no cast (written before the cast was kept, or a scene
+ * with nobody named) is visible to all. `voices` null means a reply that voices several: everything is visible.
+ */
+export function witnessed(ch, voices) {
+  if (!(voices instanceof Set) || !voices.size) return true;
+  const cast = arr(ch && ch.cast).map((n) => str(n).toLowerCase()).filter(Boolean);
+  return !cast.length || cast.some((n) => voices.has(n));
+}
+
+/** The room of the "who knows what" brief, in tokens. */
+const CAST_TOKENS = 250;
+
+/**
+ * #184 P1d: for a reply that voices several characters, the facts only some of the people here know, grouped by who
+ * knows them ("Only Aria and Bram know: ..."): the narrator sees at a glance what each character may use. Built from
+ * the record, no model call. null when everyone here knows everything that is restricted, or nothing is.
+ */
+export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = [] }) {
+  if (!st || !Array.isArray(line) || !line.length) return null;
+  const { present } = presentNames({ line, dash, meta, speakerName });
+  const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase())]);
+  const userKey = (str(meta && meta.userName) || "You").toLowerCase();
+  const people = [...present].filter((n) => !skip.has(n.toLowerCase()) || n.toLowerCase() === userKey);
+  if (people.length < 2) return null;
+  const groups = new Map();
+  for (const f of arr(st.facts)) {
+    if (!isObj(f) || f.status !== "active" || !str(f.text) || !Array.isArray(f.knownBy)) continue;
+    const by = new Set(f.knownBy.map((k) => str(k).toLowerCase()));
+    const who = people.filter((n) => by.has(n.toLowerCase()));
+    if (who.length === people.length) continue;
+    const key = who.join("\u0000");
+    if (!groups.has(key)) groups.set(key, { who, texts: [] });
+    groups.get(key).texts.push(cut(str(f.text), 100));
+  }
+  if (!groups.size) return null;
+  const head = "[Who knows what (Litopys): a character acts only on what they know. Never let one use what only another knows.]";
+  const lineOf = (g) => (g.who.length ? "Only " + g.who.join(" and ") + (g.who.length > 1 ? " know" : " knows") : "None of them here knows, it is said elsewhere") + ": " + g.texts.slice(-4).join("; ");
+  const rows = [...groups.values()].sort((a, b) => a.who.length - b.who.length).slice(0, 6);
+  while (rows.length && estimateTokens([head, ...rows.map(lineOf)].join("\n")) > CAST_TOKENS) rows.pop();
+  if (!rows.length) return null;
+  const text = [head, ...rows.map(lineOf)].join("\n");
+  return { text, tokens: estimateTokens(text), groups: rows.length };
+}
+
+/**
+ * #184 P1d: the optional instruction to open a reply that voices several characters with a hidden plan, one `knows` line
+ * per acting character. It rides only with the brief (no restricted fact, nothing to plan). The engine plugin cuts the tag
+ * from the saved reply, so it works with every preset.
+ */
+export const HIDDEN_PLAN_TAG = "vertep_plan";
+export function hiddenPlanNote() {
+  return (
+    "[Hidden plan (Litopys): this reply voices several characters. Begin it with <" + HIDDEN_PLAN_TAG + ">, then one line per character who speaks or acts in it, " +
+    "in the form `Name knows: what that character may use here from the list above, or nothing`, then </" + HIDDEN_PLAN_TAG + ">, " +
+    "and only then the reply itself. The plan is cut out before anyone reads the reply; never mention it in the story. " +
+    "A character acts only on what their line says.]"
+  );
+}
+/** The turns a plan can ride on: a new reply, not a Continue. */
+const PLAN_OPS = ["send", "next", "swipe", ""];
+
+/** The fill order and text of the Litopys insert; null when nothing can be inserted. */
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices }) {
+  if (!st || !Array.isArray(line) || !line.length) return null;
+  // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
+  // window may have dropped more than the recent window allows: what lies before is carried here. In
+  // "scenes" mode the engine's cut is the cut: a scene still in the prompt is not carried twice.
+  const told = Number.isInteger(promptCut) && promptCut >= 0 ? Math.min(line.length, promptCut) : null;
+  const own = cutCount(st, line, cfg);
+  const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
+  const { present, userName } = presentNames({ line, dash, meta, speakerName });
   const here = new Set([...present].map((n) => n.toLowerCase()));
   const subj = (f) => str(f.subject).toLowerCase();
 
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
+  // #184 P2: a character's reply gets what that character knows (or everyone does), never what only the player or
+  // another one present knows; a reply that voices several (`voices` unset) gets what anyone present knows
+  const knowers = voices instanceof Set && voices.size ? voices : here;
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
   const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
-  const allBefore = chaptersBeforeCut(st, line, cut);
+  // a chapter the speaking character did not witness stays out, and so does an arc that holds one (its witnessed
+  // chapters then ride by themselves)
+  const allBefore = chaptersBeforeCut(st, line, cut).filter((ch) => witnessed(ch, voices));
   if (!active.length && !allBefore.length) return null;
   // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
   const beforeIds = new Set(allBefore.map((ch) => ch.id));
@@ -1653,7 +1816,7 @@ export function llmRequest(ctx, host) {
     const line = activeLine(rc.msgs);
     const speakerName = str(ctx.turn.speakerName);
     // a chat that continues an earlier one gets its story from the first reply on, with or without a record of its own
-    const back = litOff ? null : buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
+    const back = litOff ? null : buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
     const st = litOff ? null : loadChatFile(fsx, chatId);
     const scanText = req.messages
       .filter((m) => m && m.role !== "system" && typeof m.content === "string")
@@ -1669,7 +1832,7 @@ export function llmRequest(ctx, host) {
     const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
     const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line) }) : null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
@@ -1724,14 +1887,28 @@ export function llmRequest(ctx, host) {
     let recall = null;
     if (st && line.length && cfg.recollections !== false && !offForChat(fsx, chatId, "plugin:recollections")) {
       try {
-        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName });
+        recall = recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName, budget: cfg.recollectBudget });
       } catch (e) {
         try {
           host.log("litopys recollections: " + (e && e.message ? e.message : String(e)));
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall) return null;
+    // who knows what, for a reply that voices several characters (#184 P1d); a single character's reply is filtered already
+    let castKn = null;
+    if (st && line.length && cfg.castKnowledge !== false && !soleVoice(fsx, rc.meta, speakerName)) {
+      try {
+        castKn = castKnowledgeFor({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, speakerName, notCast: narratorNames(fsx, rc.meta) });
+      } catch (e) {
+        try {
+          host.log("litopys who knows what: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    // the hidden plan: only beside the brief, only on a new reply
+    let plan = null;
+    if (castKn && cfg.hiddenPlan === true && PLAN_OPS.includes(str(ctx.turn.op))) plan = hiddenPlanNote();
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn) return null;
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -1758,37 +1935,67 @@ export function llmRequest(ctx, host) {
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
     const promptSources = { parts: [] };
+    // the language note rides once, on whichever block comes first
+    let langLeft = true;
+    const said = (text) => {
+      const t = String(text || "");
+      if (!langLeft || !t.trim()) return t;
+      langLeft = false;
+      return t.replace(/\s*$/, "") + "\n" + LANGUAGE_NOTE;
+    };
     if (back) {
-      messages = withInsert(messages, back.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: String(back.text || "").trim() });
+      const t_back_text = said(back.text);
+      messages = withInsert(messages, t_back_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: t_back_text.trim() });
     }
     if (cardMem) {
-      messages = withInsert(messages, cardMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
+      const t_cardMem_text = said(cardMem.text);
+      messages = withInsert(messages, t_cardMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: t_cardMem_text.trim() });
     }
     if (personaMem) {
-      messages = withInsert(messages, personaMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: String(personaMem.text).trim() });
+      const t_personaMem_text = said(personaMem.text);
+      messages = withInsert(messages, t_personaMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: t_personaMem_text.trim() });
     }
     if (worldMem) {
-      messages = withInsert(messages, worldMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: String(worldMem.text).trim() });
+      const t_worldMem_text = said(worldMem.text);
+      messages = withInsert(messages, t_worldMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: t_worldMem_text.trim() });
     }
     if (habits) {
-      messages = withInsert(messages, habits.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: String(habits.text).trim() });
+      const t_habits_text = said(habits.text);
+      messages = withInsert(messages, t_habits_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: t_habits_text.trim() });
     }
-    if (recall) {
-      messages = withInsert(messages, recall.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: String(recall.text).trim() });
+    if (recall && recall.text) {
+      const t_recall_text = said(recall.text);
+      messages = withInsert(messages, t_recall_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: t_recall_text.trim() });
     }
     if (insert && insert.head) {
-      messages = withInsert(messages, insert.head);
-      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: String(insert.head).trim() });
+      const t_insert_head = said(insert.head);
+      messages = withInsert(messages, t_insert_head);
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: t_insert_head.trim() });
     }
     if (insert && insert.tail) {
-      messages = withTailInsert(messages, insert.tail);
-      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
+      const t_insert_tail = said(insert.tail);
+      messages = withTailInsert(messages, t_insert_tail);
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: t_insert_tail.trim() });
+    }
+    if (castKn) {
+      const t_castKn_text = said(castKn.text);
+      messages = withTailInsert(messages, t_castKn_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: t_castKn_text.trim() });
+    }
+    if (recall && recall.tail) {
+      const t_recall_tail = said(recall.tail);
+      messages = withTailInsert(messages, t_recall_tail);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · latest recollection", text: t_recall_tail.trim() });
+    }
+    if (plan) {
+      messages = withTailInsert(messages, plan);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · hidden plan", text: plan });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
@@ -1873,7 +2080,8 @@ function workerShape(v) {
     text = str(v.text);
   }
   if (!text) return null;
-  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), habits: habitList(v), views: viewList(v) };
+  const also = isObj(v.chapter) ? v.chapter.also : v.also;
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500), ...(Array.isArray(also) ? { also } : {}) }, facts: factOps(v), habits: habitList(v), views: viewList(v) };
 }
 
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
@@ -1992,11 +2200,16 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     kind: scene.kind,
     at: now,
   };
+  const chapterAlso = ctx.searchWords === false ? [] : cleanAlso(parsed.chapter.also, newChapter.label + " " + newChapter.text);
+  if (chapterAlso.length) newChapter.also = chapterAlso;
   if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
-  // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a cast of two or more
-  const views = ctx.cast && ctx.cast.length >= 2 ? cleanViews(parsed.views, ctx.cast) : [];
+  // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a named character
+  const views = ctx.cast && ctx.cast.length >= 1 ? cleanViews(parsed.views, ctx.cast) : [];
   if (views.length) newChapter.views = views;
+  // #184 P2: who witnessed the scene, so a character's reply can leave out a chapter that character did not see
+  const cast = arr(ctx.witnesses).map(str).filter(Boolean).slice(0, CAST_MAX);
+  if (cast.length) newChapter.cast = cast;
   if (model) newChapter.model = model;
   const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
   if (at >= 0) st.chapters[at] = newChapter;
@@ -2016,7 +2229,17 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       const text = cut(op.text, 300);
       if (!text) continue;
       const subject = str(op.subject) || "world";
-      let knownBy = op.knownBy === "all" ? "all" : Array.isArray(op.knownBy) && op.knownBy.length ? op.knownBy.map((x) => str(x)).filter(Boolean) : "all";
+      // a model that says nothing (or nothing usable) about who knows gets the people of the scene, not everyone (#184 P1a)
+      const told = Array.isArray(op.knownBy) ? op.knownBy.map((x) => str(x)).filter(Boolean) : [];
+      const witnesses = arr(ctx.witnesses).map(str).filter(Boolean);
+      let knownBy = op.knownBy === "all" ? "all" : told.length ? told : witnesses.length ? witnesses : "all";
+      // #184 P3: a fact that says what a flagged reply leaked does not make the leaking character a knower
+      for (const h of arr(ctx.held)) {
+        if (!h.texts.some((t) => saysHeld(text, t))) continue;
+        const without = (list) => list.filter((k) => k.toLowerCase() !== h.who.toLowerCase());
+        knownBy = knownBy === "all" ? (witnesses.length ? without(witnesses) : knownBy) : without(knownBy);
+        if (Array.isArray(knownBy) && !knownBy.length) knownBy = [subject];
+      }
       // a character knows what is about them; models often list only the others
       if (Array.isArray(knownBy) && subject.toLowerCase() !== "world" && !knownBy.some((k) => k.toLowerCase() === subject.toLowerCase())) knownBy = [subject, ...knownBy];
       const typeMap = ["event", "trait", "change", "relation", "world", "plan"];
@@ -2035,6 +2258,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       }
       if (factAdds.length >= 8) break;
       const because = ctx.causes === false ? "" : causeOf(st, op);
+      const also = ctx.searchWords === false ? [] : cleanAlso(op.also, text);
       const fact = {
         id: "f" + ++st.counters.fact,
         text,
@@ -2045,6 +2269,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         pinned: false,
         status: "active",
         ...(because ? { because } : {}),
+        ...(also.length ? { also } : {}),
         src: { from: scene.from, to: scene.to, chapter: chapterId },
         origin: "chapter",
         at: now,
@@ -3117,11 +3342,14 @@ export function onTick(_ctx, host) {
                 sources: sourceSentences(fsx, meta),
                 habits: cfg.habits !== false,
                 causes: cfg.causes !== false,
+                searchWords: cfg.searchWords !== false,
                 habitsStore: cur,
                 earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
                 cardRules: cfg.habits !== false ? cardHabitRules(fsx, meta) : [],
                 cast: cfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)) : [],
+                witnesses: sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)),
+                held: heldLeaks(dash, line, w.scene),
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
@@ -4142,7 +4370,7 @@ const CHAIN_SHARES = [[1], [0.65, 0.35], [0.5, 0.3, 0.2]];
  * first within its share and what it leaves unused goes to the nearer ones, so the nearest gets the
  * rest. Rendered oldest first, each chat as its own part (backstoryPart).
  */
-export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
+export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voices }) {
   const budget = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
   if (!budget) return null;
   // "Start clean" in the chat's Dashboard (#100) is one switch for the whole carried memory: the story too
@@ -4172,7 +4400,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, knowers: voices instanceof Set && voices.size ? voices : here, voices, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
@@ -4195,21 +4423,21 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName }) {
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, cap, usedFacts, nearerTitle, continues }) {
+function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
   if (!prc || !pst) return null;
   const pline = activeLine(prc.msgs);
   const subj = (f) => str(f.subject).toLowerCase();
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => here.has(str(k).toLowerCase())));
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
   const factKey = (f) => str(f.text).trim().toLowerCase();
   const active = arr(pst.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f) && !usedFacts.has(factKey(f)));
 
   const ranges = new Map();
   const chapters = arr(pst.chapters)
     .map((ch) => ({ ch, r: rangeOf(ch, pline) }))
-    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text))
+    .filter(({ ch, r }) => isObj(ch) && !ch.stale && !r.orphan && str(ch.text) && witnessed(ch, voices))
     .sort((x, y) => x.r.fromIdx - y.r.fromIdx);
   for (const { ch, r } of chapters) ranges.set(ch.id, r);
   const last = chapters.length ? chapters[chapters.length - 1].ch : null;
@@ -4333,7 +4561,7 @@ function expireProposals(st, factId, now) {
 export function factRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
-  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete"].includes(op)) return bad("unknown op");
+  if (!["add", "edit", "pin", "unpin", "retire", "restore", "delete", "know"].includes(op)) return bad("unknown op");
   const cfg = loadConfig(fsx);
   return mutateChat(fsx, str(b.chatId), (st) => {
     const now = Date.now();
@@ -4400,6 +4628,17 @@ export function factRoute(fsx, body) {
       fact.edited = true;
       fact.updatedAt = now;
       addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now, { text: fact.text });
+      return;
+    }
+    // #184 P3: the user says a character found out (a flagged reply was right): the name joins the knowers
+    if (op === "know") {
+      if (fact.status !== "active") return { status: 409, json: { error: "not active" } };
+      const who = cut(str(b.who), 80);
+      if (!who) return bad("who is empty");
+      if (fact.knownBy === "all" || arr(fact.knownBy).some((k) => sameName(k, who))) return;
+      fact.knownBy = [...arr(fact.knownBy), who];
+      fact.updatedAt = now;
+      addActivity(st, "user", "fact.edit", who + " found out: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
     }
     if (op === "pin") {
@@ -4781,6 +5020,7 @@ export function chatView(fsx, chatId) {
       edited: ch.edited === true,
       ...(ch.marked === true ? { marked: true } : {}),
       ...(Array.isArray(ch.views) && ch.views.length ? { views: ch.views } : {}),
+      ...(Array.isArray(ch.cast) && ch.cast.length ? { cast: ch.cast } : {}),
     });
   }
   return {
@@ -5498,17 +5738,30 @@ function recollectors(fsx, meta, speakerName) {
   return { names: new Set(), many: false, name: "" };
 }
 
-/** The room of the "what the character remembers" block, in tokens. */
+/**
+ * The lower-case names of the one character this reply is spoken by (#184 P2), or null when it voices several (a
+ * group in narrator mode, a narrator card) or the speaker is unknown: then the reply may use what anyone present knows.
+ */
+export function soleVoice(fsx, meta, speakerName) {
+  const { names, many } = recollectors(fsx, meta, speakerName);
+  return names.size && !many ? names : null;
+}
+
+/** The room of the "what the character remembers" blocks, in tokens: the default and the range of `recollectBudget`. */
 const RECOLLECT_TOKENS = 300;
+const RECOLLECT_MIN = 100;
+const RECOLLECT_MAX = 1500;
 
 /**
- * The block "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
+ * The blocks "what the character remembers" (#99): the recollections the chapter worker wrote for the character (or,
  * for a narrator, for everyone it voices) of the scenes that have left the prompt, newest first, whole scenes, within
- * RECOLLECT_TOKENS. The same text between replies until a chapter closes or the speaker changes, so it can sit above
- * the history. null when the chat has none for this reply.
+ * `budget` tokens (head and tail together). The newest scene goes to `tail`, next to the reply where it weighs most;
+ * the older ones stay in `text`, above the history. Both stay the same between replies until a chapter closes or the
+ * speaker changes. null when the chat has none for this reply.
  */
-export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
+export function recollectionsFor({ fsx, meta, st, line, cut, speakerName, budget }) {
   if (!st || !line.length) return null;
+  const room = clamp(intOf(budget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   const { names, many, name } = recollectors(fsx, meta, speakerName);
   if (!names.size) return null;
   const rows = [];
@@ -5517,23 +5770,32 @@ export function recollectionsFor({ fsx, meta, st, line, cut, speakerName }) {
     if (mine.length) rows.push({ ch, mine });
   }
   if (!rows.length) return null;
+  const who = name || "this character";
   const head = many
-    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it. Each knows only their own part, so never let one use what only another remembers.]"
-    : "[What " + (name || "this character") + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told. It is how they remember it, and they know nothing of those scenes beyond it.]";
+    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. The story record shows the narrator the whole of those scenes, but each character knows only their own part: never let one use what only another remembers or what only the record tells.]"
+    : "[What " + who + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. Where the story record tells more about those scenes, " + who + " knows only this part.]";
+  const tailHead = many
+    ? "[What each character remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now; never let one use what only another remembers.]"
+    : "[What " + who + " remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now.]";
   const lineOf = (ch, v) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + (many ? str(v.who) + ": " : "") + str(v.text);
-  const picked = [];
-  const render = () => [head, ...rows.filter((r) => picked.includes(r)).flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n");
-  // newest scene first into the room; a scene goes in whole or not at all
-  for (const r of rows.slice().reverse()) {
-    picked.push(r);
-    if (estimateTokens(render()) > RECOLLECT_TOKENS) {
-      picked.pop();
+  const block = (header, list) => (list.length ? [header, ...list.flatMap((r) => r.mine.map((v) => lineOf(r.ch, v)))].join("\n") : "");
+  const newest = rows[rows.length - 1];
+  const older = [];
+  const size = () => estimateTokens(block(tailHead, [newest])) + estimateTokens(block(head, older.slice().reverse()));
+  // the newest scene always comes when it fits alone; then the older ones, newest first, whole scenes only
+  if (size() > room) return null;
+  for (const r of rows.slice(0, -1).reverse()) {
+    older.push(r);
+    if (size() > room) {
+      older.pop();
       break;
     }
   }
-  if (!picked.length) return null;
-  const text = render();
-  return { text, tokens: estimateTokens(text), scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
+  const text = block(head, older.slice().reverse());
+  const tail = block(tailHead, [newest]);
+  const tokens = (text ? estimateTokens(text) : 0) + estimateTokens(tail);
+  const picked = [newest, ...older];
+  return { text, tail, tokens, scenes: picked.length, who: [...new Set(picked.flatMap((r) => r.mine.map((v) => str(v.who))))] };
 }
 
 /** The habits block of this reply's card, or null. `chosen` = the lines the story already puts in the prompt. */
@@ -5931,9 +6193,9 @@ function carriesRoute(fsx, query) {
   const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
   let insert = null;
   try {
-    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {} }) : null;
+    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
   } catch {}
-  const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName });
+  const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
   let card = null;
   try {
     card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash, cfg });
@@ -5981,7 +6243,7 @@ function carriesRoute(fsx, query) {
   // what the characters remember of the scenes that left the prompt (#99), as the reply of `speaker` would carry it
   let recall = null;
   try {
-    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName }) : null;
+    recall = st && line.length && cfg.recollections !== false ? recollectionsFor({ fsx, meta: rc.meta, st, line, cut: insert ? insert.cut : cutCount(st, line, cfg), speakerName, budget: cfg.recollectBudget }) : null;
   } catch {}
   // the World DM (its own plugin, read as a file): its level and the event waiting for the next reply, if any
   const wr = readJson(fsx, "world/state/" + chatId + ".json", null);
@@ -6010,7 +6272,7 @@ function carriesRoute(fsx, query) {
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
       personaMemory: sharedMemory("persona"),
       worldMemory: sharedMemory("world"),
-      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: recall.text } : null,
+      recollections: recall ? { scenes: recall.scenes, who: recall.who, tokens: recall.tokens, text: [recall.text, recall.tail].filter(Boolean).join("\n") } : null,
     },
   };
 }

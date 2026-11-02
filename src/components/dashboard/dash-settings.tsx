@@ -4,7 +4,7 @@
 // unsaved state and one save never discards the other's edits.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowClockwise, ArrowLeft, CaretDown, CaretRight, Check, Compass, Eye, Plus, Sparkle, Trash, Warning } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowLeft, BookOpenText, CaretDown, CaretRight, Check, Compass, Eye, Plus, Sparkle, Trash, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,7 @@ import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { ASK_MOLFAR_MAX, askMolfar, canAskMolfar } from '@/lib/shell-bridge'
 import { cn, copyText } from '@/lib/utils'
-import type { DashView } from '@/lib/dashboard'
+import { DEFAULT_JOURNAL, type DashView, type JournalSettings } from '@/lib/dashboard'
 import { AgeText, useTx } from './dash-common'
 import { howChips, questsChip, remindedChips, summaryChips, type SensorSummaryInput } from './sensor-summary'
 import { SoulModelPicker } from './soul-model-picker'
@@ -50,6 +50,7 @@ interface DashConfig {
   /** the sensor's reply limit; absent on an older plugin */
   sensorMaxTokens?: number
   catchUp: boolean
+  leakCheck?: boolean
   autoSoul: boolean
   sensor: string
   custom: string[]
@@ -71,6 +72,8 @@ interface DashConfig {
   noteAgeTurns?: number
   /** #98: what characters said; absent on an older plugin */
   said?: { perTurn: number; inject: boolean }
+  /** the character journal (thoughts and people lines); absent on an older plugin */
+  journal?: JournalSettings
   /** #185: where everyone stands, the objects and the clothes in the reply prompt; absent on an older plugin */
   layout?: { inject: boolean }
   soul?: string
@@ -98,8 +101,10 @@ interface Form {
   retireAfter: number
   noteAgeTurns: number
   said: { perTurn: number; inject: boolean }
+  journal: JournalSettings
   layout: { inject: boolean }
   catchUp: boolean
+  leakCheck: boolean
   autoSoul: boolean
   /** the whole prompt: only sent in "whole" and legacy mode */
   sensor: string
@@ -168,8 +173,15 @@ function pickForm(c: DashConfig): Form {
     retireAfter: c.retireAfter ?? DEFAULT_RETIRE,
     noteAgeTurns: c.noteAgeTurns ?? DEFAULT_NOTE_AGE,
     said: { perTurn: c.said?.perTurn ?? DEFAULT_SAID, inject: c.said?.inject !== false },
+    journal: {
+      on: c.journal?.on ?? DEFAULT_JOURNAL.on,
+      inject: c.journal?.inject ?? DEFAULT_JOURNAL.inject,
+      thoughtTurns: c.journal?.thoughtTurns ?? DEFAULT_JOURNAL.thoughtTurns,
+      maxTokens: c.journal?.maxTokens ?? DEFAULT_JOURNAL.maxTokens,
+    },
     layout: { inject: c.layout?.inject !== false },
     catchUp: c.catchUp !== false,
+    leakCheck: c.leakCheck !== false,
     autoSoul: c.autoSoul !== false,
     sensor: c.sensor ?? '',
     parts: Object.fromEntries((c.sensorParts ?? []).map((p) => [p.key, p.text])),
@@ -190,6 +202,8 @@ const clampSensorTokens = (n: number) => Math.min(MAX_SENSOR_TOKENS, Math.max(MI
 const clampThreads = (n: number) => Math.min(6, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MAX_THREADS)))
 const clampNoteAge = (n: number) => Math.min(500, Math.max(5, Math.round(Number.isFinite(n) ? n : DEFAULT_NOTE_AGE)))
 const clampSaid = (n: number) => Math.min(4, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_SAID)))
+const clampJournalTurns = (n: number) => Math.min(10, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_JOURNAL.thoughtTurns)))
+const clampJournalTokens = (n: number) => Math.min(400, Math.max(40, Math.round(Number.isFinite(n) ? n : DEFAULT_JOURNAL.maxTokens)))
 const clampCheck =(n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
 const clampTo = (lo: number, hi: number, dflt: number) => (n: number) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : dflt)))
 const clampMain = clampTo(1, 2, DEFAULT_MAX_MAIN)
@@ -267,6 +281,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
         ...prompts,
         noteAgeTurns: clampNoteAge(form.noteAgeTurns),
         said: { ...form.said, perTurn: clampSaid(form.said.perTurn) },
+        journal: { ...form.journal, thoughtTurns: clampJournalTurns(form.journal.thoughtTurns), maxTokens: clampJournalTokens(form.journal.maxTokens) },
         injection: { ...form.injection, maxTokens: clampTokens(form.injection.maxTokens) },
         sensorMaxTokens: clampSensorTokens(form.sensorMaxTokens),
         maxThreads: clampThreads(form.maxThreads),
@@ -542,6 +557,9 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
               )}
             </div>
           </SettingRow>
+          <SettingRow label={t('dash.set.leakCheck')} info={t('dash.set.leakCheck.hint')}>
+            <Switch checked={form.leakCheck} onCheckedChange={(v) => patch({ leakCheck: v })} aria-label={t('dash.set.leakCheck')} />
+          </SettingRow>
           <SettingRow label={t('dash.set.catchUp')} info={t('dash.set.catchUp.hint')}>
             <Switch checked={form.catchUp} onCheckedChange={(v) => patch({ catchUp: v })} aria-label={t('dash.set.catchUp')} />
           </SettingRow>
@@ -598,6 +616,25 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
             </div>
           </Section>
         )}
+
+        <Fold
+          id="sensor-journal"
+          title={t('dash.set.card.journal')}
+          tone="violet"
+          icon={BookOpenText}
+          summary={form.journal.on ? t('dash.set.journal.sumOn', { n: form.journal.thoughtTurns, tokens: form.journal.maxTokens }) : t('dash.set.journal.sumOff')}
+        >
+          <SettingRow label={t('dash.set.journalOn')} info={t('dash.set.journalOn.hint')}>
+            <Switch checked={form.journal.on} onCheckedChange={(v) => patch({ journal: { ...form.journal, on: v } })} aria-label={t('dash.set.journalOn')} />
+          </SettingRow>
+          <SettingRow label={t('dash.set.journalInject')} info={t('dash.set.journalInject.hint')} off={!form.journal.on}>
+            <Switch disabled={!form.journal.on} checked={form.journal.inject} onCheckedChange={(v) => patch({ journal: { ...form.journal, inject: v } })} aria-label={t('dash.set.journalInject')} />
+          </SettingRow>
+          <div className="grid grid-cols-2 gap-3 p-4 max-md:grid-cols-1">
+            <NumTile label={t('dash.set.journalTurns')} hint={t('dash.set.hint.journalTurns')} value={form.journal.thoughtTurns} min={1} max={10} disabled={!form.journal.on} onCommit={(n) => patch({ journal: { ...form.journal, thoughtTurns: n } })} />
+            <NumTile label={t('dash.set.journalTokens')} hint={t('dash.set.hint.journalTokens')} value={form.journal.maxTokens} min={40} max={400} step={10} disabled={!form.journal.on} onCommit={(n) => patch({ journal: { ...form.journal, maxTokens: n } })} />
+          </div>
+        </Fold>
 
         <Fold
           id="sensor-prompts"

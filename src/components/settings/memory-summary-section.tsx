@@ -93,7 +93,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
       {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
     </Field>
   )
-  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'sceneKeep' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'sceneKeep' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter' | 'recollectBudget', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
   const sizeField = () => {
     const mode: 'compact' | 'auto' | 'custom' = cfg.budgetMode === 'auto' ? 'auto' : sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
@@ -275,6 +275,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <Block tone="memory" icon={MagnifyingGlass} title={t('lit.blk.facts')} hint={t('lit.blk.factsHint')} summary={t('lit.sum.facts', { n: cfg.pinLimit })}>
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
+        {switchRow('lit-search-words', t('lit.set.searchWords'), t('lit.set.searchWordsHint'), cfg.searchWords !== false, (v) => save({ searchWords: v }))}
         <EmbedRow />
       </Block>
 
@@ -285,6 +286,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <Block tone="people" icon={Quotes} title={t('lit.blk.recollections')} hint={t('lit.blk.recollectionsHint')} summary={onOff(cfg.recollections !== false)}>
         {switchRow('lit-recollections', t('lit.set.recollections'), t('lit.set.recollectionsHint'), cfg.recollections !== false, (v) => save({ recollections: v }))}
+        {cfg.recollections !== false && keyField('recollectBudget', { id: 'lit-recollect-budget', label: t('lit.set.recollectBudget'), hint: t('lit.set.recollectBudgetHint'), unit: t('lit.unit.tokens'), min: 100, max: 1500, fallback: 300 })}
+        {switchRow('lit-cast-knowledge', t('lit.set.castKnowledge'), t('lit.set.castKnowledgeHint'), cfg.castKnowledge !== false, (v) => save({ castKnowledge: v }))}
+        {cfg.castKnowledge !== false && switchRow('lit-hidden-plan', t('lit.set.hiddenPlan'), t('lit.set.hiddenPlanHint'), cfg.hiddenPlan === true, (v) => save({ hiddenPlan: v }))}
       </Block>
 
       <Block tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>

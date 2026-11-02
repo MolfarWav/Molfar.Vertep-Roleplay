@@ -698,7 +698,7 @@ describe("update route", () => {
   it("the UI view is settled for the active line: previous stats, live notes, series, stale", () => {
     const view = (id: string) => drive(mockHostShared, { method: "GET", path: "/dashboard/state", query: { chatId: id, view: "1" } }).json;
     const mockHostShared = mockHost([keptPromise]);
-    expect(view("c1")).toEqual({ exists: false, chat: false, messages: 0, view: null, inherit: null, lastError: null, nudge: null });
+    expect(view("c1")).toEqual({ exists: false, chat: false, messages: 0, view: null, inherit: null, lastError: null, leaks: [], nudge: null });
     writeChat("c1", three());
     update(mockHostShared, "c1");
     writeChat("c1", [...three(), A("m4", "Thank you.")]);
@@ -1407,6 +1407,20 @@ describe("prompt insert", () => {
       expect(stranger).toContain("[How Bram is right now:");
     });
 
+    it("4c. a group in narrator mode gets each focus character's own notebook, named (#184)", () => {
+      fs.mkdirSync(path.join(root, "groups"), { recursive: true });
+      fs.writeFileSync(path.join(root, "groups/g1.json"), JSON.stringify({ id: "g1", name: "Tavern", generationMode: "narrator", memberIds: ["aria", "bram"] }));
+      const mock = withState(bothKnow, "g", three(), groupMeta);
+      // the voice is the group itself, so no present name speaks
+      const text = insertOf(ask(mock, "g", defaultMessages(), { turn: { op: "next", speakerName: "Tavern" } }));
+      const aria = text.split("[How ").find((p) => p.startsWith("Aria"))!;
+      const bram = text.split("[How ").find((p) => p.startsWith("Bram"))!;
+      expect(aria).toContain("What Aria knows about You: Saw: The user hides a silver key.");
+      expect(aria).not.toContain("limps");
+      expect(bram).toContain("What Bram knows about You: Saw: The user limps on the left leg.");
+      expect(bram).not.toContain("silver key");
+    });
+
     it("5. a narrator card: a full block only for whom the turn is about, each with only their own note", () => {
       const replyText = reply({
         present: ["Medli", "Garrett"],
@@ -1474,7 +1488,8 @@ describe("prompt insert", () => {
     const fresh = insertOf(ask(blank, "c2"));
     expect(fresh).toContain("Toward You: no history yet.");
     // the first reading of a chat puts today's date on the day it found (here day 3); the part of the day follows
-    expect(fresh).toContain(`the scene: ${P.dateWords(P.localToday())}, evening.`);
+    // a time worked out from the part of the day is told as "about" (#207); with the date hidden it stays words only
+    expect(fresh).toContain(`the scene: ${P.dateWords(P.localToday())}, about 19:00, evening.`);
     // a hidden date goes back to the day in words
     drive(blank, { method: "POST", path: "/dashboard/calendar", body: { chatId: "c2", off: true } });
     const hidden = insertOf(ask(blank, "c2"));
@@ -2085,6 +2100,32 @@ describe("souls", () => {
       // alias distance match: searching for "Mariana" finds soul with alias "Mariane"
       const s3 = { class: "ally", aliases: ["Mariane"] };
       expect(P.soulOf({ Marianne: s3 }, "Mariana")).toBe(s3);
+    });
+  });
+
+  describe("temperament in the prompt", () => {
+    it("turns traits and spectra into words, leaving the middle out", () => {
+      const soul = {
+        traits: { dominance: 75, confidence: 60, shyness: 40, patience: 50, curiosity: 20 },
+        spectra: { introvert_extrovert: 50, cautious_reckless: 50, reserved_emotional: 40, lawful_rebellious: 50, suspicious_trusting: 35, pessimist_optimist: 90 },
+      };
+      expect(P.temperamentLine(soul)).toBe("Temperament: dominant, incurious, rather reserved, rather suspicious of people, optimistic.");
+    });
+
+    it("says nothing for a soul that leans nowhere or has no scales", () => {
+      expect(P.temperamentLine({ traits: { dominance: 50 }, spectra: { pessimist_optimist: 52 } })).toBe("");
+      expect(P.temperamentLine({ class: "ally" })).toBe("");
+      expect(P.temperamentLine(undefined)).toBe("");
+    });
+
+    it("goes into the character's block next to Under strain", () => {
+      writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Marianne: { class: "ally", traits: { dominance: 80 }, spectra: { pessimist_optimist: 10 }, coping: "hums an old song" } } } } });
+      writeChat("c1", three(), { characterId: "bram" });
+      const mock = mockHost([reply({ present: ["Marianne"], minutes: 1 })]);
+      update(mock, "c1");
+      const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Marianne" } });
+      const text = String(pv.json.insert && pv.json.insert.text);
+      expect(text).toContain("Temperament: dominant, pessimistic.\nUnder strain: hums an old song.");
     });
   });
 
@@ -3434,7 +3475,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(15);
+    expect(past.length).toBe(16);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limits given in the input");
     expect(text).not.toContain("three open threads");
@@ -4942,9 +4983,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-7)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-8)!;
     expect(ninth).not.toContain("Direction:");
-    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-6)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-7)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -4974,7 +5015,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-10)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-11)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -5028,10 +5069,10 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(text).toContain("the full list of the other characters, never the user's character itself");
     expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-5)!;
+    const before = past.at(-6)!;
     expect(before).not.toContain("never the user's character itself");
     expect(before).toContain("(who, what)");
-    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-6));
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-7));
   });
 
   it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {

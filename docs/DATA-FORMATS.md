@@ -177,13 +177,17 @@ two new candidates a chapter and twelve live ones a chat.
 
 **What each character remembers of a scene (#99).** A chapter in `litopys/chats/<chatId>.json` may carry `views`:
 `[{ "who": "<name as the scene spells it>", "text": "<1-2 sentences, first person, at most 300 characters>" }]`, at most 8, one per
-name. The chapter worker writes them in the same call as the chapter, only when the scene has two or more named characters
-besides the player (Litopys setting `recollections`, default on; the player's name, "Narrator" and a narrator group's own
-name never count), and only what that character saw, heard or was told. `POST /litopys/chapters { chatId, op: "edit", id, views }`
+name. The chapter worker writes them in the same call as the chapter, only when the scene has at least one named character
+besides the player (a 1:1 scene counts, since the character journal) (Litopys setting `recollections`, default on; the player's name, "Narrator" and a narrator group's own
+name never count), and only what that character saw, heard or was told, how it left them feeling and what they want or mean to do now because of it. `POST /litopys/chapters { chatId, op: "edit", id, views }`
 replaces them (an empty list removes them; a views-only edit does not mark the chapter `edited`). A reply carries the
-recollections of the scenes that have left the prompt, newest first within 300 tokens, whole scenes only: the speaking card's
-own, or everyone's it voices (a group in narrator mode, a narrator card). The block is "Litopys · recollections", muted by the
-Prompt board key `plugin:recollections`, and listed as `recollections { scenes, who, tokens, text }` in `GET /litopys/carries`.
+recollections of the scenes that have left the prompt, newest first within `recollectBudget` tokens (Litopys setting, default 300,
+100 to 1500), whole scenes only: the speaking card's own, or everyone's it voices (a group in narrator mode, a narrator card).
+The newest of those scenes rides right before the player's message ("Litopys · latest recollection", after "who knows what");
+the older ones sit above the history ("Litopys · recollections"). Both are muted by the Prompt board key `plugin:recollections`
+and listed together as `recollections { scenes, who, tokens, text }` in `GET /litopys/carries`.
+
+**Who witnessed a scene (#184).** A chapter may carry `cast`: `["<name as the scene spells it>", ...]`, at most 12, the named characters of the scene besides the player (the same list the recollections use, kept even when there are fewer than two). The chapter worker writes it; a chapter without it (older, hand-made, or a scene with nobody named) is visible to every reply. A reply spoken by one character leaves out a chapter whose cast does not include that character (and an arc that holds such a chapter; its witnessed chapters ride alone), in the story insert and in the backstory of a continued chat. A reply that voices several characters (a narrator, a group in narrator mode) gets every chapter. Facts have their own `knownBy`: a fact whose `knownBy` is missing or unusable is written with the scene's cast instead of `"all"`. `GET /litopys/chat?chatId=` lists `cast` on each chapter.
 
 **Recall scoring (#99).** Which facts and chapters go into the Litopys insert when they do not all fit is ranked by the words of
 the last messages (`rankFacts`, `rankChapters`). Besides a rare word counting by how few facts have it, a name found in the text
@@ -206,6 +210,8 @@ follows one step only. `fact.because` is not used by the full record (everything
 active cause that did not fit; cause and effect both there already) and `causeStats { replies, pulled, missed, together }` over the
 chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causes` (`true`, default):
 `false` stops asking the worker for causes, ignores `because` in its replies and stops recall from using it; no setting in the app.
+
+**Search words (#184).** A fact and a chapter in `litopys/chats/<chatId>.json` may carry `also: ["word", ...]`: at most 8 lowercase words of at most 24 characters (one or two words each), written by the chapter worker next to the text, as synonyms of its key nouns, verbs and places and, when the story is not in English, the same words in the story's own language (the record is written in English by default, so a question in another language shares no word with it). The parser drops repeats and any word the text already has (`cleanAlso`). Only the word search reads them (`rankFacts`, `rankChapters`, the same weights as the text); the insert never shows them, vectors are made from the text alone, and a record without them works as before (nothing is required). Old facts and chapters have none until a Rebuild. Config key `searchWords` (`true`, default; the Memory settings switch); `false` stops asking the worker and ignores `also` in its replies, and what was written stays and stays searchable. Bench: `test/rp-recall-mrr-bench.test.ts`.
 
 **Scenes set apart by hand.** `litopys/chats/<chatId>.json`, key `marks`: `[{ "id": "s1", "from": "<message id>", "to": "<message id>", "at": <ms> }]`.
 A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`
@@ -624,6 +630,22 @@ character saw, heard or guessed), `names` and `history`:
   it (the entry counts only while that message is on the chat's line), `source` is `chat` today and may be another kind
   of writer later. Its own part in the reply prompt (`Dashboard · said`), not the notebook's budget. The sensor
   reports it in the `said` list; `said.perTurn` (1-4, default 1; the sensor also gives each a `strength` 1-3 and only 2 or 3 is kept, one kind per speaker within 3 turns counts once, a speaker holds about 8 live entries, a line the Notebook holds is skipped) and `said.inject` are in `data/dashboard/config.json`.
+- The character journal. In a snapshot's `chars[<name>]`: `thought` (string, at most 200 characters, or null) and `thoughtTurn`
+  (the snapshot's `turn` it was written on). The sensor writes a thought for each present character every turn it has
+  something to say; otherwise the old one is carried unchanged, and the reply prompt shows it only while
+  `turn - thoughtTurn < journal.thoughtTurns` (default 3). The sensor never sees the previous thought. Not carried into a
+  chat that continues another.
+- `journal`: `{ "<character>": [ { id: "j1", about, text, by: "sensor" | "user", turn, src } ] }`, how the character sees a
+  person now (`about` is another character or the player; at most 200 characters, first person, in the story's language,
+  one constant `JOURNAL_LANGUAGE` in the plugin). `src` is the message key that wrote it, as for `said`. The effective line
+  for a person is the newest one (a `by: "user"` line always wins; no route writes them yet). Per person the bag keeps the
+  newest 4 sensor lines, so a swipe shows the line before. The sensor reports them in `people` (at most 2 a turn, only for a
+  present character, never from the player; a line kept out is counted in `keptOut`). Carried like `said` (`src: "inherit"`)
+  and dropped by Start clean. Reply prompt: its own part `Dashboard · journal` (after the Dashboard block, before `said`),
+  for the characters whose notebook shows; mute per chat with the prompt board key `plugin:journal`. Config in
+  `data/dashboard/config.json`: `journal: { on: true, inject: true, thoughtTurns: 3 (1-10), maxTokens: 120 (40-400, per character) }`.
+  The entries part of the journal is Litopys `views` (above), unchanged in storage.
+- `leaks` (#184 P3): `{ "<messageId>#<swipe>": { at, items: [ { who, factId, text, quote, status: "open" | "found" | "ignored", answeredAt? } ] } }`, replies that let a character act on a secret it does not know (a restricted Litopys fact, `knownBy` a list without that name). Code finds the candidates (the new messages share content words with the fact), the sensor's call confirms (key `leaks` in its reply, `[{ id: "L1", quote }]` naming the lines it was shown) or, in fast mode, a small call made only when there were candidates. Config `leakCheck` (default true) turns it off. An open item holds back what the character would learn from that reply: its notebook notes are not written, and the Litopys chapter worker does not make it a knower of a fact that says the same (and is told the reply is not canon). `POST /dashboard/leak { chatId, key, who, factId, op: "found" | "ignore" }` closes an item (the app first calls `POST /litopys/facts { op: "know", id, who }` for "found out", which adds the name to the fact's `knownBy`); `GET /dashboard/state?view=1` lists the open ones as `leaks`. A re-read of the reply, an edit or a swipe replaces its item.
 - Threads are quests (#117). A thread in a snapshot's `threads` is `{ id, text, since, status: open|resolved, kind?,
   parent?, checked?, keptAt?, by?, resolvedAt? }`. `kind` is `main`, `side` or `everyday` (missing = `side`, so every
   older file reads as side quests); `parent` is the id of an open main quest and makes the thread a step of it (a step
@@ -652,7 +674,7 @@ character saw, heard or guessed), `names` and `history`:
 - `inherited` (#100): present when the chat continues another one (the link in `data/litopys/links.json`):
   `{ from, title, at, turn, notes, threads, snap }` with `snap` = the earlier chat's last snapshot (numbers, moods,
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
-  Carried notebook, names and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
+  Carried notebook, names, `journal` and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
 
 ## Letters from cards: `data/letters/` (the Letters plugin; leave it to the Letters dialog)

@@ -45,6 +45,19 @@ function seed(opts: { views?: any[]; group?: boolean; after?: number; meta?: Rec
   return msgs;
 }
 
+/** A scene of the player and one character (Aria only), then turns of Aria and Jude, with one closed chapter holding `views`. */
+function seedSolo(views: any[]) {
+  writeJson("characters/aria/card.json", { spec: "chara_card_v2", name: "Aria", description: "A quiet courier.", extensions: {} });
+  const msgs = cast(60).filter((m) => m.name !== "Bram");
+  writeChat("tav", msgs, { title: "Tavern", userName: "Jude", characterId: "aria" });
+  const st = L.emptyChat("tav");
+  st.migrated = true;
+  st.chapters = [{ id: "c1", from: "m1", to: "m5", count: 4, sig: L.chapterSig(L.activeLine(msgs).slice(0, 4)), label: "The key", text: "Jude gave Aria a brass key.", kind: "scene", at: 1, views }];
+  st.counters.chapter = 1;
+  writeJson("litopys/chats/tav.json", st);
+  return msgs;
+}
+
 const ctx = (speakerName: string) => ({
   key: "reply",
   request: { messages: [{ role: "system", content: "sys" }, { role: "user", content: "hello" }] },
@@ -71,12 +84,23 @@ describe("recollections: the worker", () => {
     expect(two.systemPrompt).toContain("Recollections:");
     expect(two.systemPrompt).toContain('"views":[');
     expect(two.messages[0].content).toContain("Characters\n- Aria\n- Bram");
-    // a scene of the player and one character
+    // the rule asks what they want now, and still bans what a character did not witness
+    expect(two.systemPrompt).toContain("what they want or mean to do now as a result of it");
+    // and no causes wording leaks into the worker prompt when causes are off (rp-litopys-causes)
+    expect(two.systemPrompt).not.toContain("because");
+    expect(two.systemPrompt).toContain("Nothing they were not present for");
+    // a scene of the player and one character: asked for too (#99: one is enough)
     const solo = L.activeLine(cast(0).filter((m) => m.name !== "Bram"));
     const one = L.buildWorkerRequest(st, { scene: scene(solo, 3), replaces: null }, solo, null, cfg, { userName: "Jude" });
-    expect(one.systemPrompt).not.toContain("Recollections:");
-    expect(one.systemPrompt).not.toContain('"views"');
-    expect(one.messages[0].content).not.toContain("Characters\n");
+    expect(one.systemPrompt).toContain("Recollections:");
+    expect(one.systemPrompt).toContain('"views":[');
+    expect(one.messages[0].content).toContain("Characters\n- Aria");
+    // a scene with no named character besides the player: not asked for
+    const none = L.activeLine(cast(0).filter((m) => m.role === "user"));
+    const empty = L.buildWorkerRequest(st, { scene: scene(none, 1), replaces: null }, none, null, cfg, { userName: "Jude" });
+    expect(empty.systemPrompt).not.toContain("Recollections:");
+    expect(empty.systemPrompt).not.toContain('"views"');
+    expect(empty.messages[0].content).not.toContain("Characters\n");
     // the switch in the settings
     const off = L.buildWorkerRequest(st, { scene: scene(ln), replaces: null }, ln, null, { ...cfg, recollections: false }, { userName: "Jude" });
     expect(off.systemPrompt).not.toContain("Recollections:");
@@ -113,13 +137,35 @@ describe("recollections: the worker", () => {
     expect(views[1].text.length).toBeLessThanOrEqual(300);
   });
 
-  it("writes none when the scene had no cast of two", () => {
+  it("keeps the view of a single named character, and writes none when the scene had no character", () => {
     const ln = L.activeLine(cast(0));
-    const st = L.emptyChat("tav");
     const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" }, views: VIEWS }));
-    L.applyWorkerResult(st, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: ["Aria"] });
-    expect(st.chapters[0].views).toBeUndefined();
+    // one character in the cast: her view is kept, a view of someone outside the cast is dropped
+    const one = L.emptyChat("tav");
+    L.applyWorkerResult(one, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: ["Aria"] });
+    expect(one.chapters[0].views).toEqual([VIEWS[0]]);
+    // no cast (no named character besides the player): nothing is kept
+    const none = L.emptyChat("tav");
+    L.applyWorkerResult(none, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: [] });
+    expect(none.chapters[0].views).toBeUndefined();
     L.applyWorkerResult(L.emptyChat("tav"), { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln });
+  });
+
+  it("a 1:1 scene: her view is asked for, kept, and her reply carries it", () => {
+    const solo = L.activeLine(cast(0).filter((m) => m.name !== "Bram"));
+    const st = L.emptyChat("tav");
+    const req = L.buildWorkerRequest(st, { scene: scene(solo, 3), replaces: null }, solo, null, cfg, { userName: "Jude" });
+    expect(req.systemPrompt).toContain("Recollections:");
+    const parsed = L.parseWorkerReply(
+      JSON.stringify({ chapter: { label: "The key", text: "Jude gave Aria a brass key." }, views: [{ who: "Aria", text: "I took his key and let him in. I want him gone by morning." }] }),
+    );
+    const kept = L.emptyChat("tav");
+    L.applyWorkerResult(kept, { scene: scene(solo, 3), replaces: null }, parsed, { now: 1, line: solo, cast: ["Aria"] });
+    expect(kept.chapters[0].views).toEqual([{ who: "Aria", text: "I took his key and let him in. I want him gone by morning." }]);
+    seedSolo(kept.chapters[0].views);
+    const { host } = mockHost();
+    const text = textOf(L.llmRequest(ctx("Aria"), host));
+    expect(text).toContain("I want him gone by morning.");
   });
 });
 
@@ -129,10 +175,16 @@ describe("recollections: the reply", () => {
     const { host } = mockHost();
     const res = L.llmRequest(ctx("Aria"), host);
     const text = textOf(res);
-    expect(text).toContain("[What Aria remembers of earlier scenes (Litopys)");
+    // the only scene is the newest one: it rides next to the reply, not above the history
+    expect(text).toContain("[What Aria remembers of the latest scene before these messages (Litopys)");
     expect(text).toContain("- The key: I let Jude in and took his brass key.");
     expect(text).not.toContain("I poured three cups");
-    expect(labels(res)).toContain("Litopys · recollections");
+    expect(labels(res)).toContain("Litopys · latest recollection");
+    expect(labels(res)).not.toContain("Litopys · recollections");
+    // it sits right before the player's message
+    const msgs = res.messages;
+    expect(msgs.at(-2).content).toContain("[What Aria remembers of the latest scene");
+    expect(msgs.at(-1).content).toBe("hello");
     // the story record is still there beside it
     expect(text).toContain("Jude gave Aria a brass key in Bram's tavern.");
   });
@@ -141,10 +193,10 @@ describe("recollections: the reply", () => {
     seed({ group: true });
     const { host } = mockHost();
     const text = textOf(L.llmRequest(ctx("Tavern"), host));
-    expect(text).toContain("[What each character remembers of earlier scenes (Litopys)");
+    expect(text).toContain("[What each character remembers of the latest scene before these messages (Litopys)");
     expect(text).toContain("- The key: Aria: I let Jude in");
     expect(text).toContain("- The key: Bram: I poured three cups");
-    expect(text).toContain("knows only their own part");
+    expect(text).toContain("never let one use what only another remembers");
   });
 
   it("gives a group member its own, as a card of its own", () => {
@@ -160,23 +212,24 @@ describe("recollections: the reply", () => {
   it("leaves out a scene whose messages are still in the prompt", () => {
     seed({ after: 2 });
     const { host } = mockHost();
-    expect(textOf(L.llmRequest(ctx("Aria"), host))).not.toContain("remembers of earlier scenes");
+    expect(textOf(L.llmRequest(ctx("Aria"), host))).not.toContain(" remembers of ");
   });
 
   it("is silent when the chapter has none, the setting is off, or the chat muted it", () => {
     seed({ views: [] });
     const { host } = mockHost();
-    expect(textOf(L.llmRequest(ctx("Aria"), host))).not.toContain("remembers of earlier scenes");
+    expect(textOf(L.llmRequest(ctx("Aria"), host))).not.toContain(" remembers of ");
 
     seed();
     writeJson("litopys/config.json", { recollections: false });
-    expect(textOf(L.llmRequest(ctx("Aria"), host))).not.toContain("remembers of earlier scenes");
+    expect(textOf(L.llmRequest(ctx("Aria"), host))).not.toContain(" remembers of ");
     writeJson("litopys/config.json", {});
 
     writeChat("tav", cast(60), { title: "Tavern", userName: "Jude", characterId: "aria", promptBoard: { v: 1, off: ["plugin:recollections"] } });
     const muted = L.llmRequest(ctx("Aria"), host);
-    expect(textOf(muted)).not.toContain("remembers of earlier scenes");
+    expect(textOf(muted)).not.toContain(" remembers of ");
     expect(labels(muted)).not.toContain("Litopys · recollections");
+    expect(labels(muted)).not.toContain("Litopys · latest recollection");
   });
 
   it("says the same thing on every reply until a chapter closes", () => {
@@ -202,6 +255,62 @@ describe("recollections: the reply", () => {
     expect(lines.length).toBeLessThan(4);
     // the dropped ones are the older, not the newest
     expect(lines.at(-1)).toContain("Night 4");
+  });
+
+  it("puts the newest scene next to the reply and the older ones above the history", () => {
+    seed();
+    const st = readJson("litopys/chats/tav.json");
+    st.chapters = [1, 2].map((n) => ({ ...st.chapters[0], id: "c" + n, label: "Night " + n, views: [{ who: "Aria", text: "I remember night " + n + "." }] }));
+    writeJson("litopys/chats/tav.json", st);
+    const { host } = mockHost();
+    const res = L.llmRequest(ctx("Aria"), host);
+    const msgs = res.messages.map((m: any) => m.content);
+    const older = msgs.findIndex((c: string) => c.includes("I remember night 1."));
+    const newest = msgs.findIndex((c: string) => c.includes("I remember night 2."));
+    expect(msgs[older]).toContain("[What Aria remembers of earlier scenes (Litopys)");
+    expect(msgs[newest]).toContain("[What Aria remembers of the latest scene");
+    expect(older).toBeLessThan(newest);
+    expect(newest).toBe(msgs.length - 2);
+    expect(labels(res)).toEqual(expect.arrayContaining(["Litopys · recollections", "Litopys · latest recollection"]));
+  });
+
+  it("tells a character the record may say more than it knows, and a narrator that each knows only their part", () => {
+    seed();
+    const st = readJson("litopys/chats/tav.json");
+    st.chapters = [1, 2].map((n) => ({ ...st.chapters[0], id: "c" + n, label: "Night " + n, views: VIEWS }));
+    writeJson("litopys/chats/tav.json", st);
+    const { host } = mockHost();
+    const one = textOf(L.llmRequest(ctx("Aria"), host));
+    expect(one).toContain("Where the story record tells more about those scenes, Aria knows only this part.");
+    expect(one).not.toContain("they know nothing of those scenes beyond it");
+    seed({ group: true });
+    writeJson("litopys/chats/tav.json", st);
+    const many = textOf(L.llmRequest(ctx("Tavern"), host));
+    expect(many).toContain("The story record shows the narrator the whole of those scenes, but each character knows only their own part");
+  });
+
+  it("says once, on the first memory block, to answer in the story's language", () => {
+    seed();
+    const { host } = mockHost();
+    const res = L.llmRequest(ctx("Aria"), host);
+    const all = res.messages.map((m: any) => String(m.content)).join("\n");
+    expect(all.split(L.LANGUAGE_NOTE).length - 1).toBe(1);
+    // on the first Litopys block, the stable one above the history
+    expect(res.promptSources.parts[0].text.endsWith(L.LANGUAGE_NOTE)).toBe(true);
+    expect(res.messages[1].content).toContain(L.LANGUAGE_NOTE);
+  });
+
+  it("takes its room from recollectBudget", () => {
+    seed();
+    const st = readJson("litopys/chats/tav.json");
+    const long = "I remember every grain of that night, ".repeat(10);
+    st.chapters = [1, 2, 3, 4].map((n) => ({ ...st.chapters[0], id: "c" + n, label: "Night " + n, views: [{ who: "Aria", text: long + n }] }));
+    writeJson("litopys/chats/tav.json", st);
+    writeJson("litopys/config.json", { recollectBudget: 1500 });
+    const { host } = mockHost();
+    const lines = textOf(L.llmRequest(ctx("Aria"), host)).split("\n").filter((l) => l.includes("I remember every grain"));
+    expect(lines.length).toBe(4);
+    writeJson("litopys/config.json", {});
   });
 });
 

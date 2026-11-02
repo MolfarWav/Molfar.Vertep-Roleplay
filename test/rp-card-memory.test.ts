@@ -333,7 +333,7 @@ describe("the memory parts say what they are for (#110)", () => {
     route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     // the card memory alone
-    expect(textOf(L.llmRequest(ctx("next"), host))).toContain("Aria lived through these; recognise them when reminded or asked");
+    expect(textOf(L.llmRequest(ctx("next"), host))).toContain("Aria lived through these, and they shaped who Aria is now: let them colour how Aria feels and acts, recognise them when reminded or asked");
     // a chat that continues the story gets the explicit instruction in the backstory header
     writeChat("cont", story(2, "y"), { title: "Cont", characterId: "aria" });
     route(host, "POST", "/litopys/links", { chatId: "cont", from: "winter" });
