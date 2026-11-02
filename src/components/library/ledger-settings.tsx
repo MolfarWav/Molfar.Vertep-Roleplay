@@ -11,6 +11,17 @@ import type { TabProps } from './ledger-facts'
 /** One setting a chat may set for itself: where it lives in the values, its limits and its label. */
 type Row = { id: string; get: (v: LitChatValues) => number | undefined; set: (n: number | null) => Parameters<typeof putLitChatConfig>[1]; min: number; max: number; label: string; hint?: string; unit?: string }
 
+/**
+ * What leaving a field does: nothing (unchanged, or empty with nothing set), clear the key (emptied, so the chat follows the
+ * global value again), or set it (the number, rounded and kept inside the limits). show = what the field shows afterwards.
+ */
+export function settingAction(raw: string, had: number | undefined, min: number, max: number): { kind: 'none'; show: string } | { kind: 'clear'; show: string } | { kind: 'set'; n: number; show: string } {
+  const text = raw.trim()
+  if (text === '' || Number.isNaN(Number(text))) return had === undefined ? { kind: 'none', show: '' } : { kind: 'clear', show: '' }
+  const n = Math.min(max, Math.max(min, Math.round(Number(text))))
+  return n === had ? { kind: 'none', show: String(n) } : { kind: 'set', n, show: String(n) }
+}
+
 /** How many settings a chat has set for itself (the tab's counter). */
 export function ownCount(own: LitChatValues | undefined): number {
   if (!own) return 0
@@ -57,17 +68,14 @@ export function SettingsTab({ chat, onChat }: TabProps) {
     }
   }
 
-  const commit = (r: Row) => {
-    const raw = (text[r.id] ?? '').trim()
-    const had = r.get(cc.own)
-    if (raw === '' || Number.isNaN(Number(raw))) {
-      if (had === undefined) return setText({ ...text, [r.id]: '' })
-      return void run(() => putLitChatConfig(chat.chatId, r.set(null)).then(onChat))
-    }
-    const n = Math.min(r.max, Math.max(r.min, Math.round(Number(raw))))
-    setText({ ...text, [r.id]: String(n) })
-    if (n === had) return
-    void run(() => putLitChatConfig(chat.chatId, r.set(n)).then((c) => { onChat(c); toast.success(t('lit.chatSet.saved')) }))
+  // raw is what the field holds now, read from the field itself: the shared number Input keeps an empty field
+  // out of onChange and resets its draft on blur, so the state here never sees "empty"
+  const commit = (r: Row, raw: string) => {
+    const act = settingAction(raw, r.get(cc.own), r.min, r.max)
+    if (act.kind === 'none') return setText({ ...text, [r.id]: act.show })
+    setText({ ...text, [r.id]: act.show })
+    if (act.kind === 'clear') return void run(() => putLitChatConfig(chat.chatId, r.set(null)).then(onChat))
+    void run(() => putLitChatConfig(chat.chatId, r.set(act.n)).then((c) => { onChat(c); toast.success(t('lit.chatSet.saved')) }))
   }
 
   const field = (r: Row) => {
@@ -88,7 +96,7 @@ export function SettingsTab({ chat, onChat }: TabProps) {
             placeholder={String(globalValue ?? '')}
             value={text[r.id] ?? ''}
             onChange={(e) => setText({ ...text, [r.id]: e.target.value })}
-            onBlur={() => commit(r)}
+            onBlur={(e) => commit(r, e.currentTarget.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
             className={cn('w-32 max-md:h-10', own && 'border-primary/60')}
           />
