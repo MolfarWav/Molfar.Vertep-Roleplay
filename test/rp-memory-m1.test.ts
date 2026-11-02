@@ -244,6 +244,19 @@ describe("M1.1 history budget in tokens, with reserves", () => {
   });
 });
 
+describe("M1.1 the reserve counts the memory blocks beside the dashboard and Litopys (#184)", () => {
+  it("a card's long memory takes room off the history", async () => {
+    const preset = { openai_max_context: 4000, openai_max_tokens: 256 };
+    const normal = (await trimmedFor(preset)).trimmed;
+    writeJson("characters/aria/memory.json", { v: 1, sources: [{ id: "s1", on: true, arc: "x" }], inject: { enabled: true, maxTokens: 800 } });
+    const withMemory = (await trimmedFor(preset)).trimmed;
+    expect(withMemory).toBeGreaterThan(normal);
+    // a chat that switched the card memory off keeps the room
+    fs.rmSync(path.join(root, "characters", "aria", "memory.json"));
+    expect((await trimmedFor(preset)).trimmed).toBe(normal);
+  });
+});
+
 describe("M1.2 every reply op embeds the scan window", () => {
   const harbor = (texts: string[]) => texts.map((t) => (t.includes("harbor") ? [1, 0] : [0, 1]));
   const sentText = (m: ReturnType<typeof mockHost>) =>

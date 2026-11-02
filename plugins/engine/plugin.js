@@ -1561,43 +1561,129 @@ function estimateTokens(text) {
   }
   return Math.ceil(ascii / 3.5 + alpha / 2 + other);
 }
-/** Tokens the sibling plugins' hooks may add to the request after assembly
- *  (their inserts are not in the trimmed prompt, so they get a reserve): the
- *  dashboard's notes and focus lines, Litopys's lore block. A config that is
- *  missing or unreadable counts as that plugin's default. */
-function hookInsertReserve(fsx, chatId) {
-  let reserve = 0;
-  let dash = {};
+/** Parsed JSON at a data path, or null (missing, unreadable, not an object). */
+function jsonAt(fsx, rel) {
   try {
-    const c = JSON.parse(fsx.read("dashboard/config.json"));
-    if (c && typeof c === "object" && c.injection && typeof c.injection === "object") dash = c.injection;
-  } catch {}
-  if (dash.enabled !== false) {
-    const n = Number(dash.maxTokens);
-    const max = Number.isFinite(n) ? Math.min(2000, Math.max(50, Math.round(n))) : 300;
-    reserve += max * 2 + 200;
+    const v = JSON.parse(fsx.read(rel));
+    return v && typeof v === "object" ? v : null;
+  } catch {
+    return null;
   }
-  let lit = {};
-  try {
-    const c = JSON.parse(fsx.read("litopys/config.json"));
-    if (c && typeof c === "object") lit = c;
-  } catch {}
-  if (lit.enabled !== false && lit.insert !== false) {
-    const b = Number(lit.budget);
-    reserve += (Number.isFinite(b) ? Math.min(4000, Math.max(200, Math.round(b))) : 800) + 100;
+}
+const clampInt = (v, lo, hi, dflt) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : dflt;
+};
+const SAFE_RESERVE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * Tokens the sibling plugins' hooks may add to the request after assembly (their inserts are not in the trimmed
+ * prompt, so they get a reserve), one row per block: { id, tokens }. A ceiling, not a measurement: what the block may take
+ * at most for THIS chat (a block the chat cannot have, a switch that is off for the chat or in the plugin's config, a
+ * character without that memory, all count as 0), read from the plugin's own config key with its default and range. A config
+ * that is missing or unreadable counts as the plugin's default. The ceilings are the plugins' own (litopys: budget,
+ * linkBudget, the memory files' inject.maxTokens / habitsMaxTokens, the recollections and who-knows-what rooms; dashboard:
+ * injection.maxTokens and the said block; world: the "here" note, the event and the dice; agents: the inserts the chat holds).
+ * #184 / MEMORY-INJECTION 13.1: before this only the dashboard, the Litopys insert and the backstory link were counted.
+ */
+export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
+  const rows = [];
+  const add = (id, tokens) => {
+    if (tokens > 0) rows.push({ id, tokens: Math.round(tokens) });
+  };
+  const m = meta && typeof meta === "object" ? meta : {};
+  const offList = m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off.map(String) : [];
+  const off = (key) => offList.includes(key);
+  const grouped = !!(m.groupId && SAFE_RESERVE_ID.test(String(m.groupId)));
+  const members = grouped ? ((jsonAt(fsx, "groups/" + m.groupId + ".json") || {}).memberIds || []).map(String) : [];
+
+  // Dashboard: the notebook and focus lines, and the "said" block
+  const dcfg = jsonAt(fsx, "dashboard/config.json") || {};
+  const inj = dcfg.injection && typeof dcfg.injection === "object" ? dcfg.injection : {};
+  if (inj.enabled !== false && !off("plugin:relations")) {
+    add("dashboard", clampInt(inj.maxTokens, 50, 2000, 300) * 2 + 200);
+    // the said block is its own part with its own fixed room (SAID_TOKENS in the dashboard plugin)
+    if (!(dcfg.said && dcfg.said.inject === false)) add("dashboard said", 120);
+  }
+
+  // Litopys: the story insert, the backstory link, and the long memories its hook adds beside them
+  const lit = jsonAt(fsx, "litopys/config.json") || {};
+  const litOn = lit.enabled !== false && lit.insert !== false;
+  if (litOn && !off("plugin:litopys")) {
+    // the fixed size, or "auto": 15% of the model's window, at least 800 (litopys autoBudget)
+    const budget = lit.budgetMode === "auto" && Number(windowTokens) > 0 ? clampInt(Number(windowTokens) * 0.15, 800, 16000, 800) : clampInt(lit.budget, 200, 16000, 800);
+    add("litopys", budget + 100);
     // 0.9.2: a chat that continues an earlier one also gets its backstory block (litopys linkBudget)
-    let linked = false;
-    try {
-      const l = JSON.parse(fsx.read("litopys/links.json"));
-      linked = !!(chatId && l && l.links && l.links[chatId]);
-    } catch {}
-    if (linked) {
-      const lb = Number(lit.linkBudget);
-      const max = Number.isFinite(lb) ? Math.min(3000, Math.max(0, Math.round(lb))) : 800;
-      if (max > 0) reserve += max + 100;
+    const links = jsonAt(fsx, "litopys/links.json");
+    if (chatId && links && links.links && links.links[chatId]) {
+      const max = clampInt(lit.linkBudget, 0, 3000, 800);
+      if (max > 0) add("litopys backstory", max + 100);
     }
   }
-  return reserve;
+  if (litOn) {
+    // the card's long memory and its habits: only the speaker's, so the biggest of the cards in the chat
+    const cardIds = [m.characterId, ...members].map((x) => String(x || "")).filter((x) => SAFE_RESERVE_ID.test(x));
+    let mem = 0;
+    let habits = 0;
+    for (const id of new Set(cardIds)) {
+      const f = jsonAt(fsx, "characters/" + id + "/memory.json");
+      if (!f) continue;
+      const i = f.inject && typeof f.inject === "object" ? f.inject : {};
+      if (i.enabled === false) continue;
+      if (Array.isArray(f.sources) && f.sources.some((x) => x && x.on !== false)) mem = Math.max(mem, clampInt(i.maxTokens, 100, 1500, 400));
+      if (Array.isArray(f.habits ?? f.skills) && (f.habits ?? f.skills).length) habits = Math.max(habits, clampInt(i.habitsMaxTokens ?? i.skillsMaxTokens, 50, 800, 250));
+    }
+    if (!off("plugin:cardmemory")) add("litopys card memory", mem);
+    if (!off("plugin:cardhabits") && !off("plugin:cardskills")) add("litopys habits", habits);
+    // a persona's and a world's memory are the chat's own opt-in (meta.memory.persona / .world)
+    const taken = m.memory && typeof m.memory === "object" ? m.memory : {};
+    if (taken.persona === true && !off("plugin:personamemory")) {
+      const pid = String(m.personaId || (jsonAt(fsx, "settings.json") || {}).personaId || "");
+      const f = SAFE_RESERVE_ID.test(pid) ? jsonAt(fsx, "memory/personas/" + pid + ".json") : null;
+      if (f && Array.isArray(f.sources) && f.sources.length) add("litopys persona memory", clampInt(f.inject && f.inject.maxTokens, 100, 1500, 300));
+    }
+    if (taken.world === true && !off("plugin:worldmemory") && chatId && SAFE_RESERVE_ID.test(chatId)) {
+      const st = jsonAt(fsx, "world/state/" + chatId + ".json");
+      const wid = st && st.origin && st.origin.kind === "library" ? String(st.origin.worldId || "") : "";
+      const f = SAFE_RESERVE_ID.test(wid) ? jsonAt(fsx, "memory/worlds/" + wid + ".json") : null;
+      if (f && Array.isArray(f.sources) && f.sources.length) add("litopys world memory", clampInt(f.inject && f.inject.maxTokens, 100, 1500, 300));
+    }
+    // what the characters remember of old scenes (a fixed room of 300): a group has casts, and a chat whose last insert had some
+    const ins = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/insert/" + chatId + ".json") : null;
+    if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", 300);
+    // who knows what, and the optional hidden plan: only a reply that voices several characters
+    if (grouped && lit.castKnowledge !== false && !off("plugin:litopys")) {
+      add("litopys who knows what", 250);
+      if (lit.hiddenPlan === true) add("litopys hidden plan", 130);
+    }
+  }
+
+  // World: the "here" note (at most 900 characters), the DM event (400) and the dice line, when the chat has a world state
+  if (chatId && SAFE_RESERVE_ID.test(chatId) && !off("plugin:world")) {
+    const w = jsonAt(fsx, "world/state/" + chatId + ".json");
+    if (w) {
+      const set = w.settings && typeof w.settings === "object" ? w.settings : {};
+      add("world here", Math.ceil(900 / 3.5));
+      if (set.insert !== false && set.level !== "off" && set.level !== "chronicler") {
+        add("world event", Math.ceil(400 / 3.5));
+        if (set.dice) add("world dice", 60);
+      }
+    }
+  }
+
+  // Agents: what the chat's agents wrote for the next reply is already on disk, so this one is exact
+  if (chatId && SAFE_RESERVE_ID.test(chatId)) {
+    const f = jsonAt(fsx, "agents/inserts/" + chatId + ".json");
+    if (f && Array.isArray(f.items)) {
+      add("agents", f.items.reduce((t, it) => t + (it && typeof it.text === "string" ? estimateTokens(it.text) + estimateTokens(String(it.label || it.agent || "")) + 4 : 0), 0));
+    }
+  }
+  return rows;
+}
+
+/** The sum of hookInsertBreakdown: what the history budget leaves free for the sibling plugins' inserts. */
+function hookInsertReserve(fsx, chatId, meta, windowTokens) {
+  return hookInsertBreakdown(fsx, chatId, meta, windowTokens).reduce((t, r) => t + r.tokens, 0);
 }
 // ---------- the Litopys cut: a copy of litopys/plugin.js coveredCount/cutCount (plugins cannot import each other) ----------
 /** The messages Litopys counts: user and character turns with an id, not hidden (its activeLine). */
@@ -3293,7 +3379,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // the room the history has: a token estimate against the window, minus the room the reply needs
   // and what the sibling plugins' hooks add later
   const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
-  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id) - 64;
+  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id, meta, presetMaxCtx(preset)) - 64;
   const msgTokens = (m) => estimateTokens(m.content) + 4;
   const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
   // Litopys's cut is a ceiling: only as many covered messages leave as the window needs
