@@ -91,6 +91,52 @@ const SPECTRUM_KEYS = ["introvert_extrovert", "cautious_reckless", "reserved_emo
 // above this shyness, trust and comfort grow at most +1 per turn
 const SHYNESS_BRAKE = 60;
 
+// The words of a soul's fixed temperament in the prompt: a trait at 70 or more takes its high word, at 30 or less its
+// low word; a spectrum below 25 or above 75 takes its word plainly, 25..44 and 56..75 as "rather <word>" (the bands of
+// the soul editor, src/lib/soul.ts spectrumBand); the middle says nothing.
+const TRAIT_WORDS = {
+  dominance: ["yielding", "dominant"],
+  confidence: ["self-doubting", "self-assured"],
+  shyness: ["bold", "shy"],
+  patience: ["impatient", "patient"],
+  curiosity: ["incurious", "curious"],
+};
+const SPECTRUM_WORDS = {
+  introvert_extrovert: ["introverted", "outgoing"],
+  cautious_reckless: ["cautious", "reckless"],
+  reserved_emotional: ["reserved", "emotional"],
+  lawful_rebellious: ["law-abiding", "rebellious"],
+  suspicious_trusting: ["suspicious of people", "trusting"],
+  pessimist_optimist: ["pessimistic", "optimistic"],
+};
+
+/**
+ * The soul's fixed temperament as one prompt line, or "" when nothing in it leans: "Temperament: dominant, rather
+ * reserved, rather suspicious of people." The traits and spectra otherwise only tilt the numbers, and the story model
+ * never saw them.
+ */
+export function temperamentLine(soul) {
+  if (!isObj(soul)) return "";
+  const words = [];
+  const traits = isObj(soul.traits) ? soul.traits : {};
+  for (const k of TRAIT_KEYS) {
+    const v = num(traits[k]);
+    if (!Number.isFinite(v)) continue;
+    if (v >= 70) words.push(TRAIT_WORDS[k][1]);
+    else if (v <= 30) words.push(TRAIT_WORDS[k][0]);
+  }
+  const spectra = isObj(soul.spectra) ? soul.spectra : {};
+  for (const k of SPECTRUM_KEYS) {
+    const v = num(spectra[k]);
+    if (!Number.isFinite(v)) continue;
+    const side = v < 45 ? 0 : v > 55 ? 1 : -1;
+    if (side < 0) continue;
+    const far = v < 25 || v > 75;
+    words.push((far ? "" : "rather ") + SPECTRUM_WORDS[k][side]);
+  }
+  return words.length ? "Temperament: " + words.join(", ") + "." : "";
+}
+
 // [family, id, meaning, deltas]; Sergey tunes these later, a user file can replace any of them
 const EVENT_ROWS = [
   ["trust", "kept_promise", "did what was promised", { trust: 1, respect: 1 }],
@@ -4434,6 +4480,9 @@ function characterBlock(ctx, name, withNotes, limit) {
   // the form of address, when the character knows the name and uses another word
   const asked = arr(ctx.names[name]).slice(-1)[0];
   if (asked && asked.knowsUserName && str(asked.calls) && str(asked.calls).toLowerCase() !== str(user).toLowerCase()) lines.push("Calls " + user + " \"" + cut(str(asked.calls), 100) + "\".");
+  // the fixed temperament of the soul (traits and spectra), so the story model sees who this is, not only the numbers
+  const temper = temperamentLine(soul);
+  if (temper) lines.push(temper);
   if (soul && str(soul.coping)) lines.push("Under strain: " + cut(str(soul.coping), 200) + ".");
   lines.push("]");
   return lines.join("\n");

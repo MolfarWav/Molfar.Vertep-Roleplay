@@ -2102,6 +2102,32 @@ describe("souls", () => {
     });
   });
 
+  describe("temperament in the prompt", () => {
+    it("turns traits and spectra into words, leaving the middle out", () => {
+      const soul = {
+        traits: { dominance: 75, confidence: 60, shyness: 40, patience: 50, curiosity: 20 },
+        spectra: { introvert_extrovert: 50, cautious_reckless: 50, reserved_emotional: 40, lawful_rebellious: 50, suspicious_trusting: 35, pessimist_optimist: 90 },
+      };
+      expect(P.temperamentLine(soul)).toBe("Temperament: dominant, incurious, rather reserved, rather suspicious of people, optimistic.");
+    });
+
+    it("says nothing for a soul that leans nowhere or has no scales", () => {
+      expect(P.temperamentLine({ traits: { dominance: 50 }, spectra: { pessimist_optimist: 52 } })).toBe("");
+      expect(P.temperamentLine({ class: "ally" })).toBe("");
+      expect(P.temperamentLine(undefined)).toBe("");
+    });
+
+    it("goes into the character's block next to Under strain", () => {
+      writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Marianne: { class: "ally", traits: { dominance: 80 }, spectra: { pessimist_optimist: 10 }, coping: "hums an old song" } } } } });
+      writeChat("c1", three(), { characterId: "bram" });
+      const mock = mockHost([reply({ present: ["Marianne"], minutes: 1 })]);
+      update(mock, "c1");
+      const pv = drive(mock, { method: "GET", path: "/dashboard/preview", query: { chatId: "c1", speaker: "Marianne" } });
+      const text = String(pv.json.insert && pv.json.insert.text);
+      expect(text).toContain("Temperament: dominant, pessimistic.\nUnder strain: hums an old song.");
+    });
+  });
+
   describe("lorebook aliases", () => {
     it("a card whose linked lorebook makes a Cyrillic name resolve to a soul through aliases", () => {
       writeCard("bram", { name: "Bram", extensions: { molfar_soul: { v: 1, characters: { Marianne: { class: "ally", coping: "hums an old song" } } } } });

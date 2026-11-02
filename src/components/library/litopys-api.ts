@@ -325,6 +325,7 @@ export interface LitConfig {
   /** #106: look for habits in scenes (default on), and in how many different scenes a habit becomes a habit (1 to 5, default 2); missing from an older plugin */
   habits?: boolean
   habitsEarnAfter?: number
+  recollectBudget?: number
   /** #99: the chapter worker also writes what each character remembers of a scene (default on); missing from an older plugin */
   recollections?: boolean
   /** #184: a "who knows what" brief for a reply that voices several characters (default off); missing from an older plugin */
