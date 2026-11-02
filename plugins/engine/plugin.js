@@ -1583,7 +1583,7 @@ const SAFE_RESERVE_ID = /^[A-Za-z0-9_-]{1,128}$/;
  * character without that memory, all count as 0), read from the plugin's own config key with its default and range. A config
  * that is missing or unreadable counts as the plugin's default. The ceilings are the plugins' own (litopys: budget,
  * linkBudget, the memory files' inject.maxTokens / habitsMaxTokens, the recollections and who-knows-what rooms; dashboard:
- * injection.maxTokens and the said block; world: the "here" note, the event and the dice; agents: the inserts the chat holds).
+ * injection.maxTokens, the said block and the journal; world: the "here" note, the event and the dice; agents: the inserts the chat holds).
  * #184 / MEMORY-INJECTION 13.1: before this only the dashboard, the Litopys insert and the backstory link were counted.
  */
 export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
@@ -1597,13 +1597,18 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
   const grouped = !!(m.groupId && SAFE_RESERVE_ID.test(String(m.groupId)));
   const members = grouped ? ((jsonAt(fsx, "groups/" + m.groupId + ".json") || {}).memberIds || []).map(String) : [];
 
-  // Dashboard: the notebook and focus lines, and the "said" block
+  // Dashboard: the notebook and focus lines, and the "said" block. DASHBOARD_FOCUS is the most characters the
+  // Dashboard gives a full block (FULL_FOCUS in plugins/relations/plugin.js; a group takes 3, one speaker 1)
+  const DASHBOARD_FOCUS = 3;
   const dcfg = jsonAt(fsx, "dashboard/config.json") || {};
   const inj = dcfg.injection && typeof dcfg.injection === "object" ? dcfg.injection : {};
   if (inj.enabled !== false && !off("plugin:relations")) {
     add("dashboard", clampInt(inj.maxTokens, 50, 2000, 300) * 2 + 200);
     // the said block is its own part with its own fixed room (SAID_TOKENS in the dashboard plugin)
     if (!(dcfg.said && dcfg.said.inject === false)) add("dashboard said", 120);
+    // the character journal: one block per focused character, at most journal.maxTokens each (40..400, default 120)
+    const jcfg = dcfg.journal && typeof dcfg.journal === "object" ? dcfg.journal : {};
+    if (jcfg.on !== false && jcfg.inject !== false && !off("plugin:journal")) add("dashboard journal", clampInt(jcfg.maxTokens, 40, 400, 120) * DASHBOARD_FOCUS);
   }
 
   // Litopys: the story insert, the backstory link, and the long memories its hook adds beside them
@@ -2593,7 +2598,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -3450,6 +3455,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:said")) {
     omit("dashboard", "What characters said", "off for this chat", undefined, "plugin:said");
   }
+  if (isOff("plugin:journal")) {
+    omit("dashboard", "Character journal", "off for this chat", undefined, "plugin:journal");
+  }
   if (isOff("plugin:cardmemory")) {
     omit("memory", "Character memory", "off for this chat", undefined, "plugin:cardmemory");
   }
@@ -3645,6 +3653,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:litopys", label: "Litopys", kind: "memory", state: isOff("plugin:litopys") ? "off" : "on" });
   board.push({ key: "plugin:relations", label: "Relationship dashboard", kind: "dashboard", state: isOff("plugin:relations") ? "off" : "on" });
   board.push({ key: "plugin:said", label: "What characters said", kind: "dashboard", state: isOff("plugin:said") ? "off" : "on" });
+  board.push({ key: "plugin:journal", label: "Character journal", kind: "dashboard", state: isOff("plugin:journal") ? "off" : "on" });
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
   board.push({ key: "plugin:recollections", label: "What the characters remember", kind: "memory", state: isOff("plugin:recollections") ? "off" : "on" });

@@ -34,6 +34,8 @@ beforeEach(() => {
     JSON.stringify({ model: null, personaId: "vey" }),
   );
   writePreset({});
+  // the window numbers below were worked out before the Dashboard journal had a room in the reserve
+  writeJson("dashboard/config.json", { journal: { on: false } });
 });
 afterEach(() => {
   try {

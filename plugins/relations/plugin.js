@@ -608,6 +608,14 @@ const OUTFIT_RULE =
 const LAYOUT_RULE =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. A worn or held thing that is put down goes to remove in outfit or holding and to objects add with where it lies (\"on the sofa\"); a thing picked up leaves objects. A body or a fallen thing is an object too.";
 
+// The character journal (Dashboard, docs/JOURNAL-HANDOFF.md): what a character thinks now, and how it sees the people it knows.
+// The journal text is in the story's language, an exception to the Language rule of the sensor prompt; one constant to switch.
+export const JOURNAL_LANGUAGE = "in the language the story is written in (an exception to the Language rule above)";
+export const JOURNAL_THOUGHT_RULE =
+  "- thought (inside chars): for each present character, one short line in first person, " + JOURNAL_LANGUAGE + ": what they think or feel right now about what just happened, in their own voice and true to who they are. Never repeat an earlier thought; write it from the new messages only. Leave it out when the new messages give them nothing to think about. Written from the character's own values, not from whether the user's character would like it: a grudge, a doubt or mixed feelings are fine.";
+export const JOURNAL_PEOPLE_RULE =
+  "- people: when the new messages change how a present character sees someone (another character, or the user's character), one short line in first person, " + JOURNAL_LANGUAGE + ", on how they see that person now, with the reason the text shows. Only a real change; most turns have none; at most 2 per turn. It replaces their earlier line about that person. Written from the character's own values, not from what the user's character would like.";
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -635,6 +643,7 @@ export const DEFAULT_PROMPTS = {
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
+    JOURNAL_THOUGHT_RULE,
     OUTFIT_RULE,
     LAYOUT_RULE,
     "",
@@ -648,6 +657,7 @@ export const DEFAULT_PROMPTS = {
     "- learned: concrete new facts about the user's character that a character sees, hears or guesses (who: the character who learned it, one of those present and never the user's character; what: the fact), never a summary of the conversation and never one note for everyone; at most 4 per turn, the ones that matter; none when nothing is new. Skip anything already in their Notebook, even in other words. weight of a note: everyday (small, may fade), important (still matters in a week of story time), key (changes who the user's character is to them for good: a name, a secret, a debt, a wound).",
     SAID_RULE,
     "- told: when one character repeats a notebook entry to another, give from, to and the entry id. retire: ids of notebook entries the new text disproves.",
+    JOURNAL_PEOPLE_RULE,
     "- names: when the user's name is said in a character's presence, set heardUserName true for them. Also set it true when the new messages clearly show the character already knows the user's character personally (serves them, lives or works with them, shares a past with them, addresses them as someone known). A stranger, or someone who only uses a title or form of address with no sign of knowing them, stays false: never guess. \"calls\" is the exact form of address the character uses for the user now (name, nickname, pet name, title); report it when it changes.",
     "- blindSpot: only for present characters named in this turn's events, never the user's character: one short line (up to 15 words) on what they do not know that matters here. It is for the user's eyes only.",
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
@@ -688,8 +698,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
+const SENSOR_PROMPT_16 = DEFAULT_PROMPTS.sensor.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
 // The fifteenth sensor prompt (before the outfit and layout rules: clothes were rewritten from whatever the new text mentioned, #185).
-const SENSOR_PROMPT_15 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE + "\n" + LAYOUT_RULE + "\n", "");
+const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE + "\n" + LAYOUT_RULE + "\n", "");
 // The fourteenth sensor prompt (before threads became quests with kinds and steps, #117).
 const SENSOR_PROMPT_14 = SENSOR_PROMPT_15.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
 // The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
@@ -751,16 +763,19 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
-const OUTPUT_SHAPE = [
+// the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
+const SHAPE_THOUGHT = ", \"thought\": \"text\"";
+const SHAPE_PEOPLE = "  \"people\": [ { \"who\": \"name\", \"about\": \"name or user\", \"text\": \"text\" } ],";
+export const OUTPUT_SHAPE = [
   "{ \"present\": [\"name\"], \"struck\": [\"name\"],",
   "  \"minutes\": 0, \"time\": \"HH:MM or dawn|morning|late morning|day|evening|night\", \"day\": 1, \"date\": \"YYYY-MM-DD\",",
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"holding\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\" } },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"holding\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
   "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
@@ -768,9 +783,12 @@ const OUTPUT_SHAPE = [
   "  \"retire\": [\"entry id\"],",
   "  \"names\": [ { \"who\": \"name\", \"heardUserName\": true, \"calls\": \"text\" } ],",
   "  \"threads\": { \"open\": [ { \"id\": \"t1 or null\", \"text\": \"...\", \"kind\": \"main|side|everyday\", \"parent\": \"main thread id, only for a step\" } ], \"resolved\": [\"thread id\"] },",
+  SHAPE_PEOPLE,
   "  \"blindSpot\": { \"name\": \"text\" },",
   "  \"edges\": [ { \"from\": \"name\", \"to\": \"name\", \"role\": \"word\", \"warmth\": \"word\" } ] }",
 ].join("\n");
+// the same shape with the journal left out: what a sensor is asked when the journal is off (one source: derived from OUTPUT_SHAPE)
+export const OUTPUT_SHAPE_NO_JOURNAL = OUTPUT_SHAPE.replace(SHAPE_THOUGHT, "").replace(SHAPE_PEOPLE + "\n", "");
 
 // ---------- tiny utils ----------
 const readJson = (fsx, path, dflt) => {
@@ -1540,7 +1558,8 @@ function emptyState(chatId) {
     names: {},
     history: {},
     said: {},
-    counters: { note: 0, thread: 0, said: 0, proposal: 0 },
+    journal: {},
+    counters: { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 },
     proposals: [],
     removed: [],
     lastError: null,
@@ -1552,7 +1571,7 @@ function emptyState(chatId) {
 function normalizeState(raw, chatId) {
   const base = emptyState(chatId);
   const st = { ...base, ...(isObj(raw) ? raw : {}), v: 2, chatId };
-  for (const k of ["snapshots", "places", "notebook", "names", "history", "said"]) if (!isObj(st[k])) st[k] = {};
+  for (const k of ["snapshots", "places", "notebook", "names", "history", "said", "journal"]) if (!isObj(st[k])) st[k] = {};
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
@@ -1632,8 +1651,18 @@ function buildInherit(fsx, chatId) {
     const kept = arr(list).filter((s) => isObj(s) && str(s.text)).map((s) => ({ ...s, src: INHERIT_KEY, fromChat: from }));
     if (kept.length) said[name] = kept;
   }
+  // the people lines as they stand (the newest one per person): kept like what the characters said, the thoughts are not carried
+  const journal = {};
+  for (const [name, list] of Object.entries(effectiveJournal(end.state, end.keys))) {
+    const kept = arr(list).map((j) => ({ ...j, src: INHERIT_KEY, fromChat: from }));
+    if (kept.length) journal[name] = kept;
+  }
   const threads = effectiveThreads(end.overlay, end.snap.threads, end.snap.turn).filter((t) => t.status === "open" && str(t.text));
   const { sig: _s, base: _b, partial: _p, fast: _f, ...snap } = end.snap;
+  // the thought is not carried: a character's last thought belongs to the chat it was written in
+  const chars = isObj(snap.chars)
+    ? Object.fromEntries(Object.entries(snap.chars).map(([n, c]) => { const { thought: _t, thoughtTurn: _w, ...rest } = isObj(c) ? c : {}; return [n, rest]; }))
+    : snap.chars;
   return {
     inherited: {
       v: 1,
@@ -1643,11 +1672,12 @@ function buildInherit(fsx, chatId) {
       turn: end.snap.turn || 0,
       notes,
       threads: threads.length,
-      snap: { ...snap, op: "inherit", events: [], threads },
+      snap: { ...snap, chars, op: "inherit", events: [], threads },
     },
     notebook,
     names,
     said,
+    journal,
     counters: end.state.counters,
     calendar: isObj(end.state.calendar) ? end.state.calendar : null,
   };
@@ -1655,13 +1685,14 @@ function buildInherit(fsx, chatId) {
 
 function applyInherit(state, seed) {
   state.inherited = seed.inherited;
-  for (const bag of ["notebook", "names", "said"]) {
+  for (const bag of ["notebook", "names", "said", "journal"]) {
+    state[bag] = isObj(state[bag]) ? state[bag] : {};
     for (const [name, list] of Object.entries(seed[bag] || {})) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
   }
   // the date of day 1 goes on from the earlier chat, unless the chat has a calendar of its own
   if (isObj(seed.calendar) && !(isObj(state.calendar) && state.calendar.inherited !== true)) state.calendar = { ...seed.calendar, inherited: true };
   // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
-  for (const k of ["note", "thread", "said"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
+  for (const k of ["note", "thread", "said", "journal"]) state.counters[k] = Math.max(Number(state.counters[k]) || 0, Number(seed.counters && seed.counters[k]) || 0);
 }
 
 /** Switch the carried state off: the chat starts clean. The choice stays, so it is not offered again. */
@@ -1669,8 +1700,8 @@ function dropInherit(state) {
   const was = isObj(state.inherited) ? state.inherited : {};
   state.inherited = { v: 1, off: true, from: was.from || null, title: was.title || "", notes: was.notes || 0, threads: was.threads || 0, at: Date.now() };
   if (isObj(state.calendar) && state.calendar.inherited === true) delete state.calendar;
-  for (const bag of ["notebook", "names", "said"]) {
-    for (const name of Object.keys(state[bag])) {
+  for (const bag of ["notebook", "names", "said", "journal"]) {
+    for (const name of Object.keys(state[bag] || {})) {
       state[bag][name] = arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY);
       if (!state[bag][name].length) delete state[bag][name];
     }
@@ -1717,6 +1748,43 @@ const activeBySrc = (bag, keys) => {
 };
 export const activeNames = (state, keys) => activeBySrc(state.names, keys);
 export const activeHistory = (state, keys) => activeBySrc(state.history, keys);
+
+/**
+ * The people lines as they count: the active ones, one per (who, about) with the about compared case-insensitively.
+ * A line the user wrote wins over any sensor line; otherwise the newest (the later one in the bag: the bag is in
+ * the order the lines were written, carried lines first). Returns { who: [{ about, text, by, turn, id }] }, each
+ * person's lines in the order of the winners.
+ */
+export function effectiveJournal(state, keys) {
+  const out = {};
+  for (const [who, list] of Object.entries(activeBySrc(state.journal, keys))) {
+    const best = new Map();
+    list.forEach((line, pos) => {
+      if (!isObj(line) || !str(line.text) || !str(line.about)) return;
+      const k = str(line.about).toLowerCase();
+      // a user line is never replaced by a sensor line; otherwise the later one in the bag wins
+      const cur = best.get(k);
+      if (!cur || line.by === "user" || cur.line.by !== "user") best.set(k, { line, pos });
+    });
+    const winners = [...best.values()]
+      .sort((a, b) => a.pos - b.pos)
+      .map(({ line }) => ({ about: str(line.about), text: str(line.text), by: line.by === "user" ? "user" : "sensor", turn: Number(line.turn) || 0, id: line.id }));
+    if (winners.length) out[who] = winners;
+  }
+  return out;
+}
+
+/** How many sensor lines about one person a character keeps in the bag (the older ones go, so a swipe can show the one before). */
+const JOURNAL_KEEP = 4;
+function keepJournalLines(state, who, about) {
+  const bag = listIn(state.journal, who);
+  const mine = bag.filter((x) => x.by !== "user" && str(x.about).toLowerCase() === about.toLowerCase());
+  const extra = mine.length - JOURNAL_KEEP;
+  if (extra > 0) {
+    const gone = new Set(mine.slice(0, extra));
+    state.journal[who] = bag.filter((x) => !gone.has(x));
+  }
+}
 
 /** FNV-1a 32-bit over the message texts, 8 hex chars: tells whether the newest message was edited or continued. */
 function textSig(msgs) {
@@ -1792,7 +1860,7 @@ function dropSnapshot(state, K) {
     if (kept.length) state.notebook[name] = kept;
     else delete state.notebook[name];
   }
-  for (const bag of [state.names, state.history]) {
+  for (const bag of [state.names, state.history, state.journal || {}]) {
     for (const [name, list] of Object.entries(bag)) {
       const kept = arr(list).filter((x) => x.src !== K);
       if (kept.length) bag[name] = kept;
@@ -2225,6 +2293,9 @@ const DEFAULT_CONFIG = {
   injection: { enabled: true, maxTokens: 300 },
   // what characters said (#98): how many strong statements a turn may add, and whether they go into the reply prompt
   said: { perTurn: 1, inject: true },
+  // the character journal (Dashboard): a thought and people lines from the sensor; on = asked for and kept, inject = in the reply prompt,
+  // thoughtTurns = turns a thought stays fresh, maxTokens = the budget per focused character in the reply prompt
+  journal: { on: true, inject: true, thoughtTurns: 3, maxTokens: 120 },
   // where everyone stands, the objects in the scene and what is worn or held (#185): whether the reply prompt carries it
   layout: { inject: true },
   // a check of replies for a character acting on a secret it does not know (#184 P3): on, a quiet badge under the reply
@@ -2271,9 +2342,21 @@ const mergeConfig = (stored) => ({
   families: { ...DEFAULT_CONFIG.families, ...(isObj(stored.families) ? stored.families : {}) },
   injection: { ...DEFAULT_CONFIG.injection, ...(isObj(stored.injection) ? stored.injection : {}) },
   said: { ...DEFAULT_CONFIG.said, ...(isObj(stored.said) ? stored.said : {}) },
+  journal: { ...DEFAULT_CONFIG.journal, ...(isObj(stored.journal) ? stored.journal : {}) },
   layout: { ...DEFAULT_CONFIG.layout, ...(isObj(stored.layout) ? stored.layout : {}) },
 });
 export const saidPerTurnOf = (cfg) => clamp(Math.round(num(cfg && cfg.said && cfg.said.perTurn)) || DEFAULT_CONFIG.said.perTurn, 1, 4);
+/** The journal is on unless the config says off (a chat without the setting is on). */
+export const journalOnOf = (cfg) => !(cfg && isObj(cfg.journal) && cfg.journal.on === false);
+export const journalInjectOf = (cfg) => !(cfg && isObj(cfg.journal) && cfg.journal.inject === false);
+export const thoughtTurnsOf = (cfg) => {
+  const n = num(cfg && cfg.journal && cfg.journal.thoughtTurns);
+  return Number.isFinite(n) ? clamp(Math.round(n), 1, 10) : DEFAULT_CONFIG.journal.thoughtTurns;
+};
+export const journalTokensOf = (cfg) => {
+  const n = num(cfg && cfg.journal && cfg.journal.maxTokens);
+  return Number.isFinite(n) ? clamp(Math.round(n), 40, 400) : DEFAULT_CONFIG.journal.maxTokens;
+};
 const loadConfig = (fsx) => mergeConfig(storedConfig(fsx));
 const customPrompts = (fsx) => {
   const stored = storedConfig(fsx);
@@ -2368,6 +2451,15 @@ function nextConfig(stored, b) {
     for (const k of Object.keys(sd)) if (sd[k] === DEFAULT_CONFIG.said[k]) delete sd[k];
     put("said", sd, {});
   }
+  if (isObj(b.journal)) {
+    const jo = { ...(isObj(next.journal) ? next.journal : {}) };
+    if (parseBool(b.journal.on) !== undefined) jo.on = parseBool(b.journal.on);
+    if (parseBool(b.journal.inject) !== undefined) jo.inject = parseBool(b.journal.inject);
+    if (Number.isFinite(num(b.journal.thoughtTurns))) jo.thoughtTurns = thoughtTurnsOf({ journal: b.journal });
+    if (Number.isFinite(num(b.journal.maxTokens))) jo.maxTokens = journalTokensOf({ journal: b.journal });
+    for (const k of Object.keys(jo)) if (jo[k] === DEFAULT_CONFIG.journal[k]) delete jo[k];
+    put("journal", jo, {});
+  }
   if (isObj(b.layout)) {
     const lo = { ...(isObj(next.layout) ? next.layout : {}) };
     if (parseBool(b.layout.inject) !== undefined) lo.inject = parseBool(b.layout.inject);
@@ -2399,11 +2491,18 @@ function vocabularyText(vocab, cfg) {
     .join("\n");
 }
 
+/** A line taken out of a sensor text (a user-edited text may not have it at all). */
+const withoutLine = (text, line) => String(text).split("\n").filter((l) => l !== line).join("\n");
+/** The sensor text as asked: with the journal off, its two rule lines are left out. */
+const journalFree = (cfg, text) => (journalOnOf(cfg) ? text : withoutLine(withoutLine(text, JOURNAL_THOUGHT_RULE), JOURNAL_PEOPLE_RULE));
+/** The output shape as asked: without thought and people when the journal is off. */
+const shapeFor = (cfg) => (journalOnOf(cfg) ? OUTPUT_SHAPE : OUTPUT_SHAPE_NO_JOURNAL);
+
 function sensorSystem(cfg, vocab) {
   return (
-    promptOf("sensor", cfg) +
+    journalFree(cfg, promptOf("sensor", cfg)) +
     "\n\nEvent vocabulary\n" + vocabularyText(vocab, cfg) +
-    "\n\nOutput shape\n" + OUTPUT_SHAPE +
+    "\n\nOutput shape\n" + shapeFor(cfg) +
     "\nLeave out any key the new messages give nothing for. date: only a whole date the text states (day, month and year), never a guess."
   );
 }
@@ -2417,6 +2516,26 @@ function clockLine(c, cal) {
 }
 
 const objectText = (o) => o.item + (o.where ? " (" + o.where + ")" : "");
+
+/**
+ * The people lines of the Previous state: each present character's view of the player and of the others present.
+ * Never a thought: the sensor must not see the last one, or it would copy it (docs/JOURNAL-HANDOFF.md).
+ */
+function journalPreviousLines(ctx, B) {
+  const gone = arr(ctx.drop);
+  const eff = effectiveJournal(ctx.state, arr(ctx.line).map((l) => l.key).filter((k) => !gone.includes(k)));
+  const present = arr(B.present);
+  const me = String(ctx.userName || "").toLowerCase();
+  const out = [];
+  for (const name of present) {
+    for (const j of arr(eff[name])) {
+      const about = j.about.toLowerCase();
+      if (about !== me && !present.some((p) => String(p).toLowerCase() === about)) continue;
+      out.push(name + "'s view of " + j.about + ": " + j.text.replace(/[.!?]+$/, "") + ".");
+    }
+  }
+  return out;
+}
 
 function previousStateText(ctx) {
   const B = ctx.base && ctx.base.snap;
@@ -2442,6 +2561,7 @@ function previousStateText(ctx) {
     if (B.layout.userAt) lines.push(ctx.userName + ": " + B.layout.userAt + ".");
     if (arr(B.layout.objects).length) lines.push("Objects here: " + B.layout.objects.map(objectText).join("; ") + ".");
   }
+  if (journalOnOf(ctx.cfg)) lines.push(...journalPreviousLines(ctx, B));
   const open = arr(ctx.threads).filter((t) => t.status === "open");
   if (open.length) lines.push("Open threads: " + open.map(threadLabel).join(", "));
   lines.push(limitsLine(ctx.cfg, ctx.threads));
@@ -3324,6 +3444,11 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   entry.prevConstellation = old ? (oldC !== entry.constellation ? oldC : old.prevConstellation ?? null) : null;
   entry.moodWas = old && old.mood && old.mood !== entry.mood ? old.mood : old ? old.moodWas ?? null : null;
   entry.blindSpot = str(blind) ? cut(str(blind), 300) : old ? old.blindSpot ?? null : null;
+  // the journal's thought (#journal): written this turn only for a character present now; otherwise the last one stays
+  // with its turn (not in TEXT_FIELDS: those count as fresh, and a thought is fresh only when it is written this turn)
+  const thinks = journalOnOf(ctx.cfg) && arr(ctx.presentNow).includes(name) && isObj(sensorChar) && !!str(sensorChar.thought);
+  entry.thought = thinks ? cut(str(sensorChar.thought), 200) : old ? old.thought ?? null : null;
+  entry.thoughtTurn = thinks ? (B ? B.turn || 0 : 0) + 1 : old ? old.thoughtTurn ?? null : null;
   entry.compact = false;
   // the math lines belong to the events that caused them; caps go on the last one
   let last = -1;
@@ -3528,6 +3653,47 @@ function applySaid(ctx, out, present, turn, K) {
   }
 }
 
+const JOURNAL_PER_TURN = 2;
+/**
+ * The people lines of a turn (the journal): how a present character sees the player or one other person known, at
+ * most two a turn. A line for a character who is not in the scene, or from the player's own character, is kept out
+ * and counted (keptOut), as notes are. The text of a line the effective one already says is not written again.
+ */
+function applyJournal(ctx, out, present, turn, K) {
+  if (!journalOnOf(ctx.cfg)) return;
+  const { state } = ctx;
+  const B = ctx.base && ctx.base.snap;
+  const eff = effectiveJournal(state, ctx.line.map((l) => l.key));
+  const kept = ctx.keptOut || { user: 0, absent: 0 };
+  ctx.keptOut = kept;
+  const known = unique([...present, ...Object.keys(isObj(state.notebook) ? state.notebook : {}), ...Object.keys((B && B.chars) || {})]);
+  const items = arr(out.people).filter((p) => isObj(p) && str(p.text)).slice(0, JOURNAL_PER_TURN);
+  for (const p of items) {
+    if (sideOf(p.who, userAll(ctx), present, ctx) === "user") {
+      kept.user++;
+      continue;
+    }
+    const who = canonName(p.who, present, ctx);
+    if (!present.includes(who)) {
+      kept.absent++;
+      continue;
+    }
+    let about;
+    if (sideOf(p.about, userAll(ctx), present, ctx) === "user") about = ctx.userName;
+    else {
+      about = canonName(p.about, known, ctx);
+      if (!known.includes(about)) continue;
+    }
+    if (about.toLowerCase() === who.toLowerCase()) continue;
+    const text = cut(str(p.text), 200);
+    const current = arr(eff[who]).find((j) => j.about.toLowerCase() === about.toLowerCase());
+    if (current && sameText(current.text) === sameText(text)) continue;
+    state.counters.journal = (Number(state.counters.journal) || 0) + 1;
+    listIn(state.journal, who).push({ id: "j" + state.counters.journal, about, text, src: K, turn, by: "sensor" });
+    keepJournalLines(state, who, about);
+  }
+}
+
 function applyNames(ctx, out, present, turn, K) {
   const live = activeNames(ctx.state, ctx.line.map((l) => l.key));
   for (const n of arr(out.names)) {
@@ -3658,6 +3824,8 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const known0 = withTwins.filter((n) => !twins.includes(n));
   const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0, ctx)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n))]);
   const present = scenePresent(ctx, out, known);
+  // charEntry writes a thought only for a character present this turn
+  ctx.presentNow = present;
   const events = readEvents(out.events, ctx, known, unknownIds);
 
   const sensorChars = {};
@@ -3687,6 +3855,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
 
   applyNotebook(ctx, out, present, turn, K);
   applySaid(ctx, out, present, turn, K);
+  applyJournal(ctx, out, present, turn, K);
   applyNames(ctx, out, present, turn, K);
   const clock = advanceClock(B && B.clock, out, op);
   noteCalendar(state, clock.day, out.date, ctx.today);
@@ -4313,6 +4482,18 @@ const FULL_FOCUS = 3;
 
 const pronounsOf = (soul) => PRONOUNS[soul && soul.pronouns] || PRONOUNS.they;
 const estimateTokens = (s) => Math.ceil(String(s).length / 3.2);
+/** Script-aware estimate (the engine's estimateTokens): ASCII ~3.5 characters a token, other letters ~2, the rest 1. Used for the journal budget only. */
+export function estimateTokensScript(text) {
+  const s = String(text == null ? "" : text);
+  let ascii = 0, alpha = 0, other = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) ascii++;
+    else if (c < 0x2e80) alpha++;
+    else other++;
+  }
+  return Math.ceil(ascii / 3.5 + alpha / 2 + other);
+}
 
 function dayWords(clock, cal) {
   const day = Number(clock && clock.day) || 1;
@@ -4519,6 +4700,50 @@ function compactLine(ctx, name) {
   return name + ": " + warmthWord(c.stats) + " toward " + ctx.user + (c.mood ? ", " + c.mood : "") + ".";
 }
 
+/** A thought is fresh while it is written (with its turn) and fewer than thoughtTurns turns old. */
+export function thoughtFreshOf(snap, c, cfg) {
+  if (!isObj(c) || !str(c.thought) || !Number.isFinite(c.thoughtTurn)) return false;
+  return (Number(snap && snap.turn) || 0) - c.thoughtTurn < thoughtTurnsOf(cfg);
+}
+
+/**
+ * "What <name> thinks and feels (journal)" for one character, or "". ctx = { snap, user, state, keys }: the snapshot the
+ * reply stands on, the player's name, the state and the active keys (the people lines come from effectiveJournal).
+ * The thought only while fresh. People lines only about the player or a character present (not <name>): the player's
+ * first, then the others in the order of snap.present. Over journalTokensOf(cfg) (script-aware count) the people lines
+ * go from the end; the thought is never cut.
+ */
+export function journalBlock(ctx, name, cfg) {
+  const snap = isObj(ctx.snap) ? ctx.snap : {};
+  const user = str(ctx.user);
+  const me = user.toLowerCase();
+  const c = isObj(snap.chars) ? snap.chars[name] : null;
+  const thought = thoughtFreshOf(snap, c, cfg) ? str(c.thought) : "";
+  const eff = arr(effectiveJournal(ctx.state, ctx.keys)[name]);
+  const lineAbout = (who) => eff.find((l) => l.about.toLowerCase() === who.toLowerCase());
+  const people = [];
+  const player = me ? lineAbout(user) : null;
+  if (player) people.push({ who: user, text: player.text });
+  for (const other of unique(arr(snap.present).map((n) => str(n)).filter(Boolean))) {
+    if (other === name || other.toLowerCase() === me) continue;
+    const l = lineAbout(other);
+    if (l) people.push({ who: other, text: l.text });
+  }
+  const head = "[What " + name + " thinks and feels (journal): their own view, in their own words. Let it colour what they do; never quote it.";
+  const build = (k) => {
+    const rows = [head];
+    if (thought) rows.push("Right now: " + thought);
+    for (const p of people.slice(0, k)) rows.push("About " + p.who + ": " + p.text);
+    return rows.join("\n") + "]";
+  };
+  const budget = journalTokensOf(cfg);
+  let k = people.length;
+  let text = build(k);
+  while (k > 0 && estimateTokensScript(text) > budget) text = build(--k);
+  if (!thought && k === 0) return "";
+  return text;
+}
+
 /**
  * The insert for one reply, or null. turn = {op, speakerName, targetId, userText, recent?}.
  * Returns { text, tokens, focus, notebookOf, key }.
@@ -4663,7 +4888,12 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const overEvenBare = estimateTokens(text) > budget;
   // what the speakers said and are held to: its own part, outside the notebook's budget
   const saidText = cfg.said && cfg.said.inject === false ? "" : saidBlock(state, at.keys, notes.filter((n) => focus.includes(n)), SAID_TOKENS, overlay);
-  return { text, layoutTokens: layoutText ? estimateTokens(layoutText) : 0, saidText, saidTokens: saidText ? estimateTokens(saidText) : 0, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
+  // the journal: only characters whose notebook may show (notesFor: nobody in a group that cannot say who speaks), so a
+  // private thought never reaches another character's reply
+  const journalText = journalOnOf(cfg) && journalInjectOf(cfg)
+    ? focus.filter((n) => notes.includes(n)).map((n) => journalBlock({ snap, user: ctx.user, state, keys: at.keys }, n, cfg)).filter(Boolean).join("\n")
+    : "";
+  return { text, layoutTokens: layoutText ? estimateTokens(layoutText) : 0, saidText, saidTokens: saidText ? estimateTokens(saidText) : 0, journalText, journalTokens: journalText ? estimateTokensScript(journalText) : 0, tokens: estimateTokens(text), wanted, budget, trimmed, notesCut, notesWanted, overEvenBare, focus, notebookOf: notes.filter((n) => focus.includes(n) && (limit > 0 || hasPinned(n))), key: at.key };
 }
 
 /**
@@ -4725,6 +4955,10 @@ export function llmRequest(ctx, host) {
       if (insert) {
         messages = withTailInsert(messages, insert.text);
         promptSources.parts.push({ kind: "dashboard", label: "Relationship dashboard", text: String(insert.text || "").trim() });
+        if (insert.journalText && !offForChat(fsx, chatId, "plugin:journal")) {
+          messages = withTailInsert(messages, insert.journalText);
+          promptSources.parts.push({ kind: "dashboard", label: "Dashboard · journal", text: String(insert.journalText).trim() });
+        }
         if (insert.saidText && !offForChat(fsx, chatId, "plugin:said")) {
           messages = withTailInsert(messages, insert.saidText);
           promptSources.parts.push({ kind: "dashboard", label: "Dashboard · said", text: String(insert.saidText).trim() });
@@ -4860,7 +5094,7 @@ const FAST_PARTS = ["truth", "events", "scene", "direction", "knowledge", "threa
 function fastRules(cfg) {
   // a whole custom sensor prompt is cut at its headings; a part it lacks falls back to the default
   const own = wholeSensorCustom(cfg) ? splitSensor(cfg.sensor) : isObj(cfg.sensorParts) ? cfg.sensorParts : {};
-  return FAST_PARTS.map((key) => (typeof own[key] === "string" && own[key].trim() ? own[key] : DEFAULT_SENSOR_PARTS[key])).join("\n\n");
+  return journalFree(cfg, FAST_PARTS.map((key) => (typeof own[key] === "string" && own[key].trim() ? own[key] : DEFAULT_SENSOR_PARTS[key])).join("\n\n"));
 }
 
 /**
@@ -4872,7 +5106,7 @@ export function fastInstructions(ctx) {
     promptOf("fast", ctx.cfg),
     fastRules(ctx.cfg),
     "Event vocabulary\n" + vocabularyText(ctx.vocab, ctx.cfg),
-    "Output shape\n" + OUTPUT_SHAPE + "\nLeave out any key this turn gives nothing for. date: only a whole date the text states (day, month and year), never a guess.",
+    "Output shape\n" + shapeFor(ctx.cfg) + "\nLeave out any key this turn gives nothing for. date: only a whole date the text states (day, month and year), never a guess.",
     castText(ctx),
     previousStateText(ctx),
     ...notebookTexts(ctx),
@@ -5264,6 +5498,8 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   // the user's removals and a second name of one soul stay off the Dashboard, whatever an older snapshot kept
   const shown = withoutNames(snap, [...removedOf(state), ...twinNames(souls, cast.names, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
+  // the journal as it counts: each character's people lines (the player's and the others', present or not)
+  const journalLive = effectiveJournal(state, keys);
   const chars = {};
   for (const [name, c] of Object.entries(isObj(shown.chars) ? shown.chars : {})) {
     if (!isObj(c)) continue;
@@ -5282,6 +5518,10 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       name: arr(names[name]).slice(-1).map(({ knowsUserName, calls }) => ({ knowsUserName: !!knowsUserName, calls: calls || "" }))[0] || null,
       history: arr(history[name]).map(({ src: _src, ...line }) => line),
       series: recent.filter((s) => isObj(s.chars) && isObj(s.chars[name])).map((s) => ({ turn: s.turn, stats: s.chars[name].stats })),
+      thought: str(c.thought) || null,
+      thoughtTurn: Number.isFinite(c.thoughtTurn) ? c.thoughtTurn : null,
+      thoughtFresh: thoughtFreshOf(snap, c, cfg),
+      journal: arr(journalLive[name]).map(({ id, about, text, by, turn }) => ({ id, about, text, by, turn })),
     };
   }
   const present = arr(shown.present).filter((n) => chars[n]);
@@ -5323,6 +5563,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     limits: { main: maxMainOf(cfg), side: maxThreadsOf(cfg), steps: maxStepsOf(cfg), everydayTurns: everydayTurnsOf(cfg), retireAfter: retireAfterOf(cfg) },
     noteAgeTurns: noteAgeOf(cfg),
     saidPerTurn: saidPerTurnOf(cfg),
+    journal: { on: journalOnOf(cfg), inject: journalInjectOf(cfg), thoughtTurns: thoughtTurnsOf(cfg), maxTokens: journalTokensOf(cfg) },
     mode: cfg.mode,
     // reading only: an expired file is removed by the hook, not here
     nudge: readNudge(fsx, chatId),
@@ -5382,7 +5623,8 @@ function inheritRoute(req, fsx) {
     state.names = {};
     state.history = {};
     state.said = {};
-    state.counters = { note: 0, thread: 0, said: 0, proposal: 0 };
+    state.journal = {};
+    state.counters = { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 };
     state.proposals = [];
     state.keptOut = null;
     state.lastError = null;

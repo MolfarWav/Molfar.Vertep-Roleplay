@@ -5,10 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
 import { HostilityBar, SignedBar } from './dash-bars'
 import { Notebook } from './dash-notebook'
+import { JournalBox } from './dash-journal'
 import { StatChart, StoryList } from './dash-history'
 import { EventList } from './dash-events'
 import { cn } from '@/lib/utils'
-import { BANDS, canEditNotes, sortedThreads, type DashView } from '@/lib/dashboard'
+import { BANDS, canEditNotes, journalOf, sortedThreads, type DashView } from '@/lib/dashboard'
 import { DISPOSITION, type DispositionStat } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { CarriedBanner } from './dash-carried'
@@ -187,6 +188,7 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
         <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-2">
           <Notebook id="dash-notebook" compact className="scroll-mt-16" name={focus} char={char} userName={userName} />
           <div className="flex min-w-0 flex-col gap-3">
+            <JournalBox chatId={chatId} name={focus} char={char} turn={view.turn} journal={journalOf(view)} />
             <Box data-guide="dash.threads" title={t('dash.threads')} tone="plot" icon={Flag} count={tally(scene.filter((c) => c.tab === 'quests'))}>
               <ThreadList threads={sortedThreads(view.threads)} editable={canEditNotes(view)} canAdd maxOpen={view.maxThreads} limits={view.limits} proposals={view.proposals} />
             </Box>

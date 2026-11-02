@@ -45,6 +45,19 @@ function seed(opts: { views?: any[]; group?: boolean; after?: number; meta?: Rec
   return msgs;
 }
 
+/** A scene of the player and one character (Aria only), then turns of Aria and Jude, with one closed chapter holding `views`. */
+function seedSolo(views: any[]) {
+  writeJson("characters/aria/card.json", { spec: "chara_card_v2", name: "Aria", description: "A quiet courier.", extensions: {} });
+  const msgs = cast(60).filter((m) => m.name !== "Bram");
+  writeChat("tav", msgs, { title: "Tavern", userName: "Jude", characterId: "aria" });
+  const st = L.emptyChat("tav");
+  st.migrated = true;
+  st.chapters = [{ id: "c1", from: "m1", to: "m5", count: 4, sig: L.chapterSig(L.activeLine(msgs).slice(0, 4)), label: "The key", text: "Jude gave Aria a brass key.", kind: "scene", at: 1, views }];
+  st.counters.chapter = 1;
+  writeJson("litopys/chats/tav.json", st);
+  return msgs;
+}
+
 const ctx = (speakerName: string) => ({
   key: "reply",
   request: { messages: [{ role: "system", content: "sys" }, { role: "user", content: "hello" }] },
@@ -71,12 +84,23 @@ describe("recollections: the worker", () => {
     expect(two.systemPrompt).toContain("Recollections:");
     expect(two.systemPrompt).toContain('"views":[');
     expect(two.messages[0].content).toContain("Characters\n- Aria\n- Bram");
-    // a scene of the player and one character
+    // the rule asks what they want now, and still bans what a character did not witness
+    expect(two.systemPrompt).toContain("what they want or mean to do now as a result of it");
+    // and no causes wording leaks into the worker prompt when causes are off (rp-litopys-causes)
+    expect(two.systemPrompt).not.toContain("because");
+    expect(two.systemPrompt).toContain("Nothing they were not present for");
+    // a scene of the player and one character: asked for too (#99: one is enough)
     const solo = L.activeLine(cast(0).filter((m) => m.name !== "Bram"));
     const one = L.buildWorkerRequest(st, { scene: scene(solo, 3), replaces: null }, solo, null, cfg, { userName: "Jude" });
-    expect(one.systemPrompt).not.toContain("Recollections:");
-    expect(one.systemPrompt).not.toContain('"views"');
-    expect(one.messages[0].content).not.toContain("Characters\n");
+    expect(one.systemPrompt).toContain("Recollections:");
+    expect(one.systemPrompt).toContain('"views":[');
+    expect(one.messages[0].content).toContain("Characters\n- Aria");
+    // a scene with no named character besides the player: not asked for
+    const none = L.activeLine(cast(0).filter((m) => m.role === "user"));
+    const empty = L.buildWorkerRequest(st, { scene: scene(none, 1), replaces: null }, none, null, cfg, { userName: "Jude" });
+    expect(empty.systemPrompt).not.toContain("Recollections:");
+    expect(empty.systemPrompt).not.toContain('"views"');
+    expect(empty.messages[0].content).not.toContain("Characters\n");
     // the switch in the settings
     const off = L.buildWorkerRequest(st, { scene: scene(ln), replaces: null }, ln, null, { ...cfg, recollections: false }, { userName: "Jude" });
     expect(off.systemPrompt).not.toContain("Recollections:");
@@ -113,13 +137,35 @@ describe("recollections: the worker", () => {
     expect(views[1].text.length).toBeLessThanOrEqual(300);
   });
 
-  it("writes none when the scene had no cast of two", () => {
+  it("keeps the view of a single named character, and writes none when the scene had no character", () => {
     const ln = L.activeLine(cast(0));
-    const st = L.emptyChat("tav");
     const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" }, views: VIEWS }));
-    L.applyWorkerResult(st, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: ["Aria"] });
-    expect(st.chapters[0].views).toBeUndefined();
+    // one character in the cast: her view is kept, a view of someone outside the cast is dropped
+    const one = L.emptyChat("tav");
+    L.applyWorkerResult(one, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: ["Aria"] });
+    expect(one.chapters[0].views).toEqual([VIEWS[0]]);
+    // no cast (no named character besides the player): nothing is kept
+    const none = L.emptyChat("tav");
+    L.applyWorkerResult(none, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: [] });
+    expect(none.chapters[0].views).toBeUndefined();
     L.applyWorkerResult(L.emptyChat("tav"), { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln });
+  });
+
+  it("a 1:1 scene: her view is asked for, kept, and her reply carries it", () => {
+    const solo = L.activeLine(cast(0).filter((m) => m.name !== "Bram"));
+    const st = L.emptyChat("tav");
+    const req = L.buildWorkerRequest(st, { scene: scene(solo, 3), replaces: null }, solo, null, cfg, { userName: "Jude" });
+    expect(req.systemPrompt).toContain("Recollections:");
+    const parsed = L.parseWorkerReply(
+      JSON.stringify({ chapter: { label: "The key", text: "Jude gave Aria a brass key." }, views: [{ who: "Aria", text: "I took his key and let him in. I want him gone by morning." }] }),
+    );
+    const kept = L.emptyChat("tav");
+    L.applyWorkerResult(kept, { scene: scene(solo, 3), replaces: null }, parsed, { now: 1, line: solo, cast: ["Aria"] });
+    expect(kept.chapters[0].views).toEqual([{ who: "Aria", text: "I took his key and let him in. I want him gone by morning." }]);
+    seedSolo(kept.chapters[0].views);
+    const { host } = mockHost();
+    const text = textOf(L.llmRequest(ctx("Aria"), host));
+    expect(text).toContain("I want him gone by morning.");
   });
 });
 
