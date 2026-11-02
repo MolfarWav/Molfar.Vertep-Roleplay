@@ -214,7 +214,9 @@ describe("a chat that continues another", () => {
     run(mock, "c2", { day: 1, time: "morning" });
     const c2 = readStateFile("c2");
     expect(c2.calendar).toMatchObject({ start: "1893-06-07", src: "text" });
-    expect(view(mock, "c2").view.clock).toMatchObject({ day: 6, date: "1893-06-12" });
+    // the earlier chat ended on the evening of day 6 and the new one opens on "a new morning": that is day 7 (#207);
+    // the sensor's own "day 1" is a count it cannot know, and never sets the day back
+    expect(view(mock, "c2").view.clock).toMatchObject({ day: 7, date: "1893-06-13" });
 
     writeChat("c3", [A("p1", "Another start.")]);
     link("c1", "c3");
