@@ -217,6 +217,9 @@ export const CONTINUES =
   "This chat CONTINUES that story. The characters remember it: it really happened to them, so treat it as established canon and let it show naturally. When a character is asked or reminded of it, they recognise it and answer from it. The opening messages of this chat may read like a first meeting: treat them as a later scene of the same story. Do not retell it unprompted, do not contradict it.";
 // The sentences that tell the model what the memory parts are FOR are editable like the writing prompts (#113):
 // the bracketed lead of each part stays in code, only the sentence after it is the user's.
+// The memory parts are written in English (owner decision 2026-10-07) while a story may not be: said once per reply, on the
+// first Litopys block, so the story model does not drift into English. The Dashboard's CLOSING says the same for its block.
+export const LANGUAGE_NOTE = "(These memory notes are in English for the app: write the reply in the language the story is written in.)";
 export const CARD_MEMORY_RULE = "{name} lived through these, and they shaped who {name} is now: let them colour how {name} feels and acts, recognise them when reminded or asked, and do not bring them up unprompted.";
 
 export const DEFAULT_PROMPTS = {
@@ -1870,45 +1873,63 @@ export function llmRequest(ctx, host) {
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
     const promptSources = { parts: [] };
+    // the language note rides once, on whichever block comes first
+    let langLeft = true;
+    const said = (text) => {
+      const t = String(text || "");
+      if (!langLeft || !t.trim()) return t;
+      langLeft = false;
+      return t.replace(/\s*$/, "") + "\n" + LANGUAGE_NOTE;
+    };
     if (back) {
-      messages = withInsert(messages, back.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: String(back.text || "").trim() });
+      const t_back_text = said(back.text);
+      messages = withInsert(messages, t_back_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: t_back_text.trim() });
     }
     if (cardMem) {
-      messages = withInsert(messages, cardMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: String(cardMem.text).trim() });
+      const t_cardMem_text = said(cardMem.text);
+      messages = withInsert(messages, t_cardMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: t_cardMem_text.trim() });
     }
     if (personaMem) {
-      messages = withInsert(messages, personaMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: String(personaMem.text).trim() });
+      const t_personaMem_text = said(personaMem.text);
+      messages = withInsert(messages, t_personaMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · persona memory", text: t_personaMem_text.trim() });
     }
     if (worldMem) {
-      messages = withInsert(messages, worldMem.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: String(worldMem.text).trim() });
+      const t_worldMem_text = said(worldMem.text);
+      messages = withInsert(messages, t_worldMem_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · world memory", text: t_worldMem_text.trim() });
     }
     if (habits) {
-      messages = withInsert(messages, habits.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: String(habits.text).trim() });
+      const t_habits_text = said(habits.text);
+      messages = withInsert(messages, t_habits_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · character habits", text: t_habits_text.trim() });
     }
     if (recall && recall.text) {
-      messages = withInsert(messages, recall.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: String(recall.text).trim() });
+      const t_recall_text = said(recall.text);
+      messages = withInsert(messages, t_recall_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: t_recall_text.trim() });
     }
     if (insert && insert.head) {
-      messages = withInsert(messages, insert.head);
-      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: String(insert.head).trim() });
+      const t_insert_head = said(insert.head);
+      messages = withInsert(messages, t_insert_head);
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, story so far" : "Litopys · story so far", text: t_insert_head.trim() });
     }
     if (insert && insert.tail) {
-      messages = withTailInsert(messages, insert.tail);
-      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: String(insert.tail).trim() });
+      const t_insert_tail = said(insert.tail);
+      messages = withTailInsert(messages, t_insert_tail);
+      promptSources.parts.push({ kind: "memory", label: insert.full ? "Litopys · full record, facts" : "Litopys · facts and earlier chapters", text: t_insert_tail.trim() });
     }
     if (castKn) {
-      messages = withTailInsert(messages, castKn.text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: String(castKn.text).trim() });
+      const t_castKn_text = said(castKn.text);
+      messages = withTailInsert(messages, t_castKn_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · who knows what", text: t_castKn_text.trim() });
     }
     if (recall && recall.tail) {
-      messages = withTailInsert(messages, recall.tail);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · latest recollection", text: String(recall.tail).trim() });
+      const t_recall_tail = said(recall.tail);
+      messages = withTailInsert(messages, t_recall_tail);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · latest recollection", text: t_recall_tail.trim() });
     }
     return { messages, ...(promptSources.parts.length ? { promptSources } : {}) };
   } catch (e) {
@@ -5679,8 +5700,8 @@ export function recollectionsFor({ fsx, meta, st, line, cut, speakerName, budget
   if (!rows.length) return null;
   const who = name || "this character";
   const head = many
-    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. Each knows only their own part, so never let one use what only another remembers.]"
-    : "[What " + who + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, it colours how they act now, and they know nothing of those scenes beyond it.]";
+    ? "[What each character remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. The story record shows the narrator the whole of those scenes, but each character knows only their own part: never let one use what only another remembers or what only the record tells.]"
+    : "[What " + who + " remembers of earlier scenes (Litopys): their own view, in their own words, of what they saw, heard or were told, and how they felt about it. It is how they remember it, and it colours how they act now. Where the story record tells more about those scenes, " + who + " knows only this part.]";
   const tailHead = many
     ? "[What each character remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now; never let one use what only another remembers.]"
     : "[What " + who + " remembers of the latest scene before these messages (Litopys): their own view, still fresh. Let it colour how they act now.]";
