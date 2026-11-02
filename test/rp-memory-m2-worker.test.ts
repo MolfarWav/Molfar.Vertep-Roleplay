@@ -613,6 +613,24 @@ describe("failure and retry", () => {
     expect(r2.requests).toHaveLength(0);
   });
 
+  it("keeps the record's upkeep going while the retry waits", () => {
+    const msgs = story(70);
+    writeChat("c1", msgs, { updatedAt: Date.now() });
+    const m = mockHost();
+    tick(m, [chapterReply("T", "Old text.")]);
+    const st = readJson("litopys/chats/c1.json");
+    st.worker = { lastRunAt: Date.now(), ok: false, error: "empty or invalid reply", retryAt: Date.now() + 500000 };
+    writeJson("litopys/chats/c1.json", st);
+    msgs[5].text = "CHANGED TEXT about the old mill.";
+    writeChat("c1", msgs, { updatedAt: Date.now() });
+    const r2 = tick(m, [chapterReply("T2", "New text.")]);
+    expect(r2.requests).toHaveLength(0); // no new chapter request before retryAt
+    const st2 = readJson("litopys/chats/c1.json");
+    expect(st2.chapters[0].stale).toBe(true); // but the edit was noticed
+    expect(st2.cut.count).toBe(0); // and the cut stopped before the stale chapter
+    expect(st2.queue.next).toBeGreaterThan(0);
+  });
+
   it("retries after retryAt and clears error on success", () => {
     writeChat("c1", story(70), { updatedAt: Date.now() });
     const m = mockHost();

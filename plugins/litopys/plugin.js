@@ -3234,10 +3234,8 @@ export function onTick(_ctx, host) {
         if (moveNotes(fsx, chatId, st, dash, line, str(meta.userName) || "You", now) > 0) changed = true;
         // a rebuild writes a new generation beside the record in use and swaps it in when done
         const gen = isObj(st.rebuild) ? st.rebuild : st;
-        if (gen.worker && gen.worker.retryAt && gen.worker.retryAt > now) {
-          if (changed) saveChatFile(fsx, st);
-          continue;
-        }
+        // a failed chapter request waits out RETRY_MS, but the record's own upkeep (stale marks, arcs, the cut, the queue) goes on
+        const waiting = !!(gen.worker && gen.worker.retryAt && gen.worker.retryAt > now);
         if (markStale(st, line)) changed = true;
         if (gen !== st && markStale(gen, line)) changed = true;
         if (tidyArcs(st, now)) changed = true;
@@ -3294,6 +3292,10 @@ export function onTick(_ctx, host) {
         if (!work) {
           if (changed) saveChatFile(fsx, st);
           wake(fsx, chatId, false);
+          continue;
+        }
+        if (waiting) {
+          if (changed) saveChatFile(fsx, st);
           continue;
         }
         const keyOf = (s, g, w) => (g !== s ? "litr_" : "lit_") + chatId + "_" + w.scene.from + "_" + w.scene.to;
