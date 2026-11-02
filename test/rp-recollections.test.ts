@@ -228,6 +228,32 @@ describe("recollections: the reply", () => {
     expect(labels(res)).toEqual(expect.arrayContaining(["Litopys · recollections", "Litopys · latest recollection"]));
   });
 
+  it("tells a character the record may say more than it knows, and a narrator that each knows only their part", () => {
+    seed();
+    const st = readJson("litopys/chats/tav.json");
+    st.chapters = [1, 2].map((n) => ({ ...st.chapters[0], id: "c" + n, label: "Night " + n, views: VIEWS }));
+    writeJson("litopys/chats/tav.json", st);
+    const { host } = mockHost();
+    const one = textOf(L.llmRequest(ctx("Aria"), host));
+    expect(one).toContain("Where the story record tells more about those scenes, Aria knows only this part.");
+    expect(one).not.toContain("they know nothing of those scenes beyond it");
+    seed({ group: true });
+    writeJson("litopys/chats/tav.json", st);
+    const many = textOf(L.llmRequest(ctx("Tavern"), host));
+    expect(many).toContain("The story record shows the narrator the whole of those scenes, but each character knows only their own part");
+  });
+
+  it("says once, on the first memory block, to answer in the story's language", () => {
+    seed();
+    const { host } = mockHost();
+    const res = L.llmRequest(ctx("Aria"), host);
+    const all = res.messages.map((m: any) => String(m.content)).join("\n");
+    expect(all.split(L.LANGUAGE_NOTE).length - 1).toBe(1);
+    // on the first Litopys block, the stable one above the history
+    expect(res.promptSources.parts[0].text.endsWith(L.LANGUAGE_NOTE)).toBe(true);
+    expect(res.messages[1].content).toContain(L.LANGUAGE_NOTE);
+  });
+
   it("takes its room from recollectBudget", () => {
     seed();
     const st = readJson("litopys/chats/tav.json");

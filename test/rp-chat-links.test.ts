@@ -124,7 +124,8 @@ describe("backstory", () => {
     expect(res.messages[2].content).toContain("Aria rebuilt the mill.");
 
     // one token short of the whole block: the oldest chapter, added last, is the one left out
-    writeJson("litopys/config.json", { linkBudget: L.estimateTokens(res.messages[1].content) - 1 });
+    // (the block as sent also carries the language note, which is not part of the backstory's budget)
+    writeJson("litopys/config.json", { linkBudget: L.estimateTokens(String(res.messages[1].content).replace("\n" + L.LANGUAGE_NOTE, "")) - 1 });
     const tight = L.llmRequest(ctx("new"), mockHost().host);
     const back = tight.messages[1].content as string;
     expect(back).toContain("Aria burned the mill down.");
