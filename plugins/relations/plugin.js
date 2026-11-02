@@ -4511,9 +4511,12 @@ function dayWords(clock, cal) {
   const day = Number(clock && clock.day) || 1;
   const date = dateOf(cal, day);
   if (date) {
-    const exact = clock && clock.time && clock.approx !== true ? ", " + clock.time : "";
-    return dateWords(date) + exact + (clock && clock.band ? ", " + clock.band : "");
+    // an hour worked out from the part of the day is told as "about": left out, the story model made up its own hour
+    // ("it is already noon" while the Dashboard said about 09:00, #207)
+    const hour = clock && clock.time ? ", " + (clock.approx === true ? "about " : "") + clock.time : "";
+    return dateWords(date) + hour + (clock && clock.band ? ", " + clock.band : "");
   }
+  // a hidden date keeps the prompt words only: the day and the part of the day, no digits
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
   const band = clock && clock.band ? cap1(clock.band) : "";
   return band ? band + " of " + which : cap1(which);

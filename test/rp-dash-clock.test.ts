@@ -143,6 +143,13 @@ describe("the clock line in the reply prompt (#207)", () => {
     expect(swipe).not.toContain("23:40");
   });
 
+  it("an hour worked out from the part of the day is told as 'about', so the story model does not invent its own (#207)", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Good morning."), U("m3", "Hm.")]);
+    const mock = mockHost([reply({ present: ["Aria"], time: "morning", day: 1, date: "2026-10-26" })]);
+    update(mock, "c1");
+    expect(sceneOf(P.buildInsert(mock.host.fs, "c1", turn, { injection: {} }).text)).toContain("Monday 26 October 2026, about 09:00, morning");
+  });
+
   it("is still there when the user's character is alone (nobody present)", () => {
     writeChat("c1", [U("m1", "I walk on."), A("m2", "The road is empty."), U("m3", "I keep walking.")]);
     const mock = mockHost([reply({ present: [], time: "14:10", day: 3, date: "2026-10-28", place: "the north road", weather: "wind" })]);
