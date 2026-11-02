@@ -173,7 +173,7 @@ export function FillControls({ busy, disabled, onFill, vision, member }: { busy:
         {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
         {busy ? 'Filling…' : 'Fill empty'}
       </Button>
-      {!member && <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty'}>
+      {!member && <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty: it only describes the picture, then the card model fills the fields'}>
         Portrait:
         <Select value={none ? 'none' : vision.value} onValueChange={(v) => vision.setValue(v ? String(v) : 'settings')} disabled={none}>
           <SelectTrigger size="sm" className="h-7 max-w-60 text-xs" aria-label="Portrait model"><SelectValue /></SelectTrigger>

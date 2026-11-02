@@ -112,32 +112,63 @@ describe("keeping a reply to the profile", () => {
 describe("POST /profile/fill", () => {
   const files = () => ({ "characters/eli/card.json": JSON.stringify(card), "settings.json": JSON.stringify({ model: "c/m" }) });
 
-  it("asks only for the named empty fields, sends the portrait to the chosen model, files a fill draft", () => {
+  /** The engine re-runs the route per pass: results of the pass before, the stash of the pass before. */
+  const pass = (m: ReturnType<typeof memHost>, req: Record<string, any>, stash?: unknown) => handleRoute({ ...req, ...(stash ? { stash } : {}) }, m.host) as { __llmPending?: boolean; stash?: Record<string, unknown>; json?: any };
+
+  it("with a portrait: the vision model only describes it, the card's task model writes the fields, a fill draft is filed", () => {
     const m = memHost(files());
     const req = {
       method: "POST", path: "/profile/fill", query: {},
       body: { characterId: "eli", fields: { appearance: ["hair", "bogus"], nope: ["x"], lists: ["flaws"] }, image: { data: "AAAA", mimeType: "image/png" }, model: "c/vision" },
     };
-    expect((handleRoute(req, m.host) as { __llmPending?: boolean }).__llmPending).toBe(true);
-    const spec = m.requests[0]!.spec;
-    expect(spec.model).toBe("c/vision");
-    expect(spec.images).toEqual([{ data: "AAAA", mimeType: "image/png" }]);
+    const first = pass(m, req);
+    expect(first.__llmPending).toBe(true);
+    // step 1: the picture, to the vision model picked next to the button; no profile fields asked yet
+    expect(m.requests).toHaveLength(1);
+    expect(m.requests[0]!.key).toBe("look");
+    expect(m.requests[0]!.spec.model).toBe("c/vision");
+    expect(m.requests[0]!.spec.images).toEqual([{ data: "AAAA", mimeType: "image/png" }]);
+    expect(m.requests[0]!.spec.messages[0].content).not.toContain("appearance");
+    m.results.look = { text: "A tall woman with white hair and a scar over one eye.", model: "c/vision" };
+    delete m.results.fill;
+    const second = pass(m, req, first.stash);
+    // step 2: the card's task model (settings.json model here), text and what the vision model saw, no picture
+    expect(m.requests).toHaveLength(2);
+    const spec = m.requests[1]!.spec;
+    expect(m.requests[1]!.key).toBe("fill");
+    expect(spec.model).toBe("c/m");
+    expect(spec.images).toBeUndefined();
+    expect(spec.messages[0].content).toContain("white hair and a scar");
     expect(spec.messages[0].content).toContain("appearance: hair\nlists: flaws");
     expect(spec.messages[0].content).not.toContain("bogus");
-    m.results.fill = { text: '{"profile":{"appearance":{"hair":"white","eyes":"red"},"lists":{"flaws":["cold"]}},"note":"from the picture"}', model: "c/vision" };
-    const out = handleRoute(req, m.host) as { json: { ok: boolean; draft: Record<string, any> } };
+    delete m.results.look;
+    m.results.fill = { text: '{"profile":{"appearance":{"hair":"white","eyes":"red"},"lists":{"flaws":["cold"]}},"note":"from the picture"}', model: "c/m" };
+    const out = pass(m, req, second.stash);
     expect(out.json.ok).toBe(true);
     expect(out.json.draft.kind).toBe("fill");
+    expect(out.json.draft.model).toBe("c/m");
     // eyes were not asked for: dropped
     expect(out.json.draft.profile).toEqual({ appearance: { hair: "white" }, lists: { flaws: ["cold"] } });
     expect(JSON.parse(m.files["profile-drafts/eli.json"]!).kind).toBe("fill");
   });
 
-  it("leaves the model out for a picture with none named, so the engine's vision model reads it", () => {
+  it("when the picture cannot be read, the fields come from the text and the note says so", () => {
     const m = memHost(files());
-    const pic = { characterId: "eli", fields: { appearance: ["hair"] }, image: { data: "AAAA", mimeType: "image/png" } };
-    handleRoute({ method: "POST", path: "/profile/fill", query: {}, body: pic }, m.host);
-    expect(m.requests[0]!.spec.model).toBeUndefined();
+    const req = { method: "POST", path: "/profile/fill", query: {}, body: { characterId: "eli", fields: { appearance: ["hair"] }, image: { data: "AAAA", mimeType: "image/png" } } };
+    const first = pass(m, req);
+    m.results.look = { error: "model does not take images" };
+    const second = pass(m, req, first.stash);
+    expect(m.requests[1]!.key).toBe("fill");
+    expect(m.requests[1]!.spec.model).toBe("c/m");
+    expect(m.requests[1]!.spec.messages[0].content).not.toContain("portrait, as another model saw it");
+    delete m.results.look;
+    m.results.fill = { text: '{"profile":{"appearance":{"hair":"grey"}},"note":"guessed"}', model: "c/m" };
+    const out = pass(m, req, second.stash);
+    expect(out.json.ok).toBe(true);
+    expect(out.json.draft.note).toBe("guessed The portrait could not be read, so this comes from the text only.");
+  });
+
+  it("with no portrait, one call on the card's task model, as before", () => {
     const text = memHost(files());
     handleRoute({ method: "POST", path: "/profile/fill", query: {}, body: { characterId: "eli", fields: { appearance: ["hair"] } } }, text.host);
     expect(text.requests[0]!.spec.model).toBe("c/m");
