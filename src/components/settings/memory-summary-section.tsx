@@ -275,6 +275,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <Block tone="memory" icon={MagnifyingGlass} title={t('lit.blk.facts')} hint={t('lit.blk.factsHint')} summary={t('lit.sum.facts', { n: cfg.pinLimit })}>
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
+        {switchRow('lit-search-words', t('lit.set.searchWords'), t('lit.set.searchWordsHint'), cfg.searchWords !== false, (v) => save({ searchWords: v }))}
         <EmbedRow />
       </Block>
 

@@ -29,7 +29,7 @@ describe("the worker: asking for a cause and reading it", () => {
 
   it("asks only when there is a known fact to point at, and not when causes are off", () => {
     const st = L.emptyChat("c1");
-    const req = (cfg: Record<string, unknown>) => L.buildWorkerRequest(st, { ...work, scene: { ...work.scene } }, ln(), {}, { ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS, ...cfg }, { userName: "You" });
+    const req = (cfg: Record<string, unknown>) => L.buildWorkerRequest(st, { ...work, scene: { ...work.scene } }, ln(), {}, { ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS, searchWords: false, ...cfg }, { userName: "You" });
     expect(req({}).systemPrompt).not.toContain("because");
     st.facts.push(fact(1, "The river thawed."));
     const on = req({});

@@ -198,6 +198,9 @@ export const DEFAULT_CONFIG = {
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
   // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
   hiddenPlan: false,
+  // #184: the chapter worker also writes a few search words (synonyms, the story's own language) for each new fact and for the chapter,
+  // kept as `also` and read only by the word search, never shown to the model
+  searchWords: true,
   // #99 piece 3: how the lexical recall weighs a match. "phrases" (default): a name, two words in a row and a word the chat
   // does not use all the time weigh differently; "words": the old rule, a rare word counts the same wherever it stands.
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
@@ -302,6 +305,36 @@ export const CAUSE_RULE = [
   '- When a new fact happened BECAUSE of a Known fact, add "because": that fact\'s id (one id, like "f3"). Only a cause the messages show; leave it out otherwise.',
 ].join("\n");
 export const CAUSE_SHAPE = ',"because":"f3"?';
+
+/**
+ * Added to the chapter prompt while search words are on (#184). The record is searched by words, and a question seldom uses the
+ * words the fact was written with (a synonym, or another language: the default record is English whatever the story's language).
+ */
+export const SEARCH_RULE = [
+  "Search words (optional):",
+  '- For the chapter and for each new fact add "also": 3 to 6 other words someone might use when asking about it later. Synonyms and near terms for its key nouns, verbs and places; and, when the story is not written in English, the same key words in the story\'s own language.',
+  "- Single lowercase words. No names (names are matched already), no words the text already has, nothing the text does not mean.",
+].join("\n");
+export const SEARCH_SHAPE = ',"also":["word"]?';
+/** At most this many search words to a chapter or a fact, each this long. */
+const ALSO_MAX = 8;
+const ALSO_CHARS = 24;
+/** The search words as kept: lowercase, short, no repeats, none the text already has. */
+export function cleanAlso(list, text) {
+  const have = new Set(wordTokensM3b(str(text)).map(wordStemM3b));
+  const out = [];
+  for (const raw of arr(list)) {
+    const w = cut(str(raw).toLowerCase(), ALSO_CHARS);
+    const key = wordStemM3b(w);
+    if (!w || w.split(/\s+/).length > 2 || have.has(key) || out.includes(w)) continue;
+    out.push(w);
+    have.add(key);
+    if (out.length >= ALSO_MAX) break;
+  }
+  return out;
+}
+/** What the word search reads of a fact or a chapter: its text (with the label of a chapter) and its search words. */
+const indexText = (x) => (str(x.label) ? str(x.label) + " " : "") + str(x.text) + (Array.isArray(x.also) && x.also.length ? " " + x.also.map(str).join(" ") : "");
 
 /** At most this many recollections to a chapter, each this long (the worker may ramble). */
 const VIEWS_MAX = 8;
@@ -445,6 +478,7 @@ export function loadConfig(fsx) {
   cfg.recollections = cfg.recollections !== false;
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.hiddenPlan = cfg.hiddenPlan === true;
+  cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
   return cfg;
@@ -499,6 +533,7 @@ export function patchConfig(fsx, body) {
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
+  if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
@@ -1096,8 +1131,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   // #178: only when there is a known fact to point at
   const causesOn = cfg.causes !== false && factLines.length > 0;
   const base = causesOn ? WORKER_SHAPE.replace('"weight":"everyday|important|key"}', '"weight":"everyday|important|key"' + CAUSE_SHAPE + "}") : WORKER_SHAPE;
-  const shape = base.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + "\n\nOutput shape\n" + shape;
+  const alsoOn = cfg.searchWords !== false;
+  const baseAlso = alsoOn ? base.replace(/("weight":"everyday\|important\|key"(?:,"because":"f3"\?)?)\}/, "$1" + SEARCH_SHAPE + "}").replace('"text":"3-6 sentences"', '"text":"3-6 sentences"' + SEARCH_SHAPE) : base;
+  const shape = baseAlso.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
@@ -1182,7 +1219,7 @@ export function scanMatcherM3b(scanWords) {
 const weightBonus = (f) => (f && f.weight === "key" ? 6 : f && f.weight === "important" ? 3 : 0);
 /** A fact's lexical score against the scan text (ported from relations rankNotes plus weight bonus). */
 function factScore(f, scan, inScan, df, n) {
-  const keys = wordTokensM3b(str(f.text));
+  const keys = wordTokensM3b(indexText(f));
   let score = weightBonus(f);
   if (scan.length) {
     for (const k of keys) {
@@ -1377,7 +1414,7 @@ function lexicalScorer(list, textOf, givenOf, scanText, opts) {
 export function rankFacts(facts, scanText, recency, sem, opts) {
   const list = arr(facts).filter(isObj);
   if (opts) {
-    const lex = lexicalScorer(list, (f) => str(f.text), (f) => [f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : [])], scanText, opts);
+    const lex = lexicalScorer(list, indexText, (f) => [f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : [])], scanText, opts);
     const extra = semanticBonuses(list, sem);
     return list
       .map((f) => ({ f, score: (weightBonus(f) + lex(f) + (extra.get(f) || 0)) * (recency ? recency(f) : 1) }))
@@ -1387,7 +1424,7 @@ export function rankFacts(facts, scanText, recency, sem, opts) {
   const df = new Map();
   const keysMap = new Map();
   for (const f of list) {
-    const ks = [...new Set(wordTokensM3b(str(f.text)))];
+    const ks = [...new Set(wordTokensM3b(indexText(f)))];
     keysMap.set(f, ks);
     for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
   }
@@ -1404,7 +1441,7 @@ export function rankFacts(facts, scanText, recency, sem, opts) {
 export function rankChapters(chapters, scanText, sem, opts) {
   const list = arr(chapters).filter(isObj);
   if (opts) {
-    const lex = lexicalScorer(list, (ch) => str(ch.label) + " " + str(ch.text), null, scanText, opts);
+    const lex = lexicalScorer(list, indexText, null, scanText, opts);
     const extra = semanticBonuses(list, sem);
     return list
       .map((ch) => ({ ch, score: lex(ch) + (extra.get(ch) || 0) }))
@@ -1414,7 +1451,7 @@ export function rankChapters(chapters, scanText, sem, opts) {
   const df = new Map();
   const keysMap = new Map();
   for (const ch of list) {
-    const ks = [...new Set(wordTokensM3b(str(ch.label) + " " + str(ch.text)))];
+    const ks = [...new Set(wordTokensM3b(indexText(ch)))];
     keysMap.set(ch, ks);
     for (const w of new Set(ks.map(wordStemM3b))) df.set(w, (df.get(w) || 0) + 1);
   }
@@ -2013,7 +2050,8 @@ function workerShape(v) {
     text = str(v.text);
   }
   if (!text) return null;
-  return { chapter: { label: cut(label, 80), text: cut(text, 1500) }, facts: factOps(v), habits: habitList(v), views: viewList(v) };
+  const also = isObj(v.chapter) ? v.chapter.also : v.also;
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500), ...(Array.isArray(also) ? { also } : {}) }, facts: factOps(v), habits: habitList(v), views: viewList(v) };
 }
 
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
@@ -2132,6 +2170,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     kind: scene.kind,
     at: now,
   };
+  const chapterAlso = ctx.searchWords === false ? [] : cleanAlso(parsed.chapter.also, newChapter.label + " " + newChapter.text);
+  if (chapterAlso.length) newChapter.also = chapterAlso;
   if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
   // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a cast of two or more
@@ -2188,6 +2228,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       }
       if (factAdds.length >= 8) break;
       const because = ctx.causes === false ? "" : causeOf(st, op);
+      const also = ctx.searchWords === false ? [] : cleanAlso(op.also, text);
       const fact = {
         id: "f" + ++st.counters.fact,
         text,
@@ -2198,6 +2239,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         pinned: false,
         status: "active",
         ...(because ? { because } : {}),
+        ...(also.length ? { also } : {}),
         src: { from: scene.from, to: scene.to, chapter: chapterId },
         origin: "chapter",
         at: now,
@@ -3270,6 +3312,7 @@ export function onTick(_ctx, host) {
                 sources: sourceSentences(fsx, meta),
                 habits: cfg.habits !== false,
                 causes: cfg.causes !== false,
+                searchWords: cfg.searchWords !== false,
                 habitsStore: cur,
                 earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
