@@ -606,8 +606,12 @@ const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given 
 // What the sensor does with clothes, hands and places (#185). It reports changes only; code keeps the lists, so the sensor
 // never rewrites a garment it was not asked about (a colour drifted, "pink soft knit cardigan" became "a cardigan").
 const OUTFIT_RULE =
+  "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), every item with an id (i1, i2 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"i1\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. For one that is not listed, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"i1\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost, with where it lies when the text says. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
+const OUTFIT_RULE_17 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding). Report only changes, each as { \"add\": [...], \"remove\": [...] }. add: a garment or thing the new messages first describe, or a character puts on or picks up. remove: one the text says is taken off, put down, dropped or lost; name it as the Previous state does. Give an added item once, with all its details (colour, fabric, cut) as the text states them. Never add what is already listed, never shorten it, never change a colour on a guess. When the text shows no change, leave the key out.";
 const LAYOUT_RULE =
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; code puts it among the objects. A thing picked up leaves objects by itself. A body or a fallen thing is an object too.";
+const LAYOUT_RULE_17 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. A worn or held thing that is put down goes to remove in outfit or holding and to objects add with where it lies (\"on the sofa\"); a thing picked up leaves objects. A body or a fallen thing is an object too.";
 
 // The character journal (Dashboard, docs/JOURNAL-HANDOFF.md): what a character thinks now, and how it sees the people it knows.
@@ -701,9 +705,11 @@ export const DEFAULT_PROMPTS = {
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
 // The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
-const SENSOR_PROMPT_16 = DEFAULT_PROMPTS.sensor.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
+// The seventeenth sensor prompt (before outfit and holding became a ledger of items with ids, #236).
+const SENSOR_PROMPT_17 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE, OUTFIT_RULE_17).replace(LAYOUT_RULE, LAYOUT_RULE_17);
+const SENSOR_PROMPT_16 = SENSOR_PROMPT_17.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
 // The fifteenth sensor prompt (before the outfit and layout rules: clothes were rewritten from whatever the new text mentioned, #185).
-const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE + "\n" + LAYOUT_RULE + "\n", "");
+const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE_17 + "\n" + LAYOUT_RULE_17 + "\n", "");
 // The fourteenth sensor prompt (before threads became quests with kinds and steps, #117).
 const SENSOR_PROMPT_14 = SENSOR_PROMPT_15.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
 // The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
@@ -765,7 +771,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -777,7 +783,7 @@ export const OUTPUT_SHAPE = [
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"holding\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"see\": [ { \"id\": \"i1\" }, { \"text\": \"new item\" } ], \"off\": [ { \"id\": \"i2\", \"where\": \"text\" } ] }, \"holding\": { \"see\": [ { \"text\": \"item\" } ], \"off\": [ { \"id\": \"i3\" } ] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
   "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
@@ -2555,9 +2561,12 @@ function previousStateText(ctx) {
     const fresh = DISPOSITION.every((s) => !c.stats[s]);
     let line = name + " toward " + ctx.userName + ": " + (fresh ? "no history yet" : DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).join("; ")) + ".";
     if (c.mood) line += " Mood: " + c.mood + ".";
-    if (c.holding) line += " Holding: " + c.holding + ".";
-    if (c.outfit) line += " Wearing: " + c.outfit + ".";
-    // nothing recorded yet: the sensor reports changes, so without this line it skips a garment that is merely worn (#236)
+    // what the character holds and wears, each item with its id: the sensor refers to the ids (#236)
+    const its = itemsOf(c);
+    const listing = (kind) => its.filter((x) => x.kind === kind).map((x) => x.id + " " + x.text).join("; ");
+    if (listing("hold")) line += " Holding: " + listing("hold") + ".";
+    if (listing("wear")) line += " Wearing: " + listing("wear") + ".";
+    // nothing recorded yet: say how to report it, or the sensor skips a garment that is merely worn
     else if (!c.outfitSet) line += " Wearing: nothing recorded yet, so report in outfit any garment the new messages show on " + name + ", not only a change.";
     if (c.at) line += " At: " + c.at + ".";
     lines.push(line);
@@ -2833,7 +2842,7 @@ function wordScanText(hits) {
   if (!hits.length) return "";
   return [
     "Word scan",
-    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. When a garment already in Wearing is described again in a new state (torn, wet, dirty, burnt), remove the old entry (every old entry of that garment) and add the new one instead of listing both. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears it; skip the rest. Give the exact garment (colour, fabric, cut) as written. A garment already in Wearing described in a new state (torn, wet, dirty, burnt) is the same item as before, not a new one. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
     ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
   ].join("\n");
 }
@@ -3633,6 +3642,119 @@ export function applyStackDelta(old, delta) {
   return { text: items.join(", "), removed, added, changed: removed.length > 0 || added.length > 0 };
 }
 
+// ---------- the ledger of what a character wears and holds (#236) ----------
+// Each item has an id (i1, i2 ...), a kind (wear, hold) and its text. The sensor sees the ids in the Previous state and
+// refers to them: `see` names what the new messages show (an id for a listed item, none for a new one; a new text on an id is
+// the same item in a new state), `off` names ids taken off or put down. Code never has to match words to find out which item a
+// report means, so a torn gown stays one gown and nothing is "put down" by accident. Words are used only as a safety net, when
+// the sensor forgot the id of an item that is listed (never twice) and for the older formats (a plain text, { add, remove }).
+// A snapshot from before the ledger gets its items from the outfit and holding texts.
+const ITEMS_MAX = 14;
+const idNum = (id) => Number(String(id).replace(/^\D+/, "")) || 0;
+
+/** The items of a character entry: [{ id, kind, text }]. */
+export function itemsOf(c) {
+  if (!isObj(c)) return [];
+  if (Array.isArray(c.items)) return c.items.filter((i) => isObj(i) && str(i.id) && str(i.text) && (i.kind === "wear" || i.kind === "hold")).map((i) => ({ id: str(i.id), kind: i.kind, text: str(i.text) }));
+  let n = 0;
+  const make = (kind, text) => stackItems(text).map((t) => ({ id: "i" + ++n, kind, text: t }));
+  return [...make("wear", c.outfit), ...make("hold", c.holding)];
+}
+
+/** The text of one kind of a character's items, as the older fields kept it. */
+export const itemsText = (items, kind) => items.filter((i) => i.kind === kind).map((i) => i.text).join(", ");
+
+/**
+ * Apply the sensor's report for one field ("outfit" = wear, "holding" = hold) to the items.
+ * Returns { items, seq, changed, off: [{ item, where }], added: [text] }.
+ */
+export function applyLedger(items0, seq0, kind, report, lying = []) {
+  let items = items0.map((i) => ({ ...i }));
+  let seq = Math.max(seq0 || 0, ...items.map((i) => idNum(i.id)));
+  const off = [];
+  const added = [];
+  let changed = false;
+  const of = (id) => items.find((i) => i.id === id && i.kind === kind);
+  const newItem = (text) => {
+    const pickedUp = lying.find((o) => isObj(o) && covers(o.item, text));
+    const item = { id: "i" + ++seq, kind, text: pickedUp ? str(pickedUp.item) : text };
+    items.push(item);
+    added.push(item.text);
+    changed = true;
+  };
+  const see = (entry) => {
+    const id = isObj(entry) ? str(entry.id) : "";
+    const text = itemText(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry);
+    const known = id ? of(id) : null;
+    if (known) {
+      // a new state of the same item (torn, wet); a report that says less than the list does changes nothing (#185)
+      if (text && outfitWords(text).length && !covers(known.text, text) && text !== known.text) {
+        known.text = text;
+        changed = true;
+      }
+      return;
+    }
+    if (!text || !outfitWords(text).length) return;
+    // the sensor forgot the id of a listed item: the words find it, once
+    const same = items.find((i) => i.kind === kind && covers(i.text, text));
+    if (same) return;
+    const poorer = items.find((i) => i.kind === kind && covers(text, i.text));
+    if (poorer) {
+      poorer.text = text;
+      changed = true;
+      return;
+    }
+    newItem(text);
+  };
+  const takeOff = (entry) => {
+    const id = isObj(entry) ? str(entry.id) : "";
+    const where = isObj(entry) ? cut(str(entry.where).replace(/\s+/g, " "), 100) : "";
+    let at = id ? items.findIndex((i) => i.id === id && i.kind === kind) : -1;
+    // no such id: the words of an older report find it
+    if (at < 0) {
+      const text = itemText(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry);
+      if (text && !id) at = items.findIndex((i) => i.kind === kind && covers(i.text, text));
+    }
+    if (at < 0) return;
+    const [gone] = items.splice(at, 1);
+    off.push({ item: gone.text, where });
+    changed = true;
+  };
+  if (isObj(report) && (report.see !== undefined || report.off !== undefined)) {
+    for (const e of listOf(report.see)) see(e);
+    for (const e of listOf(report.off)) takeOff(e);
+  } else if (isObj(report) && (report.add !== undefined || report.remove !== undefined)) {
+    // the older change list: a removed garment that comes back in a new state (torn) is the same item, not put down
+    for (const e of listOf(report.remove)) takeOff(e);
+    for (const e of listOf(report.add)) {
+      const text = itemText(isObj(e) ? (e.text ?? e.item ?? "") : e);
+      const swap = off.findIndex((o) => sameGarment(o.item, text));
+      if (swap >= 0) off.splice(swap, 1);
+      // an old-format report cannot name the item it changes: the same garment in a new state replaces its entry
+      const state = text && !items.some((i) => i.kind === kind && covers(i.text, text)) ? items.find((i) => i.kind === kind && sameGarment(i.text, text)) : null;
+      if (state) {
+        state.text = text;
+        changed = true;
+      } else see(e);
+    }
+  }
+  // too many: the oldest of this kind go first
+  const mine = items.filter((i) => i.kind === kind);
+  if (mine.length > ITEMS_MAX) {
+    const drop = new Set(mine.slice(0, mine.length - ITEMS_MAX).map((i) => i.id));
+    items = items.filter((i) => !drop.has(i.id));
+  }
+  return { items, seq, changed, off, added };
+}
+
+/** The scene's objects without the things a character wears or holds: a held thing is not lying around (#236). */
+export function withoutCarried(objects, chars) {
+  const carried = Object.values(isObj(chars) ? chars : {}).flatMap((c) => itemsOf(c).map((i) => i.text));
+  if (!carried.length) return objects;
+  const named = (t) => outfitWords(t).some((w) => w.length >= 4);
+  return objects.filter((o) => !carried.some((t) => named(o.item) && named(t) && (covers(o.item, t) || covers(t, o.item))));
+}
+
 /** The scene's objects after this turn: [{ item, where }]. down = worn/held things just put down, up = just picked up or put on. */
 export function applyObjects(prev, out, down, up, placeMoved) {
   const list = placeMoved ? [] : arr(prev).filter((o) => isObj(o) && str(o.item)).map((o) => ({ item: str(o.item), where: str(o.where) }));
@@ -3652,8 +3774,8 @@ export function applyObjects(prev, out, down, up, placeMoved) {
   // a worn or held thing put down keeps the wording it had on the character and lies where the sensor said
   for (const d of down) {
     const at = list.findIndex((x) => covers(d.item, x.item) || covers(x.item, d.item));
-    if (at >= 0) list[at] = { item: d.item, where: list[at].where || "set down by " + d.who };
-    else list.push({ item: d.item, where: "set down by " + d.who });
+    if (at >= 0) list[at] = { item: d.item, where: d.where || list[at].where || "set down by " + d.who };
+    else list.push({ item: d.item, where: d.where || "set down by " + d.who });
   }
   for (const u of up) {
     const at = list.findIndex((x) => covers(u, x.item) || covers(x.item, u));
@@ -3675,31 +3797,52 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   const turn = applyTurn({ name, prev, soul, cls, events, vocab: ctx.vocab });
   const entry = { cls, stats: turn.stats, pulse: turn.pulse, hostility: turn.hostility, seed: old ? old.seed : startChar(soul, cls).stats };
   for (const f of TEXT_FIELDS) entry[f] = (isObj(sensorChar) && str(sensorChar[f]) ? cut(str(sensorChar[f]), 300) : old ? old[f] : null) ?? null;
-  if (isObj(sensorChar) && str(sensorChar.outfit) && old && old.outfit) entry.outfit = cut(keepOutfit(old.outfit, sensorChar.outfit), 300);
   // what the sensor saw THIS turn; carried values are stale for the prompt insert
-  entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
-  // outfit and holding as change lists (#185): code keeps the list; what was put down or picked up goes on to the scene's objects
+  entry.fresh = TEXT_FIELDS.filter((f) => f !== "outfit" && f !== "holding" && isObj(sensorChar) && str(sensorChar[f]));
+  // outfit and holding are a ledger of items with ids (#236); the texts the rest of the app reads are made from it
   const moves = ctx.layoutMoves || { down: [], up: [] };
+  let items = itemsOf(old);
+  let seq = old && Number.isFinite(old.itemSeq) ? old.itemSeq : 0;
+  const lying = arr(B && B.layout && B.layout.objects);
   let outfitListed = false;
-  for (const f of ["outfit", "holding"]) {
-    const d = isObj(sensorChar) ? stackDelta(sensorChar[f]) : null;
-    if (!d) continue;
-    // a thing picked up from the scene's objects keeps the wording it lay there with
-    const lying = arr(B && B.layout && B.layout.objects);
-    const picked = listOf(d.add).map((a) => {
-      const hit = lying.find((o) => isObj(o) && covers(o.item, itemText(a)));
-      return hit ? hit.item : a;
-    });
-    const res = applyStackDelta(old ? old[f] : null, { ...d, add: picked });
-    entry[f] = res.text || null;
+  for (const [f, kind] of [["outfit", "wear"], ["holding", "hold"]]) {
+    const report = isObj(sensorChar) ? sensorChar[f] : undefined;
+    if (report === undefined || report === null) continue;
     if (f === "outfit") outfitListed = true;
+    if (typeof report === "string") {
+      // the oldest format, a full text: it replaces the kind's items, keeping the ids of those that stay
+      const text = str(report);
+      const keep = f === "outfit" && old && old.outfit ? keepOutfit(old.outfit, text) : text;
+      const texts = stackItems(keep);
+      const same = items.filter((i) => i.kind === kind && texts.includes(i.text));
+      const fresh = texts.filter((t) => !same.some((i) => i.text === t)).map((t) => ({ id: "i" + ++seq, kind, text: t }));
+      if (same.length !== items.filter((i) => i.kind === kind).length || fresh.length) entry.fresh.push(f);
+      items = [...items.filter((i) => i.kind !== kind), ...same, ...fresh];
+      continue;
+    }
+    const res = applyLedger(items, seq, kind, report, lying);
+    items = res.items;
+    seq = res.seq;
     if (res.changed) entry.fresh.push(f);
-    const swapped = f === "outfit" ? picked.map(itemText) : [];
-    for (const item of res.removed) if (!swapped.some((a) => sameGarment(item, a))) moves.down.push({ item, who: name });
+    for (const o of res.off) moves.down.push({ item: o.item, who: name, where: o.where });
     moves.up.push(...res.added);
   }
+  entry.items = items;
+  entry.itemSeq = seq;
+  // the turn the story last showed this character's clothes: the sensor named a garment or thing of theirs, or a clothes sentence names them.
+  // The writer is asked to show them again when this is old (layoutBlock); it does not depend on the sensor prompt or the preset
+  const thisTurn = (B ? B.turn || 0 : 0) + 1;
+  const reported = ["outfit", "holding"].some((f) => {
+    const r = isObj(sensorChar) ? sensorChar[f] : null;
+    return typeof r === "string" ? !!str(r) : isObj(r) && (listOf(r.see).length > 0 || listOf(r.add).length > 0);
+  });
+  const hits = ctx.wearHits || (ctx.wearHits = wordScanHits(ctx).filter((h) => h.kinds.includes("wear")));
+  const namedInHits = hits.some((h) => h.named.some((n) => sameName(n, name)));
+  entry.shownTurn = reported || namedInHits ? thisTurn : old && Number.isFinite(old.shownTurn) ? old.shownTurn : thisTurn;
+  entry.outfit = itemsText(items, "wear") ? cut(itemsText(items, "wear"), 600) : null;
+  entry.holding = itemsText(items, "hold") ? cut(itemsText(items, "hold"), 600) : null;
   // an outfit the sensor has reported once (even an empty one after undressing) is known: the reply prompt asks for a description only while it is not
-  entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit;
+  entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit || items.length > 0;
   // where the character is in the place: carried until the sensor moves them or the place changes
   entry.at = isObj(sensorChar) && str(sensorChar.at) ? cut(str(sensorChar.at), 120) : ctx.placeMoved ? null : (old && old.at) ?? null;
   // how they reach the user's character from elsewhere (#16); carried like the place, but only
@@ -4130,7 +4273,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
   noteCalendar(state, clock.day, out.date, ctx.today);
   const prevLayout = isObj(B && B.layout) ? B.layout : {};
   const layout = {
-    objects: applyObjects(prevLayout.objects, out, ctx.layoutMoves.down, ctx.layoutMoves.up, ctx.placeMoved),
+    objects: withoutCarried(applyObjects(prevLayout.objects, out, ctx.layoutMoves.down, ctx.layoutMoves.up, ctx.placeMoved), chars),
     userAt: str(out.userAt) ? cut(str(out.userAt), 120) : ctx.placeMoved ? null : prevLayout.userAt ?? null,
   };
   // what lay in the place the story just left: the World DM's sweep offers it for the book, so the place keeps it (kept until the next move)
@@ -4945,6 +5088,8 @@ function characterBlock(ctx, name, withNotes, limit) {
  * Where everyone stands, what lies around, the clothes of those who have no full block, and a request to describe
  * the clothing of a focus character the Dashboard has none for (#185). "" when there is nothing to say.
  */
+// turns without the story showing a character's clothes before the writer is asked to (#236); layout.clothesEvery in the config changes it, 0 turns it off
+const CLOTHES_EVERY = 6;
 export function layoutBlock(ctx, present, focus) {
   const { snap, user } = ctx;
   const lay = isObj(snap.layout) ? snap.layout : {};
@@ -4961,7 +5106,19 @@ export function layoutBlock(ctx, present, focus) {
   const objects = arr(lay.objects).filter((o) => isObj(o) && str(o.item));
   if (objects.length) rows.push("Objects: " + objects.map(objectText).join("; ") + ".");
   const bare = focus.filter((n) => snap.chars[n] && !CONTACT_WORDS[snap.chars[n].contact] && !snap.chars[n].outfit && !snap.chars[n].outfitSet).slice(0, 3);
-  const askText = bare.length === 1 ? bare[0] + "'s clothing is not described yet: describe it briefly and naturally in this reply." : bare.length ? "The clothing of " + bare.slice(0, -1).join(", ") + " and " + bare[bare.length - 1] + " is not described yet: describe it briefly and naturally in this reply." : "";
+  // clothes the story has not shown for a while (#236): one or two characters, gently, once the Dashboard knows what they wear
+  const every = isObj(ctx.layoutCfg) && Number.isFinite(ctx.layoutCfg.clothesEvery) ? ctx.layoutCfg.clothesEvery : CLOTHES_EVERY;
+  const stale = every > 0
+    ? present
+        .filter((n) => {
+          const c = snap.chars[n];
+          return c && !CONTACT_WORDS[c.contact] && !bare.includes(n) && itemsOf(c).some((i) => i.kind === "wear") && Number.isFinite(c.shownTurn) && (snap.turn || 0) - c.shownTurn >= every;
+        })
+        .sort((a, b) => snap.chars[a].shownTurn - snap.chars[b].shownTurn)
+        .slice(0, 2)
+    : [];
+  const staleText = stale.length ? (stale.length === 1 ? stale[0] + "'s clothing" : stale[0] + "'s and " + stale[1] + "'s clothing") + " has not come up in the story for a while: mention " + (stale.length === 1 ? "it" : "it for one of them") + " briefly and naturally in this reply, only where it fits." : "";
+  const askText = staleText && !(bare.length) ? staleText : bare.length === 1 ? bare[0] + "'s clothing is not described yet: describe it briefly and naturally in this reply." : bare.length ? "The clothing of " + bare.slice(0, -1).join(", ") + " and " + bare[bare.length - 1] + " is not described yet: describe it briefly and naturally in this reply." : "";
   if (!rows.length && !askText) return "";
   const head = rows.length ? "[Where things stand. This is background: keep to it unless the story moves things, and do not retell it." : "[";
   return head + (rows.length ? "\n" + rows.join("\n") : "") + (askText ? "\n" + askText : "") + "]";
@@ -5097,6 +5254,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const notesFor = speaker ? [speaker] : group ? (narratorGroup ? focus : []) : focus;
   const ctx = {
     snap,
+    layoutCfg: cfg.layout,
     souls,
     user: userNameOf(fsx, chat.meta),
     notebook: freshNotes(effectiveNotebook(state, at.keys, overlay).live, snap.turn, noteAgeOf(cfg)),

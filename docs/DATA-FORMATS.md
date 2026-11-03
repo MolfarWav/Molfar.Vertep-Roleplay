@@ -643,6 +643,17 @@ character saw, heard or guessed), `names` and `history`:
   present character, never from the player; a line kept out is counted in `keptOut`). Carried like `said` (`src: "inherit"`)
   and dropped by Start clean. Reply prompt: its own part `Dashboard · journal` (after the Dashboard block, before `said`),
   for the characters whose notebook shows; mute per chat with the prompt board key `plugin:journal`. Config in
+  **Worn and held things (#236).** Each character of a snapshot keeps `items: [{ id, kind: "wear" | "hold", text }]` and `itemSeq` (the last id number);
+  `outfit` and `holding` are those items' texts joined with commas, so every reader of the old fields works as before. A snapshot from before
+  the ledger gets its items from the two texts when it is read. The sensor's Previous state lists the items with their ids (`Wearing: i1 white top; i2 skirt`),
+  and the sensor reports `outfit` and `holding` as `{ "see": [ { "id": "i1" }, { "id": "i2", "text": "skirt, torn" }, { "text": "new thing" } ], "off": [ { "id": "i3", "where": "on the sofa" } ] }`:
+  `see` names what the new messages show (an id for a listed item, with a `text` only for more detail or a new state, which is the same item;
+  no id for a new one), `off` names ids taken off or put down (`where` is where it lies; code puts it among the scene objects). Words find an
+  item only when the sensor forgot an id (a listed item is not added twice). The older formats still work for a sensor prompt a user saved
+  before: a plain text (the full list) and `{ add, remove }`. A held or worn item is never also kept among the scene `objects`. Each character
+  also keeps `shownTurn`, the turn the story last showed their clothes; when it is `layout.clothesEvery` turns old (default 6, `0` switches it off, in
+  `data/dashboard/config.json`) the prompt insert asks the writer to mention one or two characters' clothing again, briefly. This does not depend on the preset or the sensor prompt.
+  `scripts/sensor-replay.ts` replays a saved chat through the sensor and scores the result against hand-written labels.
   `data/dashboard/lexicon.json` (optional, #236): words for the sensor's word scan, `{ wear: [...], dress: [...], touch: [...], carry: [...], off?: true }`.
   Code scans the whole new messages (before any cut) and hands the sentences that hold one of these words to the sensor as hints
   ("Word scan" block). Built-in lists cover clothing, dressing verbs and contact in many languages; this file adds to them. An entry

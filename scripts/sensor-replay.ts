@@ -77,6 +77,18 @@ const chatId: string = labels.chat;
 const lines = fs.readFileSync(path.join(root, "chats", chatId + ".jsonl"), "utf8").trim().split("\n");
 const meta = JSON.parse(fs.readFileSync(path.join(root, "chats", chatId + ".meta.json"), "utf8"));
 fs.rmSync(path.join(root, "dashboard", "state"), { recursive: true, force: true });
+// --prompt old: a user who saved their own sensor prompt (the previous default, changed) keeps it; --no-preset: a chat without a preset
+if (flag("--prompt") === "old") {
+  const cfgPath = path.join(root, "dashboard", "config.json");
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+  cfg.sensor = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-1) + "\n\n(A custom note of the user: keep every text value short.)";
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+}
+if (args.includes("--no-preset")) {
+  delete meta.presetId;
+  delete meta.presetVars;
+  fs.writeFileSync(path.join(root, "chats", chatId + ".meta.json"), JSON.stringify(meta));
+}
 
 let pending: { key: string; req: any }[] = [];
 const results: Record<string, unknown> = {};
@@ -206,4 +218,7 @@ for (const r of rows) {
 }
 console.log(`\nSUMMARY ${tag}: recall ${ok}/${must} (${must ? Math.round((100 * ok) / must) : 0}%), wrong items ${bad}, duplicates ${dups}, phantom objects ${phantoms}; model calls ${calls}, tokens in/out ${tokensIn}/${tokensOut}`);
 fs.writeFileSync(path.join(corpus, `results-${tag}.json`), JSON.stringify({ tag, ok, must, bad, dups, phantoms, rows }, null, 1));
+try {
+  fs.copyFileSync(path.join(root, "_debug", "dashboard-runs.json"), path.join(corpus, `runs-${tag}.json`));
+} catch {}
 fs.rmSync(root, { recursive: true, force: true });
