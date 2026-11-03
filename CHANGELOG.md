@@ -4,6 +4,13 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.87.0 (2026-11-03)
+
+- Ten more Help articles, in English and Ukrainian (#148): starting a new chat, the Chats page (search, sort, filter, select), Manage chat files (export, checkpoint, import), What this chat carries, the "+" menu by the message box, Sprites, Backup and restore, the Appearance and Chat Behavior switches, Arcs in the Library, and Customizing the Home page. Every claim has a source line that the validator checks (79 articles now).
+- The agent editor explains its cards (#145). Select a card and its Card tab has a folded block "What goes in and out": what the card takes in and gives out, in plain words, with "optional" where a connection may stay empty. Three new Help articles describe how an agent works (card, wire, run), every card type, and three ready agents (Tension meter, Next moves, Pacing nudge). The block lives in the card's panel, not as a "?" on the card, which is too small to hit on a phone.
+- Fix: "Reset look and local settings" no longer deletes your folders, the Backgrounds list and your connection profiles. Its dialog promised to reset only the appearance settings, themes, quick replies and tags, but the reset emptied those collections too and saved that to the engine. Chats that had already lost their folders do not get them back.
+- The guide page about agents said an agent can run before, with or after a reply or by hand; the editor runs agents after every reply only. The page now says so, and its 13 translations follow it.
+
 ## 4.86.0 (2026-11-02)
 
 - The story model no longer invents its own hour (#207). When the story only said "morning", the Dashboard ran a clock from the start of that part of the day (shown as ≈09:00), but the reply prompt told the model only "morning", so it made up an hour and could say it was already noon. The prompt now says "about 09:00, morning" for such a time (an exact time reads as before; with the date hidden the prompt stays words only).

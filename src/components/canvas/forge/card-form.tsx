@@ -381,8 +381,8 @@ function PortsHelp({ node }: { node: CanvasNode }) {
     `${p.label ?? p.id} (${t(`fg.io.type.${p.type}` as MsgKey)}${p.optional ? `, ${t('fg.io.optional')}` : ''})`
   const list = (title: string, ports: typeof ins) => (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-medium">{title}</span>
-      {ports.length ? ports.map((p) => <span key={p.id} className="text-[11px] leading-snug text-muted-foreground">{line(p)}</span>) : <span className="text-[11px] text-muted-foreground">{t('fg.io.nothing')}</span>}
+      <span className="text-caption font-medium">{title}</span>
+      {ports.length ? ports.map((p) => <span key={p.id} className="text-caption text-muted-foreground">{line(p)}</span>) : <span className="text-caption text-muted-foreground">{t('fg.io.nothing')}</span>}
     </div>
   )
   return (
@@ -391,7 +391,7 @@ function PortsHelp({ node }: { node: CanvasNode }) {
       {ins.length || outs.length ? (
         <div className="flex flex-col gap-2 border-t border-border p-2">{list(t('fg.io.in'), ins)}{list(t('fg.io.out'), outs)}</div>
       ) : (
-        <p className="border-t border-border p-2 text-[11px] text-muted-foreground">{t('fg.io.none')}</p>
+        <p className="border-t border-border p-2 text-caption text-muted-foreground">{t('fg.io.none')}</p>
       )}
     </details>
   )
