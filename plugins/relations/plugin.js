@@ -2558,7 +2558,7 @@ function previousStateText(ctx) {
     if (c.holding) line += " Holding: " + c.holding + ".";
     if (c.outfit) line += " Wearing: " + c.outfit + ".";
     // nothing recorded yet: the sensor reports changes, so without this line it skips a garment that is merely worn (#236)
-    else if (!c.outfitSet) line += " Wearing: nothing recorded yet, so report in outfit every garment the new messages show on " + name + ", not only a change.";
+    else if (!c.outfitSet) line += " Wearing: nothing recorded yet, so report in outfit any garment the new messages show on " + name + ", not only a change.";
     if (c.at) line += " At: " + c.at + ".";
     lines.push(line);
   }
@@ -2695,11 +2695,11 @@ export const DEFAULT_LEXICON = {
     // uk
     "топа", "топі", "топу", "топом", "подол", "чепч", "сукн", "спідниц", "блуз", "сорочк", "футболк", "топ!", "куртк", "пальт", "светр", "кофт", "худі", "джинс", "штани", "штанів", "шорт", "панчох", "колгот", "шкарпет", "кросівк", "кеди", "взутт", "черевик", "чобіт", "туфл", "босонік", "тапк", "бюстгальтер", "ліфчик", "труси", "трусик", "білизн", "купальник", "халат", "рушник", "піжам", "шарф", "шапк", "капелюх", "рукавичк", "ремін", "пояс!", "пояса", "поясі", "поясом", "намист", "браслет", "сережк", "стрічк", "заколк", "резинк", "чокер", "окуляр", "перстен", "каблучк", "годинник", "фартух", "легінс", "плащ", 
     // ru
-    "топа", "топе", "топу", "топом", "топы", "топов", "топик", "подол", "чепч", "платье", "платья", "платьиц", "юбк", "блуз", "рубашк", "футболк", "куртк", "пальто", "свитер", "кофт", "худи", "джинс", "штаны", "брюк", "шорт", "чулок", "чулк", "колготк", "носк", "кроссовк", "кед", "обув", "ботинк", "сапог", "туфл", "босонож", "тапочк", "лифчик", "бюстгальтер", "трусик", "трусы", "белье", "бельё", "купальник", "халат", "полотенц", "пижам", "шарф", "шапк", "шляп", "перчатк", "ремень", "ремня", "пояс!", "пояса", "поясе", "поясу", "поясом", "ожерель", "браслет", "серьг", "лент", "заколк", "резинк", "чокер", "очки", "очков", "кольц", "часы!", "часов", "фартук", "лосин", "плащ", "бретел",
+    "топа", "топе", "топу", "топом", "топы", "топов", "топик", "подол", "чепч", "платье", "платья", "платьиц", "юбк", "блуз", "рубашк", "футболк", "куртк", "пальто", "свитер", "кофт", "худи", "джинс", "штаны", "брюк", "шорт", "чулок", "чулк", "колготк", "носк", "кроссовк", "кед", "обув", "ботинк", "сапог", "туфл", "босонож", "тапочк", "лифчик", "бюстгальтер", "трусик", "трусы", "белье", "бельё", "купальник", "халат", "полотенц", "пижам", "шарф", "шапк", "шляп", "перчатк", "ремень", "ремня", "пояс!", "пояса", "поясе", "поясу", "поясом", "ожерель", "браслет", "серьг", "лент", "заколк", "резинк", "чокер", "очки", "очков", "кольц", "фартук", "лосин", "плащ", "бретел",
     // de
     "kleid", "rock!", "röck", "bluse", "hemd", "jacke", "mantel", "pullover", "strumpf", "strümpf", "socke", "schuh", "stiefel", "sandale", "unterwäsche", "schlüpfer", "badeanzug", "schal!", "mütze", "handschuh", "gürtel", "halskette", "armband", "ohrring", "haarspange", "brille",
     // fr
-    "robe!", "jupe", "chemise", "veste", "manteau", "pull!", "chaussette", "chaussure", "botte", "culotte", "soutien-gorge", "sous-vêtement", "maillot", "écharpe", "bonnet", "gant!", "ceinture", "collier", "bracelet", "boucle d'oreille", "barrette", "lunettes",
+    "robe!", "jupe", "chemise", "veste", "manteau", "chaussette", "chaussure", "botte", "culotte", "soutien-gorge", "sous-vêtement", "maillot", "écharpe", "bonnet", "gant!", "ceinture", "collier", "bracelet", "boucle d'oreille", "barrette", "lunettes",
     // es
     "vestido", "falda", "camisa", "blusa", "camiseta", "chaqueta", "abrigo", "suéter", "calcetín", "calcetin", "zapato", "zapatilla", "bota!", "sandalia", "braga", "sujetador", "ropa interior", "bañador", "bufanda", "gorro", "guante", "cinturón", "collar!", "pulsera", "pendiente", "gafas",
     // pt
@@ -2707,7 +2707,7 @@ export const DEFAULT_LEXICON = {
     // it
     "vestito", "camicia", "maglietta", "giacca", "cappotto", "maglione", "calza", "scarpa", "stivale", "sandalo", "mutandine", "reggiseno", "biancheria", "costume da bagno", "sciarpa", "cappello", "guanto", "cintura", "collana", "braccialetto", "orecchino", "occhiali",
     // pl
-    "sukienk", "spódnic", "bluzk", "koszul", "kurtk", "płaszcz", "sweter", "skarpet", "rajstop", "pończoch", "trampk", "but!", "buty", "butów", "sandał", "majtki", "stanik", "bielizn", "kostium", "szalik", "czapk", "rękawiczk", "pasek", "naszyjnik", "bransolet", "kolczyk", "spinka", "okulary",
+    "sukienk", "spódnic", "bluzk", "koszul", "kurtk", "płaszcz", "sweter", "skarpet", "rajstop", "pończoch", "trampk", "buty", "butów", "butem", "butach", "sandał", "majtki", "stanik", "bielizn", "kostium", "szalik", "czapk", "rękawiczk", "pasek", "naszyjnik", "bransolet", "kolczyk", "spinka", "okulary",
     // nl
     "jurk", "rok!", "overhemd", "jas!", "trui", "sok!", "sokken", "schoen", "laars", "laarzen", "slipje", "beha!", "ondergoed", "badpak", "sjaal", "muts", "handschoen", "riem!", "ketting", "oorbel", "bril!",
     // tr
@@ -2723,6 +2723,18 @@ export const DEFAULT_LEXICON = {
     "надел", "одел", "одевает", "сняла", "снял", "снимает", "раздел", "расстегн", "застегн", "расшнуров", "завяз", "развяз", "стянул", "скинул", "подобрал", "подняла",
     "наділ", "одяг", "зняла", "зняв", "знімає", "роздяг", "розстебн", "застебн", "розшнур", "розв'яз", "скинув", "скинула", "підібрав", "підняла",
     "anzieh", "auszieh", "ausgezogen", "enlev", "déshabill", "quit", "tirou", "desabotoou", "vestiu", "indoss", "tolse", "spogli", "zdjęła", "zdjął", "włożyła", "włożył", "rozebra", "giydi", "çıkardı", "脱", "穿", "を脱", "を着", "입었", "벗었",
+  ],
+  carry: [
+    // things a character holds or carries (a bag, a phone, an umbrella, a weapon); they matter for "holding"
+    "purse", "handbag", "bag!", "bags!", "backpack", "satchel", "phone", "smartphone", "umbrella", "wallet", "keys!", "knife", "sword", "dagger", "pistol", "gun!", "bouquet", "suitcase",
+    "сумк", "сумоч", "рюкзак", "телефон", "смартфон", "зонт", "кошел", "ключи!", "ключей", "нож!", "ножа", "ножом", "меч!", "мечем", "пистолет", "букет", "чемодан",
+    "парасол", "гаманець", "гаманц", "ключі!", "ключів", "ніж!", "ножа", "ножем", "меча", "пістолет", "валіз",
+    "handtasche", "rucksack", "handy", "regenschirm", "geldbörse", "schlüssel", "messer", "schwert",
+    "sac à main", "sac!", "portable!", "parapluie", "portefeuille", "clés", "couteau", "épée",
+    "bolso", "mochila", "móvil", "paraguas", "cartera", "llaves", "cuchillo", "espada",
+    "bolsa!", "celular", "guarda-chuva", "carteira", "chaves", "faca", "espada",
+    "borsa!", "zaino", "cellulare", "ombrello", "portafoglio", "chiavi", "coltello", "spada",
+    "torebk", "plecak", "parasol", "portfel", "klucz", "nóż", "miecz",
   ],
   touch: [
     "kiss", "hug!", "hugg", "embrac", "caress", "cuddle", "nuzzle", "lick", "grope",
@@ -2796,7 +2808,7 @@ export function wordScan(msgs, view, lexicon, max = 8, names = []) {
     }
   }
   // clothing with an action first, then clothing, then the rest; the order of the text inside each group
-  const rank = (f) => (f.kinds.includes("wear") && f.kinds.includes("dress") ? 0 : f.kinds.includes("wear") ? 1 : 2);
+  const rank = (f) => (f.kinds.includes("wear") && f.kinds.includes("dress") ? 0 : f.kinds.includes("wear") ? 1 : f.kinds.includes("touch") ? 2 : 3);
   return found.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).slice(0, max).map((x) => x.f);
 }
 
@@ -2807,7 +2819,7 @@ function wordScanText(ctx) {
   if (!hits.length) return "";
   return [
     "Word scan",
-    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
     ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
   ].join("\n");
 }

@@ -5244,8 +5244,13 @@ describe("the word scan of the new messages (#236)", () => {
     expect(scan("Из-за забора высунулась голова в вязаном чепчике.").length).toBe(1);
   });
 
+  it("finds things carried, after clothing and contact", () => {
+    const hits = scan("She picked up her purse and checked the time on her phone. He kissed her. She wore a scarf.");
+    expect(hits.map((h) => h.kinds)).toEqual([["wear"], ["touch"], ["carry"]]);
+  });
+
   it("does not flag everyday words that only look like clothes or actions", () => {
-    expect(scan("Watch out for the ring of the phone, it is a huge top floor.")).toEqual([]);
+    expect(scan("Watch out for the ring, it is a huge top floor, but she tried to pull away and he tightened his hold.")).toEqual([]);
     expect(scan("Он пояснил, что форма разговора ему не нравится.")).toEqual([]);
     // a dressing word alone is not a hint
     expect(scan("She dropped the idea and removed her doubts.")).toEqual([]);

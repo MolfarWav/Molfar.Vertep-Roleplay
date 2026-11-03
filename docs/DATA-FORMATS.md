@@ -643,7 +643,7 @@ character saw, heard or guessed), `names` and `history`:
   present character, never from the player; a line kept out is counted in `keptOut`). Carried like `said` (`src: "inherit"`)
   and dropped by Start clean. Reply prompt: its own part `Dashboard · journal` (after the Dashboard block, before `said`),
   for the characters whose notebook shows; mute per chat with the prompt board key `plugin:journal`. Config in
-  `data/dashboard/lexicon.json` (optional, #236): words for the sensor's word scan, `{ wear: [...], dress: [...], touch: [...], off?: true }`.
+  `data/dashboard/lexicon.json` (optional, #236): words for the sensor's word scan, `{ wear: [...], dress: [...], touch: [...], carry: [...], off?: true }`.
   Code scans the whole new messages (before any cut) and hands the sentences that hold one of these words to the sensor as hints
   ("Word scan" block). Built-in lists cover clothing, dressing verbs and contact in many languages; this file adds to them. An entry
   is a stem (matches a word that starts with it, up to 4 more letters), `word!` (that word alone, or with s/es), a phrase (has a
