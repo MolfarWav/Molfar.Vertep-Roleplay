@@ -2697,7 +2697,7 @@ export const DEFAULT_LEXICON = {
     "мантія", "мантію", "туніка", "тунік", "накидк", "каптур", "жилет", "піджак", "костюм", "пеньюар",
     // armour, crowns, undress (a character in armour or bare feet is dressed or undressed too)
     "armor", "armour", "breastplate", "gauntlet", "helmet", "shield!", "greave", "chainmail", "circlet", "crown!", "tiara", "barefoot", "bare feet", "naked", "nude",
-    "доспех", "броня", "брони!", "латы", "латах", "шлем", "щит!", "щитом", "кольчуг", "корон", "диадем", "босиком", "босые", "босых", "голая", "голой", "обнажённ", "обнаженн",
+    "доспех", "броня", "брони!", "латы", "латах", "шлем", "кольчуг", "корон", "диадем", "босиком", "босые", "босых", "голая", "голой", "обнажённ", "обнаженн",
     "обладунк", "броню", "шолом", "діадем", "босоніж", "босі", "гола", "голою", "оголен",
     "rüstung", "helm!", "armure", "casque", "armadura", "casco", "armatura", "zbroj", "pancerz", "hełm",
     // uk
@@ -2833,7 +2833,7 @@ function wordScanText(hits) {
   if (!hits.length) return "";
   return [
     "Word scan",
-    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. When a garment already in Wearing is described again in a new state (torn, wet, dirty, burnt), remove the old entry and add the new one instead of listing both. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. When a garment already in Wearing is described again in a new state (torn, wet, dirty, burnt), remove the old entry (every old entry of that garment) and add the new one instead of listing both. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
     ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
   ].join("\n");
 }
@@ -3549,6 +3549,14 @@ function orderPresent(present, events, B) {
 
 const OUTFIT_FILLER = new Set(["a", "an", "the", "some", "her", "his", "their", "my", "your", "its", "of", "in", "on"]);
 const outfitWords = (s) => wordTokens(s).filter((w) => !OUTFIT_FILLER.has(w));
+// words that do not name a garment: colours and states, so "black boots" out and "black dress" in are two things, "gown" torn and "gown" dirty one
+const GARMENT_SKIP = new Set(["black", "white", "gold", "golden", "silver", "grey", "gray", "brown", "dark", "light", "pink", "blue", "green", "long", "short", "thin", "thick", "tight", "loose", "small", "large", "torn", "dirty", "wet", "burnt", "singed", "bloody", "stained", "ragged", "with", "from", "that"]);
+/** Is `b` the same garment as `a` in another state (torn, dirty): they share a word that names it. */
+export function sameGarment(a, b) {
+  const x = outfitWords(a).filter((w) => w.length >= 4 && !GARMENT_SKIP.has(w));
+  const y = new Set(outfitWords(b));
+  return x.some((w) => y.has(w));
+}
 const OUTFIT_SPLIT = /\s*(?:[,;]|\band\b|\bwith\b|\bover\b|\bunder\b|\bplus\b)\s*/i;
 /**
  * The outfit to keep (#185). A report that names a garment with fewer words than before ("a cardigan"
@@ -3686,7 +3694,8 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
     entry[f] = res.text || null;
     if (f === "outfit") outfitListed = true;
     if (res.changed) entry.fresh.push(f);
-    for (const item of res.removed) moves.down.push({ item, who: name });
+    const swapped = f === "outfit" ? picked.map(itemText) : [];
+    for (const item of res.removed) if (!swapped.some((a) => sameGarment(item, a))) moves.down.push({ item, who: name });
     moves.up.push(...res.added);
   }
   // an outfit the sensor has reported once (even an empty one after undressing) is known: the reply prompt asks for a description only while it is not

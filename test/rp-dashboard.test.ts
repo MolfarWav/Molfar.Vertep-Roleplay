@@ -5285,6 +5285,25 @@ describe("the word scan of the new messages (#236)", () => {
     expect(String(mock.requests[1]!.req.messages[0].content)).toContain("Wearing: nothing recorded yet");
   });
 
+  it("a garment replaced by its new state is not put down as an object, a garment taken off still is", () => {
+    expect(P.sameGarment("white and gold gown torn and stained with blood", "dirty, torn gown")).toBe(true);
+    expect(P.sameGarment("black leather boots", "black dress")).toBe(false);
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She wears a gown and boots.")]);
+    const mock = mockHost([
+      reply({ present: ["Aria"], chars: { Aria: { outfit: { add: ["white and gold gown torn and stained with blood", "black leather boots"] } } } }),
+      reply({ present: ["Aria"], chars: { Aria: { outfit: { remove: ["white and gold gown torn and stained with blood", "black leather boots"], add: ["dirty, torn gown"] } } } }),
+    ]);
+    update(mock, "c1");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She wears a gown and boots."), U("m3", "Go on."), A("m4", "The gown is a rag; she kicks off her boots.")]);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    const snap = st.snapshots[Object.keys(st.snapshots).pop()!];
+    const objects = (snap.layout.objects as { item: string }[]).map((o) => o.item);
+    expect(snap.chars.Aria.outfit).toBe("dirty torn gown");
+    expect(objects.some((o) => /gown/.test(o))).toBe(false);
+    expect(objects.some((o) => /boots/.test(o))).toBe(true);
+  });
+
   it("the hint block tells the sensor the owner is not decided and may be a stranger", () => {
     writeChat("c1", [U("m1", "Hello."), A("m2", "The old neighbour shuffled past in a faded blue coat.")]);
     const mock = mockHost([reply({})]);
