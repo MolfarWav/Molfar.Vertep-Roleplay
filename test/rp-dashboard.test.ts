@@ -5239,6 +5239,11 @@ describe("the word scan of the new messages (#236)", () => {
     expect(scan("彼女はスカートを直した。").length).toBe(1);
   });
 
+  it("finds a short garment word in a case form, a hem and a cap", () => {
+    expect(scan("Каэде сжимает пальцы на подоле своего белого топа.").length).toBe(1);
+    expect(scan("Из-за забора высунулась голова в вязаном чепчике.").length).toBe(1);
+  });
+
   it("does not flag everyday words that only look like clothes or actions", () => {
     expect(scan("Watch out for the ring of the phone, it is a huge top floor.")).toEqual([]);
     expect(scan("Он пояснил, что форма разговора ему не нравится.")).toEqual([]);
@@ -5263,6 +5268,15 @@ describe("the word scan of the new messages (#236)", () => {
     const hits = P.wordScan([{ role: "char", name: "Narrator", text }], null, P.lexiconOf(null), 8, ["Aria", "Bram"]) as { text: string; named: string[]; who: string }[];
     expect(hits.map((h) => h.named)).toEqual([[], ["Aria"]]);
     expect(hits[0]!.who).toBe("Narrator");
+  });
+
+  it("the Previous state says nothing is recorded yet while a character has no outfit, so a worn garment is reported too", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She waits by the door.")]);
+    const mock = mockHost([reply({ chars: { Aria: { mood: "calm" } } }), reply({})]);
+    update(mock, "c1");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She waits by the door."), U("m3", "Come in."), A("m4", "She steps in.")]);
+    update(mock, "c1");
+    expect(String(mock.requests[1]!.req.messages[0].content)).toContain("Wearing: nothing recorded yet");
   });
 
   it("the hint block tells the sensor the owner is not decided and may be a stranger", () => {
