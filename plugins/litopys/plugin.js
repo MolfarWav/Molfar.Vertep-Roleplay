@@ -79,6 +79,26 @@ export function cut(s, n) {
   return str(s).slice(0, n);
 }
 
+export function cutMiddle(s, max) {
+  return s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2));
+}
+
+// The worker reads a scene's messages under one budget (a short one keeps all, long ones share the rest, never below the floor).
+const SCENE_TEXT_MAX = 12000;
+const SCENE_MSG_FLOOR = 1500;
+
+/** The longest a message may be so that the messages together fit the budget. */
+export function fairCap(lens, budget, floor) {
+  const sorted = [...lens].sort((a, b) => a - b);
+  let left = budget;
+  for (let i = 0; i < sorted.length; i++) {
+    const share = left / (sorted.length - i);
+    if (sorted[i] <= share) left -= sorted[i];
+    else return Math.max(floor, Math.floor(share));
+  }
+  return Infinity;
+}
+
 export function arr(v) {
   return Array.isArray(v) ? v : [];
 }
@@ -1119,14 +1139,16 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const flagged = heldLeaks(dash, line, scene);
   if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
 
-  // Scene messages
-  const msgLines = [];
+  // Scene messages: read whole when they fit one budget; a long one keeps its start and end, never the first 1500 only (#236)
+  const sceneMsgs = [];
   for (let i = scene.fromIdx; i <= scene.toIdx; i++) {
     const m = line[i];
     const name = m.role === "user" ? meta && meta.userName ? meta.userName : m.name : m.name || "Character";
-    const text = cut(opts.view ? opts.view(String(m.text), m.role) : m.text, 1500);
-    if (text) msgLines.push("[" + name + "] " + text);
+    const text = str(opts.view ? opts.view(String(m.text), m.role) : m.text);
+    if (text) sceneMsgs.push({ name, text });
   }
+  const sceneCap = fairCap(sceneMsgs.map((x) => x.text.length), SCENE_TEXT_MAX, SCENE_MSG_FLOOR);
+  const msgLines = sceneMsgs.map((x) => "[" + x.name + "] " + cutMiddle(x.text, sceneCap));
   // #99: who could remember this scene on their own: any named character besides the player
   const cast = cfg.recollections !== false ? sceneCast(scene, line, dash, meta, opts.notCast) : [];
   const viewsOn = cast.length >= 1;

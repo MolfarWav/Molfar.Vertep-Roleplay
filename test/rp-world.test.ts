@@ -618,7 +618,7 @@ describe("P3: what a run reads", () => {
     const t = takeUnread(msgs);
     expect(t.msgs.length).toBe(10);
     expect(t.rest).toEqual([]);
-    expect(t.cap).toBeLessThanOrEqual(800);
+    expect(t.cap).toBeLessThanOrEqual(1200);
     const input = dmInput({ cards: [], userName: "Taras", entities: [], msgs: t.msgs, cap: t.cap });
     // all ten speak, none cut away
     expect(input.match(/\[(Taras|Odarka)\]/g)!.length).toBe(10);

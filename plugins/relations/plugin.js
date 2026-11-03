@@ -2646,14 +2646,34 @@ export function storyView(fsx, meta) {
 
 const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2)));
 
-/** The "New messages" lines, and whether the 8000-character cut dropped earlier ones. */
-function newMessagesBody(msgs) {
-  const body = msgs.map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || m.role || "narrator") + "] " + cutMiddle(String(m.text).trim(), 1500)).join("\n");
-  return { body, trimmed: body.length > 8000 };
+// The sensor reads the new messages whole when they fit (#236): the old 1500-character cut per message threw away
+// 70-80 percent of a long reply, and with it the clothes, the kiss, the move that the middle held. The block has one
+// budget; a short message takes what it needs and the long ones share the rest (a "water level"), never below the floor.
+const SENSOR_TEXT_MAX = 12000;
+const SENSOR_MSG_FLOOR = 1500;
+
+/** The longest a message may be so that the messages together fit the budget: short ones keep all, long ones share what is left. */
+export function fairCap(lens, budget, floor) {
+  const sorted = [...lens].sort((a, b) => a - b);
+  let left = budget;
+  for (let i = 0; i < sorted.length; i++) {
+    const share = left / (sorted.length - i);
+    if (sorted[i] <= share) left -= sorted[i];
+    else return Math.max(floor, Math.floor(share));
+  }
+  return Infinity;
 }
 
-function newMessagesText(msgs) {
-  return "New messages\n" + newMessagesBody(msgs).body.slice(-8000);
+/** The "New messages" lines (a reply without the blocks a preset hides, when `view` is given), and whether the budget dropped earlier ones. */
+function newMessagesBody(msgs, view) {
+  const items = msgs.map((m) => ({ who: m.role === "user" ? "user" : str(m.name) || m.role || "narrator", text: String(view ? view(String(m.text), m.role) : m.text).trim() }));
+  const cap = fairCap(items.map((i) => i.text.length), SENSOR_TEXT_MAX, SENSOR_MSG_FLOOR);
+  const body = items.map((i) => "[" + i.who + "] " + cutMiddle(i.text, cap)).join("\n");
+  return { body, trimmed: body.length > SENSOR_TEXT_MAX };
+}
+
+function newMessagesText(msgs, view) {
+  return "New messages\n" + newMessagesBody(msgs, view).body.slice(-SENSOR_TEXT_MAX);
 }
 
 /** Every N turns (only then): ask about open threads that have been open that long. */
@@ -2854,7 +2874,7 @@ function askLeakCheck(host, ctx) {
   host.llm.request("leak", {
     ...(model ? { model } : {}),
     systemPrompt: "You check a roleplay for one kind of mistake: a character acting on a secret they do not know. Answer with JSON only.",
-    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\nNew messages\n" + arr(ctx.newMsgs).map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || "narrator") + "] " + cut(str(m.text), 1500)).join("\n") }],
+    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\n" + newMessagesText(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta)) }],
     ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0),
   });
 }

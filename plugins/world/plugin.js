@@ -103,8 +103,8 @@ export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, sta
 export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500, imageModel: "", autoBackground: false };
 
 // what a run reads and writes, kept small for small context windows
-const NEW_TEXT_MAX = 8000;
-const MSG_MAX = 2500;
+const NEW_TEXT_MAX = 12000;
+const MSG_MAX = 6000;
 // below this share per message a run reads fewer messages (catch-up) instead of cutting each one thinner
 const MSG_MIN = 400;
 const LINE_EXTRA = 40;

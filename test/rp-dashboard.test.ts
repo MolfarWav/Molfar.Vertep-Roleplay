@@ -641,9 +641,9 @@ describe("update route", () => {
     mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
     update(mock, "c1");
 
-    // the 2nd reply is edited and the messages after it are longer than the 8000-character read
-    const big = (id: string, marker: string) => U(id, (marker + " ").repeat(300));
-    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "I kept my promise."), A("m4", "You are kind."), big("m5", "EARLIEST"), big("m6", "MIDDLE"), big("m7", "MIDDLE"), big("m8", "MIDDLE"), big("m9", "MIDDLE"), big("m10", "MIDDLE"), big("m11", "LATEST")]);
+    // the 2nd reply is edited and the messages after it are longer than the 12000-character read
+    const big = (id: string, marker: string) => U(id, (marker + " ").repeat(500));
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "I kept my promise."), A("m4", "You are kind."), big("m5", "EARLIEST"), big("m6", "MIDDLE"), big("m7", "MIDDLE"), big("m8", "MIDDLE"), big("m9", "MIDDLE"), big("m10", "MIDDLE"), big("m11", "MIDDLE"), big("m12", "MIDDLE"), big("m13", "MIDDLE"), big("m14", "LATEST")]);
     mock.push(reply({ events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }] }));
     const before = mock.requests.length;
     const r = update(mock, "c1");
@@ -652,7 +652,7 @@ describe("update route", () => {
     const prompt = String(mock.requests[before]!.req.messages[0].content);
     expect(prompt).toContain("LATEST"); // the newest part is read
     expect(prompt).not.toContain("EARLIEST"); // the oldest of the gap did not fit
-    expect(prompt.length).toBeLessThan(12000);
+    expect(prompt.length).toBeLessThan(16000);
   });
 
   it("deleting a message in the middle reads the line again from the snapshot before it", () => {
@@ -980,8 +980,14 @@ describe("update route", () => {
     expect(fs.readdirSync(path.join(root, "dashboard"))).toEqual(["config.json"]);
   });
 
-  it("a long message is cut in the middle, the whole input to its last 8000 characters", () => {
-    const long = `${"a".repeat(1000)}MIDDLE${"b".repeat(3000)}`;
+  it("a message that fits the budget is read whole; one above it is cut in the middle, the whole input to its last 12000 characters", () => {
+    // #236: 4000 characters used to lose their middle to a 1500-character cut per message
+    const fits = `${"a".repeat(1000)}MIDDLE${"b".repeat(3000)}`;
+    writeChat("c0", [U("m1", fits), A("m2", "ok")]);
+    const m0 = mockHost([reply({})]);
+    update(m0, "c0");
+    expect(String(m0.requests[0]!.req.messages[0].content)).toContain("MIDDLE");
+    const long = `${"a".repeat(10000)}MIDDLE${"b".repeat(10000)}`;
     writeChat("c1", [U("m1", long), A("m2", "ok")]);
     const mock = mockHost([reply({})]);
     update(mock, "c1");
@@ -989,13 +995,13 @@ describe("update route", () => {
     const body = user.slice(user.indexOf("New messages\n"));
     expect(body).toContain("…");
     expect(body).not.toContain("MIDDLE");
-    expect(body.length).toBeLessThan(1700);
+    expect(body.length).toBeLessThan(12100);
     const many = Array.from({ length: 20 }, (_, i) => U("x" + i, `${i}`.padEnd(1000, "z")));
     writeChat("c2", many);
     const m2 = mockHost([reply({})]);
     update(m2, "c2");
     const u2 = m2.requests[0]!.req.messages[0].content as string;
-    expect(u2.slice(u2.indexOf("New messages\n") + 13).length).toBeLessThanOrEqual(8000);
+    expect(u2.slice(u2.indexOf("New messages\n") + 13).length).toBeLessThanOrEqual(12000);
     expect(u2).toContain("[user] 19zzz");
     expect(u2).not.toContain("[user] 0zzz");
   });
@@ -5208,5 +5214,16 @@ describe("removing a character from the Dashboard", () => {
     update(mock, "g");
     expect(notes(mock, { op: "remove-character", name: "Nobody" }).status).toBe(404);
     expect(notes(mock, { op: "remove-character", name: "" }).status).toBe(400);
+  });
+});
+
+describe("the budget of the new messages (#236)", () => {
+  it("short messages keep all of their text and long ones share what is left, never below the floor", async () => {
+    const { fairCap } = await import("../plugins/relations/plugin.js");
+    expect(fairCap([500, 5500], 12000, 1500)).toBe(Infinity);
+    expect(fairCap([500, 20000], 12000, 1500)).toBe(11500);
+    expect(fairCap([5000, 5000, 5000], 12000, 1500)).toBe(4000);
+    expect(fairCap(Array(20).fill(3000), 12000, 1500)).toBe(1500);
+    expect(fairCap([], 12000, 1500)).toBe(Infinity);
   });
 });
