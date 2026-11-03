@@ -5477,3 +5477,21 @@ describe("the writer is asked to show clothes again after a while (#236)", () =>
   });
 });
 
+
+describe("what a character holds is not a reason to say their clothes are known (#236)", () => {
+  it("holding a cup leaves the outfit unset, so the writer is still asked to describe it", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She holds a cup of coffee.")]);
+    const mock = mockHost([reply({ present: ["Aria"], chars: { Aria: { holding: { see: [{ text: "a cup of coffee" }] } } } })]);
+    update(mock, "c1");
+    const st = readStateFile("c1");
+    const snap = st.snapshots[Object.keys(st.snapshots).pop()!];
+    expect(snap.chars.Aria.holding).toBe("a cup of coffee");
+    expect(snap.chars.Aria.outfitSet).toBe(false);
+    expect(P.layoutBlock({ snap, user: "You" }, snap.present, ["Aria"])).toContain("Aria's clothing is not described yet");
+  });
+
+  it("the scan points at a pot or a stack of plates in someone's hands", () => {
+    const hits = P.wordScan([{ role: "char", name: "A", text: "Yor gripped the handle of a pot so hard the metal creaked." }], null, P.lexiconOf(null)) as { kinds: string[] }[];
+    expect(hits.map((h) => h.kinds)).toEqual([["carry"]]);
+  });
+});

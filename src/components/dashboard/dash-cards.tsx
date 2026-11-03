@@ -250,7 +250,7 @@ const CLASS_BORDER: Record<string, string> = { ally: 'border-emerald-500/50', ho
 /** Two-column tiles for the other characters present: avatar, name, constellation in gold, counter; a click focuses them. */
 export function OthersGrid({ view, here, focus, onFocus, avatars }: { view: DashView; here: WorldHere | null; focus: string; onFocus: (name: string) => void; avatars: Record<string, string | undefined> }) {
   const tx = useTx()
-  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n] && !view.chars[n].compact)
+  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n])
   if (others.length === 0) return null
   return (
     <div className="grid grid-cols-2 gap-1.5" data-testid="dash-others">
@@ -339,7 +339,7 @@ export function ThingsCard({ view, here, focus, onFocus }: { view: DashView; her
   const t = useT()
   const char = view.chars[focus]
   const mine = outfitOf(focus, char, here)
-  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n] && !view.chars[n].compact)
+  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n])
   const placeName = here?.place?.name ?? ''
   const lying = here?.things ?? []
   const asleep = here?.asleep ?? []

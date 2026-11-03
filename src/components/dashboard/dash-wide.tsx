@@ -58,7 +58,7 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
   }, [notebookSignal])
   if (!char) return null
 
-  const fullChars = view.order.filter((n) => view.chars[n] && !view.chars[n].compact)
+  const fullChars = view.order.filter((n) => view.chars[n] && (!view.chars[n].compact || view.present.includes(n)))
   const others = view.order.filter((n) => n !== focus && view.chars[n])
   const present = view.order.filter((n) => view.present.includes(n) && view.chars[n])
   const constName = tx('dash.const', char.constellation)
@@ -219,7 +219,7 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
                     const row = 'flex w-full min-w-0 items-center gap-2.5 border border-border bg-background/40 px-2 py-1.5 text-left'
                     return (
                       <li key={n}>
-                        {c.compact ? (
+                        {c.compact && !view.present.includes(n) ? (
                           <div className={row}>{body}</div>
                         ) : (
                           <button type="button" onClick={() => onFocus(n)} className={cn(row, 'rounded-none hover:bg-muted')}>{body}</button>

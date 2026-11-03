@@ -162,7 +162,8 @@ export function DashTop({ view, here, focus, onFocus, avatars, onPortrait, weath
   weatherSize: number
   onTab: (id: DashTabId) => void
 }) {
-  const present = view.order.filter((n) => view.present.includes(n) && view.chars[n] && !view.chars[n].compact)
+  // everyone in the scene gets a portrait; `compact` only trims what the prompt insert says about the fifth and later (#236)
+  const present = view.order.filter((n) => view.present.includes(n) && view.chars[n])
   const pick = (c: DashChange) => {
     if (c.who && c.who !== focus) onFocus(c.who)
     onTab(c.tab)

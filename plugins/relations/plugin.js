@@ -2743,9 +2743,9 @@ export const DEFAULT_LEXICON = {
   ],
   carry: [
     // things a character holds or carries (a bag, a phone, an umbrella, a weapon); they matter for "holding"
-    "purse", "handbag", "bag!", "bags!", "backpack", "satchel", "phone", "smartphone", "umbrella", "wallet", "keys!", "knife", "sword", "dagger", "pistol", "gun!", "bouquet", "suitcase",
-    "сумк", "сумоч", "рюкзак", "телефон", "смартфон", "зонт", "кошел", "ключи!", "ключей", "нож!", "ножа", "ножом", "меч!", "мечем", "пистолет", "букет", "чемодан",
-    "парасол", "гаманець", "гаманц", "ключі!", "ключів", "ніж!", "ножа", "ножем", "меча", "пістолет", "валіз",
+    "purse", "handbag", "bag!", "bags!", "backpack", "satchel", "phone", "smartphone", "umbrella", "wallet", "keys!", "knife", "sword", "dagger", "pistol", "gun!", "bouquet", "suitcase", "plate", "plates", "tray", "pan!", "pot!", "bottle", "bowl", "book!", "books!",
+    "сумк", "сумоч", "рюкзак", "телефон", "смартфон", "зонт", "кошел", "ключи!", "ключей", "нож!", "ножа", "ножом", "меч!", "мечем", "пистолет", "букет", "чемодан", "кастрюл", "тарелк", "чашк", "кружк", "бутылк", "книг", "поднос", "сковород", "миск",
+    "парасол", "гаманець", "гаманц", "ключі!", "ключів", "ніж!", "ножа", "ножем", "меча", "пістолет", "валіз", "каструл", "тарілк", "кухл", "пляшк", "книжк", "піднос", "сковорід",
     "handtasche", "rucksack", "handy", "regenschirm", "geldbörse", "schlüssel", "messer", "schwert",
     "sac à main", "sac!", "portable!", "parapluie", "portefeuille", "clés", "couteau", "épée",
     "bolso", "mochila", "móvil", "paraguas", "cartera", "llaves", "cuchillo", "espada",
@@ -3842,7 +3842,7 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   entry.outfit = itemsText(items, "wear") ? cut(itemsText(items, "wear"), 600) : null;
   entry.holding = itemsText(items, "hold") ? cut(itemsText(items, "hold"), 600) : null;
   // an outfit the sensor has reported once (even an empty one after undressing) is known: the reply prompt asks for a description only while it is not
-  entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit || items.length > 0;
+  entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit || items.some((i) => i.kind === "wear");
   // where the character is in the place: carried until the sensor moves them or the place changes
   entry.at = isObj(sensorChar) && str(sensorChar.at) ? cut(str(sensorChar.at), 120) : ctx.placeMoved ? null : (old && old.at) ?? null;
   // how they reach the user's character from elsewhere (#16); carried like the place, but only
