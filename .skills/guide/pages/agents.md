@@ -1,6 +1,6 @@
 # Agents and the agent forge
 
-An agent is a small helper you build from cards and wires. After a reply it reads part of the chat, may ask a model one or more short questions, keeps notes of its own, and shows something: a note under the reply, buttons to tap, a meter, a map, or a hint for the next reply. Examples: three suggested next moves, a tension meter, a map of the places visited. This page is for those who want such extras. There is no Help article for agents yet.
+An agent is a small helper you build from cards and wires. After a reply it reads part of the chat, may ask a model one or more short questions, keeps notes of its own, and shows something: a note under the reply, buttons to tap, a meter, a map, or a hint for the next reply. Examples: three suggested next moves, a tension meter, a map of the places visited. This page is for those who want such extras. The Help has three articles on the editor: "Agent editor: how an agent works", "Agent editor: the cards" and "Agent editor: three ready agents".
 
 ## What an agent is made of
 
@@ -14,7 +14,7 @@ An agent is data, not code. In the editor it is a board of **cards** joined by *
 
 **Panels** (meters, counters, tables, a board of tiles) display what the agent keeps; nothing in a panel runs, and its buttons only put text in the message box.
 
-When it runs is set per agent: before the reply, with it, after it, or by hand; every Nth reply; or only when chosen words appear.
+When it runs is set per agent: after every reply (the only timing this version runs), on every Nth reply, or only when chosen words appear.
 
 ## Ready agents
 

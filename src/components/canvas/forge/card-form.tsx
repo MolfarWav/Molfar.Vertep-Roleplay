@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash } from '@phosphor-icons/react'
+import { CaretRight, Plus, Trash } from '@phosphor-icons/react'
 import { SHOW_BY_KIND } from '@/canvas-kit/boards/agent'
 import type { CanvasNode, Graph } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
@@ -373,6 +373,30 @@ const LIMITED: Record<string, { def: number; max: number; key: 'limit' | 'last' 
 
 const SOURCE_ID: Record<string, string> = { lastReply: 'reply', lastUserMessage: 'message', history: 'history', card: 'card', persona: 'persona', authorNote: 'authorNote', myPrevious: 'previous', litopysFacts: 'facts', lorebook: 'lore' }
 
+/** The card's connection points in plain words, folded under its hint: what it takes in and what it gives out. */
+function PortsHelp({ node }: { node: CanvasNode }) {
+  const t = useT()
+  const { ins, outs } = portsOf(node)
+  const line = (p: { id: string; label?: string; type: string; optional?: boolean }) =>
+    `${p.label ?? p.id} (${t(`fg.io.type.${p.type}` as MsgKey)}${p.optional ? `, ${t('fg.io.optional')}` : ''})`
+  const list = (title: string, ports: typeof ins) => (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[11px] font-medium">{title}</span>
+      {ports.length ? ports.map((p) => <span key={p.id} className="text-[11px] leading-snug text-muted-foreground">{line(p)}</span>) : <span className="text-[11px] text-muted-foreground">{t('fg.io.nothing')}</span>}
+    </div>
+  )
+  return (
+    <details className="group rounded-md border border-border" data-testid="forge-card-io">
+      <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 px-2 text-xs font-medium max-md:min-h-11 [&::-webkit-details-marker]:hidden"><CaretRight size={12} aria-hidden className="shrink-0 transition-transform group-open:rotate-90" />{t('fg.io.summary')}</summary>
+      {ins.length || outs.length ? (
+        <div className="flex flex-col gap-2 border-t border-border p-2">{list(t('fg.io.in'), ins)}{list(t('fg.io.out'), outs)}</div>
+      ) : (
+        <p className="border-t border-border p-2 text-[11px] text-muted-foreground">{t('fg.io.none')}</p>
+      )}
+    </details>
+  )
+}
+
 export function CardForm({ node, graph, fields, problems = [], onParams, onTitle, onNote, onGraph, onDelete, deletable }: {
   node: CanvasNode
   graph: Graph
@@ -417,6 +441,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
         <Input value={node.title} onChange={(e) => onTitle(e.target.value)} className="max-md:h-10" />
       </Field>
       <p className="text-[11px] leading-snug text-muted-foreground">{t(`fg.hint.${node.type}` as MsgKey)}</p>
+      <PortsHelp node={node} />
 
       {node.type === 'agent.input' && (
         <Field label={t('fg.input.give')} hint={t('fg.input.hint')}>
