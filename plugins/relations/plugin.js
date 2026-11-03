@@ -2692,12 +2692,20 @@ export const DEFAULT_LEXICON = {
   wear: [
     // en
     "dress", "skirt", "shirt", "blouse", "jacket", "coat!", "sweater", "jumper!", "hoodie", "cardigan", "jeans!", "pants!", "trousers", "shorts!", "stocking", "tights!", "socks!", "sock!", "sneaker", "trainer", "shoe", "boot!", "boots!", "heels!", "sandal", "slipper", "bra!", "panties!", "underwear", "lingerie", "bikini", "swimsuit", "uniform", "kimono", "robe!", "towel!", "pajama", "nightgown", "scarf!", "scarves", "hat!", "glove", "belt!", "necklace", "bracelet", "earring", "ribbon", "hairpin", "hair clip", "barrette", "choker", "collar!", "glasses!", "apron", "leggings", "hair tie", "bandana", "cloak", 
+    "gown", "tunic", "corset", "bodice", "cape!", "vest!", "veil", "shawl", "mantle", "blazer", "suit!", "tie!", "nightie", "negligee", "chemise",
+    "мантия", "мантию", "туник", "корсет", "вуаль", "накидк", "капюшон", "жилет", "пиджак", "костюм", "пеньюар", "сорочк",
+    "мантія", "мантію", "туніка", "тунік", "накидк", "каптур", "жилет", "піджак", "костюм", "пеньюар",
+    // armour, crowns, undress (a character in armour or bare feet is dressed or undressed too)
+    "armor", "armour", "breastplate", "gauntlet", "helmet", "shield!", "greave", "chainmail", "circlet", "crown!", "tiara", "barefoot", "bare feet", "naked", "nude",
+    "доспех", "броня", "брони!", "латы", "латах", "шлем", "щит!", "щитом", "кольчуг", "корон", "диадем", "босиком", "босые", "босых", "голая", "голой", "обнажённ", "обнаженн",
+    "обладунк", "броню", "шолом", "діадем", "босоніж", "босі", "гола", "голою", "оголен",
+    "rüstung", "helm!", "armure", "casque", "armadura", "casco", "armatura", "zbroj", "pancerz", "hełm",
     // uk
     "топа", "топі", "топу", "топом", "подол", "чепч", "сукн", "спідниц", "блуз", "сорочк", "футболк", "топ!", "куртк", "пальт", "светр", "кофт", "худі", "джинс", "штани", "штанів", "шорт", "панчох", "колгот", "шкарпет", "кросівк", "кеди", "взутт", "черевик", "чобіт", "туфл", "босонік", "тапк", "бюстгальтер", "ліфчик", "труси", "трусик", "білизн", "купальник", "халат", "рушник", "піжам", "шарф", "шапк", "капелюх", "рукавичк", "ремін", "пояс!", "пояса", "поясі", "поясом", "намист", "браслет", "сережк", "стрічк", "заколк", "резинк", "чокер", "окуляр", "перстен", "каблучк", "годинник", "фартух", "легінс", "плащ", 
     // ru
     "топа", "топе", "топу", "топом", "топы", "топов", "топик", "подол", "чепч", "платье", "платья", "платьиц", "юбк", "блуз", "рубашк", "футболк", "куртк", "пальто", "свитер", "кофт", "худи", "джинс", "штаны", "брюк", "шорт", "чулок", "чулк", "колготк", "носк", "кроссовк", "кед", "обув", "ботинк", "сапог", "туфл", "босонож", "тапочк", "лифчик", "бюстгальтер", "трусик", "трусы", "белье", "бельё", "купальник", "халат", "полотенц", "пижам", "шарф", "шапк", "шляп", "перчатк", "ремень", "ремня", "пояс!", "пояса", "поясе", "поясу", "поясом", "ожерель", "браслет", "серьг", "лент", "заколк", "резинк", "чокер", "очки", "очков", "кольц", "фартук", "лосин", "плащ", "бретел",
     // de
-    "kleid", "rock!", "röck", "bluse", "hemd", "jacke", "mantel", "pullover", "strumpf", "strümpf", "socke", "schuh", "stiefel", "sandale", "unterwäsche", "schlüpfer", "badeanzug", "schal!", "mütze", "handschuh", "gürtel", "halskette", "armband", "ohrring", "haarspange", "brille",
+    "kleid", "röck", "bluse", "hemd", "jacke", "mantel", "pullover", "strumpf", "strümpf", "socke", "schuh", "stiefel", "sandale", "unterwäsche", "schlüpfer", "badeanzug", "schal!", "mütze", "handschuh", "gürtel", "halskette", "armband", "ohrring", "haarspange", "brille",
     // fr
     "robe!", "jupe", "chemise", "veste", "manteau", "chaussette", "chaussure", "botte", "culotte", "soutien-gorge", "sous-vêtement", "maillot", "écharpe", "bonnet", "gant!", "ceinture", "collier", "bracelet", "boucle d'oreille", "barrette", "lunettes",
     // es
@@ -2745,6 +2753,8 @@ export const DEFAULT_LEXICON = {
 };
 // lexicon:end
 
+const NAME_STOP = new Set(["the", "and", "von", "van", "der", "den", "des", "del", "las", "los", "les", "une", "you", "user"]);
+const nameTokens = (n) => (String(n).toLowerCase().match(/[\p{L}\p{M}]{3,}/gu) || []).filter((t) => !NAME_STOP.has(t));
 const CJK = /[぀-ヿ㐀-鿿가-힯]/;
 const SCAN_SEGMENT = /[^.!?…\n]+[.!?…]*/g;
 
@@ -2784,7 +2794,7 @@ function matcherOf(words) {
 }
 
 /** The sentences of the new messages (whole, uncut) that look like clothing, a dressing action or contact: [{ who, text, kinds }]. */
-export function wordScan(msgs, view, lexicon, max = 8, names = []) {
+export function wordScan(msgs, view, lexicon, max = 12, names = []) {
   if (!lexicon) return [];
   const match = {};
   for (const k of Object.keys(lexicon)) match[k] = matcherOf(lexicon[k]);
@@ -2803,26 +2813,27 @@ export function wordScan(msgs, view, lexicon, max = 8, names = []) {
       if (!real.length || seen.has(low)) continue;
       seen.add(low);
       // code cannot tell whose garment it is (a pronoun, a neighbour, a narrator's aside): it only reports which cast names the sentence holds
-      const named = names.filter((n) => String(n).toLowerCase().match(/[\p{L}\p{M}]{3,}/gu)?.some((t) => low.includes(t)));
+      const words = low.match(/[\p{L}\p{M}]+/gu) || [];
+      const named = names.filter((n) => nameTokens(n).some((t) => words.some((w) => w === t || (t.length >= 5 && w.startsWith(t.slice(0, -1))))));
       found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real, named });
     }
   }
   // clothing with an action first, then clothing, then the rest; the order of the text inside each group
   const rank = (f) => (f.kinds.includes("wear") && f.kinds.includes("dress") ? 0 : f.kinds.includes("wear") ? 1 : f.kinds.includes("touch") ? 2 : 3);
-  return found.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).slice(0, max).map((x) => x.f);
+  return found.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || (b.f.named.length > 0) - (a.f.named.length > 0) || a.i - b.i).slice(0, max).map((x) => x.f);
 }
 
 /** The "Word scan" block of the sensor input, or "" when nothing was found. */
 function wordScanHits(ctx) {
-  const names = unique([ctx.userName, ...arr(ctx.characters), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])].map(str).filter(Boolean));
-  return wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 8, names);
+  const names = unique([ctx.userName, ...arr(ctx.characters), ...Object.keys(isObj(ctx.souls) ? ctx.souls : {}), ...cardAttires(ctx.fsx, ctx.meta).map((x) => x.name), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])].map(str).filter(Boolean));
+  return wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 12, names);
 }
 
 function wordScanText(hits) {
   if (!hits.length) return "";
   return [
     "Word scan",
-    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. When a garment already in Wearing is described again in a new state (torn, wet, dirty, burnt), remove the old entry and add the new one instead of listing both. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
     ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
   ].join("\n");
 }
@@ -2838,7 +2849,6 @@ const ATTIRE_LABEL = /^[ \t>*_-]*(?:attire|outfit|clothing|clothes|wardrobe|dres
 const ATTIRE_MAX = 400;
 const ATTIRE_CHARS_MAX = 4;
 
-const nameTokens = (n) => (String(n).toLowerCase().match(/[\p{L}\p{M}]{3,}/gu) || []);
 const sameName = (a, b) => {
   const x = nameTokens(a);
   const y = nameTokens(b);

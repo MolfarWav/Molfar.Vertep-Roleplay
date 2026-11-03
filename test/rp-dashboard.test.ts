@@ -5271,7 +5271,8 @@ describe("the word scan of the new messages (#236)", () => {
   it("says which cast names a sentence holds, since code cannot tell whose garment it is", () => {
     const text = "The old neighbour shuffled past in a faded blue coat. Aria tugged the hem of her pleated skirt.";
     const hits = P.wordScan([{ role: "char", name: "Narrator", text }], null, P.lexiconOf(null), 8, ["Aria", "Bram"]) as { text: string; named: string[]; who: string }[];
-    expect(hits.map((h) => h.named)).toEqual([[], ["Aria"]]);
+    // a sentence that names a cast member comes before one that names nobody
+    expect(hits.map((h) => h.named)).toEqual([["Aria"], []]);
     expect(hits[0]!.who).toBe("Narrator");
   });
 
