@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Gli agenti e la fucina degli agenti
 
-Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Dopo una risposta legge parte della chat, può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. Non esiste ancora un articolo della Guida sugli agenti.
+Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Dopo una risposta legge parte della chat, può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
 
 ## Di cosa è fatto un agente
 
@@ -15,7 +15,7 @@ Un agente è dato, non codice. Nell'editor è una tavola di **schede** collegate
 
 I **pannelli** (indicatori, contatori, tabelle, una tavola di tessere) mostrano ciò che l'agente conserva; in un pannello non viene eseguito nulla, e i suoi pulsanti si limitano a inserire testo nella casella del messaggio.
 
-Quando viene eseguito si imposta per ogni agente: prima della risposta, insieme a essa, dopo di essa oppure a mano; ogni N risposte; oppure solo quando compaiono parole scelte.
+Quando viene eseguito si imposta per ogni agente: dopo ogni risposta (l'unico momento che questa versione esegue); ogni N risposte; oppure solo quando compaiono parole scelte.
 
 ## Agenti pronti
 

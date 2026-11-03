@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Agentes y la forja de agentes
 
-Un agente es un pequeño ayudante que construyes a partir de tarjetas y cables. Después de una respuesta, lee una parte del chat, puede hacerle a un modelo una o varias preguntas breves, toma sus propias notas y muestra algo: una nota bajo la respuesta, botones para tocar, un medidor, un mapa o una pista para la siguiente respuesta. Ejemplos: tres próximos movimientos sugeridos, un medidor de tensión, un mapa de los lugares visitados. Esta página es para quienes desean esos extras. Todavía no hay artículo de Help para agentes.
+Un agente es un pequeño ayudante que construyes a partir de tarjetas y cables. Después de una respuesta, lee una parte del chat, puede hacerle a un modelo una o varias preguntas breves, toma sus propias notas y muestra algo: una nota bajo la respuesta, botones para tocar, un medidor, un mapa o una pista para la siguiente respuesta. Ejemplos: tres próximos movimientos sugeridos, un medidor de tensión, un mapa de los lugares visitados. Esta página es para quienes desean esos extras. El Help tiene tres artículos sobre el editor: "Agent editor: how an agent works", "Agent editor: the cards" y "Agent editor: three ready agents".
 
 ## De qué está hecho un agente
 
@@ -15,7 +15,7 @@ Un agente son datos, no código. En el editor es un tablero de **tarjetas** unid
 
 Los **paneles** (medidores, contadores, tablas, un tablero de fichas) muestran lo que el agente guarda; nada en un panel se ejecuta, y sus botones solo ponen texto en la caja de mensaje.
 
-Cuándo se ejecuta se define por agente: antes de la respuesta, con ella, después de ella, o a mano; cada N respuestas; o solo cuando aparecen palabras elegidas.
+Cuándo se ejecuta se define por agente: después de cada respuesta (el único momento que ejecuta esta versión); cada N respuestas; o solo cuando aparecen palabras elegidas.
 
 ## Agentes listos
 

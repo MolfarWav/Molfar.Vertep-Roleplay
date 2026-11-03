@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Agenci i kuźnia agentów
 
-Agent to mały pomocnik, który budujesz z kart i połączeń. Po odpowiedzi odczytuje część czatu, może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Nie ma jeszcze artykułu Pomocy o agentach.
+Agent to mały pomocnik, który budujesz z kart i połączeń. Po odpowiedzi odczytuje część czatu, może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
 
 ## Z czego składa się agent
 
@@ -15,7 +15,7 @@ Agent to dane, nie kod. W edytorze to plansza z **kart** połączonych **przewod
 
 **Panele** (wskaźniki, liczniki, tabele, plansza kafelków) pokazują to, co przechowuje agent; nic w panelu nie działa, a jego przyciski tylko wstawiają tekst do pola wiadomości.
 
-Kiedy agent działa, ustawia się dla każdego z osobna: przed odpowiedzią, razem z nią, po niej lub ręcznie; co N-tą odpowiedź; lub tylko wtedy, gdy pojawią się wybrane słowa.
+Kiedy agent działa, ustawia się dla każdego z osobna: po każdej odpowiedzi (jedyny moment, w którym ta wersja go uruchamia); co N-tą odpowiedź; lub tylko wtedy, gdy pojawią się wybrane słowa.
 
 ## Gotowi agenci
 

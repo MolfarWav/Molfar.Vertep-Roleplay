@@ -2513,9 +2513,11 @@ export const useApp = create<AppState>()(
       addTag: (name, scope) => { bumpMutate(); set((s) => ({ tags: [...s.tags, { id: uid('tag'), name, color: '#7fb8d9', textColor: '#111318', visible: true, asFolder: false, order: s.tags.length, ...(scope ? { scope } : {}) }] })) },
       deleteTag: (id) => { bumpMutate(); set((s) => ({ tags: s.tags.filter((t) => t.id !== id) })) },
       resetAll: () => {
-        // LOCAL data only — server data lives in the engine and is managed
-        // from Settings → Data (per-type deletes) or the engine client.
-        set({ ...localSeed(), view: 'home', activeChatId: null, activeCharacterId: null, drawer: null })
+        // The look only, as the confirm dialog says: appearance settings, themes, quick replies and tags.
+        // Folders, backgrounds and connection profiles are collections of the library (data/library.json,
+        // written through to the engine) and the engine's data lives in the engine: neither is reset here.
+        const { settings, themes, qrSets, tags } = localSeed()
+        set({ settings, themes, qrSets, tags, view: 'home', activeChatId: null, activeCharacterId: null, drawer: null })
         toast.success('Local UI state reset, server data (characters, chats, presets…) untouched')
       },
     })

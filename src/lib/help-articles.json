@@ -2502,7 +2502,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3064-3064",
+          "lines": "3066-3066",
           "quote": "Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text."
         },
         {
@@ -2828,7 +2828,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3029-3029",
+          "lines": "3031-3031",
           "quote": "Turn on Tools → Image Generation to see it."
         }
       ]
@@ -3290,7 +3290,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3389-3389",
+          "lines": "3391-3391",
           "quote": "the old connection profiles (library.json) become the engine's quick"
         }
       ]
@@ -4872,8 +4872,8 @@
         "uk": "Налаштування, далі розділ Data."
       },
       "details": {
-        "en": "“Export Roleplay data (zip)” downloads one zip file with your Roleplay data: characters, chats, presets, lorebooks, personas and regex scripts, together with the pictures they use. The note under the buttons says this is only the Roleplay part. Look settings and themes are not on that list.\n\nThe whole profile, with every app, Molfar and the connections, is saved in the Backup section of Molfar Vertep’s Settings › Backup. Where the app offers it, an “Open it” link goes there.\n\n“Restore Roleplay data (zip)” takes a .zip file and starts as soon as you choose one. It adds what the zip holds and reports how many items it restored. PNG character cards in the zip are skipped, and the message says to import those from Characters → Import.\n\n“Reset look and local settings” asks “Reset local UI state?” first. “Reset everything” puts the appearance settings, themes, quick replies and tags back to their defaults. It also empties the Backgrounds list, the folders and the saved connection profiles, and returns you to Home. These are kept with your collections, so the change is saved, not just shown. The dialog does not list them. Characters, chats, presets, lorebooks and other saved data stay. “Cancel” changes nothing.",
-        "uk": "«Export Roleplay data (zip)» завантажує один zip-файл з вашими даними Roleplay.  До них входять персонажі, чати, пресети, лорбуки, персони й скрипти regex разом із картинками. Примітка під кнопками каже, що це лише частина Roleplay. Вигляд і теми в цей список не входять.\n\nУвесь профіль, з усіма застосунками, Molfar і підключеннями, зберігає розділ Backup у налаштуваннях Molfar Vertep. Якщо застосунок пропонує, посилання «Open it» веде туди.\n\n«Restore Roleplay data (zip)» починає відновлення одразу, щойно ви обрали файл. Воно додає те, що є в zip, і каже, скільки об’єктів відновлено. PNG-картки персонажів пропускаються: застосунок радить імпортувати їх через Characters → Import.\n\n«Reset look and local settings» спершу питає «Reset local UI state?». «Reset everything» повертає налаштування вигляду, теми, швидкі відповіді й теги до типових. Також очищаються список Backgrounds, папки й збережені профілі підключень, а ви повертаєтеся на головну. Їх зберігають разом із вашими колекціями, тож зміна записується. Діалог про них не згадує. Персонажі, чати, пресети, лорбуки та інші збережені дані лишаються. «Cancel» нічого не змінює."
+        "en": "“Export Roleplay data (zip)” downloads one zip file with your Roleplay data: characters, chats, presets, lorebooks, personas and regex scripts, together with the pictures they use. The note under the buttons says this is only the Roleplay part. Look settings and themes are not on that list.\n\nThe whole profile, with every app, Molfar and the connections, is saved in the Backup section of Molfar Vertep’s Settings › Backup. Where the app offers it, an “Open it” link goes there.\n\n“Restore Roleplay data (zip)” takes a .zip file and starts as soon as you choose one. It adds what the zip holds and reports how many items it restored. PNG character cards in the zip are skipped, and the message says to import those from Characters → Import.\n\n“Reset look and local settings” asks “Reset local UI state?” first. “Reset everything” puts the appearance settings, themes, quick replies and tags back to their defaults and returns you to Home. Folders, the Backgrounds list, characters, chats, presets, lorebooks and other saved data stay. “Cancel” changes nothing.",
+        "uk": "«Export Roleplay data (zip)» завантажує один zip-файл з вашими даними Roleplay.  До них входять персонажі, чати, пресети, лорбуки, персони й скрипти regex разом із картинками. Примітка під кнопками каже, що це лише частина Roleplay. Вигляд і теми в цей список не входять.\n\nУвесь профіль, з усіма застосунками, Molfar і підключеннями, зберігає розділ Backup у налаштуваннях Molfar Vertep. Якщо застосунок пропонує, посилання «Open it» веде туди.\n\n«Restore Roleplay data (zip)» починає відновлення одразу, щойно ви обрали файл. Воно додає те, що є в zip, і каже, скільки об’єктів відновлено. PNG-картки персонажів пропускаються: застосунок радить імпортувати їх через Characters → Import.\n\n«Reset look and local settings» спершу питає «Reset local UI state?». «Reset everything» повертає налаштування вигляду, теми, швидкі відповіді й теги до типових, а ви повертаєтеся на головну. Папки, список Backgrounds, персонажі, чати, пресети, лорбуки та інші збережені дані лишаються. «Cancel» нічого не змінює."
       },
       "related": [
         "kb.settings",
@@ -4963,33 +4963,13 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2518-2518",
-          "quote": "set({ ...localSeed(), view: 'home', activeChatId: null, activeCharacterId: null, drawer: null })"
-        },
-        {
-          "path": "src/lib/store.ts",
-          "lines": "392-392",
-          "quote": "backgrounds: [],"
-        },
-        {
-          "path": "src/lib/store.ts",
-          "lines": "394-394",
-          "quote": "folders: [],"
-        },
-        {
-          "path": "src/lib/store.ts",
           "lines": "391-391",
           "quote": "themes: seedThemes,"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "392-392",
-          "quote": "backgrounds: [],"
-        },
-        {
-          "path": "src/lib/store.ts",
-          "lines": "3367-3367",
-          "quote": "const LIB_KEYS = ['qrSets', 'themes', 'backgrounds', 'tags', 'folders', 'connectionProfiles'] as const"
+          "lines": "2520-2520",
+          "quote": "set({ settings, themes, qrSets, tags, view: 'home'"
         }
       ]
     },
