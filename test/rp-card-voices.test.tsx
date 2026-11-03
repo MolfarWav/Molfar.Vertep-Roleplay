@@ -2,7 +2,7 @@
 // (Molfar Vertep issue #93). The speaker comes from the text.
 import { describe, expect, it } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { cardVoices, leadVoiceIn, VOICE_PALETTE } from "../src/lib/dialogue-voices";
+import { cardQuoteColor, cardVoices, leadVoiceIn, VOICE_PALETTE } from "../src/lib/dialogue-voices";
 
 (globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
 const { Markdown, DialogueVoices, VoiceLeadOnly } = await import("../src/components/markdown");
@@ -18,6 +18,19 @@ describe("cardVoices", () => {
     expect(voices.map((v) => v.color)).toEqual(["#111111", "#222222", VOICE_PALETTE[2]!]);
     expect(cardVoices({ voices: [{ name: " ", color: "" }, { name: "X", color: "" }] })).toEqual([]);
     expect(cardVoices({})).toEqual([]);
+  });
+});
+
+describe("cardQuoteColor", () => {
+  const card = { colors: { name: "", dialogue: "#bcbf31", bubble: "" } };
+  it("is the card's Dialogue highlight for its own replies, and nothing else's", () => {
+    expect(cardQuoteColor(card, { isUser: false, inGroup: false })).toBe("#bcbf31");
+    // the player's lines have the persona's colour, a group member has memberColor
+    expect(cardQuoteColor(card, { isUser: true, inGroup: false })).toBeUndefined();
+    expect(cardQuoteColor(card, { isUser: false, inGroup: true })).toBeUndefined();
+    // no colour set: the theme's stays
+    expect(cardQuoteColor({ colors: { name: "", dialogue: "", bubble: "" } }, { isUser: false, inGroup: false })).toBeUndefined();
+    expect(cardQuoteColor(undefined, { isUser: false, inGroup: false })).toBeUndefined();
   });
 });
 

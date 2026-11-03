@@ -367,8 +367,8 @@
         "uk": "Редактор → вкладка «Ще» → «Кольори» (або панель «Кольори» в групі «Ще»)."
       },
       "details": {
-        "en": "Name color, dialogue highlight and bubble tint are set with color pickers; an \"Extract from avatar\" button picks the dominant color from the card's portrait. The card's own style sheet can restyle the message text. Voices list each character of a narrator card: the speaker is found by the name before a colon or the first name in a line. Each voice picks its color or draws from the built-in palette in order.",
-        "uk": "Колір імені, підсвічування діалогу й відтінок бульбашки встановлюються палітрами; кнопка «Взяти з аватара» вибирає домінантний колір з портрета. Власний стиль картки може змінювати вигляд тексту повідомлень. «Голоси» перелічують кожного персонажа картки-оповідача: мовця знаходять за ім'ям перед двокрапкою або першим ім'ям у рядку. Кожен голос обирає свій колір або бере його з вбудованої палітри за порядком."
+        "en": "Name color, dialogue highlight and bubble tint are set with color pickers; an \"Extract from avatar\" button picks the dominant color from the card's portrait. The card's own style sheet can restyle the message text. Voices list each character of a narrator card: the speaker is found by the name before a colon or the first name in a line. Each voice picks its color or draws from the built-in palette in order. In the chat, the card’s own replies show their quoted speech in the Dialogue highlight colour; a voice named on a line paints that line in the voice’s colour over it.",
+        "uk": "Колір імені, підсвічування діалогу й відтінок бульбашки встановлюються палітрами; кнопка «Взяти з аватара» вибирає домінантний колір з портрета. Власний стиль картки може змінювати вигляд тексту повідомлень. «Голоси» перелічують кожного персонажа картки-оповідача: мовця знаходять за ім'ям перед двокрапкою або першим ім'ям у рядку. Кожен голос обирає свій колір або бере його з вбудованої палітри за порядком. У чаті репліки самої картки мають колір Dialogue highlight. Голос, названий у рядку, фарбує цей рядок своїм кольором."
       },
       "related": [
         "kb.profile-cast",
@@ -395,6 +395,11 @@
           "path": "src/lib/i18n.ts",
           "lines": "3284-3284",
           "quote": "'voices.title': 'Voices',"
+        },
+        {
+          "path": "src/lib/dialogue-voices.ts",
+          "lines": "123-123",
+          "quote": "cardQuoteColor"
         }
       ]
     },
@@ -1143,17 +1148,17 @@
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "790-790",
+          "lines": "792-792",
           "quote": "which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay)."
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "339-339",
+          "lines": "341-341",
           "quote": "Rebuild from scratch no longer empties a chat's record: with no closed scene it refuses to start"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "785-785",
+          "lines": "787-787",
           "quote": "**Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling)"
         }
       ]
@@ -1660,7 +1665,7 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "583-583",
+          "lines": "586-586",
           "quote": "const showSwipes = !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis"
         },
         {
@@ -1670,7 +1675,7 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "1108-1108",
+          "lines": "1112-1112",
           "quote": "Swipe {index + 1}"
         }
       ]
@@ -1712,17 +1717,17 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "547-547",
+          "lines": "550-550",
           "quote": "setDraft(swipe?.content ?? '')"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "841-841",
+          "lines": "844-844",
           "quote": "<Button size=\"sm\" onClick={() => { editMessage(chat.id, message.id, draft); setEditing(false) }}>Save</Button>"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "979-979",
+          "lines": "983-983",
           "quote": "aria-label={t('msg.edit')}"
         }
       ]
@@ -1821,12 +1826,12 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "619-619",
+          "lines": "622-622",
           "quote": "<DropdownMenuContent align=\"end\" className=\"w-64\">"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "979-979",
+          "lines": "983-983",
           "quote": "<Button variant=\"ghost\" size=\"sm\" className=\"ls-act\" aria-label={t('msg.edit')} onClick={startEdit}>"
         }
       ]
@@ -1873,7 +1878,7 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "592-592",
+          "lines": "595-595",
           "quote": "case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break"
         },
         {
@@ -1930,7 +1935,7 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "1043-1043",
+          "lines": "1047-1047",
           "quote": "<DialogTitle>Generation data</DialogTitle>"
         }
       ]
@@ -5245,52 +5250,52 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "563-563",
+          "lines": "566-566",
           "quote": "const rowPad = spacing === 'compact' ? 'py-1' : spacing === 'cozy' ? 'py-2' : 'py-3'"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "564-564",
+          "lines": "567-567",
           "quote": "const showPortrait = !isUser && !settings.hideAvatars"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "723-723",
+          "lines": "726-726",
           "quote": "{settings.showTimestamps && ("
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "580-580",
+          "lines": "583-583",
           "quote": "if (settings.showMessageIds) meta.push"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "578-578",
+          "lines": "581-581",
           "quote": "if (settings.showTokens && !isStreamingThis) meta.push"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "728-728",
+          "lines": "731-731",
           "quote": "{settings.showCache && !isStreamingThis && realUsage"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "579-579",
+          "lines": "582-582",
           "quote": "if (settings.showCost && !isStreamingThis && msgCost != null)"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "574-574",
+          "lines": "577-577",
           "quote": "if (!isUser && settings.showModelIcons && modelId) {"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "577-577",
+          "lines": "580-580",
           "quote": "if (settings.showGenTimer && !isUser && !isStreamingThis"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "584-584",
+          "lines": "587-587",
           "quote": "const pinned = settings.expandMessageActions || coarsePointer"
         }
       ]

@@ -74,14 +74,21 @@ const FORM = `## Form
 - Style: {{var:style}}
 - The world: {{var:difficulty}}
 - Intimate scenes: {{var:nsfw}}
-- Formatting: narration as plain text, speech in quotation marks (the ones the story language uses), a character's unspoken thoughts in *italics*. No headings, lists, notes or options inside the story.
+- Formatting: no headings, lists, notes or options inside the story.
 {{#if custom}}
 ## The Human's own notes
 {{custom}}
 {{/if}}`
 
+const FORMAT = `## Message format
+The classic roleplay format, in every reply:
+- Speech in quotation marks, the ones the story language uses.
+- Actions, movements, expressions and the narration of what the scene shows in *asterisks*: one pair around each action or short passage, never nested.
+- A character's unspoken thoughts also in *asterisks*, said to be thoughts ("*Not again*, she thought."), never in quotation marks, so that speech stays speech.
+- Each speaker's lines start a new paragraph.`
+
 const HTML = `## HTML panels
-An exception to the plain-text formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.
+An exception to the formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.
 - Only what a character is reading or looking at now. A glance, a background screen or words that do not matter stay in prose.
 - At most one panel per reply, about 500 tokens of HTML. If the design gets heavy, simplify the look, never the content.
 - The panel fits the setting: scanlines and neon for cyberpunk, parchment and ink for fantasy, clean cards for modern. Motion is optional (\`transition\`, \`@keyframes\` in one \`<style>\` block).
@@ -192,6 +199,10 @@ const variables = [
     ['en', 'English', 'English, whatever language the Human writes in.', 'Always English.'],
     ['ru', 'Русский', 'Russian, whatever language the Human writes in.', 'Always Russian.'],
   ]),
+  choice('format', 'Message format', 'How a reply is written on the page: the classic roleplay look, or left to the card.', 'on', [
+    ['on', 'On', 'on', 'Speech in quotation marks, actions and narration in *asterisks*, thoughts marked as thoughts.'],
+    ['off', 'Off', 'off', 'No format rule: the card, its examples and the chat history set the look.'],
+  ]),
   choice('html', 'HTML panels', 'In-world screens, letters and signs drawn as HTML.', 'on', [
     ['on', 'On', 'on', 'One small panel per reply can show a screen, letter or sign at the moment.'],
     ['off', 'Off', 'off', 'In-world objects are described in prose, never drawn as panels.'],
@@ -231,6 +242,7 @@ const sections: PromptSection[] = [
   own('lite_control', 'Player control', CONTROL),
   own('lite_craft', 'Characters and prose', CRAFT),
   own('lite_form', 'Form', FORM),
+  own('lite_format', 'Message format', FORMAT, { condition: 'format==on' }),
   own('lite_frame', 'Fiction frame', FRAME, { injectionTriggers: ['normal', 'continue', 'impersonate', 'swipe', 'regenerate'], condition: 'frame==on' }),
   own('lite_html', 'HTML panels', HTML, { injectionTriggers: replyOnly, condition: 'html==on' }),
   marker('main', 'Card prompt'),

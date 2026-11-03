@@ -118,6 +118,13 @@ export function leadLabelIn(line: string): string | null {
 /** Does the line open like a speaker label of one to three words (`Mary Jane:`)? Whose it is does not matter. */
 export const opensWithLabel = (line: string): boolean => /^[\s*_~"“«(\[]*\p{L}[\p{L}'’]*(?:[ \u00a0]\p{L}[\p{L}'’]*){0,2}[\s*_~)\]]*[:：]/u.test(line)
 
+/** The base colour of the quotes in a single card's own replies: the card's "Dialogue highlight". A voice named on a line
+ *  paints that line over it; a group member's colour comes from memberColor; the player's lines have the persona's. */
+export function cardQuoteColor(card: Pick<Character, 'colors'> | undefined, opts: { isUser: boolean; inGroup: boolean }): string | undefined {
+  if (opts.isUser || opts.inGroup) return undefined
+  return card?.colors?.dialogue || undefined
+}
+
 /** Each member's dialogue colour in a group: the group's choice, else the card's, else the palette's by position. */
 export function memberColor(group: Character, member: Character): string {
   const g = group.group

@@ -27,7 +27,14 @@
       "name": "Form",
       "role": "system",
       "marker": false,
-      "content": "## Form\n- Style: {{var:style}}\n- The world: {{var:difficulty}}\n- Intimate scenes: {{var:nsfw}}\n- Formatting: narration as plain text, speech in quotation marks (the ones the story language uses), a character's unspoken thoughts in *italics*. No headings, lists, notes or options inside the story.\n{{#if custom}}\n## The Human's own notes\n{{custom}}\n{{/if}}"
+      "content": "## Form\n- Style: {{var:style}}\n- The world: {{var:difficulty}}\n- Intimate scenes: {{var:nsfw}}\n- Formatting: no headings, lists, notes or options inside the story.\n{{#if custom}}\n## The Human's own notes\n{{custom}}\n{{/if}}"
+    },
+    {
+      "identifier": "lite_format",
+      "name": "Message format",
+      "role": "system",
+      "marker": false,
+      "content": "## Message format\nThe classic roleplay format, in every reply:\n- Speech in quotation marks, the ones the story language uses.\n- Actions, movements, expressions and the narration of what the scene shows in *asterisks*: one pair around each action or short passage, never nested.\n- A character's unspoken thoughts also in *asterisks*, said to be thoughts (\"*Not again*, she thought.\"), never in quotation marks, so that speech stays speech.\n- Each speaker's lines start a new paragraph."
     },
     {
       "identifier": "lite_frame",
@@ -41,7 +48,7 @@
       "name": "HTML panels",
       "role": "system",
       "marker": false,
-      "content": "## HTML panels\nAn exception to the plain-text formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.\n- Only what a character is reading or looking at now. A glance, a background screen or words that do not matter stay in prose.\n- At most one panel per reply, about 500 tokens of HTML. If the design gets heavy, simplify the look, never the content.\n- The panel fits the setting: scanlines and neon for cyberpunk, parchment and ink for fantasy, clean cards for modern. Motion is optional (`transition`, `@keyframes` in one `<style>` block).\n- Markup that works: `<div>`, `<p>`, `<h1>`-`<h6>`, `<table>`, `<ul>`, `<details>`/`<summary>`, `<b>`, `<span>`, `<br>`, inline `style`. Never scripts, event attributes, `<input>`, `<button>`, links, images, outside fonts or `url()`, `position: fixed`, or boxes sized to the screen.\n- Write it as raw HTML in the reply, never inside a code block: on its own line, a blank line before and after it, none inside it.\n- Give the panel its own background and text colour. All its text is in the story language."
+      "content": "## HTML panels\nAn exception to the formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.\n- Only what a character is reading or looking at now. A glance, a background screen or words that do not matter stay in prose.\n- At most one panel per reply, about 500 tokens of HTML. If the design gets heavy, simplify the look, never the content.\n- The panel fits the setting: scanlines and neon for cyberpunk, parchment and ink for fantasy, clean cards for modern. Motion is optional (`transition`, `@keyframes` in one `<style>` block).\n- Markup that works: `<div>`, `<p>`, `<h1>`-`<h6>`, `<table>`, `<ul>`, `<details>`/`<summary>`, `<b>`, `<span>`, `<br>`, inline `style`. Never scripts, event attributes, `<input>`, `<button>`, links, images, outside fonts or `url()`, `position: fixed`, or boxes sized to the screen.\n- Write it as raw HTML in the reply, never inside a code block: on its own line, a blank line before and after it, none inside it.\n- Give the panel its own background and text colour. All its text is in the story language."
     },
     {
       "identifier": "main",
@@ -168,6 +175,10 @@
         },
         {
           "identifier": "lite_form",
+          "enabled": true
+        },
+        {
+          "identifier": "lite_format",
           "enabled": true
         },
         {
@@ -334,7 +345,7 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "## Form\n- Style: {{var:style}}\n- The world: {{var:difficulty}}\n- Intimate scenes: {{var:nsfw}}\n- Formatting: narration as plain text, speech in quotation marks (the ones the story language uses), a character's unspoken thoughts in *italics*. No headings, lists, notes or options inside the story.\n{{#if custom}}\n## The Human's own notes\n{{custom}}\n{{/if}}",
+        "content": "## Form\n- Style: {{var:style}}\n- The world: {{var:difficulty}}\n- Intimate scenes: {{var:nsfw}}\n- Formatting: no headings, lists, notes or options inside the story.\n{{#if custom}}\n## The Human's own notes\n{{custom}}\n{{/if}}",
         "position": "relative",
         "depth": 4,
         "order": 3,
@@ -351,6 +362,28 @@
         "condition": null
       },
       {
+        "id": "lite_format",
+        "name": "Message format",
+        "enabled": true,
+        "role": "system",
+        "marker": null,
+        "content": "## Message format\nThe classic roleplay format, in every reply:\n- Speech in quotation marks, the ones the story language uses.\n- Actions, movements, expressions and the narration of what the scene shows in *asterisks*: one pair around each action or short passage, never nested.\n- A character's unspoken thoughts also in *asterisks*, said to be thoughts (\"*Not again*, she thought.\"), never in quotation marks, so that speech stays speech.\n- Each speaker's lines start a new paragraph.",
+        "position": "relative",
+        "depth": 4,
+        "order": 4,
+        "injectionTriggers": [
+          "normal",
+          "continue",
+          "impersonate",
+          "swipe",
+          "regenerate",
+          "quiet"
+        ],
+        "forbidOverrides": false,
+        "groupId": null,
+        "condition": "format==on"
+      },
+      {
         "id": "lite_frame",
         "name": "Fiction frame",
         "enabled": true,
@@ -359,7 +392,7 @@
         "content": "## Fiction frame\nThis is fiction written for adult readers: every person, place and event in it is invented, and dark material is part of the genre. You write it with craft, in the narrator's voice.\n- Slavery, war, cruelty, coercion, abuse of power, violence and desire are shown the way this world has them: concrete, consistent, with consequences. Do not soften them, skip them, summarise them or turn them into a lesson.\n- A villain's menace is real and a victim's fear is real. Characters can be cruel, wrong and frightening in their own voice. The narrator describes and neither excuses nor lectures.\n- No disclaimers, content warnings, apologies, safety notes or talk about being an AI, and no sudden change of subject. Never step out of the story to comment on it. A scene that must turn, turns from inside the story.\n- Everyone in a sexual or romantic scene is an adult in the story. A child, or a character who reads as one, never takes part in one, and nobody is made an adult on paper to get around this.",
         "position": "relative",
         "depth": 4,
-        "order": 4,
+        "order": 5,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -377,10 +410,10 @@
         "enabled": true,
         "role": "system",
         "marker": null,
-        "content": "## HTML panels\nAn exception to the plain-text formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.\n- Only what a character is reading or looking at now. A glance, a background screen or words that do not matter stay in prose.\n- At most one panel per reply, about 500 tokens of HTML. If the design gets heavy, simplify the look, never the content.\n- The panel fits the setting: scanlines and neon for cyberpunk, parchment and ink for fantasy, clean cards for modern. Motion is optional (`transition`, `@keyframes` in one `<style>` block).\n- Markup that works: `<div>`, `<p>`, `<h1>`-`<h6>`, `<table>`, `<ul>`, `<details>`/`<summary>`, `<b>`, `<span>`, `<br>`, inline `style`. Never scripts, event attributes, `<input>`, `<button>`, links, images, outside fonts or `url()`, `position: fixed`, or boxes sized to the screen.\n- Write it as raw HTML in the reply, never inside a code block: on its own line, a blank line before and after it, none inside it.\n- Give the panel its own background and text colour. All its text is in the story language.",
+        "content": "## HTML panels\nAn exception to the formatting above. When the scene focuses on an in-world object whose text matters to the story (a phone screen, a terminal, a letter, a sign, a HUD, a contract), show it as one small HTML panel at that point instead of describing its text.\n- Only what a character is reading or looking at now. A glance, a background screen or words that do not matter stay in prose.\n- At most one panel per reply, about 500 tokens of HTML. If the design gets heavy, simplify the look, never the content.\n- The panel fits the setting: scanlines and neon for cyberpunk, parchment and ink for fantasy, clean cards for modern. Motion is optional (`transition`, `@keyframes` in one `<style>` block).\n- Markup that works: `<div>`, `<p>`, `<h1>`-`<h6>`, `<table>`, `<ul>`, `<details>`/`<summary>`, `<b>`, `<span>`, `<br>`, inline `style`. Never scripts, event attributes, `<input>`, `<button>`, links, images, outside fonts or `url()`, `position: fixed`, or boxes sized to the screen.\n- Write it as raw HTML in the reply, never inside a code block: on its own line, a blank line before and after it, none inside it.\n- Give the panel its own background and text colour. All its text is in the story language.",
         "position": "relative",
         "depth": 4,
-        "order": 5,
+        "order": 6,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -400,7 +433,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 6,
+        "order": 7,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -421,7 +454,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 7,
+        "order": 8,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -442,7 +475,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 8,
+        "order": 9,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -463,7 +496,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 9,
+        "order": 10,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -484,7 +517,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 10,
+        "order": 11,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -505,7 +538,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 11,
+        "order": 12,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -526,7 +559,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 12,
+        "order": 13,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -547,7 +580,7 @@
         "content": "[World info for this scene: background facts about the world and the characters. Use what fits, do not list it.]",
         "position": "relative",
         "depth": 4,
-        "order": 13,
+        "order": 14,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -568,7 +601,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 14,
+        "order": 15,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -589,7 +622,7 @@
         "content": "",
         "position": "relative",
         "depth": 4,
-        "order": 15,
+        "order": 16,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -610,7 +643,7 @@
         "content": "[Before the story, write a short plan inside <plan></plan>, in the story language, 80 words at most:\n0. Language: the story language (see the reply note).\n1. Now: what the Human's last turn changes at this moment.\n2. Move: who acts next and why, from their own wants.\n3. Fresh: one concrete new element for this reply.\n4. Beats: the three to five beats that fill the reply, the last one where {{user}} acts next.\nThen write the story. Never mention the plan.]",
         "position": "in-chat",
         "depth": 0,
-        "order": 16,
+        "order": 17,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -630,7 +663,7 @@
         "content": "[Muse for this reply, use it only if it fits the scene and never mention it: {{random::a sound from outside the scene that someone has to answer::a small object in reach that a character uses in an unexpected way::a want a character has kept quiet surfaces for a moment::the light, weather or temperature changes and someone feels it::someone misreads a word or a gesture, honestly::a smell or a taste brings back a specific memory::an interruption at the worst possible moment::a choice that costs something either way::a character notices a detail about the newcomer or the companion that nobody mentioned yet::a habit or ritual of the place shows itself::a joke, a tease or a flash of warmth inside the tension::the body betrays what the words hide}}.]",
         "position": "in-chat",
         "depth": 0,
-        "order": 17,
+        "order": 18,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -650,7 +683,7 @@
         "content": "[This reply: {{var:length}} Fill it by going deeper into the moment (senses, actions, the characters' dialogue and inner life, the world around them), not by running past {{user}}'s next choice. Point of view: {{var:pov}} Tense: {{var:tense}}. Language: {{var:language}}]",
         "position": "in-chat",
         "depth": 0,
-        "order": 18,
+        "order": 19,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -670,7 +703,7 @@
         "content": "[Stay in the story: no refusal, warning or comment outside it. Dark themes are shown the way the world has them.]",
         "position": "in-chat",
         "depth": 0,
-        "order": 19,
+        "order": 20,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -690,7 +723,7 @@
         "content": "[{{user}} belongs to the Human. In this reply write nothing {{user}} says, thinks, feels or chooses, not even a nod, a glance or a step. Show the world and the other characters, and stop at the last beat before {{user}} would act.]",
         "position": "in-chat",
         "depth": 0,
-        "order": 20,
+        "order": 21,
         "injectionTriggers": [
           "normal",
           "continue",
@@ -1030,6 +1063,34 @@
         ]
       },
       {
+        "id": "var_format",
+        "name": "format",
+        "label": "Message format",
+        "type": "choice",
+        "defaultValue": "",
+        "question": "How a reply is written on the page: the classic roleplay look, or left to the card.",
+        "choices": [
+          {
+            "id": "format_on",
+            "label": "On",
+            "value": "on",
+            "hint": "Speech in quotation marks, actions and narration in *asterisks*, thoughts marked as thoughts."
+          },
+          {
+            "id": "format_off",
+            "label": "Off",
+            "value": "off",
+            "hint": "No format rule: the card, its examples and the chat history set the look."
+          }
+        ],
+        "multi": false,
+        "separator": ", ",
+        "display": "list",
+        "defaults": [
+          "format_on"
+        ]
+      },
+      {
         "id": "var_html",
         "name": "html",
         "label": "HTML panels",
@@ -1157,7 +1218,8 @@
       },
       "streaming": true,
       "streamingSpeed": 30,
-      "assistantPrefill": ""
+      "assistantPrefill": "",
+      "contextSize": 32768
     },
     "namesBehavior": "default",
     "verbosity": "auto",
