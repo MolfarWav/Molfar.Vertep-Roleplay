@@ -233,7 +233,8 @@ describe("vocabulary", () => {
 
 // ---------- source rules ----------
 describe("plugin source", () => {
-  const src = fs.readFileSync(pluginPath, "utf8");
+  // the word lists of the scan (#236) are data in many languages; everything else stays English
+  const src = fs.readFileSync(pluginPath, "utf8").replace(/\/\/ lexicon:start[\s\S]*?\/\/ lexicon:end/, "");
   it("is English only and does not look like a request hook", () => {
     expect(CYRILLIC.test(src)).toBe(false);
     expect(typeof P.llmRequest).toBe("function");
@@ -5218,12 +5219,62 @@ describe("removing a character from the Dashboard", () => {
 });
 
 describe("the budget of the new messages (#236)", () => {
-  it("short messages keep all of their text and long ones share what is left, never below the floor", async () => {
-    const { fairCap } = await import("../plugins/relations/plugin.js");
-    expect(fairCap([500, 5500], 12000, 1500)).toBe(Infinity);
-    expect(fairCap([500, 20000], 12000, 1500)).toBe(11500);
-    expect(fairCap([5000, 5000, 5000], 12000, 1500)).toBe(4000);
-    expect(fairCap(Array(20).fill(3000), 12000, 1500)).toBe(1500);
-    expect(fairCap([], 12000, 1500)).toBe(Infinity);
+  it("short messages keep all of their text and long ones share what is left, never below the floor", () => {
+    expect(P.fairCap([500, 5500], 12000, 1500)).toBe(Infinity);
+    expect(P.fairCap([500, 20000], 12000, 1500)).toBe(11500);
+    expect(P.fairCap([5000, 5000, 5000], 12000, 1500)).toBe(4000);
+    expect(P.fairCap(Array(20).fill(3000), 12000, 1500)).toBe(1500);
+    expect(P.fairCap([], 12000, 1500)).toBe(Infinity);
+  });
+});
+
+describe("the word scan of the new messages (#236)", () => {
+  const scan = (text: string, role = "char", lex: any = P.lexiconOf(null)) => P.wordScan([{ role, name: "Aria", text }], null, lex) as { who: string; text: string; kinds: string[] }[];
+
+  it("finds clothing in several languages and inflections, whatever the colour or detail", () => {
+    expect(scan("She tugs the hem of her pleated skirt.").map((h) => h.kinds)).toEqual([["wear"]]);
+    expect(scan("Она поправила зелёную заколку и юбки.").length).toBe(1);
+    expect(scan("Вона одягла спідницю та кросівки.")[0]!.kinds).toEqual(["wear", "dress"]);
+    expect(scan("Ele calçou os sapatos e a saia nova.").length).toBe(1);
+    expect(scan("彼女はスカートを直した。").length).toBe(1);
+  });
+
+  it("does not flag everyday words that only look like clothes or actions", () => {
+    expect(scan("Watch out for the ring of the phone, it is a huge top floor.")).toEqual([]);
+    expect(scan("Он пояснил, что форма разговора ему не нравится.")).toEqual([]);
+    // a dressing word alone is not a hint
+    expect(scan("She dropped the idea and removed her doubts.")).toEqual([]);
+  });
+
+  it("finds contact (a kiss) and ranks clothing with an action first", () => {
+    const hits = scan("He kissed her on the cheek. She took off her jacket. The cat slept.");
+    expect(hits.map((h) => h.kinds)).toEqual([["wear", "dress"], ["touch"]]);
+  });
+
+  it("reads the whole reply, the middle too, and keeps at most `max` sentences", () => {
+    const text = `${"The street was quiet. ".repeat(300)}A pleated skirt swung in the wind. ${"The street was quiet. ".repeat(300)}`;
+    expect(scan(text).map((h) => h.text)).toEqual(["A pleated skirt swung in the wind."]);
+    const many = Array.from({ length: 20 }, (_, i) => `She wore a scarf number ${i}.`).join(" ");
+    expect(P.wordScan([{ role: "char", name: "A", text: many }], null, P.lexiconOf(null), 5).length).toBe(5);
+  });
+
+  it("a user's lexicon file adds words, or switches the scan off", () => {
+    fs.mkdirSync(path.join(root, "dashboard"), { recursive: true });
+    const fsx = { read: (f: string) => fs.readFileSync(path.join(root, f), "utf8"), list: () => [], write: () => {} };
+    fs.writeFileSync(path.join(root, "dashboard/lexicon.json"), JSON.stringify({ wear: ["zorblax"] }));
+    expect(scan("She wore a zorblax.", "char", P.lexiconOf(fsx)).length).toBe(1);
+    fs.writeFileSync(path.join(root, "dashboard/lexicon.json"), JSON.stringify({ off: true }));
+    expect(P.lexiconOf(fsx)).toBeNull();
+    expect(scan("She wore a skirt.", "char", null)).toEqual([]);
+  });
+
+  it("the sensor input carries the hints, with the sentence from the middle of a long reply", () => {
+    const filler = "The wind moved over the empty street and nothing else happened for a while. ".repeat(40);
+    writeChat("c1", [U("m1", "Hello."), A("m2", `${filler}Her pleated skirt and the green hair clip caught the light. ${filler}`)]);
+    const mock = mockHost([reply({})]);
+    update(mock, "c1");
+    const prompt = String(mock.requests[0]!.req.messages[0].content);
+    expect(prompt).toContain("Word scan");
+    expect(prompt).toContain("Her pleated skirt and the green hair clip caught the light.");
   });
 });

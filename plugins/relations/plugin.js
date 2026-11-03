@@ -870,6 +870,7 @@ const userEventRows = (fsx) => {
   return isObj(raw) ? arr(raw.events) : [];
 };
 const loadVocab = (fsx) => buildVocab(userEventRows(fsx));
+const LEXICON_FILE = "dashboard/lexicon.json";
 
 // ---------- ids the sensor made up (#86): a close match counts as the known event ----------
 // "jealousy" is jealous_scene, "check_on_her" is checked_on_her. Words of the id are compared by stem; a match needs at
@@ -2676,6 +2677,136 @@ function newMessagesText(msgs, view) {
   return "New messages\n" + newMessagesBody(msgs, view).body.slice(-SENSOR_TEXT_MAX);
 }
 
+// ---------- word scan of the new messages (#236) ----------
+// The sensor model skips what it is not pointed at: a skirt named in passing in the middle of a long reply never reached
+// the Dashboard. Code reads the whole reply first, finds the sentences that look like clothing, a dressing action or
+// physical contact, and hands them to the sensor as hints ("check this one"). A hint is never a fact: the model decides
+// and writes the exact value. The word lists are plain data in any language; a language with no words simply gets no hints.
+// Entry forms: "skirt" = a stem (any word that starts with it and has up to 4 more letters, for endings); "top!" = that
+// word alone (or with s/es), for short words; an entry with a space or a hyphen is a phrase; a CJK entry matches anywhere.
+// A user's data/dashboard/lexicon.json adds words ({ "wear": [...], "touch": [...] }) or switches the scan off ({ "off": true }).
+// lexicon:start (words of many languages: data, the one place the plugin source may hold other scripts)
+export const DEFAULT_LEXICON = {
+  wear: [
+    // en
+    "dress", "skirt", "shirt", "blouse", "jacket", "coat!", "sweater", "jumper!", "hoodie", "cardigan", "jeans!", "pants!", "trousers", "shorts!", "stocking", "tights!", "socks!", "sock!", "sneaker", "trainer", "shoe", "boot!", "boots!", "heels!", "sandal", "slipper", "bra!", "panties!", "underwear", "lingerie", "bikini", "swimsuit", "uniform", "kimono", "robe!", "towel!", "pajama", "nightgown", "scarf!", "scarves", "hat!", "glove", "belt!", "necklace", "bracelet", "earring", "ribbon", "hairpin", "hair clip", "barrette", "choker", "collar!", "glasses!", "apron", "leggings", "hair tie", "bandana", "cloak", 
+    // uk
+    "сукн", "спідниц", "блуз", "сорочк", "футболк", "топ!", "куртк", "пальт", "светр", "кофт", "худі", "джинс", "штани", "штанів", "шорт", "панчох", "колгот", "шкарпет", "кросівк", "кеди", "взутт", "черевик", "чобіт", "туфл", "босонік", "тапк", "бюстгальтер", "ліфчик", "труси", "трусик", "білизн", "купальник", "халат", "рушник", "піжам", "шарф", "шапк", "капелюх", "рукавичк", "ремін", "пояс!", "пояса", "поясі", "поясом", "намист", "браслет", "сережк", "стрічк", "заколк", "резинк", "чокер", "окуляр", "перстен", "каблучк", "годинник", "фартух", "легінс", "плащ", 
+    // ru
+    "платье", "платья", "платьиц", "юбк", "блуз", "рубашк", "футболк", "куртк", "пальто", "свитер", "кофт", "худи", "джинс", "штаны", "брюк", "шорт", "чулок", "чулк", "колготк", "носк", "кроссовк", "кед", "обув", "ботинк", "сапог", "туфл", "босонож", "тапочк", "лифчик", "бюстгальтер", "трусик", "трусы", "белье", "бельё", "купальник", "халат", "полотенц", "пижам", "шарф", "шапк", "шляп", "перчатк", "ремень", "ремня", "пояс!", "пояса", "поясе", "поясу", "поясом", "ожерель", "браслет", "серьг", "лент", "заколк", "резинк", "чокер", "очки", "очков", "кольц", "часы!", "часов", "фартук", "лосин", "плащ", "бретел",
+    // de
+    "kleid", "rock!", "röck", "bluse", "hemd", "jacke", "mantel", "pullover", "strumpf", "strümpf", "socke", "schuh", "stiefel", "sandale", "unterwäsche", "schlüpfer", "badeanzug", "schal!", "mütze", "handschuh", "gürtel", "halskette", "armband", "ohrring", "haarspange", "brille",
+    // fr
+    "robe!", "jupe", "chemise", "veste", "manteau", "pull!", "chaussette", "chaussure", "botte", "culotte", "soutien-gorge", "sous-vêtement", "maillot", "écharpe", "bonnet", "gant!", "ceinture", "collier", "bracelet", "boucle d'oreille", "barrette", "lunettes",
+    // es
+    "vestido", "falda", "camisa", "blusa", "camiseta", "chaqueta", "abrigo", "suéter", "calcetín", "calcetin", "zapato", "zapatilla", "bota!", "sandalia", "braga", "sujetador", "ropa interior", "bañador", "bufanda", "gorro", "guante", "cinturón", "collar!", "pulsera", "pendiente", "gafas",
+    // pt
+    "saia!", "jaqueta", "casaco", "meia!", "meias!", "sapato", "tênis", "tenis!", "sandália", "calcinha", "sutiã", "roupa íntima", "biquíni", "cachecol", "chapéu", "luva", "cinto", "pulseira", "brinco", "óculos", "calça",
+    // it
+    "vestito", "camicia", "maglietta", "giacca", "cappotto", "maglione", "calza", "scarpa", "stivale", "sandalo", "mutandine", "reggiseno", "biancheria", "costume da bagno", "sciarpa", "cappello", "guanto", "cintura", "collana", "braccialetto", "orecchino", "occhiali",
+    // pl
+    "sukienk", "spódnic", "bluzk", "koszul", "kurtk", "płaszcz", "sweter", "skarpet", "rajstop", "pończoch", "trampk", "but!", "buty", "butów", "sandał", "majtki", "stanik", "bielizn", "kostium", "szalik", "czapk", "rękawiczk", "pasek", "naszyjnik", "bransolet", "kolczyk", "spinka", "okulary",
+    // nl
+    "jurk", "rok!", "overhemd", "jas!", "trui", "sok!", "sokken", "schoen", "laars", "laarzen", "slipje", "beha!", "ondergoed", "badpak", "sjaal", "muts", "handschoen", "riem!", "ketting", "oorbel", "bril!",
+    // tr
+    "elbise", "etek", "gömlek", "bluz", "tişört", "ceket", "mont!", "kazak", "çorap", "ayakkab", "bot!", "terlik", "külot", "sütyen", "iç çamaşır", "mayo!", "atkı", "şapka", "eldiven", "kemer", "kolye", "bilezik", "küpe", "gözlük", "toka!",
+    // zh, ja, ko (no spaces between words: matched anywhere)
+    "裙", "衬衫", "襯衫", "外套", "毛衣", "裤", "褲", "袜", "襪", "鞋", "内衣", "內衣", "泳衣", "围巾", "帽子", "手套", "腰带", "项链", "手镯", "耳环", "发夹", "眼镜",
+    "スカート", "シャツ", "ブラウス", "ワンピース", "ジャケット", "セーター", "靴下", "ストッキング", "靴", "下着", "水着", "スカーフ", "手袋", "ベルト", "ネックレス", "ブレスレット", "イヤリング", "ヘアピン", "眼鏡", "リボン",
+    "치마", "스커트", "셔츠", "블라우스", "원피스", "재킷", "스웨터", "양말", "스타킹", "신발", "운동화", "속옷", "수영복", "목도리", "모자", "장갑", "벨트", "목걸이", "팔찌", "귀걸이", "머리핀", "안경", "리본",
+  ],
+  dress: [
+    // putting on, taking off, handing over, picking up, dropping (counted only next to a clothing word)
+    "put on", "puts on", "putting on", "took off", "takes off", "taking off", "slipped", "pulled off", "pulls off", "undress", "unbutton", "unzip", "unlace", "untie", "strip", "removed", "dropped", "handed", "picked up",
+    "надел", "одел", "одевает", "сняла", "снял", "снимает", "раздел", "расстегн", "застегн", "расшнуров", "завяз", "развяз", "стянул", "скинул", "подобрал", "подняла",
+    "наділ", "одяг", "зняла", "зняв", "знімає", "роздяг", "розстебн", "застебн", "розшнур", "розв'яз", "скинув", "скинула", "підібрав", "підняла",
+    "anzieh", "auszieh", "ausgezogen", "enlev", "déshabill", "quit", "tirou", "desabotoou", "vestiu", "indoss", "tolse", "spogli", "zdjęła", "zdjął", "włożyła", "włożył", "rozebra", "giydi", "çıkardı", "脱", "穿", "を脱", "を着", "입었", "벗었",
+  ],
+  touch: [
+    "kiss", "hug!", "hugg", "embrac", "caress", "cuddle", "nuzzle", "lick", "grope",
+    "поцел", "обнял", "обним", "прижал", "ласк", "облиз",
+    "поцілув", "поцілун", "обійм", "пригорн", "пестив", "облиз",
+    "küss", "umarm", "streichel", "embras", "caresse", "beso", "besó", "abraz", "acarici", "beijo", "beijou", "abraço", "bacio", "baci", "abbracci", "accarezz", "pocałun", "pocałow", "przytul", "pieścił", "zoen", "knuffel", "öp", "kucak", "okşa", "キス", "抱き", "吻", "抱", "키스", "안았", "껴안",
+  ],
+};
+// lexicon:end
+
+const CJK = /[぀-ヿ㐀-鿿가-힯]/;
+const SCAN_SEGMENT = /[^.!?…\n]+[.!?…]*/g;
+
+/** The lexicon the scan uses: the built-in words plus the user's file; null when the user switched the scan off. */
+export function lexiconOf(fsx) {
+  const user = fsx ? readJson(fsx, LEXICON_FILE, null) : null;
+  if (isObj(user) && user.off === true) return null;
+  const out = {};
+  for (const k of Object.keys(DEFAULT_LEXICON)) out[k] = [...DEFAULT_LEXICON[k], ...(isObj(user) ? arr(user[k]).map(str).filter(Boolean) : [])];
+  return out;
+}
+
+/** A matcher for one category: (lowercased sentence) -> the word of it that matched, or null. */
+function matcherOf(words) {
+  const stems = [];
+  const exact = new Set();
+  const phrases = [];
+  const anywhere = [];
+  for (const raw of words) {
+    const w = String(raw).toLowerCase();
+    if (!w) continue;
+    if (CJK.test(w)) anywhere.push(w);
+    else if (w.endsWith("!")) exact.add(w.slice(0, -1));
+    else if (/[\s-]/.test(w)) phrases.push(w);
+    else stems.push(w);
+  }
+  return (sentence) => {
+    for (const a of anywhere) if (sentence.includes(a)) return a;
+    for (const p of phrases) if (sentence.includes(p)) return p;
+    for (const tok of sentence.match(/[\p{L}\p{M}'’]+/gu) || []) {
+      if (exact.has(tok) || exact.has(tok.replace(/(es|s)$/, ""))) return tok;
+      if (tok.length < 3) continue;
+      for (const s of stems) if (tok.length - s.length <= 4 && tok.startsWith(s)) return tok;
+    }
+    return null;
+  };
+}
+
+/** The sentences of the new messages (whole, uncut) that look like clothing, a dressing action or contact: [{ who, text, kinds }]. */
+export function wordScan(msgs, view, lexicon, max = 8) {
+  if (!lexicon) return [];
+  const match = {};
+  for (const k of Object.keys(lexicon)) match[k] = matcherOf(lexicon[k]);
+  const found = [];
+  const seen = new Set();
+  for (const m of msgs) {
+    const who = m.role === "user" ? "user" : str(m.name) || m.role || "narrator";
+    const text = String(view ? view(String(m.text), m.role) : m.text);
+    for (const seg of text.match(SCAN_SEGMENT) || []) {
+      const s = seg.replace(/[*_]+/g, "").trim();
+      if (s.length < 8) continue;
+      const low = s.toLowerCase();
+      const kinds = Object.keys(match).filter((k) => match[k](low));
+      // a dressing word alone ("put", "dropped") is too common: it counts only next to clothing; clothing or contact count alone
+      const real = kinds.filter((k) => k !== "dress" || kinds.includes("wear"));
+      if (!real.length || seen.has(low)) continue;
+      seen.add(low);
+      found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real });
+    }
+  }
+  // clothing with an action first, then clothing, then the rest; the order of the text inside each group
+  const rank = (f) => (f.kinds.includes("wear") && f.kinds.includes("dress") ? 0 : f.kinds.includes("wear") ? 1 : 2);
+  return found.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).slice(0, max).map((x) => x.f);
+}
+
+/** The "Word scan" block of the sensor input, or "" when nothing was found. */
+function wordScanText(ctx) {
+  const hits = wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx));
+  if (!hits.length) return "";
+  return [
+    "Word scan",
+    "Code read the new messages whole and found these sentences. They are hints, not facts: the text decides. For clothing, shoes and accessories, report in outfit what the text shows a character wearing or changing, with the exact garment (colour, fabric, cut) as written. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    ...hits.map((h) => "- [" + h.who + "] " + h.text + "  (" + h.kinds.join(", ") + ")"),
+  ].join("\n");
+}
+
 /** Every N turns (only then): ask about open threads that have been open that long. */
 /** The threads a Thread check asks about this turn (every N turns, those open that long), with their age. */
 function threadsInCheck(ctx) {
@@ -2887,6 +3018,7 @@ function sensorUser(ctx) {
     ...[threadCheckText(ctx)].filter(Boolean),
     ...[backdropText(ctx)].filter(Boolean),
     ...[leakCheckText(ctx)].filter(Boolean),
+    ...[wordScanText(ctx)].filter(Boolean),
     newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }
