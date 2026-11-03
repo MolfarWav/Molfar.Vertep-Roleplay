@@ -2813,15 +2813,84 @@ export function wordScan(msgs, view, lexicon, max = 8, names = []) {
 }
 
 /** The "Word scan" block of the sensor input, or "" when nothing was found. */
-function wordScanText(ctx) {
+function wordScanHits(ctx) {
   const names = unique([ctx.userName, ...arr(ctx.characters), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])].map(str).filter(Boolean));
-  const hits = wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 8, names);
+  return wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 8, names);
+}
+
+function wordScanText(hits) {
   if (!hits.length) return "";
   return [
     "Word scan",
     "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
     ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
   ].join("\n");
+}
+
+// ---------- the card's Attire for the sensor (#236) ----------
+// A card often says what a character usually wears ("Attire: Daily: a white top with teal trim, a short pleated skirt ...").
+// The sensor sees only the new messages, where a skirt is named in passing, so its wording stays thin ("a skirt") or the garment
+// is skipped. Code finds the Attire line of each present character in the card (a card of many characters has a heading
+// per character) and puts it next to the hints, as a reference for wording. It is never proof: the sensor adds only what the text shows.
+// lexicon:start (labels in many languages)
+const ATTIRE_LABEL = /^[ \t>*_-]*(?:attire|outfit|clothing|clothes|wardrobe|dress code|одяг|вбрання|одежда|наряд|гардероб|kleidung|tenue|vêtements|vestimenta|ropa|roupa|abbigliamento|ubiór|ubranie|kleding|kıyafet|服装|衣装|복장)[ \t*_]*:[ \t*_]*(.+)$/gim;
+// lexicon:end
+const ATTIRE_MAX = 400;
+const ATTIRE_CHARS_MAX = 4;
+
+const nameTokens = (n) => (String(n).toLowerCase().match(/[\p{L}\p{M}]{3,}/gu) || []);
+const sameName = (a, b) => {
+  const x = nameTokens(a);
+  const y = nameTokens(b);
+  return x.length > 0 && y.length > 0 && x.some((t) => y.includes(t));
+};
+
+/** The Attire lines of the chat's cards: [{ name, text }]; a "### Name" heading in the description starts a section of its own. */
+export function cardAttires(fsx, meta) {
+  const out = [];
+  for (const id of memberIds(fsx, meta)) {
+    const card = readCard(fsx, id);
+    if (!isObj(card) || !str(card.name)) continue;
+    const desc = str(isObj(card.data) ? card.data.description : card.description);
+    const parts = desc.split(/^(?=#{1,4}[ \t]+\S)/m);
+    for (const part of parts) {
+      const head = /^#{1,4}[ \t]+(.+)$/m.exec(part.startsWith("#") ? part : "");
+      const who = head ? head[1].trim() : str(card.name);
+      ATTIRE_LABEL.lastIndex = 0;
+      const m = ATTIRE_LABEL.exec(part);
+      if (m && str(m[1])) out.push({ name: who, text: cut(str(m[1]).replace(/[*_]+/g, ""), ATTIRE_MAX) });
+    }
+  }
+  return out;
+}
+
+/** The "Card attire" block: for each present character with an Attire line, while their outfit is not recorded or the new text mentions clothes. */
+function cardAttireText(ctx, hits) {
+  const B = ctx.base && ctx.base.snap;
+  const present = B ? arr(B.present) : arr(ctx.characters);
+  const clothesInText = arr(hits).some((h) => h.kinds.includes("wear"));
+  const attires = cardAttires(ctx.fsx, ctx.meta);
+  if (!attires.length) return "";
+  const lines = [];
+  for (const name of present) {
+    if (lines.length >= ATTIRE_CHARS_MAX) break;
+    const c = B && B.chars && B.chars[name];
+    if (c && c.outfitSet && !clothesInText) continue;
+    const a = attires.find((x) => sameName(x.name, name));
+    if (a) lines.push("- " + name + ": " + a.text);
+  }
+  if (!lines.length) return "";
+  return [
+    "Card attire",
+    "What the cards say these characters usually wear. It is only a reference for wording: use it to give the exact garment (colour, fabric, cut) when the new messages show or clearly imply that garment on the character (a skirt tugged at, a top named in passing). Never add a garment the new messages do not show, and where the card lists several outfits (daily, work, sleep) take the one the scene fits.",
+    ...lines,
+  ].join("\n");
+}
+
+/** The scan's blocks of the sensor input: the hints, and the card's Attire for the characters they may concern. */
+function scanBlocks(ctx) {
+  const hits = wordScanHits(ctx);
+  return [wordScanText(hits), cardAttireText(ctx, hits)].filter(Boolean);
 }
 
 /** Every N turns (only then): ask about open threads that have been open that long. */
@@ -3035,7 +3104,7 @@ function sensorUser(ctx) {
     ...[threadCheckText(ctx)].filter(Boolean),
     ...[backdropText(ctx)].filter(Boolean),
     ...[leakCheckText(ctx)].filter(Boolean),
-    ...[wordScanText(ctx)].filter(Boolean),
+    ...scanBlocks(ctx),
     newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }

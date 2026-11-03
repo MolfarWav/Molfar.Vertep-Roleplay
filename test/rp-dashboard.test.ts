@@ -234,7 +234,7 @@ describe("vocabulary", () => {
 // ---------- source rules ----------
 describe("plugin source", () => {
   // the word lists of the scan (#236) are data in many languages; everything else stays English
-  const src = fs.readFileSync(pluginPath, "utf8").replace(/\/\/ lexicon:start[\s\S]*?\/\/ lexicon:end/, "");
+  const src = fs.readFileSync(pluginPath, "utf8").replace(/\/\/ lexicon:start[\s\S]*?\/\/ lexicon:end/g, "");
   it("is English only and does not look like a request hook", () => {
     expect(CYRILLIC.test(src)).toBe(false);
     expect(typeof P.llmRequest).toBe("function");
@@ -5291,6 +5291,37 @@ describe("the word scan of the new messages (#236)", () => {
     const prompt = String(mock.requests[0]!.req.messages[0].content);
     expect(prompt).toContain("code does not know whose clothes they are");
     expect(prompt).toContain("no cast name in it");
+  });
+
+  const writeCard = (id: string, name: string, description: string) => {
+    fs.mkdirSync(path.join(root, "characters", id), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", id, "card.json"), JSON.stringify({ spec: "chara_card_v2", name, description, extensions: {} }));
+  };
+  const fsxOf = () => ({ read: (f: string) => fs.readFileSync(path.join(root, f), "utf8"), list: (d: string) => fs.readdirSync(path.join(root, d)), write: () => {} });
+
+  it("reads the Attire line of each character from a card, a heading starting a section for each", () => {
+    writeCard("aria", "Aria", "### Aria Vale\nHair: red\nAttire: Daily: a blue pleated skirt and a white top. Work: an apron.\nVoice: soft\n\n### Bram Oak\nOutfit: **a grey coat**\n");
+    const got = P.cardAttires(fsxOf(), { characterId: "aria" }) as { name: string; text: string }[];
+    expect(got).toEqual([
+      { name: "Aria Vale", text: "Daily: a blue pleated skirt and a white top. Work: an apron." },
+      { name: "Bram Oak", text: "a grey coat" },
+    ]);
+    writeCard("aria", "Aria", "Hair: red\nAttire: a green cloak");
+    expect(P.cardAttires(fsxOf(), { characterId: "aria" })).toEqual([{ name: "Aria", text: "a green cloak" }]);
+  });
+
+  it("puts the card's Attire next to the hints while the outfit is not recorded or clothes are in the text, and not otherwise", () => {
+    writeCard("aria", "Aria", "Attire: Daily: a blue pleated skirt and a white top.");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She tugs the hem of her skirt.")]);
+    const mock = mockHost([reply({ present: ["Aria"], chars: { Aria: { outfit: { add: ["a blue pleated skirt"] } } } }), reply({ present: ["Aria"] })]);
+    update(mock, "c1");
+    const first = String(mock.requests[0]!.req.messages[0].content);
+    expect(first).toContain("Card attire");
+    expect(first).toContain("- Aria: Daily: a blue pleated skirt and a white top.");
+    // the outfit is recorded now and the new text names no clothes: the reference is not repeated
+    writeChat("c1", [U("m1", "Hello."), A("m2", "She tugs the hem of her skirt."), U("m3", "Tea?"), A("m4", "She nods and smiles.")]);
+    update(mock, "c1");
+    expect(String(mock.requests[1]!.req.messages[0].content)).not.toContain("Card attire");
   });
 
   it("a user's lexicon file adds words, or switches the scan off", () => {
