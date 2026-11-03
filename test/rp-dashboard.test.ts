@@ -5258,6 +5258,22 @@ describe("the word scan of the new messages (#236)", () => {
     expect(P.wordScan([{ role: "char", name: "A", text: many }], null, P.lexiconOf(null), 5).length).toBe(5);
   });
 
+  it("says which cast names a sentence holds, since code cannot tell whose garment it is", () => {
+    const text = "The old neighbour shuffled past in a faded blue coat. Aria tugged the hem of her pleated skirt.";
+    const hits = P.wordScan([{ role: "char", name: "Narrator", text }], null, P.lexiconOf(null), 8, ["Aria", "Bram"]) as { text: string; named: string[]; who: string }[];
+    expect(hits.map((h) => h.named)).toEqual([[], ["Aria"]]);
+    expect(hits[0]!.who).toBe("Narrator");
+  });
+
+  it("the hint block tells the sensor the owner is not decided and may be a stranger", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "The old neighbour shuffled past in a faded blue coat.")]);
+    const mock = mockHost([reply({})]);
+    update(mock, "c1");
+    const prompt = String(mock.requests[0]!.req.messages[0].content);
+    expect(prompt).toContain("code does not know whose clothes they are");
+    expect(prompt).toContain("no cast name in it");
+  });
+
   it("a user's lexicon file adds words, or switches the scan off", () => {
     fs.mkdirSync(path.join(root, "dashboard"), { recursive: true });
     const fsx = { read: (f: string) => fs.readFileSync(path.join(root, f), "utf8"), list: () => [], write: () => {} };

@@ -2770,7 +2770,7 @@ function matcherOf(words) {
 }
 
 /** The sentences of the new messages (whole, uncut) that look like clothing, a dressing action or contact: [{ who, text, kinds }]. */
-export function wordScan(msgs, view, lexicon, max = 8) {
+export function wordScan(msgs, view, lexicon, max = 8, names = []) {
   if (!lexicon) return [];
   const match = {};
   for (const k of Object.keys(lexicon)) match[k] = matcherOf(lexicon[k]);
@@ -2788,7 +2788,9 @@ export function wordScan(msgs, view, lexicon, max = 8) {
       const real = kinds.filter((k) => k !== "dress" || kinds.includes("wear"));
       if (!real.length || seen.has(low)) continue;
       seen.add(low);
-      found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real });
+      // code cannot tell whose garment it is (a pronoun, a neighbour, a narrator's aside): it only reports which cast names the sentence holds
+      const named = names.filter((n) => String(n).toLowerCase().match(/[\p{L}\p{M}]{3,}/gu)?.some((t) => low.includes(t)));
+      found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real, named });
     }
   }
   // clothing with an action first, then clothing, then the rest; the order of the text inside each group
@@ -2798,12 +2800,13 @@ export function wordScan(msgs, view, lexicon, max = 8) {
 
 /** The "Word scan" block of the sensor input, or "" when nothing was found. */
 function wordScanText(ctx) {
-  const hits = wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx));
+  const names = unique([ctx.userName, ...arr(ctx.characters), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])].map(str).filter(Boolean));
+  const hits = wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 8, names);
   if (!hits.length) return "";
   return [
     "Word scan",
-    "Code read the new messages whole and found these sentences. They are hints, not facts: the text decides. For clothing, shoes and accessories, report in outfit what the text shows a character wearing or changing, with the exact garment (colour, fabric, cut) as written. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
-    ...hits.map((h) => "- [" + h.who + "] " + h.text + "  (" + h.kinds.join(", ") + ")"),
+    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears or changes it; skip the rest. Give the exact garment (colour, fabric, cut) as written. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
   ].join("\n");
 }
 
