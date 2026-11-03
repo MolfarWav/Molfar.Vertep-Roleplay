@@ -288,7 +288,7 @@ earlier ones by name.
   localStorage backs the app's localStorage (snapshot rides the frame URL).
   Hot updates ride the same bridge (the app_built event). Never widen the host
   allowlist to agent/shell/settings/admin/mcp routes.
-- MCP servers are engine-level: add and share them in Chrysalis settings.
+- MCP servers are engine-level: add and share them in Molfar Vertep settings.
   Each app starts with every shared server off and opts in per server
   (GET/PATCH /v1/apps/<app>/mcp[/<id>] {use}); an app cannot register
   servers of its own. Opted-in tools join tool-calling generations next to
@@ -336,7 +336,7 @@ React + tailwind — write what you know. shadcn/ui
 components drop in natively (components.json: style base-nova, css
 src/globals.css). Save a src/ file and the user's open tab hot-updates in
 place (the build runs in their browser; errors show over the app and land in
-dist/.chrysalis-build.json).
+dist/.molfar-build.json).
 Dependencies install engine-side with scripts disabled: edit package.json and
 call app_deps (remove one with app_deps { remove: ["name"] }). The sandbox has
 no npm itself. After src/ or dependency edits, app_check waits for the browser
@@ -384,6 +384,13 @@ a tip in the same change; without one, nobody finds it.
   the body and the long text. A change to a feature that has an article updates the
   article and its `sources` in the same change; `node scripts/validate-help.mjs
   src/lib/help-articles.json --repo . --fix-lines` re-finds moved line numbers.
+- The user guide: `.skills/guide/pages/*.md` (one page per part of the app:
+  what it is, when to use it, how it fits with the rest; format in the engine's
+  `.fork/handoff/guide/FORMAT.md`). Users read it in the shell (Help > Guide) and
+  Molfar answers "how do I / where is / can I" from it instead of reading code.
+  A change to what a user sees or can do updates its guide page in the same
+  change, like a Help article. Translations in `.skills/guide/l10n/` go stale on
+  their own (English is shown until refreshed).
 
 ## Engine contract (wired in v4.1)
 

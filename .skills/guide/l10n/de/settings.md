@@ -1,0 +1,40 @@
+<!-- source: 32c79d2d2c88 -->
+# Wo Roleplays Einstellungen sind
+
+Roleplay hat keine einzige Einstellungsseite für alles. Einstellungen liegen nahe bei dem, was sie ändern, und zwei davon sind in den Haupt-Einstellungen von Molfar Vertep. Diese Seite ist ein Wegweiser.
+
+## Zwei Settings, nicht verwechseln
+
+- **Die Haupt-Settings** von Molfar Vertep (das Zahnrad der ganzen Seite): Modelle und Verbindungen, Backups des gesamten Profils, Updates. Wähle und teste Modelle dort; siehe [[vertep:settings]] und [[vertep:models]]. Markierte Modelle erscheinen dort als Schnellwechsel in einem Chat.
+- **Roleplay settings**: der Button „Roleplay settings“ in der Home-Kopfzeile (auf einem Telefon im Menü). Er ist noch nicht in den Haupt-Settings gelistet, also such ihn in Roleplay selbst. Er hat zehn Abschnitte: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data und Guide. Ein Suchfeld oben filtert sie.
+
+Was die Abschnitte kurz tun: Appearance ist Sprache, Schriften, Chatbreite und Avatare; Chat Behavior hat Schalter wie Senden mit Enter und das Bestätigen von Löschungen; Streaming wählt, ob Antworten beim Schreiben oder erst fertig angezeigt werden; Card tasks wählt das Modell, das Kartenhelfer („Structure it“, „Fill empty“) nutzen, wenn eine Karte kein eigenes hat; Import holt Presets, Charaktere, Lorebooks, Chats und ein Backup-ZIP; Data exportiert und stellt Roleplays eigene Daten als ZIP wieder her (das ganze Profil wird durch das Backup der Haupt-Settings gesichert); Guide zeigt oder verbirgt die kurzen Touren und „What's new“.
+
+## Einstellungen, die anderswo in Roleplay liegen
+
+- **Dashboard**: sein Button „Settings“, mit den Tabs Sensor, Event vocabulary, „What the model sees“ und „Tune with Molfar“. Siehe [[dashboard]].
+- **Litopys**: das Zahnrad „Litopys settings“ in der Library. Siehe [[litopys]].
+- **World DM**: das World-Sheet in der Chat-Kopfzeile und der Bereich World; „World settings“ enthält das DM-Modell. Siehe [[world-dm]].
+- **Agents**: die Bretter Agents und „Agent sets“ des Canvas und der Agents-Tab des Chats. Siehe [[agents]].
+- **Prompt und Sampling**: der Bereich **Presets** (Abschnitte, die du umschalten kannst, Variablen, Sampler und ein Blick auf die endgültige Anfrage) und das Prompt-Brett des Canvas für einen Chat.
+- **Das Eigene einer Karte**: ihre Editor-Tabs, einschließlich Farben, Regex und erweiterter Optionen. Siehe [[characters]].
+- **Lorebooks**: Jedes Buch hat seine eigenen Regeln (Scan-Tiefe, Größendeckel, Global-Schalter). Siehe [[memory]].
+- **Die Inbox** hat Schalter pro Art, was als auf dich wartend zählt.
+
+## Tools
+
+Der Bereich **Tools** ist eine Reihe von Tabs, gruppiert als Panels (Plugin-Panels wie Tool Calling), Text & voice und System.
+
+- **Regex**: Suchen-und-Ersetzen-Skripte, die nur an den Stellen arbeiten, an denen du sie einschaltest.
+- **Translation**: Anbieter, zwei Sprachen und ein Auto-Übersetzungsmodus; übersetzt auch den offenen Chat.
+- **Image Generation**: Das Chat-Modell beschreibt die Szene und ein Bildmodell zeichnet sie. Standardmäßig aus. Mit interaktivem Modus prüfst du jeden Prompt zuerst.
+- **TTS**: liest Antworten vor. Standardmäßig aus.
+- **Data Bank**: Textdokumente für den Abruf ([[memory]]).
+- **Backgrounds**: die Bilder hinter deinen Chats.
+- **MCP**: Werkzeugserver, die von der Engine geteilt werden. Jeder startet in dieser App aus; schalte ein, was du brauchst.
+- **Plugins**: zeigt, welche Plugins hinter der App laufen und was jedes tun darf. Installieren, Aktivieren und Deaktivieren geschehen mit dem Plugins-Button in Molfar Vertep, nicht hier.
+- **Tool Calling** (in Panels): lässt das Modell beim Schreiben Werkzeuge nutzen. Dice Roller und Picture sind eingebaut und bleiben aus, bis du sie einschaltest.
+
+Außerdem: **Shortcuts** enthält Schnellantworten, die selbstständig bei Ereignissen laufen können; Themes ändern die Farbpalette sofort, Prose Colors färben Rede und Erzählung um, und Custom CSS wird zuletzt angewendet.
+
+Zurück zum [[index]].

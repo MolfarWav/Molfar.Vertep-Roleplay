@@ -1,21 +1,20 @@
-> **Molfar Vertep fork.** This is the Roleplay app as shipped with
-> [Molfar Vertep](https://github.com/MolfarWav/Molfar.Vertep), a fork of
-> Chrysalis Engine. It is forked from
+> Roleplay is the main app of [Molfar Vertep](https://github.com/MolfarWav/Molfar.Vertep),
+> which installs and updates it from this repository. It began as a fork of
 > [ProjectChrysalis/Roleplay-Chrysalis](https://github.com/ProjectChrysalis/Roleplay-Chrysalis)
-> and licensed under the same AGPL-3.0 (see `LICENSE`). Molfar Vertep installs
-> and updates Roleplay from this repository only.
->
-> Changes from upstream are listed in `CHANGELOG.md`. The upstream README follows.
+> and is licensed under the same AGPL-3.0 (see `LICENSE`). Changes are listed in `CHANGELOG.md`.
 
 # Roleplay
 
-**A roleplay studio for power users, built as a Chrysalis app.**
+**A roleplay studio for power users, the main app of Molfar Vertep.**
 
 Chat with characters, run group scenes, shape every prompt, and keep all of it
-on your own device. Roleplay runs inside [Chrysalis](https://github.com/ProjectChrysalis/Chrysalis-Engine),
-so it works with any model provider Chrysalis connects to, and like every
-Chrysalis app it is plain files: ask the Chrysalis agent for a feature and it
-builds it into your copy while you watch.
+on your own device. Roleplay runs inside Molfar Vertep, so it works with any
+model provider Molfar Vertep connects to, and like every app there it is plain
+files: ask Molfar, the built-in agent, for a feature and he builds it into your
+copy while you watch.
+
+The user guide (what each part of the app is and how the parts fit) is in
+`.skills/guide/pages/`, also readable in Molfar Vertep under Help > Guide.
 
 ## Features
 
@@ -54,7 +53,7 @@ builds it into your copy while you watch.
 - Imports PNG and JSON character cards (V2 and V3), chat transcripts, presets,
   lorebooks, regex scripts, personas and themes in the common community formats
 - Full backup and restore as one zip
-- Everything is stored as files in your Chrysalis workspace, with history
+- Everything is stored as files in your Molfar Vertep workspace, with history
 
 ## Card sources
 
@@ -105,24 +104,24 @@ Search answers are reused for five minutes within a session.
 
 ## Install
 
-1. Install [Chrysalis](https://github.com/ProjectChrysalis/Chrysalis-Engine#install).
+1. Install [Molfar Vertep](https://github.com/MolfarWav/Molfar.Vertep#install).
 2. On first start, pick **Roleplay** on the welcome screen. You can also find it
-   later in the launcher under **Store**.
+   later on the start page under **Store**.
 3. Add a model connection in **Settings > API connections** and start chatting.
 
-To install a specific copy, use **Import app** in the launcher with
-`https://github.com/ProjectChrysalis/Roleplay-Chrysalis`.
+To install a specific copy, use **Import app** on the start page with
+`https://github.com/MolfarWav/Molfar.Vertep-Roleplay`.
 
 ## Updates
 
-Roleplay updates on its own, separately from Chrysalis. The launcher tells you
+Roleplay updates on its own, separately from Molfar Vertep. The start page tells you
 when a new version is out. Updating merges it with any changes you or the agent
 made to your copy, and never touches your chats, characters or other data.
 
 ## Development
 
 The app is a React + Tailwind frontend in `src/` and sandboxed backend plugins
-in `plugins/`. Chrysalis builds it in the browser, so there is no dev server to
+in `plugins/`. Molfar Vertep builds it in the browser, so there is no dev server to
 run.
 
 ```sh
@@ -131,8 +130,8 @@ bun run typecheck
 bun test
 ```
 
-To try changes, point a Chrysalis install at your fork with **Import app**, or
-copy your working tree over `apps/roleplay/` in a Chrysalis workspace (leave
+To try changes, point a Molfar Vertep install at your fork with **Import app**, or
+copy your working tree over `apps/roleplay/` in a Molfar Vertep workspace (leave
 `data/`, `node_modules/` and `dist/` alone). `AGENTS.md` is the technical guide
 to how the app is put together.
 

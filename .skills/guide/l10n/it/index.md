@@ -1,0 +1,37 @@
+<!-- source: de39058c849c -->
+# Roleplay: la panoramica
+
+Roleplay è l'app per storie di Molfar Vertep: conservi le schede dei personaggi, giochi chat con loro e lasci che l'app segua la scena, ricordi la storia e faccia muovere il mondo intorno a te. Questa pagina è una mappa. La **Guida** dell'app (nella barra laterale) ha un breve articolo per quasi ogni schermata; questa guida spiega come le parti si incastrano. Modelli e connessioni non si configurano qui ma nelle Impostazioni principali: vedi [[vertep:models]].
+
+## Dove stanno le cose
+
+La barra laterale a sinistra (una barra di schede in basso su un telefono) raggruppa le sezioni:
+
+- **Home** e **Chat**: continua da dove ti sei fermato, oppure apri una chat qualsiasi.
+- **Personaggi**, **Gruppi**, **Marketplace**, **Persone**: le persone. Vedi [[characters]].
+- **Lorebook**, **Libreria**, **Canvas**, **World**, **Agenti**: la memoria e i meccanismi della storia. Vedi [[memory]], [[litopys]], [[world-dm]] e [[agents]].
+- **Preset**: come viene costruita la richiesta al modello.
+- **Scorciatoie** e **Strumenti**: risposte rapide, regex, traduzione, immagini, voce, la Banca dati e altro. Vedi [[settings]].
+- **Posta in arrivo** e **Guida** in basso. La Posta in arrivo elenca ciò che attende te: lavori in background falliti, suggerimenti della Libreria e anime proposte.
+
+Le impostazioni di Roleplay non hanno una voce nella barra laterale. Aprite con il pulsante "Impostazioni Roleplay" nell'intestazione della Home (su un telefono, nel menu).
+
+## Dentro una chat
+
+L'intestazione della chat contiene gli strumenti della storia: **Nota** (nota dell'autore), **Lore**, **Registro** e **World**. La pillola accanto apre le schede Preset, Persona, Modello e Agenti di questa chat. Il pulsante "Altro" su ogni messaggio apre le sue azioni, e il menu "+" accanto alla casella del messaggio contiene Rifinisci, Rigenera con un suggerimento, generazione di immagini e altro.
+
+Tre aiutanti osservano la storia e costano chiamate al modello in più, quindi vale la pena conoscerli:
+
+- La **Dashboard** legge ogni scena: [[dashboard]], con un input, l'[[soul]] di un personaggio.
+- **Litopys** scrive capitoli e fatti: [[litopys]].
+- Il **World DM** tiene un libro di persone e luoghi: [[world-dm]].
+
+## Pagine di questa guida
+
+- [[first-story]]: dal nulla alla tua prima risposta, e cosa disattivare su un modello piccolo o lento.
+- [[characters]]: schede, l'editor delle schede, persone, gruppi, importazione.
+- [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: i meccanismi della storia.
+- [[memory]]: quale tipo di memoria usare per cosa.
+- [[settings]]: dove vive ogni impostazione.
+
+Nuovo di Molfar Vertep? Inizia con [[vertep:first-steps]] e il [[vertep:glossary]].
