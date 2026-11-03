@@ -3351,6 +3351,2344 @@
           "quote": "These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use."
         }
       ]
+    },
+    {
+      "id": "kb.new-chat",
+      "group": "chat",
+      "title": {
+        "en": "Starting a new chat",
+        "uk": "Початок нового чату"
+      },
+      "aliases": {
+        "en": "new chat start begin preset step ask again dont agents set world turns cancel options",
+        "uk": "новий чат почати пресет крок питати знову агенти набір світ черги скасувати параметри"
+      },
+      "short": {
+        "en": "Buttons that start a chat from a card open a short step first, when there is something to choose. Start creates the chat; Cancel creates nothing.",
+        "uk": "Кнопки, що починають чат із картки, спершу відкривають короткий крок, якщо є що обрати. «Почати» створює чат; «Скасувати» нічого не створює."
+      },
+      "where": {
+        "en": "Home: the Start chat button on a card. Characters: the ⋯ menu on a card, then New chat. In a chat: the More menu, then Start new chat.",
+        "uk": "Головна: кнопка «Почати чат» на картці. Персонажі: меню ⋯ на картці, потім New chat. У чаті: меню «Ще», потім Start new chat."
+      },
+      "details": {
+        "en": "What the step is for. It sets the preset (the instructions and settings the model gets) and its options, for this one chat. Nothing is created until Start.\n\nWhat you can choose. The step is titled \"New chat with\" and the character’s name. It has:\n- a preset menu, with the token count of its instructions.\n- the preset’s own options, if it has any.\n- an agents menu, reading \"Agents: ...\", only when agent sets exist.\n- \"How they answer\" for a group.\n- a world menu, only when a saved world or a world chat of this character exists.\n\nWhere it starts. It opens on the preset and choices of this character’s last chat, if there was one. A group, or a first chat, starts on your default preset.\n\nStart and Cancel. Start creates the chat and opens it. Cancel closes the step and creates nothing. Enter also starts, unless the focus is in a text box, menu or button.\n\nWhen the step is skipped. It is skipped when \"Ask for the preset when a chat starts\" is off in Settings, and when there is nothing to choose: one preset with no options and no agent set.\n\nDon’t ask again. Tick \"Don’t ask again\" and press Start to turn the step off. Cancel does not save it. To bring the step back, open Settings, the \"Chat Behavior\" group, and turn on \"Ask for the preset when a chat starts\".\n\nOther buttons. On Home, \"Start chat\" shows only on a card with no chat yet; with a chat, the button reads \"Continue\" and opens the latest chat. In a chat, \"Start new chat\" is greyed out while a reply is being written.",
+        "uk": "Для чого крок. Він задає пресет (набір інструкцій і налаштувань, які отримує модель) та його параметри для цього одного чату. Нічого не створюється, доки ви не натиснете «Почати».\n\nЩо можна обрати. Заголовок «Новий чат із» і ім’я персонажа. Далі:\n- Меню пресету з кількістю токенів інструкцій.\n- Параметри пресету, якщо вони є.\n- Меню «Агенти: …», лише коли є набори агентів.\n- «Як вони відповідають» для групи.\n- Меню «Світ», лише коли є збережений світ або світовий чат цього персонажа.\n\nЗвідки починається. Крок відкривається з пресетом і вибором останнього чату цього персонажа, якщо він був. Для групи й першого чату береться ваш типовий пресет.\n\nПочати і скасувати. «Почати» створює чат і відкриває його. «Скасувати» закриває крок і нічого не створює. Enter теж починає чат, якщо фокус не в полі тексту, меню чи кнопці.\n\nКоли кроку немає. Крок пропускається, якщо «Питати про пресет на початку чату» вимкнено в Налаштуваннях. Він пропускається також тоді, коли обирати нема чого: один пресет без параметрів і без набору агентів.\n\nБільше не питати. Галочка «Більше не питати» і «Почати» вимикають крок; «Скасувати» галочки не зберігає. Щоб повернути крок, відкрийте Налаштування, групу Chat Behavior і ввімкніть «Питати про пресет на початку чату».\n\nІнші кнопки. На екрані «Головна» кнопка «Почати чат» з’являється лише на картці без чатів. Якщо чат є, кнопка читається як «Продовжити» і відкриває останній чат. У чаті пункт Start new chat неактивний, поки модель пише відповідь."
+      },
+      "related": [
+        "kb.presets",
+        "kb.chat-menu",
+        "kb.group-turns",
+        "kb.settings",
+        "kb.chats-page"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1830-1830",
+          "quote": "a short step with the preset and its choices, unless the user turned it off or there is"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1831-1831",
+          "quote": "nothing to choose (one preset without variables, and no agent set to pick)"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1837-1837",
+          "quote": "set({ newChatStep: { charId, greetingIndex } })"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "115-115",
+          "quote": "if (dontAsk) updateSettings({ askPresetOnNewChat: false })"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "94-94",
+          "quote": "the character's last choices first, else the user's own default for the preset"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "104-104",
+          "quote": "character?.isGroup ? null : fetchPresetMemory(charId)"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "138-138",
+          "quote": "if (e.key === 'Enter' && !e.shiftKey"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "249-249",
+          "quote": "onClick={closeNewChatStep}>{t('pc.step.cancel')}"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "85-85",
+          "quote": "const showWorld = (worlds?.length ?? 0) + worldChats.length > 0"
+        },
+        {
+          "path": "src/components/chat/new-chat-step.tsx",
+          "lines": "164-164",
+          "quote": "{sets.length > 0 && ("
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3477-3477",
+          "quote": "'pc.step.title': 'New chat with {name}',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3478-3478",
+          "quote": "Pick a preset for this chat: the set of instructions and settings the model gets."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3481-3481",
+          "quote": "\"Don't ask again\","
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3482-3482",
+          "quote": "You can turn this back on in Settings › Chat Behavior."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3400-3400",
+          "quote": "'pc.total': '≈ {n} tokens of instructions',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3845-3845",
+          "quote": "'ag.new.trigger': 'Agents: {what}',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2214-2214",
+          "quote": "'turns.step': 'How they answer',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "655-655",
+          "quote": "'world.step.world': 'World',"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "88-88",
+          "quote": "key: \"askPresetOnNewChat\", label: \"Ask for the preset when a chat starts\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "82-82",
+          "quote": "label: \"Chat Behavior\","
+        },
+        {
+          "path": "src/components/home/block-library.tsx",
+          "lines": "124-124",
+          "quote": "action={latest ? t('home.continue') : t('home.startChat')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1408-1408",
+          "quote": "'home.startChat': 'Start chat',"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "673-673",
+          "quote": "label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming"
+        },
+        {
+          "path": "src/components/views/characters-view.tsx",
+          "lines": "677-677",
+          "quote": "<Chats className=\"size-4\" aria-hidden=\"true\" />New chat"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3479-3479",
+          "quote": "'pc.step.start': 'Start',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7857-7857",
+          "quote": "Знову ввімкнути можна в Налаштуваннях › Chat Behavior."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7861-7861",
+          "quote": "'pc.settings.ask': 'Питати про пресет на початку чату',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5783-5783",
+          "quote": "'home.startChat': 'Почати чат',"
+        }
+      ]
+    },
+    {
+      "id": "kb.chats-page",
+      "group": "chat",
+      "title": {
+        "en": "The Chats page",
+        "uk": "Сторінка «Чати»"
+      },
+      "aliases": {
+        "en": "chats page list search sort recent most messages name filter one-on-one groups select move delete folder pinned today this week",
+        "uk": "сторінка чати список пошук сортування нещодавні найбільше повідомлень за назвою фільтр один на один групи вибрати перенести видалити тека закріплені сьогодні цього тижня"
+      },
+      "short": {
+        "en": "The Chats page lists every chat. Search it, sort it, filter it to one-on-one or group chats, and select several to move or delete.",
+        "uk": "Сторінка «Чати» показує всі чати. Їх можна шукати, сортувати, фільтрувати за типом «Один на один» чи «Групи» та вибрати кілька для переносу чи видалення."
+      },
+      "where": {
+        "en": "Menu → Chats.",
+        "uk": "Меню → Чати."
+      },
+      "details": {
+        "en": "Search. The box matches the chat title, the character’s name and the preview line under each chat.\n\nSort. The menu beside the search box offers Recent, Most messages and By name. Recent lists the chats in groups: Pinned first, then Today, This week and Earlier. Most messages puts the longest chats first. By name sorts by the character’s name. The choice is kept in this browser.\n\nKind. All, One-on-one and Groups filter the list, and each shows how many chats it holds. A Persona menu appears when there are two or more personas, and a Character menu when the chats use two or more characters.\n\nFolders. Folder chips follow the kind buttons. How folders work is in Tags and folders.\n\nSelect. Select turns on picking: tap chats to tick them. A bar at the bottom shows \"N selected\" with \"Select all\", \"Move to…\" and \"Delete\". \"Move to…\" appears only when folders exist; it picks a folder, or \"No folder\".\n\nDelete. Delete always asks first. The dialog says the messages go too and cannot be undone.\n\nNew chat. The \"New chat\" button at the top opens the Characters page, where you pick a card (see Starting a new chat).\n\nOpening a chat. On a desktop, a click shows the chat on the right and a double-click opens it. On a phone, a tap opens it.",
+        "uk": "Пошук. Поле шукає за назвою чату, іменем персонажа й рядком попереднього перегляду під чатом.\n\nСортування. Меню біля поля пошуку має «Нещодавні», «Найбільше повідомлень» і «За назвою». «Нещодавні» ділять список на групи: спершу «Закріплені», далі «Сьогодні», «Цього тижня» і «Раніше». «Найбільше повідомлень» ставить найдовші чати першими, «За назвою» сортує за іменем персонажа. Вибір зберігається в цьому браузері.\n\nТип. «Усі», «Один на один» і «Групи» фільтрують список і показують, скільки чатів у кожному. Меню «Персона» з’являється, коли персон дві чи більше; меню «Персонаж» — коли чати використовують двох чи більше персонажів.\n\nТеки. Ряд тек іде після фільтрів. Як працюють теки, описано в статті «Теги й теки».\n\nВибір. «Вибрати» вмикає вибір: торкайтеся чатів, щоб позначити їх. Внизу з’являється рядок «Вибрано: N» з кнопками «Вибрати всі», «Перемістити…» і «Видалити». «Перемістити…» з’являється, коли теки є; там обирають теку або «Без теки».\n\nВидалення. «Видалити» завжди питає першим. Діалог попереджає, що повідомлення теж зникнуть і скасувати це не можна.\n\nНовий чат. Кнопка «Новий чат» угорі відкриває розділ «Персонажі»: оберіть картку там (див. «Початок нового чату»).\n\nВідкриття. На комп’ютері клік показує чат справа, подвійний клік відкриває його. На телефоні дотик відкриває чат."
+      },
+      "related": [
+        "kb.tags-folders",
+        "kb.new-chat",
+        "kb.chat-files"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "216-216",
+          "quote": "placeholder={t('chats.search')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2085-2085",
+          "quote": "'chats.search': 'Search chats',"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "225-225",
+          "quote": "<SelectItem value=\"recent\">{t('chats.sortRecent')}</SelectItem>"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2094-2094",
+          "quote": "'chats.sortMessages': 'Most messages',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2095-2095",
+          "quote": "'chats.sortName': 'By name',"
+        },
+        {
+          "path": "src/lib/chat-list.ts",
+          "lines": "25-25",
+          "quote": "if (sort === 'messages') out.sort((a, b) => sizeOf(b) - sizeOf(a)"
+        },
+        {
+          "path": "src/lib/chat-list.ts",
+          "lines": "31-31",
+          "quote": "Pinned chats first, then (sorting by recent only) one group per period"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "98-98",
+          "quote": "try { localStorage.setItem(SORT_KEY, s) }"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "124-124",
+          "quote": "c.title.toLowerCase().includes(q) || !!owner?.name.toLowerCase().includes(q)"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "120-120",
+          "quote": "(kind === 'group') === !!byId.get(c.characterId)?.isGroup"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2099-2099",
+          "quote": "'chats.kind.single': 'One-on-one',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2100-2100",
+          "quote": "'chats.kind.group': 'Groups',"
+        },
+        {
+          "path": "src/components/chat/chat-filters.tsx",
+          "lines": "23-23",
+          "quote": "if (personaOpts.length < 2 && characterOpts.length < 2) return null"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "232-232",
+          "quote": "{selecting ? t('chats.done') : t('chats.select')}"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "330-330",
+          "quote": "{t('chats.selected', { n: picked.size })}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2110-2110",
+          "quote": "'chats.selected': '{n} selected',"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "334-334",
+          "quote": "{chatFolders.length > 0 && ("
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2113-2113",
+          "quote": "'chats.moveTo': 'Move to…',"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "344-344",
+          "quote": "{t('chats.noFolder')}</DropdownMenuItem>"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "349-349",
+          "quote": "onClick={() => setConfirmIds([...picked])}"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "350-350",
+          "quote": "{t('chats.panel.delete')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2136-2136",
+          "quote": "'chats.panel.delete': 'Delete',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2116-2116",
+          "quote": "This permanently removes the messages too. It cannot be undone."
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "210-210",
+          "quote": "onClick={() => setView('characters')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "688-688",
+          "quote": "'home.newChat': 'New chat',"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "142-142",
+          "quote": "setDetailOpen(true)"
+        },
+        {
+          "path": "src/components/views/chats-view.tsx",
+          "lines": "158-158",
+          "quote": "onDoubleClick={() => { if (!selecting) useApp.getState().openChat(chat.id) }}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2102-2102",
+          "quote": "'chats.when.pinned': 'Pinned',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2104-2104",
+          "quote": "'chats.when.week': 'This week',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "13-13",
+          "quote": "'nav.chats': 'Chats',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6477-6477",
+          "quote": "Закріплені"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6479-6479",
+          "quote": "'chats.when.week': 'Цього тижня',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6511-6511",
+          "quote": "'chats.panel.delete': 'Видалити',"
+        }
+      ]
+    },
+    {
+      "id": "kb.chat-files",
+      "group": "chat",
+      "title": {
+        "en": "Manage chat files",
+        "uk": "Керування файлами чату"
+      },
+      "aliases": {
+        "en": "chat files manage export txt jsonl checkpoint fork rename delete import restore backup copy branch download transcript",
+        "uk": "файли чату керувати експорт txt jsonl контрольна точка копія гілка перейменувати видалити імпорт резервна копія завантажити"
+      },
+      "short": {
+        "en": "Manage chat files lists this character’s chats. Export one as text or JSONL, make a checkpoint copy, rename, delete, or import chats.",
+        "uk": "«Manage chat files» показує чати цього персонажа. Чат можна експортувати як текст чи JSONL, зробити контрольну точку, перейменувати, видалити або імпортувати."
+      },
+      "where": {
+        "en": "The More menu of a chat, then Manage chat files. On a phone: the Menu button, then Manage chat files.",
+        "uk": "Меню «Ще» у чаті, потім Manage chat files. На телефоні: кнопка Menu, потім Manage chat files."
+      },
+      "details": {
+        "en": "What it lists. A window titled \"Chat files\" with the character’s name and a count. It shows only this character’s chats; forks sit under the chat they came from. Each row gives the message count, the JSONL size and the last change.\n\nRow buttons. Hover a chat to see its icons; on a phone they always show. Their tooltips read \"Rename\", \"Export TXT\", \"Export JSONL\", \"Checkpoint (fork from last message)\" and \"Delete\".\n\nExport TXT saves a plain text file named after the chat. Each message starts with the speaker’s name and a colon; a blank line separates messages. It writes the version you are looking at.\n\nExport JSONL saves one line per message, after a first line with both names. Each line keeps the other versions and whether the message is hidden. \"Import chat\" takes this format.\n\nCheckpoint (fork from last message) copies the chat, up to its last message, into a new chat and opens the copy. The original stays as it was; the copy shows as a fork under it. An empty chat has nothing to copy.\n\nRename opens a box in the row. Enter or a click elsewhere saves; Escape cancels. An empty name changes nothing.\n\nDelete. With \"Confirm Deletions\" on (the default), a dialog asks first. It says how many messages and forks go, and that this cannot be undone. With it off, the chat is deleted at once.\n\nImport chat takes JSONL chat files and attaches them to this character. Restore backup imports a backup file (zip). Start new chat opens the new-chat step (see Starting a new chat).",
+        "uk": "Що тут видно. Вікно «Chat files» з назвою персонажа й лічильником. Тут лише чати цього персонажа; форки стоять під чатом, із якого вони походять. Кожен рядок показує кількість повідомлень, розмір експорту JSONL і час останньої зміни.\n\nКнопки рядка. Наведіть на чат, щоб побачити значки; на телефоні вони видні завжди. Підказки: «Rename», «Export TXT», «Export JSONL», «Checkpoint (fork from last message)» і «Delete».\n\nExport TXT зберігає текстовий файл з назвою чату. Кожне повідомлення починається з імені мовця й двокрапки; повідомлення відокремлює порожній рядок. Записується та версія повідомлення, яку ви бачите.\n\nExport JSONL зберігає один рядок на повідомлення і перший рядок з обома іменами. Кожен рядок містить інші версії повідомлення та позначку, чи воно приховане. Такий формат приймає «Import chat».\n\nCheckpoint (fork from last message) копіює чат до останнього повідомлення в новий чат і відкриває копію. Оригінал лишається як був; копія стоїть під ним як форк. У порожньому чаті копіювати нічого.\n\n«Rename» відкриває поле в рядку. Enter або клік поза полем зберігає назву, Escape скасовує. Порожня назва нічого не змінює.\n\n«Delete» з увімкненим «Confirm Deletions» (типово так) спершу питає. Діалог каже, скільки повідомлень і форків зникне, і що це не можна скасувати. Вимкнено: чат видаляється одразу.\n\n«Import chat» приймає файли чату JSONL і прикріплює їх до цього персонажа. «Restore backup» бере резервну копію (zip) і імпортує те, що в ній є. «Start new chat» відкриває крок нового чату (див. «Початок нового чату»)."
+      },
+      "related": [
+        "kb.chat-menu",
+        "kb.branch",
+        "kb.new-chat",
+        "kb.chats-page"
+      ],
+      "sources": [
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "410-410",
+          "quote": "Chat files{character"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "204-204",
+          "quote": "title=\"Rename\""
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "214-214",
+          "quote": "title=\"Export TXT\""
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "224-224",
+          "quote": "title=\"Export JSONL\""
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "238-238",
+          "quote": "title=\"Checkpoint (fork from last message)\""
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "254-254",
+          "quote": "title=\"Delete\""
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "30-30",
+          "quote": "Plain-text transcript: speaker-labeled blocks separated by blank lines."
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "33-33",
+          "quote": "${m.role === \"user\" ? userName : charName}: ${m.swipes[m.activeSwipe]?.content"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "212-212",
+          "quote": "downloadText(chatToText(chat, charName, personaName)"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "38-38",
+          "quote": "Interchange JSONL: a header line with both names, then one object per"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "39-39",
+          "quote": "message (swipes carried, hidden messages flagged as system)"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "73-73",
+          "quote": "Size of the chat's JSONL export"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "184-184",
+          "quote": "<span>{msgCount(chat)} message{msgCount(chat) === 1 ? \"\" : \"s\"}</span>"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "197-197",
+          "quote": "group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "120-120",
+          "quote": "if (title && title !== chat.title) updateChat(chat.id, { title })"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "151-151",
+          "quote": "if (e.key === \"Enter\") commitRename()"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "152-152",
+          "quote": "if (e.key === \"Escape\") { setDraft(chat.title); setRenaming(false) }"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "249-249",
+          "quote": "if (confirmDeletions) { setConfirmOpen(true); return }"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "266-266",
+          "quote": "will be removed. This cannot be undone."
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "190-190",
+          "quote": "autoScroll: true, confirmDeletions: true"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "87-87",
+          "quote": "key: \"confirmDeletions\", label: \"Confirm Deletions\""
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "235-235",
+          "quote": "toast.success(\"Checkpoint created\")"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1719-1719",
+          "quote": "const id = await get().forkChat(chatId, messageId)"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1720-1720",
+          "quote": "get().openChat(id)"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "436-436",
+          "quote": "<UploadSimple className=\"size-4\" /> Import chat"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "331-331",
+          "quote": "toast.success(`Imported to ${character.name} (${r.chats.length} new)`)"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "447-447",
+          "quote": "<BoxArrowUp className=\"size-4\" /> Restore backup"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "348-348",
+          "quote": "j<Record<string, unknown>>(\"/import/zip\", {"
+        },
+        {
+          "path": "src/components/chat/manage-chats-dialog.tsx",
+          "lines": "424-424",
+          "quote": "<ChatCenteredText className=\"size-4\" /> Start new chat"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "675-675",
+          "quote": "label: 'Manage chat files', onSelect: () => setManageOpen(true)"
+        }
+      ]
+    },
+    {
+      "id": "kb.carries",
+      "group": "chat",
+      "title": {
+        "en": "What this chat carries",
+        "uk": "Що несе цей чат"
+      },
+      "aliases": {
+        "en": "carries prompt what goes memory habits persona world backstory litopys dashboard said note stories tokens switch parts budget",
+        "uk": "несе промпт що йде пам’ять звички персона світ передісторія літопис дашборд сказане нотатка історії токени перемикач частини бюджет"
+      },
+      "short": {
+        "en": "The \"~N tok\" button in the chat header opens what the chat carries: each part that goes into the prompt besides the history, with a switch per part.",
+        "uk": "Кнопка «~N ток.» у шапці чату відкриває «Що несе цей чат»: кожна частина промпту, окрім історії, має перемикач."
+      },
+      "where": {
+        "en": "The \"~N tok\" button in the chat header; it appears only when the chat carries something. On a phone, the same row sits in the chat menu.",
+        "uk": "Кнопка «~N ток.» у шапці чату; з’являється, лише коли чат щось несе. На телефоні той самий рядок є в меню чату."
+      },
+      "details": {
+        "en": "What it is for. Besides the history, the model gets more from this chat: the card’s memory and habits, persona and world memory, the backstory of an earlier chat, Litopys, the Dashboard, what characters said, and the World DM event. Each part is listed with its size, and only the parts this chat has are shown.\n\nSwitches. Each part has a switch. Off means this chat leaves that part out of the prompt. The card and other chats do not change. The total, \"About N tok\", counts only the parts that are on. The numbers are estimates.\n\nShared memory starts off. A persona’s or a world’s memory stays off in a chat until you switch it on, and its row says \"Off in this chat until you turn it on\".\n\nShow lines. Several rows, memory and habits among them, have \"Show lines\", which shows the exact text that goes into the prompt; \"Hide lines\" folds it again. The backstory and World DM rows have their own show button.\n\nStories in this chat. Under the memory row, \"Stories in this chat\" opens the card’s stories. A switch picks which ones this chat uses. It changes only this chat; the card stays as it is. Some stories are fixed: \"This chat already has it.\" or \"Switched off on the card.\"\n\nAuthor’s note and card. The last row has no switch. \"Open\" takes you to the Author’s note.\n\nLinks. Some rows lead on: \"Edit in the card\", \"Edit in the Library\", \"Edit in the persona\", \"Edit in the world\", \"Open that chat\" and \"Open dashboard\".",
+        "uk": "Для чого це. Крім історії, модель отримує ще:\n- пам’ять і звички картки, пам’ять персони та світу.\n- передісторію з попереднього чату, «Літопис», «Дашборд», «Сказане» і подію «World DM».\n\nКожна частина має розмір. Показано лише ті частини, що є в цьому чаті.\n\nПеремикачі. Кожна частина має перемикач. Вимкнено — цей чат не надсилає її в промпт; картка й інші чати не змінюються. Підсумок «Близько N ток.» рахує лише ввімкнені частини. Числа приблизні.\n\nПам’ять персони й світу спершу вимкнена. Доки її не ввімкнути, рядок пише «У цьому чаті вимкнено, доки ви не ввімкнете».\n\nПоказати рядки. Пам’ять і звички мають кнопку «Показати рядки»: вона показує точний текст, що йде в промпт. «Сховати рядки» згортає його. Передісторія й подія World DM мають власну кнопку показу.\n\n«Історії в цьому чаті». Під рядком пам’яті картки ця кнопка відкриває історії картки. Перемикач обирає, які з них використовує цей чат. Змінюється лише цей чат; картка лишається як є. Деякі історії зафіксовані: «Цей чат уже має її сам.» або «Вимкнено в картці.»\n\nНотатка автора й картка. Останній рядок без перемикача: кнопка «Відкрити» веде до нотатки автора.\n\nПереходи. Деякі рядки ведуть далі:\n- «Змінити в картці», «Змінити в персоні», «Змінити у світі».\n- «Змінити в Бібліотеці», «Відкрити той чат», «Відкрити дашборд»."
+      },
+      "related": [
+        "kb.prompt-board",
+        "kb.memory",
+        "kb.habits",
+        "kb.litopys",
+        "kb.dashboard",
+        "kb.persona"
+      ],
+      "sources": [
+        {
+          "path": "src/components/chat/carries-panel.tsx",
+          "lines": "194-194",
+          "quote": "{t('carries.subtitle')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3751-3751",
+          "quote": "What goes into the prompt besides the history. A switch applies to this chat only."
+        },
+        {
+          "path": "src/lib/carries.ts",
+          "lines": "146-146",
+          "quote": "total: parts.reduce((sum, p) => sum + (p.off ? 0 : p.tokens), 0)"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3752-3752",
+          "quote": "'carries.total': 'About {n} tok',"
+        },
+        {
+          "path": "src/components/chat/carries-panel.tsx",
+          "lines": "252-252",
+          "quote": "<Switch checked={!part.off} onCheckedChange={onFlip}"
+        },
+        {
+          "path": "src/lib/carries.ts",
+          "lines": "144-144",
+          "quote": "if (parts.length === 0 && notePart.empty) return { parts: [], total: 0, visible: false }"
+        },
+        {
+          "path": "src/components/chat/chat-tools.tsx",
+          "lines": "77-77",
+          "quote": "t('tools.carries', { n: state.total })"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3746-3746",
+          "quote": "'tools.carries': '~{n} tok',"
+        },
+        {
+          "path": "src/components/chat/chat-tools.tsx",
+          "lines": "165-165",
+          "quote": "{carries && state.total != null && ("
+        },
+        {
+          "path": "src/lib/carries.ts",
+          "lines": "110-110",
+          "quote": "off: !m.taken || isOff(switchKey)"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3835-3835",
+          "quote": "\"Off in this chat until you turn it on\","
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3674-3674",
+          "quote": "\"Habits of {name}\","
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3756-3756",
+          "quote": "'carries.memory.show': 'Show lines',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3772-3772",
+          "quote": "'carries.text': 'The text that goes into the prompt',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3720-3720",
+          "quote": "'carries.stories.toggle': 'Stories in this chat',"
+        },
+        {
+          "path": "src/components/chat/carries-stories.tsx",
+          "lines": "71-71",
+          "quote": "{t('carries.stories.toggle')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3721-3721",
+          "quote": "It changes only this chat; the card stays as it is."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3727-3727",
+          "quote": "'carries.stories.own': 'This chat already has it.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3728-3728",
+          "quote": "'carries.stories.cardOff': 'Switched off on the card.',"
+        },
+        {
+          "path": "src/components/chat/carries-panel.tsx",
+          "lines": "218-218",
+          "quote": "onClick={() => { setOpen(false); onOpenNote() }}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3769-3769",
+          "quote": "\"Author's note and card\","
+        },
+        {
+          "path": "src/components/chat/carries-panel.tsx",
+          "lines": "279-279",
+          "quote": "openCharacterOnTab(cm.cardId, 'memory')"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3758-3758",
+          "quote": "'carries.memory.edit': 'Edit in the card',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3733-3733",
+          "quote": "'carries.label.litopys': 'Litopys',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3734-3734",
+          "quote": "'carries.label.dashboard': 'Dashboard',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3773-3773",
+          "quote": "'carries.label.world': 'World DM · {level}',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3731-3731",
+          "quote": "'carries.label.memory': 'Memory of {name}',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8125-8125",
+          "quote": "'carries.title': 'Що несе цей чат',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8127-8127",
+          "quote": "'carries.total': 'Близько {n} ток.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8210-8210",
+          "quote": "У цьому чаті вимкнено, доки ви не ввімкнете"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8095-8095",
+          "quote": "'carries.stories.toggle': 'Історії в цьому чаті',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8131-8131",
+          "quote": "'carries.memory.show': 'Показати рядки',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8133-8133",
+          "quote": "'carries.memory.edit': 'Змінити в картці',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8157-8157",
+          "quote": "\"Змінити в Бібліотеці\","
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8213-8213",
+          "quote": "\"Змінити в персоні\","
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8214-8214",
+          "quote": "\"Змінити у світі\","
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8138-8138",
+          "quote": "'carries.backstory.open': 'Відкрити той чат',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8142-8142",
+          "quote": "'carries.dashboard.open': 'Відкрити дашборд',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "8146-8146",
+          "quote": "'carries.note.open': 'Відкрити',"
+        }
+      ]
+    },
+    {
+      "id": "kb.compose-menu",
+      "group": "chat",
+      "title": {
+        "en": "The + menu by the message box",
+        "uk": "Меню «+» біля поля повідомлення"
+      },
+      "aliases": {
+        "en": "plus menu continue impersonate polish expand editor big editor send image attach picture generate regenerate compose shift tab ctrl enter",
+        "uk": "меню плюс продовжити імперсонація причесати великий редактор надіслати зображення прикріпити картинку генерувати перегенерувати написати shift tab ctrl enter"
+      },
+      "short": {
+        "en": "The + button by the message box holds Continue, Impersonate, Polish, Expand editor and Send image. Continue writes on from the last reply.",
+        "uk": "Кнопка «+» біля поля повідомлення має Continue, Impersonate, «Причесати», Expand editor і Send image. Continue дописує останню відповідь."
+      },
+      "where": {
+        "en": "The round + button by the message box. Its groups are Generate and Compose.",
+        "uk": "Кругла кнопка «+» біля поля повідомлення. Її групи: Generate і Compose."
+      },
+      "details": {
+        "en": "Generate. Continue, Impersonate and Regenerate sit here. Continue writes on from the last reply, into that same message. Impersonate has the model write your next message. Regenerate is here too; its hint version has its own article.\n\nContinue. It extends the last reply in place. It is greyed out while a reply is being written. When the draft wraps onto a second line, Continue also sits in the row under the box.\n\nImpersonate. The model writes your next message. The text goes into the message box and nothing is sent. If you typed something meanwhile, a notice offers it with a \"Put it in\" button instead. Impersonate is greyed out while a reply is being written.\n\nCompose. Polish is here too; its own article explains it. Expand editor opens a full-height writing area on the same draft. Shift+Tab in the box opens it, and Shift+Tab in it closes it. Ctrl+Enter sends when there is something to send.\n\nSend image. It opens a file picker for images, and you can pick several. Each one can be up to 2 MB, and a message takes up to 8 attachments. The pictures wait in the box until you send.\n\nGenerate image. It appears in this menu only when the image extension is on.",
+        "uk": "Generate. Тут Continue, Impersonate і Regenerate. Continue дописує останню відповідь у ту саму відповідь. Impersonate доручає моделі написати ваше наступне повідомлення. Regenerate теж тут; варіант з підказкою має окрему статтю.\n\nContinue. Продовжує останню відповідь на місці. Кнопка неактивна, поки модель пише відповідь. Коли чернетка переходить на другий рядок, Continue є також у ряді під полем.\n\nImpersonate. Модель пише ваше наступне повідомлення. Текст іде в поле, нічого не надсилається. Якщо ви встигли щось надрукувати, з’явиться повідомлення з кнопкою «Вставити». Кнопка неактивна, поки модель пише відповідь.\n\nCompose. «Причесати» — тут теж, але про нього окрема стаття. Expand editor відкриває повноекранне поле з тією самою чернеткою. Shift+Tab у полі відкриває його, а в ньому Shift+Tab закриває. Ctrl+Enter надсилає, коли є що надсилати.\n\nSend image. Відкриває вибір зображень; можна обрати кілька. Кожне може бути до 2 MB, а в одному повідомленні до 8 вкладень. Зображення чекають у полі, доки ви не надішлете повідомлення.\n\nGenerate image. З’являється в цьому меню, лише коли ввімкнено розширення зображень."
+      },
+      "related": [
+        "kb.polish",
+        "kb.regen-hint",
+        "kb.image-gen",
+        "kb.swipes"
+      ],
+      "sources": [
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "564-564",
+          "quote": "<Plus className=\"size-4.5\" />"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "570-570",
+          "quote": "<DropdownMenuLabel>Generate</DropdownMenuLabel>"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "572-572",
+          "quote": "<ArrowsClockwise className=\"size-4\" /> Regenerate"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "577-577",
+          "quote": "onClick={() => continueReply(chatId)} disabled={isStreaming}"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "578-578",
+          "quote": "<CaretDoubleRight className=\"size-4\" /> Continue"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1703-1703",
+          "quote": "continue extends the LAST assistant message — stream it in place"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "696-696",
+          "quote": "<span className=\"max-[380px]:sr-only\">Continue</span>"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "580-580",
+          "quote": "onClick={() => impersonate(chatId)} disabled={isStreaming}"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "581-581",
+          "quote": "<User className=\"size-4\" /> Impersonate"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1354-1354",
+          "quote": "const r = await j<{ text: string }>"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1660-1660",
+          "quote": "the result belongs to this chat and to the draft as it reads now"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "200-200",
+          "quote": "setValue(fill.text)"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3447-3447",
+          "quote": "'composer.putIn': 'Put it in',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7822-7822",
+          "quote": "'composer.putIn': 'Вставити',"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "586-586",
+          "quote": "<DropdownMenuLabel>Compose</DropdownMenuLabel>"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "588-588",
+          "quote": "<Sparkle className=\"size-4\" /> {t('composer.polish')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7823-7823",
+          "quote": "'composer.polish': 'Причесати',"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "591-591",
+          "quote": "<ArrowsOut className=\"size-4\" /> Expand editor"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "479-479",
+          "quote": "Shift+Tab opens the full-height writing surface."
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "482-482",
+          "quote": "setExpandOpen(true)"
+        },
+        {
+          "path": "src/components/chat/expanded-editor.tsx",
+          "lines": "154-154",
+          "quote": "Shift+Tab to collapse · Ctrl+Enter to send"
+        },
+        {
+          "path": "src/components/chat/expanded-editor.tsx",
+          "lines": "93-93",
+          "quote": "if (canSend) onSend()"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "595-595",
+          "quote": "<ImageIcon className=\"size-4\" /> Send image"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "424-424",
+          "quote": "Attachments are capped at 2 MB."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3410-3410",
+          "quote": "'composer.attachmentsMax': 'A message takes up to 8 attachments.',"
+        },
+        {
+          "path": "src/lib/drafts.ts",
+          "lines": "31-31",
+          "quote": "export const MAX_DRAFT_ATTACHMENTS = 8"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "599-599",
+          "quote": "{imageGen?.enabled && ("
+        }
+      ]
+    },
+    {
+      "id": "kb.home-customize",
+      "group": "help",
+      "title": {
+        "en": "Customize the Home page",
+        "uk": "Налаштування головної сторінки"
+      },
+      "aliases": {
+        "en": "customize home start page move earlier later resize change size hide hidden blocks restore reset default done marketplace suggestions layout order",
+        "uk": "налаштувати головна стартова сторінка посунути вище нижче розмір сховати приховані блоки повернути скинути типово готово маркетплейс макет порядок"
+      },
+      "short": {
+        "en": "On the Home page, “Customize” moves, resizes and hides the blocks. Changes are saved as you make them. “Reset to default” puts the page back, and “Done” ends editing.",
+        "uk": "На головній «Налаштувати» переставляє, змінює розмір і ховає блоки. Зміни зберігаються одразу. «Скинути до типового» повертає сторінку, а «Готово» закриває режим редагування."
+      },
+      "where": {
+        "en": "The Home page header, next to the “Roleplay settings” button.",
+        "uk": "Заголовок головної, поруч із кнопкою «Налаштування Roleplay»."
+      },
+      "details": {
+        "en": "“Customize” switches the Home page to editing. A panel appears at the top with the line “Move, resize or hide blocks. Changes are saved as you make them.” The Customize button is hidden while the panel is open.\n\nEvery block gets a row of four buttons above it:\n- “Move earlier” and “Move later” swap the block with its neighbour. The first block on the page cannot move earlier, and the last cannot move later.\n- “Change size” cycles the block through “Narrow”, “Medium” and “Full width”. Narrow takes a third of the row, Medium two thirds, and Full width the whole row. Sizes apply from a tablet width up; on a phone every block takes a full line.\n- “Hide this block” takes the block off the page.\n\nThe panel also holds “Suggestions from the Marketplace”, which switches the Marketplace block on or off. “Hidden blocks” lists what you hid, each with a “Restore” button, and shows “No hidden blocks.” when there are none. “Reset to default” puts the order, the sizes and the hidden blocks back to the defaults; it keeps the Marketplace switch. “Done” closes the panel.\n\nA block with nothing to show, such as the Marketplace while it is offline, is left out instead of drawn empty.",
+        "uk": "«Налаштувати» переводить головну в режим редагування. Угорі з’являється панель: «Переставляйте, змінюйте розмір або ховайте блоки. Зміни зберігаються одразу.» Поки панель відкрита, кнопку «Налаштувати» не видно.\n\nНад кожним блоком чотири кнопки:\n- «Посунути вище» і «Посунути нижче» міняють блок місцями із сусіднім. Перший блок на сторінці не можна посунути вище, останній — нижче.\n- «Змінити розмір» перемикає блок між «Вузький», «Середній» і «На всю ширину». Вузький займає третину ряду, середній дві третини, «На всю ширину» — увесь ряд. Розміри діють від ширини планшета; на телефоні кожен блок займає весь рядок.\n- «Сховати блок» прибирає його з головної.\n\nУ панелі є ще «Підбірки з Маркетплейсу», що вмикає блок Маркетплейсу або вимикає його. «Приховані блоки» показують сховане, з кнопкою «Повернути» біля кожного. Якщо нічого не сховано, видно «Прихованих блоків немає». «Скинути до типового» повертає порядок, розміри й приховані блоки до типових. Перемикач Маркетплейсу лишається як є. «Готово» закриває панель.\n\nБлок без вмісту, наприклад Маркетплейс без зв’язку, не малюється порожнім: його просто не видно."
+      },
+      "extends": "help.home-customize",
+      "sources": [
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "78-78",
+          "quote": "{!editing && ("
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "80-80",
+          "quote": "<PencilSimple aria-hidden=\"true\" /> {t('home.customize')}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "56-56",
+          "quote": "const write = (next: HomeLayout) => updateSettings({ homeLayout: next })"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "127-127",
+          "quote": "onEarlier={() => write(moveBlock(layout, id, -1))}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "124-124",
+          "quote": "canEarlier={i > 0}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "125-125",
+          "quote": "canLater={i < shown.length - 1}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "129-129",
+          "quote": "onSize={() => write(cycleSize(layout, id))}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "130-130",
+          "quote": "onHide={() => write(hideBlock(layout, id))}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "112-112",
+          "quote": "onReset={() => write(resetHomeLayout(layout))}"
+        },
+        {
+          "path": "src/components/views/home-view.tsx",
+          "lines": "113-113",
+          "quote": "onDone={() => setEditing(false)}"
+        },
+        {
+          "path": "src/components/home/home-edit.tsx",
+          "lines": "93-93",
+          "quote": "{t('home.edit.hint')}"
+        },
+        {
+          "path": "src/components/home/home-edit.tsx",
+          "lines": "104-104",
+          "quote": "<Button variant=\"outline\" className=\"max-md:h-10\" onClick={onReset}>"
+        },
+        {
+          "path": "src/components/home/home-edit.tsx",
+          "lines": "107-107",
+          "quote": "<Button variant=\"tonal\" className=\"max-md:h-10\" onClick={onDone}>"
+        },
+        {
+          "path": "src/components/home/home-edit.tsx",
+          "lines": "71-71",
+          "quote": "{t('home.edit.restore')}"
+        },
+        {
+          "path": "src/components/home/home-edit.tsx",
+          "lines": "64-64",
+          "quote": "{t('home.edit.noHidden')}"
+        },
+        {
+          "path": "src/components/home/home-edit.tsx",
+          "lines": "95-95",
+          "quote": "<SettingRow label={t('home.suggestMarket')}"
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "22-22",
+          "quote": "Columns: sm 4 (a third), md 8 (two thirds), lg 12 (the whole row)."
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "46-46",
+          "quote": "const SIZE_CYCLE: Record<HomeSize, HomeSize> = { sm: 'md', md: 'lg', lg: 'sm' }"
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "38-38",
+          "quote": "From 768 px up only:"
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "85-85",
+          "quote": "The Marketplace block is also off when its suggestion is switched off."
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "92-92",
+          "quote": "that block is then left out, not drawn empty"
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "136-136",
+          "quote": "The order, the hidden blocks and the sizes go back to the defaults."
+        },
+        {
+          "path": "src/lib/home-layout.ts",
+          "lines": "136-136",
+          "quote": "The Marketplace switch is the user's"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1401-1401",
+          "quote": "'home.customize': 'Customize',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1403-1403",
+          "quote": "'home.reset': 'Reset to default',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1402-1402",
+          "quote": "'home.done': 'Done',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1435-1435",
+          "quote": "'home.edit.hint': 'Move, resize or hide blocks. Changes are saved as you make them.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1436-1436",
+          "quote": "'home.edit.earlier': 'Move earlier',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1437-1437",
+          "quote": "'home.edit.later': 'Move later',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1438-1438",
+          "quote": "'home.edit.size': 'Change size (now {size})',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1439-1439",
+          "quote": "'home.edit.sizeSm': 'Narrow',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1441-1441",
+          "quote": "'home.edit.sizeLg': 'Full width',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1442-1442",
+          "quote": "'home.edit.hide': 'Hide this block',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1443-1443",
+          "quote": "'home.edit.hidden': 'Hidden blocks',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1444-1444",
+          "quote": "'home.edit.noHidden': 'No hidden blocks.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1445-1445",
+          "quote": "'home.edit.restore': 'Restore',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1447-1447",
+          "quote": "'home.suggestMarket': 'Suggestions from the Marketplace',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5776-5776",
+          "quote": "'home.customize': 'Налаштувати',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5778-5778",
+          "quote": "'home.reset': 'Скинути до типового',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5777-5777",
+          "quote": "'home.done': 'Готово',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5811-5811",
+          "quote": "'home.edit.earlier': 'Посунути вище',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5812-5812",
+          "quote": "'home.edit.later': 'Посунути нижче',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5813-5813",
+          "quote": "'home.edit.size': 'Змінити розмір (зараз {size})',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5814-5814",
+          "quote": "'home.edit.sizeSm': 'Вузький',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5816-5816",
+          "quote": "'home.edit.sizeLg': 'На всю ширину',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5817-5817",
+          "quote": "'home.edit.hide': 'Сховати блок',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5818-5818",
+          "quote": "'home.edit.hidden': 'Приховані блоки',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5819-5819",
+          "quote": "'home.edit.noHidden': 'Прихованих блоків немає.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5820-5820",
+          "quote": "'home.edit.restore': 'Повернути',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "5822-5822",
+          "quote": "'home.suggestMarket': 'Підбірки з Маркетплейсу',"
+        }
+      ]
+    },
+    {
+      "id": "kb.sprites",
+      "group": "characters",
+      "title": {
+        "en": "Sprites: expression pictures",
+        "uk": "Спрайти: картинки настрою"
+      },
+      "aliases": {
+        "en": "sprites sprite expression expressions picture pictures mood emotion face portrait outfit outfits wear default pack add narrator voice floating panel chat settings",
+        "uk": "спрайти спрайт емоція емоції картинка картинки настрій одяг типовий пак додати персонаж голос плаваюча панель налаштування"
+      },
+      "short": {
+        "en": "Sprites are pictures of a character’s mood. The Sprites panel of the card editor keeps them, and a floating picture in the chat shows the one that fits the newest character message. Without sprites there is no picture.",
+        "uk": "Спрайти — картинки настрою персонажа. Панель «Спрайти» в редакторі картки їх зберігає. Плаваюча картинка в чаті показує ту, що пасує до останньої відповіді персонажа. Без спрайтів картинки немає."
+      },
+      "where": {
+        "en": "Character editor, then More, then Sprites. The picture shows in the chat.",
+        "uk": "Редактор картки, далі «Ще», далі «Спрайти». Картинка з’являється в чаті."
+      },
+      "details": {
+        "en": "How the picture follows the mood. The app reads the newest character message for feeling words, such as sad, angry or laugh, in English, Ukrainian or Russian. It shows the sprite with that name. A more specific feeling is checked first. With no match, the card’s default expression shows, then the sprite named neutral, then the first sprite.\n\nSprites are pictures named for their emotion. A Narrator card can give each voice its own; sprites with no voice are shared.\n\nAdding pictures. “Add sprite pack” opens a check window for picture files; dropping files on the panel works too. Nothing is stored until you press the Add button.\n\nSingle expressions. “Add expression” makes an empty slot, and “replace” under it puts a picture in. Press an expression’s name to make it the default, marked “def”.\n\nOutfits. “Wear by default” makes an outfit the card’s outfit. “Delete outfit” asks first. Nothing is written until you press “Save changes”.\n\nOn the picture. Drag it to move it. The × folds it into a small chip (“Fold into a small chip”); press the chip to show it again. With several outfits, a menu on the picture changes the outfit for this chat.\n\nSettings. Under Chat Behavior, “Expression Sprites” shows or hides the picture in every chat; it is on by default. With no sprites, no picture shows.",
+        "uk": "Як картинка слідує за настроєм. Застосунок читає останнє повідомлення персонажа. Він шукає слова, що називають почуття, наприклад «сумно», «смішно» чи «злий», а також їхні українські й російські форми. Далі показує спрайт із таким іменем. Вужче почуття перевіряється раніше. Якщо нічого не пасує, показується типова емоція, далі «neutral», а потім перший спрайт.\n\nСпрайт — картинка, назва якої каже емоцію, наприклад «joy» чи «angry». Для картки «Narrator» кожен голос може мати свої спрайти. Спільні спрайти, без голосу, показуються самій картці й голосу, що не має своїх.\n\nДодавання картинок. «Додати пак спрайтів» відкриває вікно перевірки для файлів-картинок; файли можна й перетягнути на панель. Нічого не зберігається, доки ви не натиснете «Додати» з кількістю спрайтів.\n\nОкремі емоції. «Додати емоцію» створює порожнє місце, а «замінити» під ним ставить картинку. Натисніть назву емоції, щоб зробити її типовою; позначка «за зам.» покаже, яка саме.\n\nОдяг. «Носити за замовчуванням» робить одяг основним для картки. «Видалити одяг» питає перед тим, як прибрати спрайти. Нічого не записується, доки ви не натиснете «Зберегти зміни».\n\nНа картинці. Її можна перетягнути. Значок × згортає її в кружечок; натисніть його, щоб показати знову. Якщо в персонажа кілька одягів, меню на картинці змінює одяг для цього чату.\n\nНалаштування. У розділі Chat Behavior перемикач «Expression Sprites» показує або ховає картинку у всіх чатах. Типово він увімкнений. Без спрайтів картинки не видно."
+      },
+      "related": [
+        "kb.card-editor",
+        "kb.voices",
+        "kb.settings"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/editor-tabs.ts",
+          "lines": "19-19",
+          "quote": "more: ['advanced', 'colors', 'sprites', 'gallery', 'regex', 'voice'],"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2029-2029",
+          "quote": "'editor.tab.more': 'More',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2034-2034",
+          "quote": "'editor.panel.sprites': 'Sprites',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6404-6404",
+          "quote": "'editor.tab.more': 'Ще',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6409-6409",
+          "quote": "'editor.panel.sprites': 'Спрайти',"
+        },
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "486-486",
+          "quote": "{panels.map((p) => {"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3280-3280",
+          "quote": "Add a whole pack at once: each file name says the emotion"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3284-3284",
+          "quote": "'sprites.addPack': 'Add sprite pack',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7659-7659",
+          "quote": "'sprites.addPack': 'Додати пак спрайтів',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3281-3281",
+          "quote": "'sprites.addSlot': 'Add expression',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7656-7656",
+          "quote": "'sprites.addSlot': 'Додати емоцію',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3283-3283",
+          "quote": "'sprites.addSlotBtn': 'Add',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7658-7658",
+          "quote": "'sprites.addSlotBtn': 'Додати',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3317-3317",
+          "quote": "Nothing is stored until you press Add"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7692-7692",
+          "quote": "Нічого не зберігається, доки ви не натиснете «Додати»"
+        },
+        {
+          "path": "src/components/character/sprites-panel.tsx",
+          "lines": "218-218",
+          "quote": "if (!busy) choose(e.dataTransfer.files)"
+        },
+        {
+          "path": "src/components/character/sprites-panel.tsx",
+          "lines": "54-54",
+          "quote": "title={t('sprites.slotDefault')} onClick={onDefault}>"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3299-3299",
+          "quote": "'sprites.slotDefault': 'Set as default expression',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7674-7674",
+          "quote": "'sprites.slotDefault': 'Зробити емоцією за замовчуванням',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3304-3304",
+          "quote": "'sprites.defBadge': 'def',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7679-7679",
+          "quote": "'sprites.defBadge': 'за зам.',"
+        },
+        {
+          "path": "src/components/character/sprites-panel.tsx",
+          "lines": "159-159",
+          "quote": "defaultExpression: rest[0]?.name ?? undefined"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3302-3302",
+          "quote": "'sprites.slotReplace': 'replace',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7677-7677",
+          "quote": "'sprites.slotReplace': 'замінити',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3288-3288",
+          "quote": "Shown for the card itself and for any voice that has no sprites of its own."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3293-3293",
+          "quote": "'sprites.wear': 'Wear by default',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7668-7668",
+          "quote": "'sprites.wear': 'Носити за замовчуванням',"
+        },
+        {
+          "path": "src/components/character/sprites-panel.tsx",
+          "lines": "291-291",
+          "quote": "{t('sprites.wear')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3294-3294",
+          "quote": "'sprites.deleteOutfit': 'Delete outfit',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7669-7669",
+          "quote": "'sprites.deleteOutfit': 'Видалити одяг',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3296-3296",
+          "quote": "Nothing is written until you press Save changes."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7671-7671",
+          "quote": "Нічого не записується, поки ви не натиснете «Зберегти зміни»."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3356-3356",
+          "quote": "'cd.save': 'Save changes',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7731-7731",
+          "quote": "'cd.save': 'Зберегти зміни',"
+        },
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "32-32",
+          "quote": "resizable from its lower corner"
+        },
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "174-174",
+          "quote": "the outfit: only when the speaker has more than one; the choice is kept for this chat"
+        },
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "195-195",
+          "quote": "title=\"Fold into a small chip\""
+        },
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "34-34",
+          "quote": "Hidden when the speaker has"
+        },
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "118-118",
+          "quote": "if (!show || !sprite || !speaker || brokenUrls.has(sprite.url)) return null"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "82-82",
+          "quote": "label: \"Chat Behavior\","
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "99-99",
+          "quote": "key: \"showExpressionSprites\", label: \"Expression Sprites\""
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "188-188",
+          "quote": "showExpressionSprites: true"
+        },
+        {
+          "path": "src/lib/expressions.ts",
+          "lines": "2-2",
+          "quote": "keyword rules over the latest"
+        },
+        {
+          "path": "src/lib/expressions.ts",
+          "lines": "10-10",
+          "quote": "Order is priority: the resolver walks matched labels in this order"
+        },
+        {
+          "path": "src/lib/expressions.ts",
+          "lines": "12-12",
+          "quote": "emotions come before the broad ones they would otherwise be swallowed by"
+        },
+        {
+          "path": "src/lib/expressions.ts",
+          "lines": "48-48",
+          "quote": "Ukrainian and Russian stems for the same labels"
+        },
+        {
+          "path": "src/lib/expressions.ts",
+          "lines": "132-132",
+          "quote": "const fallback = (defaultExpression && byName(defaultExpression)) || byName('neutral') || have[0]!"
+        },
+        {
+          "path": "src/lib/expressions.ts",
+          "lines": "206-206",
+          "quote": "wins over the emotion: a girl in pyjamas stays in pyjamas"
+        },
+        {
+          "path": "src/lib/sprite-pick.ts",
+          "lines": "46-46",
+          "quote": "with sprites per voice shows the voice that speaks last"
+        }
+      ]
+    },
+    {
+      "id": "kb.backup",
+      "group": "setup",
+      "title": {
+        "en": "Backup: export and restore Roleplay data",
+        "uk": "Резервна копія даних Roleplay"
+      },
+      "aliases": {
+        "en": "backup export import restore zip download save data roleplay reset look local settings characters chats presets lorebooks personas regex pictures profile",
+        "uk": "резервна копія експорт імпорт відновити zip завантажити зберегти дані roleplay скинути вигляд локальні налаштування персонажі чати пресети лорбуки персони регулярні вирази картинки профіль"
+      },
+      "short": {
+        "en": "Settings, then Data: “Export Roleplay data (zip)” saves your Roleplay data in one zip, and “Restore Roleplay data (zip)” brings such a zip back. “Reset look and local settings” resets the look after a question.",
+        "uk": "Налаштування, далі Data. «Export Roleplay data (zip)» зберігає дані Roleplay одним zip. «Restore Roleplay data (zip)» повертає такий архів. «Reset look and local settings» скидає вигляд після питання."
+      },
+      "where": {
+        "en": "Settings, then the Data section.",
+        "uk": "Налаштування, далі розділ Data."
+      },
+      "details": {
+        "en": "“Export Roleplay data (zip)” downloads one zip file with your Roleplay data: characters, chats, presets, lorebooks, personas and regex scripts, together with the pictures they use. The note under the buttons says this is only the Roleplay part. Look settings and themes are not on that list.\n\nThe whole profile, with every app, Molfar and the connections, is saved in the Backup section of Molfar Vertep’s Settings › Backup. Where the app offers it, an “Open it” link goes there.\n\n“Restore Roleplay data (zip)” takes a .zip file and starts as soon as you choose one. It adds what the zip holds and reports how many items it restored. PNG character cards in the zip are skipped, and the message says to import those from Characters → Import.\n\n“Reset look and local settings” asks “Reset local UI state?” first. “Reset everything” puts the appearance settings, themes, quick replies and tags back to their defaults. It also empties the Backgrounds list, the folders and the saved connection profiles, and returns you to Home. These are kept with your collections, so the change is saved, not just shown. The dialog does not list them. Characters, chats, presets, lorebooks and other saved data stay. “Cancel” changes nothing.",
+        "uk": "«Export Roleplay data (zip)» завантажує один zip-файл з вашими даними Roleplay.  До них входять персонажі, чати, пресети, лорбуки, персони й скрипти regex разом із картинками. Примітка під кнопками каже, що це лише частина Roleplay. Вигляд і теми в цей список не входять.\n\nУвесь профіль, з усіма застосунками, Molfar і підключеннями, зберігає розділ Backup у налаштуваннях Molfar Vertep. Якщо застосунок пропонує, посилання «Open it» веде туди.\n\n«Restore Roleplay data (zip)» починає відновлення одразу, щойно ви обрали файл. Воно додає те, що є в zip, і каже, скільки об’єктів відновлено. PNG-картки персонажів пропускаються: застосунок радить імпортувати їх через Characters → Import.\n\n«Reset look and local settings» спершу питає «Reset local UI state?». «Reset everything» повертає налаштування вигляду, теми, швидкі відповіді й теги до типових. Також очищаються список Backgrounds, папки й збережені профілі підключень, а ви повертаєтеся на головну. Їх зберігають разом із вашими колекціями, тож зміна записується. Діалог про них не згадує. Персонажі, чати, пресети, лорбуки та інші збережені дані лишаються. «Cancel» нічого не змінює."
+      },
+      "related": [
+        "kb.settings",
+        "kb.import-export",
+        "kb.themes"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "706-706",
+          "quote": "Export Roleplay data (zip)"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "717-717",
+          "quote": "Restore Roleplay data (zip)"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "724-724",
+          "quote": "Reset look and local settings"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "727-727",
+          "quote": "These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use."
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "727-727",
+          "quote": "The whole profile (every app, Molfar, connections) is saved in Molfar Vertep's Settings › Backup."
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "731-731",
+          "quote": "onClick={() => void openSettingsTab('backup')"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "648-648",
+          "quote": "the engine zips every stored entity"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "656-656",
+          "quote": "downloadBlob(withPictures?.base64 ?? r.base64, r.filename)"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "670-670",
+          "quote": "const handleImport = async (files: FileList | null) => {"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "711-711",
+          "quote": "accept=\".zip\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "687-687",
+          "quote": "skipped (incl. PNG cards, import those from Characters"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "689-689",
+          "quote": "Restored ${n} items"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "741-741",
+          "quote": "Reset local UI state?"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "743-743",
+          "quote": "Resets appearance settings, themes, quick replies and tags to their defaults."
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "749-749",
+          "quote": "<AlertDialogCancel>Cancel</AlertDialogCancel>"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "754-754",
+          "quote": "Reset everything"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "2518-2518",
+          "quote": "set({ ...localSeed(), view: 'home', activeChatId: null, activeCharacterId: null, drawer: null })"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "392-392",
+          "quote": "backgrounds: [],"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "394-394",
+          "quote": "folders: [],"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "391-391",
+          "quote": "themes: seedThemes,"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "392-392",
+          "quote": "backgrounds: [],"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "3367-3367",
+          "quote": "const LIB_KEYS = ['qrSets', 'themes', 'backgrounds', 'tags', 'folders', 'connectionProfiles'] as const"
+        }
+      ]
+    },
+    {
+      "id": "kb.display-switches",
+      "group": "setup",
+      "title": {
+        "en": "Display switches: text, layout and details",
+        "uk": "Перемикачі тексту, макета й деталей"
+      },
+      "aliases": {
+        "en": "display switches appearance look font size scale line spacing paragraph chat width ui scale avatar message spacing quote style hide avatars day dividers reduced motion timestamps message ids token counts cached tokens cost model badges generation timer message actions restore defaults",
+        "uk": "відображення перемикачі вигляд шрифт розмір масштаб міжрядковий відступ абзац ширина чату масштаб інтерфейсу аватари відступи повідомлень лапки сховати аватари дні рух час ідентифікатори токени кеш вартість модель таймер дії відновити типові"
+      },
+      "short": {
+        "en": "Settings has two sections for the chat’s look. Appearance sets text size, spacing, width, avatars, quotes and motion. Chat Behavior also shows or hides small details on each message, such as time, token counts, cost and model names. Changes apply at once.",
+        "uk": "У налаштуваннях два розділи для вигляду чату. Appearance задає розмір і відступи тексту, ширину, аватари, лапки та рух. Chat Behavior показує або ховає дрібниці в кожному повідомленні: час, токени, вартість і назви моделей. Зміни діють одразу."
+      },
+      "where": {
+        "en": "Settings, then Appearance or Chat Behavior.",
+        "uk": "Налаштування, далі Appearance або Chat Behavior."
+      },
+      "details": {
+        "en": "Appearance has three groups.\n\nText: “Interface Language”, “Chat Font”, “Font Scale” (70 to 150 percent, 100 by default), “Line Spacing” (110 to 220 percent, 180 by default), “Paragraph Spacing” (0 to 32 pixels, 14 by default) and “Quote Style” (Default, Bold, Glow or Underline).\n\nLayout: “Chat Width” (Full, Comfortable or Compact; Comfortable by default), “UI Scale” (70 to 140 percent, 100 by default), “Avatar Scale” (50 to 200 percent, 100 by default), “Message Spacing” (Compact, Cozy or Roomy; Roomy by default), “Hide Avatars” (off by default) and “Day Dividers” (on by default).\n\nMotion: “Reduced Motion” (off by default) turns off smooth scrolling.\n\n“Restore defaults” asks first, then puts the Text, Layout and Motion switches back to their defaults. Language, theme, colours and custom CSS stay.\n\nChat Behavior, details on each message:\n- “Show Timestamps” (on): the time next to the name.\n- “Show Message IDs” (off): the message number, as #n.\n- “Show Token Counts” (on): the reply’s token count.\n- “Show Cached Tokens” (on): tokens that came from the cache, when there were some.\n- “Show Chat Cost” (on): the reply’s cost, when known.\n- “Show Model Badges” (on): the model name on a reply.\n- “Show Generation Timer” (on): the seconds the reply took.\n- “Expand Message Actions” (off): the buttons under a message always show. On touch screens they do anyway.\n\n“Expression Sprites” is here too. The chat’s “Display settings” has the same Chat width and Font scale.",
+        "uk": "Розділ Appearance має три групи.\n\nТекст:\n- «Font Scale», від 70 до 150 відсотків, типово 100.\n- «Line Spacing», від 110 до 220, типово 180.\n- «Paragraph Spacing», від 0 до 32 пікселів, типово 14.\n- «Quote Style»: Default, Bold, Glow або Underline.\n- «Chat Font» і «Interface Language» (мова інтерфейсу).\n\nМакет:\n- «Chat Width»: Full, Comfortable або Compact; типово Comfortable.\n- «UI Scale», від 70 до 140 відсотків, типово 100.\n- «Avatar Scale», від 50 до 200 відсотків, типово 100.\n- «Message Spacing»: Compact, Cozy або Roomy; типово Roomy.\n- «Hide Avatars» вимкнено. «Day Dividers» увімкнено: лінія з датою там, де починається новий день.\n\nРух:\n- «Reduced Motion» вимкнено; він вимикає плавне прокручування в застосунку.\n\n«Restore defaults» питає «Restore appearance defaults?», а потім повертає перемикачі Text, Layout і Motion до типових. Мова, тема, кольори й власний CSS лишаються як є.\n\nChat Behavior, деталі в кожному повідомленні:\n- «Show Timestamps» (увімкнено): час біля імені.\n- «Show Message IDs» (вимкнено): номер повідомлення, як #n.\n- «Show Token Counts» (увімкнено): кількість токенів відповіді.\n- «Show Cached Tokens» (увімкнено): скільки токенів прийшло з кешу, лише коли такі були.\n- «Show Chat Cost» (увімкнено): вартість відповіді, коли її відомо.\n- «Show Model Badges» (увімкнено): назва моделі на відповіді, коли її відомо.\n- «Show Generation Timer» (увімкнено): скільки секунд тривала відповідь. На ваших повідомленнях не показується.\n- «Expand Message Actions» (вимкнено): кнопки під повідомленням видно завжди. На сенсорному екрані вони видні так само.\n\n«Expression Sprites» теж у цьому розділі; дивіться статтю про спрайти. Меню чату «Display settings» також має Chat width і Font scale і змінює ті самі налаштування. Кольори й палітри — у статті про теми."
+      },
+      "related": [
+        "kb.themes",
+        "kb.settings",
+        "kb.sprites",
+        "kb.chat-menu"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "58-58",
+          "quote": "label: \"Text\", keys: [\"language\", \"proseFont\", \"fontScale\", \"lineSpacing\", \"paragraphSpacing\", \"quoteStyle\"]"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "59-59",
+          "quote": "label: \"Layout\", keys: [\"chatWidth\", \"uiScale\", \"avatarScale\", \"messageSpacing\", \"hideAvatars\", \"dayDividers\"]"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "60-60",
+          "quote": "label: \"Motion\", keys: [\"reducedMotion\"]"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "67-67",
+          "quote": "label: \"Chat Width\", options: [[\"full\", \"Full\"], [\"comfortable\", \"Comfortable\"], [\"compact\", \"Compact\"]]"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "68-68",
+          "quote": "key: \"fontScale\", label: \"Font Scale\", min: 70, max: 150"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "69-69",
+          "quote": "key: \"lineSpacing\", label: \"Line Spacing\", min: 110, max: 220"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "70-70",
+          "quote": "key: \"paragraphSpacing\", label: \"Paragraph Spacing\", min: 0, max: 32"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "71-71",
+          "quote": "key: \"uiScale\", label: \"UI Scale\", min: 70, max: 140"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "72-72",
+          "quote": "key: \"avatarScale\", label: \"Avatar Scale\", min: 50, max: 200"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "73-73",
+          "quote": "label: \"Message Spacing\", options: [[\"compact\", \"Compact\"], [\"cozy\", \"Cozy\"], [\"roomy\", \"Roomy\"]]"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "74-74",
+          "quote": "label: \"Quote Style\", options: [[\"default\", \"Default\"]"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "75-75",
+          "quote": "key: \"hideAvatars\", label: \"Hide Avatars\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "76-76",
+          "quote": "key: \"reducedMotion\", label: \"Reduced Motion\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "77-77",
+          "quote": "key: \"dayDividers\", label: \"Day Dividers\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "222-222",
+          "quote": "title: \"Restore appearance defaults?\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "223-223",
+          "quote": "Text, layout and motion settings go back to their defaults."
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "223-223",
+          "quote": "Your language, theme, colours and custom CSS stay as they are."
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "239-239",
+          "quote": "aria-hidden=\"true\" />Restore defaults"
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "82-82",
+          "quote": "label: \"Chat Behavior\","
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "89-89",
+          "quote": "key: \"showTimestamps\", label: \"Show Timestamps\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "90-90",
+          "quote": "key: \"showMessageIds\", label: \"Show Message IDs\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "92-92",
+          "quote": "key: \"showTokens\", label: \"Show Token Counts\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "93-93",
+          "quote": "key: \"showCache\", label: \"Show Cached Tokens\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "94-94",
+          "quote": "key: \"showCost\", label: \"Show Chat Cost\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "96-96",
+          "quote": "key: \"showModelIcons\", label: \"Show Model Badges\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "97-97",
+          "quote": "key: \"showGenTimer\", label: \"Show Generation Timer\""
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "98-98",
+          "quote": "key: \"expandMessageActions\", label: \"Expand Message Actions\""
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "185-185",
+          "quote": "chatWidth: 'comfortable', chatWidthCustom: 760, fontScale: 100, lineSpacing: 180, paragraphSpacing: 14"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "185-185",
+          "quote": "lookVersion: 2, uiScale: 100"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "187-187",
+          "quote": "messageSpacing: 'roomy', hideAvatars: false"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "188-188",
+          "quote": "showTimestamps: true, showMessageIds: false, showEdited: false, showTokens: true, showCost: true"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "188-188",
+          "quote": "showModelIcons: true, showGenTimer: true, showExpressionSprites: true, showCache: true"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "189-189",
+          "quote": "expandMessageActions: false, reducedMotion: false"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "190-190",
+          "quote": "autoScroll: true, confirmDeletions: true, dayDividers: true"
+        },
+        {
+          "path": "src/lib/seed.ts",
+          "lines": "192-192",
+          "quote": "quoteStyle: 'default',"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "136-136",
+          "quote": "root.style.setProperty('scroll-behavior', reducedMotion ? 'auto' : '')"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "134-134",
+          "quote": "root.style.fontSize = uiScale === 100"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "135-135",
+          "quote": "root.style.setProperty('--avatar-scale', String(avatarScale / 100))"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "159-159",
+          "quote": "root.style.setProperty('--prose-scale', String(fontScale / 100))"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "160-160",
+          "quote": "root.style.setProperty('--prose-line-height', String(lineSpacing / 100))"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "161-161",
+          "quote": "root.style.setProperty('--prose-para-gap'"
+        },
+        {
+          "path": "src/components/theme-applier.tsx",
+          "lines": "62-62",
+          "quote": "root.classList.add("
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "654-654",
+          "quote": "settings.chatWidth === 'full' ? '100%' :"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "656-656",
+          "quote": "settings.chatWidth === 'compact' ? '36rem' :"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "980-980",
+          "quote": "const showDay = settings.dayDividers"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "669-669",
+          "quote": "label: 'Display settings'"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "1486-1486",
+          "quote": "updateSettings({ chatWidth: v as never })"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "1498-1498",
+          "quote": "Font scale: {settings.fontScale}%"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "563-563",
+          "quote": "const rowPad = spacing === 'compact' ? 'py-1' : spacing === 'cozy' ? 'py-2' : 'py-3'"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "564-564",
+          "quote": "const showPortrait = !isUser && !settings.hideAvatars"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "723-723",
+          "quote": "{settings.showTimestamps && ("
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "580-580",
+          "quote": "if (settings.showMessageIds) meta.push"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "578-578",
+          "quote": "if (settings.showTokens && !isStreamingThis) meta.push"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "728-728",
+          "quote": "{settings.showCache && !isStreamingThis && realUsage"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "579-579",
+          "quote": "if (settings.showCost && !isStreamingThis && msgCost != null)"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "574-574",
+          "quote": "if (!isUser && settings.showModelIcons && modelId) {"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "577-577",
+          "quote": "if (settings.showGenTimer && !isUser && !isStreamingThis"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "584-584",
+          "quote": "const pinned = settings.expandMessageActions || coarsePointer"
+        }
+      ]
+    },
+    {
+      "id": "kb.arcs",
+      "group": "story",
+      "title": {
+        "en": "Arcs: merged chapters",
+        "uk": "Арки: злиті розділи"
+      },
+      "aliases": {
+        "en": "arcs arc merge merging chapters older summary threshold tokens not now always automatically undo delete merge again off ask overview details litopys",
+        "uk": "арки арка злити зливати розділи старіші поріг токени не зараз завжди автоматично скасувати видалити знову вимкнено спершу питати огляд деталі літопис"
+      },
+      "short": {
+        "en": "When the older chapters take more tokens than the threshold allows, Litopys offers to merge neighbouring chapters into one shorter arc. The chapters stay in the record, and an arc can be deleted again.",
+        "uk": "Коли старіші розділи займають більше токенів, ніж дозволяє поріг, Літопис пропонує злити сусідні розділи в одну коротшу арку. Розділи лишаються в записі, а арку можна видалити."
+      },
+      "where": {
+        "en": "Library: the offer sits at the top of a chat, in Overview and in Details.",
+        "uk": "Бібліотека: пропозиція вгорі чату, в «Огляді» й «Деталях»."
+      },
+      "details": {
+        "en": "When the offer appears. It shows only when “Arcs” in the Litopys settings is “Ask me first”, the older chapters take more tokens than the threshold allows, and no merge is queued or being written. “Not now” hides it until the older chapters grow by another threshold’s worth.\n\n- “Merge” makes one arc from the chapters the offer names. An arc takes 2 to 30 chapters, and only chapters that have already left the prompt can merge.\n- “Not now” hides the offer for a while.\n- “Always merge automatically” sets “Arcs” to “Merge automatically”, so Litopys merges by itself from now on.\n\nWhat a merge changes. Nothing is deleted: the chapters stay in the record, and the prompt carries the arc in their place.\n\nThe arc menu (three dots, “Arc menu”):\n- “Merge again” writes the arc again from its chapters.\n- “Delete the arc” removes it after a question, which is how to undo a merge. Its chapters stay and go back into the prompt one by one, and Litopys waits for the older part to grow before offering them again.\n\nAutomatic merging. The gear beside the chat list opens “Story record (Litopys)”, with an “Arcs” section: “Ask me first”, “Merge automatically” or “Off”. “Off” stops new merges and offers.\n\nThe one-time notice. A new install merges by itself from the start. An install that already had Litopys data and kept “Ask me first” sees “Arcs can merge by themselves now” once, above the chat list, with “Merge automatically” and “Keep asking me”. Either button ends it for good.",
+        "uk": "Пропозиція з’являється, лише коли «Арки» в налаштуваннях Літопису стоять на «Спершу питати». Старіші розділи мають займати більше токенів, ніж дозволяє поріг. Жодне злиття не має вже чекати.\n\n«Не зараз» ховає пропозицію, доки старіші розділи не виростуть ще на поріг.\n\nТри кнопки:\n- «Злити» створює одну арку з розділів, які названо в пропозиції, від першого до останнього. Арка бере від 2 до 30 розділів, і злити можна лише розділи, що вже вийшли з запиту.\n- «Не зараз» ховає пропозицію, як сказано вище.\n- «Завжди зливати автоматично» ставить «Арки» на «Зливати автоматично». Відтоді Літопис зливає сам і про це повідомляє.\n\nЩо змінює злиття. Нічого не видаляється: розділи лишаються в записі, а запит несе арку замість них. Арка з’являється карткою в «Огляді», а в «Деталях» — під «Розділи».\n\nМеню арки. Кнопка з трьома крапками відкриває «Меню арки»:\n- «Злити знову» пише арку заново з її розділів.\n- «Видалити арку» прибирає її після питання. Розділи лишаються й повертаються в запит по одному. Потім Літопис чекає, поки старіші розділи виростуть, і лише тоді знову пропонує ті самі.\n\nСкасування. Щоб відкликати злиття, видаліть арку. «Злити знову» переписує арку, а не скасовує її.\n\nАвтоматичне злиття. Шестерня біля списку чатів відкриває діалог «Запис історії (Літопис)». У ньому є розділ «Арки» з трьома варіантами: «Спершу питати», «Зливати автоматично» і «Вимкнено». «Вимкнено» зупиняє нові злиття й пропозиції.\n\nРазове повідомлення. Нове встановлення зливає саме з першого дня. Встановлення з даними Літопису, яке лишило «Спершу питати», бачить повідомлення один раз. Воно з’являється над списком чатів: «Арки тепер можуть зливатися самі». Кнопки «Зливати автоматично» і «Питати й далі» закривають його назавжди."
+      },
+      "related": [
+        "kb.litopys",
+        "kb.library-views"
+      ],
+      "sources": [
+        {
+          "path": "src/components/library/ledger.tsx",
+          "lines": "165-165",
+          "quote": "<ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />"
+        },
+        {
+          "path": "src/components/library/ledger.tsx",
+          "lines": "199-199",
+          "quote": "mode === 'overview' ? ("
+        },
+        {
+          "path": "src/components/library/litopys-view.tsx",
+          "lines": "242-242",
+          "quote": "<ArcsOfferNotice />"
+        },
+        {
+          "path": "src/components/library/litopys-view.tsx",
+          "lines": "159-159",
+          "quote": "<DialogTitle>{t('lit.settingsTitle')}</DialogTitle>"
+        },
+        {
+          "path": "src/components/library/litopys-view.tsx",
+          "lines": "235-235",
+          "quote": "aria-label={t('lit.settings.open')}"
+        },
+        {
+          "path": "src/components/library/arcs-offer.tsx",
+          "lines": "19-19",
+          "quote": "setShow(c.arcNotice === 'pending' && c.arcMode === 'ask')"
+        },
+        {
+          "path": "src/components/library/arcs-offer.tsx",
+          "lines": "45-45",
+          "quote": "onClick={() => void answer({ arcMode: 'auto' }, t('lit.arc.autoToast'))}"
+        },
+        {
+          "path": "src/components/library/arcs-offer.tsx",
+          "lines": "48-48",
+          "quote": "onClick={() => void answer({ arcNotice: 'done' })}"
+        },
+        {
+          "path": "src/components/library/arcs.tsx",
+          "lines": "99-99",
+          "quote": "{t('lit.arc.merge')}"
+        },
+        {
+          "path": "src/components/library/arcs.tsx",
+          "lines": "108-108",
+          "quote": "{t('lit.arc.notNow')}"
+        },
+        {
+          "path": "src/components/library/arcs.tsx",
+          "lines": "121-121",
+          "quote": "{t('lit.arc.always')}"
+        },
+        {
+          "path": "src/components/library/arcs.tsx",
+          "lines": "116-116",
+          "quote": "await putLitConfig({ arcMode: 'auto' })"
+        },
+        {
+          "path": "src/components/library/arcs.tsx",
+          "lines": "182-182",
+          "quote": "aria-label={t('lit.arc.menu')}"
+        },
+        {
+          "path": "src/components/library/arcs.tsx",
+          "lines": "220-220",
+          "quote": "{t('lit.arc.chapters', { n: arc.chapterIds.length })}"
+        },
+        {
+          "path": "src/components/library/overview-timeline.tsx",
+          "lines": "91-91",
+          "quote": "<ArcCard chat={chat} arc={it.arcGroup.arc}"
+        },
+        {
+          "path": "src/components/library/ledger-chapters.tsx",
+          "lines": "494-494",
+          "quote": "<ArcCard chat={chat} arc={arcMap.get(it.chapter.id)!}"
+        },
+        {
+          "path": "src/components/settings/memory-summary-section.tsx",
+          "lines": "250-250",
+          "quote": "<FieldLabel htmlFor=\"lit-arc-mode\" className=\"font-medium\">{t('lit.set.arcMode')}</FieldLabel>"
+        },
+        {
+          "path": "src/components/settings/memory-summary-section.tsx",
+          "lines": "261-261",
+          "quote": "<option value=\"ask\">{t('lit.set.arcAsk')}</option>"
+        },
+        {
+          "path": "src/components/settings/memory-summary-section.tsx",
+          "lines": "263-263",
+          "quote": "<option value=\"off\">{t('lit.set.arcOff')}</option>"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3728-3728",
+          "quote": "if (cfg.arcMode === \"ask\" && plan.over && plan.run"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "173-173",
+          "quote": "A new install merges by itself"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "413-413",
+          "quote": "an install that already has Litopys data keeps"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "174-174",
+          "quote": "a merge only adds an arc over its chapters, nothing is deleted"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3524-3524",
+          "quote": "holds while the older part has grown by less than another threshold."
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3754-3754",
+          "quote": "if (chapters.length < 2 || chapters.length > 30) return bad(\"an arc takes 2 to 30 chapters\");"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3757-3757",
+          "quote": "only chapters before the cut merge"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3748-3748",
+          "quote": "if (cfg.arcMode === \"off\") return { status: 409, json: { error: \"arcs are off\" } };"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3787-3787",
+          "quote": "wait for the older part to grow"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3780-3780",
+          "quote": "arc.stale = true;"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "3786-3786",
+          "quote": "st.arcs = st.arcs.filter((a) => a !== arc);"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2567-2567",
+          "quote": "The older chapters take {tokens} tokens, more than the {threshold} allowed."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6942-6942",
+          "quote": "Старіші розділи займають ~{tokens} ток., більше за дозволені {threshold}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2568-2568",
+          "quote": "The chapters stay in the record; the prompt carries the arc in their place."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2573-2573",
+          "quote": "Arcs now merge by themselves. Change it in the Litopys settings."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2586-2586",
+          "quote": "Its chapters stay and go back into the prompt one by one."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2569-2569",
+          "quote": "'lit.arc.merge': 'Merge',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6944-6944",
+          "quote": "'lit.arc.merge': 'Злити',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2570-2570",
+          "quote": "'lit.arc.notNow': 'Not now',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6945-6945",
+          "quote": "'lit.arc.notNow': 'Не зараз',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2571-2571",
+          "quote": "'lit.arc.always': 'Always merge automatically',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6946-6946",
+          "quote": "'lit.arc.always': 'Завжди зливати автоматично',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2582-2582",
+          "quote": "'lit.arc.menu': 'Arc menu',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6957-6957",
+          "quote": "'lit.arc.menu': 'Меню арки',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2583-2583",
+          "quote": "'lit.arc.rewrite': 'Merge again',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6958-6958",
+          "quote": "'lit.arc.rewrite': 'Злити знову',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2584-2584",
+          "quote": "'lit.arc.delete': 'Delete the arc',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6959-6959",
+          "quote": "'lit.arc.delete': 'Видалити арку',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2589-2589",
+          "quote": "'lit.arc.chapters': 'Chapters ({n})',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6964-6964",
+          "quote": "'lit.arc.chapters': 'Розділи ({n})',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2574-2574",
+          "quote": "'lit.arcsOffer.title': 'Arcs can merge by themselves now',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6949-6949",
+          "quote": "'lit.arcsOffer.title': 'Арки тепер можуть зливатися самі',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2576-2576",
+          "quote": "'lit.arcsOffer.on': 'Merge automatically',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6951-6951",
+          "quote": "'lit.arcsOffer.on': 'Зливати автоматично',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2577-2577",
+          "quote": "'lit.arcsOffer.keep': 'Keep asking me',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6952-6952",
+          "quote": "'lit.arcsOffer.keep': 'Питати й далі',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2609-2609",
+          "quote": "'lit.set.arcMode': 'Arcs',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6984-6984",
+          "quote": "'lit.set.arcMode': 'Арки',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2610-2610",
+          "quote": "'lit.set.arcAsk': 'Ask me first',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6985-6985",
+          "quote": "'lit.set.arcAsk': 'Спершу питати',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2611-2611",
+          "quote": "'lit.set.arcAuto': 'Merge automatically',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6986-6986",
+          "quote": "'lit.set.arcAuto': 'Зливати автоматично',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2612-2612",
+          "quote": "'lit.set.arcOff': 'Off',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6987-6987",
+          "quote": "'lit.set.arcOff': 'Вимкнено',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2459-2459",
+          "quote": "'lit.settingsTitle': 'Story record (Litopys)',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6834-6834",
+          "quote": "'lit.settingsTitle': 'Запис історії (Літопис)',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2551-2551",
+          "quote": "'lit.settings.open': 'Litopys settings',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6926-6926",
+          "quote": "'lit.settings.open': 'Налаштування Літопису',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2386-2386",
+          "quote": "'lit.mode.overview': 'Overview',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2387-2387",
+          "quote": "'lit.mode.ledger': 'Details',"
+        }
+      ]
     }
   ]
 }
