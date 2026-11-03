@@ -286,7 +286,7 @@ const preset: Preset = {
     freq_pen: { ...base.samplers.freq_pen, enabled: false },
     pres_pen: { ...base.samplers.pres_pen, enabled: false },
     maxTokens: 4096,
-    contextSize: 32768,
+    // no contextSize: the window is the model’s alone (rp-model-params)
     // the micro plan is split out of the reply like inline thinking; no reasoning effort is asked for
     reasoning: { ...base.samplers.reasoning, enabled: true, effort: 'off', budget: 0, autoParse: true, display: 'collapsed', thinkTagOpen: '<plan>', thinkTagClose: '</plan>' },
   },

@@ -1218,8 +1218,7 @@
       },
       "streaming": true,
       "streamingSpeed": 30,
-      "assistantPrefill": "",
-      "contextSize": 32768
+      "assistantPrefill": ""
     },
     "namesBehavior": "default",
     "verbosity": "auto",
